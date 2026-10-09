@@ -33,7 +33,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
@@ -103,7 +102,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	}
 	// The offering-roster resync is provided by the enrollment decision
 	// service constructed below; the closure reads it once it exists.
-	var offeringResync education.OfferingSourceResyncer
+	var offeringResync schoolStructure.OfferingSourceResyncer
 	grade, err := NewGradeTransitionTestModule(db, func(ctx context.Context, effectiveFrom timezone.Date) error {
 		if offeringResync == nil {
 			return nil
@@ -348,7 +347,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
+	substitutionService := schoolStructure.NewSubstitutionModule(schoolStructure.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: repositories.NewEducationHandovers(contextRepos.Substitutions),
 		Persons: newEducationPersonQuery(persons), Teachers: repositories.NewEducationCaregivers(repos.Teacher),
 		Staff: repositories.NewEducationStaff(repos.Staff), Actors: substitutionActorResolver{identity: userContextService.Caller()},

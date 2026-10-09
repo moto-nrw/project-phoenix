@@ -1,16 +1,29 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { DetailLoadingSpinner } from "~/components/database/detail-loading-spinner";
 import { EditActions } from "~/components/ui/edit-actions";
-import { useFormError } from "~/components/ui/form-error";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { authService } from "~/lib/auth-service";
 import type { Permission, Role } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
@@ -69,9 +82,23 @@ export function RolePermissionsTab({
   const [assignedMap, setAssignedMap] = useState<AssignedMap>({});
   const [draftMap, setDraftMap] = useState<AssignedMap>({});
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Ladefehler vor Ort, Speicherfehler im Formular, beide mit Wiederholen
+  // (#2517).
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useFormError();
+  const formRef = useRef<HTMLFormElement>(null);
+  const {
+    error: saveError,
+    show: showSaveError,
+    clear: clearSaveError,
+  } = useApiFormError(formRef);
+  const latestSaveRef = useRef<() => void>(() => undefined);
+  // Bis der Katalogtext eines Ladefehlers da ist, bleibt der Ladezustand.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const latestPermissionRequest = useRef(0);
@@ -81,7 +108,8 @@ export function RolePermissionsTab({
       const request = ++latestPermissionRequest.current;
       try {
         setLoading(true);
-        setLoadError(null);
+        setLoadFailed(false);
+        clearLoadError();
         const assignedRequest = authService.getRolePermissions(role.id);
         const [assigned, all] = includeCatalogue
           ? await Promise.all([assignedRequest, authService.getPermissions()])
@@ -98,12 +126,16 @@ export function RolePermissionsTab({
           role_id: role.id,
           error: error instanceof Error ? error.message : String(error),
         });
-        setLoadError("Die Berechtigungen konnten nicht geladen werden.");
+        setLoadFailed(true);
+        void showLoadError(error, {
+          object: "die Liste der Berechtigungen",
+          retry: () => void fetchPermissions(includeCatalogue),
+        });
       } finally {
         if (request === latestPermissionRequest.current) setLoading(false);
       }
     },
-    [role.id],
+    [role.id, clearLoadError, showLoadError],
   );
 
   useEffect(() => {
@@ -124,8 +156,8 @@ export function RolePermissionsTab({
     if (!entersEditing) return;
     setDraftMap(assignedMap);
     setSearchTerm("");
-    setSaveError(null);
-  }, [assignedMap, editing, setSaveError]);
+    clearSaveError();
+  }, [assignedMap, editing, clearSaveError]);
 
   const assignedCount = useMemo(
     () => allPermissions.filter((p) => assignedMap[p.id] === true).length,
@@ -192,10 +224,10 @@ export function RolePermissionsTab({
       .filter((permission) => draftMap[permission.id] === true)
       .map((permission) => permission.id);
     setSaving(true);
-    setSaveError(null);
+    clearSaveError();
     try {
       await authService.replaceRolePermissions(role.id, permissionIds);
-      toastSuccess("Berechtigungen gespeichert.");
+      toastSuccess("Die Berechtigungen der Rolle sind gespeichert.");
       await fetchPermissions(true);
       await onSaved();
     } catch (error) {
@@ -203,20 +235,28 @@ export function RolePermissionsTab({
         role_id: role.id,
         error: error instanceof Error ? error.message : String(error),
       });
-      setSaveError("Die Berechtigungen konnten nicht gespeichert werden.");
+      void showSaveError(error, {
+        object: "das Speichern der Berechtigungen",
+        retry: () => latestSaveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) {
+  // Wiederholen speichert den aktuellen Entwurf.
+  useLayoutEffect(() => {
+    latestSaveRef.current = () => void handleSave();
+  });
+
+  if (loading || (loadFailed && !loadError)) {
     return <DetailLoadingSpinner label="Berechtigungen werden geladen..." />;
   }
 
   if (loadError) {
     return (
       <div className="space-y-4">
-        <FormErrorAlert message={loadError} />
+        <LoadErrorAlert error={loadError} />
         {editing ? <EditActions onCancel={onCancelEdit} disabled /> : null}
       </div>
     );
@@ -263,6 +303,7 @@ export function RolePermissionsTab({
 
   return (
     <form
+      ref={formRef}
       className="space-y-4"
       noValidate
       onSubmit={(event) => {

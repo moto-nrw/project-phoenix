@@ -48,4 +48,9 @@ var (
 	// non-existent one; the parents portal loads these phases through its
 	// own authenticated bootstrap path instead.
 	ErrPhaseAudienceRestricted = errors.New("phase is not available for public enrollment")
+	// ErrCaptchaRequired and ErrCaptchaFailed are the parent-correctable
+	// captcha refusals (#2515). A captcha the server cannot check (missing
+	// secret, provider down) is not one of them: it stays a server error.
+	ErrCaptchaRequired = errors.New("captcha token is required")
+	ErrCaptchaFailed   = errors.New("captcha verification failed")
 )

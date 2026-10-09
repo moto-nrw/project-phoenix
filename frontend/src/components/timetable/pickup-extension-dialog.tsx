@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatStatusDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -25,18 +25,6 @@ export function pickupExtensionWhen(task: PickupExtension): string {
   }
   if (task.effectiveFrom) return `ab ${formatStatusDate(task.effectiveFrom)}`;
   return `ab jetzt jeden ${getWeekdayLabel(task.weekday ?? 0)}`;
-}
-
-function resolveErrorMessage(err: unknown): string {
-  if (err instanceof PickupExtensionApiError) {
-    if (err.code === "timetable.pickup_extension_block_gone") {
-      return "Der Termin hat sich inzwischen geändert. Bitte wählen Sie noch einmal.";
-    }
-    if (err.code === "timetable.pickup_extension_not_found") {
-      return "Das wurde schon erledigt.";
-    }
-  }
-  return "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
 }
 
 function selectedPickupExtensionBlocks(
@@ -120,7 +108,15 @@ function PickupExtensionStep({
     selectedPickupExtensionBlocks(task),
   );
   const [busy, setBusy] = useState<"assign" | "none" | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Fehler bleiben im offenen Dialog (#2516): Katalogtext, Wiederholen mit
+  // der aktuellen Auswahl.
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { clear: clearError } = formErrors;
+  const latestDecideRef = useRef<() => void>(() => undefined);
+  // Welche Entscheidung zuletzt scheiterte: „Wiederholen“ sendet sie mit
+  // der aktuellen Auswahl erneut.
+  const lastDecisionRef = useRef<"assign" | "none">("assign");
   const [stale, setStale] = useState(false);
 
   // A stale response can retain the task and template IDs but change its
@@ -128,9 +124,9 @@ function PickupExtensionStep({
   useEffect(() => {
     setSelected(selectedPickupExtensionBlocks(task));
     setBusy(null);
-    setError(null);
+    clearError();
     setStale(false);
-  }, [task]);
+  }, [task, clearError]);
 
   const toggle = (blockId: string, checked: boolean) => {
     setSelected((current) => {
@@ -143,7 +139,8 @@ function PickupExtensionStep({
 
   const decide = async (blockIds: readonly string[]) => {
     setBusy(blockIds.length > 0 ? "assign" : "none");
-    setError(null);
+    formErrors.clear();
+    lastDecisionRef.current = blockIds.length > 0 ? "assign" : "none";
     try {
       await resolvePickupExtension(task.id, blockIds);
       const titles = task.blocks
@@ -152,7 +149,7 @@ function PickupExtensionStep({
       toast.success(
         titles.length > 0
           ? `${task.studentName} ist jetzt bei ${titles.join(", ")} eingetragen.`
-          : "Erledigt. Das Kind wurde keinem Termin zugeordnet.",
+          : "Das Kind ist keinem Termin zugeordnet.",
       );
       onDone();
     } catch (err) {
@@ -160,20 +157,27 @@ function PickupExtensionStep({
         error: err instanceof Error ? err.message : String(err),
         task_id: task.id,
       });
-      if (
+      const blockGone =
         err instanceof PickupExtensionApiError &&
-        err.code === "timetable.pickup_extension_block_gone"
-      ) {
-        setError(resolveErrorMessage(err));
-        setStale(true);
-        setBusy(null);
-        onStale();
-        return;
-      }
-      setError(resolveErrorMessage(err));
+        err.code === "timetable.pickup_extension_block_gone";
       setBusy(null);
+      // Eine geänderte Terminliste lädt neu; Wiederholen mit der alten
+      // Auswahl ergäbe denselben Fehler.
+      if (blockGone) {
+        setStale(true);
+        onStale();
+      }
+      void formErrors.show(err, {
+        object: "die Zuordnung zum Termin",
+        retry: blockGone ? undefined : () => latestDecideRef.current(),
+      });
     }
   };
+
+  useLayoutEffect(() => {
+    latestDecideRef.current = () =>
+      void decide(lastDecisionRef.current === "none" ? [] : [...selected]);
+  });
 
   const firstName = task.studentName.split(" ")[0] ?? task.studentName;
   const title = position
@@ -213,8 +217,8 @@ function PickupExtensionStep({
         </div>
       }
     >
-      <div className="space-y-4">
-        {error && <Alert type="error" message={error} />}
+      <div ref={formRef} className="space-y-4">
+        <FormErrorAlert message={formErrors.error} />
         <p className="text-sm text-gray-700">
           <span className="font-semibold text-gray-900">
             {task.studentName}

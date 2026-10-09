@@ -29,11 +29,11 @@ func (s *Intake) validateSubmission(ctx context.Context, req SubmitRequest, lega
 	for _, key := range requiredConsentKeys(legalBlocks) {
 		accepted, ok := req.ConsentFlags[key].(bool)
 		if !ok || !accepted {
-			return fmt.Errorf("%w: consent %s is required", enrollment.ErrInvalidSubmission, key)
+			return enrollment.InvalidInput(enrollment.CodeConsentRequired, "consent_flags."+key, fmt.Errorf("%w: consent %s is required", enrollment.ErrInvalidSubmission, key))
 		}
 	}
 	if len(req.Children) == 0 {
-		return fmt.Errorf("%w: at least one child is required", enrollment.ErrInvalidSubmission)
+		return enrollment.InvalidInput(enrollment.CodeChildRequired, "children", fmt.Errorf("%w: at least one child is required", enrollment.ErrInvalidSubmission))
 	}
 	gradeMax, err := s.resolveGradeMax(ctx)
 	if err != nil {
@@ -52,38 +52,43 @@ func (s *Intake) validateSubmission(ctx context.Context, req SubmitRequest, lega
 // request can never get stuck at the approval step.
 func validateSubmissionGuardian(req SubmitRequest) error {
 	if strings.TrimSpace(req.GuardianFirstName) == "" {
-		return fmt.Errorf("%w: guardian first name is required", enrollment.ErrInvalidSubmission)
+		return enrollment.InvalidInput(enrollment.CodeGuardianNameRequired, "guardian_first_name", fmt.Errorf("%w: guardian first name is required", enrollment.ErrInvalidSubmission))
 	}
 	if strings.TrimSpace(req.GuardianLastName) == "" {
-		return fmt.Errorf("%w: guardian last name is required", enrollment.ErrInvalidSubmission)
+		return enrollment.InvalidInput(enrollment.CodeGuardianNameRequired, "guardian_last_name", fmt.Errorf("%w: guardian last name is required", enrollment.ErrInvalidSubmission))
 	}
 	emailAddr := strings.TrimSpace(req.GuardianEmail)
 	if emailAddr == "" {
-		return fmt.Errorf("%w: guardian email is required", enrollment.ErrInvalidSubmission)
+		return enrollment.InvalidInput(enrollment.CodeGuardianEmailRequired, "guardian_email", fmt.Errorf("%w: guardian email is required", enrollment.ErrInvalidSubmission))
 	}
 	if err := contact.ValidateOptionalEmail(emailAddr); err != nil {
-		return enrollment.ErrInvalidGuardianEmail
+		return enrollment.InvalidInput(enrollment.CodeInvalidEmail, "guardian_email", enrollment.ErrInvalidGuardianEmail)
 	}
 	if req.GuardianPhone != nil {
 		if err := contact.ValidateOptionalPhone(*req.GuardianPhone); err != nil {
-			return enrollment.ErrInvalidGuardianPhone
+			return enrollment.InvalidInput(enrollment.CodeInvalidPhone, "guardian_phone", enrollment.ErrInvalidGuardianPhone)
 		}
 	}
 	return nil
 }
 
 func validateSubmissionChild(i int, child SubmitChild, capabilities enrollment.FormCapabilities, gradeMax int) error {
+	field := func(name string) string { return fmt.Sprintf("children.%d.%s", i, name) }
 	if strings.TrimSpace(child.FirstName) == "" || strings.TrimSpace(child.LastName) == "" {
-		return fmt.Errorf("%w: child %d missing name", enrollment.ErrInvalidSubmission, i)
+		name := "first_name"
+		if strings.TrimSpace(child.FirstName) != "" {
+			name = "last_name"
+		}
+		return enrollment.InvalidInput(enrollment.CodeChildNameRequired, field(name), fmt.Errorf("%w: child %d missing name", enrollment.ErrInvalidSubmission, i))
 	}
 	if child.DateOfBirth.IsZero() {
-		return fmt.Errorf("%w: child %d missing date_of_birth", enrollment.ErrInvalidSubmission, i)
+		return enrollment.InvalidInput(enrollment.CodeChildBirthDateInvalid, field("date_of_birth"), fmt.Errorf("%w: child %d missing date_of_birth", enrollment.ErrInvalidSubmission, i))
 	}
 	if capabilities.CollectGradeLevel && child.TargetGradeLevel == nil {
-		return fmt.Errorf("%w: child %d missing target_grade_level", enrollment.ErrInvalidSubmission, i)
+		return enrollment.InvalidInput(enrollment.CodeChildGradeRequired, field("target_grade_level"), fmt.Errorf("%w: child %d missing target_grade_level", enrollment.ErrInvalidSubmission, i))
 	}
 	if capabilities.CollectGradeLevel && (*child.TargetGradeLevel < 1 || int(*child.TargetGradeLevel) > gradeMax) {
-		return fmt.Errorf("%w: child %d grade out of range 1..%d", enrollment.ErrInvalidSubmission, i, gradeMax)
+		return enrollment.InvalidInput(enrollment.CodeChildGradeRequired, field("target_grade_level"), fmt.Errorf("%w: child %d grade out of range 1..%d", enrollment.ErrInvalidSubmission, i, gradeMax))
 	}
 	return nil
 }
@@ -135,16 +140,21 @@ func normalizeAdditionalGuardian(index int, g SubmitGuardian) (SubmitGuardian, b
 		return SubmitGuardian{}, false, nil
 	}
 	if first == "" || last == "" {
-		return SubmitGuardian{}, false, fmt.Errorf("%w: additional guardian %d missing name", enrollment.ErrInvalidSubmission, index)
+		name := "first_name"
+		if first != "" {
+			name = "last_name"
+		}
+		return SubmitGuardian{}, false, enrollment.InvalidInput(enrollment.CodeGuardianNameRequired, fmt.Sprintf("additional_guardians.%d.%s", index, name),
+			fmt.Errorf("%w: additional guardian %d missing name", enrollment.ErrInvalidSubmission, index))
 	}
 	if email != "" {
 		if err := contact.ValidateOptionalEmail(email); err != nil {
-			return SubmitGuardian{}, false, enrollment.ErrInvalidGuardianEmail
+			return SubmitGuardian{}, false, enrollment.InvalidInput(enrollment.CodeInvalidEmail, fmt.Sprintf("additional_guardians.%d.email", index), enrollment.ErrInvalidGuardianEmail)
 		}
 	}
 	if phone != "" {
 		if err := contact.ValidateOptionalPhone(phone); err != nil {
-			return SubmitGuardian{}, false, enrollment.ErrInvalidGuardianPhone
+			return SubmitGuardian{}, false, enrollment.InvalidInput(enrollment.CodeInvalidPhone, fmt.Sprintf("additional_guardians.%d.phone", index), enrollment.ErrInvalidGuardianPhone)
 		}
 	}
 	out := SubmitGuardian{FirstName: first, LastName: last}

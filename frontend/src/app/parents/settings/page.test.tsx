@@ -2,6 +2,15 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import ParentSettingsPage from "./page";
+import { ToastProvider } from "~/contexts/ToastContext";
+
+// The shared error path shows failures through the toast provider (#2517).
+function renderWithToast(
+  ui: Parameters<typeof render>[0],
+  options?: Parameters<typeof render>[1],
+) {
+  return render(ui, { wrapper: ToastProvider, ...options });
+}
 
 // The two cards fetch on mount; this page only has to place them, so the
 // network is stubbed out rather than exercised (they have their own tests).
@@ -31,7 +40,7 @@ vi.mock("~/components/parent/language-switcher", () => ({
 
 describe("ParentSettingsPage", () => {
   it("carries both account settings", async () => {
-    render(<ParentSettingsPage />);
+    renderWithToast(<ParentSettingsPage />);
 
     expect(
       await screen.findByRole("heading", { name: "Einstellungen", level: 1 }),

@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	schoolstructurehttp "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
 )
 
@@ -40,13 +40,13 @@ func TestErrorRenderer_NotFoundErrors(t *testing.T) {
 		name    string
 		baseErr error
 	}{
-		{"ErrGroupNotFound", testutil.EducationSuiteErrGroupNotFound},
-		{"ErrGroupTeacherNotFound", testutil.EducationSuiteErrGroupTeacherNotFound},
+		{"ErrGroupNotFound", education.ErrEducationGroupNotFound},
+		{"ErrGroupTeacherNotFound", education.ErrGroupTeacherNotFound},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			status, body := renderError(t, &testutil.EducationSuiteError{Err: tt.baseErr})
+			status, body := renderError(t, &education.EducationError{Err: tt.baseErr})
 			assert.Equal(t, http.StatusNotFound, status)
 			assert.Equal(t, "error", body.Status)
 		})
@@ -61,14 +61,14 @@ func TestErrorRenderer_ConflictErrors(t *testing.T) {
 		baseErr error
 		wantMsg string
 	}{
-		{"ErrDuplicateGroup", testutil.EducationSuiteErrDuplicateGroup, "Eine Gruppe mit diesem Namen"},
-		{"ErrGroupHasStudents", testutil.EducationSuiteErrGroupHasStudents, ""},
-		{"ErrGroupHasHandover", testutil.EducationSuiteErrGroupHasHandover, "Übergabe muss zuerst beendet werden"},
+		{"ErrDuplicateGroup", education.ErrDuplicateGroup, "Eine Gruppe mit diesem Namen"},
+		{"ErrGroupHasStudents", education.ErrGroupHasStudents, ""},
+		{"ErrGroupHasHandover", education.ErrGroupHasHandover, "Übergabe muss zuerst beendet werden"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			status, body := renderError(t, &testutil.EducationSuiteError{Op: "DeleteGroup", Err: tt.baseErr})
+			status, body := renderError(t, &education.EducationError{Op: "DeleteGroup", Err: tt.baseErr})
 			assert.Equal(t, http.StatusConflict, status)
 			assert.Equal(t, "error", body.Status)
 			if tt.wantMsg != "" {
@@ -87,13 +87,13 @@ func TestErrorRenderer_InvalidRequestErrors(t *testing.T) {
 		name    string
 		baseErr error
 	}{
-		{"ErrRoomNotFound", testutil.EducationSuiteErrRoomNotFound},
-		{"ErrTeacherNotFound", testutil.EducationSuiteErrTeacherNotFound},
+		{"ErrRoomNotFound", education.ErrRoomNotFound},
+		{"ErrTeacherNotFound", education.ErrTeacherNotFound},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			status, body := renderError(t, &testutil.EducationSuiteError{Err: tt.baseErr})
+			status, body := renderError(t, &education.EducationError{Err: tt.baseErr})
 			assert.Equal(t, http.StatusBadRequest, status)
 			assert.Equal(t, "error", body.Status)
 		})
@@ -103,7 +103,7 @@ func TestErrorRenderer_InvalidRequestErrors(t *testing.T) {
 func TestErrorRenderer_UnknownEducationError(t *testing.T) {
 	t.Parallel()
 
-	status, body := renderError(t, &testutil.EducationSuiteError{Err: errors.New("unknown error")})
+	status, body := renderError(t, &education.EducationError{Err: errors.New("unknown error")})
 	assert.Equal(t, http.StatusInternalServerError, status)
 	assert.Equal(t, "error", body.Status)
 }

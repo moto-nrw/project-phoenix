@@ -34,18 +34,20 @@ func (rs *Resource) requireMFA(w http.ResponseWriter, r *http.Request) bool {
 // Anything unrecognised falls through to a 500.
 func mapMFAError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
+	// One code for a wrong code and an unusable challenge: the backend gives
+	// no oracle on which of them it was, and both are solved the same way.
 	case errors.Is(err, identityaccess.ErrMFAChallengeTokenInvalid):
-		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(err, common.CodeIdentityMfaCodeInvalid))
 	case errors.Is(err, identityaccess.ErrMFACodeInvalid):
-		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(err, common.CodeIdentityMfaCodeInvalid))
 	case errors.Is(err, identityaccess.ErrMFAUnsupportedScope):
 		// A challenge token from another portal presented here — same
 		// treatment as an invalid token, never a 500.
-		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(err, common.CodeIdentityMfaCodeInvalid))
 	case errors.Is(err, identityaccess.ErrMFALocked):
-		common.RenderError(w, r, common.ErrorTooManyRequests(err))
+		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeIdentityMfaBlocked))
 	case errors.Is(err, identityaccess.ErrMFARateLimited):
-		common.RenderError(w, r, common.ErrorTooManyRequests(err))
+		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeIdentityMfaBlocked))
 	case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
 		// The service fails closed when it cannot read the MFA status or the
 		// rate-limit counter — a transient database problem, not a client
@@ -311,9 +313,9 @@ func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, 
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(err, identityaccess.ErrAccountNotFound):
-				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidCredentials))
+				common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityInvalidCredentials))
 			case errors.Is(err, identityaccess.ErrAccountInactive):
-				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountInactive))
+				common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrAccountInactive, common.CodeIdentitySessionAccountInactive))
 			case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
 				common.RenderError(w, r, common.ErrorForbiddenWithCode(
 					identityaccess.ErrMustUseSchoolPortal, common.CodeIdentityUseSchoolPortal))

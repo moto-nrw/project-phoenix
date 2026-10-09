@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services/education"
 )
 
 // substitutionCodeInvalidPeriod is the registered error code of a rejected
@@ -227,7 +227,7 @@ func groupRefsToCapability(values []education.GroupRef) []workforce.GroupRef {
 func staffRefsToCapability(values []education.StaffRef) []workforce.StaffRef {
 	result := make([]workforce.StaffRef, 0, len(values))
 	for _, value := range values {
-		result = append(result, workforce.StaffRef{ID: value.ID, FullName: value.FullName})
+		result = append(result, workforce.StaffRef{ID: value.ID, FullName: value.FullName, IsExternal: value.IsExternal})
 	}
 	return result
 }
@@ -314,7 +314,10 @@ func mapSubstitutionError(err error) error {
 		return nil
 	}
 	if operation, ok := errors.AsType[*education.OperationError](err); ok {
-		mapped := &workforce.SubstitutionOperationError{Target: operation.Target, Code: operation.Code, Message: operation.Message, Cause: operation.Cause}
+		mapped := &workforce.SubstitutionOperationError{
+			Target: operation.Target, Code: operation.Code, Message: operation.Message, Cause: operation.Cause,
+			Details: substitutionRefusalValues(operation.Details), Field: operation.Field,
+		}
 		for _, kind := range substitutionErrorKinds {
 			if errors.Is(operation.Target, kind.module) {
 				mapped.Target = kind.capability
@@ -329,4 +332,9 @@ func mapSubstitutionError(err error) error {
 		}
 	}
 	return err
+}
+
+// substitutionRefusalValues keeps the values a schedule refusal names (#2516).
+func substitutionRefusalValues(details education.SubstitutionRefusalValues) workforce.SubstitutionRefusalValues {
+	return workforce.SubstitutionRefusalValues{Date: details.Date, Max: details.Max}
 }

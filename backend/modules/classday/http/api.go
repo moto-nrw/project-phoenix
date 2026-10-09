@@ -20,23 +20,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/uptrace/bun"
 )
 
 // Resource wires the class-day endpoints.
 type Resource struct {
 	ClassDay classday.ClassDay
-	db       *bun.DB
 	logger   *slog.Logger
 }
 
 // NewResource creates the class-day resource over the projection's
 // school-portal capability. A nil logger falls back to the default logger.
-func NewResource(capability classday.ClassDay, db *bun.DB, logger *slog.Logger) *Resource {
+func NewResource(capability classday.ClassDay, logger *slog.Logger) *Resource {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Resource{ClassDay: capability, db: db, logger: logger}
+	return &Resource{ClassDay: capability, logger: logger}
 }
 
 // SchoolRouter returns the class-day surface gated to school-scope tokens.
@@ -47,7 +45,7 @@ func (rs *Resource) SchoolRouter() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedSchoolGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+	common.ProtectedSchoolRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		rs.registerRoutes(r, withTx)
 	})
 

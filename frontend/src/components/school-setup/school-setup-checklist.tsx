@@ -10,6 +10,8 @@ import {
 } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import type { FormErrorInput } from "~/components/ui/form-error";
 import { ProgressBar } from "~/components/ui/progress-bar";
 import { TileCard } from "~/components/ui/tile-card";
 import type { HelpTopicId } from "~/lib/help-topics";
@@ -159,7 +161,8 @@ interface SetupChecklistProps<K extends string> {
   readonly steps: readonly SetupChecklistStep<K>[];
   readonly expanded: K | null;
   readonly busy: boolean;
-  readonly error: string | null;
+  /** Warum die letzte Änderung scheiterte, vom gemeinsamen Fehlerweg. */
+  readonly error: FormErrorInput;
   /** Ein ruhiger Hinweis, etwa warum eine Tour endete. */
   readonly notice: string | null;
   readonly helpHref: (topic: HelpTopicId) => string;
@@ -234,6 +237,10 @@ export function SetupChecklist<K extends string>({
       </header>
 
       <div className="flex-1 overflow-y-auto p-2">
+        {/* Oben in der Liste, nicht im aufgeklappten Schritt: auch
+            „Abschließen“ und „Nicht mehr anzeigen“ können scheitern, wenn
+            kein Schritt offen ist (#2517). */}
+        <FormErrorAlert message={error} className="p-2" />
         {allFinished ? (
           <div className="flex flex-col gap-3 p-2">{finishedContent}</div>
         ) : (
@@ -304,14 +311,6 @@ export function SetupChecklist<K extends string>({
                           </p>
                         )}
                       </div>
-                      {error && (
-                        <p
-                          className="text-moto-red-strong text-sm"
-                          role="alert"
-                        >
-                          {error}
-                        </p>
-                      )}
                       {notice && (
                         <p
                           className="text-sm font-medium text-gray-900"
@@ -412,7 +411,8 @@ interface SchoolSetupChecklistProps {
   readonly steps: readonly SchoolSetupStep[];
   readonly expanded: SchoolSetupStepKey | null;
   readonly busy: boolean;
-  readonly error: string | null;
+  /** Warum die letzte Änderung scheiterte, vom gemeinsamen Fehlerweg. */
+  readonly error: FormErrorInput;
   /** Ein ruhiger Hinweis, etwa warum eine Tour endete. */
   readonly notice: string | null;
   readonly helpHref: (topic: HelpTopicId) => string;

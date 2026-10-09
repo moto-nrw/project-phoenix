@@ -8,6 +8,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import StaffPage from "./page";
 
 const getTimeAccounts = vi.hoisted(() => vi.fn());
@@ -253,6 +255,73 @@ describe("/staff — Berechtigungs-Split", () => {
     expect(routerPush).toHaveBeenCalledWith("/staff/42?tab=konto");
   });
 
+  it("zeigt ohne Akten-Recht die Karten als Anzeige und nennt den Grund (#3926)", () => {
+    const staff = [
+      {
+        id: "42",
+        name: "Anzeige Test",
+        firstName: "Anzeige",
+        lastName: "Test",
+        hasRfid: false,
+        isTeacher: false,
+        isSupervising: false,
+        supervisions: [],
+      },
+    ];
+    staffListRequest.data = staff;
+    getAllStaff.mockResolvedValue(staff);
+    mockSession(["users:read"]);
+
+    render(<StaffPage />);
+
+    expect(
+      screen.getByText(/Personalakten sind für Ihr Konto nicht freigegeben/),
+    ).toBeInTheDocument();
+    // Keine gesperrte Schaltfläche, sondern eine Fläche ohne Klick.
+    expect(screen.getByText("Anzeige Test")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Anzeige Test/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Anzeige Test"));
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["staff:stammdaten"],
+    ["staff:manage"],
+    ["staff:documents"],
+    ["staff:financial"],
+    ["staff_documents:health"],
+  ])(
+    "zeigt mit %s klickbare Karten und keinen Hinweis (#3926)",
+    (permission) => {
+      const staff = [
+        {
+          id: "42",
+          name: "Recht Test",
+          firstName: "Recht",
+          lastName: "Test",
+          hasRfid: false,
+          isTeacher: false,
+          isSupervising: false,
+          supervisions: [],
+        },
+      ];
+      staffListRequest.data = staff;
+      getAllStaff.mockResolvedValue(staff);
+      mockSession(["users:read", permission]);
+
+      render(<StaffPage />);
+
+      expect(screen.getByRole("button", { name: /Recht Test/ })).toBeEnabled();
+      expect(
+        screen.queryByText(
+          /Personalakten sind für Ihr Konto nicht freigegeben/,
+        ),
+      ).not.toBeInTheDocument();
+    },
+  );
+
   it("behält mit time_tracking:manage die Zeitkonten statt der Dokumentenansicht", () => {
     documentDirectoryRequest.data = [
       {
@@ -377,21 +446,21 @@ describe("/staff — Berechtigungs-Split", () => {
   });
 
   it("zeigt einen fehlgeschlagenen Abschlussstatus mit Retry statt Abschlussaktionen", async () => {
-    monthCloseRequest.error = new Error("Bad Gateway");
+    monthCloseRequest.error = new ApiError("Bad Gateway", 502);
     mockSession(["time_tracking:manage"]);
 
     render(<StaffPage />);
 
     expect(
-      screen.getByText(/Der Abschlussstatus konnte nicht geladen werden/),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Anzeige des Monatsabschlusses"),
+      ),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Monat abschließen" }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Abschlussstatus erneut laden" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
     await waitFor(() => {
       expect(mutateMonthClose).toHaveBeenCalledTimes(1);
@@ -399,19 +468,23 @@ describe("/staff — Berechtigungs-Split", () => {
   });
 
   it("zeigt einen retrybaren Fehler, wenn das Dokumentenverzeichnis nicht lädt", async () => {
-    documentDirectoryRequest.error = new Error("Bad Gateway");
+    documentDirectoryRequest.error = new ApiError("Bad Gateway", 502);
     mockSession(["staff_documents:health"]);
 
     render(<StaffPage />);
 
     expect(
-      screen.getByText("Das Personalverzeichnis konnte nicht geladen werden."),
+      await screen.findByText(
+        catalogText("general.unavailable", "das Personalverzeichnis"),
+      ),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Keine Personen gefunden."),
     ).not.toBeInTheDocument();
+    // #2517: keine Zählung aus einer Liste, die nie geladen wurde.
+    expect(screen.queryByText(/0 Personen/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
     await waitFor(() => {
       expect(mutateDocumentDirectory).toHaveBeenCalledTimes(1);

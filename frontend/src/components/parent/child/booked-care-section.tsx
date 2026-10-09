@@ -1,11 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { CalendarCheckIcon, CalendarXIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OfferingChangeRequestModal } from "~/components/parent/offering-change-request-modal";
 import { RequestSharingControl } from "~/components/parent/request-sharing-control";
 import { WeeklyScheduleSection } from "~/components/parent/child/weekly-schedule-section";
@@ -15,6 +21,7 @@ import {
 } from "~/components/parent/shell/parent-section";
 import { ParentSectionSkeleton } from "~/components/parent/parent-page";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
@@ -76,11 +83,19 @@ export function BookedCareSection({
   const [scheduleError, setScheduleError] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editRequest, setEditRequest] = useState<string | null>(null);
+  const offeringsLoad = useApiLoadError();
+  const scheduleLoad = useApiLoadError();
+  const { show: showOfferingsError, clear: clearOfferingsError } =
+    offeringsLoad;
+  const { show: showScheduleError, clear: clearScheduleError } = scheduleLoad;
+  const latestLoadRef = useRef<() => void>(() => undefined);
 
   const load = useCallback(async () => {
     setLoading(true);
     setOfferingsError(false);
     setScheduleError(false);
+    clearOfferingsError();
+    clearScheduleError();
     const [offeringsResult, scheduleResult] = await Promise.allSettled([
       getChildCareOfferings(studentId),
       getChildCareSchedule(studentId),
@@ -94,6 +109,10 @@ export function BookedCareSection({
         error: String(offeringsResult.reason),
         student_id: studentId,
       });
+      void showOfferingsError(offeringsResult.reason, {
+        object: t("careOfferings.errorObject"),
+        retry: () => latestLoadRef.current(),
+      });
     }
     if (scheduleResult.status === "fulfilled") {
       setSchedule(scheduleResult.value);
@@ -104,9 +123,24 @@ export function BookedCareSection({
         error: String(scheduleResult.reason),
         student_id: studentId,
       });
+      void showScheduleError(scheduleResult.reason, {
+        object: t("careSchedule.errorObject"),
+        retry: () => latestLoadRef.current(),
+      });
     }
     setLoading(false);
-  }, [studentId]);
+  }, [
+    clearOfferingsError,
+    clearScheduleError,
+    showOfferingsError,
+    showScheduleError,
+    studentId,
+    t,
+  ]);
+
+  useLayoutEffect(() => {
+    latestLoadRef.current = () => void load();
+  });
 
   useEffect(() => {
     void load();
@@ -210,7 +244,7 @@ export function BookedCareSection({
           concept="calendar"
           prominent
         >
-          <Alert type="error" message={t("careSchedule.loadError")} />
+          <LoadErrorAlert error={scheduleLoad.error} />
         </ParentSection>
       ) : null}
 
@@ -465,7 +499,7 @@ export function BookedCareSection({
           concept="carePlan"
           prominent
         >
-          <Alert type="error" message={t("careOfferings.loadError")} />
+          <LoadErrorAlert error={offeringsLoad.error} />
         </ParentSection>
       ) : null}
 

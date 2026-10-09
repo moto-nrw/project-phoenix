@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // RoleStore serves role administration on the same database runtime as the other identity flows.
@@ -55,7 +56,7 @@ func (s *RoleStore) CreateRole(ctx context.Context, role domain.ManagedRole) (do
 	row := managedRoleRecord(role)
 	_, err = db.NewInsert().Model(&row).ModelTableExpr("auth.roles").Returning("id, created_at, updated_at").Exec(ctx)
 	if err != nil {
-		return domain.ManagedRole{}, fmt.Errorf("create role: %w", err)
+		return domain.ManagedRole{}, fmt.Errorf("create role: %w", roleNameConflict(err))
 	}
 	return row.domain(), nil
 }
@@ -126,7 +127,21 @@ func (s *RoleStore) UpdateRole(ctx context.Context, role domain.ManagedRole) err
 		query = query.Where("role.tenant_id = ?", tenantID)
 	}
 	result, err := query.Exec(ctx)
-	return roleMutationResult(result, err)
+	return roleMutationResult(result, roleNameConflict(err))
+}
+
+// roleNameIndexes are the unique indexes on a role's name: per school for a
+// custom role, platform-wide for a system role.
+var roleNameIndexes = map[string]bool{"idx_roles_name_tenant": true, "idx_roles_name_system": true, "idx_roles_name": true}
+
+// roleNameConflict turns a unique violation on a role name into
+// ErrRoleNameTaken, so the caller answers 409 instead of 500 (#2517).
+func roleNameConflict(err error) error {
+	var postgresError pgdriver.Error
+	if errors.As(err, &postgresError) && postgresError.IntegrityViolation() && roleNameIndexes[postgresError.Field('n')] {
+		return fmt.Errorf("%w: %w", domain.ErrRoleNameTaken, err)
+	}
+	return err
 }
 
 func (s *RoleStore) DeleteRole(ctx context.Context, id int64) error {

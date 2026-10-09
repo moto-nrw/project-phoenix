@@ -1,6 +1,14 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -14,7 +22,6 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { rolesConfig } from "@/components/database/configs/roles.config";
 import type { Role } from "@/lib/auth-helpers";
@@ -23,7 +30,11 @@ import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { RolesMasterDetail } from "@/components/roles/roles-master-detail";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -49,8 +60,22 @@ function RolesPageContent() {
 
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Ladefehler im Gerüst, Schreibfehler im jeweiligen Dialog (#2517).
+  const rolesLoad = useApiLoadError();
+  const { show: showRolesLoadError, clear: clearRolesLoadError } = rolesLoad;
+  const detailLoad = useApiLoadError();
+  const { show: showDetailLoadError, clear: clearDetailLoadError } = detailLoad;
+  const [detailReload, setDetailReload] = useState(0);
+  const createErrors = useApiFormError();
+  const deleteErrors = useApiFormError();
+  const latestDeleteRef = useRef<() => void>(() => undefined);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const { clear: clearCreateErrors } = createErrors;
+  // Ein neu geöffnetes Anlegen beginnt ohne den Fehler des vorigen Versuchs.
+  useEffect(() => {
+    if (showCreateModal) clearCreateErrors();
+  }, [showCreateModal, clearCreateErrors]);
+  const [deletePending, setDeletePending] = useState(false);
   const [selectedRoleDetail, setSelectedRoleDetail] = useState<Role | null>(
     null,
   );
@@ -60,10 +85,9 @@ function RolesPageContent() {
     showConfirmModal: showDeleteConfirmModal,
     handleDeleteClick,
     handleDeleteCancel,
-    confirmDelete,
   } = useDeleteConfirmation();
 
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
 
   const { data: session, status } = useSession({
     required: true,
@@ -84,19 +108,21 @@ function RolesPageContent() {
       const data = await service.getList({ page: 1, pageSize: 500 });
       const arr = Array.isArray(data.data) ? data.data : [];
       setRoles(arr);
-      setError(null);
+      clearRolesLoadError();
     } catch (err) {
       logger.error("failed to fetch roles", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        "Fehler beim Laden der Rollen. Bitte versuchen Sie es später erneut.",
-      );
       setRoles([]);
+      // Bis der Katalogtext da ist, bleibt das Skelett stehen.
+      await showRolesLoadError(err, {
+        object: "die Liste der Rollen",
+        retry: () => void fetchRoles(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [service]);
+  }, [service, clearRolesLoadError, showRolesLoadError]);
 
   useEffect(() => {
     void fetchRoles();
@@ -179,6 +205,7 @@ function RolesPageContent() {
 
     let cancelled = false;
     setDetailLoading(true);
+    clearDetailLoadError();
 
     void service
       .getOne(selectedRoleId)
@@ -195,6 +222,11 @@ function RolesPageContent() {
               ? fetchError.message
               : String(fetchError),
         });
+        if (cancelled) return;
+        void showDetailLoadError(fetchError, {
+          object: "die Rolle",
+          retry: () => setDetailReload((value) => value + 1),
+        });
       })
       .finally(() => {
         if (!cancelled) {
@@ -205,48 +237,33 @@ function RolesPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [selectedRoleId, service]);
+  }, [
+    selectedRoleId,
+    service,
+    detailReload,
+    clearDetailLoadError,
+    showDetailLoadError,
+  ]);
 
   // Nach dem Speichern der Berechtigungen im Reiter (#3116): die Zahl in der
-  // Liste und das Detail neu laden.
+  // Liste und das Detail neu laden. Ein Fehler dabei zeigen Liste und Detail
+  // selbst an; das Speichern ist da bereits gelungen.
   const handlePermissionsSaved = useCallback(async () => {
     if (!selectedRole) return;
+    setDetailReload((value) => value + 1);
     await fetchRoles();
-    const refreshed = await service.getOne(selectedRole.id);
-    setSelectedRoleDetail(refreshed);
-  }, [fetchRoles, selectedRole, service]);
+  }, [fetchRoles, selectedRole]);
 
   const handleCreateRole = useCallback(
     async (data: Partial<Role>) => {
-      try {
-        const created = await service.create(data);
-        toastSuccess(
-          getDbOperationMessage(
-            "create",
-            rolesConfig.name.singular,
-            created.name,
-          ),
-        );
-        setShowCreateModal(false);
-        await fetchRoles();
-      } catch (createError) {
-        const errorMessage =
-          createError instanceof Error
-            ? createError.message
-            : String(createError);
-        logger.error("role_create_failed", { error: errorMessage });
-        if (
-          errorMessage.includes("duplicate key") ||
-          errorMessage.includes("23505")
-        ) {
-          throw new Error(
-            `Eine Rolle mit dem Namen "${data.name ?? ""}" existiert bereits. ` +
-              `Bitte wählen Sie einen anderen Namen.`,
-            { cause: createError },
-          );
-        }
-        throw createError;
-      }
+      // Ein Fehler bleibt im Dialog: DatabaseForm zeigt ihn über errorPath,
+      // ein vergebener Name (identity.role_name_taken) markiert das Feld.
+      const created = await service.create(data);
+      toastSuccess(
+        `Die Rolle „${getRoleDisplayName(created.name)}“ ist angelegt.`,
+      );
+      setShowCreateModal(false);
+      await fetchRoles();
     },
     [service, fetchRoles, toastSuccess],
   );
@@ -254,70 +271,54 @@ function RolesPageContent() {
   const handleUpdateRole = useCallback(
     async (data: Partial<Role>) => {
       if (!selectedRole) return;
-      try {
-        await service.update(selectedRole.id, data);
-        const refreshed = await service.getOne(selectedRole.id);
-        setSelectedRoleDetail(refreshed);
-        toastSuccess(
-          getDbOperationMessage(
-            "update",
-            rolesConfig.name.singular,
-            getRoleDisplayName(selectedRole.name),
-          ),
-        );
-        await fetchRoles();
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        logger.error("role_update_failed", {
-          role_id: selectedRole.id,
-          error: errorMessage,
-        });
-        if (
-          errorMessage.includes("duplicate key") ||
-          errorMessage.includes("23505")
-        ) {
-          throw new Error(
-            `Eine Rolle mit dem Namen "${data.name ?? ""}" existiert bereits. ` +
-              `Bitte wählen Sie einen anderen Namen.`,
-            { cause: err },
-          );
-        }
-        throw err;
-      }
+      // Ein Fehler bleibt im Formular (errorPath im Stammdaten-Reiter).
+      await service.update(selectedRole.id, data);
+      toastSuccess(
+        `Die Rolle „${getRoleDisplayName(data.name ?? selectedRole.name)}“ ist gespeichert.`,
+      );
+      // Liste und Detail neu laden.
+      setDetailReload((value) => value + 1);
+      await fetchRoles();
     },
     [selectedRole, service, fetchRoles, toastSuccess],
   );
 
   const handleDeleteRole = useCallback(async () => {
     if (!selectedRole) return;
+    setDeletePending(true);
+    deleteErrors.clear();
     try {
-      setDetailLoading(true);
-      const deleteError = await service.delete(selectedRole.id);
-      if (deleteError) {
-        toastError(deleteError);
-        return;
-      }
+      const deleted = await service.remove(selectedRole.id);
+      if (!deleted) return;
       toastSuccess(
-        getDbOperationMessage(
-          "delete",
-          rolesConfig.name.singular,
-          getRoleDisplayName(selectedRole.name),
-        ),
+        `Die Rolle „${getRoleDisplayName(selectedRole.name)}“ ist gelöscht.`,
       );
+      handleDeleteCancel();
       setSelectedRoleDetail(null);
       handleSelectRole(null);
       await fetchRoles();
+    } catch (err) {
+      // Der Bestätigungsdialog bleibt offen und nennt den Grund.
+      void deleteErrors.show(err, {
+        object: "das Löschen der Rolle",
+        retry: () => latestDeleteRef.current(),
+      });
     } finally {
-      setDetailLoading(false);
+      setDeletePending(false);
     }
   }, [
     selectedRole,
     service,
-    toastError,
     toastSuccess,
+    handleDeleteCancel,
     handleSelectRole,
     fetchRoles,
+    deleteErrors,
   ]);
+
+  useLayoutEffect(() => {
+    latestDeleteRef.current = () => void handleDeleteRole();
+  });
 
   const canShowDetail = !loading && filteredRoles.length > 0;
 
@@ -325,7 +326,7 @@ function RolesPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      error={error}
+      error={rolesLoad.error}
       empty={
         filteredRoles.length === 0
           ? {
@@ -361,13 +362,15 @@ function RolesPageContent() {
             mode="create"
             config={rolesConfig}
             onSubmit={handleCreateRole}
+            errorPath={createErrors}
+            errorObject="die Rolle"
           />
 
           {selectedRole && (
             <ConfirmDeleteModal
               isOpen={showDeleteConfirmModal}
               onClose={handleDeleteCancel}
-              onConfirm={() => confirmDelete(() => void handleDeleteRole())}
+              onConfirm={() => void handleDeleteRole()}
               title="Rolle löschen?"
               description={
                 <>
@@ -380,8 +383,8 @@ function RolesPageContent() {
                 </>
               }
               gate={{ mode: "twoStep" }}
-              loading={detailLoading}
-              error=""
+              loading={deletePending}
+              error={deleteErrors.error}
             />
           )}
         </>
@@ -447,6 +450,7 @@ function RolesPageContent() {
             selectedId={selectedId}
             selectedRole={selectedRole}
             detailLoading={detailLoading}
+            detailError={detailLoad.error}
             canManagePermissions={canManagePermissions}
             onSelect={handleSelectRole}
             onSaveRole={handleUpdateRole}

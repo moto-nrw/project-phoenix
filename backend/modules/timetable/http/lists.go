@@ -80,7 +80,8 @@ func (rs *Resource) parseSlotListParams(w http.ResponseWriter, r *http.Request, 
 	}
 	groupBy := classday.GroupBy(req.GroupBy)
 	if !groupBy.ValidFor(target) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("grouping %q is not valid for target %q", req.GroupBy, req.Target)))
+		common.RenderError(w, r, common.ErrorInvalidOnField(fmt.Errorf("grouping %q is not valid for target %q", req.GroupBy, req.Target),
+			common.CodeTimetableSlotListGroupingInvalid, "group_by"))
 		return classday.Params{}, false
 	}
 	listKind := classday.ListKind(req.ListKind)
@@ -141,8 +142,8 @@ func (rs *Resource) listSlotListOptions(w http.ResponseWriter, r *http.Request) 
 	}
 	result, err := rs.SlotListsService.ListOptions(r.Context(), classday.Date(date.String()))
 	if err != nil {
-		if errors.Is(err, classday.ErrTimetableDisabled) {
-			common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
+		if renderer := slotListRefusal(err); renderer != nil {
+			common.RenderError(w, r, renderer)
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("build slot list options failed", err))
@@ -170,13 +171,8 @@ func (rs *Resource) previewSlotList(w http.ResponseWriter, r *http.Request) {
 
 	result, err := rs.SlotListsService.BuildList(r.Context(), params)
 	if err != nil {
-		if errors.Is(err, classday.ErrTimetableDisabled) {
-			common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
-			return
-		}
-		if errors.Is(err, classday.ErrPickupCohortPastDate) ||
-			errors.Is(err, classday.ErrReconciliationFutureDate) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		if renderer := slotListRefusal(err); renderer != nil {
+			common.RenderError(w, r, renderer)
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("build slot list failed", err))
@@ -213,19 +209,11 @@ func (rs *Resource) exportSlotList(w http.ResponseWriter, r *http.Request) {
 
 	file, err := rs.SlotListsService.RenderList(r.Context(), params, format)
 	if err != nil {
-		if errors.Is(err, classday.ErrTimetableDisabled) {
-			common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
+		if renderer := slotListRefusal(err); renderer != nil {
+			common.RenderError(w, r, renderer)
 			return
 		}
-		if errors.Is(err, classday.ErrPickupCohortPastDate) ||
-			errors.Is(err, classday.ErrReconciliationFutureDate) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-			return
-		}
-		if errors.Is(err, classday.ErrListDrifted) {
-			common.RenderError(w, r, common.ErrorConflict(err))
-			return
-		}
+
 		common.RenderError(w, r, common.ErrorInternalServerWrap("render slot list failed", err))
 		return
 	}
@@ -235,4 +223,20 @@ func (rs *Resource) exportSlotList(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)
+}
+
+// slotListRefusals classify the refusals of a slot list build with their own
+// code (#2516); the statuses and texts stay as they were.
+var slotListRefusals = []common.ErrorRule{
+	{Target: classday.ErrTimetableDisabled, Render: func(error) render.Renderer {
+		return common.ErrorForbiddenWithCode(errors.New("feature_disabled"), common.CodeTimetableSlotListsDisabled)
+	}},
+	{Target: classday.ErrPickupCohortPastDate, Render: invalidWithCode(common.CodeTimetableSlotListPickupPastDate)},
+	{Target: classday.ErrReconciliationFutureDate, Render: invalidWithCode(common.CodeTimetableSlotListReconciliationFutureDate)},
+	{Target: classday.ErrListDrifted, Render: conflictWithCode(common.CodeTimetableSlotListDrifted)},
+}
+
+// slotListRefusal answers a known slot list refusal, or nil.
+func slotListRefusal(err error) render.Renderer {
+	return common.RenderWithRules(err, slotListRefusals, func(error) render.Renderer { return nil })
 }

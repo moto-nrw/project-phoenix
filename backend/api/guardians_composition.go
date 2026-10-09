@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -13,7 +14,6 @@ import (
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/uptrace/bun"
 )
 
 // The guardian surface under /api/guardians (#2663) is the People Directory
@@ -23,6 +23,16 @@ import (
 // renderPeopleDirectoryFailure writes the shared error shape for a failure
 // kind the People Directory adapters classified.
 func renderPeopleDirectoryFailure(w http.ResponseWriter, r *http.Request, kind usersAPI.FailureKind, err error) {
+	for _, rule := range guardianInputCodes {
+		if kind == usersAPI.FailureInvalidRequest && errors.Is(err, rule.sentinel) {
+			if rule.field == "" {
+				apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequestWithCode(err, rule.code))
+			} else {
+				apiCommon.RenderError(w, r, apiCommon.ErrorInvalidOnField(err, rule.code, rule.field))
+			}
+			return
+		}
+	}
 	switch kind {
 	case usersAPI.FailureInvalidRequest:
 		apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
@@ -37,6 +47,18 @@ func renderPeopleDirectoryFailure(w http.ResponseWriter, r *http.Request, kind u
 	default:
 		apiCommon.RenderError(w, r, apiCommon.ErrorInternalServer(err))
 	}
+}
+
+// guardianInputCodes gives the guardian input refusals the form can explain
+// their own code (#2517); field names the form control to mark, if any.
+var guardianInputCodes = []struct {
+	sentinel error
+	code     string
+	field    string
+}{
+	{peopleModule.ErrGuardianEmailTaken, apiCommon.CodeStudentsGuardianEmailTaken, ""},
+	{peopleModule.ErrGuardianIBANInvalid, apiCommon.CodeStudentsGuardianIbanInvalid, "iban"},
+	{peopleModule.ErrGuardianAccountHolderTooLong, apiCommon.CodeStudentsGuardianAccountHolderTooLong, "account_holder"},
 }
 
 func guardianFailureKind(kind services.GuardianFailureKind) usersAPI.FailureKind {
@@ -55,10 +77,10 @@ func guardianFailureKind(kind services.GuardianFailureKind) usersAPI.FailureKind
 // newGuardiansResource binds the guardian HTTP adapter over the People
 // Directory and the legacy-service runtime. appEnv gates the seed-only raw
 // invitation token.
-func newGuardiansResource(module peopleModule.Capability, runtime services.GuardianDirectoryRuntime, db *bun.DB, appEnv string, logger *slog.Logger) *usersAPI.GuardianResource {
+func newGuardiansResource(module peopleModule.Capability, runtime services.GuardianDirectoryRuntime, appEnv string, logger *slog.Logger) *usersAPI.GuardianResource {
 	return usersAPI.NewGuardianResource(module, usersAPI.GuardianRuntime{
 		Protected: func(router chi.Router, register func(chi.Router, usersAPI.Middleware)) {
-			apiCommon.ProtectedTenantGroup(router, db, register)
+			apiCommon.ProtectedTenantRoutes(router, register)
 		},
 		Permission: func(permission string) usersAPI.Middleware {
 			return apiCommon.RequiresPermission(permission)
@@ -107,7 +129,7 @@ func newGuardiansResource(module peopleModule.Capability, runtime services.Guard
 			result := make([]usersAPI.PendingGuardianInvitation, 0, len(invitations))
 			for _, invitation := range invitations {
 				result = append(result, usersAPI.PendingGuardianInvitation{
-					ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, CreatedAt: invitation.CreatedAt,
+					ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, Token: invitation.Token, CreatedAt: invitation.CreatedAt,
 					ExpiresAt: invitation.ExpiresAt, EmailSentAt: invitation.EmailSentAt, EmailError: invitation.EmailError,
 					EmailRetryCount: invitation.EmailRetryCount,
 				})

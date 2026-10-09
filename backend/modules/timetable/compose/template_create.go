@@ -125,9 +125,6 @@ func validateTemplateCreateInput(in CreateTemplateInput, rules SchoolClassRules)
 	if in.CategoryID <= 0 {
 		return errors.New("category id is required")
 	}
-	if in.RoomID <= 0 {
-		return errors.New("room id is required")
-	}
 	if in.MaxParticipants < 0 {
 		return errors.New("max participants cannot be negative")
 	}
@@ -136,6 +133,14 @@ func validateTemplateCreateInput(in CreateTemplateInput, rules SchoolClassRules)
 	}
 	if in.RosterValidFrom.IsZero() {
 		return errors.New("roster valid_from is required")
+	}
+	if err := timetable.ValidateTemplateShape(timetable.TemplateShape{
+		Type: in.Type, RoomID: in.RoomID, TargetGroupType: in.TargetGroupType,
+		HasTargets: len(in.Targets) > 0, HasStudents: rosterNamesStudents(in.StudentIDs, in.WeekdayAssignments),
+		HasOfferingSource: len(in.SourceCareOfferingIDs) > 0, MaxParticipants: in.MaxParticipants,
+		ListKind: in.ListKind, EducationGroupID: in.EducationGroupID,
+	}); err != nil {
+		return err
 	}
 	return validateOfferingSourceInput(
 		in.SourceCareOfferingIDs, in.SourceGradeLevels, in.SourceSchoolClasses,
@@ -353,7 +358,7 @@ func (s *TemplateService) createTemplateGroup(
 		IsOpen:                true,
 		CategoryID:            in.CategoryID,
 		PlanningTrackID:       in.PlanningTrackID,
-		PlannedRoomID:         &roomID,
+		PlannedRoomID:         plannedRoomID(roomID),
 		Type:                  in.Type,
 		EducationGroupID:      in.EducationGroupID,
 		IsTemplate:            true,
@@ -575,4 +580,26 @@ func (s *TemplateService) createTemplateRoster(
 		}
 	}
 	return nil
+}
+
+// rosterNamesStudents reports whether a template write names any child, on
+// the shared roster or on a weekday deviation.
+func rosterNamesStudents(studentIDs []int64, assignments []timetable.WeekdayRosterAssignment) bool {
+	if len(studentIDs) > 0 {
+		return true
+	}
+	for _, assignment := range assignments {
+		if len(assignment.StudentIDs) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// plannedRoomID stores no room for 0: only a duty may lack one (#3822).
+func plannedRoomID(roomID int64) *int64 {
+	if roomID <= 0 {
+		return nil
+	}
+	return &roomID
 }

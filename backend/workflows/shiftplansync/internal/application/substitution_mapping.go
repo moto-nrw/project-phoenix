@@ -3,8 +3,8 @@ package application
 import (
 	"errors"
 
+	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services/education"
 )
 
 // Registered error codes (error-registry.json) of a rejected substitution.
@@ -168,12 +168,21 @@ func mapScheduleSubstitutionError(err error) error {
 	case 404:
 		target, code, message = education.ErrNotFound, codeSubstitutionNotFound, "Der Termin oder die Person wurde nicht gefunden."
 	case 409:
-		target, code, message = education.ErrConflict, deviation.Code, deviation.ClientMsg
-		if code == "" {
-			code = codeSubstitutionConflict
-		}
+		target, code, message = education.ErrConflict, codeSubstitutionConflict, deviation.ClientMsg
+	}
+	// The refusal's own code and the values it names reach the client, so it
+	// can say why (#2516); the class code only covers an uncoded refusal.
+	if deviation.Code != "" {
+		code = deviation.Code
 	}
 	return &education.OperationError{
 		Target: target, Code: code, Message: message, Cause: deviation.Cause,
+		Details: refusalDetails(deviation.Details), Field: deviation.Field,
 	}
+}
+
+// refusalDetails puts the values a refusal names into wire form; nil when it
+// names none.
+func refusalDetails(values timetable.RefusalValues) education.SubstitutionRefusalValues {
+	return education.SubstitutionRefusalValues{Date: values.Date, Max: values.Max}
 }

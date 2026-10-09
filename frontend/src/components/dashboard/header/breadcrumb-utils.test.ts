@@ -96,8 +96,8 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/")).toBe("Home");
       });
 
-      it("should return 'Meine Gruppe' for /ogs-groups", () => {
-        expect(getPageTitle("/ogs-groups")).toBe("Meine Gruppe");
+      it("should return 'Meine Gruppen' for /ogs-groups", () => {
+        expect(getPageTitle("/ogs-groups")).toBe("Meine Gruppen");
       });
 
       it("should return 'Aktuelle Aufsicht' for /active-supervisions", () => {
@@ -252,12 +252,29 @@ describe("breadcrumb-utils", () => {
   });
 
   describe("getBreadcrumbLabel", () => {
-    it("should return 'Meine Gruppe' for /ogs-groups referrer", () => {
-      expect(getBreadcrumbLabel("/ogs-groups")).toBe("Meine Gruppe");
+    it("should return 'Meine Gruppen' for /ogs-groups referrer", () => {
+      expect(getBreadcrumbLabel("/ogs-groups")).toBe("Meine Gruppen");
     });
 
-    it("should return 'Meine Gruppe' for /ogs-groups sub-path referrer", () => {
-      expect(getBreadcrumbLabel("/ogs-groups/123")).toBe("Meine Gruppe");
+    it("should return 'Meine Gruppen' for /ogs-groups sub-path referrer", () => {
+      expect(getBreadcrumbLabel("/ogs-groups/123")).toBe("Meine Gruppen");
+    });
+
+    // #3890: ein Kind aus einer Gruppe unter „Weitere Gruppen" nennt im
+    // Breadcrumb denselben Bereich wie die Seitenleiste.
+    it("names 'Weitere Gruppen' for a group from that sidebar section", () => {
+      expect(getBreadcrumbLabel("/ogs-groups?group=2", "other")).toBe(
+        "Weitere Gruppen",
+      );
+      expect(getBreadcrumbLabel("/ogs-groups?group=1", "personal")).toBe(
+        "Meine Gruppen",
+      );
+    });
+
+    it("ignores the group section for other referrers", () => {
+      expect(getBreadcrumbLabel("/active-supervisions", "other")).toBe(
+        "Aktuelle Aufsicht",
+      );
     });
 
     it("should return 'Aktuelle Aufsicht' for /active-supervisions referrer", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useAccountBalance } from "~/lib/hooks/use-account-balance";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -44,6 +44,12 @@ export interface PeriodMetrics {
   readonly accountBalanceMinutes: number | null;
   /** A Sonderarbeitszeit sets the Soll of a day in the current week. */
   readonly hasTargetOverride?: boolean;
+  /** A source failed to load; the null figures will not arrive. */
+  readonly failed?: boolean;
+  /** The source error for the in-place load error display. */
+  readonly error?: unknown;
+  /** Revalidates the failed source. */
+  readonly retry: () => Promise<void>;
 }
 
 /**
@@ -79,7 +85,11 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   // key. No config gating: the backend resolves the account anchor itself, and
   // Soll/Ist/Saldo of a single month are valid regardless of where the
   // cumulative chain starts.
-  const { data: monthSummary } = useSWRAuth<MonthSummary>(
+  const {
+    data: monthSummary,
+    error: monthSummaryError,
+    mutate: mutateMonthSummary,
+  } = useSWRAuth<MonthSummary>(
     staffId
       ? `staff-month-summary-${staffId}-${year}-${monthNumber}`
       : `time-tracking-month-summary-${year}-${monthNumber}`,
@@ -106,9 +116,11 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   // Tagesprojektion (#2443). Hier zählt nur ihr Soll — aber ein SWR-Key trägt
   // EINEN Datentyp, und wer sonst das Rennen verliert, liest die Form des
   // anderen (siehe Kommentar unten zu Sessions/Abwesenheiten).
-  const { data: weekProjection } = useSWRAuth<
-    ReadonlyMap<string, DayProjection>
-  >(
+  const {
+    data: weekProjection,
+    error: weekProjectionError,
+    mutate: mutateWeekProjection,
+  } = useSWRAuth<ReadonlyMap<string, DayProjection>>(
     staffId
       ? `staff-schedule-targets-${staffId}-${weekFromKey}-${weekToKey}`
       : `time-tracking-schedule-targets-${weekFromKey}-${weekToKey}`,
@@ -146,7 +158,11 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     latest: readonly StaffHistorySession[] | undefined,
   ) => (latest?.some((s) => !s.check_out_time) ? OPEN_MONTH_REFRESH_MS : 0);
 
-  const { data: adminSessions } = useSWRAuth<readonly StaffHistorySession[]>(
+  const {
+    data: adminSessions,
+    error: adminSessionsError,
+    mutate: mutateAdminSessions,
+  } = useSWRAuth<readonly StaffHistorySession[]>(
     staffId
       ? `staff-history-${staffId}-${weekHistoryFromKey}-${weekToKey}`
       : null,
@@ -158,7 +174,11 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
       ),
     { refreshInterval },
   );
-  const { data: ownHistory } = useSWRAuth<{
+  const {
+    data: ownHistory,
+    error: ownHistoryError,
+    mutate: mutateOwnHistory,
+  } = useSWRAuth<{
     sessions: WorkSessionHistory[];
     weeklySummaries: WeeklySummary[];
   }>(
@@ -172,7 +192,11 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     },
   );
 
-  const { data: adminAbsences } = useSWRAuth<readonly StaffAbsenceRow[]>(
+  const {
+    data: adminAbsences,
+    error: adminAbsencesError,
+    mutate: mutateAdminAbsences,
+  } = useSWRAuth<readonly StaffAbsenceRow[]>(
     staffId ? `staff-absences-${staffId}-${weekFromKey}-${weekToKey}` : null,
     () =>
       staffAbsenceService.getAbsences(
@@ -181,7 +205,11 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
         weekToKey,
       ),
   );
-  const { data: ownAbsences } = useSWRAuth<StaffAbsence[]>(
+  const {
+    data: ownAbsences,
+    error: ownAbsencesError,
+    mutate: mutateOwnAbsences,
+  } = useSWRAuth<StaffAbsence[]>(
     staffId ? null : `time-tracking-table-absences-${weekFromKey}-${weekToKey}`,
     () => timeTrackingService.getAbsences(weekFromKey, weekToKey),
   );
@@ -197,17 +225,26 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     () => (staffId ? adminAbsences : ownAbsences?.map(adaptAbsenceForMetrics)),
     [staffId, adminAbsences, ownAbsences],
   );
+  const weekAbsencesError = staffId ? adminAbsencesError : ownAbsencesError;
 
   const { data: config } = useSWRAuth("time-tracking-config", () =>
     timeTrackingService.getConfig(),
   );
-  const { balanceMinutes: accountBalanceMinutes } = useAccountBalance(staffId);
+  const {
+    balanceMinutes: accountBalanceMinutes,
+    error: balanceError,
+    retry: retryAccountBalance,
+  } = useAccountBalance(staffId);
 
   const week = useMemo<PeriodTotals | null>(() => {
     // No Soll, no week card: showing Ist against a 0h Soll would read as a
     // pile of Überstunden, and applying the current schedule as a stand-in is
     // exactly the contradiction this hook exists to remove.
-    if (!weekTargets || !weekSessions) return null;
+    // No absences, no week card either: without them a sick or vacation week
+    // loses its credit and reads as "0 Std. von 39 Std." (#3885).
+    if (!weekTargets || !weekSessions || !weekAbsences || weekAbsencesError) {
+      return null;
+    }
     const effectiveEnd = today < weekEnd ? today : weekEnd;
     return computePeriodTotalsFromTargets(
       weekTargets,
@@ -217,7 +254,15 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
       weekEnd,
       effectiveEnd,
     );
-  }, [weekTargets, weekSessions, weekAbsences, weekStart, weekEnd, today]);
+  }, [
+    weekTargets,
+    weekSessions,
+    weekAbsences,
+    weekAbsencesError,
+    weekStart,
+    weekEnd,
+    today,
+  ]);
 
   const month = useMemo<PeriodTotals | null>(() => {
     if (!monthSummary) return null;
@@ -251,11 +296,52 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     [weekProjection],
   );
 
+  // The figures stay null when a source failed; the caller must not wait for
+  // them forever (#2514).
+  const error =
+    monthSummaryError ??
+    weekProjectionError ??
+    adminSessionsError ??
+    ownHistoryError ??
+    adminAbsencesError ??
+    ownAbsencesError ??
+    balanceError;
+  const failed = Boolean(error);
+  const retry = useCallback(async () => {
+    const retries: Promise<unknown>[] = [];
+    if (monthSummaryError) retries.push(mutateMonthSummary());
+    if (weekProjectionError) retries.push(mutateWeekProjection());
+    if (adminSessionsError) retries.push(mutateAdminSessions());
+    if (ownHistoryError) retries.push(mutateOwnHistory());
+    if (adminAbsencesError) retries.push(mutateAdminAbsences());
+    if (ownAbsencesError) retries.push(mutateOwnAbsences());
+    if (balanceError) retries.push(retryAccountBalance());
+    await Promise.all(retries);
+  }, [
+    monthSummaryError,
+    weekProjectionError,
+    adminSessionsError,
+    ownHistoryError,
+    adminAbsencesError,
+    ownAbsencesError,
+    balanceError,
+    mutateMonthSummary,
+    mutateWeekProjection,
+    mutateAdminSessions,
+    mutateOwnHistory,
+    mutateAdminAbsences,
+    mutateOwnAbsences,
+    retryAccountBalance,
+  ]);
+
   return {
     week,
     month,
     accountStart,
     accountBalanceMinutes,
     hasTargetOverride,
+    failed,
+    error,
+    retry,
   };
 }

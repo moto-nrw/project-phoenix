@@ -5,7 +5,7 @@
 // bereits regulär angelegte Kinder werden übersprungen, sie stehen schon
 // auf der Klassenliste.
 
-import { useState, useCallback } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Download, Info, ListChecks, X } from "lucide-react";
@@ -14,11 +14,21 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
+import {
+  downloadImportTemplate,
+  importResponseError,
+  postImportFile,
+} from "~/lib/import-request";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import {
   countAlreadyExistsRows,
@@ -102,7 +112,13 @@ export default function ClassListImportPage() {
   const [importComplete, setImportComplete] = useState(false);
   const [importInterrupted, setImportInterrupted] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Fehler der Datei und des Imports stehen im Kasten über der Vorlage,
+  // mit Wiederholen (#2517). Ein angehaltener Stapel ist kein Fehler des
+  // Ablaufs, sondern ein Stand: er steht als eigener Hinweis.
+  const importErrors = useApiFormError();
+  const { show: showTemplateError } = useApiErrorDisplay();
+  const [batchNotice, setBatchNotice] = useState<string | null>(null);
+  const latestImportRef = useRef<() => void>(() => undefined);
   const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("xlsx");
 
   const { data: session, status } = useSession({
@@ -127,87 +143,55 @@ export default function ClassListImportPage() {
     setImportComplete(false);
     setImportInterrupted(false);
     setImportResult(null);
-    setError(null);
-  }, []);
+    importErrors.clear();
+    setBatchNotice(null);
+  }, [importErrors]);
 
   const handleDownloadTemplate = async () => {
     try {
-      const token = session?.user?.token;
-      if (!token) {
-        setError("Keine Authentifizierung");
-        return;
-      }
-
-      const response = await fetch(
+      await downloadImportTemplate(
         `/api/import/class-list-entries/template?format=${templateFormat}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Fehler beim Herunterladen der Vorlage");
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download =
+        session?.user?.token,
         templateFormat === "xlsx"
           ? "klassenliste-import-vorlage.xlsx"
-          : "klassenliste-import-vorlage.csv";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+          : "klassenliste-import-vorlage.csv",
+      );
     } catch (err) {
       logger.error("template_download_failed", {
         error: err instanceof Error ? err.message : String(err),
         format: templateFormat,
       });
-      setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      // Eine Aktion ohne Formular: Toast mit Wiederholen.
+      void showTemplateError(err, {
+        object: "die Vorlage",
+        retry: () => void handleDownloadTemplate(),
+      });
     }
   };
 
   const handleFileUpload = useCallback(
     async (file: File) => {
       setUploadedFile(file);
-      setError(null);
+      importErrors.clear();
+      setBatchNotice(null);
       setIsLoading(true);
       setImportComplete(false);
       setImportInterrupted(false);
       setImportResult(null);
 
       try {
-        const token = session?.user?.token;
-        if (!token) {
-          throw new Error("Keine Authentifizierung");
-        }
-
         const formData = new FormData();
         formData.append("file", file);
 
-        const response = await fetch("/api/import/class-list-entries/preview", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        });
-
-        const result = (await response.json()) as Record<string, unknown>;
+        const response = await postImportFile(
+          "/api/import/class-list-entries/preview",
+          session?.user?.token,
+          formData,
+        );
+        const result = response.body;
 
         if (!response.ok) {
-          // Failure responses carry the actionable text in `error`
-          // (api/common ErrResponse); `message` exists only on successes.
-          throw new Error(
-            (result.error as string | undefined) ??
-              (result.message as string | undefined) ??
-              "Fehler bei der Vorschau",
-          );
+          throw importResponseError(response, "Class list preview failed");
         }
 
         const importData = result.data as ImportResult;
@@ -234,39 +218,35 @@ export default function ClassListImportPage() {
         logger.error("class_list_preview_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+        void importErrors.show(err, {
+          object: "die Datei",
+          retry: () => void handleFileUpload(file),
+        });
         setPreviewData([]);
       } finally {
         setIsLoading(false);
       }
     },
-    [session],
+    [session, importErrors],
   );
 
   const handleImport = async () => {
     if (!uploadedFile) return;
 
     setIsImporting(true);
-    setError(null);
+    importErrors.clear();
+    setBatchNotice(null);
 
     try {
-      const token = session?.user?.token;
-      if (!token) {
-        throw new Error("Keine Authentifizierung");
-      }
-
       const formData = new FormData();
       formData.append("file", uploadedFile);
 
-      const response = await fetch("/api/import/class-list-entries/import", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      const result = (await response.json()) as Record<string, unknown>;
+      const response = await postImportFile(
+        "/api/import/class-list-entries/import",
+        session?.user?.token,
+        formData,
+      );
+      const result = response.body;
 
       if (!response.ok) {
         const interrupted = readImportBatchFailure<ImportRowResult>(result);
@@ -274,7 +254,7 @@ export default function ClassListImportPage() {
           setImportResult(interrupted as ImportResult);
           setImportInterrupted(true);
           setPreviewData((interrupted.Errors ?? []).map(toDisplayEntry));
-          setError(importBatchFailureMessage(interrupted));
+          setBatchNotice(importBatchFailureMessage(interrupted));
           logger.error("class_list_import_batch_failed", {
             created: interrupted.CreatedCount,
             updated: interrupted.UpdatedCount,
@@ -282,11 +262,7 @@ export default function ClassListImportPage() {
           });
           return;
         }
-        throw new Error(
-          (result.error as string | undefined) ??
-            (result.message as string | undefined) ??
-            "Fehler beim Import",
-        );
+        throw importResponseError(response, "Class list import failed");
       }
 
       const importData = result.data as ImportResult;
@@ -300,23 +276,35 @@ export default function ClassListImportPage() {
         const skipped = countAlreadyExistsRows(importData.Errors);
         const failed = importData.ErrorCount - skipped;
         toast.warning(
-          `${importData.CreatedCount} angelegt, ${skipped} übersprungen` +
-            (failed > 0 ? `, ${failed} fehlgeschlagen` : ""),
+          `Der Import ist fertig: ${importData.CreatedCount} angelegt, ${skipped} übersprungen` +
+            (failed > 0 ? `, ${failed} fehlgeschlagen.` : "."),
         );
       } else {
         setImportComplete(true);
-        toast.success(`${importData.CreatedCount} Einträge angelegt`);
+        toast.success(
+          importData.CreatedCount === 1
+            ? "1 Eintrag ist angelegt."
+            : `${importData.CreatedCount} Einträge sind angelegt.`,
+        );
         resetForm();
       }
     } catch (err) {
       logger.error("class_list_import_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      void importErrors.show(err, {
+        object: "das Importieren der Datei",
+        retry: () => latestImportRef.current(),
+      });
     } finally {
       setIsImporting(false);
     }
   };
+
+  // Wiederholen importiert die Datei, die dann gewählt ist.
+  useLayoutEffect(() => {
+    latestImportRef.current = () => void handleImport();
+  });
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
@@ -351,9 +339,11 @@ export default function ClassListImportPage() {
           file.name.endsWith(".csv") ||
           file.name.endsWith(".xlsx"))
       ) {
-        handleFileUpload(file).catch(() => undefined);
+        void handleFileUpload(file);
       } else {
-        setError("Bitte nur CSV- oder Excel-Dateien (.csv, .xlsx) hochladen");
+        importErrors.invalid(
+          "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
+        );
       }
     }
   };
@@ -411,29 +401,25 @@ export default function ClassListImportPage() {
         </ul>
       </SectionCard>
 
-      {/* Error Display */}
-      {error && (
+      <FormErrorAlert message={importErrors.error} />
+      {batchNotice && importResult ? (
         <div className="relative">
           <Alert
-            type={
-              importInterrupted && importResult
-                ? importBatchFailureAlertType(importResult)
-                : "error"
-            }
-            message={error}
+            type={importBatchFailureAlertType(importResult)}
+            message={batchNotice}
           />
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            onClick={() => setError(null)}
+            onClick={() => setBatchNotice(null)}
             className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-2 -translate-y-1/2"
-            aria-label="Fehler schließen"
+            aria-label="Hinweis schließen"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
-      )}
+      ) : null}
 
       {/* Download Template */}
       <SectionCard title="Vorlage herunterladen" icon={Download}>
@@ -475,7 +461,7 @@ export default function ClassListImportPage() {
               type="button"
               variant="primary"
               size="sm"
-              onClick={() => handleDownloadTemplate().catch(() => undefined)}
+              onClick={() => void handleDownloadTemplate()}
               className="h-10 w-full gap-2"
             >
               <Download className="h-5 w-5" aria-hidden="true" />
@@ -494,7 +480,7 @@ export default function ClassListImportPage() {
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        onFileSelect={(file) => handleFileUpload(file).catch(() => undefined)}
+        onFileSelect={(file) => void handleFileUpload(file)}
       />
 
       {/* Preview Section */}

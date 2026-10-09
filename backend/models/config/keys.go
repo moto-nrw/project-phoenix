@@ -169,6 +169,7 @@ const (
 	KeyParentMasterDataEditEnabled           = "operations.parent_master_data_edit_enabled"
 	KeyParentMasterDataRequestEnabled        = "operations.parent_master_data_request_enabled"
 	KeyParentRequestGroupLeaderReviewEnabled = reviewsettings.GroupLeaderEnabled
+	KeyParentRequestReviewScope              = "operations.parent_request_review_scope"
 	KeyParentAbsenceReviewScope              = "operations.parent_absence_review_scope"
 	KeyParentNewsEnabled                     = "operations.parent_news_enabled"
 	// Whether colleagues at this school can write to each other inside moto
@@ -177,6 +178,9 @@ const (
 	KeyStaffMessagingEnabled           = "operations.staff_messaging_enabled"
 	KeyTimeTrackingAccountStartDate    = "operations.time_tracking_account_start_date"
 	KeyTimeTrackingEnforcePlannedStart = "operations.time_tracking_enforce_planned_start"
+	// #3825: how many minutes before the planned shift start (Dienstplan)
+	// a check-in opens while the planned-start enforcement is on.
+	KeyTimeTrackingPlannedStartToleranceMinutes = "operations.time_tracking_planned_start_tolerance_minutes"
 	// F9: stamping outside the tolerance window around the planned shift
 	// window requires a reason; the tolerance is configurable per school.
 	KeyTimeTrackingRequireDeviationReason    = "operations.time_tracking_require_deviation_reason"
@@ -208,13 +212,23 @@ const (
 	KeyNotificationsOnDutyOnly = "notifications.on_duty_only"
 )
 
-// Inherit preserves the old cross-kind group-leader policy until a school
-// explicitly chooses an absence-only scope. Reset restores that policy.
+// Who reviews the parent requests of the write queues (master data, care
+// schedule, offerings). Inherit preserves the group-leader switch until a
+// school explicitly chooses a scope. Reset restores that switch.
 const (
-	ParentAbsenceReviewScopeInherit      = "inherit"
-	ParentAbsenceReviewScopeAdmins       = "admins"
-	ParentAbsenceReviewScopeGroupLeaders = "group_leaders"
-	ParentAbsenceReviewScopeAllStaff     = "all_staff"
+	ParentRequestReviewScopeInherit      = "inherit"
+	ParentRequestReviewScopeAdmins       = "admins"
+	ParentRequestReviewScopeGroupLeaders = "group_leaders"
+	ParentRequestReviewScopeAllStaff     = "all_staff"
+)
+
+// Inherit follows the scope of the other parent requests until a school
+// explicitly chooses an absence-only scope. Reset restores that scope.
+const (
+	ParentAbsenceReviewScopeInherit      = ParentRequestReviewScopeInherit
+	ParentAbsenceReviewScopeAdmins       = ParentRequestReviewScopeAdmins
+	ParentAbsenceReviewScopeGroupLeaders = ParentRequestReviewScopeGroupLeaders
+	ParentAbsenceReviewScopeAllStaff     = ParentRequestReviewScopeAllStaff
 )
 
 // PresenceMode option values for KeyPresenceMode.

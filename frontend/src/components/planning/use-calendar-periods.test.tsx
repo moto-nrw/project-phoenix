@@ -6,15 +6,18 @@ const {
   mockListPhases,
   mockSetPhaseCalendarPeriod,
   mockToastError,
+  mockToastSuccess,
 } = vi.hoisted(() => ({
   mockListPeriods: vi.fn(),
   mockListPhases: vi.fn(),
   mockSetPhaseCalendarPeriod: vi.fn(),
   mockToastError: vi.fn(),
+  mockToastSuccess: vi.fn(),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({ success: vi.fn(), error: mockToastError }),
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
 }));
 
 vi.mock("~/lib/calendar-period-api", () => ({
@@ -78,5 +81,34 @@ describe("useCalendarPeriods", () => {
     });
 
     expect(mockToastError).not.toHaveBeenCalled();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("confirms a phase link in a full sentence", async () => {
+    mockSetPhaseCalendarPeriod.mockResolvedValueOnce(phase);
+    const { result } = renderHook(() => useCalendarPeriods());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    act(() => result.current.beginEdit(period));
+
+    await act(async () => {
+      await result.current.handlePhaseLinkToggle(phase, true);
+    });
+
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Die Anmeldephase „Demo Anmeldung“ ist mit „Schuljahr 2026/2027“ verknüpft.",
+    );
+  });
+
+  it("keeps the period list when only the phases fail to load", async () => {
+    mockListPhases.mockRejectedValueOnce(new Error("phases down"));
+    const { result } = renderHook(() => useCalendarPeriods());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.periods).toEqual([period]);
+    expect(result.current.phases).toEqual([]);
+    expect(result.current.loadFailed).toBe(false);
+    expect(result.current.error).toBeNull();
   });
 });

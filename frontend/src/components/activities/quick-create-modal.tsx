@@ -1,21 +1,22 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import type { FormEvent } from "react";
-import { getDbOperationMessage } from "~/lib/use-notification";
-import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import {
   parseParticipantLimit,
   useActivityForm,
 } from "~/hooks/useActivityForm";
-import { useToast } from "~/contexts/ToastContext";
-import { Alert } from "~/components/ui/alert";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
 import { SpinnerIcon } from "~/components/ui/icons";
-import { getApiErrorMessage } from "~/lib/api-error-message";
 import { createLogger } from "~/lib/logger";
 import { Minus, Plus } from "lucide-react";
 import { InfoIcon } from "@phosphor-icons/react";
@@ -60,50 +61,45 @@ export function QuickCreateActivityModal({
     setForm,
     categories,
     loading,
-    error,
-    setError,
+    loadError,
     handleInputChange,
     validateForm,
   } = useActivityForm(defaultFormValues, isOpen);
 
-  const errorRef = useScrollToError(error);
-  const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { clear: clearFormErrors, fieldError } = formErrors;
+  // „Wiederholen“ legt die Aktivität mit dem aktuellen Formularstand an.
+  const retrySubmitRef = useRef<() => void>(() => undefined);
+  const onInput = (event: ChangeEvent<HTMLInputElement>) => {
+    handleInputChange(event);
+    clearFormErrors();
+  };
 
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setForm(defaultFormValues);
-      setError(null);
-      setErrorFieldName(null);
+      clearFormErrors();
     }
-  }, [isOpen, setForm, setError]);
+  }, [isOpen, setForm, clearFormErrors]);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-
+  const submit = async () => {
     // Prevent double-submit: check synchronously at the very start
     if (isSubmitting || loading) {
       return;
     }
     setIsSubmitting(true);
 
-    setErrorFieldName(null);
-    const validationError = validateForm();
-    if (validationError) {
-      setError(validationError);
-      // Map validation error to field name
-      if (validationError.includes("name")) setErrorFieldName("name");
-      else if (validationError.includes("category"))
-        setErrorFieldName("category_id");
-      else if (validationError.includes("participants"))
-        setErrorFieldName("max_participants");
+    formErrors.clear();
+    const problem = validateForm();
+    if (problem) {
+      formErrors.invalid(problem.message, { [problem.field]: problem.message });
       if (isMountedRef.current) {
         setIsSubmitting(false);
       }
       return;
     }
-
-    setError(null);
 
     try {
       // Prepare the request data
@@ -114,7 +110,7 @@ export function QuickCreateActivityModal({
       };
 
       // Call the quick-create API endpoint
-      const response = await fetch("/api/activities/quick-create", {
+      const response = await transportFetch("/api/activities/quick-create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -124,15 +120,15 @@ export function QuickCreateActivityModal({
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to create activity: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `activity quick-create failed (${response.status})`,
+        );
       }
 
       await response.json();
 
-      // Show success notification
-      toastSuccess(
-        getDbOperationMessage("create", "Aktivität", form.name.trim()),
-      );
+      toastSuccess(`Die Aktivität „${form.name.trim()}“ ist angelegt.`);
 
       // Handle success
       if (onSuccess) {
@@ -145,19 +141,23 @@ export function QuickCreateActivityModal({
       logger.error("activity creation failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        getApiErrorMessage(
-          err,
-          "erstellen",
-          "Aktivitäten",
-          "Failed to create activity",
-        ),
-      );
+      void formErrors.show(err, {
+        object: "die Aktivität",
+        retry: () => retrySubmitRef.current(),
+      });
     } finally {
       if (isMountedRef.current) {
         setIsSubmitting(false);
       }
     }
+  };
+  useLayoutEffect(() => {
+    retrySubmitRef.current = () => void submit();
+  });
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    void submit();
   };
 
   const footer = (
@@ -207,22 +207,20 @@ export function QuickCreateActivityModal({
         <ModalLoadingMessage message="Kategorien werden geladen..." />
       ) : (
         <form
+          ref={formRef}
           id="quick-create-form"
           onSubmit={handleSubmit}
           className="space-y-6"
         >
-          {error && (
-            <div ref={errorRef}>
-              <Alert type="error" message={error} />
-            </div>
-          )}
+          <LoadErrorAlert error={loadError} />
+          <FormErrorAlert message={formErrors.error} />
 
           {/* Activity Name Card */}
           <div className="rounded-2xl border border-gray-200/50 bg-gray-50 p-5">
             <div>
               <label
                 htmlFor="name"
-                className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "name" ? "text-moto-red" : "text-gray-700"}`}
+                className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${fieldError("name") ? "text-moto-red" : "text-gray-700"}`}
               >
                 <div className="flex h-5 w-5 items-center justify-center rounded bg-gray-100">
                   <span className="text-xs font-bold text-gray-700">1</span>
@@ -233,9 +231,10 @@ export function QuickCreateActivityModal({
                 id="name"
                 name="name"
                 value={form.name}
-                onChange={handleInputChange}
+                onChange={onInput}
+                aria-invalid={fieldError("name") ? true : undefined}
                 placeholder="z.B. Hausaufgaben, Malen, Basteln..."
-                className={`block w-full rounded-xl border-0 bg-white/80 px-4 py-3.5 text-base text-gray-900 shadow-sm ring-1 ${errorFieldName === "name" ? "ring-moto-red/40" : "ring-gray-200/50"} backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-gray-700 focus:ring-inset`}
+                className={`block w-full rounded-xl border-0 bg-white/80 px-4 py-3.5 text-base text-gray-900 shadow-sm ring-1 ${fieldError("name") ? "ring-moto-red/40" : "ring-gray-200/50"} backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-gray-700 focus:ring-inset`}
                 required
                 maxLength={255}
               />
@@ -248,7 +247,7 @@ export function QuickCreateActivityModal({
               <label
                 id="category_id-label"
                 htmlFor="category_id"
-                className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "category_id" ? "text-moto-red" : "text-gray-700"}`}
+                className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${fieldError("category_id") ? "text-moto-red" : "text-gray-700"}`}
               >
                 <div className="flex h-5 w-5 items-center justify-center rounded bg-gray-100">
                   <span className="text-xs font-bold text-gray-700">2</span>
@@ -262,7 +261,7 @@ export function QuickCreateActivityModal({
                 value={form.category_id}
                 onChange={(next) => {
                   setForm((prev) => ({ ...prev, category_id: next }));
-                  setError(null);
+                  clearFormErrors();
                 }}
                 options={[
                   { value: "", label: "Kategorie wählen..." },
@@ -272,7 +271,7 @@ export function QuickCreateActivityModal({
                   })),
                 ]}
                 placeholder="Kategorie wählen..."
-                invalid={errorFieldName === "category_id"}
+                invalid={Boolean(fieldError("category_id"))}
                 required
               />
             </div>
@@ -283,7 +282,7 @@ export function QuickCreateActivityModal({
             <div>
               <label
                 htmlFor="max_participants"
-                className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "max_participants" ? "text-moto-red" : "text-gray-700"}`}
+                className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${fieldError("max_participants") ? "text-moto-red" : "text-gray-700"}`}
               >
                 <div className="flex h-5 w-5 items-center justify-center rounded bg-gray-100">
                   <span className="text-xs font-bold text-gray-700">3</span>
@@ -321,7 +320,10 @@ export function QuickCreateActivityModal({
                   name="max_participants"
                   type="number"
                   value={form.max_participants}
-                  onChange={handleInputChange}
+                  onChange={onInput}
+                  aria-invalid={
+                    fieldError("max_participants") ? true : undefined
+                  }
                   min="1"
                   disabled={!form.max_participants}
                   required={Boolean(form.max_participants)}

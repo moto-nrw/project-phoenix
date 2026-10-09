@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   end: vi.fn(),
   success: vi.fn(),
+  toastError: vi.fn(),
   openCare: false,
   overview: {
     groups: [{ id: "12", name: "Robins Gruppe" }],
@@ -79,8 +80,10 @@ vi.mock("~/lib/tenant-context", () => ({
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: vi.fn() }),
 }));
-vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({ success: mocks.success }),
+// Nur die Toasts ersetzen; der Fehlerweg (Katalogtexte) bleibt echt.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useToast: () => ({ success: mocks.success, error: mocks.toastError }),
 }));
 vi.mock("~/lib/substitution-api", () => ({
   substitutionService: {
@@ -91,13 +94,26 @@ vi.mock("~/lib/substitution-api", () => ({
   },
 }));
 vi.mock("~/components/active-supervisions/add-supervisor-modal", () => ({
-  AddSupervisorModal: ({ activeGroupId }: { activeGroupId: string }) => (
-    <div role="dialog">Zusätzliche Aufsicht für {activeGroupId}</div>
+  AddSupervisorModal: ({
+    activeGroupId,
+    canCreateExternalCaregiver,
+  }: {
+    activeGroupId: string;
+    canCreateExternalCaregiver?: boolean;
+  }) => (
+    <div
+      role="dialog"
+      data-can-create-external={String(canCreateExternalCaregiver)}
+    >
+      Zusätzliche Aufsicht für {activeGroupId}
+    </div>
   ),
 }));
 
 import { useSession } from "next-auth/react";
+import { ApiError } from "~/lib/api-error";
 import { useSWRAuth } from "~/lib/swr";
+import { catalogText } from "~/test/error-catalog-text";
 import SubstitutionPage from "./page";
 
 function adminSession() {
@@ -174,6 +190,28 @@ describe("SubstitutionPage", () => {
       screen.getByRole("button", { name: "Betreuer hinzufügen" }),
     );
     expect(screen.getByRole("dialog", { name: "" })).toHaveTextContent("41");
+  });
+
+  it("enables external caregiver entries for users who may create users", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          roles: ["admin"],
+          permissions: ["schedules:read", "schedules:manage", "users:create"],
+        },
+      },
+      status: "authenticated",
+    } as never);
+    render(<SubstitutionPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Betreuer hinzufügen" }),
+    );
+
+    expect(screen.getByRole("dialog", { name: "" })).toHaveAttribute(
+      "data-can-create-external",
+      "true",
+    );
   });
 
   it("links an allowed appointment to the existing module flow", () => {
@@ -254,13 +292,15 @@ describe("SubstitutionPage", () => {
     expect(mocks.success).toHaveBeenCalledWith("Die Übergabe wurde beendet.");
   });
 
-  it("does not present load failures as empty results", () => {
+  it("does not present load failures as empty results", async () => {
     vi.mocked(useSWRAuth).mockImplementation(
       () =>
         ({
           data: undefined,
           isLoading: false,
-          error: new Error("offline"),
+          error: new ApiError("Failed to fetch", 503, {
+            code: "general.unavailable",
+          }),
           mutate: mocks.mutate,
         }) as never,
     );
@@ -268,8 +308,14 @@ describe("SubstitutionPage", () => {
     render(<SubstitutionPage />);
 
     expect(
-      screen.getByText(/Vertretungen konnten nicht geladen werden/),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Übersicht der Vertretungen"),
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
+    expect(mocks.toastError).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(mocks.mutate).toHaveBeenCalledTimes(1);
     expect(
       screen.queryByText("Keine laufenden Betreuungen"),
     ).not.toBeInTheDocument();
@@ -279,8 +325,9 @@ describe("SubstitutionPage", () => {
   });
 
   it("shows the access state inside the existing page scaffold", () => {
-    const error = new Error("Vertretungen konnten nicht geladen werden.");
-    error.name = "SubstitutionAccessError";
+    const error = new ApiError("forbidden", 403, {
+      code: "substitutions.forbidden",
+    });
     vi.mocked(useSWRAuth).mockImplementation(
       () =>
         ({
@@ -300,6 +347,116 @@ describe("SubstitutionPage", () => {
       screen.getAllByRole("heading", { name: "Vertretungen" }),
     ).toHaveLength(1);
     expect(screen.queryByText("Laufende Betreuungen")).not.toBeInTheDocument();
+  });
+
+  it("shows a failed appointment load inside its card with a retry", async () => {
+    const scheduleMutate = vi.fn();
+    vi.mocked(useSWRAuth).mockImplementation(
+      (key: string | null) =>
+        (key?.startsWith("substitution-schedule-")
+          ? {
+              data: undefined,
+              isLoading: false,
+              error: new ApiError("boom", 500, { code: "general.server" }),
+              mutate: scheduleMutate,
+            }
+          : {
+              data: mocks.overview,
+              isLoading: false,
+              error: null,
+              mutate: mocks.mutate,
+            }) as never,
+    );
+
+    render(<SubstitutionPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Terminvertretungen"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Heute keine Terminvertretungen"),
+    ).not.toBeInTheDocument();
+    // Die übrigen Karten bleiben bedienbar.
+    expect(screen.getByText("Freispiel")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(scheduleMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a failed group handover in the dialog and marks the named field", async () => {
+    mocks.create.mockRejectedValueOnce(
+      new ApiError("target staff not eligible", 400, {
+        code: "substitutions.invalid_target",
+        errors: [{ field: "target_staff_id", reason: "invalid" }],
+      }),
+    );
+    render(<SubstitutionPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Gruppe übergeben" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Gruppe" }));
+    fireEvent.click(screen.getByRole("option", { name: "Robins Gruppe" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Betreuungskraft" }));
+    fireEvent.click(screen.getByRole("option", { name: "Toni Test" }));
+    fireEvent.click(screen.getByRole("button", { name: "Zuweisen" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("substitutions.invalid_target", "die Gruppenübergabe"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("target staff not eligible"),
+    ).not.toBeInTheDocument();
+    expect(mocks.toastError).not.toHaveBeenCalled();
+    expect(mocks.success).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("combobox", { name: "Betreuungskraft" }),
+    ).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("retries a failed group handover with the current form", async () => {
+    mocks.create
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(undefined);
+    render(<SubstitutionPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Gruppe übergeben" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Gruppe" }));
+    fireEvent.click(screen.getByRole("option", { name: "Robins Gruppe" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Betreuungskraft" }));
+    fireEvent.click(screen.getByRole("option", { name: "Toni Test" }));
+    fireEvent.click(screen.getByRole("button", { name: "Zuweisen" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() =>
+      expect(mocks.success).toHaveBeenCalledWith("Die Gruppe wurde übergeben."),
+    );
+    expect(mocks.create).toHaveBeenCalledTimes(2);
+    expect(mocks.create.mock.calls[1]?.slice(0, 2)).toEqual(["12", "34"]);
+  });
+
+  it("keeps a failed end of a handover in the confirmation dialog", async () => {
+    mocks.end.mockRejectedValueOnce(
+      new ApiError("conflict", 409, { code: "substitutions.conflict" }),
+    );
+    render(<SubstitutionPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Beenden" }));
+    const buttons = screen.getAllByRole("button", { name: "Beenden" });
+    fireEvent.click(buttons[buttons.length - 1]!);
+
+    expect(
+      await screen.findByText(
+        catalogText("substitutions.conflict", "die Übergabe"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Übergabe beenden?")).toBeInTheDocument();
+    expect(mocks.success).not.toHaveBeenCalled();
+    expect(mocks.toastError).not.toHaveBeenCalled();
   });
 
   it("explains every empty section", () => {

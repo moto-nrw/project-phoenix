@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { BellSimpleRingingIcon, CaretRightIcon } from "@phosphor-icons/react";
@@ -9,8 +9,10 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { TileCard } from "~/components/ui/tile-card";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
-import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Button } from "~/components/ui/button";
@@ -40,6 +42,7 @@ import { isAdmin, hasPermission } from "~/lib/auth-utils";
 import { useStaffPendingAbsences } from "~/lib/hooks/use-staff-pending-absences";
 import { SchoolOverviewSection } from "~/components/staff/school-overview-section";
 import { StaffAuditLog } from "~/components/staff/staff-audit-log";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   StaffTimeAccountsTable,
   saldoPresets,
@@ -53,15 +56,40 @@ import { staffOverviewService } from "~/lib/staff-overview-api";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
 import { StaffCardsSkeleton } from "./page-skeleton";
 
+/**
+ * Die Personenkarte: eine Kachel, wenn sie weiterführt, sonst eine reine
+ * Anzeige. Ohne Ziel trägt sie weder Schaltfläche noch Zeiger, Hover-Anhebung
+ * oder Ausgrauen; vorher sah eine gesperrte Karte klickbar aus und reagierte
+ * nicht (#3926).
+ */
+function StaffCardSurface({
+  onClick,
+  ariaLabel,
+  children,
+}: Readonly<{
+  onClick?: () => void;
+  ariaLabel: string;
+  children: ReactNode;
+}>) {
+  if (!onClick) return <SectionCard>{children}</SectionCard>;
+  return (
+    <TileCard onClick={onClick} ariaLabel={ariaLabel}>
+      {children}
+    </TileCard>
+  );
+}
+
 function DocumentDirectory({
   entries,
+  failed,
   error,
-  onRetry,
   embedded = false,
 }: {
   readonly entries: readonly StaffDocumentDirectoryEntry[];
-  readonly error?: Error;
-  readonly onRetry: () => void;
+  /** The load failed; the list must not read as „Keine Personen gefunden“. */
+  readonly failed: boolean;
+  /** The failed load from `useApiLoadError`, with retry and request ID. */
+  readonly error: FormErrorInput;
   readonly embedded?: boolean;
 }) {
   const router = useTenantRouter();
@@ -90,21 +118,8 @@ function DocumentDirectory({
           />
         </div>
       )}
-      {error ? (
-        <Alert
-          type="error"
-          message="Das Personalverzeichnis konnte nicht geladen werden."
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              size="compact"
-              onClick={onRetry}
-            >
-              Erneut versuchen
-            </Button>
-          }
-        />
+      {failed ? (
+        <LoadErrorAlert error={error} />
       ) : (
         <div className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200">
           {filteredEntries.map((entry) => (
@@ -139,7 +154,12 @@ function DocumentDirectory({
   return (
     <TenantPage
       title="Personalunterlagen"
-      stats={`${entries.length} ${entries.length === 1 ? "Person" : "Personen"} mit Unterlagen`}
+      // Ohne geladene Liste keine "0 Personen" neben dem Ladefehler (#2517).
+      stats={
+        failed
+          ? null
+          : `${entries.length} ${entries.length === 1 ? "Person" : "Personen"} mit Unterlagen`
+      }
       search={{
         value: search,
         onChange: setSearch,
@@ -194,6 +214,14 @@ function StaffPageContent() {
     !userIsAdmin &&
     !canListStaff &&
     !canManageTimeTracking;
+  // Die Personenkarte führt nur dann weiter, wenn dort auch etwas
+  // freigeschaltet ist: das Profil mit Unterlagen oder Stammdaten, oder der
+  // Personal-Datensatz (Reiter „Konto", staff:manage, #2906). Seit #3115 ist
+  // die Personalakte die einzige Objektansicht; das Pane der Datenverwaltung
+  // gibt es nicht mehr.
+  const profileTabAvailable =
+    userIsAdmin || canAccessDocuments || canEditStammdaten;
+  const canNavigateToStaff = profileTabAvailable || canManageStaffRecords;
 
   // State variables for filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -234,11 +262,15 @@ function StaffPageContent() {
     data: staffData,
     isLoading,
     error: staffError,
+    mutate: mutateStaff,
   } = useSWRAuth<Staff[]>(
     canListStaff ? "staff-list" : null,
     async () => {
       const staffData = await staffService.getAllStaff({});
-      return sortStaff(staffData);
+      // Externe Kräfte ohne Konto (#3823) stempeln nicht: hier stünden sie
+      // nur als „Abwesend“ in Status und Zählung. Geführt werden sie unter
+      // Datenverwaltung › Personal.
+      return sortStaff(staffData.filter((member) => !member.isExternal));
     },
     {
       keepPreviousData: true,
@@ -247,7 +279,13 @@ function StaffPageContent() {
   );
 
   const staff = staffData ?? [];
-  const error = staffError ? "Fehler beim Laden der Personaldaten." : null;
+  // Ladefehler stehen dort, wo die Daten fehlen, mit Wiederholen und
+  // Vorgangskennung (#2514).
+  const staffLoadError = useSwrLoadError(
+    staffError,
+    "die Personalliste",
+    mutateStaff,
+  );
 
   const {
     data: documentDirectory,
@@ -258,6 +296,11 @@ function StaffPageContent() {
     showDocumentDirectory ? "staff-document-directory" : null,
     () => staffService.getDocumentDirectory(),
     { revalidateOnFocus: false },
+  );
+  const documentDirectoryLoadError = useSwrLoadError(
+    documentDirectoryError,
+    "das Personalverzeichnis",
+    mutateDocumentDirectory,
   );
 
   // Zeitkonten (#1417 Tranche 2a). Beschäftigungstyp und Saldo-Grenzen gehen
@@ -291,6 +334,7 @@ function StaffPageContent() {
     data: accounts,
     isLoading: accountsLoading,
     error: accountsError,
+    mutate: mutateAccounts,
   } = useSWRAuth(
     accountsKey,
     () => {
@@ -327,6 +371,16 @@ function StaffPageContent() {
     monthCloseKey,
     () => staffMonthCloseService.getStatus(monthAnchor.year, monthAnchor.month),
     { keepPreviousData: false, revalidateOnFocus: false },
+  );
+  const accountsLoadError = useSwrLoadError(
+    accountsError,
+    "die Liste der Zeitkonten",
+    mutateAccounts,
+  );
+  const monthCloseLoadError = useSwrLoadError(
+    monthCloseStatusError,
+    "die Anzeige des Monatsabschlusses",
+    mutateMonthClose,
   );
   const monthClose =
     !monthCloseStatusError && monthCloseSnapshots
@@ -596,6 +650,15 @@ function StaffPageContent() {
   const staffSummary = (() => {
     // Die Zeile beschreibt, was gerade zu sehen ist: in den Personalunterlagen
     // also die Zahl der Personen mit Unterlagen, nicht die Personalliste.
+    // Ohne geladene Daten gibt es nichts zu zählen: „0 Personen“ läse sich
+    // wie eine leere Schule, der Ladefehler steht darunter (#2514).
+    if (
+      (view === "status" && staffError) ||
+      (view === "documents" && documentDirectoryError) ||
+      (view === "accounts" && accountsError)
+    ) {
+      return undefined;
+    }
     if (view === "documents") {
       const count = documentDirectory?.length ?? 0;
       return `${count} ${count === 1 ? "Person" : "Personen"} mit Unterlagen`;
@@ -631,7 +694,8 @@ function StaffPageContent() {
       }
       return parts.join(" · ");
     }
-    const count = documentDirectory?.length ?? 0;
+    if (documentDirectory === undefined) return undefined;
+    const count = documentDirectory.length;
     return `${count} ${count === 1 ? "Person" : "Personen"} mit Unterlagen`;
   })();
 
@@ -647,8 +711,8 @@ function StaffPageContent() {
       return (
         <DocumentDirectory
           entries={documentDirectory ?? []}
-          error={documentDirectoryError}
-          onRetry={() => void mutateDocumentDirectory()}
+          failed={Boolean(documentDirectoryError)}
+          error={documentDirectoryLoadError}
         />
       );
     }
@@ -663,7 +727,7 @@ function StaffPageContent() {
   const statusEmptyState =
     view === "status" &&
     !showSkeleton &&
-    !error &&
+    !staffError &&
     staffData !== undefined &&
     filteredStaff.length === 0
       ? {
@@ -754,7 +818,7 @@ function StaffPageContent() {
       // Der Ladefehler der Personalliste gehört ins Gerüst. Ihr Leerzustand
       // bleibt dagegen bei den Karten, damit unabhängige Bereiche sichtbar
       // bleiben.
-      error={view === "status" ? error : null}
+      error={view === "status" ? staffLoadError : null}
       overlays={
         <>
           {showCloseModal && (
@@ -779,7 +843,7 @@ function StaffPageContent() {
                 </>
               }
               submitLabel="Monat abschließen"
-              successMessage="Monat abgeschlossen."
+              successMessage="Der Monat ist abgeschlossen."
               onSubmit={handleCloseMonth}
               onClose={() => setShowCloseModal(false)}
             />
@@ -844,8 +908,8 @@ function StaffPageContent() {
             canAccessDocuments && (
               <DocumentDirectory
                 entries={documentDirectory ?? []}
-                error={documentDirectoryError}
-                onRetry={() => void mutateDocumentDirectory()}
+                failed={Boolean(documentDirectoryError)}
+                error={documentDirectoryLoadError}
                 embedded
               />
             )}
@@ -859,11 +923,7 @@ function StaffPageContent() {
               onNextMonth={() => shiftMonth(1)}
               canGoNextMonth={!isCurrentOrFutureMonth}
               monthClose={monthClose}
-              monthCloseError={
-                monthCloseStatusError
-                  ? "Der Abschlussstatus konnte nicht geladen werden. Abschließen und erneutes Abschließen sind bis zur erfolgreichen Aktualisierung nicht verfügbar."
-                  : null
-              }
+              monthCloseError={monthCloseLoadError}
               onRetryMonthClose={() => void mutateMonthClose()}
               monthIsOver={!isCurrentOrFutureMonth}
               onCloseMonth={() => setShowCloseModal(true)}
@@ -874,11 +934,7 @@ function StaffPageContent() {
                   : undefined
               }
               isLoading={accountsLoading && !accounts}
-              error={
-                accountsError
-                  ? "Zeitkonten konnten nicht geladen werden."
-                  : null
-              }
+              error={accountsLoadError}
               onRowClick={(row) =>
                 router.push(
                   `/staff/${row.staffId}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
@@ -893,6 +949,19 @@ function StaffPageContent() {
               paginationResetKey={`${accountsKey ?? "inactive"}:${searchTerm}`}
             />
           )}
+
+          {/* Ohne Recht auf die Personalakte sind die Karten reine Anzeige. Der
+              Grund steht einmal über der Liste statt auf jeder Karte (#3926). */}
+          {view === "status" &&
+            !canNavigateToStaff &&
+            !staffError &&
+            filteredStaff.length > 0 && (
+              <Alert
+                type="info"
+                announce="off"
+                message="Die Karten zeigen nur, wo jemand gerade ist. Personalakten sind für Ihr Konto nicht freigegeben. Fragen Sie bei Bedarf Ihre Leitung."
+              />
+            )}
 
           {/* Staff Grid */}
           {view === "status" &&
@@ -910,16 +979,6 @@ function StaffPageContent() {
                     const pendingRequestCount =
                       pendingByStaff.get(Number(staffMember.id)) ?? 0;
 
-                    // Die Karte führt nur dann weiter, wenn dort auch etwas
-                    // freigeschaltet ist: das Profil mit Unterlagen oder
-                    // Stammdaten, oder der Personal-Datensatz (Reiter
-                    // „Konto", staff:manage, #2906). Seit #3115 ist die
-                    // Personalakte die einzige Objektansicht; das Pane der
-                    // Datenverwaltung gibt es nicht mehr.
-                    const profileTabAvailable =
-                      userIsAdmin || canAccessDocuments || canEditStammdaten;
-                    const canNavigateToStaff =
-                      profileTabAvailable || canManageStaffRecords;
                     const navigateToStaff = () => {
                       if (!profileTabAvailable) {
                         router.push(`/staff/${staffMember.id}?tab=konto`);
@@ -931,21 +990,16 @@ function StaffPageContent() {
                     };
 
                     return (
-                      <TileCard
+                      <StaffCardSurface
                         key={staffMember.id}
                         onClick={
                           canNavigateToStaff ? navigateToStaff : undefined
                         }
-                        disabled={!canNavigateToStaff}
-                        ariaLabel={
-                          canNavigateToStaff
-                            ? `${staffMember.firstName} ${staffMember.lastName} - ${
-                                userIsAdmin
-                                  ? "Details öffnen"
-                                  : "Personalunterlagen öffnen"
-                              }`
-                            : undefined
-                        }
+                        ariaLabel={`${staffMember.firstName} ${staffMember.lastName} - ${
+                          userIsAdmin
+                            ? "Details öffnen"
+                            : "Personalunterlagen öffnen"
+                        }`}
                       >
                         <div className="relative">
                           <div className="relative flex min-h-[104px] flex-col">
@@ -1029,7 +1083,7 @@ function StaffPageContent() {
                             </div>
                           </div>
                         </div>
-                      </TileCard>
+                      </StaffCardSurface>
                     );
                   })}
                 </CollectionGrid>

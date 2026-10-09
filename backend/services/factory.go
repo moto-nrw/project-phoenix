@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
@@ -35,12 +34,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
-	documentCompose "github.com/moto-nrw/project-phoenix/modules/documentrendering/compose"
 	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
 	emergencysnapshotlegacy "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/legacy"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -58,12 +55,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	planexportlegacy "github.com/moto-nrw/project-phoenix/modules/planexport/legacy"
+	planexportCompose "github.com/moto-nrw/project-phoenix/modules/planexport/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -81,7 +79,6 @@ import (
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/database"
-	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
@@ -156,7 +153,7 @@ type Factory struct {
 	TimeTrackingAuditLog timetracking.TimeTrackingAuditLogService
 	StaffTimeExport      timetracking.StaffTimeExportService
 	Activities           activities.ActivityService
-	Education            education.Service
+	Education            schoolstructure.GroupManagement
 	Substitution         education.SubstitutionModule
 	// GradeTransition is the owner workflow behind the school-year rollover
 	// (#2711): the admin HTTP surface calls exactly its public commands.
@@ -693,7 +690,7 @@ func newFactory(
 	}
 
 	// Initialize education service first (needed for active service)
-	educationService := education.NewService(
+	educationService := education.NewGroupManagement(
 		repos.Group,
 		repos.GroupTeacher,
 		repos.ClassTeacher,
@@ -702,21 +699,9 @@ func newFactory(
 		repositories.NewEducationStaff(repos.Staff),
 		repos.Student,
 		repos.GroupSubstitution,
-		schoolStructure.NewLegacyRepositoryRuntime(db),
+		education.NewLegacyRepositoryRuntime(db),
+		education.GroupServiceOptions{Broadcaster: realtimeHub, Audit: repositories.NewEducationClassAssignmentAudit(repos.StaffMasterDataChange)},
 	)
-	// Announces group_access_changed after a group-leader change (#2084).
-	if broadcastAware, ok := educationService.(interface {
-		SetBroadcaster(realtimeevents.Publisher)
-	}); ok {
-		broadcastAware.SetBroadcaster(realtimeHub)
-	}
-	// Class assignment rewrites scope the Lehrkraft student day view (#1772)
-	// and land in the Stammdaten audit trail.
-	if auditAware, ok := educationService.(interface {
-		SetMasterDataAudit(education.ClassAssignmentAudit)
-	}); ok {
-		auditAware.SetMasterDataAudit(repositories.NewEducationClassAssignmentAudit(repos.StaffMasterDataChange))
-	}
 
 	// Reconciles already-materialized future timetable rosters when a grade
 	// transition graduates or restores students (#405).
@@ -1804,11 +1789,12 @@ func newFactory(
 	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: repositories.NewEducationHandovers(repos.GroupSubstitution),
 		Persons: newEducationPersonQuery(persons), Teachers: repositories.NewEducationCaregivers(repos.Teacher),
-		Staff: repositories.NewEducationStaff(repos.Staff), Actors: substitutionActorResolver{identity: callerContext},
+		Staff: repositories.NewEducationStaff(repos.Staff), ExternalCaregivers: repositories.NewEducationExternalCaregivers(repos.Staff, repos.Guest),
+		Actors:       substitutionActorResolver{identity: callerContext},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Audit:                   repositories.NewEducationSubstitutionAudit(repos.SubstitutionChange),
-		Runtime:                 schoolStructure.NewLegacyRepositoryRuntime(db), Broadcaster: realtimeHub,
+		Runtime:                 education.NewLegacyRepositoryRuntime(db), Broadcaster: realtimeHub,
 		Logger:   logger.With("service", "substitution"),
 		Schedule: scheduleSubstitution,
 		CanSeeAll: func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error) {
@@ -2536,7 +2522,6 @@ func newFactory(
 			People:           persons,
 			Settings:         fileStorageSettings{service: settingsService},
 			Events:           fileStorageEvents{repo: repos.FileEvent},
-			FileCleanups:     documentCompose.NewFileCleanupStore(db),
 			HasPermission:    securityruntime.HasPermission,
 			Announcements:    parentAnnouncementService,
 			GuardianAudience: parentService,
@@ -2626,18 +2611,18 @@ func newFactory(
 
 	// Printable weekly plans (#2079) are the Document Rendering plan export
 	// capability (#2706): a pure projection over the same reads the two
-	// planning screens use — it renders, it never writes. The retained
-	// schedule services and repositories are its compatibility bindings.
-	planExportService := planexportlegacy.New(planexportlegacy.Sources{
+	// planning screens use — it renders, it never writes. The root binds its
+	// ports to the owners' public reads.
+	planExportService := planexportCompose.New(planexportCompose.Sources{
 		Overview:       shiftPlanning.Overview,
-		ShiftTypes:     shiftTypeRows,
-		Instances:      repos.ActivityInstance,
-		InstanceStaff:  repos.InstanceStaff,
+		ShiftTypes:     workTime,
+		Instances:      repositories.NewTimetableInstanceReads(repos.ActivityInstance),
+		InstanceStaff:  repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 		Students:       repos.InstanceStudent,
-		Rooms:          repos.Room,
+		Rooms:          rooms,
 		Staff:          planExportStaffNames{staff: repos.Staff},
-		ActivityGroups: repos.ActivityGroup,
-		PlanningTracks: repos.PlanningTrack,
+		ActivityGroups: repositories.NewTimetableGroupReads(repos.ActivityGroup),
+		PlanningTracks: timetableCapability,
 		ClosingDays:    planExportClosingDays{calendar: calendar},
 		Holidays:       planExportHolidays{calendar: calendar},
 		Renderer:       listExportService,

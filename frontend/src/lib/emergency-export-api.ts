@@ -1,3 +1,4 @@
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import {
   downloadBlob,
   filenameFromDisposition,
@@ -9,12 +10,15 @@ export type EmergencySnapshotExportMode = "download" | "print";
 export async function exportEmergencySnapshot(
   mode: EmergencySnapshotExportMode,
 ): Promise<void> {
-  const response = await fetch("/api/emergency/snapshot/export", {
+  const response = await transportFetch("/api/emergency/snapshot/export", {
     method: "POST",
   });
 
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw await apiErrorFromResponse(
+      response,
+      "Emergency snapshot export failed",
+    );
   }
 
   const blob = await response.blob();

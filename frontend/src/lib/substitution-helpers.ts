@@ -29,8 +29,16 @@ interface BackendRunningSupervision {
   type: "additional_supervision";
   name: string;
   room_name?: string;
-  supervisors: Array<{ id: string; full_name: string }>;
-  available_targets: Array<{ id: string; full_name: string }>;
+  supervisors: Array<{
+    id: string;
+    full_name: string;
+    is_external?: boolean;
+  }>;
+  available_targets: Array<{
+    id: string;
+    full_name: string;
+    is_external?: boolean;
+  }>;
   is_current_user_supervising: boolean;
   can_assign: boolean;
 }
@@ -45,8 +53,13 @@ export interface RunningSupervision {
   id: string;
   name: string;
   roomName?: string;
-  supervisors: Array<{ id: string; fullName: string }>;
-  availableTargets: Array<{ id: string; fullName: string }>;
+  supervisors: Array<{
+    id: string;
+    fullName: string;
+    isExternal?: true;
+  }>;
+  /** isExternal: externe Kraft ohne moto-Konto (#3823). */
+  availableTargets: Array<{ id: string; fullName: string; isExternal?: true }>;
   isCurrentUserSupervising: boolean;
   canAssign: boolean;
 }
@@ -169,10 +182,12 @@ export function mapRunningSupervision(
     supervisors: backend.supervisors.map((staff) => ({
       id: staff.id.toString(),
       fullName: staff.full_name,
+      ...(staff.is_external ? { isExternal: true as const } : {}),
     })),
     availableTargets: backend.available_targets.map((staff) => ({
       id: staff.id.toString(),
       fullName: staff.full_name,
+      ...(staff.is_external ? { isExternal: true as const } : {}),
     })),
     isCurrentUserSupervising: backend.is_current_user_supervising,
     canAssign: backend.can_assign,

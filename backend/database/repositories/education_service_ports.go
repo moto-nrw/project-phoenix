@@ -2,6 +2,10 @@ package repositories
 
 import (
 	"context"
+	"sort"
+
+	"golang.org/x/text/collate"
+	"golang.org/x/text/language"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -63,6 +67,70 @@ func (s EducationStaff) StaffExists(ctx context.Context, id int64) (bool, error)
 func (s EducationStaff) LockStaff(ctx context.Context, id int64) error {
 	_, err := s.staff.FindByIDForUpdate(ctx, id)
 	return err
+}
+
+// EducationExternalCaregivers serves the running-supervision directory from
+// the staff and guest repositories.
+type EducationExternalCaregivers struct {
+	staff  userModels.StaffRepository
+	guests userModels.GuestRepository
+}
+
+// NewEducationExternalCaregivers binds the external-caregiver directory to
+// the staff and guest repositories.
+func NewEducationExternalCaregivers(staff userModels.StaffRepository, guests userModels.GuestRepository) EducationExternalCaregivers {
+	return EducationExternalCaregivers{staff: staff, guests: guests}
+}
+
+// ListExternalCaregivers returns the currently valid external caregivers
+// (#3823): staff members recorded with an active guest profile and without a
+// moto account, ordered like the caregiver directory. They may help with a
+// running supervision but never take over a group, so the substitution module
+// keeps them out of the handover targets. Other staff without an account (an
+// import without an e-mail address) stay out: nobody vouched for them as
+// caregivers.
+func (s EducationExternalCaregivers) ListExternalCaregivers(ctx context.Context) ([]*educationModels.Caregiver, error) {
+	guests, err := s.guests.List(ctx, map[string]any{"active": true})
+	if err != nil {
+		return nil, err
+	}
+	activeStaffIDs := make(map[int64]struct{}, len(guests))
+	for _, guest := range guests {
+		if guest != nil {
+			activeStaffIDs[guest.StaffID] = struct{}{}
+		}
+	}
+	members, err := s.staff.ListAllWithPerson(ctx)
+	if err != nil {
+		return nil, err
+	}
+	externals := make([]*userModels.Staff, 0, len(members))
+	for _, member := range members {
+		if member == nil || !member.IsGuest || member.Person == nil || member.Person.AccountID != nil {
+			continue
+		}
+		if _, active := activeStaffIDs[member.ID]; active {
+			externals = append(externals, member)
+		}
+	}
+	// Same German dictionary order as the caregiver directory, so both
+	// halves of the picker sort alike; one collator per call.
+	collator := collate.New(language.German, collate.IgnoreCase)
+	sort.SliceStable(externals, func(i, j int) bool {
+		a, b := externals[i].Person, externals[j].Person
+		if c := collator.CompareString(a.FirstName, b.FirstName); c != 0 {
+			return c < 0
+		}
+		if c := collator.CompareString(a.LastName, b.LastName); c != 0 {
+			return c < 0
+		}
+		return externals[i].ID < externals[j].ID
+	})
+	result := make([]*educationModels.Caregiver, 0, len(externals))
+	for _, member := range externals {
+		result = append(result, &educationModels.Caregiver{StaffID: member.ID, FullName: member.Person.FirstName + " " + member.Person.LastName})
+	}
+	return result, nil
 }
 
 // EducationCaregivers serves the substitution module's caregiver directory

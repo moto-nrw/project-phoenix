@@ -6,7 +6,8 @@ package schoolstructure
 import (
 	"context"
 	"errors"
-	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 )
 
 var (
@@ -15,15 +16,7 @@ var (
 	ErrInvalidStudent = errors.New("invalid student")
 )
 
-// Group is the structure view of one education group (Klasse/Gruppe).
-type Group struct {
-	ID        int64     `json:"id"`
-	TenantID  int64     `json:"tenant_id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Name      string    `json:"name"`
-	RoomID    *int64    `json:"room_id,omitempty"`
-}
+type Group = contract.Group
 
 // Query is the read seam every foreign reader of education.groups uses.
 type Query interface {

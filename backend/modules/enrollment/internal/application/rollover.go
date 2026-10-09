@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Enrollment owner ports of the rollover; the root binds the owner.
@@ -47,9 +48,12 @@ type (
 	PhaseEligibilityGuard interface {
 		CheckEligibilityCollectable(ctx context.Context, phase *enrollment.Phase) error
 	}
-	// RolloverDecider approves an auto-renewed row on an auto-approve phase.
+	// RolloverDecider approves an auto-renewed row on an auto-approve phase
+	// and applies the class switches renewals planned for the new school
+	// year once it starts (#3917).
 	RolloverDecider interface {
 		Decide(ctx context.Context, input enrollment.DecideInput) (*enrollment.DecideOutcome, error)
+		ApplyDueClassSwitches(ctx context.Context, asOf calendar.Date) (int, error)
 	}
 )
 
@@ -247,7 +251,7 @@ func (s *Rollovers) createRolloverPhase(ctx context.Context, tenantID int64, req
 	phase := rolloverPhaseFromSource(req, source)
 	phase.TenantID = tenantID
 	if err := phase.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %v", enrollment.ErrRolloverInvalidRequest, err)
+		return nil, fmt.Errorf("%w: %w", enrollment.ErrRolloverInvalidRequest, err)
 	}
 	// A rollover copies the source's class-eligibility restriction into an
 	// ACTIVE successor. If concrete-class collection was disabled after the
@@ -321,13 +325,15 @@ func validateCreateRequest(req enrollment.CreatePhaseFromSourceRequest) error {
 	case req.SourcePhaseID <= 0:
 		return fmt.Errorf("%w: source_phase_id is required", enrollment.ErrRolloverInvalidRequest)
 	case req.Name == "":
-		return fmt.Errorf("%w: name is required", enrollment.ErrRolloverInvalidRequest)
-	case req.ServiceStartDate.IsZero() || req.ServiceEndDate.IsZero():
-		return fmt.Errorf("%w: service dates are required", enrollment.ErrRolloverInvalidRequest)
+		return enrollment.InvalidInput(enrollment.CodePhaseNameRequired, "name", fmt.Errorf("%w: name is required", enrollment.ErrRolloverInvalidRequest))
+	case req.ServiceStartDate.IsZero():
+		return enrollment.InvalidInput(enrollment.CodePhaseServicePeriodInvalid, "service_start_date", fmt.Errorf("%w: service dates are required", enrollment.ErrRolloverInvalidRequest))
+	case req.ServiceEndDate.IsZero():
+		return enrollment.InvalidInput(enrollment.CodePhaseServicePeriodInvalid, "service_end_date", fmt.Errorf("%w: service dates are required", enrollment.ErrRolloverInvalidRequest))
 	case req.ServiceEndDate.Before(req.ServiceStartDate):
-		return fmt.Errorf("%w: service_end_date must be on or after service_start_date", enrollment.ErrRolloverInvalidRequest)
+		return enrollment.InvalidInput(enrollment.CodePhaseServicePeriodInvalid, "service_end_date", fmt.Errorf("%w: service_end_date must be on or after service_start_date", enrollment.ErrRolloverInvalidRequest))
 	case req.RolloverDeadline.IsZero():
-		return fmt.Errorf("%w: rollover_deadline is required", enrollment.ErrRolloverInvalidRequest)
+		return enrollment.InvalidInput(enrollment.CodeRolloverDeadlineRequired, "rollover_deadline", fmt.Errorf("%w: rollover_deadline is required", enrollment.ErrRolloverInvalidRequest))
 	case req.RolloverMode != enrollment.PhaseRolloverModeOptIn && req.RolloverMode != enrollment.PhaseRolloverModeOptOut:
 		return fmt.Errorf("%w: rollover_mode must be opt_in or opt_out", enrollment.ErrRolloverInvalidRequest)
 	}

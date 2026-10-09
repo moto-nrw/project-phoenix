@@ -1,7 +1,12 @@
 // This file contains the Teacher API service and related types
 
 import { sessionFetch } from "./session-cache";
-import { apiErrorFromText } from "~/lib/api-error";
+import {
+  ApiError,
+  apiErrorFromResponse,
+  apiErrorFromText,
+  wireErrorCode,
+} from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import type { Activity } from "./activity-helpers";
 
@@ -11,16 +16,6 @@ const logger = createLogger({ component: "TeacherAPI" });
 type CreateTeacherResult =
   | { status: "created"; data: TeacherWithCredentials }
   | { status: "account_exists"; email: string };
-
-/**
- * Extracts error message from API error response
- */
-function extractErrorMessage(
-  errorData: { error?: string; message?: string },
-  fallback: string,
-): string {
-  return errorData.error ?? errorData.message ?? fallback;
-}
 
 /**
  * Extracts ID from potentially wrapped API response
@@ -161,6 +156,9 @@ export interface Teacher {
   /** Konto-ID als Dezimalzeichenfolge; PostgreSQL `int64` bleibt exakt. */
   account_id?: string;
   is_teacher?: boolean;
+  /** Externe Betreuungskraft ohne moto-Konto (#3823). */
+  is_external?: boolean;
+  external_organization?: string | null;
   person?: unknown; // For nested person object
   // ID fields for proper mapping
   staff_id?: string;
@@ -197,7 +195,10 @@ class TeacherService {
         credentials: "include",
       });
       if (!response.ok) {
-        throw new Error(`Failed to fetch teachers: ${response.statusText}`);
+        throw await apiErrorFromResponse(
+          response,
+          `teacher list failed (${response.status})`,
+        );
       }
 
       const data = (await response.json()) as Teacher[] | { data: Teacher[] };
@@ -353,34 +354,30 @@ class TeacherService {
     });
 
     if (!response.ok) {
-      const errorData = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
-      const msg = extractErrorMessage(errorData, response.statusText);
-      if (msg.includes("bereits registriert")) {
+      const error = await apiErrorFromResponse(
+        response,
+        `account registration failed (${response.status})`,
+      );
+      // Ein vorhandenes Konto wird zum Verknüpfen angeboten; erkannt am
+      // Code, nie am Text (#2517).
+      if (wireErrorCode(error.code) === "identity.email_already_exists") {
         return { status: "account_exists" as const };
       }
-      if (msg.includes("Benutzername ist bereits vergeben")) {
-        throw new Error(
-          "Ein Konto mit diesem Benutzernamen existiert bereits.",
-        );
-      }
-      throw new Error(`Konto konnte nicht erstellt werden: ${msg}`);
+      throw error;
     }
 
     const data = (await response.json()) as AccountWithIdentityResponse;
     if (!extractIdFromResponse(data)) {
       logger.error("failed to get account ID from response");
-      throw new Error("Failed to get account ID from response");
+      throw new ApiError("account response without id", 500);
     }
 
     const identityIds = extractSchoolIdentity(data);
     if (!identityIds) {
       logger.error("account created without school identity");
-      throw new Error(
-        "Das Konto wurde angelegt, aber kein Mitarbeiter-Datensatz. Bitte erneut versuchen.",
-      );
+      // Eine 2xx-Antwort ohne Personaldatensatz ist ein Serverfehler. Ein
+      // erneutes Anlegen erkennt das Konto und bietet das Verknüpfen an.
+      throw new ApiError("account created without school identity", 500);
     }
 
     return { status: "created" as const, identity: identityIds };
@@ -405,12 +402,9 @@ class TeacherService {
     });
 
     if (!response.ok) {
-      const errorData = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
-      throw new Error(
-        `Konto konnte nicht verknüpft werden: ${extractErrorMessage(errorData, response.statusText)}`,
+      throw await apiErrorFromResponse(
+        response,
+        `account link failed (${response.status})`,
       );
     }
 
@@ -418,9 +412,7 @@ class TeacherService {
     const identityIds = extractSchoolIdentity(data);
 
     if (!identityIds) {
-      throw new Error(
-        "Der Mitarbeiter-Datensatz konnte nicht aus der Verknüpfungs-Antwort gelesen werden.",
-      );
+      throw new ApiError("account link response without school identity", 500);
     }
 
     return identityIds;
@@ -462,10 +454,10 @@ class TeacherService {
     });
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      const suffix = errorText ? ` - ${errorText}` : "";
-      throw new Error(
-        `Failed to create teacher: ${response.statusText}${suffix}`,
+      // Code, Feldfehler und Vorgangskennung aus dem Umschlag (#2517).
+      throw await apiErrorFromResponse(
+        response,
+        `staff create failed (${response.status})`,
       );
     }
 
@@ -668,7 +660,10 @@ class TeacherService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to delete teacher: ${response.statusText}`);
+        throw await apiErrorFromResponse(
+          response,
+          `Failed to delete teacher: ${response.statusText}`,
+        );
       }
     } catch (error) {
       logger.error("error deleting teacher", {

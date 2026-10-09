@@ -258,9 +258,11 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 
 func mapLateInviteAdminError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, capability.ErrEnrollmentDisabled),
-		errors.Is(err, capability.ErrInvalidSubmission),
-		errors.Is(err, capability.ErrInvalidGuardianEmail):
+	case errors.Is(err, capability.ErrEnrollmentDisabled):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentDisabled))
+	case errors.Is(err, capability.ErrInvalidGuardianEmail):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentInvalidEmail))
+	case errors.Is(err, capability.ErrInvalidSubmission):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -271,10 +273,12 @@ func mapManualEnrollmentError(w http.ResponseWriter, r *http.Request, err error)
 	switch {
 	case errors.Is(err, capability.ErrDecisionChildNotFound),
 		errors.Is(err, capability.ErrDecisionRequestNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, capability.ErrDecisionInvalidStatus),
-		errors.Is(err, capability.ErrDecisionAlreadyTerminal),
-		errors.Is(err, capability.ErrDecisionInvalidData):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentRequestNotFound))
+	case errors.Is(err, capability.ErrDecisionAlreadyTerminal):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentDecisionAlreadyFinal))
+	case errors.Is(err, capability.ErrDecisionInvalidData):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentApprovalDataInvalid))
+	case errors.Is(err, capability.ErrDecisionInvalidStatus):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, capability.ErrGuardianAccountMismatch):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentGuardianAccountMismatch))

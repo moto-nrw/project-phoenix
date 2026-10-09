@@ -1,3 +1,4 @@
+import { ApiError } from "./api-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./session-cache", () => ({
@@ -71,21 +72,23 @@ describe("staffPayrollNumberService", () => {
     );
   });
 
+  // The client keeps the code; the catalog words the hint (#2514).
   it.each([
-    [
-      "workforce.personnel_number_taken",
-      "Diese Personalnummer ist in dieser Schule bereits vergeben.",
-    ],
-    [
-      "workforce.personnel_number_invalid",
-      "Ungültige Personalnummer: nur Ziffern, höchstens 9 Stellen.",
-    ],
-    ["other", "backend error"],
-  ])("maps update error %s", async (code, expectedMessage) => {
+    ["workforce.personnel_number_taken"],
+    ["workforce.personnel_number_invalid"],
+  ])("keeps the update error code %s", async (code) => {
     mockedSessionFetch.mockResolvedValue(errorResponse(code));
+
+    const failure = staffPayrollNumberService.update("42", "90002", "");
+    await expect(failure).rejects.toBeInstanceOf(ApiError);
+    await expect(failure).rejects.toMatchObject({ code });
+  });
+
+  it("keeps the backend message of an uncoded update error", async () => {
+    mockedSessionFetch.mockResolvedValue(errorResponse("other"));
 
     await expect(
       staffPayrollNumberService.update("42", "90002", ""),
-    ).rejects.toThrow(expectedMessage);
+    ).rejects.toThrow("backend error");
   });
 });

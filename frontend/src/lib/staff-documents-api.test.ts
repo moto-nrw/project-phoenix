@@ -19,13 +19,13 @@ vi.mock("./session-cache", () => {
         headers: {
           "Content-Type": "application/json",
           ...(init?.headers as Record<string, string> | undefined),
-          ...{ Authorization: `Bearer ${token}` },
         },
       });
     }),
   };
 });
 
+import { ApiError } from "./api-error";
 import { getCachedSession } from "./session-cache";
 import {
   formatFileSize,
@@ -103,8 +103,8 @@ describe("staff-documents-api", () => {
       expect(mockFetch()).toHaveBeenCalledWith(
         "/api/staff/7/documents",
         expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: "Bearer test-token",
+          headers: expect.not.objectContaining({
+            Authorization: expect.anything(),
           }),
         }),
       );
@@ -181,9 +181,12 @@ describe("staff-documents-api", () => {
     it("rejects without sending when there is no session at all", async () => {
       mockedGetSession.mockResolvedValue(null);
 
-      await expect(
-        staffDocumentsService.upload("7", file, "sonstiges"),
-      ).rejects.toThrow("Authentifizierung erforderlich");
+      const failure = staffDocumentsService.upload("7", file, "sonstiges");
+      await expect(failure).rejects.toBeInstanceOf(ApiError);
+      await expect(failure).rejects.toMatchObject({
+        code: "general.permission",
+        status: 401,
+      });
       expect(mockFetch()).not.toHaveBeenCalled();
     });
 
@@ -195,56 +198,90 @@ describe("staff-documents-api", () => {
 
       await expect(
         staffDocumentsService.upload("7", file, "sonstiges"),
-      ).rejects.toThrow("Authentifizierung erforderlich");
+      ).rejects.toMatchObject({ code: "general.permission", status: 401 });
       expect(mockFetch()).not.toHaveBeenCalled();
     });
 
-    it("surfaces the backend error message", async () => {
+    it("normalizes a failed session lookup as unavailable", async () => {
+      mockedGetSession.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+      const failure = staffDocumentsService.upload("7", file, "sonstiges");
+
+      await expect(failure).rejects.toBeInstanceOf(ApiError);
+      await expect(failure).rejects.toMatchObject({
+        code: "general.unavailable",
+        status: 503,
+      });
+      expect(mockFetch()).not.toHaveBeenCalled();
+    });
+
+    it("keeps the backend code and request ID of a refused upload", async () => {
       mockFetch().mockResolvedValue({
         ok: false,
         status: 400,
-        json: () => Promise.resolve({ error: "Dateityp nicht erlaubt." }),
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: "Dateityp nicht erlaubt.",
+              code: "general.input",
+              instance: "req-upload",
+            }),
+          ),
       } as unknown as Response);
 
-      await expect(
-        staffDocumentsService.upload("7", file, "sonstiges"),
-      ).rejects.toThrow("Dateityp nicht erlaubt.");
+      const failure = staffDocumentsService.upload("7", file, "sonstiges");
+      await expect(failure).rejects.toBeInstanceOf(ApiError);
+      await expect(failure).rejects.toMatchObject({
+        code: "general.input",
+        status: 400,
+        requestId: "req-upload",
+      });
     });
 
-    it("keeps the fallback message when the error body has no error field", async () => {
+    it("classifies an envelope without code by its status", async () => {
       mockFetch().mockResolvedValue({
         ok: false,
         status: 500,
-        json: () => Promise.resolve({}),
+        text: () => Promise.resolve("{}"),
       } as unknown as Response);
 
       await expect(
         staffDocumentsService.upload("7", file, "sonstiges"),
-      ).rejects.toThrow("Dokument konnte nicht hochgeladen werden.");
+      ).rejects.toMatchObject({ code: "general.server", status: 500 });
     });
 
-    it("keeps the fallback message when the body is not JSON", async () => {
+    it("classifies a body that is not JSON by its status", async () => {
       mockFetch().mockResolvedValue({
         ok: false,
         status: 502,
-        json: () => Promise.reject(new Error("Unexpected token < in JSON")),
+        text: () => Promise.resolve("<html>Bad Gateway</html>"),
       } as unknown as Response);
 
       await expect(
         staffDocumentsService.upload("7", file, "sonstiges"),
-      ).rejects.toThrow("Dokument konnte nicht hochgeladen werden.");
+      ).rejects.toMatchObject({ code: "general.unavailable", status: 502 });
     });
 
-    it("replaces the message with the category hint on 403", async () => {
+    it("reports a refused category as a missing permission", async () => {
       mockFetch().mockResolvedValue({
         ok: false,
         status: 403,
-        json: () => Promise.resolve({ error: "forbidden" }),
+        text: () => Promise.resolve(JSON.stringify({ error: "forbidden" })),
       } as unknown as Response);
 
       await expect(
         staffDocumentsService.upload("7", file, "lohnabrechnung"),
-      ).rejects.toThrow("Keine Berechtigung für diese Dokument-Kategorie.");
+      ).rejects.toMatchObject({ code: "general.permission", status: 403 });
+    });
+
+    it("reports a network failure as unavailable", async () => {
+      mockFetch().mockRejectedValue(new TypeError("Failed to fetch"));
+
+      const failure = staffDocumentsService.upload("7", file, "sonstiges");
+      await expect(failure).rejects.toBeInstanceOf(ApiError);
+      await expect(failure).rejects.toMatchObject({
+        code: "general.unavailable",
+      });
     });
   });
 
@@ -258,47 +295,56 @@ describe("staff-documents-api", () => {
         "/api/staff/7/documents/42",
         expect.objectContaining({
           method: "DELETE",
-          headers: expect.objectContaining({
-            Authorization: "Bearer test-token",
+          headers: expect.not.objectContaining({
+            Authorization: expect.anything(),
           }),
         }),
       );
     });
 
-    it("surfaces the backend error message", async () => {
+    it("keeps the backend code of a refused delete", async () => {
       mockFetch().mockResolvedValue({
         ok: false,
         status: 409,
-        json: () => Promise.resolve({ error: "Dokument bereits entfernt." }),
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: "Dokument bereits entfernt.",
+              code: "general.business_rejection",
+            }),
+          ),
       } as unknown as Response);
 
-      await expect(staffDocumentsService.delete("7", "42")).rejects.toThrow(
-        "Dokument bereits entfernt.",
-      );
+      const failure = staffDocumentsService.delete("7", "42");
+      await expect(failure).rejects.toBeInstanceOf(ApiError);
+      await expect(failure).rejects.toMatchObject({
+        code: "general.business_rejection",
+        status: 409,
+      });
     });
 
-    it("uses the delete fallback message for non-JSON bodies", async () => {
+    it("classifies a body that is not JSON by its status", async () => {
       mockFetch().mockResolvedValue({
         ok: false,
         status: 500,
-        json: () => Promise.reject(new Error("not json")),
+        text: () => Promise.resolve("not json"),
       } as unknown as Response);
 
-      await expect(staffDocumentsService.delete("7", "42")).rejects.toThrow(
-        "Dokument konnte nicht gelöscht werden.",
-      );
+      await expect(
+        staffDocumentsService.delete("7", "42"),
+      ).rejects.toMatchObject({ code: "general.server", status: 500 });
     });
 
     it("reports a missing permission on 403", async () => {
       mockFetch().mockResolvedValue({
         ok: false,
         status: 403,
-        json: () => Promise.resolve({}),
+        text: () => Promise.resolve("{}"),
       } as unknown as Response);
 
-      await expect(staffDocumentsService.delete("7", "42")).rejects.toThrow(
-        "Keine Berechtigung für diese Dokument-Kategorie.",
-      );
+      await expect(
+        staffDocumentsService.delete("7", "42"),
+      ).rejects.toMatchObject({ code: "general.permission", status: 403 });
     });
   });
 

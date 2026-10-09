@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
 
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { ToggleChip } from "~/components/ui/toggle-chip";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   exportStaffBirthdays,
@@ -52,6 +53,10 @@ export function StaffBirthdayExportModal({
   const [title, setTitle] = useState("Geburtstagsliste Personal");
   const [months, setMonths] = useState<string[]>([currentBirthdayMonth()]);
   const [exporting, setExporting] = useState(false);
+  // Fehler stehen im offenen Dialog; ein Toast läge hinter dem Modal (#2514).
+  const formErrors = useApiFormError();
+  // „Wiederholen“ exportiert mit der aktuellen Auswahl.
+  const latestExportRef = useRef<() => Promise<void>>(async () => undefined);
 
   const toggleMonth = (month: string) => {
     setMonths((current) =>
@@ -61,27 +66,40 @@ export function StaffBirthdayExportModal({
     );
   };
 
+  const handleClose = () => {
+    formErrors.clear();
+    onClose();
+  };
+
   const handleExport = async () => {
     setExporting(true);
+    formErrors.clear();
     try {
       await exportStaffBirthdays({ format, title, months });
-      toast.success("Export wurde erstellt.");
-      onClose();
+      toast.success("Die Geburtstagsliste ist erstellt.");
+      handleClose();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Export fehlgeschlagen";
-      logger.error("staff_birthday_export_failed", { error: message });
-      toast.error(message);
+      logger.error("staff_birthday_export_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await formErrors.show(error, {
+        object: "die Geburtstagsliste",
+        retry: () => void latestExportRef.current(),
+      });
     } finally {
       setExporting(false);
     }
   };
 
+  useLayoutEffect(() => {
+    latestExportRef.current = handleExport;
+  });
+
   const footer = (
     <>
       <button
         type="button"
-        onClick={onClose}
+        onClick={handleClose}
         disabled={exporting}
         className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       >
@@ -102,13 +120,14 @@ export function StaffBirthdayExportModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title="Geburtstagsliste Personal exportieren"
       closeLabel="Export schließen"
       widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
       isDismissDisabled={exporting}
       footer={footer}
     >
+      <FormErrorAlert message={formErrors.error} className="mb-4" />
       <p className="mb-5 text-sm text-gray-500">
         Alle Mitarbeitenden mit hinterlegtem Geburtsdatum. Wer kein Datum
         hinterlegt hat, fehlt in dieser Liste.

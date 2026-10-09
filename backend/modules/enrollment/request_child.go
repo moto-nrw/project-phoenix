@@ -91,3 +91,22 @@ func (c *RequestChild) IsTerminal() bool {
 		return false
 	}
 }
+
+// ClassSwitch is the class change an approved re-enrollment planned for an
+// already enrolled child (#3917). The child keeps From until On, the first day
+// of the new school year; the switch to To applies only while the child still
+// sits in From.
+type ClassSwitch struct {
+	RequestChildID int64
+	From           string
+	To             string
+	On             Date
+}
+
+// DueClassSwitch is a planned class switch whose day has come, with the
+// request child's state the apply step decides on.
+type DueClassSwitch struct {
+	ClassSwitch
+	ChildStatus      string
+	CreatedStudentID *int64
+}

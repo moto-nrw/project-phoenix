@@ -11,7 +11,7 @@ import (
 
 func (a *API) pwaUsageRouter() chi.Router {
 	router := chi.NewRouter()
-	apiCommon.ProtectedTenantGroup(router, a.db, func(r chi.Router, withTx apiCommon.Middleware) {
+	apiCommon.ProtectedTenantRoutes(router, func(r chi.Router, withTx apiCommon.Middleware) {
 		pwaAPI.NewResource(http.HandlerFunc(a.reportPWAUsage), withTx).Register(r)
 	})
 	return router

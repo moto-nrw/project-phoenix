@@ -1,9 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { CaretRightIcon, ChecksIcon } from "@phosphor-icons/react/ssr";
-import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import NavigationLink from "~/components/ui/navigation-link";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
@@ -98,7 +105,12 @@ export function ParentMessagesPage() {
   const [children, setChildren] = useState<Child[]>([]);
   const [rows, setRows] = useState<ChildConversation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  // A failed load replaces the list with retry (#2518), never an empty page.
+  const {
+    error,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
 
   // Latest-wins: Fokus und SSE loesen beide einen stillen Nachladelauf aus,
   // ein aelterer darf einen neueren nie ueberschreiben.
@@ -111,32 +123,45 @@ export function ParentMessagesPage() {
     };
   }, []);
 
-  const load = useCallback(async (opts?: { silent?: boolean }) => {
-    const silent = opts?.silent ?? false;
-    const seq = ++loadSeqRef.current;
-    if (!silent) setLoading(true);
-    try {
-      const childList = await listMyChildren();
-      // Nur die Mehr-Kinder-Liste braucht die Uebersicht der Unterhaltungen.
-      const nextRows =
-        childList.length > 1
-          ? buildRows(childList, await listMessageThreads())
-          : [];
-      if (!mountedRef.current || seq !== loadSeqRef.current) return;
-      setChildren(childList);
-      setRows(nextRows);
-      setError(false);
-    } catch (err) {
-      logger.warn("parent_messages_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      if (!silent && mountedRef.current && seq === loadSeqRef.current) {
-        setError(true);
+  const load = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = opts?.silent ?? false;
+      const seq = ++loadSeqRef.current;
+      if (!silent) setLoading(true);
+      try {
+        const childList = await listMyChildren();
+        // Nur die Mehr-Kinder-Liste braucht die Uebersicht der Unterhaltungen.
+        const nextRows =
+          childList.length > 1
+            ? buildRows(childList, await listMessageThreads())
+            : [];
+        if (!mountedRef.current || seq !== loadSeqRef.current) return;
+        setChildren(childList);
+        setRows(nextRows);
+        clearLoadError();
+      } catch (err) {
+        logger.warn("parent_messages_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // A silent refresh (focus, SSE) was not started by the person and keeps
+        // the list on screen, so its failure stays in the log only.
+        if (!silent && mountedRef.current && seq === loadSeqRef.current) {
+          void showLoadError(err, {
+            object: t("errorObjectList"),
+            retry: () => void loadRef.current(),
+          });
+        }
+      } finally {
+        if (mountedRef.current && seq === loadSeqRef.current) setLoading(false);
       }
-    } finally {
-      if (mountedRef.current && seq === loadSeqRef.current) setLoading(false);
-    }
-  }, []);
+    },
+    [clearLoadError, showLoadError, t],
+  );
+  // The retry runs the latest load, not the one of the failed attempt.
+  const loadRef = useRef(load);
+  useLayoutEffect(() => {
+    loadRef.current = load;
+  });
 
   useEffect(() => {
     void load();
@@ -177,7 +202,7 @@ export function ParentMessagesPage() {
           title={t("title")}
           description={t("description")}
         />
-        <Alert type="error" message={t("loadError")} />
+        <LoadErrorAlert error={error} />
       </ParentPage>
     );
   }

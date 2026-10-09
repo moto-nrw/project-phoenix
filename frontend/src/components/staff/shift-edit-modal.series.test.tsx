@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
 import { setTestClock } from "~/test/clock";
+import { catalogText } from "~/test/error-catalog-text";
 
 import { ShiftEditModal } from "./shift-edit-modal";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -264,7 +266,7 @@ describe("ShiftEditModal series creation", () => {
     // Enable A/B on the cycle period, then switch to a period without a
     // cycle: the hidden biweekly flag must not leak into the payload.
     fireEvent.click(screen.getByRole("radio", { name: "Alle 2 Wochen" }));
-    fireEvent.click(screen.getByLabelText("Kalenderzeitraum"));
+    fireEvent.click(screen.getByRole("combobox", { name: "Kalenderzeitraum" }));
     fireEvent.click(
       screen.getByRole("option", { name: "Ganzjahr ohne Zyklus" }),
     );
@@ -291,7 +293,7 @@ describe("ShiftEditModal series creation", () => {
     // Native radios do not emit change when the checked option is clicked. The
     // click still represents an explicit choice and must stop future defaults.
     fireEvent.click(weekA);
-    fireEvent.click(screen.getByLabelText("Kalenderzeitraum"));
+    fireEvent.click(screen.getByRole("combobox", { name: "Kalenderzeitraum" }));
     fireEvent.click(
       screen.getByRole("option", { name: "Versetzter A/B-Zyklus" }),
     );
@@ -746,6 +748,150 @@ describe("ShiftEditModal series rule editing at the end of a segment", () => {
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
+    expect(splitSeries).not.toHaveBeenCalled();
+  });
+});
+
+describe("ShiftEditModal error display", () => {
+  it("shows a refused save in the panel and retries with the current times", async () => {
+    updateShift
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, {
+          code: "general.server",
+          instance: "req-9",
+        }),
+      )
+      .mockResolvedValueOnce(undefined);
+    const onSaved = vi.fn();
+    renderModal({
+      mode: "edit",
+      shift: { ...seriesShift, seriesId: null },
+      onSaved,
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    expect(
+      await screen.findByText(catalogText("general.server", "die Schicht")),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-9");
+    expect(onSaved).not.toHaveBeenCalled();
+
+    const [endInput] = document.getElementsByName("end_time");
+    fireEvent.change(endInput!, { target: { value: "13:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(updateShift).toHaveBeenLastCalledWith(
+      "9",
+      expect.objectContaining({ endTime: "13:00" }),
+    );
+  });
+
+  it("marks the field the server names", async () => {
+    updateShift.mockRejectedValue(
+      new ApiError("invalid", 400, {
+        code: "general.input",
+        errors: [{ field: "break_minutes", reason: "too long" }],
+      }),
+    );
+    renderModal({ mode: "edit", shift: { ...seriesShift, seriesId: null } });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    expect(
+      await screen.findByText(catalogText("general.input", "die Schicht")),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(document.getElementsByName("break_minutes")[0]).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      ),
+    );
+  });
+
+  it("keeps a refused delete in the confirmation", async () => {
+    deleteShift.mockRejectedValue(
+      new ApiError("forbidden", 403, { code: "general.permission" }),
+    );
+    const onClose = vi.fn();
+    renderModal({
+      mode: "edit",
+      shift: { ...seriesShift, seriesId: null },
+      onClose,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Schicht löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ja, löschen" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Endgültig löschen" }),
+    );
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Schicht löschen",
+    });
+    expect(
+      await screen.findByText(catalogText("general.permission", "die Schicht")),
+    ).toBeInTheDocument();
+    expect(dialog).toHaveTextContent(
+      catalogText("general.permission", "die Schicht"),
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed series load in place and loads it again on retry", async () => {
+    getSeries
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(seriesRule);
+    renderModal({ mode: "edit", shift: seriesShift });
+
+    expect(
+      await screen.findByText(catalogText("general.unavailable", "die Serie")),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByText(/Mo, Mi · 08:00–12:00/)).toBeInTheDocument();
+    expect(getSeries).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not claim missing periods when the periods fail to load", async () => {
+    listPeriods.mockRejectedValue(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+    renderModal({});
+
+    fireEvent.click(screen.getByText("Als Serie wiederholen"));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Kalenderzeiträume"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Kein aktiver Kalenderzeitraum vorhanden/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the local check in the alert when nothing is left to change", async () => {
+    getSeries.mockResolvedValue({ ...seriesRule, validUntil: "2026-09-08" });
+    renderModal({ mode: "edit", shift: seriesShift });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Serie bearbeiten" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /Setzen Sie „Gültig bis" auf ein späteres Datum/,
+    );
     expect(splitSeries).not.toHaveBeenCalled();
   });
 });

@@ -2,6 +2,8 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import {
   getChildFeatures,
   getChildToday,
@@ -381,18 +383,89 @@ describe("ParentStartPage", () => {
     });
 
     it("behauptet bei einer unvollstaendigen leeren Uebersicht nicht, dass alles erledigt ist", async () => {
-      mockedAnnouncements.mockRejectedValue(new Error("nicht erreichbar"));
+      mockedAnnouncements.mockRejectedValue(
+        new ApiError("diag", 503, { code: "general.unavailable" }),
+      );
 
       renderPage();
 
       expect(
         await screen.findByText(
-          "Einige Punkte konnten gerade nicht geladen werden.",
+          catalogText(
+            "general.unavailable",
+            deMessages.parentStart.todo.errorObject,
+          ),
         ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Wiederholen" }),
       ).toBeInTheDocument();
       expect(screen.queryByText("Alles erledigt")).not.toBeInTheDocument();
       expect(screen.queryByText("Zu erledigen")).not.toBeInTheDocument();
     });
+
+    it("zeigt neben vorhandenen Punkten den Ladefehler und laedt per Wiederholen neu", async () => {
+      mockedThreads.mockResolvedValue([
+        {
+          thread_id: "t1",
+          student_id: "42",
+          student_name: "Felix",
+          unread: 1,
+          last_message_at: "2026-08-17T06:00:00Z",
+        } as unknown as Awaited<ReturnType<typeof listMessageThreads>>[number],
+      ]);
+      mockedCalendar.mockRejectedValueOnce(
+        new ApiError("diag", 503, { code: "general.unavailable" }),
+      );
+
+      renderPage();
+
+      const message = catalogText(
+        "general.unavailable",
+        deMessages.parentStart.todo.errorObject,
+      );
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(screen.getByText("Neue Nachricht")).toBeInTheDocument();
+
+      screen.getByRole("button", { name: "Wiederholen" }).click();
+
+      await waitFor(() =>
+        expect(screen.queryByText(message)).not.toBeInTheDocument(),
+      );
+      expect(screen.getByText("Neue Nachricht")).toBeInTheDocument();
+    });
+  });
+
+  it("zeigt einen Ladefehler der Kinder statt des Leerzustands", async () => {
+    mockedChildren.mockRejectedValue(
+      new ApiError("diag", 500, { code: "general.server" }),
+    );
+
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", deMessages.parentStart.errorObject),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(deMessages.parentStart.noChildren),
+    ).not.toBeInTheDocument();
+  });
+
+  it("zeigt einen ausgefallenen Tagesstand sichtbar an und behaelt die Karte", async () => {
+    mockedToday.mockRejectedValue(
+      new ApiError("diag", 503, { code: "general.unavailable" }),
+    );
+
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", deMessages.parentStart.errorObject),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("child-day-card")).toBeInTheDocument();
   });
 
   it("zeigt je Kind genau eine Tageskarte", async () => {

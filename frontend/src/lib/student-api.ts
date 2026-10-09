@@ -4,6 +4,7 @@ import {
   apiErrorFromText,
   enrichApiError,
   unavailableApiError,
+  transportFetch,
 } from "./api-error";
 // lib/student-api.ts
 import { getCachedSession, sessionFetch } from "./session-cache";
@@ -47,6 +48,8 @@ export interface StudentFilters {
   last_name?: string;
   page?: number;
   page_size?: number;
+  /** Adds today's effective pickup time (`pickup_time`) to every row. */
+  include_pickup_times?: boolean;
 }
 
 // Generic API response interface
@@ -133,6 +136,8 @@ async function buildStudentUrl(
   if (filters.page) params.append("page", filters.page.toString());
   if (filters.page_size)
     params.append("page_size", filters.page_size.toString());
+  if (filters.include_pickup_times)
+    params.append("include_pickup_times", "true");
 
   const queryString = params.toString();
   return { url: queryString ? `${baseUrl}?${queryString}` : baseUrl, useProxy };
@@ -689,7 +694,7 @@ export async function fetchStudentDeletionImpact(
   const path = completionId
     ? `/api/students/care-withdrawals/${encodeURIComponent(completionId)}/deletion-impact`
     : `/api/students/${encodeURIComponent(id)}/delete-impact`;
-  const response = await fetch(path, { cache: "no-store" });
+  const response = await transportFetch(path, { cache: "no-store" });
   return studentDeletionResponse<StudentDeletionImpact>(
     response,
     "Auswirkungen der Löschung konnten nicht geladen werden.",
@@ -704,7 +709,7 @@ export async function deleteStudentWithData(
   const path = completionId
     ? `/api/students/care-withdrawals/${encodeURIComponent(completionId)}`
     : `/api/students/${encodeURIComponent(id)}`;
-  const response = await fetch(path, {
+  const response = await transportFetch(path, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),

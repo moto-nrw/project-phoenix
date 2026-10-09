@@ -1,13 +1,22 @@
 "use client";
 
 import { ShieldAlert } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import NavigationLink from "~/components/ui/navigation-link";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
   type AdminEnrollmentDeletionImpact,
   deleteAdminChild,
@@ -60,18 +69,30 @@ export function AdminEnrollmentDeletionModal({
   const [reason, setReason] = useState("");
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState("");
+  const [previewAttempt, setPreviewAttempt] = useState(0);
+  const errors = useApiFormError();
+  const clearErrors = errors.clear;
+  const previewError = useApiLoadError();
+  const showPreviewError = previewError.show;
+  const clearPreviewError = previewError.clear;
+  const retryPreview = useCallback(
+    () => setPreviewAttempt((attempt) => attempt + 1),
+    [],
+  );
+  // „Wiederholen“ löscht mit dem aktuellen Grund, nicht dem vom Fehler.
+  const latestDeleteRef = useRef<() => Promise<void>>(async () => undefined);
 
   useEffect(() => {
     if (!isOpen) {
       setImpact(null);
       setReason("");
-      setError("");
+      clearErrors();
+      clearPreviewError();
       return;
     }
     let active = true;
     setLoadingPreview(true);
-    setError("");
+    clearPreviewError();
     const preview = childId
       ? getAdminChildDeleteImpact(requestId, childId)
       : getAdminRequestDeleteImpact(requestId);
@@ -79,17 +100,18 @@ export function AdminEnrollmentDeletionModal({
       .then((result) => {
         if (active) setImpact(result);
       })
-      .catch((previewError: unknown) => {
-        const message =
-          previewError instanceof Error
-            ? previewError.message
-            : "Unbekannter Fehler";
+      .catch((loadError: unknown) => {
         logger.error("enrollment_delete_preview_failed", {
-          error: message,
+          error: loadError instanceof Error ? loadError.message : "unknown",
           request_id: requestId,
           child_id: childId,
         });
-        if (active) setError(message);
+        if (active) {
+          void showPreviewError(loadError, {
+            object: "die Vorschau der Löschung",
+            retry: retryPreview,
+          });
+        }
       })
       .finally(() => {
         if (active) setLoadingPreview(false);
@@ -97,7 +119,16 @@ export function AdminEnrollmentDeletionModal({
     return () => {
       active = false;
     };
-  }, [childId, isOpen, requestId]);
+  }, [
+    childId,
+    isOpen,
+    requestId,
+    previewAttempt,
+    clearErrors,
+    clearPreviewError,
+    showPreviewError,
+    retryPreview,
+  ]);
 
   const countRows = useMemo(() => {
     if (!impact) return [];
@@ -119,27 +150,29 @@ export function AdminEnrollmentDeletionModal({
   const handleDelete = async () => {
     if (!impact || confirmDisabled) return;
     setDeleting(true);
-    setError("");
+    errors.clear();
     try {
       const result = childId
         ? await deleteAdminChild(requestId, childId, trimmedReason)
         : await deleteAdminRequest(requestId, trimmedReason);
       onDeleted(result);
     } catch (deleteError) {
-      const message =
-        deleteError instanceof Error
-          ? deleteError.message
-          : "Unbekannter Fehler";
       logger.error("enrollment_delete_failed", {
-        error: message,
+        error: deleteError instanceof Error ? deleteError.message : "unknown",
         request_id: requestId,
         child_id: childId,
       });
-      setError(message);
+      await errors.show(deleteError, {
+        object: "die Löschung",
+        retry: () => void latestDeleteRef.current(),
+      });
     } finally {
       setDeleting(false);
     }
   };
+  useLayoutEffect(() => {
+    latestDeleteRef.current = handleDelete;
+  });
 
   const title = childId
     ? "Kind aus Anmeldung löschen"
@@ -170,6 +203,8 @@ export function AdminEnrollmentDeletionModal({
               Auswirkungen werden geladen…
             </p>
           ) : null}
+
+          <LoadErrorAlert error={previewError.error} />
 
           {impact ? (
             <>
@@ -248,7 +283,7 @@ export function AdminEnrollmentDeletionModal({
               {impact.can_delete ? (
                 <>
                   <Input
-                    name="enrollment-deletion-reason"
+                    name="reason"
                     label="Löschgrund (Pflichtfeld)"
                     value={reason}
                     onChange={(event) => setReason(event.target.value)}
@@ -257,7 +292,7 @@ export function AdminEnrollmentDeletionModal({
                     error={
                       reason.length > 0 && !reasonValid
                         ? "Bitte 3 bis 500 Zeichen eingeben."
-                        : undefined
+                        : errors.fieldError("reason")
                     }
                     disabled={deleting}
                   />
@@ -276,7 +311,7 @@ export function AdminEnrollmentDeletionModal({
       onConfirm={handleDelete}
       onClose={onClose}
       loading={deleting}
-      error={error}
+      error={errors.error}
     />
   );
 }

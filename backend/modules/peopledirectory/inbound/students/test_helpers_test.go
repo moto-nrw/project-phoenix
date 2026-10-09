@@ -27,7 +27,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
@@ -174,45 +173,26 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	require.NoError(t, err)
 	reviewAccess, err := requestreviewcompose.NewAccess(studentsAPI.RequestReviewPrincipal, nil)
 	require.NoError(t, err)
-	policy, err := reviewidentity.New(reviewidentity.Dependencies{
-		Principal: studentsAPI.RequestReviewPrincipal,
-		GroupLeaderEnabled: func(ctx context.Context) (bool, error) {
-			return svc.Settings.ResolveBool(ctx, reviewsettings.GroupLeaderEnabled)
-		},
-		GroupIDs: func(ctx context.Context) ([]int64, error) {
-			groups, err := svc.UserContext.GetMyGroups(ctx)
-			if err != nil {
-				return nil, err
-			}
-			ids := make([]int64, 0, len(groups))
-			for _, group := range groups {
-				if group != nil {
-					ids = append(ids, group.ID)
-				}
-			}
-			return ids, nil
-		},
-	})
-	require.NoError(t, err)
+	// The production root binds the same Identity & Access policy for the
+	// projection as for the decisions (#3804).
+	reviews := svc.UserContext.Caller().ParentRequestReviews
+	reviewScope := func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
+		schoolWide, groupIDs, err := reviews.ReviewScope(ctx, jwt.PermissionsFromCtx(ctx))
+		return requestreviewcompose.ReviewScope{SchoolWide: schoolWide, GroupIDs: groupIDs}, err
+	}
 	clock := firstClock(clocks)
 	if clock == nil {
 		clock = time.Now
 	}
 	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(db, svc.PeopleDirectory,
-		func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
-			scope, err := policy.Scope(ctx)
-			return requestreviewcompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
-		}, func() requestreviewcompose.ReviewDate {
+		reviewScope, func() requestreviewcompose.ReviewDate {
 			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
 		},
 		func(requestreviewcompose.CareObservation) {})
 	require.NoError(t, err)
 	careReviews, err := requestreviewcompose.NewScheduleReviews(db, requestreviewcompose.ScheduleReviewDependencies{
 		People: svc.PeopleDirectory,
-		Scope: func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
-			scope, err := policy.Scope(ctx)
-			return requestreviewcompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
-		},
+		Scope:  reviewScope,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return svc.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
@@ -229,10 +209,7 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	require.NoError(t, err)
 	offeringReviews, err := requestreviewcompose.NewOfferingReviews(db, requestreviewcompose.OfferingReviewDependencies{
 		People: svc.PeopleDirectory,
-		Scope: func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
-			scope, err := policy.Scope(ctx)
-			return requestreviewcompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
-		},
+		Scope:  reviewScope,
 		Today: func() requestreviewcompose.ReviewDate {
 			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
 		},
@@ -275,7 +252,7 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 		StudentDeletion:        studentDeletion,
 		CompanionService:       testutil.NewStudentRouteCompanions(repoFactory, svc.PeopleDirectory, svc.StudentAudit),
 		SchoolGroups:           schoolGroups,
-		UserContextService:     svc.UserContext,
+		UserContextService:     tenantScopedCaller{svc.UserContext},
 		ActiveService:          svc.Active,
 		DeviceAuthenticator:    testutil.NewDeviceAuthenticators(svc.IoT.Fleet(), testutil.DeviceSchools(t, db), svc.Settings, testDevicePIN).Device(),
 		AuthenticatedDevice:    testutil.AuthenticatedDeviceID,
@@ -325,6 +302,8 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 		Logger:                   slog.Default(),
 		Now:                      firstClock(clocks),
 	})
+	// The production root reports the same policy the queues apply (#3804).
+	resource.RequestReviewAccess = callerReviewAccess{reviews: reviews}
 
 	return &testContext{
 		careRequests:         svc.CareRequests,
@@ -335,6 +314,19 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 		clock:                firstClock(clocks),
 		newPickupAdjustments: svc.NewPickupAdjustments,
 	}
+}
+
+// tenantScopedCaller answers the staff lookup only inside a tenant
+// transaction, as the server's phoenix_auth role does: outside one RLS hides
+// the caller's person row. The suite's superuser pool would answer anyway and
+// hide a route that checks the caller without its transaction (#3830).
+type tenantScopedCaller struct{ studentsAPI.CallerContext }
+
+func (c tenantScopedCaller) HasCurrentStaff(ctx context.Context) (bool, error) {
+	if _, ok := testpkg.TransactionFromContext(ctx); !ok {
+		return false, errors.New("staff lookup outside a tenant transaction")
+	}
+	return c.CallerContext.HasCurrentStaff(ctx)
 }
 
 // previewStudentDeletion reads the delete-impact preview the confirmed
@@ -395,6 +387,28 @@ func authExec(t *testing.T, tc *testContext, req *http.Request, claims jwt.AppCl
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
 	return testutil.ExecuteRequestForTest(t, tc.resource.Router(), req)
+}
+
+// callerReviewAccess reports the caller context's review access level, as the
+// production root's review policy adapter does.
+type callerReviewAccess struct {
+	reviews interface {
+		ReviewScope(ctx context.Context, permissions []string) (bool, []int64, error)
+		AbsenceReviewScope(ctx context.Context, permissions []string) (bool, []int64, error)
+		ReviewAccessLevel(ctx context.Context, permissions []string) (string, error)
+	}
+}
+
+func (a callerReviewAccess) AccessLevel(ctx context.Context, permissions []string) (string, error) {
+	return a.reviews.ReviewAccessLevel(ctx, permissions)
+}
+
+func (a callerReviewAccess) Scope(ctx context.Context, permissions []string) (bool, []int64, error) {
+	return a.reviews.ReviewScope(ctx, permissions)
+}
+
+func (a callerReviewAccess) AbsenceScope(ctx context.Context, permissions []string) (bool, []int64, error) {
+	return a.reviews.AbsenceReviewScope(ctx, permissions)
 }
 
 // exportSchools reads the export title through the Organisation & Tenancy

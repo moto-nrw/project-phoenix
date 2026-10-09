@@ -5,6 +5,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { groupsConfig } from "./groups.config";
 import type { Group } from "@/lib/group-helpers";
+import { ApiError } from "~/lib/api-error";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch as unknown as typeof fetch;
@@ -141,6 +142,7 @@ describe("groupsConfig", () => {
 
   it("loads caregiver teacher options from wrapped responses", async () => {
     mockFetch.mockResolvedValueOnce({
+      ok: true,
       json: async () => ({
         data: [
           {
@@ -171,6 +173,7 @@ describe("groupsConfig", () => {
 
   it("loads caregiver teacher options from array responses and skips staff without teacher ids", async () => {
     mockFetch.mockResolvedValueOnce({
+      ok: true,
       json: async () => [
         {
           id: "10",
@@ -196,8 +199,15 @@ describe("groupsConfig", () => {
     expect(options).toEqual([{ value: "77", label: "Ada Lovelace" }]);
   });
 
-  it("returns an empty teacher option list when caregiver lookup fails", async () => {
-    mockFetch.mockRejectedValueOnce(new Error("boom"));
+  // An empty list would look like a school without caregivers; the form
+  // shows the catalog text with retry instead (#2517).
+  it("throws the ApiError when the caregiver lookup fails", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      text: async () =>
+        JSON.stringify({ status: "error", code: "general.permission" }),
+    });
 
     const teacherField = groupsConfig.form.sections[0]?.fields.find(
       (field) => field.name === "teacher_ids",
@@ -206,13 +216,16 @@ describe("groupsConfig", () => {
       teacherField && typeof teacherField.options === "function"
         ? teacherField.options
         : undefined;
-    const options = await loadOptions?.();
 
-    expect(options).toEqual([]);
+    await expect(loadOptions?.()).rejects.toMatchObject({
+      status: 403,
+      code: "general.permission",
+    });
   });
 
   it("loads room options from the rooms api", async () => {
     mockFetch.mockResolvedValueOnce({
+      ok: true,
       json: async () => ({
         data: [
           { id: 7, name: "Raum Sonnenblume" },
@@ -238,8 +251,8 @@ describe("groupsConfig", () => {
     ]);
   });
 
-  it("falls back to the empty room option when room loading fails", async () => {
-    mockFetch.mockRejectedValueOnce(new Error("rooms unavailable"));
+  it("throws general.unavailable when the rooms request never reaches the API", async () => {
+    mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
 
     const roomField = groupsConfig.form.sections[0]?.fields.find(
       (field) => field.name === "room_id",
@@ -248,9 +261,10 @@ describe("groupsConfig", () => {
       roomField && typeof roomField.options === "function"
         ? roomField.options
         : undefined;
-    const options = await loadOptions?.();
 
-    expect(options).toEqual([{ value: "", label: "Kein Gruppenraum" }]);
+    const caught = await loadOptions?.().catch((error: unknown) => error);
+    expect(caught).toBeInstanceOf(ApiError);
+    expect(caught).toMatchObject({ code: "general.unavailable" });
   });
 
   it("unwraps wrapped response payloads before mapping", async () => {

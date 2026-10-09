@@ -43,6 +43,15 @@ vi.mock("~/components/ui/database/database-form", () => ({
   },
 }));
 
+// The error path itself is tested in DatabaseForm; here it only travels.
+const errorPath = {
+  error: null,
+  show: vi.fn(),
+  invalid: vi.fn(),
+  fieldError: () => undefined,
+  clear: vi.fn(),
+};
+
 const room: Room = {
   id: "1",
   name: "Raum 101",
@@ -66,6 +75,7 @@ describe("RoomStammdatenTab", () => {
   it("shows the occupancy summary and the form for the room", () => {
     render(
       <RoomStammdatenTab
+        errorPath={errorPath}
         room={{
           ...room,
           isOccupied: true,
@@ -88,6 +98,7 @@ describe("RoomStammdatenTab", () => {
   it("marks system rooms", () => {
     render(
       <RoomStammdatenTab
+        errorPath={errorPath}
         room={{ ...room, name: "Schulhof" }}
         showOccupancy
         onSave={vi.fn()}
@@ -98,7 +109,14 @@ describe("RoomStammdatenTab", () => {
 
   it("remounts the form after a successful save so stale field state is dropped", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
-    render(<RoomStammdatenTab room={room} showOccupancy onSave={onSave} />);
+    render(
+      <RoomStammdatenTab
+        errorPath={errorPath}
+        room={room}
+        showOccupancy
+        onSave={onSave}
+      />,
+    );
 
     const before = getCurrentNonce();
     expect(before).not.toBeNull();
@@ -114,7 +132,14 @@ describe("RoomStammdatenTab", () => {
   });
 
   it("remounts the form when the user cancels (so unsaved field edits are discarded)", () => {
-    render(<RoomStammdatenTab room={room} showOccupancy onSave={vi.fn()} />);
+    render(
+      <RoomStammdatenTab
+        errorPath={errorPath}
+        room={room}
+        showOccupancy
+        onSave={vi.fn()}
+      />,
+    );
 
     const before = getCurrentNonce();
     fireEvent.click(screen.getByText("Cancel"));
@@ -124,12 +149,18 @@ describe("RoomStammdatenTab", () => {
 
   it("remounts the form when the room changes (so prior values do not leak)", () => {
     const { rerender } = render(
-      <RoomStammdatenTab room={room} showOccupancy onSave={vi.fn()} />,
+      <RoomStammdatenTab
+        errorPath={errorPath}
+        room={room}
+        showOccupancy
+        onSave={vi.fn()}
+      />,
     );
 
     const before = getCurrentNonce();
     rerender(
       <RoomStammdatenTab
+        errorPath={errorPath}
         room={{ ...room, id: "2", name: "Raum 202" }}
         showOccupancy
         onSave={vi.fn()}
@@ -143,6 +174,7 @@ describe("RoomStammdatenTab", () => {
   it("hides occupancy data when the tenant does not track room occupancy", () => {
     render(
       <RoomStammdatenTab
+        errorPath={errorPath}
         room={{
           ...room,
           isOccupied: true,

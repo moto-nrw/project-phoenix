@@ -339,7 +339,10 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 		"title":             "Freispiel",
 		"room_id":           roomID,
 		"activity_group_id": int64(71),
-		"staff_ids":         []int64{321},
+		// This is above JavaScript's safe integer limit. The operation accepts
+		// the decimal string so a selected external caregiver reaches the
+		// intended staff record.
+		"staff_ids": []string{"9007199254740993"},
 	})
 
 	require.Equal(t, http.StatusCreated, rr.Code)
@@ -347,7 +350,7 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 	assert.Equal(t, roomID, service.lastSpontaneousInput.RoomID)
 	require.NotNil(t, service.lastSpontaneousInput.ActivityGroupID)
 	assert.Equal(t, int64(71), *service.lastSpontaneousInput.ActivityGroupID)
-	assert.Equal(t, []int64{321, 320}, service.lastSpontaneousInput.StaffIDs)
+	assert.Equal(t, []int64{9007199254740993, 320}, service.lastSpontaneousInput.StaffIDs)
 	assert.Equal(t, calendar.NewDate(2026, 5, 11), service.lastSpontaneousInput.Date)
 	assert.Equal(t, "14:00", service.lastSpontaneousInput.StartTime.Format("15:04"))
 	assert.Equal(t, "15:00", service.lastSpontaneousInput.EndTime.Format("15:04"))
@@ -938,6 +941,7 @@ type fakeOperationsService struct {
 	lastInstanceID       int64
 	lastActiveGroupID    int64
 	lastStudentID        int64
+	lastStudentIDs       []int64
 	lastPatch            timetable.AttendancePatch
 	lastSpontaneousInput *timetable.SpontaneousStart
 }
@@ -1283,6 +1287,14 @@ func (s *fakeOperationsService) CheckInStudent(_ context.Context, accountID int6
 	s.lastIsAdmin = isAdmin
 	s.lastInstanceID = instanceID
 	s.lastStudentID = studentID
+	return s.roster, s.err
+}
+
+func (s *fakeOperationsService) CheckInStudents(_ context.Context, accountID int64, isAdmin bool, instanceID int64, studentIDs []int64) (*timetable.OperationRoster, error) {
+	s.lastAccountID = accountID
+	s.lastIsAdmin = isAdmin
+	s.lastInstanceID = instanceID
+	s.lastStudentIDs = studentIDs
 	return s.roster, s.err
 }
 

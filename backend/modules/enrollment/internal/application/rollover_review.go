@@ -8,6 +8,7 @@ import (
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // allChildStatuses is every status the child model knows. Kept explicit so
@@ -236,6 +237,16 @@ func (s *Rollovers) RunDeadlineWorker(ctx context.Context, asOf time.Time) (*enr
 		if err := s.resolveExpiredPhase(ctx, phase, summary); err != nil {
 			return summary, err
 		}
+	}
+	if s.deps.Decisions == nil {
+		return summary, nil
+	}
+	// After the auto-approvals: an approval for a school year that has
+	// already started writes the class itself and plans nothing.
+	applied, err := s.deps.Decisions.ApplyDueClassSwitches(ctx, calendar.DateFromTime(asOf))
+	summary.ClassSwitchesApplied = applied
+	if err != nil {
+		return summary, fmt.Errorf("rollover deadline: apply class switches: %w", err)
 	}
 	return summary, nil
 }

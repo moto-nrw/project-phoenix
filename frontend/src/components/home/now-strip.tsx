@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -120,7 +119,11 @@ export function NowStrip({
   const state = deriveHomeNow({
     now,
     own: own.error ? undefined : own.data?.filter((a) => a.date === today),
-    school: school.error ? undefined : school.data,
+    // Dienste (#3822) werden nie gestartet; als „Nicht gestartet" zu zählen
+    // wäre falsch.
+    school: school.error
+      ? undefined
+      : school.data?.filter((block) => block.isDuty !== true),
   });
 
   // Dieselbe Regel wie der Starten-Knopf in „Mein Tag", aus derselben
@@ -129,11 +132,9 @@ export function NowStrip({
     wantsDay && !day.error
       ? startableOwnBlock(day.data ?? [], new Date())
       : null;
-  const {
-    start,
-    busyId,
-    error: startError,
-  } = useStartOwnBlock({ onFailure: () => day.mutate() });
+  const { start, busyId } = useStartOwnBlock({
+    onFailure: () => day.mutate(),
+  });
   const actions = nowActions({
     isSupervising: ownSupervision === true,
     startable,
@@ -198,11 +199,6 @@ export function NowStrip({
           </div>
         )}
       </div>
-      {startError && (
-        <div className="mt-4">
-          <Alert type="error" message={startError} />
-        </div>
-      )}
     </SectionCard>
   );
 }

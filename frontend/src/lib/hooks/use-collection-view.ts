@@ -35,6 +35,7 @@ function readRaw(key: string): string | null {
   try {
     return globalThis.localStorage.getItem(key);
   } catch {
+    // Storage blocked: the default view applies.
     return null;
   }
 }
@@ -61,6 +62,7 @@ function parseStored(raw: string | null): StoredCollectionView {
         : undefined;
     return { view, columns, phoneDetail };
   } catch {
+    // Corrupt stored JSON: ignore it and use the default view.
     return {};
   }
 }
@@ -71,6 +73,7 @@ function writeStored(key: string, value: StoredCollectionView) {
     globalThis.localStorage.setItem(key, raw);
     memoryValues.delete(key);
   } catch {
+    // Storage blocked or full: keep the choice for this session only.
     memoryValues.set(key, raw);
   }
   globalThis.dispatchEvent(new Event(LOCAL_CHANGE_EVENT));

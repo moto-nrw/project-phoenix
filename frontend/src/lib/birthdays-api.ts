@@ -1,4 +1,14 @@
+import { apiErrorFromResponse, unavailableApiError } from "./api-error";
 import { fetchWithAuth } from "./fetch-with-auth";
+
+/** A request that never reached the API becomes `general.unavailable`. */
+async function authFetch(url: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await (init ? fetchWithAuth(url, init) : fetchWithAuth(url));
+  } catch (error) {
+    throw unavailableApiError(error);
+  }
+}
 
 /**
  * Birthday display + staff birthday list (#1542).
@@ -90,10 +100,13 @@ export async function fetchBirthdayOverviewClient(
   weekStart?: string | null,
 ): Promise<BirthdayOverview> {
   const query = weekStart ? `?week_start=${encodeURIComponent(weekStart)}` : "";
-  const response = await fetchWithAuth(`/api/birthdays${query}`);
+  const response = await authFetch(`/api/birthdays${query}`);
 
   if (!response.ok) {
-    throw new Error(`Birthday fetch failed: ${response.status}`);
+    throw await apiErrorFromResponse(
+      response,
+      `Birthday fetch failed: ${response.status}`,
+    );
   }
 
   const json = (await response.json()) as { data: BackendOverview };
@@ -101,10 +114,13 @@ export async function fetchBirthdayOverviewClient(
 }
 
 export async function fetchBirthdayOptOut(): Promise<boolean> {
-  const response = await fetchWithAuth("/api/birthdays/opt-out");
+  const response = await authFetch("/api/birthdays/opt-out");
 
   if (!response.ok) {
-    throw new Error(`Birthday opt-out fetch failed: ${response.status}`);
+    throw await apiErrorFromResponse(
+      response,
+      `Birthday opt-out fetch failed: ${response.status}`,
+    );
   }
 
   const json = (await response.json()) as { data: { opt_out: boolean } };
@@ -112,14 +128,17 @@ export async function fetchBirthdayOptOut(): Promise<boolean> {
 }
 
 export async function updateBirthdayOptOut(optOut: boolean): Promise<boolean> {
-  const response = await fetchWithAuth("/api/birthdays/opt-out", {
+  const response = await authFetch("/api/birthdays/opt-out", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ opt_out: optOut }),
   });
 
   if (!response.ok) {
-    throw new Error(`Birthday opt-out update failed: ${response.status}`);
+    throw await apiErrorFromResponse(
+      response,
+      `Birthday opt-out update failed: ${response.status}`,
+    );
   }
 
   const json = (await response.json()) as { data: { opt_out: boolean } };
@@ -138,14 +157,19 @@ export interface StaffBirthdayExportRequest {
 export async function exportStaffBirthdays(
   request: StaffBirthdayExportRequest,
 ): Promise<void> {
-  const response = await fetch("/api/birthdays/staff-export", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
+  let response: Response;
+  try {
+    response = await fetch("/api/birthdays/staff-export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+  } catch (error) {
+    throw unavailableApiError(error);
+  }
 
   if (!response.ok) {
-    throw new Error(await readExportError(response));
+    throw await apiErrorFromResponse(response, "Staff birthday export failed");
   }
 
   const blob = await response.blob();
@@ -159,23 +183,6 @@ export async function exportStaffBirthdays(
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-}
-
-// The export proxy returns errors as {"error":"..."}; a plain response may send
-// a bare text body. Prefer the JSON message so the toast never shows an empty
-// string or a raw envelope.
-async function readExportError(response: Response): Promise<string> {
-  const text = await response.text();
-  if (!text) return "Export fehlgeschlagen";
-  try {
-    const parsed = JSON.parse(text) as { error?: unknown };
-    if (typeof parsed.error === "string" && parsed.error.trim()) {
-      return parsed.error;
-    }
-  } catch {
-    // Not JSON — forward the raw text.
-  }
-  return text;
 }
 
 function filenameFromDisposition(response: Response): string | null {

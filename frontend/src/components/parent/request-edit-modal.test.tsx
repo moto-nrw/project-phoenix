@@ -1,7 +1,15 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { catalogText } from "~/test/error-catalog-text";
 import {
+  ParentApiError,
   listParentRequestEvents,
   updateExcusedRequest,
   updateMasterDataRequest,
@@ -178,5 +186,69 @@ describe("RequestEditModal", () => {
         expect.objectContaining({ expectedVersion: "" }),
       ),
     );
+  });
+
+  // #2518: a stale version comes back as a code; the dialog shows its catalog
+  // text and never the backend sentence.
+  it("shows a failed save inside the dialog from the shared catalog", async () => {
+    const onClose = vi.fn();
+    updateMasterData.mockRejectedValue(
+      new ParentApiError(
+        "request was changed by someone else",
+        409,
+        "students.change_request_stale",
+      ),
+    );
+    render(
+      <RequestEditModal
+        studentId="1"
+        request={{
+          type: "master_data",
+          id: "md-1",
+          label: "Vorname",
+          value: "Lena",
+        }}
+        onClose={onClose}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    await screen.findByText("Geändert am 24.08.2026");
+    fireEvent.click(screen.getByRole("button", { name: "Änderung speichern" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(
+      await within(dialog).findByText(
+        catalogText("students.change_request_stale", "die Anfrage"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/someone else/)).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("checks an empty value before sending and marks the field", async () => {
+    render(
+      <RequestEditModal
+        studentId="1"
+        request={{
+          type: "master_data",
+          id: "md-1",
+          label: "Vorname",
+          value: "Lena",
+        }}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    const input = screen.getByLabelText("Vorname");
+    fireEvent.change(input, { target: { value: " " } });
+    fireEvent.click(screen.getByRole("button", { name: "Änderung speichern" }));
+
+    expect(
+      await screen.findByText("Bitte tragen Sie einen Wert ein."),
+    ).toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(updateMasterData).not.toHaveBeenCalled();
   });
 });

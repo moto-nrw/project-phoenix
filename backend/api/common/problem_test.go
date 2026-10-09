@@ -162,3 +162,10 @@ func TestProblemResponseAnswersEveryLegacyBodyInTheSharedEnvelope(t *testing.T) 
 		})
 	}
 }
+
+func TestErrorClassCodeNamesAnOversizedRequest(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, common.CodeGeneralRequestTooLarge, common.ErrorClassCode(http.StatusRequestHeaderFieldsTooLarge))
+	require.Equal(t, common.CodeGeneralInput, common.ErrorClassCode(http.StatusBadRequest))
+}

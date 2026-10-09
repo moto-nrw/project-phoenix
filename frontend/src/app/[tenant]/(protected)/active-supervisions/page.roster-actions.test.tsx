@@ -4,7 +4,7 @@
  * it replaces the student search and timetable operations APIs entirely.
  */
 import {
-  render,
+  render as rtlRender,
   screen,
   waitFor,
   cleanup,
@@ -339,6 +339,16 @@ import {
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import MeinRaumPage from "./page";
 
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+// Aktionen melden Fehler als Toast oder im Dialog (#2517); der Provider
+// zeigt den Toast echt an.
+function render(ui: Parameters<typeof rtlRender>[0]) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
+
 describe("MeinRaumPage roster actions", () => {
   const mockMutate = vi.fn();
   const mockRosterMutate = vi.fn();
@@ -583,10 +593,12 @@ describe("MeinRaumPage roster actions", () => {
     },
   );
 
-  it("reports a failed server action without reloading", async () => {
-    vi.mocked(timetableOperationsApi.checkIn).mockRejectedValue(
-      new Error("request failed"),
-    );
+  it("reports a failed server action as a toast with retry, without reloading", async () => {
+    vi.mocked(timetableOperationsApi.checkIn)
+      .mockRejectedValueOnce(
+        new ApiError("request failed", 500, { code: "general.server" }),
+      )
+      .mockResolvedValueOnce(null as never);
     const reload = vi
       .spyOn(window.location, "reload")
       .mockImplementation(() => undefined);
@@ -594,13 +606,18 @@ describe("MeinRaumPage roster actions", () => {
     render(<MeinRaumPage />);
     fireEvent.click(await screen.findByRole("button", { name: "Einchecken" }));
 
-    await waitFor(() => {
-      expect(screen.getByTestId("alert-error")).toHaveTextContent(
-        "Aktion im Betreuungsplan konnte nicht ausgeführt werden.",
-      );
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Anwesenheit von Marie Muster"),
+      ),
+    ).toBeInTheDocument();
     expect(reload).not.toHaveBeenCalled();
     expect(mockRosterMutate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => {
+      expect(timetableOperationsApi.checkIn).toHaveBeenCalledTimes(2);
+    });
   });
 
   it.each([
@@ -613,8 +630,6 @@ describe("MeinRaumPage roster actions", () => {
         max_participants: 45,
         incoming_students: 1,
       },
-      message:
-        "Die Aktivität „Betreuung“ ist voll (45 von 45 Kindern). Die Grenze ändern Sie unter Datenverwaltung → Aktivitäten bei „Maximale Teilnehmer“.",
     },
     {
       kind: "room",
@@ -625,18 +640,12 @@ describe("MeinRaumPage roster actions", () => {
         max_capacity: 30,
         incoming_students: 1,
       },
-      message:
-        "Der Raum „Turnhalle“ ist voll (30 von 30 Plätzen). Die Grenze ändern Sie unter Datenverwaltung → Räume bei „Maximale Belegung“.",
     },
   ])(
     "says the $kind is full when the check-in is refused (#3633)",
-    async ({ code, details, message }) => {
+    async ({ code, details }) => {
       vi.mocked(timetableOperationsApi.checkIn).mockRejectedValue(
-        Object.assign(new Error("capacity"), {
-          httpStatus: 409,
-          code,
-          details,
-        }),
+        new ApiError("capacity", 409, { code, details }),
       );
 
       render(<MeinRaumPage />);
@@ -644,9 +653,20 @@ describe("MeinRaumPage roster actions", () => {
         await screen.findByRole("button", { name: "Einchecken" }),
       );
 
-      await waitFor(() => {
-        expect(screen.getByTestId("alert-error")).toHaveTextContent(message);
-      });
+      // The catalog text names the full room or activity with its numbers.
+      const maximum =
+        ("max_participants" in details
+          ? details.max_participants
+          : details.max_capacity) ?? 0;
+      const expected = Object.entries({
+        ...details,
+        free_slots: Math.max(0, maximum - details.current_occupancy),
+      }).reduce(
+        (text, [key, value]) => text.replace(`{${key}}`, String(value)),
+        catalogText(code as Parameters<typeof catalogText>[0], ""),
+      );
+      expect(await screen.findByText(expected)).toBeInTheDocument();
+      expect(expected).toContain(String(details.current_occupancy));
     },
   );
 
@@ -656,8 +676,7 @@ describe("MeinRaumPage roster actions", () => {
       JSON.stringify({ instanceId: "99", expiresAt: Date.now() + 60_000 }),
     );
     vi.mocked(timetableOperationsApi.reopen).mockRejectedValue(
-      Object.assign(new Error("room capacity exceeded: Turnhalle (30/30)"), {
-        httpStatus: 409,
+      new ApiError("room capacity exceeded: Turnhalle (30/30)", 409, {
         code: "presence.room_capacity_exceeded",
         details: {
           room_name: "Turnhalle",
@@ -674,11 +693,62 @@ describe("MeinRaumPage roster actions", () => {
         await screen.findByRole("button", { name: "Rückgängig" }),
       );
 
-      await waitFor(() => {
-        expect(screen.getByTestId("alert-error")).toHaveTextContent(
-          "Im Raum „Turnhalle“ ist nur noch 1 Platz frei (29 von 30 Plätzen).",
-        );
-      });
+      const expected = Object.entries({
+        room_name: "Turnhalle",
+        current_occupancy: 29,
+        max_capacity: 30,
+        incoming_students: 2,
+        free_slots: 1,
+      }).reduce(
+        (text, [key, value]) => text.replace(`{${key}}`, String(value)),
+        catalogText("presence.room_capacity_exceeded", ""),
+      );
+      expect(await screen.findByText(expected)).toBeInTheDocument();
+    } finally {
+      globalThis.sessionStorage.removeItem("timetable-reopenable-instance");
+    }
+  });
+
+  it("names the ended activity in the undo banner and opens it again on undo (#3887, #3888)", async () => {
+    globalThis.sessionStorage.setItem(
+      "timetable-reopenable-instance",
+      JSON.stringify({
+        instanceId: "199",
+        title: "Sport AG",
+        roomId: "20",
+        expiresAt: Date.now() + 60_000,
+      }),
+    );
+    vi.mocked(timetableOperationsApi.reopen).mockResolvedValue({
+      instanceId: "199",
+      activeGroupId: "2",
+      status: "active",
+    });
+
+    try {
+      render(<MeinRaumPage />);
+      expect(
+        await screen.findByText(
+          "„Sport AG“ wurde beendet. Sie können das fünf Minuten lang rückgängig machen.",
+        ),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Rückgängig" }));
+
+      await waitFor(() =>
+        expect(timetableOperationsApi.reopen).toHaveBeenCalledWith("199"),
+      );
+      await waitFor(() =>
+        expect(mockPush).toHaveBeenCalledWith(
+          expect.stringContaining("/active-supervisions?session=2"),
+        ),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("button", { name: "Rückgängig" }),
+        ).not.toBeInTheDocument(),
+      );
+      expect(localStorage.getItem("supervision-last-session")).toBe("2");
     } finally {
       globalThis.sessionStorage.removeItem("timetable-reopenable-instance");
     }
@@ -686,30 +756,30 @@ describe("MeinRaumPage roster actions", () => {
 
   it("names the missing planning when the server forbids the action", async () => {
     vi.mocked(timetableOperationsApi.checkIn).mockRejectedValue(
-      Object.assign(new Error("timetable operation forbidden"), {
-        httpStatus: 403,
+      new ApiError("timetable operation forbidden", 403, {
+        code: "timetable.operation_not_planned",
       }),
     );
 
     render(<MeinRaumPage />);
     fireEvent.click(await screen.findByRole("button", { name: "Einchecken" }));
 
-    await waitFor(() => {
-      expect(screen.getByTestId("alert-error")).toHaveTextContent(
-        "Sie sind für diese Aktivität nicht eingeplant.",
-      );
-    });
-    expect(screen.getByTestId("alert-error")).not.toHaveTextContent(
-      "Aktion im Betreuungsplan konnte nicht ausgeführt werden.",
-    );
+    expect(
+      await screen.findByText(
+        catalogText(
+          "timetable.operation_not_planned",
+          "die Anwesenheit von Marie Muster",
+        ),
+      ),
+    ).toBeInTheDocument();
     // The planning changed under the open list: reload it so the actions go.
     expect(mockRosterMutate).toHaveBeenCalledWith();
   });
 
   it("names the missing planning when the bulk confirm is forbidden", async () => {
     vi.mocked(timetableOperationsApi.checkIn).mockRejectedValue(
-      Object.assign(new Error("timetable operation forbidden"), {
-        httpStatus: 403,
+      new ApiError("timetable operation forbidden", 403, {
+        code: "timetable.operation_not_planned",
       }),
     );
 
@@ -718,14 +788,14 @@ describe("MeinRaumPage roster actions", () => {
       await screen.findByRole("button", { name: /erwartete bestätigen/i }),
     );
 
-    await waitFor(() => {
-      expect(screen.getByTestId("alert-error")).toHaveTextContent(
-        "Sie sind für diese Aktivität nicht eingeplant.",
-      );
-    });
-    expect(screen.getByTestId("alert-error")).not.toHaveTextContent(
-      "Erwartete Kinder konnten nicht bestätigt werden.",
-    );
+    expect(
+      await screen.findByText(
+        catalogText(
+          "timetable.operation_not_planned",
+          "die Anwesenheit der erwarteten Kinder",
+        ),
+      ),
+    ).toBeInTheDocument();
     expect(mockRosterMutate).toHaveBeenCalledWith();
   });
 

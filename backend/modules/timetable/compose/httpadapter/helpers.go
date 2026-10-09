@@ -55,7 +55,7 @@ func (rs *Resource) requireActivityModification(next http.Handler) http.Handler 
 
 		staffID, hasAdminPermission, err := rs.getStaffIDAndManagePermission(r)
 		if err != nil && !hasAdminPermission {
-			common.RenderError(w, r, common.ErrorForbidden(activitiesSvc.ErrNotOwner))
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(activitiesSvc.ErrNotOwner, common.CodeTimetableActivityNotOwner))
 			return
 		}
 
@@ -65,7 +65,7 @@ func (rs *Resource) requireActivityModification(next http.Handler) http.Handler 
 			return
 		}
 		if !allowed {
-			common.RenderError(w, r, common.ErrorForbidden(activitiesSvc.ErrNotOwner))
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(activitiesSvc.ErrNotOwner, common.CodeTimetableActivityNotOwner))
 			return
 		}
 

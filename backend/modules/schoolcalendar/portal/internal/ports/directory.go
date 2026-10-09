@@ -74,6 +74,9 @@ type ActivityInstance struct {
 	Description                   *string
 	Date                          portal.Date
 	StartTime, EndTime, UpdatedAt time.Time
+	// ActivityType is the template's block type, "duty" for a duty
+	// without children (#3822); empty without a template.
+	ActivityType string
 }
 type StaffShift struct {
 	ID                            int64

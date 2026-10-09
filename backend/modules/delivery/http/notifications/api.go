@@ -17,7 +17,6 @@ import (
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // Resource wires the notification routes.
@@ -25,7 +24,6 @@ type Resource struct {
 	NotificationsService notificationsService.Service
 	PushService          notificationsService.PushSubscriptionService
 	PreferenceService    notificationsService.PreferenceService
-	db                   *bun.DB
 }
 
 // NewResource builds the notifications HTTP resource.
@@ -33,13 +31,11 @@ func NewResource(
 	service notificationsService.Service,
 	pushService notificationsService.PushSubscriptionService,
 	preferenceService notificationsService.PreferenceService,
-	db *bun.DB,
 ) *Resource {
 	return &Resource{
 		NotificationsService: service,
 		PushService:          pushService,
 		PreferenceService:    preferenceService,
-		db:                   db,
 	}
 }
 
@@ -71,7 +67,7 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		rs.registerRoutes(r, withTx)
 		// Opt-in e-mails to staff (#3780). Each type names the permission its
 		// decision needs, so the handlers check it per type; the school portal
@@ -92,7 +88,7 @@ func (rs *Resource) SchoolRouter() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(withPortal(notificationsService.PortalSchool))
 
-	common.ProtectedSchoolGroup(r, rs.db, rs.registerRoutes)
+	common.ProtectedSchoolRoutes(r, rs.registerRoutes)
 
 	return r
 }
@@ -164,7 +160,7 @@ func (rs *Resource) sendTestNotification(w http.ResponseWriter, r *http.Request)
 	})
 	switch {
 	case errors.Is(err, notificationsService.ErrDisabled):
-		common.RenderError(w, r, common.ErrorConflict(errors.New("notifications are disabled for this tenant")))
+		common.RenderError(w, r, common.ErrorConflictWithCode(errors.New("notifications are disabled for this tenant"), common.CodeCommunicationNotificationsDisabled))
 		return
 	case err != nil:
 		common.RenderError(w, r, common.ErrorInternalServer(err))

@@ -1,4 +1,4 @@
-import { apiErrorFromResponse } from "~/lib/api-error";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 
 export type StudentExportFormat = "pdf" | "docx" | "xlsx";
@@ -425,7 +425,7 @@ export function buildStudentExportPresets(
 export async function exportStudents(
   request: StudentExportRequest,
 ): Promise<void> {
-  const response = await fetch("/api/students/export", {
+  const response = await transportFetch("/api/students/export", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),

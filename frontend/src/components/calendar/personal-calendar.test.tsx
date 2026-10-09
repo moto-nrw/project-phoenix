@@ -143,16 +143,38 @@ function CalendarWithChrome(
 }
 
 describe("PersonalCalendar", () => {
-  it("renders shift events with the Dienst badge", () => {
+  it("renders shift events with the Schicht badge", () => {
     render(
       <PersonalCalendar events={[shift]} weekStart={new Date(2026, 0, 5)} />,
     );
 
     expect(screen.getAllByText("Frühdienst").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Dienst").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Schicht").length).toBeGreaterThan(0);
     expect(
       screen.queryByRole("button", { name: "Zusagen" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("labels a duty from the Betreuungsplan as Dienst, not Betreuung (#3822)", () => {
+    const duty: CalendarEvent = {
+      ...shift,
+      id: "timetable:9",
+      source: "timetable",
+      activity_type: "duty",
+      title: "Busaufsicht",
+      start_time: "16:00",
+      end_time: "16:30",
+    };
+    render(
+      <PersonalCalendar events={[duty]} weekStart={new Date(2026, 0, 5)} />,
+    );
+
+    const dienstBefore = screen.getAllByText("Dienst").length;
+    const betreuungBefore = screen.getAllByText("Betreuung").length;
+    openEvent("Busaufsicht");
+    // The detail sheet badge names the source of the event.
+    expect(screen.getAllByText("Dienst")).toHaveLength(dienstBefore + 1);
+    expect(screen.getAllByText("Betreuung")).toHaveLength(betreuungBefore);
   });
 
   it("renders appointment and timetable events with RSVP actions", () => {
@@ -446,18 +468,11 @@ describe("PersonalCalendar", () => {
     },
   );
 
-  it("shows empty and error states", () => {
-    render(
-      <PersonalCalendar
-        events={[]}
-        weekStart={new Date(2026, 0, 5)}
-        error="Kalender konnte nicht geladen werden."
-      />,
-    );
+  // Fehler zeigt die Seite über den gemeinsamen Anzeigeweg (#2517), nicht
+  // das Raster.
+  it("shows the empty state", () => {
+    render(<PersonalCalendar events={[]} weekStart={new Date(2026, 0, 5)} />);
 
-    expect(
-      screen.getByText("Kalender konnte nicht geladen werden."),
-    ).toBeInTheDocument();
     expect(
       screen.getAllByText("Keine Einträge in dieser Woche.").length,
     ).toBeGreaterThan(0);

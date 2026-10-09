@@ -8,7 +8,7 @@ import {
 } from "@phosphor-icons/react/ssr";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import {
@@ -31,6 +31,7 @@ import {
   useChildMasterData,
 } from "~/components/parent/child-master-data";
 import GuardiansPanel from "~/components/parent/guardians-panel";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   UNKNOWN_CHILD_TODAY,
@@ -79,6 +80,12 @@ export function ChildPage({
   >({});
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
 
   useEffect(() => {
     let active = true;
@@ -92,6 +99,9 @@ export function ChildPage({
                   async (child) =>
                     [
                       child.student_id,
+                      // Bewusst still: die Auswahlkarte zeigt dann
+                      // "Status derzeit nicht verfügbar", die Kinder bleiben
+                      // wählbar.
                       await getChildToday(child.student_id).catch(
                         () => UNKNOWN_CHILD_TODAY,
                       ),
@@ -110,6 +120,14 @@ export function ChildPage({
           error: err instanceof Error ? err.message : String(err),
         });
         setFailed(true);
+        void showLoadError(err, {
+          object: t("errorObject"),
+          retry: () => {
+            clearLoadError();
+            setFailed(false);
+            setReloadKey((key) => key + 1);
+          },
+        });
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -117,7 +135,7 @@ export function ChildPage({
     return () => {
       active = false;
     };
-  }, [studentId]);
+  }, [clearLoadError, reloadKey, showLoadError, studentId, t]);
 
   const active = useMemo(() => {
     if (children.length === 0) return null;
@@ -141,7 +159,7 @@ export function ChildPage({
     return <ParentPageSkeleton rows={2} />;
   }
 
-  if (failed) return <Alert type="error" message={t("loadError")} />;
+  if (failed) return <LoadErrorAlert error={loadError} />;
 
   if (children.length === 0) {
     return (
@@ -167,7 +185,24 @@ export function ChildPage({
     );
   }
 
-  if (!active) return <Alert type="error" message={t("notFound")} />;
+  // Kein Ladefehler: die Adresse nennt ein Kind, das nicht zu diesem Konto
+  // gehört. Der Weg zurück führt zur Übersicht der eigenen Kinder.
+  if (!active) {
+    return (
+      <ParentPage>
+        <ParentPageHeader
+          title={navT(children.length > 1 ? "childrenMultiple" : "childSingle")}
+          backHref={parentPath("/parents/children")}
+          backLabel={navT(
+            children.length > 1 ? "childrenMultiple" : "childSingle",
+          )}
+        />
+        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600 shadow-sm backdrop-blur-md">
+          {t("notFound")}
+        </p>
+      </ParentPage>
+    );
+  }
 
   const fullName = `${active.first_name} ${active.last_name}`;
   const childContext = [active.school_class, active.school_name]
@@ -209,12 +244,33 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
   const t = useTranslations("parentChild");
   const care = useChildCare(child.student_id);
   const [today, setToday] = useState<ChildToday | null>(null);
+  const {
+    error: careLoadError,
+    show: showCareLoadError,
+    clear: clearCareLoadError,
+  } = useApiLoadError();
+  const careFailure = care.loadError;
+  const refreshCare = care.refresh;
+  // Fehlt eine Liste oder die Freigaben der Schule, fehlen auch Knöpfe. Der
+  // Kasten sagt, warum, und lädt auf Wunsch neu.
+  useEffect(() => {
+    if (!careFailure) {
+      clearCareLoadError();
+      return;
+    }
+    void showCareLoadError(careFailure, {
+      object: t("errorObjectCare"),
+      retry: refreshCare,
+    });
+  }, [careFailure, clearCareLoadError, refreshCare, showCareLoadError, t]);
   const [modal, setModal] = useState<null | "sick" | "pickup">(null);
   const fullName = `${child.first_name} ${child.last_name}`;
 
   const loadToday = useCallback(() => {
     getChildToday(child.student_id)
       .then(setToday)
+      // Bewusst still: die Tageskarte zeigt "Status derzeit nicht verfügbar".
+      // Fokus und Statusereignisse laden ohne Zutun der Person neu.
       .catch(() => setToday(UNKNOWN_CHILD_TODAY));
   }, [child.student_id]);
 
@@ -280,6 +336,7 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
 
   return (
     <>
+      <LoadErrorAlert error={careLoadError} />
       {careEnded && !care.loading ? (
         <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
           <p className="text-sm font-semibold text-gray-900">

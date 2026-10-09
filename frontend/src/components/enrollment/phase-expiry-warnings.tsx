@@ -2,6 +2,8 @@
 
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   listPhaseExpiryWarnings,
   type PhaseExpiryWarning,
@@ -131,24 +133,25 @@ export function PhaseExpiryWarnings({
   className,
 }: Readonly<PhaseExpiryWarningsProps>) {
   const tenantPath = useTenantAwarePath();
-  const { data, error } = useSWRAuth(
+  const { data, error, mutate } = useSWRAuth(
     "enrollment-phase-expiry-warnings",
     listPhaseExpiryWarnings,
   );
+  // Die Hinweise liest das Backend mit config:manage, dem Recht, das die
+  // erfragte Folgephase anlegt (#3469). Eine Rolle, die Anmeldungen ohne
+  // dieses Recht bearbeitet, bekommt hier 403: dann gibt es bewusst keinen
+  // Hinweis und keinen Fehler statt einer Fehlerkarte, die sie nicht
+  // auflösen kann.
+  const forbidden = (error as { status?: number } | undefined)?.status === 403;
+  const loadError = useSwrLoadError(
+    forbidden ? undefined : error,
+    "die Übersicht zum Phasenende",
+    () => mutate(),
+  );
 
   if (error) {
-    // Die Hinweise liest das Backend mit config:manage, dem Recht, das die
-    // erfragte Folgephase anlegt (#3469). Eine Rolle, die Anmeldungen ohne
-    // dieses Recht bearbeitet, bekommt hier 403: dann gibt es keinen Hinweis
-    // und keinen Fehler statt einer Fehlerkarte, die sie nicht auflösen kann.
-    if ((error as { status?: number }).status === 403) return null;
-    return (
-      <Alert
-        type="error"
-        title="Hinweise nicht geladen"
-        message="Die Hinweise zum Phasenende konnten nicht geladen werden. Laden Sie die Seite neu."
-      />
-    );
+    if (forbidden) return null;
+    return <LoadErrorAlert error={loadError} className={className} />;
   }
   if (!Array.isArray(data) || data.length === 0) return null;
 

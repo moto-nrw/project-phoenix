@@ -104,11 +104,14 @@ func (s *InstanceLifecycleService) editableInstance(ctx context.Context, instanc
 			return nil, &ScheduleError{Op: "update instance: validate calendar period", Err: err}
 		}
 	}
-	if err := s.validateInstanceReferences(ctx, req.Date, instanceReferences{
+	templateType, err := s.validateInstanceReferences(ctx, req.Date, instanceReferences{
 		roomID: req.RoomID, activityGroupID: req.ActivityGroupID, staffIDs: req.StaffIDs, studentIDs: req.StudentIDs,
-	}); err != nil {
+		allowExternalCaregivers: instance.IsSpontaneous && req.CalendarPeriodID == nil,
+	})
+	if err != nil {
 		return nil, &ScheduleError{Op: "update instance: validate references", Err: err}
 	}
+	instance.TemplateType = templateType
 	return instance, nil
 }
 

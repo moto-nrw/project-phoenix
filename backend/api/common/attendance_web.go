@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
 // RequireWebAttendanceEnabled makes attendance.web_enabled authoritative for

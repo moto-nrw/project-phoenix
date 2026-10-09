@@ -28,6 +28,8 @@ import {
   type PublicEnrollmentBootstrap,
 } from "~/lib/enrollment-submission-api";
 import { localizeNamed } from "~/lib/enrollment-translations";
+import { useApiLoadError } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; phaseId: string }>;
@@ -63,21 +65,31 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
     null,
   );
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // A closed window, an expired invite or a broken connection: the catalog
+  // names the reason where the form would be (#2515).
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setError(null);
+    clearLoadError();
     void fetchPublicEnrollmentBootstrap(tenantSlug, phaseId, {
       lateInviteToken,
     })
       .then((result) => {
         if (!cancelled) setBootstrap(result);
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : t("unknownError"));
+          void showLoadError(err, {
+            object: t("errorObjectForm"),
+            retry: () => setLoadAttempt((n) => n + 1),
+          });
         }
       })
       .finally(() => {
@@ -86,7 +98,15 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
     return () => {
       cancelled = true;
     };
-  }, [lateInviteToken, phaseId, tenantSlug, t]);
+  }, [
+    lateInviteToken,
+    phaseId,
+    tenantSlug,
+    t,
+    loadAttempt,
+    clearLoadError,
+    showLoadError,
+  ]);
 
   const phase = bootstrap ? localizeNamed(bootstrap.phase, locale) : null;
   const resolvedGradeLevelMax = tenant?.gradeLevelMax;
@@ -161,10 +181,8 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
             <div className="moto-content-surface rounded-2xl border p-6 text-sm font-medium text-gray-600 shadow-sm">
               {t("detailsLoading")}
             </div>
-          ) : error || gradeLevelMax === null ? (
-            <div className="moto-content-surface border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-6 text-sm font-medium shadow-sm">
-              {error ?? t("detailsLoadFailed")}
-            </div>
+          ) : loadError || gradeLevelMax === null ? (
+            <LoadErrorAlert error={loadError ?? t("detailsLoadFailed")} />
           ) : (
             <EnrollmentForm
               phaseID={phaseId}
@@ -203,7 +221,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
               </div>
             ) : (
               <p className="mt-3 text-sm leading-6 text-gray-600">
-                {error ? t("detailsLoadFailed") : t("detailsLoading")}
+                {loadError ? t("detailsLoadFailed") : t("detailsLoading")}
               </p>
             )}
           </section>

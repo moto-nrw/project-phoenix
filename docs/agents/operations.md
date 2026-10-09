@@ -256,13 +256,24 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   server renders with its real clock, so the reference day must be the server's
   day; on a weekend the run aborts on the resulting hydration error instead of
   printing an inconsistent image. Live presence follows the server clock too.
+  Text that depends on the time of day must therefore not be rendered on the
+  server: the home greeting uses `useTimeBasedGreeting` (`src/lib/greeting.ts`).
+- Adding a shot: the list follows the help flows and PostHog usage (#3764),
+  with the reason in a comment above each shot. Ids follow the names in
+  `frontend/public/help/screens/` where one exists for the same view, otherwise
+  the page name; parents-portal shots start with `eltern-`. Never rename an
+  existing id: it names the files in Drive. Detail pages get ids from the seed, so a shot starts on
+  the list and a `klicken` step opens the detail; follow such a click with a
+  `warten_auf` on an element of the target page (the dev server compiles the
+  route on first use). The redirect check applies to `pfad`, the page the shot
+  lands on before its steps.
 - A broken shot (HTTP error, error page, silent redirect away from its `pfad`,
   login redirect, unexpected dialog, loading state after the timeout, console
   error) aborts the whole run before anything is written.
 - Bezels live unchanged in `frontend/scripts/product-screenshots/bezels/`; the
   README there explains how to add one.
 
-### Releases and the Drive upload
+### Releases and the screenshot release asset
 
 - Releases come from release-please (ADR 0042): every push to `main` keeps a
   release PR with the next version and `CHANGELOG.md`; merging it tags `vX.Y.Z`
@@ -272,26 +283,20 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   manually published release, and by hand (`gh workflow run
   product-screenshots.yml --ref main [-f version=1.4.0]`; empty version = latest
   `vX.Y.Z` release). A manual run photographs the ref it starts from: `main`
-  for the current state, `--ref v1.4.0` for exactly that release; other
-  branches cannot reach the environment and upload nothing. It seeds a fresh stack, captures every shot, attaches the output as
-  the artifact `product-screenshots-<version>` (7 days) and uploads it to Google
-  Drive: `v<version> (<date>)/` plus `Aktuell/`, whose files keep their Drive
-  file IDs across releases. A shot removed from the list moves to the trash in
-  `Aktuell/` and stays in older version folders. Pull requests that touch the
-  pipeline run the capture without upload.
+  for the current state, `--ref v1.4.0` for exactly that release; runs from
+  other branches attach nothing. It seeds a fresh stack, captures every shot,
+  attaches the output as the artifact `product-screenshots-<version>` (7 days)
+  and as `product-screenshots-<version>.zip` to the GitHub release `v<version>`.
+  A rerun of the same version replaces the ZIP. Pull requests that touch the
+  pipeline run the capture without the release asset.
 - Only Berlin weekdays: on a weekend the run stops before seeding; start it by
   hand on the next weekday from the release tag.
-- A broken shot fails the capture job, and the upload job never starts, so Drive
-  stays unchanged. The upload adapter (`publish.ts`) checks the output against
-  its manifest and version before touching Drive. If the upload itself fails,
-  rerun the same version: it reuses the existing folders and files. Contract
-  tests:
+- A broken shot fails the capture job, and the release-asset job never starts,
+  so the release stays unchanged.
+- Google Drive upload is unhooked until there is a shared Google account. The
+  adapter (`publish.ts`, `publish-drive.ts`, `publish.pw.ts`) and
+  `scripts/product-screenshots-drive-wizard.sh` stay in place; contract tests:
   `cd frontend && pnpm exec vitest run scripts/product-screenshots/publish.test.ts`.
-- Drive access: OAuth refresh token of a user account, scope `drive.file`,
-  stored as secrets of the GitHub environment `product-screenshots` (branch
-  `main` and tags `v*` only). Set up or renew with
-  `scripts/product-screenshots-drive-wizard.sh`; renew when the upload fails
-  with `invalid_grant`.
 
 ## PR screenshots and QA evidence
 

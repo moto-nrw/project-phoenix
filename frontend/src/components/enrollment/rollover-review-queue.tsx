@@ -1,13 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  useApiErrorDisplay,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import {
   decideRolloverReview,
   listRolloverReview,
   type ReviewQueueItem,
 } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
@@ -27,30 +37,47 @@ interface Props {
 const REVIEW_QUEUE_DESCRIPTION =
   "Kinder, die nicht automatisch übernommen werden konnten, meist weil ihre Klassenstufe nach Erhöhung über der Höchstgrenze liegt. Wählen Sie pro Eintrag, ob Sie das Kind behalten (ggf. mit anderer Klassenstufe), aus der nächsten Phase entfernen oder vorerst zurückstellen.";
 
+function gradeFieldName(childId: string): string {
+  return `grade-${childId}`;
+}
+
 export function RolloverReviewQueue({ phaseID }: Props) {
+  const toast = useToast();
   const [items, setItems] = useState<ReviewQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const listLoad = useApiLoadError();
+  const showLoadError = listLoad.show;
+  const clearLoadError = listLoad.clear;
+  const decision = useApiErrorDisplay();
   const [busyChild, setBusyChild] = useState<string | null>(null);
   const [classOverrides, setClassOverrides] = useState<Record<string, string>>(
     {},
   );
+  // „Wiederholen“ lädt die Liste mit der aktuellen Fassung neu.
+  const latestLoad = useRef<() => Promise<void>>(async () => undefined);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
       const list = await listRolloverReview(phaseID);
       setItems(list);
+      clearLoadError();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("review_queue_load_failed", { error: message });
-      setError(message);
+      logger.error("review_queue_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await showLoadError(err, {
+        object: "die Prüfliste",
+        retry: () => void latestLoad.current(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [phaseID]);
+  }, [phaseID, showLoadError, clearLoadError]);
+
+  useLayoutEffect(() => {
+    latestLoad.current = load;
+  });
 
   useEffect(() => {
     void load();
@@ -58,42 +85,55 @@ export function RolloverReviewQueue({ phaseID }: Props) {
 
   const decide = async (
     item: ReviewQueueItem,
-    decision: "keep" | "drop" | "defer",
+    choice: "keep" | "drop" | "defer",
   ) => {
+    decision.clearFieldErrors();
+    const overrideRaw = classOverrides[item.child_id]?.trim() ?? "";
+    const overrideNumber =
+      choice === "keep" && overrideRaw ? Number(overrideRaw) : undefined;
+    if (
+      choice === "keep" &&
+      overrideRaw &&
+      (!Number.isFinite(overrideNumber) || !Number.isInteger(overrideNumber))
+    ) {
+      // Lokale Prüfung: der Hinweis steht am Feld, der Fokus springt hin.
+      decision.setFieldErrors({
+        [gradeFieldName(item.child_id)]:
+          "Bitte geben Sie die Klassenstufe als ganze Zahl ein.",
+      });
+      return;
+    }
     setBusyChild(item.child_id);
-    setError(null);
-    setInfo(null);
     try {
-      const overrideRaw = classOverrides[item.child_id]?.trim() ?? "";
-      const overrideNumber =
-        decision === "keep" && overrideRaw ? Number(overrideRaw) : undefined;
-      if (
-        decision === "keep" &&
-        overrideRaw &&
-        (!Number.isFinite(overrideNumber) || !Number.isInteger(overrideNumber))
-      ) {
-        throw new Error("Klassenstufe muss eine ganze Zahl sein.");
-      }
       await decideRolloverReview(item.child_id, {
-        decision,
+        decision: choice,
         new_grade_level: overrideNumber ?? null,
       });
-      const verb =
-        decision === "keep"
-          ? "übernommen"
-          : decision === "drop"
-            ? "verworfen"
-            : "zurückgestellt";
-      setInfo(`Eintrag ${verb}.`);
+      toast.success(
+        choice === "keep"
+          ? "Das Kind wird in die nächste Phase übernommen."
+          : choice === "drop"
+            ? "Der Eintrag ist abgeschlossen."
+            : "Der Eintrag ist zurückgestellt.",
+      );
       await load();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("review_queue_decide_failed", { error: message });
-      setError(message);
+      logger.error("review_queue_decide_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await decision.show(err, {
+        object: "die Entscheidung",
+        retry: () => void latestDecide.current(item, choice),
+      });
     } finally {
       setBusyChild(null);
     }
   };
+  // „Wiederholen“ sendet die Entscheidung mit der aktuellen Eingabe.
+  const latestDecide = useRef(decide);
+  useLayoutEffect(() => {
+    latestDecide.current = decide;
+  });
 
   if (loading) {
     // Der Titel ist statisch und steht deshalb schon während des Ladens.
@@ -115,11 +155,15 @@ export function RolloverReviewQueue({ phaseID }: Props) {
       back
       backHref="/enrollment-phases"
       backLabel="Zurück zu den Anmeldephasen"
-      stats={`${items.length} ${items.length === 1 ? "offener Eintrag" : "offene Einträge"}`}
+      stats={
+        listLoad.error
+          ? undefined
+          : `${items.length} ${items.length === 1 ? "offener Eintrag" : "offene Einträge"}`
+      }
+      // Ein Ladefehler steht an Stelle der Liste, nie ein Leerzustand.
+      error={listLoad.error}
       empty={
-        // Die Fehlermeldung einer Entscheidung bleibt sichtbar; ist die Liste
-        // ohne Fehler leer, ersetzt der Leerzustand den Inhalt.
-        items.length === 0 && error === null
+        items.length === 0
           ? {
               title: "Keine offenen Einträge",
               description:
@@ -134,9 +178,6 @@ export function RolloverReviewQueue({ phaseID }: Props) {
           {REVIEW_QUEUE_DESCRIPTION}
         </p>
       </SectionCard>
-
-      {error ? <Alert type="error" message={error} /> : null}
-      {info ? <Alert type="success" message={info} /> : null}
 
       {items.length === 0 ? null : (
         <ul className="space-y-3">
@@ -216,6 +257,8 @@ export function RolloverReviewQueue({ phaseID }: Props) {
                   </label>
                   <Input
                     id={`grade-${item.child_id}`}
+                    name={gradeFieldName(item.child_id)}
+                    error={decision.fieldError(gradeFieldName(item.child_id))}
                     type="number"
                     controlSize="compact"
                     min={1}

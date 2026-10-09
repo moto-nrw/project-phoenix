@@ -28,12 +28,12 @@ func validateTemplateTargetsGradeLimit(
 		if _, unchanged := existingGrades[*target.TargetGradeLevel]; unchanged {
 			continue
 		}
-		return fmt.Errorf(
+		return timetable.WithCode(fmt.Errorf(
 			"%w: target_grade_level %d exceeds tenant maximum %d",
 			timetable.ErrTemplateTargetGradeExceedsLimit,
 			*target.TargetGradeLevel,
 			gradeLevelMax,
-		)
+		), timetable.CodeTemplateGradeAboveMax, timetable.RefusalValues{Grade: int(*target.TargetGradeLevel), Max: gradeLevelMax})
 	}
 	return nil
 }

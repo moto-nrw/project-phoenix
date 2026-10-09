@@ -7,6 +7,7 @@ import {
   useMemo,
   useCallback,
   useRef,
+  useLayoutEffect,
 } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -18,6 +19,11 @@ import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
+import {
+  LAST_GROUP_SECTION_STORAGE_KEY,
+  OGS_GROUP_SECTION_LABELS,
+  ogsGroupSectionOf,
+} from "~/lib/ogs-group-sections";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -41,7 +47,9 @@ import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
 import { substitutionService } from "~/lib/substitution-api";
 import type { Substitution } from "~/lib/substitution-helpers";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiLoadError, useToast } from "~/contexts/ToastContext";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
@@ -156,25 +164,34 @@ function useGroupTransferData(
     [],
   );
   const [transfers, setTransfers] = useState<GroupTransfer[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
   const reload = useCallback(async () => {
     if (!groupId) return;
     try {
       const context = await fetchGroupTransferContext(groupId);
       setUsers(context.users);
       setTransfers(context.transfers);
-      setLoadError(null);
+      clearLoadError();
     } catch (error) {
       logger.error("failed to load group handover modal", {
         error: error instanceof Error ? error.message : String(error),
       });
       setUsers([]);
       setTransfers([]);
-      setLoadError(
-        "Fachkräfte und Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
-      );
+      void showLoadError(error, {
+        object: "die Liste der Fachkräfte und Übergaben",
+        retry: () => void reloadRef.current(),
+      });
     }
-  }, [groupId]);
+  }, [groupId, showLoadError, clearLoadError]);
+  const reloadRef = useRef(reload);
+  useLayoutEffect(() => {
+    reloadRef.current = reload;
+  });
   useEffect(() => {
     if (open) void reload();
   }, [open, reload]);
@@ -193,7 +210,9 @@ function useGroupTransferModal(
     if (!group) return;
     await assignGroupForToday(group.id, targetStaffId);
     await data.reload();
-    success(`Gruppe "${group.name}" an ${targetName} übergeben`);
+    success(
+      `Die Gruppe „${group.name}“ ist für heute an ${targetName} übergeben.`,
+    );
   };
   const cancel = async (substitutionId: string) => {
     if (!group) return;
@@ -202,7 +221,11 @@ function useGroupTransferModal(
     );
     await substitutionService.deleteSubstitution(substitutionId);
     await data.reload();
-    success(`Übergabe an ${transfer?.targetName ?? "Betreuer"} zurückgenommen`);
+    success(
+      transfer?.targetName
+        ? `Die Übergabe an ${transfer.targetName} ist zurückgenommen.`
+        : "Die Übergabe ist zurückgenommen.",
+    );
   };
   return { ...data, open, setOpen, transfer, cancel };
 }
@@ -312,6 +335,15 @@ function buildGroupTabItems(groups: readonly OGSGroup[]) {
   return groups.map(toItem);
 }
 
+function persistGroupSelection(group: OGSGroup): void {
+  localStorage.setItem("sidebar-last-group", group.id);
+  localStorage.setItem("sidebar-last-group-name", group.name);
+  localStorage.setItem(
+    LAST_GROUP_SECTION_STORAGE_KEY,
+    ogsGroupSectionOf(group.isPersonal),
+  );
+}
+
 function OGSGroupPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
@@ -379,7 +411,6 @@ function OGSGroupPageContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [attendanceFilter, setAttendanceFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [roomStatus, setRoomStatus] = useState<
     Record<string, { in_group_room: boolean; current_room_id?: string }>
   >({});
@@ -411,6 +442,7 @@ function OGSGroupPageContent() {
     data: liveData,
     isLoading: isLiveLoading,
     error: liveError,
+    mutate: reloadLive,
   } = useSWRAuth<OgsLiveViewData>(
     session?.user?.token ? `ogs-students-${selectedGroupId ?? "auto"}` : null,
     async () => {
@@ -531,7 +563,14 @@ function OGSGroupPageContent() {
       }
       setSelectedGroupId(dataGroupId);
       if (dataGroupId) {
-        localStorage.setItem("sidebar-last-group", dataGroupId);
+        const resolvedGroup = ogsGroups.find(
+          (group) => group.id === dataGroupId,
+        );
+        if (resolvedGroup) {
+          persistGroupSelection(resolvedGroup);
+        } else {
+          localStorage.setItem("sidebar-last-group", dataGroupId);
+        }
       }
     }
 
@@ -540,7 +579,6 @@ function OGSGroupPageContent() {
       setStudents(mappedStudents);
       setRoomStatus(liveData.roomStatus);
       setPickupTimes(liveData.pickupTimes);
-      setError(null);
       setIsLoading(false);
     }
   }, [liveData, selectedGroupId, setGroupAttendanceCount, tenantMutate]);
@@ -567,13 +605,16 @@ function OGSGroupPageContent() {
       const savedGroup = savedGroupId
         ? allGroups.find((g) => g.id === savedGroupId)
         : undefined;
-      if (savedGroup && savedGroup.id !== selectedGroupId) {
-        switchToGroup(savedGroup.id);
+      if (savedGroup) {
+        persistGroupSelection(savedGroup);
+        if (savedGroup.id !== selectedGroupId) {
+          switchToGroup(savedGroup.id);
+        }
       } else if (!savedGroup) {
         // Nothing saved or saved group no longer exists — persist first group
         const firstGroup = allGroups[0];
         if (firstGroup) {
-          localStorage.setItem("sidebar-last-group", firstGroup.id);
+          persistGroupSelection(firstGroup);
         }
       }
       // When savedGroup.id === selectedGroupId, do nothing — already in sync
@@ -583,20 +624,22 @@ function OGSGroupPageContent() {
 
   // Handle live-view error. The backend fails the whole aggregate instead of
   // degrading sections to empty arrays, so any error here means the page must
-  // show an error state — never a plausible-looking empty view.
+  // show an error state — never a plausible-looking empty view. A refusal
+  // (no group led) is the page's own "no group" view, identified by its code.
+  const liveNoAccess =
+    liveError instanceof ApiError &&
+    wireErrorCode(liveError.code) === "general.permission";
+  const error = useSwrLoadError(
+    liveNoAccess ? null : liveError,
+    "die Liste Ihrer OGS-Gruppe",
+    () => reloadLive(),
+  );
   useEffect(() => {
     if (liveError) {
-      if (liveError.message.includes("403")) {
-        setError(
-          "Sie haben keine Berechtigung für den Zugriff auf OGS-Gruppendaten.",
-        );
-        setHasAccess(false);
-      } else {
-        setError("Fehler beim Laden der OGS-Gruppendaten.");
-      }
+      if (liveNoAccess) setHasAccess(false);
       setIsLoading(false);
     }
-  }, [liveError]);
+  }, [liveError, liveNoAccess]);
 
   // Derive loading state from SWR
   useEffect(() => {
@@ -618,10 +661,14 @@ function OGSGroupPageContent() {
       : EMPTY_GROUP_TRANSFERS,
   );
 
-  // Set breadcrumb data
+  // Breadcrumb: der Bereich der Seitenleiste, unter dem die Gruppe steht,
+  // dann ihr Name (#3890). Der Seitentitel ist der Bereich, damit auch die
+  // schmale Kopfzeile ihn nennt.
+  const groupSection = ogsGroupSectionOf(currentGroup?.isPersonal);
   useSetBreadcrumb({
     ogsGroupName: currentGroup?.name,
-    pageTitle: "Meine Gruppe",
+    ogsGroupSection: groupSection,
+    pageTitle: OGS_GROUP_SECTION_LABELS[groupSection],
   });
 
   // Tracking indicators come straight from the aggregated live response; they
@@ -1003,7 +1050,7 @@ function OGSGroupPageContent() {
   if (!showSkeleton && !hasAccess) {
     return (
       <TenantPage
-        title="Meine Gruppen"
+        title={OGS_GROUP_SECTION_LABELS.personal}
         empty={{
           icon: <MotoConceptIcon concept="groups" size={48} />,
           title: "Keine OGS-Gruppe zugeordnet",
@@ -1245,26 +1292,25 @@ function OGSGroupPageContent() {
     );
   };
 
+  // Statuszeile aus den bereits geladenen Gruppendaten. Der Gruppenname
+  // steht im Titel und wiederholt sich hier nicht.
+  let groupStats: string | null = "Keine Gruppe zugeordnet";
+  if (currentGroup) {
+    groupStats =
+      currentGroup.student_count === undefined
+        ? null
+        : `${currentGroup.present_count ?? 0} von ${currentGroup.student_count} da`;
+  }
+
   return (
     <>
-      {/* Kopfkarte wie auf jeder Tenant-Seite. Der Titel bleibt konstant;
-          Gruppe und Anwesenheit stehen in der Statuszeile darunter, in den
-          Aktionen der An- und Abmelde-Modus, der Vertretungshinweis und das
-          Kebab-Menü. */}
+      {/* Kopfkarte wie auf jeder Tenant-Seite. Der Titel ist der Name der
+          geöffneten Gruppe (#3890), die Anwesenheit steht in der Statuszeile
+          darunter, in den Aktionen der An- und Abmelde-Modus, der
+          Vertretungshinweis und das Kebab-Menü. */}
       <TenantPage
-        title="Meine Gruppen"
-        stats={
-          // Statuszeile aus den bereits geladenen Gruppendaten:
-          // Gruppenname und Anwesenheit.
-          [
-            currentGroup?.name,
-            currentGroup?.student_count !== undefined
-              ? `${currentGroup.present_count ?? 0} von ${currentGroup.student_count} da`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(" · ") || "Keine Gruppe zugeordnet"
-        }
+        title={currentGroup?.name ?? OGS_GROUP_SECTION_LABELS[groupSection]}
+        stats={groupStats}
         statsLoading={showSkeleton}
         actions={
           <>
@@ -1325,8 +1371,7 @@ function OGSGroupPageContent() {
                 onChange: (tabId) => {
                   const group = allGroups.find((g) => g.id === tabId);
                   if (group) {
-                    localStorage.setItem("sidebar-last-group", tabId);
-                    localStorage.setItem("sidebar-last-group-name", group.name);
+                    persistGroupSelection(group);
                     switchToGroup(tabId);
                   }
                 },
@@ -1334,7 +1379,8 @@ function OGSGroupPageContent() {
                 // fünften Gruppe stehen die weiteren gebündelt hinter einem
                 // Reiter mit Menü, der den Namen der offenen Gruppe zeigt.
                 items: buildGroupTabItems(allGroups),
-                label: "Meine Gruppen",
+                // Die Reiter tragen eigene und weitere Gruppen (#3890).
+                label: "Gruppen",
               }
             : undefined
         }

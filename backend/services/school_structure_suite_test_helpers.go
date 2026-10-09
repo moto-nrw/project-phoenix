@@ -11,9 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services/education"
 )
 
 // The composition the retained School Structure repository suites
@@ -85,16 +84,16 @@ var (
 // NewEducationSuiteService composes the group service over the repositories
 // the way the service factory does, its class assignment audit trail
 // included.
-func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db *bun.DB) education.Service {
+func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db *bun.DB, broadcasters ...realtimeevents.Publisher) education.Service {
+	var broadcaster realtimeevents.Publisher
+	if len(broadcasters) > 0 {
+		broadcaster = broadcasters[0]
+	}
 	service := education.NewService(repos.Group, repos.GroupTeacher, repos.ClassTeacher,
 		repositories.NewEducationRooms(repos.Room), NewEducationTeachers(repos.Teacher),
 		repositories.NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
-		schoolStructure.NewLegacyRepositoryRuntime(db))
-	if auditAware, ok := service.(interface {
-		SetMasterDataAudit(education.ClassAssignmentAudit)
-	}); ok {
-		auditAware.SetMasterDataAudit(repositories.NewEducationClassAssignmentAudit(repos.StaffMasterDataChange))
-	}
+		education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: broadcaster, Audit: repositories.NewEducationClassAssignmentAudit(repos.StaffMasterDataChange)})
+
 	return service
 }
 
@@ -114,11 +113,14 @@ func NewSubstitutionSuiteModule(repos *PeopleRepositorySuiteFactory, db *bun.DB,
 	if deps.Staff == nil {
 		deps.Staff = repositories.NewEducationStaff(repos.Staff)
 	}
+	if deps.ExternalCaregivers == nil {
+		deps.ExternalCaregivers = repositories.NewEducationExternalCaregivers(repos.Staff, repos.Guest)
+	}
 	if deps.Audit == nil {
 		deps.Audit = repositories.NewEducationSubstitutionAudit(repos.SubstitutionChange)
 	}
 	if deps.Runtime == nil {
-		deps.Runtime = schoolStructure.NewLegacyRepositoryRuntime(db)
+		deps.Runtime = education.NewLegacyRepositoryRuntime(db)
 	}
 	return education.NewSubstitutionModule(deps)
 }
@@ -161,15 +163,8 @@ func NewGradeTransitionSuiteOwners(db *bun.DB, clock func() time.Time) (GradeTra
 	}, nil
 }
 
-// SetEducationSuiteBroadcaster swaps the group service's broadcaster, the
-// duck-typed wiring the service factory uses, and reports whether the service
-// accepts one.
-func SetEducationSuiteBroadcaster(service education.Service, broadcaster realtimeevents.Publisher) bool {
-	aware, ok := service.(interface {
-		SetBroadcaster(realtimeevents.Publisher)
-	})
-	if ok {
-		aware.SetBroadcaster(broadcaster)
-	}
-	return ok
+// NewScheduleSubstitutionSuiteModule constructs only the module's schedule
+// port for the shift-plan-sync integration suites, without a legacy graph.
+func NewScheduleSubstitutionSuiteModule(schedule education.ScheduleAdapter, runtime education.Runtime, logger *slog.Logger) education.SubstitutionModule {
+	return education.NewSubstitutionModule(education.SubstitutionDependencies{Schedule: schedule, Runtime: runtime, Logger: logger})
 }

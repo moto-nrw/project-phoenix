@@ -4,11 +4,9 @@
  * tenant listing/switching (post-login).
  */
 
+import { ApiError, apiErrorFromBody, wireErrorCode } from "./api-error";
 import { clearSessionCache, sessionFetch } from "./session-cache";
 import { mapAccountTenant, type AccountTenantBackend } from "./account-tenants";
-
-const TENANT_ACCESS_DENIED_MESSAGE =
-  "account does not have access to this tenant";
 
 export interface TenantSettings {
   logoUrl?: string;
@@ -439,27 +437,37 @@ interface ErrorResponseBody {
   code?: string;
 }
 
-type TenantSwitchErrorCode = "access_denied" | "use_school_portal" | "unknown";
+type TenantSwitchReason = "access_denied" | "use_school_portal" | "unknown";
 
-export class TenantSwitchError extends Error {
-  status: number;
-  code: TenantSwitchErrorCode;
+/**
+ * A failed switch. Carries the wire code, field errors and request ID like
+ * every ApiError, so the shared error path can show the catalog text (#2517).
+ * `reason` is the branch the switch UI takes.
+ */
+export class TenantSwitchError extends ApiError {
+  reason: TenantSwitchReason;
 
   constructor(
     message: string,
     status: number,
-    code: TenantSwitchErrorCode = "unknown",
+    reason: TenantSwitchReason = "unknown",
+    body?: unknown,
   ) {
-    super(message);
+    super(message, status);
+    const wire = apiErrorFromBody(message, status, body);
     this.name = "TenantSwitchError";
-    this.status = status;
-    this.code = code;
+    this.code = wire.code;
+    this.details = wire.details;
+    this.errors = wire.errors;
+    this.instance = wire.instance;
+    this.requestId = wire.requestId;
+    this.reason = reason;
   }
 }
 
 async function parseErrorResponse(
   response: Response,
-): Promise<{ message: string; code?: string }> {
+): Promise<{ message: string; body?: unknown }> {
   const text = await response.text();
 
   if (!text) {
@@ -470,7 +478,7 @@ async function parseErrorResponse(
     const payload = JSON.parse(text) as ErrorResponseBody;
     return {
       message: payload.error ?? payload.message ?? text,
-      code: payload.code,
+      body: payload,
     };
   } catch {
     return { message: text };
@@ -530,15 +538,19 @@ export async function switchTenant(
     body: JSON.stringify({ tenant_slug: subdomain }),
   });
   if (!response.ok) {
-    const { message, code: responseCode } = await parseErrorResponse(response);
-    const code =
-      response.status === 401 && message === TENANT_ACCESS_DENIED_MESSAGE
+    const { message, body } = await parseErrorResponse(response);
+    const wireCode = wireErrorCode(
+      body && typeof body === "object" && "code" in body
+        ? (body as ErrorResponseBody).code
+        : undefined,
+    );
+    const reason =
+      wireCode === "identity.tenant_access_denied"
         ? "access_denied"
-        : response.status === 403 &&
-            responseCode === "identity.use_school_portal"
+        : wireCode === "identity.use_school_portal"
           ? "use_school_portal"
           : "unknown";
-    throw new TenantSwitchError(message, response.status, code);
+    throw new TenantSwitchError(message, response.status, reason, body);
   }
   return (await response.json()) as SwitchTenantResponse;
 }

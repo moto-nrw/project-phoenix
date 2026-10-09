@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ExportBetreuungsplan renders the care week: which block runs when, in
@@ -77,7 +77,7 @@ type betreuungsplanData struct {
 }
 
 func (s *service) loadBetreuungsplanData(
-	ctx context.Context, from, to timezone.Date, variant Variant,
+	ctx context.Context, from, to calendar.Date, variant Variant,
 ) (*betreuungsplanData, error) {
 	instances, err := s.deps.Instances.InstancesInRange(ctx, dayKey(from), dayKey(to))
 	if err != nil {
@@ -357,7 +357,7 @@ func (d *betreuungsplanData) emptyWeekRows(w week) []listexport.Row {
 	return emptyWeekRows(w, d.closedDays)
 }
 
-func (d *betreuungsplanData) closedDayLines(day timezone.Date) []listexport.Line {
+func (d *betreuungsplanData) closedDayLines(day calendar.Date) []listexport.Line {
 	if label, ok := d.closedDays[dayKey(day)]; ok {
 		return []listexport.Line{strong(label)}
 	}
@@ -389,7 +389,7 @@ func (d *betreuungsplanData) instanceLines(instance *Instance) []listexport.Line
 	if names := d.staffLine(instance.ID, instance.RoomID); names != "" {
 		lines = append(lines, normal(names))
 	}
-	if line := d.childCountLine(instance.ID); line != "" {
+	if line := d.childCountLine(instance.ID); line != "" && !instance.IsDuty {
 		lines = append(lines, muted(line))
 	}
 	lines = d.appendNote(lines, "Hinweis", instance.UnderstaffedNote)

@@ -1,22 +1,26 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirects target tenant root, not a tenant route helper
 import { useRouter } from "next/navigation";
 import { Check, Circle } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import {
   authInputClassName,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
+import { credentialError } from "~/components/auth/credential-error";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
-import { Alert } from "~/components/ui/alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import {
   acceptGuardianInvitation,
   type GuardianInvitationValidation,
 } from "~/lib/guardian-invitation-api";
-import type { ApiError } from "~/lib/auth-api";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
 
@@ -27,34 +31,41 @@ interface Props {
   readonly invitation: GuardianInvitationValidation;
 }
 
-interface GuardianInvitationError {
-  readonly message: string;
-  readonly contactOgs: boolean;
+/**
+ * What the server page learned when the invitation could not be loaded. Only
+ * serializable facts cross into the client; the text comes from the shared
+ * error path in the reader's language (#2518).
+ */
+export interface GuardianInvitationLoadFailure {
+  readonly status?: number;
+  readonly code?: string;
+  readonly requestId?: string;
 }
 
-const getErrorMessage = (
-  apiError: ApiError | undefined,
-  err: unknown,
-  t: ReturnType<typeof useTranslations<"guardianInvite">>,
-): string => {
-  if (apiError?.status === 410) {
-    return t("formErrors.expired");
-  }
-  if (apiError?.status === 404) {
-    return t("formErrors.notFound");
-  }
-  if (apiError?.status === 409) {
-    return t("formErrors.conflict");
-  }
-  if (apiError?.status === 400) {
-    return apiError.message ?? t("formErrors.invalid");
-  }
-  return (
-    apiError?.message ??
-    (err instanceof Error ? err.message : undefined) ??
-    t("formErrors.generic")
-  );
-};
+/** The failed invitation load, shown where the form would be. */
+export function GuardianInvitationLoadError({
+  failure,
+}: Readonly<{ failure: GuardianInvitationLoadFailure }>) {
+  const t = useTranslations("guardianInvite");
+  const { error, show } = useApiLoadError();
+  const { status, code, requestId } = failure;
+
+  useEffect(() => {
+    void show(
+      new ApiError("guardian invitation could not be loaded", status, {
+        code,
+        instance: requestId,
+      }),
+      {
+        object: t("errorObject"),
+        // The server page loads the invitation; a reload asks again.
+        retry: () => globalThis.location.reload(),
+      },
+    );
+  }, [code, requestId, show, status, t]);
+
+  return <LoadErrorAlert error={error} />;
+}
 
 export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
   const t = useTranslations("guardianInvite");
@@ -63,11 +74,13 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState<GuardianInvitationError | null>(null);
-  const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
+  // Fehler über den gemeinsamen Weg (#2518): Katalogtext je Code im
+  // Fehlerkasten, Prüfungen vor dem Senden markieren ihr Feld.
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const latestSubmitRef = useRef<() => void>(() => undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAccepted, setIsAccepted] = useState(false);
-  const errorRef = useScrollToError(error?.message ?? null);
 
   const requirementStatus = useMemo(
     () =>
@@ -88,22 +101,18 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
     .join(" ")
     .trim();
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError(null);
-    setErrorFieldName(null);
+  const submit = async () => {
+    formErrors.clear();
 
     if (!allRequirementsMet) {
-      setError({ message: t("formErrors.passwordRules"), contactOgs: false });
-      setErrorFieldName("password");
+      // The sentence stands in the alert; the field is only marked.
+      formErrors.invalid(t("formErrors.passwordRules"), { password: "" });
       return;
     }
     if (password !== confirmPassword) {
-      setError({
-        message: t("formErrors.passwordMismatch"),
-        contactOgs: false,
+      formErrors.invalid(t("formErrors.passwordMismatch"), {
+        confirmPassword: "",
       });
-      setErrorFieldName("confirmPassword");
       return;
     }
 
@@ -134,26 +143,33 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         router.push("/");
       }, 1500);
     } catch (err) {
-      if (typeof navigator !== "undefined" && !navigator.onLine) {
-        logger.warn("guardian_invitation_accept_offline", {
-          error: "no_network_connection",
-        });
-        setError({ message: t("formErrors.offline"), contactOgs: false });
-        setIsSubmitting(false);
-        return;
-      }
       logger.error("guardian_invitation_accept_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      const apiError = err as ApiError | undefined;
-      setError({
-        message: getErrorMessage(apiError, err, t),
-        contactOgs: apiError?.status === 410,
+      // Vor der Anmeldung heißt 401 "abgelehnt", nicht "Sitzung abgelaufen".
+      void formErrors.show(credentialError(err), {
+        object: t("errorObject"),
+        retry: () => latestSubmitRef.current(),
       });
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    void submit();
+  };
+
+  // „Wiederholen“ sendet die Passwörter, die dann in den Feldern stehen.
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => void submit();
+  });
+
+  const passwordInvalid = formErrors.fieldError("password") !== undefined;
+  const confirmInvalid =
+    formErrors.fieldError("confirmPassword") !== undefined ||
+    formErrors.fieldError("confirm_password") !== undefined;
 
   if (isAccepted) {
     return (
@@ -197,19 +213,13 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-5 sm:space-y-6">
-      {error && (
-        <div ref={errorRef}>
-          <Alert
-            type="error"
-            message={
-              error.contactOgs
-                ? `${error.message} ${t("contactOgs")}`
-                : error.message
-            }
-          />
-        </div>
-      )}
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      noValidate
+      className="space-y-5 sm:space-y-6"
+    >
+      <FormErrorAlert message={formErrors.error} />
 
       <section className="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm">
         <p className="font-medium text-gray-700">
@@ -226,7 +236,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
       <div>
         <label
           htmlFor="password"
-          className={`mb-2 block text-sm font-medium ${errorFieldName === "password" ? "text-moto-red-strong" : "text-gray-700"}`}
+          className={`mb-2 block text-sm font-medium ${passwordInvalid ? "text-moto-red-strong" : "text-gray-700"}`}
         >
           {t("passwordLabel")}
         </label>
@@ -239,7 +249,8 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
             onChange={(event) => setPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className={`${authInputClassName} pr-12 ${errorFieldName === "password" ? "ring-moto-red/35 ring-2" : ""}`}
+            aria-invalid={passwordInvalid || undefined}
+            className={`${authInputClassName} pr-12 ${passwordInvalid ? "ring-moto-red/35 ring-2" : ""}`}
             required
           />
           <PasswordToggleButton
@@ -254,7 +265,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
       <div>
         <label
           htmlFor="confirmPassword"
-          className={`mb-2 block text-sm font-medium ${errorFieldName === "confirmPassword" ? "text-moto-red-strong" : "text-gray-700"}`}
+          className={`mb-2 block text-sm font-medium ${confirmInvalid ? "text-moto-red-strong" : "text-gray-700"}`}
         >
           {t("confirmPasswordLabel")}
         </label>
@@ -267,7 +278,8 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
             onChange={(event) => setConfirmPassword(event.target.value)}
             disabled={isSubmitting}
             autoComplete="new-password"
-            className={`${authInputClassName} pr-12 ${errorFieldName === "confirmPassword" ? "ring-moto-red/35 ring-2" : ""}`}
+            aria-invalid={confirmInvalid || undefined}
+            className={`${authInputClassName} pr-12 ${confirmInvalid ? "ring-moto-red/35 ring-2" : ""}`}
             required
           />
           <PasswordToggleButton

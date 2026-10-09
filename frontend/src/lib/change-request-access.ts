@@ -2,8 +2,42 @@ import type { Session } from "next-auth";
 
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 
+const PARENT_REQUEST_REVIEW_ACCESS = [
+  "admin",
+  "team",
+  "group_leader",
+  "none",
+] as const;
+
 export type ParentRequestReviewAccess =
-  "admin" | "team" | "group_leader" | "none";
+  (typeof PARENT_REQUEST_REVIEW_ACCESS)[number];
+
+export function isParentRequestReviewAccess(
+  value: unknown,
+): value is ParentRequestReviewAccess {
+  return PARENT_REQUEST_REVIEW_ACCESS.some((access) => access === value);
+}
+
+/**
+ * Reicht der Prüfbereich bis zu einem bestimmten Kind (#3886)? requests gilt
+ * für alle Anfragearten, absences für Krankmeldungen und Entschuldigungen,
+ * deren Prüfbereich eine Schule getrennt einstellen kann.
+ */
+export interface StudentRequestReviewCoverage {
+  readonly requests: boolean;
+  readonly absences: boolean;
+}
+
+export function isStudentRequestReviewCoverage(
+  value: unknown,
+): value is StudentRequestReviewCoverage {
+  if (typeof value !== "object" || value === null) return false;
+  const coverage = value as Record<string, unknown>;
+  return (
+    typeof coverage.requests === "boolean" &&
+    typeof coverage.absences === "boolean"
+  );
+}
 
 export interface EffectiveChangeRequestAccess {
   readonly parentReviewAccess: ParentRequestReviewAccess;

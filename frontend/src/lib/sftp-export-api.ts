@@ -2,6 +2,7 @@
 // Gleiche Berechtigung wie der Export selbst (time_tracking:manage); die
 // übertragene Datei ist dieselbe, die der Download liefert.
 
+import { apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 
 type ExportFormat = "csv" | "xlsx" | "datev_lodas" | "datev_lug";
@@ -80,7 +81,10 @@ export async function fetchSFTPStatus(): Promise<SFTPStatus> {
     "/api/staff/time-tracking/export/sftp-status",
   );
   if (!response.ok) {
-    throw new Error(`Failed to fetch SFTP status: ${response.statusText}`);
+    throw await apiErrorFromResponse(
+      response,
+      `Failed to fetch SFTP status: ${response.statusText}`,
+    );
   }
   const json = (await response.json()) as { data: BackendSFTPStatus };
   return {
@@ -127,7 +131,10 @@ export async function transferExportViaSFTP(
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new Error(`Transfer request failed: ${response.statusText}`);
+    throw await apiErrorFromResponse(
+      response,
+      `Transfer request failed: ${response.statusText}`,
+    );
   }
   const json = (await response.json()) as {
     data?: BackendTransferOutcome;

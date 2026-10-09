@@ -1,16 +1,15 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
-import { useFormError } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import {
@@ -19,7 +18,11 @@ import {
 } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { formatClosingDayRange } from "~/lib/closing-day-helpers";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -56,11 +59,13 @@ type Draft = {
   readonly weekdayHours: readonly string[];
 };
 
+// Keyed by the API field names, so a server field error lands on the same
+// control as the local check (#2514).
 type FieldErrors = {
-  readonly startDate?: string;
-  readonly endDate?: string;
-  readonly hours?: string;
-  readonly weekdayHours?: string;
+  readonly start_date?: string;
+  readonly end_date?: string;
+  readonly daily_minutes?: string;
+  readonly weekday_minutes?: string;
 };
 
 const HOURS_ERROR = "Bitte 0 bis 12 Stunden eingeben.";
@@ -123,19 +128,22 @@ function validateDraft(draft: Draft): {
   const parsed = parseDecimalHours(draft.hours);
   const weekdayMinutes = parseWeekdayMinutes(draft.weekdayHours);
   const uniform = draft.mode === "uniform";
-  const fields: FieldErrors = {
-    startDate: draft.startDate ? undefined : "Bitte den ersten Tag wählen.",
-    endDate: !draft.endDate
-      ? "Bitte den letzten Tag wählen."
-      : draft.startDate && draft.endDate < draft.startDate
-        ? "Der letzte Tag liegt vor dem ersten Tag."
-        : undefined,
-    hours: uniform && parsed.status !== "valid" ? HOURS_ERROR : undefined,
-    weekdayHours:
-      !uniform && weekdayMinutes === null
-        ? "Bitte für jeden Tag 0 bis 12 Stunden eingeben."
-        : undefined,
-  };
+  const fields: FieldErrors = Object.fromEntries(
+    Object.entries({
+      start_date: draft.startDate ? undefined : "Bitte den ersten Tag wählen.",
+      end_date: !draft.endDate
+        ? "Bitte den letzten Tag wählen."
+        : draft.startDate && draft.endDate < draft.startDate
+          ? "Der letzte Tag liegt vor dem ersten Tag."
+          : undefined,
+      daily_minutes:
+        uniform && parsed.status !== "valid" ? HOURS_ERROR : undefined,
+      weekday_minutes:
+        !uniform && weekdayMinutes === null
+          ? "Bitte für jeden Tag 0 bis 12 Stunden eingeben."
+          : undefined,
+    }).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  );
   let hours: ValidatedHours | null = null;
   if (uniform && parsed.status === "valid") {
     hours = { dailyMinutes: parsed.minutes };
@@ -176,14 +184,26 @@ export function SonderarbeitszeitenSection({
   const toast = useToast();
 
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useFormError();
+  const formErrors = useApiFormError();
   const [deleteTarget, setDeleteTarget] = useState<StaffTargetOverride | null>(
     null,
   );
   const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
+  const deleteErrors = useApiFormError();
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  useEffect(() => {
+    if (loadError) {
+      void showLoadError(loadError, {
+        object: "die Liste der Sonderarbeitszeiten",
+        retry: () => void mutateList(),
+      });
+    } else {
+      clearLoadError();
+    }
+  }, [loadError, mutateList, showLoadError, clearLoadError]);
 
   // A Sonderarbeitszeit changes the Soll of its days like a model change.
   const refresh = () => {
@@ -192,8 +212,7 @@ export function SonderarbeitszeitenSection({
   };
 
   const openCreate = () => {
-    setFormError(null);
-    setFieldErrors({});
+    formErrors.clear();
     setDraft({
       startDate: "",
       endDate: "",
@@ -208,7 +227,7 @@ export function SonderarbeitszeitenSection({
   // the hours when every day has the same valid value.
   const changeMode = (mode: HoursMode) => {
     if (!draft || mode === draft.mode) return;
-    setFieldErrors({});
+    formErrors.clear();
     if (mode === "weekdays") {
       const filled = draft.weekdayHours.every((value) => value.trim() === "");
       setDraft({
@@ -234,46 +253,56 @@ export function SonderarbeitszeitenSection({
   const handleSave = async () => {
     if (!draft) return;
     const { fields, hours } = validateDraft(draft);
-    setFieldErrors(fields);
-    if (hours === null || fields.startDate || fields.endDate) {
-      setFormError("Bitte die markierten Felder prüfen.");
+    if (hours === null || fields.start_date || fields.end_date) {
+      formErrors.invalid("Bitte prüfen Sie die markierten Felder.", fields);
       return;
     }
     setSaving(true);
-    setFormError(null);
+    formErrors.clear();
     try {
       await staffTargetOverrideService.create(staffId, {
         startDate: draft.startDate,
         endDate: draft.endDate,
         ...hours,
       });
-      toast.success("Sonderarbeitszeit angelegt.");
+      toast.success("Die Sonderarbeitszeit ist gespeichert.");
       setDraft(null);
       refresh();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Speichern hat nicht geklappt.";
-      logger.error("target_override_save_failed", { error: message });
-      setFormError(message);
+      logger.error("target_override_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await formErrors.show(err, {
+        object: "die Sonderarbeitszeit",
+        retry: () => void latestSave.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+  // „Wiederholen“ sendet den aktuellen Entwurf.
+  const latestSave = useRef(handleSave);
+  useLayoutEffect(() => {
+    latestSave.current = handleSave;
+  });
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    setDeleteError("");
+    deleteErrors.clear();
     try {
       await staffTargetOverrideService.delete(staffId, deleteTarget.id);
-      toast.success("Sonderarbeitszeit gelöscht.");
+      toast.success("Die Sonderarbeitszeit ist gelöscht.");
       setDeleteTarget(null);
       refresh();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Löschen hat nicht geklappt.";
-      logger.error("target_override_delete_failed", { error: message });
-      setDeleteError(message);
+      logger.error("target_override_delete_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await deleteErrors.show(err, {
+        object: "die Sonderarbeitszeit",
+        retry: () => void handleDelete(),
+      });
     } finally {
       setDeleting(false);
     }
@@ -322,7 +351,7 @@ export function SonderarbeitszeitenSection({
             label: "Löschen",
             destructive: true,
             onClick: () => {
-              setDeleteError("");
+              deleteErrors.clear();
               setDeleteTarget(row);
             },
           },
@@ -345,10 +374,8 @@ export function SonderarbeitszeitenSection({
       action={createButton}
     >
       {loadError ? (
-        <Alert
-          type="error"
-          message="Die Sonderarbeitszeiten konnten nicht geladen werden."
-        />
+        // Ein Ladefehler ist keine leere Liste.
+        <LoadErrorAlert error={load.error} />
       ) : (
         <DataTable
           columns={columns}
@@ -376,7 +403,7 @@ export function SonderarbeitszeitenSection({
         size="md"
         closeDisabled={saving}
         isBackdropDismissDisabled
-        error={formError}
+        error={formErrors.error}
         footer={
           <div className="flex justify-end gap-2">
             <Button
@@ -406,7 +433,7 @@ export function SonderarbeitszeitenSection({
               <ISODatePicker
                 id="target-override-start"
                 label="Erster Tag"
-                error={fieldErrors.startDate}
+                error={formErrors.fieldError("start_date")}
                 controlSize="lg"
                 value={draft.startDate}
                 onChange={(value) => setDraft({ ...draft, startDate: value })}
@@ -415,7 +442,7 @@ export function SonderarbeitszeitenSection({
               <ISODatePicker
                 id="target-override-end"
                 label="Letzter Tag"
-                error={fieldErrors.endDate}
+                error={formErrors.fieldError("end_date")}
                 controlSize="lg"
                 value={draft.endDate}
                 min={draft.startDate || undefined}
@@ -439,11 +466,16 @@ export function SonderarbeitszeitenSection({
               <div>
                 <Input
                   id="target-override-hours"
+                  name="daily_minutes"
                   label="Stunden pro Tag"
-                  error={fieldErrors.hours}
+                  error={formErrors.fieldError("daily_minutes")}
                   // The kit Input marks only aria-invalid; the red ring matches
                   // the date fields, the way ISODateInput does it.
-                  className={fieldErrors.hours ? "ring-moto-red" : ""}
+                  className={
+                    formErrors.fieldError("daily_minutes")
+                      ? "ring-moto-red"
+                      : ""
+                  }
                   type="text"
                   inputMode="decimal"
                   value={draft.hours}
@@ -465,12 +497,13 @@ export function SonderarbeitszeitenSection({
                   {WEEKDAYS.map((day, index) => {
                     const value = draft.weekdayHours[index] ?? "";
                     const invalid =
-                      fieldErrors.weekdayHours !== undefined &&
+                      formErrors.fieldError("weekday_minutes") !== undefined &&
                       parseDecimalHours(value).status !== "valid";
                     return (
                       <Input
                         key={day.short}
                         id={`target-override-hours-${index}`}
+                        name="weekday_minutes"
                         label={day.short}
                         aria-label={`Stunden am ${day.name}`}
                         aria-invalid={invalid || undefined}
@@ -492,9 +525,9 @@ export function SonderarbeitszeitenSection({
                     );
                   })}
                 </div>
-                {fieldErrors.weekdayHours && (
+                {formErrors.fieldError("weekday_minutes") && (
                   <p role="alert" className="text-moto-red-strong mt-1 text-xs">
-                    {fieldErrors.weekdayHours}
+                    {formErrors.fieldError("weekday_minutes")}
                   </p>
                 )}
                 <p className="mt-2 text-xs text-gray-500">
@@ -524,7 +557,7 @@ export function SonderarbeitszeitenSection({
         onConfirm={handleDelete}
         onClose={() => setDeleteTarget(null)}
         loading={deleting}
-        error={deleteError}
+        error={deleteErrors.error}
       />
     </SectionCard>
   );

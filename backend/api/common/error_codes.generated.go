@@ -3,6 +3,7 @@ package common
 
 const (
 	CodeAttendanceWebDisabled                            = "attendance.web_disabled"
+	CodeBillingInvalidKeyDay                             = "billing.invalid_key_day"
 	CodeCareAnnouncementAckNotRequired                   = "care.announcement_ack_not_required"
 	CodeCareAnnouncementNotAPoll                         = "care.announcement_not_a_poll"
 	CodeCareAnnouncementStale                            = "care.announcement_stale"
@@ -77,67 +78,142 @@ const (
 	CodeClassdayArrivalExceptionPastDate                 = "classday.arrival_exception_past_date"
 	CodeClassdayArrivalExceptionWeekend                  = "classday.arrival_exception_weekend"
 	CodeClassdaySchoolWriteDisabled                      = "classday.school_write_disabled"
+	CodeCommunicationAnnouncementNotFound                = "communication.announcement_not_found"
 	CodeCommunicationAnnouncementNotPublished            = "communication.announcement_not_published"
 	CodeCommunicationAnnouncementPublishedImmutable      = "communication.announcement_published_immutable"
 	CodeCommunicationAnnouncementReminderSent            = "communication.announcement_reminder_sent"
 	CodeCommunicationDeclarationHasSubmissions           = "communication.declaration_has_submissions"
+	CodeCommunicationNotificationsDisabled               = "communication.notifications_disabled"
 	CodeCommunicationParentNewsDisabled                  = "communication.parent_news_disabled"
 	CodeCommunicationPollNotOpen                         = "communication.poll_not_open"
 	CodeCommunicationStaffCounterpartUnavailable         = "communication.staff_counterpart_unavailable"
 	CodeCommunicationStaffMessagingDisabled              = "communication.staff_messaging_disabled"
+	CodeCommunicationStaffNoticeOutdated                 = "communication.staff_notice_outdated"
 	CodeCommunicationSystemAnnouncementImmutable         = "communication.system_announcement_immutable"
+	CodeDevicesTagScanAlreadyResolved                    = "devices.tag_scan_already_resolved"
+	CodeDevicesTagScanNotFound                           = "devices.tag_scan_not_found"
 	CodeEnrollmentApprovalCareOfferingExactlyOne         = "enrollment.approval_care_offering_exactly_one"
 	CodeEnrollmentApprovalCareOfferingMissing            = "enrollment.approval_care_offering_missing"
+	CodeEnrollmentApprovalDataInvalid                    = "enrollment.approval_data_invalid"
+	CodeEnrollmentCaptchaFailed                          = "enrollment.captcha_failed"
+	CodeEnrollmentCaptchaRequired                        = "enrollment.captcha_required"
+	CodeEnrollmentCareOfferingAutoAddInvalid             = "enrollment.care_offering_auto_add_invalid"
+	CodeEnrollmentCareOfferingCapacityInvalid            = "enrollment.care_offering_capacity_invalid"
+	CodeEnrollmentCareOfferingClosed                     = "enrollment.care_offering_closed"
 	CodeEnrollmentCareOfferingDaysRequired               = "enrollment.care_offering_days_required"
 	CodeEnrollmentCareOfferingExactlyOne                 = "enrollment.care_offering_exactly_one"
 	CodeEnrollmentCareOfferingFull                       = "enrollment.care_offering_full"
 	CodeEnrollmentCareOfferingInUse                      = "enrollment.care_offering_in_use"
 	CodeEnrollmentCareOfferingMissing                    = "enrollment.care_offering_missing"
+	CodeEnrollmentCareOfferingNameRequired               = "enrollment.care_offering_name_required"
+	CodeEnrollmentCareOfferingNotFound                   = "enrollment.care_offering_not_found"
+	CodeEnrollmentCareOfferingPickupTimeInvalid          = "enrollment.care_offering_pickup_time_invalid"
 	CodeEnrollmentCareOfferingPickupTimesRequired        = "enrollment.care_offering_pickup_times_required"
+	CodeEnrollmentCareOfferingPriceInvalid               = "enrollment.care_offering_price_invalid"
+	CodeEnrollmentCareOfferingSelectionInvalid           = "enrollment.care_offering_selection_invalid"
 	CodeEnrollmentCareOfferingTemplatePeriodMismatch     = "enrollment.care_offering_template_period_mismatch"
 	CodeEnrollmentCareOfferingUnavailable                = "enrollment.care_offering_unavailable"
 	CodeEnrollmentCareOfferingsDisabled                  = "enrollment.care_offerings_disabled"
 	CodeEnrollmentChangeRequestChildLocked               = "enrollment.change_request_child_locked"
 	CodeEnrollmentChangeRequestConflict                  = "enrollment.change_request_conflict"
+	CodeEnrollmentChangeRequestGuardianLinked            = "enrollment.change_request_guardian_linked"
+	CodeEnrollmentChangeRequestNotAllowed                = "enrollment.change_request_not_allowed"
+	CodeEnrollmentChangeRequestNotFound                  = "enrollment.change_request_not_found"
+	CodeEnrollmentChangeRequestNoteRequired              = "enrollment.change_request_note_required"
+	CodeEnrollmentChangeRequestStatusChanged             = "enrollment.change_request_status_changed"
 	CodeEnrollmentChildAlreadyEnrolled                   = "enrollment.child_already_enrolled"
+	CodeEnrollmentChildAlreadyRequested                  = "enrollment.child_already_requested"
 	CodeEnrollmentChildAmbiguous                         = "enrollment.child_ambiguous"
+	CodeEnrollmentChildBirthDateInvalid                  = "enrollment.child_birth_date_invalid"
 	CodeEnrollmentChildDeletionNotAllowed                = "enrollment.child_deletion_not_allowed"
+	CodeEnrollmentChildGradeRequired                     = "enrollment.child_grade_required"
+	CodeEnrollmentChildNameRequired                      = "enrollment.child_name_required"
 	CodeEnrollmentChildNotEnrolled                       = "enrollment.child_not_enrolled"
 	CodeEnrollmentChildNotPermitted                      = "enrollment.child_not_permitted"
+	CodeEnrollmentChildRequired                          = "enrollment.child_required"
 	CodeEnrollmentClassNotEligible                       = "enrollment.class_not_eligible"
+	CodeEnrollmentCompanionNoteRequired                  = "enrollment.companion_note_required"
 	CodeEnrollmentCompleteWithdrawalConfirmationRequired = "enrollment.complete_withdrawal_confirmation_required"
+	CodeEnrollmentConsentRequired                        = "enrollment.consent_required"
+	CodeEnrollmentCorrectionReasonRequired               = "enrollment.correction_reason_required"
+	CodeEnrollmentCorrectionSchoolClassMismatch          = "enrollment.correction_school_class_mismatch"
 	CodeEnrollmentDaySelectionNotAllowed                 = "enrollment.day_selection_not_allowed"
 	CodeEnrollmentDaySelectionRequired                   = "enrollment.day_selection_required"
+	CodeEnrollmentDecisionAlreadyFinal                   = "enrollment.decision_already_final"
+	CodeEnrollmentDeletionReasonInvalid                  = "enrollment.deletion_reason_invalid"
 	CodeEnrollmentDepartureModeLimit                     = "enrollment.departure_mode_limit"
 	CodeEnrollmentDisabled                               = "enrollment.disabled"
 	CodeEnrollmentDuplicateDetected                      = "enrollment.duplicate_detected"
+	CodeEnrollmentEditNotAllowed                         = "enrollment.edit_not_allowed"
+	CodeEnrollmentExportTooLarge                         = "enrollment.export_too_large"
+	CodeEnrollmentFieldRequired                          = "enrollment.field_required"
+	CodeEnrollmentFormFieldAllowedTimesInvalid           = "enrollment.form_field_allowed_times_invalid"
+	CodeEnrollmentFormFieldContentRequired               = "enrollment.form_field_content_required"
+	CodeEnrollmentFormFieldKeyDuplicate                  = "enrollment.form_field_key_duplicate"
+	CodeEnrollmentFormFieldKeyInvalid                    = "enrollment.form_field_key_invalid"
+	CodeEnrollmentFormFieldLabelRequired                 = "enrollment.form_field_label_required"
+	CodeEnrollmentFormFieldOptionsInvalid                = "enrollment.form_field_options_invalid"
+	CodeEnrollmentFormFieldTargetDuplicate               = "enrollment.form_field_target_duplicate"
+	CodeEnrollmentFormFieldTargetInvalid                 = "enrollment.form_field_target_invalid"
+	CodeEnrollmentFormFieldVisibilityInvalid             = "enrollment.form_field_visibility_invalid"
+	CodeEnrollmentFormGradeCollectionRequired            = "enrollment.form_grade_collection_required"
+	CodeEnrollmentFormNotFound                           = "enrollment.form_not_found"
 	CodeEnrollmentGradeNotEligible                       = "enrollment.grade_not_eligible"
 	CodeEnrollmentGuardianAccountMismatch                = "enrollment.guardian_account_mismatch"
+	CodeEnrollmentGuardianEmailRequired                  = "enrollment.guardian_email_required"
+	CodeEnrollmentGuardianNameRequired                   = "enrollment.guardian_name_required"
+	CodeEnrollmentGuardianPhoneRequired                  = "enrollment.guardian_phone_required"
 	CodeEnrollmentInvalidEmail                           = "enrollment.invalid_email"
 	CodeEnrollmentInvalidPhone                           = "enrollment.invalid_phone"
 	CodeEnrollmentLateInviteInvalid                      = "enrollment.late_invite_invalid"
+	CodeEnrollmentLegalBlockIncomplete                   = "enrollment.legal_block_incomplete"
+	CodeEnrollmentLegalBlockKeyDuplicate                 = "enrollment.legal_block_key_duplicate"
+	CodeEnrollmentLegalBlockKeyInvalid                   = "enrollment.legal_block_key_invalid"
+	CodeEnrollmentLegalBlockRequiredNotAllowed           = "enrollment.legal_block_required_not_allowed"
+	CodeEnrollmentLegalDocumentInvalid                   = "enrollment.legal_document_invalid"
+	CodeEnrollmentMessageRequired                        = "enrollment.message_required"
+	CodeEnrollmentOfferingAdjustmentInvalid              = "enrollment.offering_adjustment_invalid"
 	CodeEnrollmentPhaseCareOfferingConflict              = "enrollment.phase_care_offering_conflict"
+	CodeEnrollmentPhaseEligibilitySettingRequired        = "enrollment.phase_eligibility_setting_required"
 	CodeEnrollmentPhaseNameExists                        = "enrollment.phase_name_exists"
+	CodeEnrollmentPhaseNameRequired                      = "enrollment.phase_name_required"
 	CodeEnrollmentPhaseNotEligible                       = "enrollment.phase_not_eligible"
+	CodeEnrollmentPhaseNotFound                          = "enrollment.phase_not_found"
+	CodeEnrollmentPhaseSchoolClassesInvalid              = "enrollment.phase_school_classes_invalid"
+	CodeEnrollmentPhaseServicePeriodInvalid              = "enrollment.phase_service_period_invalid"
+	CodeEnrollmentPhaseWindowInvalid                     = "enrollment.phase_window_invalid"
 	CodeEnrollmentPickupTimeNotAllowed                   = "enrollment.pickup_time_not_allowed"
+	CodeEnrollmentRequestDuplicate                       = "enrollment.request_duplicate"
+	CodeEnrollmentRequestNotFound                        = "enrollment.request_not_found"
 	CodeEnrollmentRequiredCareOfferingMissing            = "enrollment.required_care_offering_missing"
 	CodeEnrollmentRestoreDuplicate                       = "enrollment.restore_duplicate"
+	CodeEnrollmentRestoreNothingWithdrawn                = "enrollment.restore_nothing_withdrawn"
 	CodeEnrollmentRestoreOfferingClosed                  = "enrollment.restore_offering_closed"
 	CodeEnrollmentRestorePhaseInactive                   = "enrollment.restore_phase_inactive"
 	CodeEnrollmentSchemaHasPhases                        = "enrollment.schema_has_phases"
 	CodeEnrollmentSchemaHasRequests                      = "enrollment.schema_has_requests"
 	CodeEnrollmentSchemaNameExists                       = "enrollment.schema_name_exists"
+	CodeEnrollmentSchemaNameRequired                     = "enrollment.schema_name_required"
+	CodeEnrollmentSchemaNotFound                         = "enrollment.schema_not_found"
 	CodeEnrollmentSelectedDayNotAvailable                = "enrollment.selected_day_not_available"
+	CodeEnrollmentStatusLinkInvalid                      = "enrollment.status_link_invalid"
 	CodeEnrollmentStudentExists                          = "enrollment.student_exists"
+	CodeEnrollmentSubmissionRateLimited                  = "enrollment.submission_rate_limited"
 	CodeEnrollmentWaitlistDisabled                       = "enrollment.waitlist_disabled"
 	CodeEnrollmentWindowClosed                           = "enrollment.window_closed"
+	CodeEnrollmentWithdrawNotAllowed                     = "enrollment.withdraw_not_allowed"
 	CodeFilesAnnouncementPublished                       = "files.announcement_published"
 	CodeFilesAttachmentLimitReached                      = "files.attachment_limit_reached"
+	CodeFilesFileMissing                                 = "files.file_missing"
+	CodeFilesFileTooLarge                                = "files.file_too_large"
+	CodeFilesFileTypeNotAllowed                          = "files.file_type_not_allowed"
+	CodeFilesFileUnreadable                              = "files.file_unreadable"
 	CodeFilesFolderNameTaken                             = "files.folder_name_taken"
 	CodeFilesQuotaExceeded                               = "files.quota_exceeded"
 	CodeGeneralBusinessRejection                         = "general.business_rejection"
 	CodeGeneralInput                                     = "general.input"
 	CodeGeneralPermission                                = "general.permission"
+	CodeGeneralRequestTooLarge                           = "general.request_too_large"
 	CodeGeneralServer                                    = "general.server"
 	CodeGeneralUnavailable                               = "general.unavailable"
 	CodeGradeTransitionGraduatesCheckedIn                = "grade_transition.graduates_checked_in"
@@ -145,8 +221,12 @@ const (
 	CodeGradeTransitionNotDraft                          = "grade_transition.not_draft"
 	CodeGradeTransitionNotLatestTransition               = "grade_transition.not_latest_transition"
 	CodeGradeTransitionPreviewStale                      = "grade_transition.preview_stale"
+	CodeIdentityAccessNameRequired                       = "identity.access_name_required"
 	CodeIdentityAccountAlreadyHasTenantAccess            = "identity.account_already_has_tenant_access"
 	CodeIdentityAccountInactive                          = "identity.account_inactive"
+	CodeIdentityAccountNotFound                          = "identity.account_not_found"
+	CodeIdentityAccountNotInSchool                       = "identity.account_not_in_school"
+	CodeIdentityCurrentPasswordWrong                     = "identity.current_password_wrong"
 	CodeIdentityDemoAccessExpired                        = "identity.demo_access_expired"
 	CodeIdentityDemoAccessInvalid                        = "identity.demo_access_invalid"
 	CodeIdentityDemoAccessRateLimited                    = "identity.demo_access_rate_limited"
@@ -155,18 +235,50 @@ const (
 	CodeIdentityDemoSchoolPreparing                      = "identity.demo_school_preparing"
 	CodeIdentityDemoSession                              = "identity.demo_session"
 	CodeIdentityEmailAlreadyExists                       = "identity.email_already_exists"
+	CodeIdentityEmailChangeLinkInvalid                   = "identity.email_change_link_invalid"
+	CodeIdentityEmailChangeRateLimited                   = "identity.email_change_rate_limited"
+	CodeIdentityEmailChangeSameEmail                     = "identity.email_change_same_email"
+	CodeIdentityInvalidCredentials                       = "identity.invalid_credentials"
 	CodeIdentityInvitationAccountLoginRequired           = "identity.invitation_account_login_required"
 	CodeIdentityInvitationAccountMismatch                = "identity.invitation_account_mismatch"
+	CodeIdentityInvitationExpired                        = "identity.invitation_expired"
+	CodeIdentityInvitationNotFound                       = "identity.invitation_not_found"
+	CodeIdentityInvitationRateLimited                    = "identity.invitation_rate_limited"
+	CodeIdentityLehrkraftRoleImmutable                   = "identity.lehrkraft_role_immutable"
+	CodeIdentityMfaAlreadyEnrolled                       = "identity.mfa_already_enrolled"
+	CodeIdentityMfaBlocked                               = "identity.mfa_blocked"
+	CodeIdentityMfaCodeInvalid                           = "identity.mfa_code_invalid"
+	CodeIdentityMfaNotEnrolled                           = "identity.mfa_not_enrolled"
+	CodeIdentityOperatorInvitationInvalid                = "identity.operator_invitation_invalid"
+	CodeIdentityPasskeyLoginFailed                       = "identity.passkey_login_failed"
+	CodeIdentityPasskeyNotFound                          = "identity.passkey_not_found"
+	CodeIdentityPasswordMismatch                         = "identity.password_mismatch"
+	CodeIdentityPasswordResetLinkInvalid                 = "identity.password_reset_link_invalid"
+	CodeIdentityPasswordResetRateLimited                 = "identity.password_reset_rate_limited"
+	CodeIdentityPasswordTooWeak                          = "identity.password_too_weak"
 	CodeIdentityPreviewTargetNotPreviewable              = "identity.preview_target_not_previewable"
 	CodeIdentityPreviewTargetSchoolPortal                = "identity.preview_target_school_portal"
 	CodeIdentityPreviewTokenInvalid                      = "identity.preview_token_invalid"
 	CodeIdentityReadOnlyPreview                          = "identity.read_only_preview"
+	CodeIdentityRoleNameTaken                            = "identity.role_name_taken"
 	CodeIdentitySessionAccountInactive                   = "identity.session_account_inactive"
+	CodeIdentityTenantAccessDenied                       = "identity.tenant_access_denied"
+	CodeIdentityTenantAccessNotFound                     = "identity.tenant_access_not_found"
 	CodeIdentityUseParentPortal                          = "identity.use_parent_portal"
 	CodeIdentityUseSchoolPortal                          = "identity.use_school_portal"
+	CodeIdentityUsernameTaken                            = "identity.username_taken"
+	CodeImportFileColumnsMissing                         = "import.file_columns_missing"
+	CodeImportFileMissing                                = "import.file_missing"
+	CodeImportFileNoRows                                 = "import.file_no_rows"
+	CodeImportFileRowInvalid                             = "import.file_row_invalid"
+	CodeImportFileTooLarge                               = "import.file_too_large"
+	CodeImportFileTypeInvalid                            = "import.file_type_invalid"
+	CodeImportFileUnreadable                             = "import.file_unreadable"
 	CodeImportImportBatchFailed                          = "import.import_batch_failed"
+	CodeImportModeForbidden                              = "import.mode_forbidden"
 	CodeIotActivityCapacityExceeded                      = "iot.activity_capacity_exceeded"
 	CodeIotDeviationReasonRequired                       = "iot.deviation_reason_required"
+	CodeIotDeviceIdTaken                                 = "iot.device_id_taken"
 	CodeIotInvalidRfidTag                                = "iot.invalid_rfid_tag"
 	CodeIotInvalidStaffClockRequest                      = "iot.invalid_staff_clock_request"
 	CodeIotInvalidStaffClockState                        = "iot.invalid_staff_clock_state"
@@ -196,6 +308,33 @@ const (
 	CodePickupResolutionRequired                         = "pickup.resolution_required"
 	CodePresenceActivityParticipantLimitReached          = "presence.activity_participant_limit_reached"
 	CodePresenceRoomCapacityExceeded                     = "presence.room_capacity_exceeded"
+	CodePresenceStatisticsRangeInvalid                   = "presence.statistics_range_invalid"
+	CodeProvisioningCaregiverCapabilityBlocked           = "provisioning.caregiver_capability_blocked"
+	CodeProvisioningDeviceActiveSession                  = "provisioning.device_active_session"
+	CodeProvisioningDeviceApiKeyTaken                    = "provisioning.device_api_key_taken"
+	CodeProvisioningDeviceIdTaken                        = "provisioning.device_id_taken"
+	CodeProvisioningDeviceInUse                          = "provisioning.device_in_use"
+	CodeProvisioningDeviceNotFound                       = "provisioning.device_not_found"
+	CodeProvisioningDeviceOnline                         = "provisioning.device_online"
+	CodeProvisioningDeviceOtherOrganization              = "provisioning.device_other_organization"
+	CodeProvisioningDeviceProtected                      = "provisioning.device_protected"
+	CodeProvisioningDeviceSameSchool                     = "provisioning.device_same_school"
+	CodeProvisioningDeviceTransferProtected              = "provisioning.device_transfer_protected"
+	CodeProvisioningOrganizationAlreadyDeleted           = "provisioning.organization_already_deleted"
+	CodeProvisioningOrganizationDeleted                  = "provisioning.organization_deleted"
+	CodeProvisioningOrganizationHasSchools               = "provisioning.organization_has_schools"
+	CodeProvisioningOrganizationNotDeleted               = "provisioning.organization_not_deleted"
+	CodeProvisioningOrganizationNotFound                 = "provisioning.organization_not_found"
+	CodeProvisioningOrganizationSlugTaken                = "provisioning.organization_slug_taken"
+	CodeProvisioningPersonHasSupervisions                = "provisioning.person_has_supervisions"
+	CodeProvisioningPersonNotFound                       = "provisioning.person_not_found"
+	CodeProvisioningSchoolAlreadyDeleted                 = "provisioning.school_already_deleted"
+	CodeProvisioningSchoolInactive                       = "provisioning.school_inactive"
+	CodeProvisioningSchoolNotDeleted                     = "provisioning.school_not_deleted"
+	CodeProvisioningSchoolNotFound                       = "provisioning.school_not_found"
+	CodeProvisioningSchoolSlugTaken                      = "provisioning.school_slug_taken"
+	CodeProvisioningSchoolSubdomainTaken                 = "provisioning.school_subdomain_taken"
+	CodeRolloverDeadlineRequired                         = "rollover.deadline_required"
 	CodeRolloverDuplicateName                            = "rollover.duplicate_name"
 	CodeRolloverInvalidRequest                           = "rollover.invalid_request"
 	CodeRolloverReviewInvalid                            = "rollover.review_invalid"
@@ -203,10 +342,17 @@ const (
 	CodeRolloverSourceAlreadyRolled                      = "rollover.source_already_rolled"
 	CodeRolloverSourceNotFound                           = "rollover.source_not_found"
 	CodeRoomsColorAlreadyInUse                           = "rooms.color_already_in_use"
+	CodeRoomsNotFound                                    = "rooms.not_found"
 	CodeRoomsNotReleased                                 = "rooms.not_released"
 	CodeSchoolNoSchoolPortalRole                         = "school.no_school_portal_role"
 	CodeSchoolSetupCompleted                             = "school.setup_completed"
 	CodeSchoolSetupIncomplete                            = "school.setup_incomplete"
+	CodeSettingsAdminOnly                                = "settings.admin_only"
+	CodeSettingsBookingAuthorityBlocked                  = "settings.booking_authority_blocked"
+	CodeSettingsInvalidValue                             = "settings.invalid_value"
+	CodeSettingsManagedByUpload                          = "settings.managed_by_upload"
+	CodeSettingsNotFound                                 = "settings.not_found"
+	CodeSettingsPresenceModeSwitchBlocked                = "settings.presence_mode_switch_blocked"
 	CodeStudentsAbsenceReadRequired                      = "students.absence_read_required"
 	CodeStudentsBulkApprovalIneligible                   = "students.bulk_approval_ineligible"
 	CodeStudentsCareDayManagedByBooking                  = "students.care_day_managed_by_booking"
@@ -236,11 +382,17 @@ const (
 	CodeStudentsCheckinCareEnded                         = "students.checkin_care_ended"
 	CodeStudentsCheckoutNoteTooLong                      = "students.checkout_note_too_long"
 	CodeStudentsChildQuotaReached                        = "students.child_quota_reached"
+	CodeStudentsClassListEntryAssignMismatch             = "students.class_list_entry_assign_mismatch"
+	CodeStudentsClassListEntryDuplicate                  = "students.class_list_entry_duplicate"
+	CodeStudentsClassListEntryStudentExists              = "students.class_list_entry_student_exists"
+	CodeStudentsClassListEntryStudentNotFound            = "students.class_list_entry_student_not_found"
 	CodeStudentsCompanionLockBusy                        = "students.companion_lock_busy"
 	CodeStudentsCompanionWouldLoseDeparture              = "students.companion_would_lose_departure"
 	CodeStudentsCompanionsChanged                        = "students.companions_changed"
 	CodeStudentsConflictKindUnsupported                  = "students.conflict_kind_unsupported"
 	CodeStudentsCorrectionUnsupported                    = "students.correction_unsupported"
+	CodeStudentsDayLogDisabled                           = "students.day_log_disabled"
+	CodeStudentsDayLogNoGroups                           = "students.day_log_no_groups"
 	CodeStudentsDeletionAcknowledgementRequired          = "students.deletion_acknowledgement_required"
 	CodeStudentsDeletionAlumnus                          = "students.deletion_alumnus"
 	CodeStudentsDeletionCompanionBlocked                 = "students.deletion_companion_blocked"
@@ -253,6 +405,9 @@ const (
 	CodeStudentsExcusedRequestStatusConflict             = "students.excused_request_status_conflict"
 	CodeStudentsExportSelectionTooLarge                  = "students.export_selection_too_large"
 	CodeStudentsGuardianAccessRevoked                    = "students.guardian_access_revoked"
+	CodeStudentsGuardianAccountHolderTooLong             = "students.guardian_account_holder_too_long"
+	CodeStudentsGuardianEmailTaken                       = "students.guardian_email_taken"
+	CodeStudentsGuardianIbanInvalid                      = "students.guardian_iban_invalid"
 	CodeStudentsOfferingChangeCapacityFull               = "students.offering_change_capacity_full"
 	CodeStudentsOfferingChangeDateOutOfRange             = "students.offering_change_date_out_of_range"
 	CodeStudentsOfferingChangesNoEnrollment              = "students.offering_changes_no_enrollment"
@@ -284,62 +439,212 @@ const (
 	CodeSubstitutionsNotFound                            = "substitutions.not_found"
 	CodeSubstitutionsNotRunning                          = "substitutions.not_running"
 	CodeSubstitutionsSelfAssignment                      = "substitutions.self_assignment"
+	CodeTimetableActivityNotOwner                        = "timetable.activity_not_owner"
+	CodeTimetableActivitySystemProtected                 = "timetable.activity_system_protected"
+	CodeTimetableActivityTemplateProtected               = "timetable.activity_template_protected"
 	CodeTimetableAmbiguousTemplateInstanceDelete         = "timetable.ambiguous_template_instance_delete"
+	CodeTimetableAttendanceEntryNotFound                 = "timetable.attendance_entry_not_found"
+	CodeTimetableAttendanceFrozen                        = "timetable.attendance_frozen"
+	CodeTimetableAttendanceInvalid                       = "timetable.attendance_invalid"
 	CodeTimetableCalendarPeriodCareOfferingConflict      = "timetable.calendar_period_care_offering_conflict"
+	CodeTimetableCalendarPeriodEndBeforeStart            = "timetable.calendar_period_end_before_start"
+	CodeTimetableCalendarPeriodInvalid                   = "timetable.calendar_period_invalid"
+	CodeTimetableCalendarPeriodNameTaken                 = "timetable.calendar_period_name_taken"
+	CodeTimetableCalendarPeriodNotFound                  = "timetable.calendar_period_not_found"
 	CodeTimetableCalendarPeriodOverlapConflict           = "timetable.calendar_period_overlap_conflict"
+	CodeTimetableCalendarPeriodRosterConflict            = "timetable.calendar_period_roster_conflict"
+	CodeTimetableCalendarPeriodWeekCycleAnchorMissing    = "timetable.calendar_period_week_cycle_anchor_missing"
+	CodeTimetableClosingDayEndBeforeStart                = "timetable.closing_day_end_before_start"
+	CodeTimetableClosingDayInvalid                       = "timetable.closing_day_invalid"
+	CodeTimetableClosingDayNotFound                      = "timetable.closing_day_not_found"
 	CodeTimetableCompleteTooEarly                        = "timetable.complete_too_early"
 	CodeTimetableCompletionConfirmationStale             = "timetable.completion_confirmation_stale"
+	CodeTimetableCorrectionCancelled                     = "timetable.correction_cancelled"
+	CodeTimetableCorrectionNotCompleted                  = "timetable.correction_not_completed"
+	CodeTimetableCorrectionReasonMissing                 = "timetable.correction_reason_missing"
+	CodeTimetableCorrectionReasonTooLong                 = "timetable.correction_reason_too_long"
+	CodeTimetableDateInPast                              = "timetable.date_in_past"
+	CodeTimetableDatesInPast                             = "timetable.dates_in_past"
+	CodeTimetableDatesRequired                           = "timetable.dates_required"
+	CodeTimetableDeviationNoteTooLong                    = "timetable.deviation_note_too_long"
+	CodeTimetableDeviationSelectionInvalid               = "timetable.deviation_selection_invalid"
 	CodeTimetableDuplicateInstance                       = "timetable.duplicate_instance"
+	CodeTimetableExportEndBeforeStart                    = "timetable.export_end_before_start"
+	CodeTimetableExportInternalForbidden                 = "timetable.export_internal_forbidden"
+	CodeTimetableExportRangeTooLarge                     = "timetable.export_range_too_large"
+	CodeTimetableGroupAlreadyEnded                       = "timetable.group_already_ended"
 	CodeTimetableGuardianNoticeDisabled                  = "timetable.guardian_notice_disabled"
+	CodeTimetableGuardianNoticeInvalid                   = "timetable.guardian_notice_invalid"
+	CodeTimetableGuardianNoticePast                      = "timetable.guardian_notice_past"
+	CodeTimetableGuardianNoticeTextInvalid               = "timetable.guardian_notice_text_invalid"
 	CodeTimetableIdempotencyKeyReused                    = "timetable.idempotency_key_reused"
+	CodeTimetableInstanceEndBeforeStart                  = "timetable.instance_end_before_start"
+	CodeTimetableInstanceInPast                          = "timetable.instance_in_past"
+	CodeTimetableInstanceInvalid                         = "timetable.instance_invalid"
 	CodeTimetableInstanceMoved                           = "timetable.instance_moved"
+	CodeTimetableInstanceNotActive                       = "timetable.instance_not_active"
 	CodeTimetableInstanceNotConvertible                  = "timetable.instance_not_convertible"
 	CodeTimetableInstanceNotEditable                     = "timetable.instance_not_editable"
+	CodeTimetableInstanceNotFound                        = "timetable.instance_not_found"
+	CodeTimetableInstanceOutsidePeriod                   = "timetable.instance_outside_period"
+	CodeTimetableInstanceSelectionInvalid                = "timetable.instance_selection_invalid"
+	CodeTimetableInstanceWeekend                         = "timetable.instance_weekend"
+	CodeTimetableInstancesNotAssigned                    = "timetable.instances_not_assigned"
+	CodeTimetableInstancesOtherDay                       = "timetable.instances_other_day"
+	CodeTimetableInstancesRequired                       = "timetable.instances_required"
 	CodeTimetableInvalidTransition                       = "timetable.invalid_transition"
+	CodeTimetableMoveOtherDay                            = "timetable.move_other_day"
+	CodeTimetableMoveSameInstance                        = "timetable.move_same_instance"
+	CodeTimetableNoStaffProfile                          = "timetable.no_staff_profile"
+	CodeTimetableOfferingSourceInactive                  = "timetable.offering_source_inactive"
+	CodeTimetableOfferingSourceInvalid                   = "timetable.offering_source_invalid"
+	CodeTimetableOfferingSourceMixedPhases               = "timetable.offering_source_mixed_phases"
+	CodeTimetableOfferingSourceNotFound                  = "timetable.offering_source_not_found"
+	CodeTimetableOfferingSourceOutsidePeriod             = "timetable.offering_source_outside_period"
+	CodeTimetableOfferingSourceTooMany                   = "timetable.offering_source_too_many"
 	CodeTimetableOnlySupervisorReplacementRequired       = "timetable.only_supervisor_replacement_required"
+	CodeTimetableOperationNotPlanned                     = "timetable.operation_not_planned"
+	CodeTimetableOperationStale                          = "timetable.operation_stale"
 	CodeTimetablePickupExtensionBlockGone                = "timetable.pickup_extension_block_gone"
+	CodeTimetablePickupExtensionInvalid                  = "timetable.pickup_extension_invalid"
 	CodeTimetablePickupExtensionNotFound                 = "timetable.pickup_extension_not_found"
+	CodeTimetablePickupExtensionTooManyBlocks            = "timetable.pickup_extension_too_many_blocks"
+	CodeTimetablePlanningTrackArchived                   = "timetable.planning_track_archived"
+	CodeTimetablePlanningTrackInvalid                    = "timetable.planning_track_invalid"
+	CodeTimetablePlanningTrackNameTaken                  = "timetable.planning_track_name_taken"
+	CodeTimetablePlanningTrackNotFound                   = "timetable.planning_track_not_found"
 	CodeTimetablePresenceWouldOverstaff                  = "timetable.presence_would_overstaff"
+	CodeTimetableReopenAttendanceChanged                 = "timetable.reopen_attendance_changed"
+	CodeTimetableReopenStaffBusy                         = "timetable.reopen_staff_busy"
+	CodeTimetableReopenStudentActive                     = "timetable.reopen_student_active"
+	CodeTimetableReopenSupervisionChanged                = "timetable.reopen_supervision_changed"
+	CodeTimetableRoomOccupied                            = "timetable.room_occupied"
+	CodeTimetableSeriesEndBeforeStart                    = "timetable.series_end_before_start"
+	CodeTimetableSeriesEndOutsidePeriod                  = "timetable.series_end_outside_period"
 	CodeTimetableSickAbsenceScopeLocked                  = "timetable.sick_absence_scope_locked"
+	CodeTimetableSlotListDrifted                         = "timetable.slot_list_drifted"
+	CodeTimetableSlotListGroupingInvalid                 = "timetable.slot_list_grouping_invalid"
+	CodeTimetableSlotListPickupPastDate                  = "timetable.slot_list_pickup_past_date"
+	CodeTimetableSlotListReconciliationFutureDate        = "timetable.slot_list_reconciliation_future_date"
+	CodeTimetableSlotListsDisabled                       = "timetable.slot_lists_disabled"
+	CodeTimetableSpontaneousActivitiesDisabled           = "timetable.spontaneous_activities_disabled"
+	CodeTimetableSpontaneousCategoryArchived             = "timetable.spontaneous_category_archived"
 	CodeTimetableStaffAbsentOnDate                       = "timetable.staff_absent_on_date"
+	CodeTimetableStaffAbsentOnSource                     = "timetable.staff_absent_on_source"
 	CodeTimetableStaffAbsentOnTarget                     = "timetable.staff_absent_on_target"
 	CodeTimetableStaffAlreadyOnTarget                    = "timetable.staff_already_on_target"
+	CodeTimetableStaffNotFound                           = "timetable.staff_not_found"
+	CodeTimetableStaffNotOnSource                        = "timetable.staff_not_on_source"
+	CodeTimetableStaffPresentAndAbsent                   = "timetable.staff_present_and_absent"
 	CodeTimetableStartTooEarly                           = "timetable.start_too_early"
 	CodeTimetableStartWindowExpired                      = "timetable.start_window_expired"
+	CodeTimetableStudentAlreadyActive                    = "timetable.student_already_active"
+	CodeTimetableStudentCareEnded                        = "timetable.student_care_ended"
+	CodeTimetableStudentGraduated                        = "timetable.student_graduated"
+	CodeTimetableStudentNotCheckedIn                     = "timetable.student_not_checked_in"
+	CodeTimetableStudentNotFound                         = "timetable.student_not_found"
+	CodeTimetableStudentsNotPresent                      = "timetable.students_not_present"
+	CodeTimetableSubstituteAbsent                        = "timetable.substitute_absent"
+	CodeTimetableSubstituteAbsentOnDate                  = "timetable.substitute_absent_on_date"
 	CodeTimetableSubstituteConflict                      = "timetable.substitute_conflict"
+	CodeTimetableSubstituteNotOnInstances                = "timetable.substitute_not_on_instances"
+	CodeTimetableSubstituteSelf                          = "timetable.substitute_self"
+	CodeTimetableSubstituteSingleOnly                    = "timetable.substitute_single_only"
 	CodeTimetableTemplateCareOfferingConflict            = "timetable.template_care_offering_conflict"
+	CodeTimetableTemplateCategoryUnavailable             = "timetable.template_category_unavailable"
+	CodeTimetableTemplateEducationGroupInvalid           = "timetable.template_education_group_invalid"
+	CodeTimetableTemplateEndBeforeStart                  = "timetable.template_end_before_start"
+	CodeTimetableTemplateGradeAboveMax                   = "timetable.template_grade_above_max"
+	CodeTimetableTemplateInvalid                         = "timetable.template_invalid"
+	CodeTimetableTemplateMaxParticipantsInvalid          = "timetable.template_max_participants_invalid"
 	CodeTimetableTemplateNotFound                        = "timetable.template_not_found"
+	CodeTimetableTemplatePlanningTrackUnavailable        = "timetable.template_planning_track_unavailable"
 	CodeTimetableTemplateRosterRebaseConflict            = "timetable.template_roster_rebase_conflict"
+	CodeTimetableTemplateSplitInPast                     = "timetable.template_split_in_past"
+	CodeTimetableTemplateSplitInvalid                    = "timetable.template_split_invalid"
 	CodeTimetableTemplateStartInPast                     = "timetable.template_start_in_past"
 	CodeTimetableTemplateStartNotEarlier                 = "timetable.template_start_not_earlier"
+	CodeTimetableTemplateStartOutsidePeriod              = "timetable.template_start_outside_period"
 	CodeTimetableTemplateStartPredecessorOverlap         = "timetable.template_start_predecessor_overlap"
+	CodeTimetableTemplateWeekPatternInvalid              = "timetable.template_week_pattern_invalid"
+	CodeTimetableTemplateWeekend                         = "timetable.template_weekend"
+	CodeTimetableTooManyDates                            = "timetable.too_many_dates"
 	CodeTimetableUnderstaffedStillStaffed                = "timetable.understaffed_still_staffed"
+	CodeTimetableWindowEndBeforeStart                    = "timetable.window_end_before_start"
+	CodeTimetableWindowTooLarge                          = "timetable.window_too_large"
 	CodeWorkforceAbsenceAllowanceExceeded                = "workforce.absence_allowance_exceeded"
+	CodeWorkforceAbsenceAlreadyDecided                   = "workforce.absence_already_decided"
+	CodeWorkforceAbsenceNoWorkingDays                    = "workforce.absence_no_working_days"
+	CodeWorkforceAbsenceNotCancelable                    = "workforce.absence_not_cancelable"
+	CodeWorkforceAbsenceNotFound                         = "workforce.absence_not_found"
+	CodeWorkforceAbsenceNotOwned                         = "workforce.absence_not_owned"
+	CodeWorkforceAbsenceOverlap                          = "workforce.absence_overlap"
 	CodeWorkforceAbsenceRebookingBlocked                 = "workforce.absence_rebooking_blocked"
 	CodeWorkforceAbsenceTypeInactive                     = "workforce.absence_type_inactive"
 	CodeWorkforceAdjustmentInClosedMonth                 = "workforce.adjustment_in_closed_month"
+	CodeWorkforceAlreadyCheckedIn                        = "workforce.already_checked_in"
+	CodeWorkforceAlreadyCheckedOut                       = "workforce.already_checked_out"
 	CodeWorkforceBalanceAdjustmentExceedsBalance         = "workforce.balance_adjustment_exceeds_balance"
 	CodeWorkforceBalanceAlreadyReset                     = "workforce.balance_already_reset"
+	CodeWorkforceBreakAlreadyActive                      = "workforce.break_already_active"
+	CodeWorkforceDecisionNoteRequired                    = "workforce.decision_note_required"
 	CodeWorkforceDependentBalanceReset                   = "workforce.dependent_balance_reset"
 	CodeWorkforceLaterMonthClosed                        = "workforce.later_month_closed"
 	CodeWorkforceManagerControlledAbsence                = "workforce.manager_controlled_absence"
+	CodeWorkforceMonthClosed                             = "workforce.month_closed"
 	CodeWorkforceMonthNotClosable                        = "workforce.month_not_closable"
 	CodeWorkforceMonthNotClosed                          = "workforce.month_not_closed"
+	CodeWorkforceNoActiveBreak                           = "workforce.no_active_break"
+	CodeWorkforceNoActiveSession                         = "workforce.no_active_session"
+	CodeWorkforceNoSessionForToday                       = "workforce.no_session_for_today"
 	CodeWorkforceOpeningBalanceAlreadyExists             = "workforce.opening_balance_already_exists"
 	CodeWorkforcePayrollConfigIncomplete                 = "workforce.payroll_config_incomplete"
 	CodeWorkforcePersonnelNumberInvalid                  = "workforce.personnel_number_invalid"
 	CodeWorkforcePersonnelNumberTaken                    = "workforce.personnel_number_taken"
+	CodeWorkforceRebookingBeforeVacationOpening          = "workforce.rebooking_before_vacation_opening"
+	CodeWorkforceRebookingHalfDayEdge                    = "workforce.rebooking_half_day_edge"
+	CodeWorkforceRebookingIntoSickReport                 = "workforce.rebooking_into_sick_report"
+	CodeWorkforceRebookingNoWorkingDay                   = "workforce.rebooking_no_working_day"
+	CodeWorkforceRebookingNotOver                        = "workforce.rebooking_not_over"
+	CodeWorkforceRebookingNothingSelected                = "workforce.rebooking_nothing_selected"
+	CodeWorkforceRebookingOutsideBalance                 = "workforce.rebooking_outside_balance"
+	CodeWorkforceRebookingOverlap                        = "workforce.rebooking_overlap"
+	CodeWorkforceRebookingReasonRequired                 = "workforce.rebooking_reason_required"
+	CodeWorkforceRebookingRequest                        = "workforce.rebooking_request"
+	CodeWorkforceRebookingSameType                       = "workforce.rebooking_same_type"
+	CodeWorkforceRebookingSickReport                     = "workforce.rebooking_sick_report"
+	CodeWorkforceRebookingTooMany                        = "workforce.rebooking_too_many"
+	CodeWorkforceReplacementOutsideOrigin                = "workforce.replacement_outside_origin"
+	CodeWorkforceSessionNotFound                         = "workforce.session_not_found"
+	CodeWorkforceSessionNotOwned                         = "workforce.session_not_owned"
+	CodeWorkforceSessionNoteRequired                     = "workforce.session_note_required"
+	CodeWorkforceSessionTimesInvalid                     = "workforce.session_times_invalid"
+	CodeWorkforceShiftChanged                            = "workforce.shift_changed"
+	CodeWorkforceShiftDuplicate                          = "workforce.shift_duplicate"
+	CodeWorkforceShiftHasReplacements                    = "workforce.shift_has_replacements"
+	CodeWorkforceShiftOverlap                            = "workforce.shift_overlap"
+	CodeWorkforceShiftSeriesNoOccurrences                = "workforce.shift_series_no_occurrences"
+	CodeWorkforceShiftSeriesOutsidePeriod                = "workforce.shift_series_outside_period"
+	CodeWorkforceShiftSeriesWeekCycleMissing             = "workforce.shift_series_week_cycle_missing"
+	CodeWorkforceShiftTypeInactive                       = "workforce.shift_type_inactive"
+	CodeWorkforceStaffProfileMissing                     = "workforce.staff_profile_missing"
 	CodeWorkforceStammdatenInvalid                       = "workforce.stammdaten_invalid"
+	CodeWorkforceTargetOverrideHoursInvalid              = "workforce.target_override_hours_invalid"
+	CodeWorkforceTargetOverrideOverlap                   = "workforce.target_override_overlap"
+	CodeWorkforceTargetOverrideRangeInvalid              = "workforce.target_override_range_invalid"
+	CodeWorkforceTargetOverrideTooLong                   = "workforce.target_override_too_long"
 	CodeWorkforceVacationOpeningAbsencesBeforeCutoff     = "workforce.vacation_opening_absences_before_cutoff"
 	CodeWorkforceVacationOpeningAlreadyExists            = "workforce.vacation_opening_already_exists"
 	CodeWorkforceVacationQuotaBelowUsed                  = "workforce.vacation_quota_below_used"
 	CodeWorkforceVacationQuotaExceeded                   = "workforce.vacation_quota_exceeded"
 	CodeWorkforceVacationQuotaReasonRequired             = "workforce.vacation_quota_reason_required"
+	CodeWorkforceVacationRequestInPast                   = "workforce.vacation_request_in_past"
 	CodeWorkforceWorkSessionOverlap                      = "workforce.work_session_overlap"
 )
 
 var errorClassByCode = map[string]string{
 	"attendance.web_disabled":                              "permission",
+	"billing.invalid_key_day":                              "input",
 	"care.announcement_ack_not_required":                   "input",
 	"care.announcement_not_a_poll":                         "input",
 	"care.announcement_stale":                              "business_rejection",
@@ -414,67 +719,142 @@ var errorClassByCode = map[string]string{
 	"classday.arrival_exception_past_date":                 "input",
 	"classday.arrival_exception_weekend":                   "input",
 	"classday.school_write_disabled":                       "permission",
+	"communication.announcement_not_found":                 "business_rejection",
 	"communication.announcement_not_published":             "business_rejection",
 	"communication.announcement_published_immutable":       "business_rejection",
 	"communication.announcement_reminder_sent":             "business_rejection",
 	"communication.declaration_has_submissions":            "business_rejection",
+	"communication.notifications_disabled":                 "business_rejection",
 	"communication.parent_news_disabled":                   "permission",
 	"communication.poll_not_open":                          "business_rejection",
 	"communication.staff_counterpart_unavailable":          "unavailable",
 	"communication.staff_messaging_disabled":               "permission",
+	"communication.staff_notice_outdated":                  "business_rejection",
 	"communication.system_announcement_immutable":          "business_rejection",
+	"devices.tag_scan_already_resolved":                    "business_rejection",
+	"devices.tag_scan_not_found":                           "business_rejection",
 	"enrollment.approval_care_offering_exactly_one":        "business_rejection",
 	"enrollment.approval_care_offering_missing":            "business_rejection",
+	"enrollment.approval_data_invalid":                     "input",
+	"enrollment.captcha_failed":                            "input",
+	"enrollment.captcha_required":                          "input",
+	"enrollment.care_offering_auto_add_invalid":            "input",
+	"enrollment.care_offering_capacity_invalid":            "input",
+	"enrollment.care_offering_closed":                      "business_rejection",
 	"enrollment.care_offering_days_required":               "input",
 	"enrollment.care_offering_exactly_one":                 "input",
 	"enrollment.care_offering_full":                        "business_rejection",
 	"enrollment.care_offering_in_use":                      "business_rejection",
 	"enrollment.care_offering_missing":                     "input",
+	"enrollment.care_offering_name_required":               "input",
+	"enrollment.care_offering_not_found":                   "business_rejection",
+	"enrollment.care_offering_pickup_time_invalid":         "input",
 	"enrollment.care_offering_pickup_times_required":       "input",
+	"enrollment.care_offering_price_invalid":               "input",
+	"enrollment.care_offering_selection_invalid":           "input",
 	"enrollment.care_offering_template_period_mismatch":    "input",
 	"enrollment.care_offering_unavailable":                 "business_rejection",
 	"enrollment.care_offerings_disabled":                   "permission",
 	"enrollment.change_request_child_locked":               "permission",
 	"enrollment.change_request_conflict":                   "business_rejection",
+	"enrollment.change_request_guardian_linked":            "input",
+	"enrollment.change_request_not_allowed":                "permission",
+	"enrollment.change_request_not_found":                  "business_rejection",
+	"enrollment.change_request_note_required":              "input",
+	"enrollment.change_request_status_changed":             "business_rejection",
 	"enrollment.child_already_enrolled":                    "business_rejection",
+	"enrollment.child_already_requested":                   "business_rejection",
 	"enrollment.child_ambiguous":                           "input",
+	"enrollment.child_birth_date_invalid":                  "input",
 	"enrollment.child_deletion_not_allowed":                "business_rejection",
+	"enrollment.child_grade_required":                      "input",
+	"enrollment.child_name_required":                       "input",
 	"enrollment.child_not_enrolled":                        "business_rejection",
 	"enrollment.child_not_permitted":                       "permission",
+	"enrollment.child_required":                            "input",
 	"enrollment.class_not_eligible":                        "input",
+	"enrollment.companion_note_required":                   "input",
 	"enrollment.complete_withdrawal_confirmation_required": "input",
+	"enrollment.consent_required":                          "input",
+	"enrollment.correction_reason_required":                "input",
+	"enrollment.correction_school_class_mismatch":          "input",
 	"enrollment.day_selection_not_allowed":                 "input",
 	"enrollment.day_selection_required":                    "input",
+	"enrollment.decision_already_final":                    "business_rejection",
+	"enrollment.deletion_reason_invalid":                   "input",
 	"enrollment.departure_mode_limit":                      "input",
 	"enrollment.disabled":                                  "business_rejection",
 	"enrollment.duplicate_detected":                        "business_rejection",
+	"enrollment.edit_not_allowed":                          "permission",
+	"enrollment.export_too_large":                          "input",
+	"enrollment.field_required":                            "input",
+	"enrollment.form_field_allowed_times_invalid":          "input",
+	"enrollment.form_field_content_required":               "input",
+	"enrollment.form_field_key_duplicate":                  "input",
+	"enrollment.form_field_key_invalid":                    "input",
+	"enrollment.form_field_label_required":                 "input",
+	"enrollment.form_field_options_invalid":                "input",
+	"enrollment.form_field_target_duplicate":               "input",
+	"enrollment.form_field_target_invalid":                 "input",
+	"enrollment.form_field_visibility_invalid":             "input",
+	"enrollment.form_grade_collection_required":            "input",
+	"enrollment.form_not_found":                            "business_rejection",
 	"enrollment.grade_not_eligible":                        "input",
 	"enrollment.guardian_account_mismatch":                 "business_rejection",
+	"enrollment.guardian_email_required":                   "input",
+	"enrollment.guardian_name_required":                    "input",
+	"enrollment.guardian_phone_required":                   "input",
 	"enrollment.invalid_email":                             "input",
 	"enrollment.invalid_phone":                             "input",
 	"enrollment.late_invite_invalid":                       "input",
+	"enrollment.legal_block_incomplete":                    "input",
+	"enrollment.legal_block_key_duplicate":                 "input",
+	"enrollment.legal_block_key_invalid":                   "input",
+	"enrollment.legal_block_required_not_allowed":          "input",
+	"enrollment.legal_document_invalid":                    "input",
+	"enrollment.message_required":                          "input",
+	"enrollment.offering_adjustment_invalid":               "input",
 	"enrollment.phase_care_offering_conflict":              "business_rejection",
+	"enrollment.phase_eligibility_setting_required":        "input",
 	"enrollment.phase_name_exists":                         "business_rejection",
+	"enrollment.phase_name_required":                       "input",
 	"enrollment.phase_not_eligible":                        "permission",
+	"enrollment.phase_not_found":                           "business_rejection",
+	"enrollment.phase_school_classes_invalid":              "input",
+	"enrollment.phase_service_period_invalid":              "input",
+	"enrollment.phase_window_invalid":                      "input",
 	"enrollment.pickup_time_not_allowed":                   "input",
+	"enrollment.request_duplicate":                         "business_rejection",
+	"enrollment.request_not_found":                         "business_rejection",
 	"enrollment.required_care_offering_missing":            "input",
 	"enrollment.restore_duplicate":                         "business_rejection",
+	"enrollment.restore_nothing_withdrawn":                 "business_rejection",
 	"enrollment.restore_offering_closed":                   "business_rejection",
 	"enrollment.restore_phase_inactive":                    "business_rejection",
 	"enrollment.schema_has_phases":                         "business_rejection",
 	"enrollment.schema_has_requests":                       "business_rejection",
 	"enrollment.schema_name_exists":                        "business_rejection",
+	"enrollment.schema_name_required":                      "input",
+	"enrollment.schema_not_found":                          "business_rejection",
 	"enrollment.selected_day_not_available":                "input",
+	"enrollment.status_link_invalid":                       "business_rejection",
 	"enrollment.student_exists":                            "business_rejection",
+	"enrollment.submission_rate_limited":                   "unavailable",
 	"enrollment.waitlist_disabled":                         "business_rejection",
 	"enrollment.window_closed":                             "business_rejection",
+	"enrollment.withdraw_not_allowed":                      "permission",
 	"files.announcement_published":                         "business_rejection",
 	"files.attachment_limit_reached":                       "business_rejection",
+	"files.file_missing":                                   "input",
+	"files.file_too_large":                                 "input",
+	"files.file_type_not_allowed":                          "input",
+	"files.file_unreadable":                                "input",
 	"files.folder_name_taken":                              "business_rejection",
 	"files.quota_exceeded":                                 "business_rejection",
 	"general.business_rejection":                           "business_rejection",
 	"general.input":                                        "input",
 	"general.permission":                                   "permission",
+	"general.request_too_large":                            "input",
 	"general.server":                                       "server",
 	"general.unavailable":                                  "unavailable",
 	"grade_transition.graduates_checked_in":                "business_rejection",
@@ -482,8 +862,12 @@ var errorClassByCode = map[string]string{
 	"grade_transition.not_draft":                           "business_rejection",
 	"grade_transition.not_latest_transition":               "business_rejection",
 	"grade_transition.preview_stale":                       "business_rejection",
+	"identity.access_name_required":                        "input",
 	"identity.account_already_has_tenant_access":           "business_rejection",
 	"identity.account_inactive":                            "permission",
+	"identity.account_not_found":                           "business_rejection",
+	"identity.account_not_in_school":                       "business_rejection",
+	"identity.current_password_wrong":                      "input",
 	"identity.demo_access_expired":                         "business_rejection",
 	"identity.demo_access_invalid":                         "input",
 	"identity.demo_access_rate_limited":                    "unavailable",
@@ -492,18 +876,50 @@ var errorClassByCode = map[string]string{
 	"identity.demo_school_preparing":                       "unavailable",
 	"identity.demo_session":                                "permission",
 	"identity.email_already_exists":                        "business_rejection",
+	"identity.email_change_link_invalid":                   "business_rejection",
+	"identity.email_change_rate_limited":                   "unavailable",
+	"identity.email_change_same_email":                     "input",
+	"identity.invalid_credentials":                         "input",
 	"identity.invitation_account_login_required":           "permission",
 	"identity.invitation_account_mismatch":                 "permission",
+	"identity.invitation_expired":                          "business_rejection",
+	"identity.invitation_not_found":                        "input",
+	"identity.invitation_rate_limited":                     "unavailable",
+	"identity.lehrkraft_role_immutable":                    "business_rejection",
+	"identity.mfa_already_enrolled":                        "business_rejection",
+	"identity.mfa_blocked":                                 "unavailable",
+	"identity.mfa_code_invalid":                            "input",
+	"identity.mfa_not_enrolled":                            "business_rejection",
+	"identity.operator_invitation_invalid":                 "business_rejection",
+	"identity.passkey_login_failed":                        "business_rejection",
+	"identity.passkey_not_found":                           "business_rejection",
+	"identity.password_mismatch":                           "input",
+	"identity.password_reset_link_invalid":                 "business_rejection",
+	"identity.password_reset_rate_limited":                 "unavailable",
+	"identity.password_too_weak":                           "input",
 	"identity.preview_target_not_previewable":              "permission",
 	"identity.preview_target_school_portal":                "permission",
 	"identity.preview_token_invalid":                       "permission",
 	"identity.read_only_preview":                           "permission",
+	"identity.role_name_taken":                             "business_rejection",
 	"identity.session_account_inactive":                    "permission",
+	"identity.tenant_access_denied":                        "permission",
+	"identity.tenant_access_not_found":                     "business_rejection",
 	"identity.use_parent_portal":                           "permission",
 	"identity.use_school_portal":                           "permission",
+	"identity.username_taken":                              "business_rejection",
+	"import.file_columns_missing":                          "input",
+	"import.file_missing":                                  "input",
+	"import.file_no_rows":                                  "input",
+	"import.file_row_invalid":                              "input",
+	"import.file_too_large":                                "input",
+	"import.file_type_invalid":                             "input",
+	"import.file_unreadable":                               "input",
 	"import.import_batch_failed":                           "server",
+	"import.mode_forbidden":                                "permission",
 	"iot.activity_capacity_exceeded":                       "business_rejection",
 	"iot.deviation_reason_required":                        "input",
+	"iot.device_id_taken":                                  "business_rejection",
 	"iot.invalid_rfid_tag":                                 "input",
 	"iot.invalid_staff_clock_request":                      "input",
 	"iot.invalid_staff_clock_state":                        "business_rejection",
@@ -533,6 +949,33 @@ var errorClassByCode = map[string]string{
 	"pickup.resolution_required":                           "input",
 	"presence.activity_participant_limit_reached":          "business_rejection",
 	"presence.room_capacity_exceeded":                      "business_rejection",
+	"presence.statistics_range_invalid":                    "input",
+	"provisioning.caregiver_capability_blocked":            "business_rejection",
+	"provisioning.device_active_session":                   "business_rejection",
+	"provisioning.device_api_key_taken":                    "business_rejection",
+	"provisioning.device_id_taken":                         "business_rejection",
+	"provisioning.device_in_use":                           "business_rejection",
+	"provisioning.device_not_found":                        "business_rejection",
+	"provisioning.device_online":                           "business_rejection",
+	"provisioning.device_other_organization":               "permission",
+	"provisioning.device_protected":                        "permission",
+	"provisioning.device_same_school":                      "business_rejection",
+	"provisioning.device_transfer_protected":               "permission",
+	"provisioning.organization_already_deleted":            "business_rejection",
+	"provisioning.organization_deleted":                    "business_rejection",
+	"provisioning.organization_has_schools":                "business_rejection",
+	"provisioning.organization_not_deleted":                "business_rejection",
+	"provisioning.organization_not_found":                  "business_rejection",
+	"provisioning.organization_slug_taken":                 "business_rejection",
+	"provisioning.person_has_supervisions":                 "business_rejection",
+	"provisioning.person_not_found":                        "business_rejection",
+	"provisioning.school_already_deleted":                  "business_rejection",
+	"provisioning.school_inactive":                         "business_rejection",
+	"provisioning.school_not_deleted":                      "business_rejection",
+	"provisioning.school_not_found":                        "business_rejection",
+	"provisioning.school_slug_taken":                       "business_rejection",
+	"provisioning.school_subdomain_taken":                  "business_rejection",
+	"rollover.deadline_required":                           "input",
 	"rollover.duplicate_name":                              "business_rejection",
 	"rollover.invalid_request":                             "input",
 	"rollover.review_invalid":                              "input",
@@ -540,10 +983,17 @@ var errorClassByCode = map[string]string{
 	"rollover.source_already_rolled":                       "business_rejection",
 	"rollover.source_not_found":                            "business_rejection",
 	"rooms.color_already_in_use":                           "business_rejection",
+	"rooms.not_found":                                      "business_rejection",
 	"rooms.not_released":                                   "business_rejection",
 	"school.no_school_portal_role":                         "permission",
 	"school.setup_completed":                               "business_rejection",
 	"school.setup_incomplete":                              "business_rejection",
+	"settings.admin_only":                                  "permission",
+	"settings.booking_authority_blocked":                   "business_rejection",
+	"settings.invalid_value":                               "input",
+	"settings.managed_by_upload":                           "business_rejection",
+	"settings.not_found":                                   "business_rejection",
+	"settings.presence_mode_switch_blocked":                "business_rejection",
 	"students.absence_read_required":                       "permission",
 	"students.bulk_approval_ineligible":                    "business_rejection",
 	"students.care_day_managed_by_booking":                 "business_rejection",
@@ -573,11 +1023,17 @@ var errorClassByCode = map[string]string{
 	"students.checkin_care_ended":                          "business_rejection",
 	"students.checkout_note_too_long":                      "input",
 	"students.child_quota_reached":                         "business_rejection",
+	"students.class_list_entry_assign_mismatch":            "business_rejection",
+	"students.class_list_entry_duplicate":                  "business_rejection",
+	"students.class_list_entry_student_exists":             "business_rejection",
+	"students.class_list_entry_student_not_found":          "business_rejection",
 	"students.companion_lock_busy":                         "business_rejection",
 	"students.companion_would_lose_departure":              "input",
 	"students.companions_changed":                          "business_rejection",
 	"students.conflict_kind_unsupported":                   "input",
 	"students.correction_unsupported":                      "business_rejection",
+	"students.day_log_disabled":                            "permission",
+	"students.day_log_no_groups":                           "permission",
 	"students.deletion_acknowledgement_required":           "input",
 	"students.deletion_alumnus":                            "business_rejection",
 	"students.deletion_companion_blocked":                  "business_rejection",
@@ -590,6 +1046,9 @@ var errorClassByCode = map[string]string{
 	"students.excused_request_status_conflict":             "business_rejection",
 	"students.export_selection_too_large":                  "input",
 	"students.guardian_access_revoked":                     "business_rejection",
+	"students.guardian_account_holder_too_long":            "input",
+	"students.guardian_email_taken":                        "input",
+	"students.guardian_iban_invalid":                       "input",
 	"students.offering_change_capacity_full":               "business_rejection",
 	"students.offering_change_date_out_of_range":           "input",
 	"students.offering_changes_no_enrollment":              "permission",
@@ -621,56 +1080,205 @@ var errorClassByCode = map[string]string{
 	"substitutions.not_found":                              "business_rejection",
 	"substitutions.not_running":                            "business_rejection",
 	"substitutions.self_assignment":                        "input",
+	"timetable.activity_not_owner":                         "permission",
+	"timetable.activity_system_protected":                  "permission",
+	"timetable.activity_template_protected":                "business_rejection",
 	"timetable.ambiguous_template_instance_delete":         "business_rejection",
+	"timetable.attendance_entry_not_found":                 "business_rejection",
+	"timetable.attendance_frozen":                          "business_rejection",
+	"timetable.attendance_invalid":                         "input",
 	"timetable.calendar_period_care_offering_conflict":     "business_rejection",
+	"timetable.calendar_period_end_before_start":           "input",
+	"timetable.calendar_period_invalid":                    "input",
+	"timetable.calendar_period_name_taken":                 "business_rejection",
+	"timetable.calendar_period_not_found":                  "business_rejection",
 	"timetable.calendar_period_overlap_conflict":           "business_rejection",
+	"timetable.calendar_period_roster_conflict":            "business_rejection",
+	"timetable.calendar_period_week_cycle_anchor_missing":  "input",
+	"timetable.closing_day_end_before_start":               "input",
+	"timetable.closing_day_invalid":                        "input",
+	"timetable.closing_day_not_found":                      "business_rejection",
 	"timetable.complete_too_early":                         "business_rejection",
 	"timetable.completion_confirmation_stale":              "business_rejection",
+	"timetable.correction_cancelled":                       "business_rejection",
+	"timetable.correction_not_completed":                   "business_rejection",
+	"timetable.correction_reason_missing":                  "input",
+	"timetable.correction_reason_too_long":                 "input",
+	"timetable.date_in_past":                               "input",
+	"timetable.dates_in_past":                              "input",
+	"timetable.dates_required":                             "input",
+	"timetable.deviation_note_too_long":                    "input",
+	"timetable.deviation_selection_invalid":                "input",
 	"timetable.duplicate_instance":                         "business_rejection",
+	"timetable.export_end_before_start":                    "input",
+	"timetable.export_internal_forbidden":                  "permission",
+	"timetable.export_range_too_large":                     "input",
+	"timetable.group_already_ended":                        "business_rejection",
 	"timetable.guardian_notice_disabled":                   "permission",
+	"timetable.guardian_notice_invalid":                    "input",
+	"timetable.guardian_notice_past":                       "input",
+	"timetable.guardian_notice_text_invalid":               "input",
 	"timetable.idempotency_key_reused":                     "business_rejection",
+	"timetable.instance_end_before_start":                  "input",
+	"timetable.instance_in_past":                           "input",
+	"timetable.instance_invalid":                           "input",
 	"timetable.instance_moved":                             "business_rejection",
+	"timetable.instance_not_active":                        "business_rejection",
 	"timetable.instance_not_convertible":                   "business_rejection",
 	"timetable.instance_not_editable":                      "business_rejection",
+	"timetable.instance_not_found":                         "business_rejection",
+	"timetable.instance_outside_period":                    "input",
+	"timetable.instance_selection_invalid":                 "input",
+	"timetable.instance_weekend":                           "input",
+	"timetable.instances_not_assigned":                     "input",
+	"timetable.instances_other_day":                        "input",
+	"timetable.instances_required":                         "input",
 	"timetable.invalid_transition":                         "business_rejection",
+	"timetable.move_other_day":                             "input",
+	"timetable.move_same_instance":                         "input",
+	"timetable.no_staff_profile":                           "permission",
+	"timetable.offering_source_inactive":                   "business_rejection",
+	"timetable.offering_source_invalid":                    "input",
+	"timetable.offering_source_mixed_phases":               "input",
+	"timetable.offering_source_not_found":                  "business_rejection",
+	"timetable.offering_source_outside_period":             "business_rejection",
+	"timetable.offering_source_too_many":                   "input",
 	"timetable.only_supervisor_replacement_required":       "business_rejection",
+	"timetable.operation_not_planned":                      "permission",
+	"timetable.operation_stale":                            "business_rejection",
 	"timetable.pickup_extension_block_gone":                "business_rejection",
+	"timetable.pickup_extension_invalid":                   "input",
 	"timetable.pickup_extension_not_found":                 "business_rejection",
+	"timetable.pickup_extension_too_many_blocks":           "input",
+	"timetable.planning_track_archived":                    "business_rejection",
+	"timetable.planning_track_invalid":                     "input",
+	"timetable.planning_track_name_taken":                  "business_rejection",
+	"timetable.planning_track_not_found":                   "business_rejection",
 	"timetable.presence_would_overstaff":                   "business_rejection",
+	"timetable.reopen_attendance_changed":                  "business_rejection",
+	"timetable.reopen_staff_busy":                          "business_rejection",
+	"timetable.reopen_student_active":                      "business_rejection",
+	"timetable.reopen_supervision_changed":                 "business_rejection",
+	"timetable.room_occupied":                              "business_rejection",
+	"timetable.series_end_before_start":                    "input",
+	"timetable.series_end_outside_period":                  "input",
 	"timetable.sick_absence_scope_locked":                  "business_rejection",
+	"timetable.slot_list_drifted":                          "business_rejection",
+	"timetable.slot_list_grouping_invalid":                 "input",
+	"timetable.slot_list_pickup_past_date":                 "input",
+	"timetable.slot_list_reconciliation_future_date":       "input",
+	"timetable.slot_lists_disabled":                        "permission",
+	"timetable.spontaneous_activities_disabled":            "permission",
+	"timetable.spontaneous_category_archived":              "business_rejection",
 	"timetable.staff_absent_on_date":                       "business_rejection",
+	"timetable.staff_absent_on_source":                     "input",
 	"timetable.staff_absent_on_target":                     "business_rejection",
 	"timetable.staff_already_on_target":                    "business_rejection",
+	"timetable.staff_not_found":                            "business_rejection",
+	"timetable.staff_not_on_source":                        "input",
+	"timetable.staff_present_and_absent":                   "input",
 	"timetable.start_too_early":                            "business_rejection",
 	"timetable.start_window_expired":                       "business_rejection",
+	"timetable.student_already_active":                     "business_rejection",
+	"timetable.student_care_ended":                         "business_rejection",
+	"timetable.student_graduated":                          "business_rejection",
+	"timetable.student_not_checked_in":                     "business_rejection",
+	"timetable.student_not_found":                          "business_rejection",
+	"timetable.students_not_present":                       "business_rejection",
+	"timetable.substitute_absent":                          "input",
+	"timetable.substitute_absent_on_date":                  "input",
 	"timetable.substitute_conflict":                        "business_rejection",
+	"timetable.substitute_not_on_instances":                "input",
+	"timetable.substitute_self":                            "input",
+	"timetable.substitute_single_only":                     "input",
 	"timetable.template_care_offering_conflict":            "input",
+	"timetable.template_category_unavailable":              "business_rejection",
+	"timetable.template_education_group_invalid":           "input",
+	"timetable.template_end_before_start":                  "input",
+	"timetable.template_grade_above_max":                   "input",
+	"timetable.template_invalid":                           "input",
+	"timetable.template_max_participants_invalid":          "input",
 	"timetable.template_not_found":                         "business_rejection",
+	"timetable.template_planning_track_unavailable":        "business_rejection",
 	"timetable.template_roster_rebase_conflict":            "business_rejection",
+	"timetable.template_split_in_past":                     "input",
+	"timetable.template_split_invalid":                     "input",
 	"timetable.template_start_in_past":                     "input",
 	"timetable.template_start_not_earlier":                 "input",
+	"timetable.template_start_outside_period":              "input",
 	"timetable.template_start_predecessor_overlap":         "input",
+	"timetable.template_week_pattern_invalid":              "input",
+	"timetable.template_weekend":                           "input",
+	"timetable.too_many_dates":                             "input",
 	"timetable.understaffed_still_staffed":                 "business_rejection",
+	"timetable.window_end_before_start":                    "input",
+	"timetable.window_too_large":                           "input",
 	"workforce.absence_allowance_exceeded":                 "business_rejection",
+	"workforce.absence_already_decided":                    "business_rejection",
+	"workforce.absence_no_working_days":                    "input",
+	"workforce.absence_not_cancelable":                     "business_rejection",
+	"workforce.absence_not_found":                          "business_rejection",
+	"workforce.absence_not_owned":                          "permission",
+	"workforce.absence_overlap":                            "business_rejection",
 	"workforce.absence_rebooking_blocked":                  "business_rejection",
 	"workforce.absence_type_inactive":                      "business_rejection",
 	"workforce.adjustment_in_closed_month":                 "input",
+	"workforce.already_checked_in":                         "business_rejection",
+	"workforce.already_checked_out":                        "business_rejection",
 	"workforce.balance_adjustment_exceeds_balance":         "business_rejection",
 	"workforce.balance_already_reset":                      "business_rejection",
+	"workforce.break_already_active":                       "business_rejection",
+	"workforce.decision_note_required":                     "input",
 	"workforce.dependent_balance_reset":                    "business_rejection",
 	"workforce.later_month_closed":                         "business_rejection",
 	"workforce.manager_controlled_absence":                 "permission",
+	"workforce.month_closed":                               "business_rejection",
 	"workforce.month_not_closable":                         "input",
 	"workforce.month_not_closed":                           "business_rejection",
+	"workforce.no_active_break":                            "business_rejection",
+	"workforce.no_active_session":                          "business_rejection",
+	"workforce.no_session_for_today":                       "business_rejection",
 	"workforce.opening_balance_already_exists":             "business_rejection",
 	"workforce.payroll_config_incomplete":                  "business_rejection",
 	"workforce.personnel_number_invalid":                   "input",
 	"workforce.personnel_number_taken":                     "business_rejection",
+	"workforce.rebooking_before_vacation_opening":          "business_rejection",
+	"workforce.rebooking_half_day_edge":                    "business_rejection",
+	"workforce.rebooking_into_sick_report":                 "business_rejection",
+	"workforce.rebooking_no_working_day":                   "business_rejection",
+	"workforce.rebooking_not_over":                         "business_rejection",
+	"workforce.rebooking_nothing_selected":                 "input",
+	"workforce.rebooking_outside_balance":                  "business_rejection",
+	"workforce.rebooking_overlap":                          "business_rejection",
+	"workforce.rebooking_reason_required":                  "input",
+	"workforce.rebooking_request":                          "business_rejection",
+	"workforce.rebooking_same_type":                        "business_rejection",
+	"workforce.rebooking_sick_report":                      "business_rejection",
+	"workforce.rebooking_too_many":                         "input",
+	"workforce.replacement_outside_origin":                 "input",
+	"workforce.session_not_found":                          "business_rejection",
+	"workforce.session_not_owned":                          "permission",
+	"workforce.session_note_required":                      "input",
+	"workforce.session_times_invalid":                      "input",
+	"workforce.shift_changed":                              "business_rejection",
+	"workforce.shift_duplicate":                            "business_rejection",
+	"workforce.shift_has_replacements":                     "business_rejection",
+	"workforce.shift_overlap":                              "business_rejection",
+	"workforce.shift_series_no_occurrences":                "input",
+	"workforce.shift_series_outside_period":                "input",
+	"workforce.shift_series_week_cycle_missing":            "input",
+	"workforce.shift_type_inactive":                        "business_rejection",
+	"workforce.staff_profile_missing":                      "business_rejection",
 	"workforce.stammdaten_invalid":                         "input",
+	"workforce.target_override_hours_invalid":              "input",
+	"workforce.target_override_overlap":                    "business_rejection",
+	"workforce.target_override_range_invalid":              "input",
+	"workforce.target_override_too_long":                   "input",
 	"workforce.vacation_opening_absences_before_cutoff":    "business_rejection",
 	"workforce.vacation_opening_already_exists":            "business_rejection",
 	"workforce.vacation_quota_below_used":                  "business_rejection",
 	"workforce.vacation_quota_exceeded":                    "business_rejection",
 	"workforce.vacation_quota_reason_required":             "input",
+	"workforce.vacation_request_in_past":                   "input",
 	"workforce.work_session_overlap":                       "business_rejection",
 }

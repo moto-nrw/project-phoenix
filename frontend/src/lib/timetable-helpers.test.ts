@@ -13,6 +13,7 @@ import {
   formatYearLabel,
   getActivityColor,
   getActivityTypeBadge,
+  instanceRoomLabel,
   getCurrentTimeOffset,
   getEventBlockPosition,
   getGermanWeekdayAdverb,
@@ -331,6 +332,16 @@ describe("activity/status helpers", () => {
       label: "EXTERN",
       bg: "#F78C10",
     });
+    expect(getActivityTypeBadge("duty")?.label).toBe("DIENST");
+    expect(getActivityColor("duty")).toBe(getActivityTypeBadge("duty")?.bg);
+  });
+
+  it("labels a block without room (#3822)", () => {
+    expect(instanceRoomLabel({ roomId: "0", roomName: null })).toBe(
+      "Kein Raum",
+    );
+    expect(instanceRoomLabel({ roomId: "7", roomName: "Mensa" })).toBe("Mensa");
+    expect(instanceRoomLabel({ roomId: "7", roomName: "" })).toBe("Raum #7");
   });
 
   it("maps all lifecycle labels", () => {

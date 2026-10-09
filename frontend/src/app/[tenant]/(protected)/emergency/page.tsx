@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Download, Printer } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import {
   exportEmergencySnapshot,
   type EmergencySnapshotExportMode,
@@ -15,29 +16,36 @@ import {
 export default function EmergencyPage() {
   const { status } = useSession({ required: true });
   const [isExporting, setIsExporting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { show: showError } = useApiErrorDisplay();
+  // „Wiederholen“ erstellt die Liste noch einmal auf demselben Weg.
+  const retryRef = useRef<(mode: EmergencySnapshotExportMode) => void>(
+    () => undefined,
+  );
 
   const handleExport = useCallback(
     async (mode: EmergencySnapshotExportMode) => {
       setIsExporting(true);
-      setError(null);
       try {
         await exportEmergencySnapshot(mode);
-      } catch {
-        setError(
-          "Die Notfallliste konnte nicht erstellt werden. Bitte versuchen Sie es erneut.",
-        );
+      } catch (exportError) {
+        void showError(exportError, {
+          object: "die Notfallliste",
+          retry: () => retryRef.current(mode),
+        });
       } finally {
         setIsExporting(false);
       }
     },
-    [],
+    [showError],
   );
+  useLayoutEffect(() => {
+    retryRef.current = (mode) => void handleExport(mode);
+  });
   const handlePrint = useCallback(() => {
-    handleExport("print").catch(() => undefined);
+    void handleExport("print");
   }, [handleExport]);
   const handleDownload = useCallback(() => {
-    handleExport("download").catch(() => undefined);
+    void handleExport("download");
   }, [handleExport]);
 
   return (
@@ -45,14 +53,6 @@ export default function EmergencyPage() {
       title="Notfallliste"
       loading={status === "loading"}
       loadingLabel="Notfallliste wird geladen…"
-      error={
-        error
-          ? {
-              message: error,
-              keepContent: true,
-            }
-          : null
-      }
     >
       <SectionCard
         title="Notfallliste erstellen"

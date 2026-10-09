@@ -1,11 +1,12 @@
 "use client";
 
-import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { HomeCardLink } from "~/components/home/home-card-rows";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
   staffOverviewService,
@@ -35,6 +36,7 @@ export function StaffTodayBlock({
     data: summary,
     error,
     isLoading,
+    mutate,
   } = useSWRAuth<DashboardSummary>(
     "home-staff-summary",
     () => staffOverviewService.getDashboardSummary("week"),
@@ -47,7 +49,13 @@ export function StaffTodayBlock({
     });
   }
 
+  const loadError = useSwrLoadError(error, "die Karte „Personal heute“", () =>
+    mutate(),
+  );
+
   const tiles = staffTiles(summary, analytics);
+  // Bis der Katalogtext des Ladefehlers da ist, stehen Striche statt Nullen.
+  const pending = (isLoading || error !== undefined) && summary === undefined;
 
   return (
     <SectionCard
@@ -65,11 +73,8 @@ export function StaffTodayBlock({
         </HomeCardLink>
       }
     >
-      {error ? (
-        <Alert
-          type="error"
-          message="Der Teamstand konnte nicht geladen werden. Bitte die Seite neu laden."
-        />
+      {loadError ? (
+        <LoadErrorAlert error={loadError} />
       ) : (
         <div className="grid grid-cols-2 gap-2">
           {tiles.map((tile) => (
@@ -77,7 +82,7 @@ export function StaffTodayBlock({
               key={tile.label}
               variant="tile"
               label={tile.label}
-              value={isLoading && summary === undefined ? "–" : tile.value}
+              value={pending ? "–" : tile.value}
               tone={tile.tone}
             />
           ))}

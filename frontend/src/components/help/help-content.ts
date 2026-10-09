@@ -790,6 +790,8 @@ function absencesTopic(): HelpTopic {
           "Wählen Sie `Gesund melden` oder `Entschuldigung aufheben`.",
           "Bestätigen Sie im Fenster mit `Gesundmelden` oder `Entschuldigung aufheben`.",
         ],
+        description:
+          "Das gilt auch, wenn die Eltern das Kind für heute abgemeldet haben.",
       },
       {
         title: "Einen geplanten Tag entfernen",
@@ -797,6 +799,7 @@ function absencesTopic(): HelpTopic {
           "Suchen Sie das Kind unter `Alle Kinder`.",
           "Öffnen Sie die Karte des Kindes.",
           "Wählen Sie `Krank melden` oder `Entschuldigen`.",
+          "Steht dort `Gesund melden` oder `Entschuldigung aufheben`? Wählen Sie das. Wählen Sie danach im Fenster `Alle Kranktage ansehen` oder `Alle entschuldigten Tage ansehen`.",
           "Suchen Sie den Tag unter `Bereits krank` oder `Bereits entschuldigt`.",
           "Öffnen Sie beim Tag das Menü mit den drei Punkten.",
           "Wählen Sie `Entfernen`.",
@@ -824,7 +827,7 @@ function absencesTopic(): HelpTopic {
     ],
     differences: [
       "Fehlen `Krank melden` und `Entschuldigen`? Fragen Sie Ihre Leitung, ob Ihre Rolle Abwesenheiten bearbeiten darf.",
-      "Steht dort `Gesund melden`? Dann ist das Kind heute krank gemeldet. Heben Sie erst die heutige Meldung auf.",
+      "Steht dort `Gesund melden` oder `Entschuldigung aufheben`? Dann ist das Kind heute krank gemeldet oder entschuldigt.",
       "Fehlt `Ab Uhrzeit`? Dann dürfen Sie nur ganze Tage entschuldigen.",
       "Steht beim Tag `Automatisch (Abholzeit)`? Dann kommt die Entschuldigung aus der früheren Abholzeit. Ändern Sie dafür die Abholzeit des Tages.",
     ],
@@ -985,9 +988,9 @@ function ownGroupsTopic(
       audience: ["caregiver", "lead"],
       icon: "Users",
       steps: [
-        "Prüfen Sie, ob `Meine Gruppen` in der Seitenleiste steht.",
-        "Ist der Bereich vorhanden? Öffnen Sie dort die gewünschte Gruppe.",
-        "Fehlt der Bereich? Öffnen Sie `Alle Kinder` und nutzen Sie Suche und Filter.",
+        "Prüfen Sie, ob `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste steht.",
+        "Ist einer der Bereiche vorhanden? Öffnen Sie dort die gewünschte Gruppe.",
+        "Fehlen beide Bereiche? Öffnen Sie `Alle Kinder` und nutzen Sie Suche und Filter.",
       ],
       result:
         "Sie sehen die Kinder entweder in festen eigenen Gruppen oder in einer gemeinsamen Kinderliste.",
@@ -1009,7 +1012,7 @@ function ownGroupsTopic(
     audience: ["caregiver", "lead"],
     icon: "Users",
     steps: [
-      "Öffnen Sie `Meine Gruppen` in der Seitenleiste.",
+      "Öffnen Sie `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste.",
       "Wählen Sie die gewünschte Gruppe.",
       "Prüfen Sie die Zahlen für `krank` und `entschuldigt`.",
       "Suchen Sie bei Bedarf über `Name suchen...` nach einem Kind.",
@@ -1023,6 +1026,7 @@ function ownGroupsTopic(
     differences: [
       "In der Seitenleiste steht hinter jeder Gruppe, wie viele Kinder gerade da sind.",
       "Eine vorübergehend übernommene Gruppe erscheint ebenfalls unter `Meine Gruppen`.",
+      "Gruppen, die nicht Ihre eigenen sind, stehen unter `Weitere Gruppen`.",
       "Fehlt eine Gruppe? Bitten Sie Ihre Leitung, Ihre Gruppenzuordnung zu prüfen.",
     ],
     troubleshooting: HELP_TOPICS.missingChildOrGroup,
@@ -1246,6 +1250,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     differences: [
       "`Läuft` heißt: der Block ist gerade aktiv. `Beendet` und `Nicht gestartet` können Sie nur ansehen.",
       "`Fällt aus` zeigt zusätzlich den Grund.",
+      "Ein `Dienst` ist eine Aufgabe ohne Kinder, etwa die Busaufsicht. Er hat keinen Knopf `Starten`.",
       "Welche Blöcke Sie sehen, legt Ihre OGS fest. Manche sehen den ganzen Tag der Schule, andere nur die eigene Einteilung.",
       "Ob Sie nur eigene oder alle Blöcke starten dürfen, legt Ihre OGS fest. Wer einen fremden Block startet, wird nicht zur Aufsicht.",
       ...(presenceMode === "unknown"
@@ -1412,6 +1417,17 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
           // Seite, auch ohne geplanten Block und ohne NFC.
           "Oder wählen Sie `Spontane Aktivität starten`, wenn nichts geplant ist.",
           "Prüfen Sie Raum, Aktivität und Betreuungsteam.",
+          "Nach dem Start einer spontanen Aktivität öffnet sich `Anwesende Kinder hinzufügen`. Wählen Sie dort die Kinder für die Aktivität aus.",
+        ],
+      },
+      {
+        // #3823: externe Kräfte ohne Konto, live geprüft in beiden Dialogen.
+        title: "Weitere Betreuer eintragen",
+        steps: [
+          "Wählen Sie in der laufenden Aufsicht `Betreuer hinzufügen`.",
+          "Wählen Sie die Person unter `Betreuer auswählen` und dann `Hinzufügen`.",
+          "Hat die Person kein moto-Konto, zum Beispiel eine AG-Leitung von außen? Wählen Sie `Externe Person eintragen`, geben Sie den Namen ein und wählen Sie `Eintragen`.",
+          "Beim Start einer spontanen Aktivität geht das genauso unter `Weitere Betreuer`.",
         ],
       },
       {
@@ -1419,6 +1435,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
         steps: [
           "Suchen Sie ein Kind in der laufenden Aufsicht.",
           "Wählen Sie `Hinzufügen`, wenn das Kind anwesend ist und zur Aufsicht kommen soll.",
+          "Mehrere Kinder auf einmal? Wählen Sie `Anwesende Kinder`. Dort stehen die Kinder, die gerade in der OGS sind und laut Gehzeit noch bleiben. Haken Sie die Kinder an und wählen Sie `Kinder hinzufügen`.",
           "Prüfen Sie geplante Abholzeiten und Hinweise in der Liste.",
           "Wechselt ein Kind den Raum oder geht nach Hause? Ändern Sie seinen Aufenthaltsort.",
         ],
@@ -1443,7 +1460,9 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
       "Auf dem Handy stehen die offenen Räume nicht in der Seitenleiste, sondern oben auf der Seite `Aufsicht` als Reiter.",
       "Welche Räume offen sind, legt Ihre OGS fest.",
+      "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`. In Zeiterfassung und Dienstplan erscheint sie nicht.",
       "Fehlt `Spontane Aktivität starten`? Dann hat Ihre OGS in den `Einstellungen` unter `Betrieb` den Schalter `Spontane Aktivitäten erlauben` ausgeschaltet.",
+      "Fehlt ein Kind unter `Anwesende Kinder`? Ist seine Gehzeit schon erreicht, steht es nur unter `Alle anwesenden`. Ist es noch nicht angemeldet, suchen Sie es über `Kind hinzufügen`.",
     ],
     troubleshooting: HELP_TOPICS.attendanceProblem,
     related: [HELP_TOPICS.rooms, HELP_TOPICS.ownGroups],
@@ -1595,6 +1614,7 @@ function parentMessageTopic(): HelpTopic {
     differences: [
       "Sehen Sie `Nachrichten` nicht? Vielleicht ist die Funktion ausgeschaltet.",
       "Möglicherweise fehlt Ihnen auch der Zugriff auf die betroffenen Kinder.",
+      "Fehlen bei einer Anfrage `Anfrage ansehen` oder `Anfrage bearbeiten`? Dann dürfen Sie die Anfrage für dieses Kind nicht prüfen.",
     ],
     notes: [
       "Schreiben Sie persönliche Angaben nur in die Unterhaltung der richtigen Bezugsperson.",
@@ -1620,11 +1640,9 @@ function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
     icon: "ListChecks",
     requirements: [
       "Ihr Konto darf Kinderdaten bearbeiten.",
-      // Ohne feste Gruppen gibt es keine Gruppenzuordnung, an der ein
-      // Zugriff haengen koennte.
-      ...(groupMode === "open_care"
-        ? []
-        : ["Sie haben Zugriff auf die Gruppe des Kindes."]),
+      // Wer freigibt, legt die Leitung fest (#3804): Admins, zustaendige
+      // Gruppenleitungen oder das berechtigte Team.
+      "Ihre OGS lässt Sie diese Anfragen freigeben. Das legt die Leitung fest.",
     ],
     steps: [
       "Öffnen Sie `Anfragen` in der Seitenleiste.",
@@ -1639,7 +1657,13 @@ function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
     differences: [
       "Bei einer geänderten Abholzeit zeigt moto vorher betroffene Termine an.",
       "Anmeldungsänderungen öffnen Sie über `Prüfen`. Dafür brauchen Sie ein zusätzliches Recht.",
-      "Fehlt eine Anfrage? Sie sehen nur Kinder, auf die Sie Zugriff haben.",
+      // Ohne feste Gruppen gibt es keine Gruppenleitung, an der die
+      // Freigabe haengen koennte.
+      ...(groupMode === "open_care"
+        ? []
+        : [
+            "Fehlt eine Anfrage? Je nach Einstellung Ihrer OGS sehen Sie nur Kinder Ihrer Gruppen.",
+          ]),
     ],
     notes: [
       "Über `Historie` sehen Sie bereits entschiedene oder zurückgezogene Anfragen.",
@@ -1712,7 +1736,7 @@ function findStaffTopic(presenceMode: HelpPresenceMode): HelpTopic {
         ? "Sie sehen, ob die Person gerade arbeitet."
         : "Sie sehen, ob die Person gerade arbeitet. Manchmal steht dort auch ihre Aufsicht.",
     differences: [
-      "Persönliche Personalunterlagen und Arbeitszeiten sind besonders geschützt. Ohne zusätzliches Recht sehen Sie diese Angaben nicht.",
+      "Auch ohne Recht für Personalakten sehen Sie, wo die Person gerade ist. Die Karte öffnet dann keine Personalakte. Fragen Sie bei Bedarf Ihre Leitung.",
       "Möchten Sie der Person schreiben? Öffnen Sie den `Team-Chat`.",
     ],
     related: [HELP_TOPICS.teamChat, HELP_TOPICS.activeSupervision],
@@ -1815,6 +1839,7 @@ function trackWorkTimeTopic(): HelpTopic {
       "Steht dort `Bitte Status wählen`? Dann fehlt noch der Arbeitsort. Wählen Sie zuerst `In der OGS` oder `Homeoffice`.",
       "Eine geplante Schicht steht oberhalb der Stempeluhr. Sie startet die Zeiterfassung nicht automatisch.",
       "Bei einer deutlichen Abweichung von Ihrer geplanten Schicht kann moto nach einem Grund fragen.",
+      "Ihre Schule kann das Einstempeln erst kurz vor Ihrer Schicht erlauben. Dann zeigt moto, ab wann es geht.",
       "Nach der gewählten Pausenlänge läuft die Arbeitszeit automatisch weiter.",
     ],
     related: [HELP_TOPICS.correctWorkTime, HELP_TOPICS.nfcWorkTime],
@@ -2162,6 +2187,7 @@ function nfcWorkTimeTopic(nfcEnabled: boolean | null): HelpTopic {
     differences: [
       "Kinderarmbänder und nicht zugewiesene Armbänder funktionieren für die persönliche Arbeitszeit nicht.",
       "Eine laufende Pause wird als `In Pause` angezeigt.",
+      "Ihre Schule kann das Einstempeln erst kurz vor Ihrer Schicht erlauben. Dann zeigt das Tablet, ab wann es geht.",
     ],
     troubleshooting: HELP_TOPICS.nfcProblem,
     related: [HELP_TOPICS.trackWorkTime, HELP_TOPICS.tagAssignment],
@@ -3847,7 +3873,8 @@ function parentSurveyTopic(): HelpTopic {
     notes: [
       "Mit `Mehrfachauswahl erlauben` dürfen Eltern mehrere Antworten wählen.",
       "Die Ergebnisse sehen Sie später beim Öffnen der Umfrage.",
-      "Zwei bis zehn Antworten sind möglich. Eltern antworten für jedes Kind einzeln.",
+      "Zwei bis 60 Antworten sind möglich. Eltern antworten für jedes Kind einzeln.",
+      "Viele Termine zur Auswahl? Kopieren Sie die Liste, zum Beispiel aus einer Tabelle. Fügen Sie sie in ein Antwortfeld ein. Jede Zeile wird eine eigene Antwort.",
     ],
     differences: ["Das erste Feld heißt hier `Frage`, nicht `Titel`."],
     troubleshootingDetails: [
@@ -4165,7 +4192,7 @@ function enrollmentFormTopic(): HelpTopic {
           "Eltern wählen im Formular oben ihre Sprache. moto übersetzt nur die festen Texte. Ihre eigenen Fragen und Zustimmungen übersetzen Sie selbst.",
         steps: [
           "Öffnen Sie Ihre Vorlage und gehen Sie nach unten zu `Übersetzungen für Eltern`.",
-          "Wählen Sie die Sprache, zum Beispiel `Русский`.",
+          "Wählen Sie die Sprache, zum Beispiel `Russisch`.",
           "Links steht Ihr deutscher Text. Tragen Sie rechts bei `Übersetzung` den Text in der Sprache ein.",
           "Wählen Sie unten `Änderungen speichern`.",
           "Denselben Abschnitt finden Sie beim Bearbeiten einer Anmeldephase und eines Betreuungsangebots.",
@@ -4841,6 +4868,7 @@ function leadCarePlanTopic(): HelpTopic {
     result: "Ihr Team sieht den Plan im `Tagesplan` und unter `Mein Kalender`.",
     notes: [
       "Ein Regeltermin wiederholt sich. Die Ansicht `Serien` zeigt alle Regeltermine.",
+      "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
       "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
     ],
     differences: [
@@ -4915,7 +4943,8 @@ function dutyRosterTopic(): HelpTopic {
       "Wählen Sie in der Zeile einer Person den passenden Tag.",
       "Tragen Sie die Schicht ein und speichern Sie sie.",
     ],
-    result: "Die Person sieht ihre Schichten unter `Mein Kalender`.",
+    result:
+      "Die Person sieht ihre Schichten unter `Mein Kalender`. Dort tragen sie die Farbe `Schicht`.",
     notes: [
       "Jede Schicht kann eine Schichtart tragen. Die Farbe kommt von der Schichtart.",
       "Über `Schichtarten verwalten` pflegen Sie die Arten.",
@@ -4963,6 +4992,7 @@ function substitutionPlanTopic(): HelpTopic {
     result: "Die vertretende Person sieht den Einsatz unter `Mein Kalender`.",
     notes: [
       "Mit `Sammel-Vertretung` tragen Sie mehrere Einsätze auf einmal ein.",
+      "Auch ein `Dienst` ohne Kinder lässt sich vertreten. Sind weniger Personen da als unter `Benötigtes Personal` eingetragen, zeigt der Plan eine Lücke.",
     ],
     differences: [
       "Die Seite heißt oben `Vertretung`. In der Seitenleiste steht `Vertretungsplan`.",
@@ -5305,6 +5335,8 @@ function parentVisibilityTopic(): HelpTopic {
     notes: [
       "Einzeln schaltbar sind zum Beispiel `Nachrichten von Eltern`, `Abholzeit für einen Tag ändern (Eltern)` und `Stammdaten bearbeiten (Eltern)`.",
       "Wählen Sie bei `Krankmeldungen durch Eltern` die Möglichkeit `Erst bestätigen`, wenn Ihr Team jede Meldung freigeben soll.",
+      "Bei `Wer gibt Änderungswünsche von Eltern frei?` wählen Sie, wer Anfragen zu Stammdaten, Abholung und Angeboten freigibt.",
+      "`Berechtigtes Team` heißt: alle, die Kinderdaten bearbeiten dürfen. Das passt auch für ein gemeinsames Tablet.",
       "Der Essensplan ist ein eigener Schalter.",
     ],
     differences: [

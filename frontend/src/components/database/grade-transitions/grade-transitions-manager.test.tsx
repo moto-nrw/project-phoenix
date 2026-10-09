@@ -2,7 +2,14 @@
 // Behavior tests for the Jahrgangsstufenwechsel admin flow (#405)
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  render as rtlRender,
+  screen,
+  waitFor,
+  fireEvent,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
+import { ToastProvider } from "~/contexts/ToastContext";
 import { GradeTransitionsManager } from "./grade-transitions-manager";
 import type {
   GradeTransition,
@@ -11,11 +18,17 @@ import type {
   TransitionResult,
 } from "~/lib/grade-transition-api";
 
+// Fehler einer Aktion ohne Formular kommen als Toast (#2517).
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
+
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
 const toastWarning = vi.fn();
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: toastSuccess,
     error: toastError,

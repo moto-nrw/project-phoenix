@@ -62,7 +62,10 @@ const {
   mockGetCombinedOfferingCounts: vi.fn(),
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// The shared error path (useApiFormError, useApiLoadError) stays real so
+// the tests see the catalog text; only the toast surface is a spy.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: mockToastSuccess,
     error: mockToastError,
@@ -120,6 +123,23 @@ function mockOfferingSourceReads() {
 }
 
 import { TimetableEventModal } from "./timetable-event-modal";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+// Roster load failures go through the shared load error path (#2516): the
+// catalog text names the list, the roster stays read-only.
+const STUDENT_LOAD_DENIED = catalogText(
+  "general.permission",
+  "die Kinderliste",
+);
+const STAFF_LOAD_DENIED = catalogText(
+  "general.permission",
+  "die Personalliste",
+);
+const STUDENT_LOAD_ERROR_RE =
+  /^(Für die Kinderliste fehlt|Die Kinderliste ist gerade nicht erreichbar|Die Kinderliste konnte nicht)/;
+const STAFF_LOAD_ERROR_RE =
+  /^(Für die Personalliste fehlt|Die Personalliste ist gerade nicht erreichbar|Die Personalliste konnte nicht)/;
 import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { useTenant } from "~/lib/tenant-context";
@@ -525,7 +545,7 @@ describe("TimetableEventModal", () => {
         expect.any(String),
       ),
     );
-    expect(mockToastSuccess).toHaveBeenCalledWith("Termin angelegt");
+    expect(mockToastSuccess).toHaveBeenCalledWith("Der Termin ist angelegt.");
     expect(onSaved).toHaveBeenCalledWith({
       kind: "instance",
       instance: savedInstance,
@@ -1094,7 +1114,7 @@ describe("TimetableEventModal", () => {
     let secondPageFails = true;
     mockFetchStudents.mockImplementation(({ page }: { page?: number } = {}) => {
       if (page === 2 && secondPageFails) {
-        return Promise.reject(new Error("secondary page unavailable"));
+        return Promise.reject(new ApiError("secondary page unavailable", 503));
       }
       return Promise.resolve({
         students: [
@@ -1126,28 +1146,29 @@ describe("TimetableEventModal", () => {
     await goToStep(3);
     expect(
       await screen.findByText(
-        "Die Kinderliste konnte nicht vollständig geladen werden. Die Kinderzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.",
+        catalogText("general.unavailable", "die Kinderliste"),
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Kinderzuordnung bleibt beim Speichern unverändert.",
+      ),
+    ).toBeVisible();
     await expectSaveEnabled();
     expect(screen.queryByText("Max Erste Seite")).not.toBeInTheDocument();
 
     secondPageFails = false;
-    fireEvent.click(
-      screen.getByRole("button", { name: "Kinder erneut laden" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
     expect(await screen.findByText("Max Erste Seite")).toBeInTheDocument();
     expect(await screen.findByText("Mila Zweite Seite")).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Die Kinderliste konnte nicht vollständig/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(STUDENT_LOAD_ERROR_RE)).not.toBeInTheDocument();
     await expectSaveEnabled();
   });
 
   it("keeps saving available and retries when staff cannot be loaded", async () => {
     mockGetAllStaff
-      .mockRejectedValueOnce(new Error("forbidden"))
+      .mockRejectedValueOnce(new ApiError("unavailable", 503))
       .mockResolvedValueOnce([{ id: "11", name: "Ada Staff" }]);
 
     renderModal();
@@ -1155,28 +1176,29 @@ describe("TimetableEventModal", () => {
     await goToStep(3);
     expect(
       await screen.findByText(
-        "Die Personalliste konnte nicht vollständig geladen werden. Die Personalzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.",
+        catalogText("general.unavailable", "die Personalliste"),
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Personalzuordnung bleibt beim Speichern unverändert.",
+      ),
+    ).toBeVisible();
     expect(screen.queryByText("Ada Staff")).not.toBeInTheDocument();
     await expectSaveEnabled();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Personal erneut laden" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
     expect(await screen.findByText("Ada Staff")).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Die Personalliste konnte nicht vollständig/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(STAFF_LOAD_ERROR_RE)).not.toBeInTheDocument();
   });
 
   it("blocks the shared staff editor when a weekday roster cannot load students", async () => {
-    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    mockFetchStudents.mockRejectedValue(new ApiError("forbidden", 403));
     renderModal({ initialSeries: templateWithWeekdayRosters });
 
     await goToStep(3);
-    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    await screen.findByText(STUDENT_LOAD_DENIED);
     expect(
       screen.getByText(
         /Die wochentagsspezifischen Zuordnungen können erst bearbeitet werden/,
@@ -1211,11 +1233,11 @@ describe("TimetableEventModal", () => {
   });
 
   it("blocks the shared student editor when a weekday roster cannot load staff", async () => {
-    mockGetAllStaff.mockRejectedValue(new Error("forbidden"));
+    mockGetAllStaff.mockRejectedValue(new ApiError("forbidden", 403));
     renderModal({ initialSeries: templateWithWeekdayRosters });
 
     await goToStep(3);
-    await screen.findByText(/Die Personalliste konnte nicht vollständig/);
+    await screen.findByText(STAFF_LOAD_DENIED);
     expect(
       screen.getByText(
         /Die wochentagsspezifischen Zuordnungen können erst bearbeitet werden/,
@@ -1250,35 +1272,33 @@ describe("TimetableEventModal", () => {
   });
 
   it("reveals a student load failure immediately in quick mode", async () => {
-    mockFetchStudents.mockRejectedValue(new Error("students unavailable"));
+    mockFetchStudents.mockRejectedValue(
+      new ApiError("students unavailable", 503),
+    );
 
     renderModal({ variant: "quick" });
 
     // Die frühere "Weitere Optionen"-Disclosure gibt es im Wizard nicht mehr:
     // der Ladefehler muss trotzdem SOFORT sichtbar sein (Alert in der
-    // Wizard-Hülle auf Schritt 1), der Erneut-laden-Button liegt in
-    // Schritt 3 — die fachliche Aussage (Fehler sichtbar, erneut laden
-    // möglich, Speichern nicht blockiert) bleibt unverändert.
-    expect(
-      await screen.findByText(
-        "Die Kinderliste konnte nicht vollständig geladen werden. Die Kinderzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.",
-      ),
-    ).toBeInTheDocument();
+    // Wizard-Hülle auf Schritt 1) und auf jedem Schritt Wiederholen
+    // anbieten (#2516). Speichern bleibt möglich.
+    const loadError = catalogText("general.unavailable", "die Kinderliste");
+    expect(await screen.findByText(loadError)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Wiederholen" })).toBeVisible();
     await goToStep(3);
-    expect(
-      screen.getByRole("button", { name: "Kinder erneut laden" }),
-    ).toBeVisible();
+    expect(screen.getByText(loadError)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Wiederholen" })).toBeVisible();
     await expectSaveEnabled();
   });
 
   it("preserves an existing roster when the account cannot load students", async () => {
-    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    mockFetchStudents.mockRejectedValue(new ApiError("forbidden", 403));
     renderModal({
       initialInstance: { ...savedInstance, studentIds: ["21"] },
     });
 
     await goToStep(3);
-    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    await screen.findByText(STUDENT_LOAD_DENIED);
     expect(screen.queryByText("Max Kind")).not.toBeInTheDocument();
     await clickSave();
 
@@ -1291,7 +1311,7 @@ describe("TimetableEventModal", () => {
   });
 
   it("shows and preserves an existing class target without student access", async () => {
-    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    mockFetchStudents.mockRejectedValue(new ApiError("forbidden", 403));
     renderModal({
       initialSeries: {
         ...template,
@@ -1302,7 +1322,7 @@ describe("TimetableEventModal", () => {
     });
 
     await goToStep(3);
-    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    await screen.findByText(STUDENT_LOAD_DENIED);
     const classSelect = screen.getByLabelText(/^Klasse\*/);
     expect(classSelect).toHaveTextContent("Klasse 3a");
     expect(classSelect).toBeDisabled();
@@ -1325,11 +1345,11 @@ describe("TimetableEventModal", () => {
   });
 
   it("saves a new empty roster when the account cannot load students", async () => {
-    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    mockFetchStudents.mockRejectedValue(new ApiError("forbidden", 403));
     renderModal();
 
     await goToStep(3);
-    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    await screen.findByText(STUDENT_LOAD_DENIED);
     await goToStep(1);
     fireEvent.change(screen.getByLabelText("Titel*"), {
       target: { value: "Mensa" },
@@ -1383,9 +1403,7 @@ describe("TimetableEventModal", () => {
     });
 
     expect(screen.getByText("Neue Kinderliste")).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Die Kinderliste konnte nicht vollständig/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(STUDENT_LOAD_ERROR_RE)).not.toBeInTheDocument();
     await expectSaveEnabled();
   });
 
@@ -1400,7 +1418,9 @@ describe("TimetableEventModal", () => {
       }>;
     }>();
     mockFetchStudents
-      .mockRejectedValueOnce(new Error("initial student request failed"))
+      .mockRejectedValueOnce(
+        new ApiError("initial student request failed", 503),
+      )
       .mockImplementationOnce(() => staleRetry.promise)
       .mockResolvedValueOnce({
         students: [
@@ -1415,9 +1435,7 @@ describe("TimetableEventModal", () => {
 
     const { setOpen } = renderModal();
     await goToStep(3);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Kinder erneut laden" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Wiederholen" }));
     await waitFor(() => expect(mockFetchStudents).toHaveBeenCalledTimes(2));
 
     await act(async () => {
@@ -1438,9 +1456,7 @@ describe("TimetableEventModal", () => {
     });
 
     expect(screen.getByText("Liste nach Wiederöffnung")).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Die Kinderliste konnte nicht vollständig/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(STUDENT_LOAD_ERROR_RE)).not.toBeInTheDocument();
     await expectSaveEnabled();
   });
 
@@ -1579,6 +1595,53 @@ describe("TimetableEventModal", () => {
     expect(mockCreateTemplate).not.toHaveBeenCalled();
   });
 
+  it("saves a duty without room and without children (#3822)", async () => {
+    renderModal({ showPeriodField: true });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Busaufsicht" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await goToStep(2);
+    fireEvent.click(screen.getByRole("button", { name: "Jede Woche" }));
+    await goToStep(1);
+    fireEvent.click(screen.getByRole("button", { name: /Dienst/ }));
+    await chooseFromSelect(screen.getByLabelText("Raum"), "Kein Raum");
+    await chooseFromSelect(screen.getByLabelText("Kategorie*"), "AG");
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    await chooseFromSelect(
+      screen.getByLabelText("Planungszeitraum*"),
+      "Schuljahr 2026/2027",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    expect(screen.queryByText("Zielgruppe")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Maximale Teilnehmerzahl"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
+    fireEvent.change(screen.getByLabelText("Benötigtes Personal"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Busaufsicht",
+          type: "duty",
+          room_id: 0,
+          target_group_type: "none",
+          targets: [],
+          student_ids: [],
+          max_participants: null,
+          required_staff: 1,
+          staff_ids: [11],
+        }),
+      ),
+    );
+  });
+
   it("creates a recurring series and materializes the full period in 56-day chunks", async () => {
     const { onSaved } = renderModal({ showPeriodField: true });
 
@@ -1639,7 +1702,7 @@ describe("TimetableEventModal", () => {
       "2026-12-31",
     );
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      "Regeltermin angelegt: 6 Termine eingetragen",
+      "Der Regeltermin ist angelegt. 6 Termine stehen im Plan.",
     );
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
   });
@@ -2193,6 +2256,41 @@ describe("TimetableEventModal", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows a failed offering list on the spot and reloads it on Wiederholen (#2516)", async () => {
+    setTestClock("2026-05-04T10:00:00");
+    mockOfferingSourceReads();
+    mockGetOfferingSources
+      .mockReset()
+      .mockRejectedValueOnce(new ApiError("Service Unavailable", 503))
+      .mockResolvedValue([]);
+
+    renderModal({
+      initialSeries: {
+        ...template,
+        targetGroupType: "angebot",
+        sourceCareOfferingIds: ["41"],
+      },
+    });
+
+    await screen.findByText("Regeltermin bearbeiten");
+    await goToStep(3);
+    const message = catalogText(
+      "general.unavailable",
+      "die Liste der Betreuungsangebote",
+    );
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    // The stored source stays removable while the list is missing.
+    expect(screen.getByLabelText("Angebote als Quelle")).not.toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(mockGetOfferingSources).toHaveBeenCalledTimes(2),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText(message)).not.toBeInTheDocument(),
+    );
+  });
+
   it("ignores closing days before a direct series segment starts", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-05-04T10:00:00"));
@@ -2527,18 +2625,24 @@ describe("TimetableEventModal", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Endgültig löschen" }),
     );
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-      "Bitte ein Datum auswählen.",
-    );
+    // Im Fehlerbereich des Dialogs und am Feld (#2516).
+    expect(
+      await within(dialog).findAllByText("Bitte wählen Sie ein Datum aus."),
+    ).toHaveLength(2);
     expect(onDeleteSeries).not.toHaveBeenCalled();
 
     fireEvent.change(dateInput, { target: { value: "2026-05-05" } });
+    expect(
+      within(dialog).queryByText("Bitte wählen Sie ein Datum aus."),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Endgültig löschen" }),
     );
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-      "Das Datum darf nicht in der Vergangenheit liegen.",
-    );
+    expect(
+      await within(dialog).findAllByText(
+        "Bitte wählen Sie heute oder einen späteren Tag.",
+      ),
+    ).toHaveLength(2);
     expect(onDeleteSeries).not.toHaveBeenCalled();
 
     fireEvent.change(dateInput, { target: { value: "2026-05-07" } });
@@ -2555,6 +2659,56 @@ describe("TimetableEventModal", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("keeps a failed series delete in the open dialog with retry (#2516)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-05-06T10:00:00"));
+    const onDeleteSeries = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiError("Löschen fehlgeschlagen", 503, {
+          code: "general.unavailable",
+        }),
+      )
+      .mockResolvedValueOnce(undefined);
+    const { onClose } = renderModal({
+      initialSeries: template,
+      onDeleteSeries,
+    });
+
+    await screen.findByText("Regeltermin bearbeiten");
+    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
+    const dialog = screen.getByRole("dialog", {
+      name: "Regeltermin löschen",
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Löschen" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Endgültig löschen" }),
+    );
+
+    expect(
+      await within(dialog).findByText(
+        catalogText("general.unavailable", "das Löschen des Regeltermins"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Löschen fehlgeschlagen"),
+    ).not.toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+
+    // Wiederholen löscht mit dem Datum, das im Dialog steht.
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Wiederholen" }),
+    );
+    await waitFor(() =>
+      expect(onDeleteSeries).toHaveBeenLastCalledWith(
+        expect.objectContaining({ id: "7" }),
+        "2026-05-06",
+      ),
+    );
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("does not show the series delete action while creating", async () => {
     renderModal();
 
@@ -2562,8 +2716,10 @@ describe("TimetableEventModal", () => {
     expect(screen.queryByRole("button", { name: "Löschen" })).toBeNull();
   });
 
-  it("surfaces save failures as validation errors", async () => {
-    mockCreate.mockRejectedValueOnce(new Error("Backend sagt nein"));
+  it("surfaces save failures in the panel with the catalog text, never the backend sentence", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new ApiError("Backend sagt nein", 400, { code: "general.input" }),
+    );
     renderModal();
 
     await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
@@ -2573,11 +2729,46 @@ describe("TimetableEventModal", () => {
     await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
     await clickSave();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Backend sagt nein",
-    );
+    expect(
+      await screen.findByText(
+        catalogText("general.input", "das Anlegen des Termins"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Backend sagt nein")).not.toBeInTheDocument();
     // Der Alert oben im Panel ist die einzige Meldung (Bauart 2 Regel 5).
     expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("retries a failed save with the current form state (#2516)", async () => {
+    mockCreate.mockRejectedValueOnce(
+      new ApiError("Service Unavailable", 503, { code: "general.unavailable" }),
+    );
+    const { onClose } = renderModal();
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Mensa" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await clickSave();
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "das Anlegen des Termins"),
+      ),
+    ).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    // A network failure is retryable: Wiederholen submits the form again
+    // through the same path, so the request carries the form as it is now.
+    mockCreate.mockResolvedValueOnce(savedInstance);
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(2));
+    expect(mockCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ title: "Mensa" }),
+      expect.any(String),
+    );
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
   });
 
   it("quick variant renders only the quick fields with prefilled times", async () => {
@@ -3402,8 +3593,9 @@ describe("TimetableEventModal", () => {
         }),
       ),
     );
+    // Built from the warning's fields, not from the server's message (#2516).
     expect(mockToastWarning).toHaveBeenCalledWith(
-      "Ada Staff fehlt am Mittwoch von 12:30–13:00.",
+      "Ada Staff hat am 06.05.2026 von 12:30 bis 13:00 Uhr keine Schicht.",
       { duration: 10_000 },
     );
     await waitFor(() => expect(mockSplitTemplate).toHaveBeenCalled());
@@ -3554,7 +3746,7 @@ describe("TimetableEventModal", () => {
   });
 
   it("preserves the fetched template roster for 'Ab jetzt dauerhaft' without users:read", async () => {
-    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    mockFetchStudents.mockRejectedValue(new ApiError("forbidden", 403));
     mockGetTemplate.mockResolvedValue({
       ...template,
       studentIds: ["21", "22"],
@@ -3573,7 +3765,7 @@ describe("TimetableEventModal", () => {
     await screen.findByLabelText("Titel*");
 
     await goToStep(3);
-    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    await screen.findByText(STUDENT_LOAD_DENIED);
     await clickSave();
 
     await waitFor(() =>
@@ -3585,7 +3777,7 @@ describe("TimetableEventModal", () => {
   });
 
   it("preserves fetched template staff for 'Ab jetzt dauerhaft' without users:read", async () => {
-    mockGetAllStaff.mockRejectedValue(new Error("forbidden"));
+    mockGetAllStaff.mockRejectedValue(new ApiError("forbidden", 403));
     mockGetTemplate.mockResolvedValue({
       ...template,
       staffIds: ["11", "12"],
@@ -3612,7 +3804,7 @@ describe("TimetableEventModal", () => {
     await screen.findByLabelText("Titel*");
 
     await goToStep(3);
-    await screen.findByText(/Die Personalliste konnte nicht vollständig/);
+    await screen.findByText(STAFF_LOAD_DENIED);
     await clickSave();
 
     await waitFor(() =>
@@ -3849,7 +4041,7 @@ describe("TimetableEventModal", () => {
   });
 
   it("preserves the fetched template roster for 'Alle Termine der Serie' without users:read", async () => {
-    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    mockFetchStudents.mockRejectedValue(new ApiError("forbidden", 403));
     mockGetTemplate.mockResolvedValue({
       ...template,
       studentIds: ["21", "22"],
@@ -3870,7 +4062,7 @@ describe("TimetableEventModal", () => {
     await screen.findByLabelText("Titel*");
 
     await goToStep(3);
-    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    await screen.findByText(STUDENT_LOAD_DENIED);
     await clickSave();
 
     await waitFor(() =>
@@ -3974,7 +4166,7 @@ describe("TimetableEventModal", () => {
   );
 
   it("preserves fetched template staff for 'Alle Termine der Serie' without users:read", async () => {
-    mockGetAllStaff.mockRejectedValue(new Error("forbidden"));
+    mockGetAllStaff.mockRejectedValue(new ApiError("forbidden", 403));
     mockGetTemplate.mockResolvedValue({
       ...template,
       staffIds: ["11", "12"],
@@ -4003,7 +4195,7 @@ describe("TimetableEventModal", () => {
     await screen.findByLabelText("Titel*");
 
     await goToStep(3);
-    await screen.findByText(/Die Personalliste konnte nicht vollständig/);
+    await screen.findByText(STAFF_LOAD_DENIED);
     await clickSave();
 
     await waitFor(() =>
@@ -4018,7 +4210,7 @@ describe("TimetableEventModal", () => {
   });
 
   it("keeps the occurrence roster for 'Nur diese Woche' without users:read", async () => {
-    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    mockFetchStudents.mockRejectedValue(new ApiError("forbidden", 403));
     mockGetTemplate.mockResolvedValue({
       ...template,
       studentIds: ["21", "22"],
@@ -4037,7 +4229,7 @@ describe("TimetableEventModal", () => {
     await screen.findByLabelText("Titel*");
 
     await goToStep(3);
-    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    await screen.findByText(STUDENT_LOAD_DENIED);
     await clickSave();
 
     await waitFor(() =>
@@ -4050,7 +4242,7 @@ describe("TimetableEventModal", () => {
   });
 
   it("keeps occurrence staff for 'Nur diese Woche' without users:read", async () => {
-    mockGetAllStaff.mockRejectedValue(new Error("forbidden"));
+    mockGetAllStaff.mockRejectedValue(new ApiError("forbidden", 403));
     renderModal({
       initialInstance: {
         ...savedInstance,
@@ -4072,7 +4264,7 @@ describe("TimetableEventModal", () => {
     await screen.findByLabelText("Titel*");
 
     await goToStep(3);
-    await screen.findByText(/Die Personalliste konnte nicht vollständig/);
+    await screen.findByText(STAFF_LOAD_DENIED);
     await clickSave();
 
     await waitFor(() =>
@@ -4210,9 +4402,9 @@ describe("TimetableEventModal", () => {
       endTime: "13:00",
       warnings: [
         {
-          kind: "room",
-          resourceId: "3",
-          message: "Raum Mensa ist 12:00–13:00 bereits belegt",
+          kind: "staff",
+          resourceId: "11",
+          message: "Servertext, der nicht angezeigt wird",
           conflictingInstanceId: "99",
           conflictingTitle: "Mensa",
         },
@@ -4240,7 +4432,7 @@ describe("TimetableEventModal", () => {
     await goToStep(3);
     expect(
       await screen.findByText(
-        "Hinweis: Raum Mensa ist 12:00–13:00 bereits belegt",
+        "Hinweis: Ada Staff ist zur selben Zeit schon bei „Mensa“ eingeplant.",
       ),
     ).toBeInTheDocument();
     await expectSaveEnabled();
@@ -4254,9 +4446,9 @@ describe("TimetableEventModal", () => {
       endTime: "13:00",
       warnings: [
         {
-          kind: "room",
-          resourceId: "3",
-          message: "Raum Mensa ist 12:00–13:00 bereits belegt",
+          kind: "staff",
+          resourceId: "11",
+          message: "Servertext, der nicht angezeigt wird",
           conflictingInstanceId: "99",
           conflictingTitle: "Mensa",
         },
@@ -4271,12 +4463,67 @@ describe("TimetableEventModal", () => {
     // Without any step navigation the advisory hint appears on step 1.
     expect(
       await screen.findByText(
-        "Hinweis: Raum Mensa ist 12:00–13:00 bereits belegt",
+        "Hinweis: Ada Staff ist zur selben Zeit schon bei „Mensa“ eingeplant.",
         undefined,
         { timeout: 2000 },
       ),
     ).toBeInTheDocument();
     await expectSaveEnabled();
+  });
+
+  it("says when the double-booking check could not run (#2516)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mockCheckConflicts.mockRejectedValue(
+      new ApiError("Service Unavailable", 503),
+    );
+    renderModal();
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    await act(() => vi.advanceTimersByTimeAsync(500));
+
+    // No warnings is not "no double bookings": the hint says the check did
+    // not run, and saving stays possible.
+    expect(
+      await screen.findByText(
+        "Hinweis: Doppelte Einplanungen konnten nicht geprüft werden. Sie können trotzdem speichern.",
+        undefined,
+        { timeout: 2000 },
+      ),
+    ).toBeInTheDocument();
+    await expectSaveEnabled();
+  });
+
+  it("shows a failed room and category load in the panel instead of empty pickers (#2516)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: unknown) => {
+        const url = String(input);
+        if (url.includes("/api/rooms")) {
+          return { ok: false, status: 503, json: async () => ({}) };
+        }
+        if (url.includes("/api/activities/categories")) {
+          return { json: async () => ({ data: [{ id: "2", name: "AG" }] }) };
+        }
+        return {
+          json: async () => ({ data: [{ id: 31, name: "Klasse 1a" }] }),
+        };
+      }),
+    );
+    renderModal();
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "general.unavailable",
+          "die Liste der Räume, Kategorien und Gruppen",
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Wiederholen" }).length,
+    ).toBeGreaterThan(0);
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 
   it("shows uncovered-shift warnings without blocking save", async () => {
@@ -4305,7 +4552,7 @@ describe("TimetableEventModal", () => {
 
     expect(
       await screen.findByText(
-        "Ada Staff ist für 12:00–13:00 eingeteilt; nicht durch eine Schicht abgedeckt: 12:30–13:00.",
+        "Ada Staff hat am 04.05.2026 von 12:30 bis 13:00 Uhr keine Schicht.",
       ),
     ).toBeInTheDocument();
     await expectSaveEnabled();
@@ -4340,7 +4587,12 @@ describe("TimetableEventModal", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("127 weitere Lücken anzeigen")).toBeInTheDocument();
-    expect(screen.getByText("Beispiel-Lücke 1")).toBeInTheDocument();
+    expect(
+      screen.getAllByText(
+        "Ada Staff hat am 01.05.2026 von 12:30 bis 13:00 Uhr keine Schicht.",
+      )[0],
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Beispiel-Lücke 1")).not.toBeInTheDocument();
     await expectSaveEnabled();
     expect(document.querySelectorAll('[aria-live="polite"]')).toHaveLength(1);
     expect(screen.queryAllByRole("alert")).toHaveLength(0);
@@ -4416,7 +4668,7 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
     expect(mockCheckShiftCoverage).not.toHaveBeenCalled();
     expect(
-      screen.queryByText(/Dienstplan-Abdeckung konnte nicht geprüft werden/),
+      screen.queryByText(/Der Dienstplan konnte nicht geprüft werden/),
     ).not.toBeInTheDocument();
   });
 
@@ -4476,7 +4728,7 @@ describe("TimetableEventModal", () => {
 
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
     expect(mockToastWarning).toHaveBeenCalledWith(
-      "Ada Staff fehlt von 13:00–13:15.",
+      "Ada Staff hat am 04.05.2026 von 13:00 bis 13:15 Uhr keine Schicht.",
       { duration: 10_000 },
     );
   });
@@ -4863,7 +5115,7 @@ describe("TimetableEventModal", () => {
     });
     expect(
       await screen.findByText(
-        "Hinweis: Die Dienstplan-Abdeckung konnte nicht geprüft werden. Speichern ist weiterhin möglich.",
+        "Hinweis: Der Dienstplan konnte nicht geprüft werden. Sie können trotzdem speichern.",
       ),
     ).toBeInTheDocument();
     await expectSaveEnabled();
@@ -4890,7 +5142,7 @@ describe("TimetableEventModal", () => {
 
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
     expect(mockToastWarning).toHaveBeenCalledWith(
-      "Die Dienstplan-Abdeckung konnte nicht geprüft werden. Speichern ist weiterhin möglich.",
+      "Der Dienstplan konnte nicht geprüft werden. Sie können trotzdem speichern.",
       { duration: 10_000 },
     );
   });
@@ -5009,7 +5261,7 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     expect(mockCreateTemplate).toHaveBeenCalledTimes(1);
     expect(mockToastWarning).toHaveBeenCalledWith(
-      "Regeltermin gespeichert, aber nicht alle Termine konnten eingetragen werden. Die fehlenden Termine werden beim nächsten automatischen Lauf ergänzt.",
+      "Der Regeltermin ist gespeichert. Einige Termine fehlen noch im Plan. Sie werden später automatisch ergänzt.",
     );
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
     expect(mockToastError).not.toHaveBeenCalled();
@@ -5033,7 +5285,7 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     expect(mockSplitTemplate).toHaveBeenCalledTimes(1);
     expect(mockToastWarning).toHaveBeenCalledWith(
-      "Regeltermin gespeichert, aber nicht alle Termine konnten eingetragen werden. Die fehlenden Termine werden beim nächsten automatischen Lauf ergänzt.",
+      "Der Regeltermin ist gespeichert. Einige Termine fehlen noch im Plan. Sie werden später automatisch ergänzt.",
     );
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "12" });
     expect(mockToastError).not.toHaveBeenCalled();
@@ -5058,15 +5310,18 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     expect(mockUpdateTemplate).toHaveBeenCalledTimes(1);
     expect(mockToastWarning).toHaveBeenCalledWith(
-      "Regeltermin gespeichert, aber nicht alle Termine konnten eingetragen werden. Die fehlenden Termine werden beim nächsten automatischen Lauf ergänzt.",
+      "Der Regeltermin ist gespeichert. Einige Termine fehlen noch im Plan. Sie werden später automatisch ergänzt.",
     );
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
     expect(mockToastError).not.toHaveBeenCalled();
   });
 
-  it("translates the past-effective-date backend error in the scope flow", async () => {
+  it("shows a rejected series split in the panel with the catalog text (#2516)", async () => {
+    // The code carries the meaning; the backend sentence is never shown.
     mockSplitTemplate.mockRejectedValue(
-      new Error("effective_date must not be in the past"),
+      new ApiError("effective_date must not be in the past", 400, {
+        code: "timetable.template_split_in_past",
+      }),
     );
     const { onClose } = renderModal({
       initialInstance: { ...savedInstance, activityGroupId: "7" },
@@ -5081,14 +5336,17 @@ describe("TimetableEventModal", () => {
     await clickSave();
 
     // Der Fehler steht oben im Panel (Bauart 2 Regel 5), nicht als Toast.
-    const alerts = await screen.findAllByRole("alert");
     expect(
-      alerts.some((alert) =>
-        alert.textContent?.includes(
-          "Der Stichtag liegt in der Vergangenheit. Bitte einen künftigen Termin der Serie wählen.",
+      await screen.findByText(
+        catalogText(
+          "timetable.template_split_in_past",
+          "die Änderung des Regeltermins",
         ),
       ),
-    ).toBe(true);
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/effective_date must not be in the past/),
+    ).not.toBeInTheDocument();
     expect(mockToastError).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -5660,8 +5918,7 @@ describe("TimetableEventModal", () => {
 
     it("shows the German message when the series template cannot be loaded", async () => {
       mockGetTemplate.mockRejectedValue(
-        Object.assign(new Error("template not found"), {
-          httpStatus: 404,
+        new ApiError("template not found", 404, {
           code: "timetable.template_not_found",
         }),
       );
@@ -5672,10 +5929,13 @@ describe("TimetableEventModal", () => {
         screen.getByRole("button", { name: /Alle Termine der Serie/ }),
       );
 
-      const message =
-        "Der Regeltermin konnte nicht geladen werden. Bitte laden Sie die Seite neu und öffnen Sie den Termin erneut.";
-      await waitFor(() => expect(mockToastError).toHaveBeenCalledWith(message));
-      expect(await screen.findByText(new RegExp(message))).toBeInTheDocument();
+      // The scope question stays open and carries the text (#2516); no
+      // toast, which would sit under the dialog.
+      const message = catalogText("timetable.template_not_found", "die Serie");
+      expect(
+        await screen.findByText((text) => text.includes(message)),
+      ).toBeInTheDocument();
+      expect(mockToastError).not.toHaveBeenCalled();
       expect(mockUpdateTemplate).not.toHaveBeenCalled();
       expect(mockSplitTemplate).not.toHaveBeenCalled();
       expect(onClose).not.toHaveBeenCalled();

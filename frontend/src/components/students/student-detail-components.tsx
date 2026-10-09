@@ -32,6 +32,7 @@ import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { InfoCard } from "~/components/ui/info-card";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiLoadError } from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   companionDisplayName,
@@ -749,18 +750,29 @@ function SupervisorItem({
 interface PersonalInfoReadOnlyProps {
   student: ExtendedStudent;
   enrollmentExtraGroups?: StudentEnrollmentExtraFieldGroup[];
+  /** Failure loading the Anmeldung answers; shown with "Wiederholen". */
+  enrollmentExtraError?: unknown;
+  onRetryEnrollmentExtra?: () => void;
   showEditButton?: boolean;
   onEditClick?: () => void;
 }
 
 const EMPTY_ENROLLMENT_EXTRA_GROUPS: StudentEnrollmentExtraFieldGroup[] = [];
+const noop = () => undefined;
 
 export function PersonalInfoReadOnly({
   student,
   enrollmentExtraGroups = EMPTY_ENROLLMENT_EXTRA_GROUPS,
+  enrollmentExtraError = null,
+  onRetryEnrollmentExtra = noop,
   showEditButton = false,
   onEditClick,
 }: Readonly<PersonalInfoReadOnlyProps>) {
+  const enrollmentExtraLoadError = useSwrLoadError(
+    enrollmentExtraError,
+    "die Angaben aus der Anmeldung",
+    onRetryEnrollmentExtra,
+  );
   // The Laufgemeinschaft lives in its own table, so it is fetched here rather
   // than riding along on the student payload. A failure must not break the rest
   // of the Stammdaten card, but it must not read as "walks alone" either: for a
@@ -1001,6 +1013,11 @@ export function PersonalInfoReadOnly({
           </DataField>
         )}
         <EnrollmentExtraInfoItems groups={enrollmentExtraGroups} />
+        {enrollmentExtraLoadError ? (
+          <DataField label="Angaben aus der Anmeldung" fullWidth>
+            <LoadErrorAlert error={enrollmentExtraLoadError} />
+          </DataField>
+        ) : null}
       </DataGrid>
     </SectionCard>
   );

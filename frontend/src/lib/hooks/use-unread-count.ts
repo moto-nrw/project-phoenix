@@ -52,6 +52,7 @@ function readCache(key: string): number | null {
     }
     return data.count;
   } catch {
+    // Unreadable cache: the badge loads the count from the API instead.
     return null;
   }
 }

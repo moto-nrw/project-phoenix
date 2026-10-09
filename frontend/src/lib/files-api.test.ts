@@ -18,7 +18,6 @@ vi.mock("./session-cache", () => {
         headers: {
           "Content-Type": "application/json",
           ...(init?.headers as Record<string, string> | undefined),
-          ...{ Authorization: `Bearer ${token}` },
         },
       });
     }),
@@ -26,11 +25,14 @@ vi.mock("./session-cache", () => {
 });
 
 import { getCachedSession } from "./session-cache";
+import { ApiError } from "./api-error";
 import { filesService } from "./files-api";
 
 const mockedGetSession = vi.mocked(getCachedSession);
 
-describe("files-api error wording", () => {
+// #2517: the client keeps the error identity (code, status, request ID); the
+// screen turns it into the catalog text. No wording is decided here.
+describe("files-api errors", () => {
   let originalFetch: typeof fetch;
 
   beforeEach(() => {
@@ -47,48 +49,40 @@ describe("files-api error wording", () => {
   const mockFetch = () => globalThis.fetch as ReturnType<typeof vi.fn>;
 
   const errorResponse = (status: number, body: unknown) =>
-    ({
-      ok: false,
+    new Response(JSON.stringify(body), {
       status,
-      json: () => Promise.resolve(body),
-    }) as unknown as Response;
+      headers: { "Content-Type": "application/json" },
+    });
 
-  it("never shows the backend sentinel text of a rejected payload", async () => {
-    mockFetch().mockResolvedValue(
-      errorResponse(400, {
-        error: "invalid file storage request: name is required",
-      }),
-    );
+  const folderInput = {
+    name: "Elternbriefe",
+    visibility: "all_staff" as const,
+    roleIds: [],
+    accountIds: [],
+  };
 
-    await expect(
-      filesService.createFolder({
-        name: "",
-        visibility: "all_staff",
-        roleIds: [],
-        accountIds: [],
-      }),
-    ).rejects.toThrow("Ordner konnte nicht angelegt werden.");
-  });
-
-  it("names the duplicate folder by its error code", async () => {
+  it("keeps the code and request ID of a duplicate folder name", async () => {
     mockFetch().mockResolvedValue(
       errorResponse(409, {
         error: "folder name already exists",
         code: "files.folder_name_taken",
+        instance: "req-7",
       }),
     );
 
-    await expect(
-      filesService.createFolder({
-        name: "Elternbriefe",
-        visibility: "all_staff",
-        roleIds: [],
-        accountIds: [],
-      }),
-    ).rejects.toThrow("Es gibt schon einen Ordner mit diesem Namen.");
+    const error: unknown = await filesService
+      .createFolder(folderInput)
+      .catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 409,
+      code: "files.folder_name_taken",
+      requestId: "req-7",
+    });
   });
 
-  it("explains a full quota instead of repeating the backend wording", async () => {
+  it("keeps the quota code of a rejected upload", async () => {
     mockFetch().mockResolvedValue(
       errorResponse(409, {
         error: "file storage quota exceeded",
@@ -98,33 +92,42 @@ describe("files-api error wording", () => {
 
     await expect(
       filesService.upload("3", new File(["x"], "Brief.pdf")),
-    ).rejects.toThrow(
-      "Der Speicherplatz der Dateiablage ist voll. Löschen Sie Dateien, die Sie nicht mehr brauchen. Für mehr Speicherplatz melden Sie sich bitte beim moto-Team.",
-    );
+    ).rejects.toMatchObject({ status: 409, code: "files.quota_exceeded" });
   });
 
-  it("turns a missing permission into one German sentence", async () => {
+  it("classifies a missing permission by its status", async () => {
     mockFetch().mockResolvedValue(
       errorResponse(403, { error: "file storage action not permitted" }),
     );
 
-    await expect(filesService.deleteFolder("3")).rejects.toThrow(
-      "Dafür fehlt Ihnen die Berechtigung.",
-    );
+    await expect(filesService.deleteFolder("3")).rejects.toMatchObject({
+      status: 403,
+      code: "general.permission",
+    });
   });
 
-  it("tells the user which files an upload accepts", async () => {
+  it("keeps the rejected field of an invalid payload", async () => {
     mockFetch().mockResolvedValue(
       errorResponse(400, {
-        error:
-          "Diese Datei ist nicht erlaubt. Erlaubt sind PDF, DOCX, XLSX, PPTX, PNG und JPEG.",
+        error: "invalid file storage request: name is required",
+        code: "general.input",
+        errors: [{ field: "name", reason: "required" }],
       }),
     );
 
     await expect(
-      filesService.upload("3", new File(["x"], "Liste.zip")),
-    ).rejects.toThrow(
-      "Die Datei konnte nicht hochgeladen werden. Erlaubt sind PDF, DOCX, XLSX, PPTX, PNG und JPEG bis 25 MB.",
-    );
+      filesService.createFolder({ ...folderInput, name: "" }),
+    ).rejects.toMatchObject({
+      code: "general.input",
+      errors: [{ field: "name", reason: "required" }],
+    });
+  });
+
+  it("turns an upload that never reaches the API into unavailable", async () => {
+    mockFetch().mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await expect(
+      filesService.upload("3", new File(["x"], "Liste.pdf")),
+    ).rejects.toMatchObject({ code: "general.unavailable" });
   });
 });

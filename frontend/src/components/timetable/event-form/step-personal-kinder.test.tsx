@@ -21,11 +21,11 @@ function renderStep(
       staff={[]}
       loadingRefs={false}
       loadingStudents={false}
+      studentLoadFailed={false}
       studentLoadError={null}
       loadingStaff={false}
+      staffLoadFailed={false}
       staffLoadError={null}
-      retryStudentLoad={vi.fn().mockResolvedValue(undefined)}
-      retryStaffLoad={vi.fn().mockResolvedValue(undefined)}
       expanded
       isSeriesFlow
       gradeLevelMax={undefined}
@@ -46,6 +46,7 @@ function renderStep(
       sourceClassCounts={{}}
       sourceFilteredCount={0}
       sourceCountsPending={false}
+      sourceCountsFailed={false}
       sourceCountsError={null}
       sourceRosterDiff={null}
       sourcePhaseKidsFromWarning={null}
@@ -57,7 +58,8 @@ function renderStep(
       conflictWarnings={[]}
       coverageWarnings={[]}
       coverageWarningCount={0}
-      coverageCheckError={null}
+      coverageCheckFailed={false}
+      conflictCheckFailed={false}
       requiredStaffTouched={createRef<boolean>() as React.RefObject<boolean>}
       staffRosterTouched={createRef<boolean>() as React.RefObject<boolean>}
       activeRosterWeekday={1}
@@ -142,17 +144,28 @@ describe("StepPersonalKinder — Klassenfilter (#2482)", () => {
   });
 
   it("says the children could not be loaded instead of holding the pending text", () => {
+    const retry = vi.fn();
     renderStep({
       form: sourcedForm({ sourceFilterMode: "klasse" }),
       sourceFilteredCount: 0,
       sourceCountsPending: false,
-      sourceCountsError:
-        "Die Kinder der gewählten Angebote konnten nicht geladen werden.",
+      sourceCountsFailed: true,
+      sourceCountsError: {
+        message:
+          "Die Kinderzahl der gewählten Angebote ist gerade nicht erreichbar.",
+        attempt: 1,
+        retry: { label: "Wiederholen", onClick: retry },
+      },
     });
     expect(
       screen.getByText(
-        "Die Kinder der gewählten Angebote konnten nicht geladen werden.",
+        "Die Kinderzahl der gewählten Angebote ist gerade nicht erreichbar.",
       ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(retry).toHaveBeenCalledOnce();
+    expect(
+      screen.getByText("Die Klassen konnten nicht geladen werden."),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Die Kinderzahl wird ermittelt ..."),
@@ -377,6 +390,80 @@ describe("StepPersonalKinder — Maximale Teilnehmerzahl (#2233)", () => {
     expect(
       screen.getByText(
         "Bitte eine ganze Zahl größer als 0 angeben oder das Feld leer lassen.",
+      ),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("StepPersonalKinder — Lade- und Prüfhinweise (#2516)", () => {
+  it("shows a failed roster load with its text and what the save keeps", () => {
+    const retry = vi.fn();
+    renderStep({
+      form: emptyForm("2026-08-03"),
+      staffLoadFailed: true,
+      staffLoadError: {
+        message: "Die Personalliste ist gerade nicht erreichbar.",
+        attempt: 1,
+        retry: { label: "Wiederholen", onClick: retry },
+      },
+    });
+
+    expect(
+      screen.getByText("Die Personalliste ist gerade nicht erreichbar."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Personalzuordnung bleibt beim Speichern unverändert.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the roster read-only while the load error text is still loading", () => {
+    renderStep({
+      form: emptyForm("2026-08-03"),
+      studentLoadFailed: true,
+      studentLoadError: null,
+    });
+
+    expect(
+      screen.getByText(
+        "Die Kinderzuordnung bleibt beim Speichern unverändert.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Kinder")).not.toBeInTheDocument();
+  });
+
+  it("names double bookings from the warning fields, not the server sentence", () => {
+    renderStep({
+      form: emptyForm("2026-08-03"),
+      staff: [{ id: "11", name: "Ada Staff" }],
+      conflictWarnings: [
+        {
+          kind: "staff",
+          resourceId: "11",
+          message: "Servertext",
+          conflictingInstanceId: "99",
+          conflictingTitle: "Mensa",
+        },
+      ],
+    });
+
+    expect(
+      screen.getByText(
+        "Hinweis: Ada Staff ist zur selben Zeit schon bei „Mensa“ eingeplant.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Servertext/)).not.toBeInTheDocument();
+  });
+
+  it("says when the double-booking check could not run", () => {
+    renderStep({ form: emptyForm("2026-08-03"), conflictCheckFailed: true });
+
+    expect(
+      screen.getByText(
+        "Hinweis: Doppelte Einplanungen konnten nicht geprüft werden. Sie können trotzdem speichern.",
       ),
     ).toBeInTheDocument();
   });

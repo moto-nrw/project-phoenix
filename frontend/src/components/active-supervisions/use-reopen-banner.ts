@@ -1,20 +1,39 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const REOPEN_STORAGE_KEY = "timetable-reopenable-instance";
 const REOPEN_WINDOW_MS = 5 * 60 * 1000;
 
-function readStoredReopenBanner(): {
-  instanceId: string;
-  expiresAt: number;
-} | null {
+/**
+ * The block that was just completed and can still be reopened. The banner
+ * names it by `title` because it stays visible after the page has moved on to
+ * another supervision (#3887); `roomId` lets the undo open the restored
+ * session. Both are null for an entry stored before they existed.
+ */
+export interface ReopenableInstance {
+  readonly instanceId: string;
+  readonly title: string | null;
+  readonly roomId: string | null;
+}
+
+interface StoredReopenable extends ReopenableInstance {
+  readonly expiresAt: number;
+}
+
+function optionalString(value: unknown): string | null {
+  return typeof value === "string" && value !== "" ? value : null;
+}
+
+function readStoredReopenBanner(): StoredReopenable | null {
   const raw = window.sessionStorage.getItem(REOPEN_STORAGE_KEY);
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as {
       instanceId?: string;
       expiresAt?: string | number;
+      title?: unknown;
+      roomId?: unknown;
     };
     if (!parsed.instanceId || parsed.expiresAt == null) {
       window.sessionStorage.removeItem(REOPEN_STORAGE_KEY);
@@ -28,8 +47,15 @@ function readStoredReopenBanner(): {
       window.sessionStorage.removeItem(REOPEN_STORAGE_KEY);
       return null;
     }
-    return { instanceId: parsed.instanceId, expiresAt };
+    return {
+      instanceId: parsed.instanceId,
+      title: optionalString(parsed.title),
+      roomId: optionalString(parsed.roomId),
+      expiresAt,
+    };
   } catch {
+    // Bewusst still: ein unlesbarer Eintrag heißt nur, dass das Angebot
+    // „Rückgängig“ entfällt; die Aktivität selbst ist beendet.
     window.sessionStorage.removeItem(REOPEN_STORAGE_KEY);
     return null;
   }
@@ -42,22 +68,21 @@ function readStoredReopenBanner(): {
  * without a render from outside.
  */
 export function useReopenBanner(): {
-  reopenableInstanceId: string | null;
+  reopenable: ReopenableInstance | null;
   /**
    * Remember a just-completed instance. `reopenUntil` is the backend's
    * ISO deadline; an absent or invalid value falls back to now + 5 minutes,
    * an already-expired one clears the banner instead.
    */
   rememberReopenable: (
-    instanceId: string,
+    instance: ReopenableInstance,
     reopenUntil: string | null | undefined,
   ) => void;
   clearReopenable: () => void;
 } {
-  const [storedReopen, setStoredReopen] = useState<{
-    instanceId: string;
-    expiresAt: number;
-  } | null>(null);
+  const [storedReopen, setStoredReopen] = useState<StoredReopenable | null>(
+    null,
+  );
 
   useEffect(() => {
     setStoredReopen(readStoredReopenBanner());
@@ -84,7 +109,7 @@ export function useReopenBanner(): {
   }, []);
 
   const rememberReopenable = useCallback(
-    (instanceId: string, reopenUntil: string | null | undefined) => {
+    (instance: ReopenableInstance, reopenUntil: string | null | undefined) => {
       const expiresAt = reopenUntil
         ? Date.parse(reopenUntil)
         : Date.now() + REOPEN_WINDOW_MS;
@@ -93,18 +118,29 @@ export function useReopenBanner(): {
         setStoredReopen(null);
         return;
       }
-      window.sessionStorage.setItem(
-        REOPEN_STORAGE_KEY,
-        JSON.stringify({ instanceId, expiresAt }),
-      );
-      setStoredReopen({ instanceId, expiresAt });
+      const stored: StoredReopenable = {
+        instanceId: instance.instanceId,
+        title: instance.title,
+        roomId: instance.roomId,
+        expiresAt,
+      };
+      window.sessionStorage.setItem(REOPEN_STORAGE_KEY, JSON.stringify(stored));
+      setStoredReopen(stored);
     },
     [],
   );
 
-  return {
-    reopenableInstanceId: storedReopen?.instanceId ?? null,
-    rememberReopenable,
-    clearReopenable,
-  };
+  const reopenable = useMemo<ReopenableInstance | null>(
+    () =>
+      storedReopen
+        ? {
+            instanceId: storedReopen.instanceId,
+            title: storedReopen.title,
+            roomId: storedReopen.roomId,
+          }
+        : null,
+    [storedReopen],
+  );
+
+  return { reopenable, rememberReopenable, clearReopenable };
 }

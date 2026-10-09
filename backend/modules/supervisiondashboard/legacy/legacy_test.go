@@ -10,15 +10,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	educationModels "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,7 +83,7 @@ func (m *mockUserContextService) MyGroups(_ context.Context) ([]CallerGroup, err
 }
 
 type mockEducationService struct {
-	educationService.Service
+	educationModels.GroupRoomsQuery
 	getGroupsWithRoomsByIDsFn func(ids []int64) (map[int64]*educationModels.Group, error)
 }
 
@@ -318,7 +317,7 @@ func TestMyGroupsResolvesRoomsOnlyForGroupsWithRooms(t *testing.T) {
 	education := &mockEducationService{getGroupsWithRoomsByIDsFn: func(ids []int64) (map[int64]*educationModels.Group, error) {
 		assert.Equal(t, []int64{41}, ids)
 		return map[int64]*educationModels.Group{
-			41: {Model: educationModels.Model{ID: 41}, Room: &educationModels.GroupRoom{ID: 31, Name: "Igel"}},
+			41: {ID: 41, Room: &educationModels.GroupRoom{ID: 31, Name: "Igel"}},
 			42: nil,
 		}, nil
 	}}

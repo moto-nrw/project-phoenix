@@ -1,5 +1,6 @@
+import { unavailableApiError, type ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
-import { readEnrollmentError } from "~/lib/enrollment-error-messages";
+import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type {
   PublicCaptchaConfig,
   PublicFormSchema,
@@ -224,7 +225,22 @@ async function readJSON<T>(response: Response): Promise<T> {
   return raw as unknown as T;
 }
 
-async function readError(response: Response, fallback: string): Promise<Error> {
+/**
+ * `fetch` that reports a broken connection as `general.unavailable`
+ * (#2515), so the form says "nicht erreichbar" instead of crashing.
+ */
+async function request(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (cause) {
+    throw unavailableApiError(cause);
+  }
+}
+
+async function readError(
+  response: Response,
+  fallback: string,
+): Promise<ApiError> {
   return readEnrollmentError(
     response,
     fallback,
@@ -327,7 +343,7 @@ export async function fetchPublicCareOfferings(
   const path = `/api/enrollment/care-offerings/public/${encodeURIComponent(
     tenantSlug,
   )}/${encodeURIComponent(phaseId)}`;
-  const response = await fetch(
+  const response = await request(
     withLateInviteQuery(path, options.lateInviteToken),
     { cache: "no-store" },
   );
@@ -419,7 +435,7 @@ export interface PublicPhase {
 export async function fetchPublicPhases(
   tenantSlug: string,
 ): Promise<PublicPhase[]> {
-  const response = await fetch(
+  const response = await request(
     `/api/enrollment/phases/public/${encodeURIComponent(tenantSlug)}`,
     { cache: "no-store" },
   );
@@ -496,7 +512,7 @@ export async function fetchPublicEnrollmentBootstrap(
     tenantSlug,
   )}/${encodeURIComponent(phaseId)}`;
   path = withLateInviteQuery(path, options.lateInviteToken);
-  const response = await fetch(
+  const response = await request(
     path,
     options.omitCredentials
       ? { cache: "no-store", credentials: "omit" }
@@ -528,7 +544,7 @@ export async function fetchParentEnrollmentBootstrap(
     tenantSlug,
   )}/bootstrap/${encodeURIComponent(phaseId)}`;
   path = withLateInviteQuery(path, options.lateInviteToken);
-  const response = await fetch(path, { cache: "no-store" });
+  const response = await request(path, { cache: "no-store" });
   if (!response.ok) {
     throw await readError(
       response,
@@ -542,10 +558,10 @@ export async function fetchParentEnrollmentBootstrap(
  * Best-effort autofill payload for parents who already have a tenant
  * session. Returns null when not authenticated (HTTP 401) so the
  * caller can render the public form unchanged. Other errors propagate
- * as Error so SWR/effects can surface them.
+ * as ApiError so SWR/effects can surface them.
  */
 export async function fetchMyEnrollmentProfile(): Promise<MeProfileResponse | null> {
-  const response = await fetch("/api/enrollment/me/profile", {
+  const response = await request("/api/enrollment/me/profile", {
     cache: "no-store",
   });
   if (response.status === 401) {
@@ -565,7 +581,7 @@ export async function submitEnrollment(
   tenantSlug: string,
   payload: SubmitEnrollmentPayload,
 ): Promise<SubmitEnrollmentResult> {
-  const response = await fetch(
+  const response = await request(
     `/api/enrollment/${encodeURIComponent(tenantSlug)}/submit`,
     {
       method: "POST",
@@ -649,7 +665,7 @@ export interface StatusResponse {
 export async function fetchStatus(
   token: string,
 ): Promise<StatusResponse | null> {
-  const response = await fetch(
+  const response = await request(
     `/api/enrollment/requests/${encodeURIComponent(token)}`,
     { cache: "no-store" },
   );
@@ -664,7 +680,7 @@ export async function fetchEnrollmentEditBootstrap(
   token: string,
   fallback = "Anmeldung kann nicht bearbeitet werden",
 ): Promise<EnrollmentEditBootstrap> {
-  const response = await fetch(
+  const response = await request(
     `/api/enrollment/requests/${encodeURIComponent(token)}/edit-bootstrap`,
     { cache: "no-store" },
   );
@@ -679,7 +695,7 @@ export async function updateEnrollmentRequest(
   payload: SubmitEnrollmentPayload,
   fallback = "Änderungen konnten nicht gespeichert werden",
 ): Promise<SubmitEnrollmentResult> {
-  const response = await fetch(
+  const response = await request(
     `/api/enrollment/requests/${encodeURIComponent(token)}`,
     {
       method: "PUT",
@@ -699,7 +715,7 @@ export async function createEnrollmentChangeRequest(
   parentNote = "",
   fallback = "Änderungsanfrage konnte nicht gespeichert werden",
 ): Promise<EnrollmentChangeRequest> {
-  const response = await fetch(
+  const response = await request(
     `/api/enrollment/requests/${encodeURIComponent(token)}/change-requests`,
     {
       method: "POST",
@@ -719,7 +735,7 @@ export async function createEnrollmentChangeRequest(
 export async function listEnrollmentChangeRequests(
   token: string,
 ): Promise<EnrollmentChangeRequest[]> {
-  const response = await fetch(
+  const response = await request(
     `/api/enrollment/requests/${encodeURIComponent(token)}/change-requests`,
     { cache: "no-store" },
   );
@@ -738,7 +754,7 @@ export async function replyEnrollmentChangeRequest(
   changeRequestId: string,
   body: string,
 ): Promise<EnrollmentChangeRequest> {
-  const response = await fetch(
+  const response = await request(
     `/api/enrollment/requests/${encodeURIComponent(
       token,
     )}/change-requests/${encodeURIComponent(changeRequestId)}/messages`,
@@ -764,7 +780,7 @@ export async function patchStatus(
     custom_data?: Record<string, unknown>;
   },
 ): Promise<void> {
-  const response = await fetch(
+  const response = await request(
     `/api/enrollment/requests/${encodeURIComponent(token)}`,
     {
       method: "PATCH",
@@ -785,7 +801,7 @@ export async function withdrawStatus(
   childID?: string,
 ): Promise<void> {
   const body = childID ? { child_id: childID } : {};
-  const response = await fetch(
+  const response = await request(
     `/api/enrollment/requests/${encodeURIComponent(token)}/withdraw`,
     {
       method: "POST",
@@ -805,7 +821,7 @@ export async function withdrawStatus(
  * picks them up. Returns the number of children promoted.
  */
 export async function confirmRenewal(token: string): Promise<number> {
-  const response = await fetch(
+  const response = await request(
     `/api/enrollment/requests/${encodeURIComponent(token)}/confirm-renewal`,
     { method: "POST", headers: { "Content-Type": "application/json" } },
   );

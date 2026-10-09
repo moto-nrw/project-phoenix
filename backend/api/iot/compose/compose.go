@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
-	"github.com/uptrace/bun"
 )
 
 // delegateHandler creates an http.HandlerFunc that delegates to a subrouter.
@@ -57,7 +56,7 @@ type ServiceDependencies struct {
 	SessionEnd       sessionend.Command
 	SessionLifecycle devicescan.SessionLifecycle
 	Logger           *slog.Logger
-	DB               *bun.DB
+
 	// DeviceAuthenticator and DeviceOnlyAuthenticator guard the kiosk route
 	// groups. The Device Fleet composition builds them over one shared
 	// last-seen debouncer; this resource only mounts them.
@@ -86,7 +85,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Protected routes that require authentication and permissions
-	common.ProtectedTenantGroup(r, rs.DB, func(r chi.Router, withTx common.Middleware) {
+	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 
 		// Mount devices sub-router (handles device CRUD and admin operations)
 		// All device routes require JWT authentication with IOT permissions

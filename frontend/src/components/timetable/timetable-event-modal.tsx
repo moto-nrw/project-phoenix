@@ -13,6 +13,7 @@ import { Button } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
@@ -35,11 +36,19 @@ import {
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { materializedRecurrenceDates } from "~/lib/timetable-helpers";
 import { Field } from "./event-form/field";
-import type { EventFormState, RepeatMode } from "./event-form/form-model";
+import {
+  conflictWarningText,
+  type EventFormState,
+  type RepeatMode,
+} from "./event-form/form-model";
 import { StepPersonalKinder } from "./event-form/step-personal-kinder";
 import { StepTermin } from "./event-form/step-termin";
 import { StepWiederholung } from "./event-form/step-wiederholung";
-import { useEventForm } from "./event-form/use-event-form";
+import {
+  CONFLICT_CHECK_FAILED_HINT,
+  COVERAGE_CHECK_FAILED_HINT,
+  useEventForm,
+} from "./event-form/use-event-form";
 import type { TimetableEventModalResult } from "./event-form/use-event-form";
 import type {
   EditedChange,
@@ -186,7 +195,10 @@ export function TimetableEventModal({
     toggleWeekday,
     changeTargetGroupType,
     fieldErrors,
-    validationError,
+    formRef,
+    saveError,
+    referenceLoadError,
+    referenceLoadFailed,
     rooms,
     categories,
     refreshCategories,
@@ -197,11 +209,11 @@ export function TimetableEventModal({
     staff,
     loadingRefs,
     loadingStudents,
+    studentLoadFailed,
     studentLoadError,
     loadingStaff,
+    staffLoadFailed,
     staffLoadError,
-    retryStudentLoad,
-    retryStaffLoad,
     submitting,
     handleSubmit,
     validateForm,
@@ -209,9 +221,9 @@ export function TimetableEventModal({
     deleteConfirmOpen,
     setDeleteConfirmOpen,
     deleteEffectiveDate,
-    setDeleteEffectiveDate,
+    changeDeleteEffectiveDate,
     deleteError,
-    setDeleteError,
+    deleteDateError,
     deletingSeries,
     openSeriesDeleteConfirm,
     handleConfirmSeriesDelete,
@@ -232,7 +244,8 @@ export function TimetableEventModal({
     conflictWarnings,
     coverageWarnings,
     coverageWarningCount,
-    coverageCheckError,
+    coverageCheckFailed,
+    conflictCheckFailed,
     isEditingInstance,
     isEditingSeries,
     isSeriesFlow,
@@ -254,6 +267,7 @@ export function TimetableEventModal({
     sourceClassCounts,
     sourceFilteredCount,
     sourceCountsPending,
+    sourceCountsFailed,
     sourceCountsError,
     sourceRosterDiff,
     sourcePhaseKidsFromWarning,
@@ -309,7 +323,6 @@ export function TimetableEventModal({
   // instance edit, series edit) starts at step 1 with all steps reachable.
   const [step, setStep] = useState(0);
   const submitAttempted = useRef(false);
-  const formRef = useRef<HTMLFormElement>(null);
 
   // „Kategorien verwalten" und „Planungsspuren verwalten" öffnen ihre Route in
   // einem zweiten Fenster, damit dieser Entwurf stehen bleibt (#3114). Kommt
@@ -470,7 +483,9 @@ export function TimetableEventModal({
         isOpen={isOpen && choiceDialogOpen}
         onClose={onClose}
         title="Wiederholenden Termin ändern"
-        description={`Der Termin am ${formatDate(initialInstance.date)} gehört zu einem Regeltermin. Wählen Sie zuerst, welchen Umfang Sie bearbeiten möchten.${validationError ? ` ${validationError.message}` : ""}`}
+        description={`Der Termin am ${formatDate(initialInstance.date)} gehört zu einem Regeltermin. Wählen Sie zuerst, welchen Umfang Sie bearbeiten möchten.`}
+        // Erneut versuchen heißt, den Umfang noch einmal zu wählen.
+        error={saveError}
         options={[
           {
             value: "single",
@@ -527,7 +542,9 @@ export function TimetableEventModal({
               <SlideOverTitle>{title}</SlideOverTitle>
               <SlideOverDescription>
                 {isSeriesFlow
-                  ? "Regelmäßigen Termin mit Kindern und Personal planen."
+                  ? form.type === "duty"
+                    ? "Regelmäßigen Dienst ohne Kinder planen."
+                    : "Regelmäßigen Termin mit Kindern und Personal planen."
                   : isEditingInstance
                     ? "Termin im Betreuungsplan bearbeiten."
                     : "Einmaligen Termin im Betreuungsplan anlegen."}
@@ -538,12 +555,20 @@ export function TimetableEventModal({
         </SlideOverHeader>
 
         <div className="border-b border-gray-200 px-5 py-3">
-          <WizardStepper steps={[...WIZARD_STEPS]} current={step} />
+          <WizardStepper
+            steps={
+              // Ein Dienst (#3822) hat nur Personal.
+              form.type === "duty"
+                ? [...WIZARD_STEPS.slice(0, -1), "Personal"]
+                : [...WIZARD_STEPS]
+            }
+            current={step}
+          />
         </div>
 
         {/* Prüf- und Speicherfehler stehen oben im Rumpf (Bauart 2 Regel 5);
             Feldfehler zusätzlich am Feld. */}
-        <SlideOverBody error={validationError}>
+        <SlideOverBody error={saveError}>
           <form
             id="timetable-event-form"
             ref={formRef}
@@ -596,10 +621,14 @@ export function TimetableEventModal({
           >
             {initialInstance && initialInstance.status !== "planned" && (
               <Alert
-                type="error"
+                type="warning"
                 message="Nur geplante Termine können bearbeitet werden."
               />
             )}
+
+            {/* Räume, Kategorien und Gruppen fehlen: vor Ort sagen, warum
+                die Auswahlfelder leer sind, mit Wiederholen. */}
+            <LoadErrorAlert error={referenceLoadError} />
 
             {isEditingSeries && (
               <p className="text-xs text-gray-500">
@@ -617,7 +646,10 @@ export function TimetableEventModal({
                 rooms={rooms}
                 categories={categories}
                 planningTracks={planningTracks}
-                loadingRefs={loadingRefs}
+                loadingRefs={
+                  loadingRefs ||
+                  (referenceLoadFailed && referenceLoadError === null)
+                }
                 expanded={expanded}
                 isSeriesFlow={isSeriesFlow}
                 isEditingSeries={isEditingSeries}
@@ -663,11 +695,11 @@ export function TimetableEventModal({
                 staff={staff}
                 loadingRefs={loadingRefs}
                 loadingStudents={loadingStudents}
+                studentLoadFailed={studentLoadFailed}
                 studentLoadError={studentLoadError}
                 loadingStaff={loadingStaff}
+                staffLoadFailed={staffLoadFailed}
                 staffLoadError={staffLoadError}
-                retryStudentLoad={retryStudentLoad}
-                retryStaffLoad={retryStaffLoad}
                 expanded={expanded}
                 isSeriesFlow={isSeriesFlow}
                 gradeLevelMax={gradeLevelMax}
@@ -688,6 +720,7 @@ export function TimetableEventModal({
                 sourceClassCounts={sourceClassCounts}
                 sourceFilteredCount={sourceFilteredCount}
                 sourceCountsPending={sourceCountsPending}
+                sourceCountsFailed={sourceCountsFailed}
                 sourceCountsError={sourceCountsError}
                 sourceRosterDiff={sourceRosterDiff}
                 sourcePhaseKidsFromWarning={sourcePhaseKidsFromWarning}
@@ -699,7 +732,8 @@ export function TimetableEventModal({
                 conflictWarnings={conflictWarnings}
                 coverageWarnings={coverageWarnings}
                 coverageWarningCount={coverageWarningCount}
-                coverageCheckError={coverageCheckError}
+                coverageCheckFailed={coverageCheckFailed}
+                conflictCheckFailed={conflictCheckFailed}
                 requiredStaffTouched={requiredStaffTouched}
                 staffRosterTouched={staffRosterTouched}
                 activeRosterWeekday={activeRosterWeekday}
@@ -714,11 +748,11 @@ export function TimetableEventModal({
                 step 3 (the old single-page form auto-expanded to reveal
                 them). Step 3 renders its own detailed panels with retry
                 buttons, so skip the duplicate alerts there. */}
-            {step !== 2 && studentLoadError && (
-              <Alert type="warning" message={studentLoadError} />
+            {step !== 2 && studentLoadFailed && (
+              <LoadErrorAlert error={studentLoadError} />
             )}
-            {step !== 2 && staffLoadError && (
-              <Alert type="warning" message={staffLoadError} />
+            {step !== 2 && staffLoadFailed && (
+              <LoadErrorAlert error={staffLoadError} />
             )}
 
             {/* Speichern works from every step, so conflict and coverage
@@ -728,8 +762,9 @@ export function TimetableEventModal({
                 compact advisory form is shown. */}
             {step !== 2 &&
               (conflictWarnings.length > 0 ||
+                conflictCheckFailed ||
                 coverageWarningCount > 0 ||
-                coverageCheckError) && (
+                coverageCheckFailed) && (
                 <div className="flex flex-col gap-2">
                   <p className="sr-only" aria-live="polite">
                     {`${conflictWarnings.length} Terminüberschneidungen und ${coverageWarningCount} Dienstplan-Lücken gefunden. Speichern ist weiterhin möglich.`}
@@ -738,21 +773,28 @@ export function TimetableEventModal({
                     <Alert
                       key={`${warning.kind}-${warning.resourceId}-${warning.conflictingInstanceId}`}
                       type="warning"
-                      message={`Hinweis: ${warning.message}`}
+                      message={`Hinweis: ${conflictWarningText(warning, staff, students)}`}
                       announce="off"
                     />
                   ))}
-                  {coverageWarningCount > 0 && (
+                  {conflictCheckFailed && (
                     <Alert
                       type="warning"
-                      message={`${coverageWarningCount} Dienstplan-${coverageWarningCount === 1 ? "Lücke" : "Lücken"} gefunden. Details im Schritt „Personal und Kinder“. Speichern ist weiterhin möglich.`}
+                      message={`Hinweis: ${CONFLICT_CHECK_FAILED_HINT}`}
                       announce="off"
                     />
                   )}
-                  {coverageCheckError && (
+                  {coverageWarningCount > 0 && (
                     <Alert
                       type="warning"
-                      message={`Hinweis: ${coverageCheckError}`}
+                      message={`${coverageWarningCount} Dienstplan-${coverageWarningCount === 1 ? "Lücke" : "Lücken"} gefunden. Details im Schritt „${form.type === "duty" ? "Personal" : "Personal und Kinder"}“. Speichern ist weiterhin möglich.`}
+                      announce="off"
+                    />
+                  )}
+                  {coverageCheckFailed && (
+                    <Alert
+                      type="warning"
+                      message={`Hinweis: ${COVERAGE_CHECK_FAILED_HINT}`}
                       announce="off"
                     />
                   )}
@@ -863,26 +905,23 @@ export function TimetableEventModal({
               </p>
             }
             warningSlot={
-              // Das Datum bleibt am Feld validiert (Fehler am Feld, nicht im
-              // Fehlerbereich des Dialogs).
+              // Ein fehlendes oder vergangenes Datum steht im Fehlerbereich
+              // des Dialogs und zusätzlich am Feld.
               <Field
                 label="Ab Datum"
                 htmlFor="series_delete_effective_date"
                 required
-                error={deleteError ?? undefined}
+                error={deleteDateError}
               >
                 <ISODatePicker
                   id="series_delete_effective_date"
                   controlSize="md"
                   value={deleteEffectiveDate}
                   min={berlinTodayISO()}
-                  invalid={Boolean(deleteError)}
+                  invalid={Boolean(deleteDateError)}
                   disabled={deletingSeries}
                   calendarLayout="popover"
-                  onChange={(next) => {
-                    setDeleteEffectiveDate(next);
-                    setDeleteError(null);
-                  }}
+                  onChange={changeDeleteEffectiveDate}
                 />
               </Field>
             }
@@ -890,7 +929,7 @@ export function TimetableEventModal({
             onConfirm={handleConfirmSeriesDelete}
             onClose={() => setDeleteConfirmOpen(false)}
             loading={deletingSeries}
-            error=""
+            error={deleteError}
           />
         )}
 
@@ -983,8 +1022,8 @@ export function TimetableEventModal({
                   ? "1 Termin dieser Serie wurde einzeln angepasst. "
                   : `${lostEdits.result.count} Termine dieser Serie wurden einzeln angepasst. `}
                 {lostEdits.scope === "following"
-                  ? "Wenn du diesen und alle folgenden Termine bearbeitest, gehen diese Anpassungen verloren:"
-                  : "Wenn du alle Termine der Serie bearbeitest, gehen diese Anpassungen verloren:"}
+                  ? "Wenn Sie diesen und alle folgenden Termine ändern, gehen diese Anpassungen verloren:"
+                  : "Wenn Sie alle Termine der Serie ändern, gehen diese Anpassungen verloren:"}
               </p>
               <ul className="max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2 text-sm">
                 {lostEdits.result.occurrences.map((occ) => (

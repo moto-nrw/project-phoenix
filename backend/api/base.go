@@ -82,7 +82,6 @@ import (
 	meAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
 	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
@@ -121,7 +120,6 @@ import (
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 )
@@ -561,10 +559,10 @@ func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, in
 	apiCommon.RenderError(w, r, renderer(err))
 }
 
-func newMealPlanResource(module *mealplanModule.Module, db *bun.DB, renderer services.SimpleListRenderer) *mealplanAPI.Resource {
+func newMealPlanResource(module *mealplanModule.Module, renderer services.SimpleListRenderer) *mealplanAPI.Resource {
 	return mealplanAPI.NewResource(module, mealplanAPI.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, mealplanAPI.Middleware)) {
-			apiCommon.ProtectedTenantGroup(router, db, register)
+			apiCommon.ProtectedTenantRoutes(router, register)
 		},
 		Permission: func(access mealplanAPI.Access) mealplanAPI.Middleware {
 			if access == mealplanAPI.AccessParticipants {
@@ -615,10 +613,10 @@ func renderMealParticipationExport(renderer services.SimpleListRenderer, list me
 	return mealplanAPI.ExportFile{Data: file.Data, ContentType: file.ContentType, Filename: file.Filename}, nil
 }
 
-func newUsersResource(module peopleModule.Capability, accountEmails func(context.Context, []int64) (map[int64]string, error), tagExists func(context.Context, string) (bool, error), db *bun.DB) *usersAPI.Resource {
+func newUsersResource(module peopleModule.Capability, accountEmails func(context.Context, []int64) (map[int64]string, error), tagExists func(context.Context, string) (bool, error)) *usersAPI.Resource {
 	return usersAPI.NewResource(module, usersAPI.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, usersAPI.Middleware)) {
-			apiCommon.ProtectedTenantGroup(router, db, register)
+			apiCommon.ProtectedTenantRoutes(router, register)
 		},
 		Permission: func(permission string) usersAPI.Middleware {
 			return apiCommon.RequiresPermission(permission)
@@ -649,10 +647,10 @@ func newUsersResource(module peopleModule.Capability, accountEmails func(context
 	})
 }
 
-func newFeedbackResource(module *feedbackModule.Module, db *bun.DB) *feedbackAPI.Resource {
+func newFeedbackResource(module *feedbackModule.Module) *feedbackAPI.Resource {
 	return feedbackAPI.NewResource(module, feedbackAPI.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, feedbackAPI.Middleware)) {
-			apiCommon.ProtectedTenantGroup(router, db, register)
+			apiCommon.ProtectedTenantRoutes(router, register)
 		},
 		Permission: func(permission string) feedbackAPI.Middleware {
 			return apiCommon.RequiresPermission(permission)
@@ -906,19 +904,19 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL,
 	if err != nil {
 		return nil, err
 	}
-	api.WorkTimeModels = worktimemodelsHTTPAdapter.NewResource(modules.workforce, db, services.StaffTimeTrackingNotifier(api.Services.RealtimeHub))
-	api.MealPlan = newMealPlanResource(modules.mealPlan, db, newMealPlanExportRenderer())
-	api.Feedback = newFeedbackResource(modules.feedback, db)
+	api.WorkTimeModels = worktimemodelsHTTPAdapter.NewResource(modules.workforce, services.StaffTimeTrackingNotifier(api.Services.RealtimeHub))
+	api.MealPlan = newMealPlanResource(modules.mealPlan, newMealPlanExportRenderer())
+	api.Feedback = newFeedbackResource(modules.feedback)
 	api.Users = newUsersResource(modules.persons, api.Services.Auth.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
 		_, _, found, err := repoFactory.RFIDCard.LookupRFIDCard(ctx, tagID)
 		return found, err
-	}, db)
+	})
 
 	// Register routes with rate limiting
 	api.securityLogging = os.Getenv("SECURITY_LOGGING_ENABLED") == "true"
 	api.rateLimiting = os.Getenv("RATE_LIMIT_ENABLED") == "true"
 	api.authRateLimit = os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE")
-	if err := api.registerRoutes(requestFeedResource, db); err != nil {
+	if err := api.registerRoutes(requestFeedResource); err != nil {
 		return nil, err
 	}
 
@@ -942,7 +940,7 @@ func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.F
 	}
 	return requestFeedHTTP.NewResource(requestFeed, requestFeedHTTP.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, requestFeedHTTP.Middleware)) {
-			apiCommon.ProtectedTenantGroup(router, db, register)
+			apiCommon.ProtectedTenantRoutes(router, register)
 		},
 		CurrentTenantID:  func(r *http.Request) int64 { return projectJWT.ClaimsFromCtx(r.Context()).TenantID },
 		CurrentAccountID: func(r *http.Request) int64 { return int64(projectJWT.ClaimsFromCtx(r.Context()).ID) },
@@ -1234,20 +1232,6 @@ func parsePositiveInt(valueStr string, defaultValue int) int {
 // initializeAPIResources composes the HTTP resources; workforce is the
 // Workforce module the staff administration reads schedules from.
 
-func (api *API) requestReviewGroupIDs(ctx context.Context) ([]int64, error) {
-	groups, err := api.Services.UserContext.GetMyGroups(ctx)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]int64, 0, len(groups))
-	for _, group := range groups {
-		if group != nil {
-			ids = append(ids, group.ID)
-		}
-	}
-	return ids, nil
-}
-
 // requestReviewDependencies binds native owner capabilities for the staff projection.
 func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (requestreviewcompose.ProjectionDependencies, carePlanModule.CareScheduleReviewQuery, error) {
 	reviewStudents, err := requestreviewcompose.NewStudentDirectory(db, modules.persons, func(observation requestreviewcompose.DirectoryObservation) {
@@ -1256,15 +1240,11 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review student directory: %w", err)
 	}
-	reviewPolicy, err := reviewidentity.New(reviewidentity.Dependencies{
-		Principal: studentsAPI.RequestReviewPrincipal,
-		GroupLeaderEnabled: func(ctx context.Context) (bool, error) {
-			return api.Services.Settings.ResolveBool(ctx, reviewsettings.GroupLeaderEnabled)
-		},
-		GroupIDs: api.requestReviewGroupIDs,
-	})
-	if err != nil {
-		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review policy: %w", err)
+	// The staff projection lists exactly what the decisions accept: one
+	// Identity & Access review policy serves both (#3804).
+	reviewScope := func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
+		schoolWide, groupIDs, err := api.Services.RequestReviewPolicy.Scope(ctx, projectJWT.PermissionsFromCtx(ctx))
+		return carePlanCompose.ReviewScope{SchoolWide: schoolWide, GroupIDs: groupIDs}, err
 	}
 	// Report the union of ordinary and absence-review rights, as the
 	// navigation capability does. Each native queue keeps its own scope.
@@ -1275,10 +1255,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review access: %w", err)
 	}
 	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(db, modules.persons,
-		func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
-			scope, err := reviewPolicy.Scope(ctx)
-			return carePlanCompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
-		}, carePlanCompose.Today, func(observation requestreviewcompose.CareObservation) {
+		reviewScope, carePlanCompose.Today, func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		})
 	if err != nil {
@@ -1286,10 +1263,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	}
 	careReviews, err := requestreviewcompose.NewScheduleReviews(db, requestreviewcompose.ScheduleReviewDependencies{
 		People: modules.persons,
-		Scope: func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
-			scope, err := reviewPolicy.Scope(ctx)
-			return carePlanCompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
-		},
+		Scope:  reviewScope,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return api.Services.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
@@ -1311,11 +1285,8 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	}
 	offeringReviews, err := requestreviewcompose.NewOfferingReviews(db, requestreviewcompose.OfferingReviewDependencies{
 		People: modules.persons,
-		Scope: func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
-			scope, err := reviewPolicy.Scope(ctx)
-			return carePlanCompose.ReviewScope{SchoolWide: scope.SchoolWide, GroupIDs: scope.GroupIDs}, err
-		},
-		Today: carePlanCompose.Today,
+		Scope:  reviewScope,
+		Today:  carePlanCompose.Today,
 		ObserveCare: func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		},
@@ -1372,7 +1343,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		UserContext: api.Services.UserContext, Active: api.Services.Active,
 		Users: api.Services.Users, Education: api.Services.Education,
 		ListExport: api.Services.ListExport,
-	}, db, logger.With("handler", "rooms"))
+	}, logger.With("handler", "rooms"))
 	api.Services.EnableStudentPhotos(services.StudentPhotoBootstrap{
 		Unlinker:     studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public"),
 		PhotoRuntime: modules.studentPhotoRuntime,
@@ -1384,7 +1355,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// One Student Presence owner for this entry point; it also serves the
 	// students resource's privacy-consent routes (#3349).
 	presence := newStudentPresence(db, logger)
-	var studentClassResyncer educationSvc.OfferingSourceResyncer = api.Services.EnrollmentCareOffering
+	var studentClassResyncer schoolStructureCompose.OfferingSourceResyncer = api.Services.EnrollmentCareOffering
 	reviewDependencies, careReviews, err := requestReviewDependencies(api, modules, db)
 	if err != nil {
 		return err
@@ -1402,7 +1373,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		StudentDeletion:              api.Services.StudentDeletion,
 		CareLifecycleService:         api.Services.CareLifecycle,
 		StudentAuditService:          api.Services.PeopleDirectory,
-		SchoolGroups:                 studentSchoolGroups{Service: api.Services.Education},
+		SchoolGroups:                 studentSchoolGroups{GroupManagement: api.Services.Education},
 		UserContextService:           api.Services.UserContext,
 		ActiveService:                api.Services.Active,
 		DeviceAuthenticator:          deviceAuth.Device(),
@@ -1447,11 +1418,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		ListExportService:            lists.NewRenderer(),
 		Logger:                       logger.With("handler", "students"),
 	})
-	api.Statistics = statisticsAPI.NewResource(api.Services.Statistics, api.Services.ListExport, db, logger.With("handler", "statistics"))
-	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)
-	api.StaffMessaging = staffMessagingAPI.NewResource(api.Services.StaffMessaging, db)
+	api.Statistics = statisticsAPI.NewResource(api.Services.Statistics, api.Services.ListExport, logger.With("handler", "statistics"))
+	api.Messaging = messagingAPI.NewResource(api.Services.Messaging)
+	api.StaffMessaging = staffMessagingAPI.NewResource(api.Services.StaffMessaging)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, logger.With("handler", "calendar"))
-	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, newDeclarationReports(), db)
+	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, newDeclarationReports())
 	// Tagesinformationen (#2180) are Timetable's: the owner composes the
 	// service over its own repository, the calendar periods for the week
 	// pattern and the People Directory names of the acknowledgement list
@@ -1459,10 +1430,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.StaffNotices = timetableHTTPAdapter.NewStaffNoticeResource(timetableCompose.NewStaffNotices(timetableCompose.StaffNoticeDependencies{
 		DB: db, Periods: repoFactory.CalendarPeriod, Names: services.StaffNoticeNames(api.Services.PeopleDirectory),
 		Logger: logger.With("service", "staffnotice"),
-	}), func(ctx context.Context) int64 { return timeTrackingIdentity(ctx).AccountID }, db)
-	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
+	}), func(ctx context.Context) int64 { return timeTrackingIdentity(ctx).AccountID })
+	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, logger.With("handler", "filestore"))
 	api.Groups = groupsHTTP.NewResource(api.Services.Education, api.Services.Active, services.NewGroupRoutePeople(api.Services.Users), api.Services.UserContext)
-	api.Guardians = newGuardiansResource(api.Services.PeopleDirectory, api.Services.NewGuardianDirectoryRuntime(db), db, viper.GetString("app_env"), logger.With("handler", "guardians"))
+	api.Guardians = newGuardiansResource(api.Services.PeopleDirectory, api.Services.NewGuardianDirectoryRuntime(db), viper.GetString("app_env"), logger.With("handler", "guardians"))
 	api.Import = importAPI.NewResource(importAPI.Dependencies{
 		Students: api.Services.Import, Staff: api.Services.StaffImport, ClassList: api.Services.ClassListImport,
 		Files: fileformat.Decoder{}, Runtime: importCompose.HTTPRuntime(db, api.Services.PeopleDirectory, api.membership, api.Services.OpeningBalanceImport),
@@ -1475,12 +1446,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Staff, api.StaffAdmin = staffResource, staffAdmin
 	api.StaffShifts = workforceShiftPlanning.NewStaffShiftsResource(workforceShiftPlanning.StaffShiftsDependencies{
 		Planning:       api.Services.StaffShifts,
-		DB:             db,
 		ResolveStaffID: api.currentStaffID,
 		ActorAccountID: projectJWT.ActorAccountIDFromCtx,
 	})
-	api.ShiftTypes = workforceShiftPlanning.NewShiftTypesResource(api.Services.ShiftTypes, db)
-	api.AbsenceTypes = workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(workforce, logger.With("service", "active")), db, api.currentStaffID)
+	api.ShiftTypes = workforceShiftPlanning.NewShiftTypesResource(api.Services.ShiftTypes)
+	api.AbsenceTypes = workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(workforce, logger.With("service", "active")), api.currentStaffID)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
 		api.Services.EnrollmentCareOfferingRows(),
@@ -1511,7 +1481,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		api.Services.EnrollmentCareOffering.ValidateTimeframeChange,
 	), db)
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
-	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)
+	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument)
 	openRoomMove, err := newOpenRoomMove(modules, api.Services.Active, logger)
 	if err != nil {
 		return err
@@ -1578,7 +1548,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		SessionEnd:              sessionEnd,
 		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(api.Services.Active, devicescanCompose.NewSupervisionQuery(presence), api.Services.Users, api.Services.IoT, devicescanCompose.NewSessionMirror(repoFactory.ActivityInstance, repoFactory.InstanceStaff, api.Services.Activities, services.KioskMirrorPublisher(api.Services.RealtimeHub, logger), logger), logger),
 		Logger:                  logger.With("handler", "iot"),
-		DB:                      db,
 		DeviceAuthenticator:     deviceAuth.Device(),
 		DeviceOnlyAuthenticator: deviceAuth.DeviceOnly(),
 	})
@@ -1589,9 +1558,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// The school portal's class-day surface reads the class-day projection
 	// (#2701): the day report over Enrollment's day roster and the
 	// arrival-exception write seam (#2970) behind its one public capability.
-	api.ClassDay = classdayHTTP.NewResource(api.Services.ClassDayArrivalExceptions, db, logger.With("handler", "class-day"))
-	api.ClassListEntries = newClassListEntriesResource(api.membership, db, logger.With("handler", "class-list-entries"))
-	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution), db)
+	api.ClassDay = classdayHTTP.NewResource(api.Services.ClassDayArrivalExceptions, logger.With("handler", "class-day"))
+	api.ClassListEntries = newClassListEntriesResource(api.membership, logger.With("handler", "class-list-entries"))
+	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution))
 	api.GradeTransitions = gradeTransitionHTTP.NewGradeTransitionResource(api.Services.GradeTransition)
 	api.TimeTracking = newTimeTrackingResource(api.Services, modules.calendar, db)
 	pickupExtensions, err := newPickupExtensions(modules.timetable, presence)
@@ -1627,10 +1596,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	})
 	// The school portal reuses the class-day and the timetable resources, so
 	// it is built after both (#2207, #2527).
-	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, api.Services.NotificationPreferences, db)
+	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, api.Services.NotificationPreferences)
 	api.School = schoolPortal.NewResource(schoolPortalAuth(api.Services.SchoolPortalAuthentication()), schoolPortalMFA(api.Services.SchoolPortalMFA()), schoolPasswordResets(api.Services.SchoolPasswordResetRuntime()), api.ClassDay, api.Timetable, api.StaffMessaging, api.StaffNotices, api.Notifications)
-	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
-	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, reminderCompose.HTTPRuntime(db))
+	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency)
+	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, reminderCompose.HTTPRuntime())
 
 	// Initialize operator dashboard resources. The Device Fleet review of
 	// unregistered RFID scans answers in the operator surface's format (#3232).
@@ -1819,14 +1788,14 @@ func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, conf
 
 // registerRoutes builds the module routes, mounts every route and refuses to
 // start while a writing route has no core-action classification.
-func (a *API) registerRoutes(requestFeed *requestFeedHTTP.Resource, db *bun.DB) error {
+func (a *API) registerRoutes(requestFeed *requestFeedHTTP.Resource) error {
 	schoolSetup, err := newSchoolSetupRoute(schoolSetupCompose.Dependencies{
 		Settings: a.Services.Settings,
-	}, db)
+	})
 	if err != nil {
 		return err
 	}
-	staffOnboarding, err := newStaffOnboardingRoute(db)
+	staffOnboarding, err := newStaffOnboardingRoute()
 	if err != nil {
 		return err
 	}
@@ -2094,12 +2063,12 @@ func (a *API) registerTenantRoutes(requestFeed *requestFeedHTTP.Resource, module
 }
 
 func (a *API) databaseStatsRouter() chi.Router {
-	return newDatabaseStatsRouter(a.db, services.NewDatabaseStatsReader(a.Services.Database, a.Services.DatabaseStatsCapabilities), a.getDatabaseLogger())
+	return newDatabaseStatsRouter(services.NewDatabaseStatsReader(a.Services.Database, a.Services.DatabaseStatsCapabilities), a.getDatabaseLogger())
 }
 
-func newDatabaseStatsRouter(db *bun.DB, read services.DatabaseStatsReader, logger *slog.Logger) chi.Router {
+func newDatabaseStatsRouter(read services.DatabaseStatsReader, logger *slog.Logger) chi.Router {
 	router := chi.NewRouter()
-	apiCommon.ProtectedTenantGroup(router, db, func(router chi.Router, withTx apiCommon.Middleware) {
+	apiCommon.ProtectedTenantRoutes(router, func(router chi.Router, withTx apiCommon.Middleware) {
 		// The reader redacts every count the caller may not read, so the
 		// route opens for any permission authorize.NewDatabaseStatsCapabilities
 		// honours: the Datenverwaltung hub shows its counts to a lead role a

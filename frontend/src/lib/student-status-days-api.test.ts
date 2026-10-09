@@ -6,7 +6,6 @@ import {
   deleteStudentStatusDay,
   fetchStatusDayOverview,
   fetchStudentStatusDays,
-  StatusDayOverviewForbiddenError,
   StudentStatusDayConflictError,
   StudentStatusDayPartialAbsenceConflictError,
 } from "./student-status-days-api";
@@ -40,6 +39,7 @@ describe("student-status-days-api", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/students/42/status-days?from=2026-05-25&to=2026-05-29",
+      undefined,
     );
     expect(days).toEqual([
       expect.objectContaining({
@@ -358,13 +358,21 @@ describe("student-status-days-api", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/students/status-days?from=2026-05-25&to=2026-05-29&page=1&page_size=50",
+      undefined,
     );
     expect(result).toEqual(overview);
   });
 
-  it("throws the dedicated forbidden error when the overview returns 403", async () => {
+  it("keeps status and backend code when the overview returns 403", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response("forbidden", { status: 403 }),
+      new Response(
+        JSON.stringify({
+          status: "error",
+          error: "no permitted groups",
+          code: "general.permission",
+        }),
+        { status: 403 },
+      ),
     );
 
     await expect(
@@ -374,7 +382,22 @@ describe("student-status-days-api", () => {
         status: "all",
         groupId: "all",
       }),
-    ).rejects.toBeInstanceOf(StatusDayOverviewForbiddenError);
+    ).rejects.toMatchObject({ status: 403, code: "general.permission" });
+  });
+
+  it("turns a failed connection into general.unavailable", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(
+      new TypeError("Failed to fetch"),
+    );
+
+    await expect(
+      fetchStatusDayOverview("2026-05-25", "2026-05-29", {
+        page: 1,
+        query: "",
+        status: "all",
+        groupId: "all",
+      }),
+    ).rejects.toMatchObject({ code: "general.unavailable" });
   });
 
   it("throws a fallback message when the overview request fails", async () => {

@@ -1,19 +1,15 @@
 package common
 
 import (
-	"context"
-	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // RenderError renders an error response and logs any render failures.
@@ -24,6 +20,13 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 	// does not classify it yet: it keeps its 409, code and details (ADR 0006).
 	if errResp, ok := renderer.(*ErrResponse); ok && errResp.HTTPStatusCode >= 500 && IsBusinessRejection(errResp.Err) {
 		renderer = ErrorBusinessRejection(errResp.Err)
+	}
+	// A rejected input value is never a server error either: it keeps its
+	// 400, code and field (#2515).
+	if errResp, ok := renderer.(*ErrResponse); ok && errResp.HTTPStatusCode >= 500 {
+		if _, rejected := asInputRejection(errResp.Err); rejected {
+			renderer = ErrorInputRejection(errResp.Err)
+		}
 	}
 	// A rejected operation may already have written its first rows (a person
 	// before the refused membership). The request transaction commits every
@@ -141,11 +144,10 @@ func newErrResponse(status int, err error) *ErrResponse {
 }
 
 // ErrorInvalidRequest returns a 400 Bad Request error response. A failed
-// ozzo-validation Bind also lists its fields in `errors`.
+// ozzo-validation Bind also lists its fields in `errors`; an InputRejection
+// in the chain adds its code and field.
 func ErrorInvalidRequest(err error) render.Renderer {
-	resp := newErrResponse(http.StatusBadRequest, err)
-	resp.Errors = validationFieldErrors(err)
-	return resp
+	return ErrorInputRejection(err)
 }
 
 // ErrorInvalidRequestWithCode returns a 400 Bad Request with a stable
@@ -155,6 +157,16 @@ func ErrorInvalidRequestWithCode(err error, code string) render.Renderer {
 	resp := newErrResponse(http.StatusBadRequest, err)
 	resp.Code = code
 	resp.Errors = validationFieldErrors(err)
+	applyInputRejection(resp, err)
+	return resp
+}
+
+// ErrorInvalidOnField returns a 400 Bad Request with a stable code that
+// names the one field the refusal is about, so the form can mark it (#2516).
+func ErrorInvalidOnField(err error, code, field string) render.Renderer {
+	resp := newErrResponse(http.StatusBadRequest, err)
+	resp.Code = code
+	resp.Errors = []FieldError{{Field: field, Reason: resp.ErrorText}}
 	return resp
 }
 
@@ -185,6 +197,16 @@ func ErrorUnauthorized(err error) render.Renderer {
 func ErrorUnauthorizedWithCode(err error, code string) render.Renderer {
 	resp := newErrResponse(http.StatusUnauthorized, err)
 	resp.Code = code
+	return resp
+}
+
+// ErrorUnauthorizedOnField returns a 401 with a stable code that names the
+// field a credential check refused (the current password), so the form can
+// mark it (#2517).
+func ErrorUnauthorizedOnField(err error, code, field string) render.Renderer {
+	resp := newErrResponse(http.StatusUnauthorized, err)
+	resp.Code = code
+	resp.Errors = []FieldError{{Field: field, Reason: resp.ErrorText}}
 	return resp
 }
 
@@ -276,6 +298,16 @@ func ErrorConflictWithDetails(err error, code string, details map[string]any) re
 		Code:           code,
 		Details:        details,
 	}
+}
+
+// ErrorInvalidRequestWithDetails returns a 400 Bad Request carrying a stable
+// code and the values the refused input names (#2514), so the client words
+// the limit itself instead of reading the message.
+func ErrorInvalidRequestWithDetails(err error, code string, details map[string]any) render.Renderer {
+	resp := newErrResponse(http.StatusBadRequest, err)
+	resp.Code = code
+	resp.Details = details
+	return resp
 }
 
 // BusinessRejection is an error a module raises when a valid request cannot
@@ -420,6 +452,13 @@ func ErrorTooManyRequests(err error) render.Renderer {
 	return newErrResponse(http.StatusTooManyRequests, err)
 }
 
+// ErrorTooManyRequestsWithCode returns a 429 with a stable error code.
+func ErrorTooManyRequestsWithCode(err error, code string) render.Renderer {
+	resp := newErrResponse(http.StatusTooManyRequests, err)
+	resp.Code = code
+	return resp
+}
+
 // ErrorRequestTimeout returns a 408 Request Timeout response for request
 // contexts whose deadline expired before the handler could complete.
 func ErrorRequestTimeout(err error) render.Renderer {
@@ -452,59 +491,24 @@ func ErrorBadGatewayWrap(clientMsg string, cause error) render.Renderer {
 	}
 }
 
-// IsTransientDatabaseError reports whether err represents a temporary database
-// connectivity failure rather than a domain validation error. Callers can use
-// this to retry a whole transaction once or return 503 after retry exhaustion.
+// IsTransientDatabaseError classifies connection failures through Transaction Runtime.
 func IsTransientDatabaseError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return false
-	}
-	if errors.Is(err, driver.ErrBadConn) {
-		return true
-	}
-
-	var netErr net.Error
-	if errors.As(err, &netErr) {
-		return true
-	}
-
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
-		code := pgErr.Field('C')
-		return len(code) >= 2 && code[:2] == "08"
-	}
-
-	return strings.Contains(err.Error(), "driver: bad connection")
+	return transactionruntime.IsTransientDatabaseError(err)
 }
 
-// IsConstraintViolation checks if an error is a PostgreSQL constraint violation
-// that indicates the entity cannot be deleted due to dependencies.
-// Primary check uses typed pgdriver.Error with SQLSTATE codes (23503 = FK, 23502 = NOT NULL).
-// Fallback string matching covers errors that have been wrapped and lost the original type.
-func IsConstraintViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	// Primary: typed pgdriver.Error with structured SQLSTATE code
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
-		code := pgErr.Field('C') // SQLSTATE code
-		return code == "23503" || code == "23502"
-	}
-
-	// Fallback: string matching for wrapped errors that lost the pgdriver.Error type
-	msg := err.Error()
-	return strings.Contains(msg, "violates foreign key constraint") ||
-		strings.Contains(msg, "violates not-null constraint")
-}
+// IsConstraintViolation classifies dependency refusals through Transaction Runtime.
+func IsConstraintViolation(err error) bool { return transactionruntime.IsConstraintViolation(err) }
 
 // ErrorGone returns a 410 Gone error response
 func ErrorGone(err error) render.Renderer {
 	return newErrResponse(http.StatusGone, err)
+}
+
+// ErrorGoneWithCode returns a 410 Gone with a stable error code.
+func ErrorGoneWithCode(err error, code string) render.Renderer {
+	resp := newErrResponse(http.StatusGone, err)
+	resp.Code = code
+	return resp
 }
 
 // RequireDependency writes a 503 response built from unavailableErr when ok

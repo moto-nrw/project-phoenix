@@ -116,7 +116,7 @@ func (l *AccountLifecycle) StartStaffPreview(ctx context.Context, adminAccountID
 		accessToken, err = l.codec.IssueAccessToken(domain.SessionClaims{
 			AccountID: account.ID, Email: account.Email, Username: claims.Username,
 			FirstName: claims.FirstName, LastName: claims.LastName,
-			Roles: claims.RoleNames, Permissions: claims.Permissions, IsAdmin: claims.IsAdmin,
+			Roles: claims.RoleNames, RoleIsSystem: domain.RoleSystemFlags(claims.Roles), Permissions: claims.Permissions, IsAdmin: claims.IsAdmin,
 			Scope: claims.Scope, TenantID: tenantID, OrgID: claims.OrgID,
 			ReadOnly: true, ActingAdminID: adminAccountID, PreviewID: previewID,
 		})

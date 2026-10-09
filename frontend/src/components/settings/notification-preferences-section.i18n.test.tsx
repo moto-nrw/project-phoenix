@@ -2,6 +2,15 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import en from "~/i18n/messages/en.json";
 import { NotificationPreferencesSection } from "./notification-preferences-section";
+import { ToastProvider } from "~/contexts/ToastContext";
+
+// The shared error path shows failures through the toast provider (#2517).
+function renderWithToast(
+  ui: Parameters<typeof render>[0],
+  options?: Parameters<typeof render>[1],
+) {
+  return render(ui, { wrapper: ToastProvider, ...options });
+}
 
 const api = vi.hoisted(() => ({
   fetchNotificationPreferences: vi.fn(),
@@ -41,7 +50,7 @@ describe("parent notification preference translations", () => {
   });
 
   it("renders parent labels from the active catalog instead of backend German", async () => {
-    render(<NotificationPreferencesSection portal="parent" />);
+    renderWithToast(<NotificationPreferencesSection portal="parent" />);
 
     expect(await screen.findByText("Notifications")).toBeVisible();
     expect(screen.getByText("Messages")).toBeVisible();

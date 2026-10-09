@@ -46,12 +46,17 @@ func demoStudentBirthday(i int, student DemoStudent) string {
 // every other family has no app at all. Together that is each row the response
 // overview (#3379) can show: answered and confirmed, answered and still open,
 // missing but reachable by a Mitteilung, missing and only reachable by phone.
+//
+// The first parent is the one the demo visitor signs in as. Its answer stays
+// open: an approval belongs to next school year and would make it the only
+// care period of the child, so the parents portal showed next year as the
+// child's current care (#3894).
 var renewalPhaseAnswers = []struct {
 	parent int
 	status string
 }{
-	{parent: 0, status: "approved"},
-	{parent: 2, status: "submitted"},
+	{parent: 0, status: "submitted"},
+	{parent: 3, status: "approved"},
 	{parent: 4},
 }
 

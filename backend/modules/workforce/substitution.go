@@ -172,6 +172,17 @@ type SubstitutionOperationError struct {
 	Code    string
 	Message string
 	Cause   error
+	// Details are the values a refusal names and Field the request field it
+	// is about (#2516); both reach the response unchanged.
+	Details SubstitutionRefusalValues
+	Field   string
+}
+
+// SubstitutionRefusalValues are the values a refused schedule substitution
+// names: the failing day (YYYY-MM-DD) or a cap. Unset values stay off the wire.
+type SubstitutionRefusalValues struct {
+	Date string
+	Max  int
 }
 
 func (e *SubstitutionOperationError) Error() string {
@@ -202,6 +213,9 @@ type GroupRef struct {
 type StaffRef struct {
 	ID       int64  `json:"id,string"`
 	FullName string `json:"full_name"`
+	// IsExternal marks an external caregiver without a moto account (#3823);
+	// only the additional supervision targets carry it.
+	IsExternal bool `json:"is_external,omitempty"`
 }
 
 type Period struct {

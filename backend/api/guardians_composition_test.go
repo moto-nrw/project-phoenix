@@ -92,7 +92,7 @@ func setupGuardiansCompositionRoute(t *testing.T, appEnvs ...string) *guardianCo
 		appEnv = appEnvs[0]
 	}
 	db, svc := testutil.SetupGuardianModule(t)
-	resource := newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(db), db, appEnv, slog.Default())
+	resource := newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(db), appEnv, slog.Default())
 
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
@@ -412,6 +412,8 @@ func TestGuardianComposition_CreateGuardianDuplicateEmailIsBadRequest(t *testing
 	})
 	testutil.AssertBadRequest(t, rr)
 	assert.Contains(t, errorText(t, rr.Body.String()), "bereits vergeben")
+	// The form explains the duplicate through its own code (#2517).
+	assert.Contains(t, rr.Body.String(), `"code":"`+"students.guardian_email_taken"+`"`)
 	assert.Equal(t, 1, ctx.guardianEmailCount(email))
 }
 
@@ -933,6 +935,24 @@ func TestGuardianComposition_BatchCreatesAndLinksGuardian(t *testing.T) {
 	linked := ctx.studentGuardians(t, studentID)
 	require.Len(t, linked, 1)
 	assert.Equal(t, "Atomic", linked[0].Guardian.FirstName)
+}
+
+func TestGuardianComposition_BatchDuplicateEmailCarriesItsCode(t *testing.T) {
+	t.Parallel()
+	ctx := setupGuardiansCompositionRoute(t)
+	studentID, _ := ctx.createStudent("Batch", "Duplicate", "1a")
+	_, email := ctx.createGuardian("batch-duplicate")
+
+	rr := ctx.do(t, testutil.AdminTestClaims(999), http.MethodPost, fmt.Sprintf("/students/%d/guardians/batch", studentID), map[string]any{
+		"guardians": []map[string]any{{
+			"first_name": "Second", "last_name": "Person", "email": email,
+			"relationship_type": "parent", "emergency_priority": 1,
+		}},
+	})
+	testutil.AssertBadRequest(t, rr)
+	// The form explains the duplicate through its own code (#2517).
+	assert.Contains(t, rr.Body.String(), `"code":"`+"students.guardian_email_taken"+`"`)
+	assert.Empty(t, ctx.studentGuardians(t, studentID))
 }
 
 func TestGuardianComposition_BatchRejectsEmptyAndNonStaff(t *testing.T) {

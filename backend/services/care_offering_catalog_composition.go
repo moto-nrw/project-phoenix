@@ -378,6 +378,25 @@ func (careOfferingSourceRules) Reject(reason string) error {
 	return fmt.Errorf("%w: %s", timetable.ErrOfferingSourceInvalid, reason)
 }
 
+// offeringSourceRefusalCodes maps each refusal the editor words itself to
+// its registered wire code (#2516).
+var offeringSourceRefusalCodes = map[careplanCompose.OfferingSourceRefusalKind]string{
+	careplanCompose.OfferingSourceTooMany:       timetable.CodeOfferingSourceTooMany,
+	careplanCompose.OfferingSourceNotFound:      timetable.CodeOfferingSourceNotFound,
+	careplanCompose.OfferingSourceInactive:      timetable.CodeOfferingSourceInactive,
+	careplanCompose.OfferingSourceMixedPhases:   timetable.CodeOfferingSourceMixedPhases,
+	careplanCompose.OfferingSourceOutsidePeriod: timetable.CodeOfferingSourceOutsidePeriod,
+}
+
+func (careOfferingSourceRules) RejectWith(refusal careplanCompose.OfferingSourceRefusal) error {
+	code, ok := offeringSourceRefusalCodes[refusal.Kind]
+	if !ok {
+		code = timetable.CodeOfferingSourceInvalid
+	}
+	values := timetable.RefusalValues{Max: refusal.Max, Given: refusal.Given, Offering: refusal.Offering}
+	return timetable.WithCode(fmt.Errorf("%w: %s", timetable.ErrOfferingSourceInvalid, refusal.Reason), code, values)
+}
+
 func (careOfferingSourceRules) IsRejection(err error) bool {
 	return errors.Is(err, timetable.ErrOfferingSourceInvalid)
 }

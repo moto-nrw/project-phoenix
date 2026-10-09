@@ -422,6 +422,8 @@ export function ToastProvider({
 interface ApiErrorDisplayOptions {
   /** Localized noun phrase with article, for example "die Gruppe". */
   object: string;
+  /** Optional localized sentence with context specific to the current portal. */
+  messageSuffix?: string;
   retry?: () => void;
 }
 
@@ -473,11 +475,12 @@ function useApiErrorCore(
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >("input[name], textarea[name], select[name]");
     const control = [...controls].find((item) => item.name === firstField);
-    // A CustomSelect carries its value in a hidden input next to its trigger.
+    // A CustomSelect or DatePicker carries its value in a hidden input next
+    // to its trigger (combobox or the date button).
     const target =
       control instanceof HTMLInputElement && control.type === "hidden"
         ? control.nextElementSibling?.querySelector<HTMLElement>(
-            '[role="combobox"]',
+            '[role="combobox"], button',
           )
         : control;
     target?.focus();
@@ -507,7 +510,14 @@ function useApiErrorCore(
           options.object,
         );
         deliver(
-          { message: message.charAt(0).toUpperCase() + message.slice(1) },
+          {
+            message: [
+              message.charAt(0).toUpperCase() + message.slice(1),
+              options.messageSuffix,
+            ]
+              .filter(Boolean)
+              .join(" "),
+          },
           locale,
         );
         return;
@@ -531,7 +541,9 @@ function useApiErrorCore(
       );
       deliver(
         {
-          message: presentation.message,
+          message: [presentation.message, options.messageSuffix]
+            .filter(Boolean)
+            .join(" "),
           retry:
             presentation.retryable && options.retry
               ? { label: labels.retry, onClick: options.retry }

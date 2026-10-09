@@ -45,6 +45,7 @@ export class ApiError extends Error {
 /** Mirrors backend/api/common.ErrorClassCode until generated contracts include it. */
 export function errorClassCode(status: number): ErrorCode {
   if (status === 401 || status === 403) return "general.permission";
+  if (status === 431) return "general.request_too_large";
   if (status === 409 || status === 410 || status === 422)
     return "general.business_rejection";
   if ([408, 429, 499, 502, 503, 504].includes(status))
@@ -63,6 +64,31 @@ export function unavailableApiError(cause?: unknown): ApiError {
   });
   if (cause instanceof Error && cause.name) error.name = cause.name;
   return error;
+}
+
+/**
+ * `fetch` for domain clients: a request that never reached the API (offline
+ * or DNS failure) becomes `general.unavailable` instead of a raw `TypeError`
+ * like "Failed to fetch". Callers use AbortSignal to supersede stale work;
+ * those cancellations must retain their normal AbortError semantics.
+ */
+export async function transportFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    if (
+      error !== null &&
+      typeof error === "object" &&
+      "name" in error &&
+      error.name === "AbortError"
+    ) {
+      throw error;
+    }
+    throw unavailableApiError(error);
+  }
 }
 
 export function apiErrorFromBody(

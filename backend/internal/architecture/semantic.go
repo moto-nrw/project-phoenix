@@ -1279,7 +1279,10 @@ func contractFunctionViolations(source, target string, function *types.Func) []V
 func contractFunctionViolationsSeen(source, target string, function *types.Func, contractStack map[types.Type]struct{}) []Violation {
 	violations := forbiddenTypeViolations(source, target, function.Type())
 	violations = append(violations, contractResultMethodViolations(source, target, function, contractStack)...)
-	if crudMethodNames[function.Name()] {
+	// io.Reader.Read is byte-stream I/O, not generic entity CRUD. Keep inspecting
+	// its signature and nested results, and keep rejecting application-owned Read.
+	standardStreamRead := function.Name() == "Read" && function.Pkg() != nil && function.Pkg().Path() == "io"
+	if crudMethodNames[function.Name()] && !standardStreamRead {
 		violations = append(violations, contractViolation(source, "contracts.generic-crud", target, "public contracts use capability-specific operations, not generic CRUD"))
 	}
 	return violations

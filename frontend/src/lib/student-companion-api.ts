@@ -1,4 +1,4 @@
-import { apiErrorFromText } from "./api-error";
+import { apiErrorFromText, transportFetch } from "./api-error";
 import { getCachedSession } from "./session-cache";
 
 /**
@@ -275,11 +275,14 @@ export function notifyStudentCompanionDisplayChanged(): void {
 export async function fetchStudentCompanions(
   studentId: string,
 ): Promise<StudentCompanion[]> {
-  const response = await fetch(`/api/students/${studentId}/companions`, {
-    method: "GET",
-    headers: await authHeaders(),
-    credentials: "include",
-  });
+  const response = await transportFetch(
+    `/api/students/${studentId}/companions`,
+    {
+      method: "GET",
+      headers: await authHeaders(),
+      credentials: "include",
+    },
+  );
   const raw =
     (await parseResponse<RawStudentCompanion[] | null>(response)) ?? [];
   return raw.map((companion) => ({

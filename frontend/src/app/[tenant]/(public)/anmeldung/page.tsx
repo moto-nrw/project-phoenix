@@ -1,6 +1,6 @@
 "use client";
 
-import { wireErrorCode } from "~/lib/api-error";
+import { ApiError } from "~/lib/api-error";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, Clock, RefreshCw, UserPlus } from "lucide-react";
@@ -23,6 +23,8 @@ import {
 } from "~/lib/enrollment-submission-api";
 import { localizeNamed } from "~/lib/enrollment-translations";
 import { createLogger } from "~/lib/logger";
+import { useApiLoadError } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 
 const logger = createLogger({ component: "EnrollPhasePicker" });
 
@@ -40,14 +42,21 @@ export default function EnrollPhasePickerPage() {
   const tenantPath = useTenantAwarePath();
   const [phases, setPhases] = useState<PublicPhase[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [enrollmentDisabled, setEnrollmentDisabled] = useState(false);
+  // A failed load replaces the list (#2515): "no open phase" would be a
+  // wrong answer while the phases simply did not arrive.
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
-      setError(null);
+      clearLoadError();
       setEnrollmentDisabled(false);
       try {
         const list = await fetchPublicPhases(tenantSlug);
@@ -55,15 +64,20 @@ export default function EnrollPhasePickerPage() {
         setPhases(list);
       } catch (err) {
         if (cancelled) return;
-        const message = err instanceof Error ? err.message : t("unknownError");
-        const code = wireErrorCode(
-          (err as { code?: unknown } | undefined)?.code,
-        );
-        logger.error("phase_picker_load_failed", { error: message, code });
+        const code = err instanceof ApiError ? err.code : undefined;
+        logger.error("phase_picker_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          code,
+        });
+        // Switched off for this school is a state, not a failure: the page
+        // says so in its own notice instead of an error.
         if (code === "enrollment.disabled") {
           setEnrollmentDisabled(true);
         } else {
-          setError(message);
+          void showLoadError(err, {
+            object: t("errorObjectPhases"),
+            retry: () => setLoadAttempt((n) => n + 1),
+          });
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -73,7 +87,7 @@ export default function EnrollPhasePickerPage() {
     return () => {
       cancelled = true;
     };
-  }, [tenantSlug, t]);
+  }, [tenantSlug, t, loadAttempt, clearLoadError, showLoadError]);
 
   if (loading) {
     return (
@@ -96,16 +110,6 @@ export default function EnrollPhasePickerPage() {
     <PublicEnrollmentPageShell withInlineSwitcher>
       <PhasePickerHeader tenant={tenant} />
 
-      {error && (
-        <div
-          className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mb-6 rounded-2xl border p-4 text-sm"
-          role="alert"
-          aria-live="polite"
-        >
-          {error}
-        </div>
-      )}
-
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="grid lg:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="p-5 sm:p-8 lg:p-10">
@@ -122,7 +126,9 @@ export default function EnrollPhasePickerPage() {
             </div>
 
             <div className="mt-8">
-              {!phases || phases.length === 0 ? (
+              {loadError ? (
+                <LoadErrorAlert error={loadError} />
+              ) : !phases || phases.length === 0 ? (
                 <div className="border-moto-orange/20 bg-moto-orange/10 text-moto-orange-strong rounded-xl border p-5 text-sm leading-6">
                   {enrollmentDisabled ? t("disabled") : t("noPhase")}
                 </div>

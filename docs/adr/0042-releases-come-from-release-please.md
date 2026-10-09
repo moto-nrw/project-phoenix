@@ -40,3 +40,10 @@ that release event (and manually), not on every deploy.
 - A release created with `GITHUB_TOKEN` triggers no other workflow, so the
   release workflow calls the screenshot pipeline itself, and the release PR
   runs no PR checks (`main` requires none).
+
+## Update 2026-10-07
+
+Until moto has a shared Google account, the screenshot pipeline attaches its
+output as `product-screenshots-<version>.zip` to the GitHub release instead of
+uploading to Google Drive. A personal account would own the folder and the
+refresh token. The Drive adapter stays in the repository, unhooked from CI.

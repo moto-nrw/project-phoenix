@@ -10,7 +10,7 @@
 export const DELIBERATE_LOGOUT_KEY = "deliberateLogout";
 
 import { getSession } from "next-auth/react";
-import { unavailableApiError } from "./api-error";
+import { ApiError, unavailableApiError } from "./api-error";
 import { clearRateLimitBackoff } from "./rate-limit-backoff";
 
 let cached: {
@@ -35,6 +35,24 @@ async function transportFetch(
   } catch (error) {
     throw unavailableApiError(error);
   }
+}
+
+async function getSessionOrUnavailable() {
+  try {
+    return await getCachedSession();
+  } catch (error) {
+    // The session endpoint is a network dependency just like the API route.
+    // Preserve an already normalized error, but never let its raw transport
+    // failure bypass the shared API error presentation.
+    if (error instanceof ApiError) throw error;
+    throw unavailableApiError(error);
+  }
+}
+
+function authenticationRequiredError(): ApiError {
+  return new ApiError("Authentication required", 401, {
+    code: "general.permission",
+  });
 }
 
 /**
@@ -111,16 +129,19 @@ export async function getCachedSession() {
  * Fetch with automatic session auth and 401 → refresh → retry.
  * Drop-in replacement for `fetch()` that handles expired tokens transparently.
  * On unrecoverable auth failure, signs out via handleAuthFailure().
+ *
+ * The access token travels only in the session cookie: the BFF routes read it
+ * server-side via auth(). A Bearer header on top sent the same token twice and
+ * pushed large sessions past Node's header limit (HTTP 431, #3918). The
+ * session lookup stays as the signed-in gate before any request goes out.
  */
 export async function sessionFetch(
   url: string,
   init?: RequestInit,
 ): Promise<Response> {
-  const session = await getCachedSession();
-  const token = session?.user?.token;
-
-  if (!token) {
-    throw new Error("No authentication token available");
+  const session = await getSessionOrUnavailable();
+  if (!session?.user?.token) {
+    throw authenticationRequiredError();
   }
 
   const mergedInit: RequestInit = {
@@ -128,7 +149,6 @@ export async function sessionFetch(
     headers: {
       "Content-Type": "application/json",
       ...init?.headers,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   };
 
@@ -143,19 +163,15 @@ export async function sessionFetch(
     const { handleAuthFailure } = await import("./auth-failure");
     const refreshed = await handleAuthFailure();
     if (refreshed) {
-      const freshSession = await getCachedSession();
-      const freshToken = freshSession?.user?.token;
-      return transportFetch(url, {
-        ...init,
-        headers: {
-          "Content-Type": "application/json",
-          ...init?.headers,
-          ...(freshToken ? { Authorization: `Bearer ${freshToken}` } : {}),
-        },
-      });
+      // The refresh does not touch the cookie (see handleAuthFailure); this
+      // session lookup persists the refreshed tokens via Set-Cookie, so the
+      // retry below goes out with the fresh cookie.
+      const freshSession = await getSessionOrUnavailable();
+      if (!freshSession?.user?.token) throw authenticationRequiredError();
+      return transportFetch(url, mergedInit);
     }
     // handleAuthFailure already signed out
-    throw new Error("Authentication expired");
+    throw authenticationRequiredError();
   }
 
   return response;

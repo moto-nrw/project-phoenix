@@ -9,10 +9,18 @@
  * Beides greift auf denselben Zustand zu, ohne ihn zweimal zu laden.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import type { LinkablePhase } from "~/components/timetable/calendar-period-modal";
-import { useToast } from "~/contexts/ToastContext";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { useApiLoadError, useToast } from "~/contexts/ToastContext";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { berlinTodayISO } from "~/lib/date-helpers";
@@ -45,7 +53,12 @@ export interface CalendarPeriodsState {
   readonly periods: CalendarPeriod[];
   readonly phases: Phase[];
   readonly loading: boolean;
-  readonly error: string | null;
+  /** Ladefehler der Zeitraumliste mit Katalogtext, Wiederholen und
+   *  Vorgangskennung (#2516). Für `LoadErrorAlert`. */
+  readonly error: FormErrorInput;
+  /** Der letzte Abruf ist gescheitert. Steht schon, bevor der Katalogtext in
+   *  `error` angekommen ist, damit kein Leerzustand aufblitzt. */
+  readonly loadFailed: boolean;
   /** Statuszeile der Kopfkarte: laufender Zeitraum, Anzahl, davon aktiv. */
   readonly statusLine: string;
   readonly modalOpen: boolean;
@@ -103,7 +116,12 @@ export function useCalendarPeriods(): CalendarPeriodsState {
   const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  // „Wiederholen“ lädt mit dem dann aktuellen Stand neu.
+  const latestReloadRef = useRef<() => void>(() => undefined);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<CalendarPeriod | null>(null);
   const [createDefaults, setCreateDefaults] =
@@ -112,33 +130,49 @@ export function useCalendarPeriods(): CalendarPeriodsState {
 
   // silent: neu laden ohne den Ladezustand der ganzen Fläche — nach dem
   // Verknüpfen einer Anmeldephase, damit der offene Dialog stehen bleibt.
-  const reload = useCallback(async (opts?: { silent?: boolean }) => {
-    if (!opts?.silent) setLoading(true);
-    setError(null);
-    try {
-      const [periodData, phaseData] = await Promise.all([
-        calendarPeriodService.list(),
-        // Die Phasen füllen den Verknüpfungsbereich des Dialogs. Ihr Fehler
-        // darf die Zeitraumliste nicht mitreißen.
-        listPhases().catch((err: unknown) => {
-          logger.warn("calendar_periods_phases_load_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return [] as Phase[];
-        }),
-      ]);
-      setPeriods(
-        [...periodData].sort((a, b) => a.startDate.localeCompare(b.startDate)),
-      );
-      setPhases(phaseData);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("calendar_periods_load_failed", { error: message });
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const reload = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) setLoading(true);
+      try {
+        const [periodData, phaseData] = await Promise.all([
+          calendarPeriodService.list(),
+          // Die Phasen füllen nur den Verknüpfungsbereich des Dialogs.
+          // Bewusst still: ihr Fehler darf die Zeitraumliste nicht mitreißen,
+          // und der Dialog hat keinen Platz für einen eigenen Ladefehler. Sein
+          // Verknüpfungsbereich zeigt dann keine Phasen.
+          listPhases().catch((err: unknown) => {
+            logger.warn("calendar_periods_phases_load_failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            return [] as Phase[];
+          }),
+        ]);
+        setPeriods(
+          [...periodData].sort((a, b) =>
+            a.startDate.localeCompare(b.startDate),
+          ),
+        );
+        setPhases(phaseData);
+        setLoadFailed(false);
+        clearLoadError();
+      } catch (err) {
+        logger.error("calendar_periods_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setLoadFailed(true);
+        void showLoadError(err, {
+          object: "die Liste der Zeiträume",
+          retry: () => latestReloadRef.current(),
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [showLoadError, clearLoadError],
+  );
+  useLayoutEffect(() => {
+    latestReloadRef.current = () => void reload();
+  });
 
   useEffect(() => {
     void reload();
@@ -173,18 +207,16 @@ export function useCalendarPeriods(): CalendarPeriodsState {
         await setPhaseCalendarPeriod(full, link ? target.id : null);
         toastSuccess(
           link
-            ? `Anmeldephase "${full.name}" mit "${target.name}" verknüpft`
-            : `Verknüpfung von "${full.name}" entfernt`,
+            ? `Die Anmeldephase „${full.name}“ ist mit „${target.name}“ verknüpft.`
+            : `Die Anmeldephase „${full.name}“ ist nicht mehr verknüpft.`,
         );
       } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Verknüpfung konnte nicht gespeichert werden";
         logger.error("phase_link_toggle_failed", {
           phase_id: phase.id,
-          error: message,
+          error: err instanceof Error ? err.message : String(err),
         });
+        // Der Fehler gehört in den offenen Zeitraum-Dialog, der die
+        // Verknüpfungen schreibt und dort erneut versuchen lässt.
         throw err;
       } finally {
         await reload({ silent: true });
@@ -213,17 +245,22 @@ export function useCalendarPeriods(): CalendarPeriodsState {
   const currentPeriod = periods.find(
     (period) => period.startDate <= today && period.endDate >= today,
   );
-  const statusLine = `${currentPeriod ? `${currentPeriod.name} · ` : ""}${
-    periods.length
-  } ${periods.length === 1 ? "Zeitraum" : "Zeiträume"} · ${
-    periods.filter((period) => period.isActive).length
-  } aktiv`;
+  // Ohne geladene Liste wäre „0 Zeiträume“ falsch: dann steht nur der Fehler.
+  const statusLine =
+    loadFailed && periods.length === 0
+      ? ""
+      : `${currentPeriod ? `${currentPeriod.name} · ` : ""}${
+          periods.length
+        } ${periods.length === 1 ? "Zeitraum" : "Zeiträume"} · ${
+          periods.filter((period) => period.isActive).length
+        } aktiv`;
 
   return {
     periods,
     phases,
     loading,
-    error,
+    error: load.error,
+    loadFailed,
     statusLine,
     modalOpen,
     editing,

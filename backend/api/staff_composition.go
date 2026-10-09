@@ -12,6 +12,7 @@ import (
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -117,9 +118,9 @@ func newStaffComposition(module schoolMembershipModule.Capability, workforce wor
 	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth,
 		svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport)
 	staffAdmin := newStaffAdminResource(capabilities, workforce, services.StaffTimeTrackingNotifier(svc.RealtimeHub), exportTransfer, db, logger)
-	return newStaffResource(module, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
+	return newStaffResource(module, svc.PeopleDirectory, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
 		return svc.NewStaffMembershipRuntime(db, logger, hooks)
-	}, staffAdmin, db, logger), staffAdmin, nil
+	}, staffAdmin, logger), staffAdmin, nil
 }
 
 // newExportTransferModule wires the Export Transfer capability (#3050) over
@@ -155,7 +156,7 @@ func newExportTransferModule(svc *services.Factory, db *bun.DB, logger *slog.Log
 
 // newStaffResource binds the School Membership HTTP adapter to the shared
 // renderer, the JWT identity and the legacy-service composition.
-func newStaffResource(module schoolMembershipModule.Capability, buildRuntime func(services.StaffMembershipHooks) services.StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource, db *bun.DB, logger *slog.Logger) *staffHTTP.Resource {
+func newStaffResource(module schoolMembershipModule.Capability, people peopleModule.Capability, buildRuntime func(services.StaffMembershipHooks) services.StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource, logger *slog.Logger) *staffHTTP.Resource {
 	runtime := buildRuntime(services.StaffMembershipHooks{
 		ResolveEditorStaffID:           staffAdmin.ResolveEditorStaffID,
 		QueueOffboardedDocumentCleanup: staffAdmin.QueueOffboardedStaffDocumentCleanup,
@@ -165,7 +166,7 @@ func newStaffResource(module schoolMembershipModule.Capability, buildRuntime fun
 		// routes register first, then the workforce admin routes from
 		// the Workforce module, both inside one protected tenant group.
 		Protected: func(router chi.Router, register func(chi.Router, staffHTTP.Middleware)) {
-			apiCommon.ProtectedTenantGroup(router, db, func(protected chi.Router, withTx apiCommon.Middleware) {
+			apiCommon.ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
 				register(protected, withTx)
 				staffAdmin.RegisterStaffRoutes(protected, withTx)
 			})
@@ -186,6 +187,7 @@ func newStaffResource(module schoolMembershipModule.Capability, buildRuntime fun
 		Person:         staffPersonLookup(runtime),
 		PersonNotFound: apiCommon.IsNotFound,
 		Persons:        staffPersonsLookup(runtime),
+		CreatePerson:   staffPersonCreate(people),
 
 		PresentStaffIDs: runtime.PresentStaffIDs,
 		WorkStatusMap:   runtime.WorkStatusMap,
@@ -263,6 +265,21 @@ func staffPersonLookup(runtime services.StaffMembershipRuntime) func(context.Con
 			return staffHTTP.Person{}, err
 		}
 		return toStaffHTTPPerson(person), nil
+	}
+}
+
+// staffPersonCreate adds an account-less People Directory entry for the
+// external caregiver flow (#3823).
+func staffPersonCreate(people peopleModule.Capability) func(context.Context, string, string) (staffHTTP.Person, error) {
+	return func(ctx context.Context, firstName, lastName string) (staffHTTP.Person, error) {
+		person, err := people.CreatePerson(ctx, peopleModule.CreatePerson{FirstName: firstName, LastName: lastName})
+		if err != nil {
+			return staffHTTP.Person{}, err
+		}
+		return staffHTTP.Person{
+			ID: person.ID, FirstName: person.FirstName, LastName: person.LastName,
+			AccountID: person.AccountID, CreatedAt: person.CreatedAt, UpdatedAt: person.UpdatedAt,
+		}, nil
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -72,14 +73,14 @@ func (s *staffDeviations) ApplyBulkSubstitution(ctx context.Context, in timetabl
 // distinct absent/substitute, and existence of both referenced staff members.
 func (s *staffDeviations) validateBulkStaff(ctx context.Context, in timetable.BulkSubstitutionInput) error {
 	if in.AbsentStaffID <= 0 {
-		return timetable.DeviationBadRequest("absent staff must be a positive id")
+		return timetable.DeviationBadRequest("absent staff must be a positive id").WithCode(timetable.CodeDeviationSelectionInvalid).OnField("absent_staff_id")
 	}
 	if in.SubstituteStaffID != nil {
 		if *in.SubstituteStaffID <= 0 {
-			return timetable.DeviationBadRequest("substitute staff must be a positive id")
+			return timetable.DeviationBadRequest("substitute staff must be a positive id").WithCode(timetable.CodeDeviationSelectionInvalid).OnField("substitute_staff_id")
 		}
 		if *in.SubstituteStaffID == in.AbsentStaffID {
-			return timetable.DeviationBadRequest("absent and substitute staff must differ")
+			return timetable.DeviationBadRequest("absent and substitute staff must differ").WithCode(timetable.CodeSubstituteSelf).OnField("substitute_staff_id")
 		}
 	}
 	if err := s.ensureStaffExists(ctx, in.AbsentStaffID, "absent staff"); err != nil {
@@ -99,14 +100,20 @@ func (s *staffDeviations) ensureStaffExists(ctx context.Context, staffID int64, 
 	staff, err := s.deps.Staff.FindByID(ctx, staffID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
-			return timetable.DeviationNotFound(fmt.Sprintf("%s not found", label))
+			return timetable.DeviationNotFound(fmt.Sprintf("%s not found", label)).WithCode(timetable.CodeStaffNotFound).OnField(staffField(label))
 		}
 		return timetable.DeviationInternal("load staff failed", err)
 	}
 	if staff == nil || staff.ID == 0 {
-		return timetable.DeviationNotFound(fmt.Sprintf("%s not found", label))
+		return timetable.DeviationNotFound(fmt.Sprintf("%s not found", label)).WithCode(timetable.CodeStaffNotFound).OnField(staffField(label))
 	}
 	return nil
+}
+
+// staffField names the request field of a staff reference label
+// ("absent staff" → absent_staff_id).
+func staffField(label string) string {
+	return strings.ReplaceAll(label, " ", "_") + "_id"
 }
 
 // planBulkDays runs Phase A for every selected date under the already-held day
@@ -156,7 +163,8 @@ func (s *staffDeviations) planBulkDay(ctx context.Context, in timetable.BulkSubs
 	for _, row := range readSet.rowsByStaff[*in.SubstituteStaffID] {
 		if row.IsAbsent {
 			return bulkDayPlan{}, timetable.DeviationBadRequest(fmt.Sprintf(
-				"die Ersatzperson ist am %s selbst abwesend", date.Format("02.01.2006")))
+				"die Ersatzperson ist am %s selbst abwesend", date.Format("02.01.2006"))).
+				WithCode(timetable.CodeSubstituteAbsentOnDate).OnField("substitute_staff_id").WithValues(timetable.RefusalValues{Date: date.Format(timetable.RefusalDateLayout)})
 		}
 	}
 
@@ -244,7 +252,7 @@ func (s *staffDeviations) clearCoveredAcks(ctx context.Context, actor *int64, su
 // exactly like the single-day past-block guard.
 func normalizeBulkDates(dates []timezone.Date, clocks ...func() timezone.Date) ([]timezone.Date, error) {
 	if len(dates) == 0 {
-		return nil, timetable.DeviationBadRequest("dates must not be empty")
+		return nil, timetable.DeviationBadRequest("dates must not be empty").WithCode(timetable.CodeDatesRequired).OnField("dates")
 	}
 	today := timezone.TodayDate()
 	if len(clocks) > 0 && clocks[0] != nil {
@@ -254,7 +262,8 @@ func normalizeBulkDates(dates []timezone.Date, clocks ...func() timezone.Date) (
 	out := make([]timezone.Date, 0, len(dates))
 	for _, date := range dates {
 		if date.Before(today) {
-			return nil, timetable.DeviationBadRequest("dates must not be in the past")
+			return nil, timetable.DeviationBadRequest("dates must not be in the past").WithCode(timetable.CodeDatesInPast).OnField("dates").
+				WithValues(timetable.RefusalValues{Date: date.Format(timetable.RefusalDateLayout)})
 		}
 		if seen[date] {
 			continue
@@ -263,7 +272,8 @@ func normalizeBulkDates(dates []timezone.Date, clocks ...func() timezone.Date) (
 		out = append(out, date)
 	}
 	if len(out) > timetable.MaxBulkSubstitutionDates {
-		return nil, timetable.DeviationBadRequest(fmt.Sprintf("at most %d dates per request", timetable.MaxBulkSubstitutionDates))
+		return nil, timetable.DeviationBadRequest(fmt.Sprintf("at most %d dates per request", timetable.MaxBulkSubstitutionDates)).
+			WithCode(timetable.CodeTooManyDates).OnField("dates").WithValues(timetable.RefusalValues{Max: timetable.MaxBulkSubstitutionDates})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Before(out[j]) })
 	return out, nil
@@ -274,11 +284,15 @@ func normalizeBulkDates(dates []timezone.Date, clocks ...func() timezone.Date) (
 func bulkDayError(date timezone.Date, err error) error {
 	var de *timetable.DeviationError
 	if errors.As(err, &de) {
+		details := de.Details
+		details.Date = date.Format(timetable.RefusalDateLayout)
 		return &timetable.DeviationError{
 			Status:    de.Status,
 			Code:      de.Code,
 			ClientMsg: fmt.Sprintf("%s: %s", date.Format("02.01.2006"), de.ClientMsg),
 			Cause:     de.Cause,
+			Details:   details,
+			Field:     de.Field,
 		}
 	}
 	return err

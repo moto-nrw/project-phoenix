@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 // Client-seitige API für die Aufsichten im Schul-Portal ("moto schule", #2527).
 //
 // Gleiche Nutzlast wie die OGS-Aufsicht (lib/timetable-operations-types), aber
@@ -142,7 +142,7 @@ export const schoolSupervisionsApi = {
     const raw = await unwrap<{
       instances: Parameters<typeof mapPlannedInstance>[0][] | null;
     }>(
-      await fetch(base, {
+      await transportFetch(base, {
         credentials: "include",
         headers: { Accept: "application/json" },
       }),
@@ -152,7 +152,7 @@ export const schoolSupervisionsApi = {
 
   async roster(instanceId: string): Promise<TimetableRoster> {
     const raw = await unwrap<BackendTimetableRoster>(
-      await fetch(`${base}/${instanceId}/roster`, {
+      await transportFetch(`${base}/${instanceId}/roster`, {
         credentials: "include",
         headers: { Accept: "application/json" },
       }),
@@ -162,7 +162,7 @@ export const schoolSupervisionsApi = {
 
   async start(instanceId: string): Promise<StartOperationResult> {
     const raw = await unwrap<BackendStartOperationResult>(
-      await fetch(`${base}/${instanceId}/start`, jsonRequest("POST")),
+      await transportFetch(`${base}/${instanceId}/start`, jsonRequest("POST")),
     );
     return mapStartOperation(raw);
   },
@@ -172,7 +172,7 @@ export const schoolSupervisionsApi = {
     confirmedPresentStudentIds: string[],
   ): Promise<void> {
     await unwrap<unknown>(
-      await fetch(
+      await transportFetch(
         `${base}/${instanceId}/complete`,
         jsonRequest("POST", {
           confirmed_present_student_ids: confirmedPresentStudentIds.map(Number),
@@ -186,7 +186,7 @@ export const schoolSupervisionsApi = {
     studentId: string,
   ): Promise<TimetableRoster> {
     const raw = await unwrap<BackendTimetableRoster>(
-      await fetch(
+      await transportFetch(
         `${base}/${instanceId}/students/${studentId}/check-in`,
         jsonRequest("POST"),
       ),
@@ -199,7 +199,7 @@ export const schoolSupervisionsApi = {
     studentId: string,
   ): Promise<TimetableRoster> {
     const raw = await unwrap<BackendTimetableRoster>(
-      await fetch(
+      await transportFetch(
         `${base}/${instanceId}/students/${studentId}/check-out`,
         jsonRequest("POST"),
       ),
@@ -213,7 +213,7 @@ export const schoolSupervisionsApi = {
     body: AttendancePatchBody,
   ): Promise<void> {
     await unwrap<unknown>(
-      await fetch(
+      await transportFetch(
         `${base}/${instanceId}/students/${studentId}/attendance`,
         jsonRequest("PATCH", body),
       ),
@@ -226,10 +226,13 @@ export const schoolSupervisionsApi = {
     studentId: string,
   ): Promise<SupervisionStudentSheet> {
     const raw = await unwrap<BackendSupervisionStudentSheet>(
-      await fetch(`${base}/${instanceId}/students/${studentId}/sheet`, {
-        credentials: "include",
-        headers: { Accept: "application/json" },
-      }),
+      await transportFetch(
+        `${base}/${instanceId}/students/${studentId}/sheet`,
+        {
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        },
+      ),
     );
     return mapSheet(raw);
   },

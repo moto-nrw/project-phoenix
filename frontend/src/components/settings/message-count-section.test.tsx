@@ -17,6 +17,19 @@ vi.mock("~/lib/tenant-context", () => ({
 }));
 
 import { MessageCountSection } from "./message-count-section";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError, unavailableApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+const OBJECT = "die Einstellung zur Zahl bei Nachrichten";
+
+// The shared error path shows failures through the toast provider (#2517).
+function renderWithToast(
+  ui: Parameters<typeof render>[0],
+  options?: Parameters<typeof render>[1],
+) {
+  return render(ui, { wrapper: ToastProvider, ...options });
+}
 
 describe("MessageCountSection", () => {
   let unreadRefreshes: number;
@@ -42,7 +55,7 @@ describe("MessageCountSection", () => {
       scope: "own_groups",
       hasOwnGroups: true,
     });
-    render(<MessageCountSection />);
+    renderWithToast(<MessageCountSection />);
 
     expect(
       await screen.findByRole("radio", {
@@ -56,7 +69,7 @@ describe("MessageCountSection", () => {
   });
 
   it("saves a new choice and refreshes the own counter", async () => {
-    render(<MessageCountSection />);
+    renderWithToast(<MessageCountSection />);
 
     fireEvent.click(
       await screen.findByRole("radio", { name: /Keine Zahl anzeigen/ }),
@@ -70,17 +83,16 @@ describe("MessageCountSection", () => {
   });
 
   it("rolls back and says so when saving fails", async () => {
-    mockSaveScope.mockRejectedValue(new Error("network"));
-    render(<MessageCountSection />);
+    mockSaveScope.mockRejectedValue(unavailableApiError(new Error("network")));
+    renderWithToast(<MessageCountSection />);
 
     fireEvent.click(
       await screen.findByRole("radio", { name: /Keine Zahl anzeigen/ }),
     );
 
+    // #2517: a toast with the catalog text, no box in the card.
     expect(
-      await screen.findByText(
-        "Die Einstellung konnte nicht gespeichert werden.",
-      ),
+      await screen.findByText(catalogText("general.unavailable", OBJECT)),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("radio", { name: /Alle Nachrichten/ }),
@@ -90,7 +102,7 @@ describe("MessageCountSection", () => {
 
   it("says when the own groups would count nothing", async () => {
     mockFetchSetting.mockResolvedValue({ scope: "all", hasOwnGroups: false });
-    render(<MessageCountSection />);
+    renderWithToast(<MessageCountSection />);
 
     expect(
       await screen.findByText(
@@ -100,7 +112,7 @@ describe("MessageCountSection", () => {
   });
 
   it("does not repeat the hint for a person with a group", async () => {
-    render(<MessageCountSection />);
+    renderWithToast(<MessageCountSection />);
 
     await screen.findByRole("radio", { name: /Alle Nachrichten/ });
     expect(
@@ -110,16 +122,37 @@ describe("MessageCountSection", () => {
 
   it("stays hidden while the school has messaging off", () => {
     mockTenant.messagingEnabled = false;
-    const { container } = render(<MessageCountSection />);
+    renderWithToast(<MessageCountSection />);
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByText("Zahl bei Nachrichten")).not.toBeInTheDocument();
     expect(mockFetchSetting).not.toHaveBeenCalled();
   });
 
-  it("stays hidden when the setting cannot be loaded", async () => {
-    mockFetchSetting.mockRejectedValue(new Error("forbidden"));
-    const { container } = render(<MessageCountSection />);
+  it("stays hidden for an account without read access", async () => {
+    mockFetchSetting.mockRejectedValue(new ApiError("forbidden", 403));
+    renderWithToast(<MessageCountSection />);
 
-    await waitFor(() => expect(container).toBeEmptyDOMElement());
+    await waitFor(() => expect(mockFetchSetting).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Zahl bei Nachrichten"),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  // #2517: any other failure is shown in place with retry, never hidden.
+  it("shows a failed load in the card and retries", async () => {
+    mockFetchSetting.mockRejectedValueOnce(new ApiError("boom", 500));
+    renderWithToast(<MessageCountSection />);
+
+    expect(
+      await screen.findByText(catalogText("general.server", OBJECT)),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByRole("radio", { name: /Alle Nachrichten/ }),
+    ).toBeChecked();
+    expect(mockFetchSetting).toHaveBeenCalledTimes(2);
   });
 });

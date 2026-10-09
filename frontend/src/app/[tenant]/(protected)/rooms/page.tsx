@@ -1,10 +1,17 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  Suspense,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { CollectionGrid } from "~/components/ui/collection-grid";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -24,6 +31,9 @@ import {
 } from "~/lib/room-helpers";
 import type { BackendRoom } from "~/lib/room-helpers";
 import { useSWRAuth } from "~/lib/swr";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   ArrowRight,
   ChevronRight,
@@ -123,7 +133,7 @@ function RoomsPageContent() {
     () => searchParams.get("status") ?? "all",
   );
   const [isExporting, setIsExporting] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
+  const { show: showError } = useApiErrorDisplay();
 
   // Mirror local filter state into the URL so the current history entry
   // always reflects the user's view: a refresh, a shared link or the way
@@ -161,14 +171,15 @@ function RoomsPageContent() {
     data: roomsData,
     isLoading: loading,
     error: roomsError,
+    mutate: reloadRooms,
   } = useSWRAuth<Room[]>(
     "rooms-list",
     async () => {
       // include_system: this page is the live occupancy view — system rooms
       // (Schulhof, WC) must stay visible here and in the Wer-ist-wo export.
-      const response = await fetch("/api/rooms?include_system=true");
+      const response = await transportFetch("/api/rooms?include_system=true");
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw await apiErrorFromResponse(response, "rooms list failed");
       }
 
       const data = (await response.json()) as
@@ -181,7 +192,7 @@ function RoomsPageContent() {
       } else if (data?.data && Array.isArray(data.data)) {
         roomsData = mapRoomsResponse(data.data);
       } else {
-        throw new Error("Unerwartetes Antwortformat");
+        throw new Error("unexpected rooms response shape");
       }
 
       // Apply color defaults
@@ -202,9 +213,10 @@ function RoomsPageContent() {
     { refreshInterval: 5 * 60 * 1000 },
   );
 
-  const error = roomsError
-    ? "Fehler beim Laden der Raumdaten. Bitte versuchen Sie es später erneut."
-    : null;
+  // Ladefehler mit Katalogtext, Wiederholen und Vorgangskennung (#2517).
+  const error = useSwrLoadError(roomsError, "die Liste der Räume", () =>
+    reloadRooms(),
+  );
 
   // Apply filters
   const filteredRooms = useMemo(() => {
@@ -247,10 +259,13 @@ function RoomsPageContent() {
       .filter((id) => Number.isFinite(id));
   }, [filteredRooms]);
 
+  // „Wiederholen“ exportiert mit den aktuell gefilterten Räumen.
+  const retryExportRef = useRef<(format: RoomSnapshotExportFormat) => void>(
+    () => undefined,
+  );
   const handleExport = useCallback(
     async (format: RoomSnapshotExportFormat) => {
       setIsExporting(true);
-      setExportError(null);
       try {
         await exportRoomSnapshot({
           format,
@@ -258,16 +273,20 @@ function RoomsPageContent() {
           room_ids: exportRoomIds,
           include_transit: true,
         });
-      } catch {
-        setExportError(
-          "Der Raum-Snapshot konnte nicht exportiert werden. Bitte versuchen Sie es erneut.",
-        );
+      } catch (exportError) {
+        void showError(exportError, {
+          object: "die Liste „Wer ist wo“",
+          retry: () => retryExportRef.current(format),
+        });
       } finally {
         setIsExporting(false);
       }
     },
-    [exportRoomIds],
+    [exportRoomIds, showError],
   );
+  useLayoutEffect(() => {
+    retryExportRef.current = (format) => void handleExport(format);
+  });
 
   // Der Rückweg trägt die Filter mit, damit „Zurück" aus der Raumseite
   // dieselbe eingegrenzte Übersicht zeigt, die man verlassen hat.
@@ -380,7 +399,7 @@ function RoomsPageContent() {
         badge: exportTargetCount,
         disabled: loading || isExporting,
         onClick: () => {
-          handleExport("pdf").catch(() => undefined);
+          void handleExport("pdf");
         },
       },
       {
@@ -389,7 +408,7 @@ function RoomsPageContent() {
         badge: exportTargetCount,
         disabled: loading || isExporting,
         onClick: () => {
-          handleExport("docx").catch(() => undefined);
+          void handleExport("docx");
         },
       },
       {
@@ -398,7 +417,7 @@ function RoomsPageContent() {
         badge: exportTargetCount,
         disabled: loading || isExporting,
         onClick: () => {
-          handleExport("xlsx").catch(() => undefined);
+          void handleExport("xlsx");
         },
       },
     ],
@@ -423,10 +442,7 @@ function RoomsPageContent() {
     setOccupiedFilter("all");
   }, []);
   const emptyState =
-    !showSkeleton &&
-    !showTransitAssignment &&
-    !exportError &&
-    filteredRooms.length === 0
+    !showSkeleton && !showTransitAssignment && filteredRooms.length === 0
       ? hasActiveFilters
         ? {
             icon: <MotoConceptIcon concept="rooms" size={48} />,
@@ -448,10 +464,11 @@ function RoomsPageContent() {
       : null;
 
   // Statuszeile unter dem Seitentitel, allein aus der geladenen Raumliste.
+  // Ohne geladene Liste steht keine "0 Räume" da (#2517).
   const roomSummary = (() => {
-    const rooms = roomsData ?? [];
-    const occupied = rooms.filter((room) => room.isOccupied).length;
-    return `${rooms.length} ${rooms.length === 1 ? "Raum" : "Räume"} · ${occupied} belegt`;
+    if (!roomsData) return null;
+    const occupied = roomsData.filter((room) => room.isOccupied).length;
+    return `${roomsData.length} ${roomsData.length === 1 ? "Raum" : "Räume"} · ${occupied} belegt`;
   })();
 
   return (
@@ -473,8 +490,6 @@ function RoomsPageContent() {
       error={error}
       empty={emptyState}
     >
-      {exportError && <Alert type="error" message={exportError} />}
-
       {/* Room Cards Grid, skeleton mirrors the populated grid's column
           breakpoints and per-card shape (rounded-2xl, min-h-[180px],
           header row + meta line + status pill, middle content rows,

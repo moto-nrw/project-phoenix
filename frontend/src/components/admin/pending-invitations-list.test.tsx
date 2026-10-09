@@ -6,13 +6,22 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PendingInvitationsList } from "./pending-invitations-list";
 import type { PendingInvitation } from "~/lib/invitation-helpers";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
-// Mock dependencies
-vi.mock("~/contexts/ToastContext", () => ({
+// Mock dependencies. Load and dialog errors run through the real hooks; the
+// resend error is spied at the action path (#2517).
+const { mockShowActionError, mockToastError } = vi.hoisted(() => ({
+  mockShowActionError: vi.fn(),
+  mockToastError: vi.fn(),
+}));
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: vi.fn(() => ({
     success: vi.fn(),
-    error: vi.fn(),
+    error: mockToastError,
   })),
+  useApiErrorDisplay: () => ({ show: mockShowActionError }),
 }));
 
 vi.mock("~/components/ui/modal", () => ({
@@ -238,15 +247,49 @@ describe("PendingInvitationsList", () => {
     });
   });
 
+  // #2517: catalog text in the card instead of the raw message; retry
+  // reloads; a failed load is no empty list.
   it("shows error state when loading fails", async () => {
-    mockListPendingInvitations.mockRejectedValue(new Error("Failed to load"));
+    mockListPendingInvitations
+      .mockRejectedValueOnce(
+        new ApiError("Failed to load", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce([]);
 
     render(<PendingInvitationsList refreshKey={0} />);
 
-    await waitFor(() => {
-      // Error object's message is shown directly
-      expect(screen.getByText(/Failed to load/)).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der offenen Einladungen"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to load/)).toBeNull();
+    expect(screen.queryByText("Keine offenen Einladungen")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByText("Keine offenen Einladungen"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps a failed revoke in the confirmation dialog", async () => {
+    mockRevokeInvitation.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server" }),
+    );
+
+    render(<PendingInvitationsList refreshKey={0} />);
+    await openRowMenu(1);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
+    fireEvent.click(await screen.findByTestId("confirm-button"));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "das Widerrufen der Einladung"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+    expect(mockToastError).not.toHaveBeenCalled();
   });
 
   it("reloads when refreshKey changes", async () => {

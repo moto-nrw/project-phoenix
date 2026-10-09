@@ -1,18 +1,12 @@
-import { NextResponse } from "next/server";
 import { createPublicJsonProxy } from "~/lib/backend-proxy-route.server";
+import { operatorErrorResponse } from "~/lib/operator/route-wrapper.server";
 
 export const POST = createPublicJsonProxy({
   method: "POST",
   path: "/operator/auth/email-confirm",
   forwardClientHeaders: true,
   invalidJsonResponse: () =>
-    NextResponse.json(
-      { status: "error", error: "Ungültige Anfrage" },
-      { status: 400 },
-    ),
+    operatorErrorResponse(400, "general.input", "Invalid JSON request body"),
   networkErrorResponse: () =>
-    NextResponse.json(
-      { status: "error", error: "Ein interner Fehler ist aufgetreten" },
-      { status: 500 },
-    ),
+    operatorErrorResponse(503, "general.unavailable", "Backend request failed"),
 });

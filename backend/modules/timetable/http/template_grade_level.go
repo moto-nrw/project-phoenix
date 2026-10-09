@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 )
@@ -29,12 +27,4 @@ func (rs *Resource) resolveTemplateGradeLevelMax(ctx context.Context) (int, erro
 		)
 	}
 	return value, nil
-}
-
-func renderTemplateTargetGradeLimit(w http.ResponseWriter, r *http.Request, err error) bool {
-	if !errors.Is(err, timetableModule.ErrTemplateTargetGradeExceedsLimit) {
-		return false
-	}
-	common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	return true
 }

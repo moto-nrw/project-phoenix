@@ -126,7 +126,7 @@ func buildSchemaWithScope(
 		}
 	}
 
-	if err := projectParentAbsenceReviewScope(resolvedMap, snapshot); err != nil {
+	if err := projectParentReviewScopes(resolvedMap, outputMap, snapshot); err != nil {
 		return nil, err
 	}
 	if err := projectParentReportModes(resolvedMap, outputMap, snapshot); err != nil {

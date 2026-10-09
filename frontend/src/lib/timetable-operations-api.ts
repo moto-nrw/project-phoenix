@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, transportFetch } from "./api-error";
 import type {
   AttendancePatchBody,
   BackendStartOperationResult,
@@ -33,7 +33,7 @@ export interface SpontaneousStartBody {
   title: string;
   room_id: number;
   activity_group_id?: number;
-  staff_ids?: number[];
+  staff_ids?: string[];
 }
 
 export class TimetableOperationsApiError extends ApiError {
@@ -110,7 +110,7 @@ export const timetableOperationsApi = {
     const raw = await unwrap<{
       instances: Parameters<typeof mapPlannedInstance>[0][];
     }>(
-      await fetch(`/api/timetable/operations/planned-now${suffix}`, {
+      await transportFetch(`/api/timetable/operations/planned-now${suffix}`, {
         credentials: "include",
         headers: { Accept: "application/json" },
       }),
@@ -120,11 +120,14 @@ export const timetableOperationsApi = {
 
   async start(instanceId: string): Promise<StartOperationResult> {
     const raw = await unwrap<BackendStartOperationResult>(
-      await fetch(`/api/timetable/operations/instances/${instanceId}/start`, {
-        method: "POST",
-        credentials: "include",
-        headers: { Accept: "application/json" },
-      }),
+      await transportFetch(
+        `/api/timetable/operations/instances/${instanceId}/start`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        },
+      ),
     );
     return mapStartOperation(raw);
   },
@@ -133,7 +136,7 @@ export const timetableOperationsApi = {
     body: SpontaneousStartBody,
   ): Promise<StartOperationResult> {
     const raw = await unwrap<BackendStartOperationResult>(
-      await fetch("/api/timetable/operations/spontaneous/start", {
+      await transportFetch("/api/timetable/operations/spontaneous/start", {
         method: "POST",
         credentials: "include",
         headers: {
@@ -148,17 +151,20 @@ export const timetableOperationsApi = {
 
   async roster(instanceId: string): Promise<TimetableRoster> {
     const raw = await unwrap<BackendTimetableRoster>(
-      await fetch(`/api/timetable/operations/instances/${instanceId}/roster`, {
-        credentials: "include",
-        headers: { Accept: "application/json" },
-      }),
+      await transportFetch(
+        `/api/timetable/operations/instances/${instanceId}/roster`,
+        {
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        },
+      ),
     );
     return mapRoster(raw);
   },
 
   async rosterByActiveGroup(activeGroupId: string): Promise<TimetableRoster> {
     const raw = await unwrap<BackendTimetableRoster>(
-      await fetch(
+      await transportFetch(
         `/api/timetable/operations/active-groups/${activeGroupId}/roster`,
         {
           credentials: "include",
@@ -174,7 +180,7 @@ export const timetableOperationsApi = {
     studentId: string,
   ): Promise<TimetableRoster> {
     const raw = await unwrap<BackendTimetableRoster>(
-      await fetch(
+      await transportFetch(
         `/api/timetable/operations/instances/${instanceId}/students/${studentId}/check-in`,
         {
           method: "POST",
@@ -186,12 +192,38 @@ export const timetableOperationsApi = {
     return mapRoster(raw);
   },
 
+  // Sammel-Check-in (#3824): alle ausgewählten Kinder in einem Aufruf. Der
+  // Server trägt alle ein oder keines.
+  async checkInMany(
+    instanceId: string,
+    studentIds: readonly string[],
+  ): Promise<TimetableRoster> {
+    const raw = await unwrap<BackendTimetableRoster>(
+      await transportFetch(
+        `/api/timetable/operations/instances/${instanceId}/students/check-in`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          // int64 IDs travel as decimal strings. The BFF parses and serializes
+          // this body again, so JSON numbers above 2^53 would otherwise lose
+          // their identity before the Go handler sees them.
+          body: JSON.stringify({ student_ids: studentIds }),
+        },
+      ),
+    );
+    return mapRoster(raw);
+  },
+
   async checkOut(
     instanceId: string,
     studentId: string,
   ): Promise<TimetableRoster> {
     const raw = await unwrap<BackendTimetableRoster>(
-      await fetch(
+      await transportFetch(
         `/api/timetable/operations/instances/${instanceId}/students/${studentId}/check-out`,
         {
           method: "POST",
@@ -209,7 +241,7 @@ export const timetableOperationsApi = {
     body: AttendancePatchBody,
   ): Promise<void> {
     await unwrap<unknown>(
-      await fetch(
+      await transportFetch(
         `/api/timetable/operations/instances/${instanceId}/students/${studentId}/attendance`,
         {
           method: "PATCH",
@@ -229,7 +261,7 @@ export const timetableOperationsApi = {
     confirmedPresentStudentIds: string[],
   ): Promise<{ reopenUntil?: string }> {
     const raw = await unwrap<{ reopen_until?: string }>(
-      await fetch(
+      await transportFetch(
         `/api/timetable/operations/instances/${instanceId}/complete`,
         {
           method: "POST",
@@ -250,11 +282,14 @@ export const timetableOperationsApi = {
 
   async reopen(instanceId: string): Promise<StartOperationResult> {
     const raw = await unwrap<BackendStartOperationResult>(
-      await fetch(`/api/timetable/operations/instances/${instanceId}/reopen`, {
-        method: "POST",
-        credentials: "include",
-        headers: { Accept: "application/json" },
-      }),
+      await transportFetch(
+        `/api/timetable/operations/instances/${instanceId}/reopen`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        },
+      ),
     );
     return mapStartOperation(raw);
   },

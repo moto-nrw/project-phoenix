@@ -1,3 +1,4 @@
+import { apiErrorFromResponse } from "~/lib/api-error";
 import { sessionFetch } from "~/lib/session-cache";
 
 export interface StaffGroupLeaderCandidate {
@@ -19,7 +20,10 @@ export async function fetchGroupLeaderCandidates(): Promise<
     method: "GET",
   });
   if (!response.ok) {
-    throw new Error("Fachkräfte konnten nicht geladen werden.");
+    throw await apiErrorFromResponse(
+      response,
+      "Group leader candidates failed",
+    );
   }
   const data = (await response.json()) as {
     data: BackendStaffGroupLeaderCandidate[] | null;

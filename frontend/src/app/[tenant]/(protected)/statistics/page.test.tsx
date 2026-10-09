@@ -1,8 +1,22 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import StatisticsPage from "./page";
-import { StatisticsError, type StatisticsReport } from "~/lib/statistics-api";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import type { StatisticsReport } from "~/lib/statistics-api";
+import { catalogText } from "~/test/error-catalog-text";
+
+// Exportfehler kommen als Toast (#2517).
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({ push: vi.fn(), replace: vi.fn() })),
@@ -125,7 +139,7 @@ describe("Statistik — Bereich Kurse (#2891)", () => {
   });
 
   it("zeigt bei fehlendem Zugriff weiterhin die bisherige Meldung", async () => {
-    mockFetchReport.mockRejectedValueOnce(new StatisticsError("forbidden"));
+    mockFetchReport.mockRejectedValueOnce(new ApiError("forbidden", 403));
     render(<StatisticsPage />);
 
     await waitFor(() =>
@@ -135,6 +149,36 @@ describe("Statistik — Bereich Kurse (#2891)", () => {
         ),
       ).toBeVisible(),
     );
+  });
+
+  it("zeigt einen Ladefehler mit Katalogtext und lädt auf Wiederholen neu", async () => {
+    mockFetchReport.mockRejectedValueOnce(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+    render(<StatisticsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Statistik"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mockFetchReport).toHaveBeenCalledTimes(2));
+  });
+
+  it("erklärt einen ungültigen Zeitraum mit dem eigenen Text", async () => {
+    mockFetchReport.mockRejectedValueOnce(
+      new ApiError("bad range", 400, {
+        code: "presence.statistics_range_invalid",
+      }),
+    );
+    render(<StatisticsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("presence.statistics_range_invalid", "die Statistik"),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("zeigt je Kurs Termine, abgesagte Termine und die Quote", async () => {

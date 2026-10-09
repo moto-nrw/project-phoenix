@@ -9,13 +9,14 @@ import type {
 } from "~/lib/timetable-types";
 import * as plannerReferenceApi from "~/lib/planner-reference-api";
 import { planningTrackService } from "~/lib/planning-track-api";
-import { staffService } from "~/lib/staff-api";
+import { staffService, type Staff } from "~/lib/staff-api";
 import { timetableService } from "~/lib/timetable-api";
 import * as formModel from "./form-model";
 import { reconcileCategoryId, useEventForm } from "./use-event-form";
 import type { UseEventFormParams } from "./use-event-form";
 
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({
     success: vi.fn(),
     error: vi.fn(),
@@ -53,6 +54,61 @@ describe("reconcileCategoryId", () => {
     expect(reconcileCategoryId("1", categories, "3")).toBe("3");
   });
 });
+
+describe("useEventForm staff selection", () => {
+  it("leaves external caregivers out of planned rosters", async () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([
+      plannerStaff("1", "Interne Kraft", false),
+      plannerStaff("2", "Externe Kraft", true),
+    ]);
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        planningPeriods: null,
+        initialInstance: null,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(result.current.staff).toEqual([
+        { id: "1", name: "Interne Kraft" },
+      ]),
+    );
+  });
+});
+
+function plannerStaff(id: string, name: string, isExternal: boolean): Staff {
+  const [firstName, lastName] = name.split(" ");
+  return {
+    id,
+    name,
+    firstName: firstName ?? "",
+    lastName: lastName ?? "",
+    hasRfid: false,
+    isTeacher: false,
+    isSupervising: false,
+    supervisions: [],
+    isExternal,
+  };
+}
 
 describe("useEventForm planning-track refresh", () => {
   it("keeps a newer planning-track refresh when the initial load finishes later", async () => {

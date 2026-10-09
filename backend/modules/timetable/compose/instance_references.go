@@ -13,27 +13,36 @@ import (
 // instanceReferences are the tenant-scoped foreign ids a planner write
 // supplies.
 type instanceReferences struct {
-	roomID           int64
-	activityGroupID  *int64
-	staffIDs         []int64
-	studentIDs       []int64
-	createdByStaffID *int64
+	roomID                  int64
+	activityGroupID         *int64
+	staffIDs                []int64
+	studentIDs              []int64
+	createdByStaffID        *int64
+	allowExternalCaregivers bool
 }
 
 // validateInstanceReferences checks every supplied id against the current
-// tenant. date is the date the rows will LIVE on (the target of a move): it
-// decides whether a graduated child is still refused.
-func (s *InstanceLifecycleService) validateInstanceReferences(ctx context.Context, date timezone.Date, refs instanceReferences) error {
-	if err := s.validateRoomReference(ctx, refs.roomID); err != nil {
-		return err
+// tenant and returns the block type of the linked template ("" without one).
+// date is the date the rows will LIVE on (the target of a move): it decides
+// whether a graduated child is still refused.
+func (s *InstanceLifecycleService) validateInstanceReferences(ctx context.Context, date timezone.Date, refs instanceReferences) (string, error) {
+	groupType, err := s.validateActivityGroupReference(ctx, refs.activityGroupID)
+	if err != nil {
+		return "", err
 	}
-	if err := s.validateActivityGroupReference(ctx, refs.activityGroupID); err != nil {
-		return err
+	// A duty occurrence (#3822) may lack a room and never carries children;
+	// every other block needs a room.
+	isDuty := groupType == timetable.GroupTypeDuty
+	if isDuty && len(sliceutil.UniquePositive(refs.studentIDs)) > 0 {
+		return "", fmt.Errorf("%w: a duty has no children", timetable.ErrInvalidInstanceReference)
 	}
-	if err := s.validateStaffReferences(ctx, refs.staffIDs, refs.createdByStaffID); err != nil {
-		return err
+	if err := s.validateRoomReference(ctx, refs.roomID, isDuty); err != nil {
+		return "", err
 	}
-	return s.validateStudentReferences(ctx, date, refs.studentIDs)
+	if err := s.validateStaffReferences(ctx, refs.staffIDs, refs.createdByStaffID, refs.allowExternalCaregivers); err != nil {
+		return "", err
+	}
+	return groupType, s.validateStudentReferences(ctx, date, refs.studentIDs)
 }
 
 // invalidReference reports a lookup failure as such, and a missing row
@@ -45,7 +54,10 @@ func invalidReference(field string, err error) error {
 	return fmt.Errorf("%w: invalid %s", timetable.ErrInvalidInstanceReference, field)
 }
 
-func (s *InstanceLifecycleService) validateRoomReference(ctx context.Context, roomID int64) error {
+func (s *InstanceLifecycleService) validateRoomReference(ctx context.Context, roomID int64, roomOptional bool) error {
+	if roomID == 0 && roomOptional {
+		return nil
+	}
 	if roomID <= 0 {
 		return fmt.Errorf("%w: invalid room_id", timetable.ErrInvalidInstanceReference)
 	}
@@ -55,30 +67,83 @@ func (s *InstanceLifecycleService) validateRoomReference(ctx context.Context, ro
 	return nil
 }
 
-func (s *InstanceLifecycleService) validateActivityGroupReference(ctx context.Context, activityGroupID *int64) error {
+// validateActivityGroupReference checks the optional template link and
+// returns the linked block type ("" without a link).
+func (s *InstanceLifecycleService) validateActivityGroupReference(ctx context.Context, activityGroupID *int64) (string, error) {
 	if activityGroupID == nil {
-		return nil
+		return "", nil
 	}
 	if *activityGroupID <= 0 {
-		return fmt.Errorf("%w: invalid activity_group_id", timetable.ErrInvalidInstanceReference)
+		return "", fmt.Errorf("%w: invalid activity_group_id", timetable.ErrInvalidInstanceReference)
 	}
-	if group, err := s.deps.ActivityGroupRepo.FindByID(ctx, *activityGroupID); err != nil || group == nil {
-		return invalidReference("activity_group_id", err)
+	group, err := s.deps.ActivityGroupRepo.FindByID(ctx, *activityGroupID)
+	if err != nil || group == nil {
+		return "", invalidReference("activity_group_id", err)
+	}
+	return group.Type, nil
+}
+
+func (s *InstanceLifecycleService) validateStaffReferences(ctx context.Context, staffIDs []int64, createdByStaffID *int64, allowExternalCaregivers bool) error {
+	if err := s.validatePlannableStaffReferences(ctx, staffIDs, allowExternalCaregivers); err != nil {
+		return err
+	}
+	return s.validateCreatedByStaffReference(ctx, createdByStaffID)
+}
+
+func (s *InstanceLifecycleService) validatePlannableStaffReferences(ctx context.Context, staffIDs []int64, allowExternalCaregivers bool) error {
+	uniqueStaffIDs := sliceutil.UniquePositive(staffIDs)
+	guestStaffIDs, err := s.findGuestStaffReferences(ctx, uniqueStaffIDs)
+	if err != nil {
+		return err
+	}
+	return s.rejectExternalCaregivers(ctx, guestStaffIDs, allowExternalCaregivers)
+}
+
+func (s *InstanceLifecycleService) findGuestStaffReferences(ctx context.Context, staffIDs []int64) ([]int64, error) {
+	if len(staffIDs) == 0 {
+		return nil, nil
+	}
+	found, err := s.deps.StaffRepo.FindByIDs(ctx, staffIDs)
+	if err != nil {
+		return nil, fmt.Errorf("validate staff_ids: %w", err)
+	}
+	if len(found) != len(staffIDs) {
+		return nil, fmt.Errorf("%w: invalid staff_ids", timetable.ErrInvalidInstanceReference)
+	}
+	guestStaffIDs := make([]int64, 0)
+	for _, staffID := range staffIDs {
+		staff, ok := found[staffID]
+		if !ok || staff == nil {
+			return nil, fmt.Errorf("%w: invalid staff_ids", timetable.ErrInvalidInstanceReference)
+		}
+		if staff.IsGuest {
+			guestStaffIDs = append(guestStaffIDs, staffID)
+		}
+	}
+	return guestStaffIDs, nil
+}
+
+func (s *InstanceLifecycleService) rejectExternalCaregivers(ctx context.Context, guestStaffIDs []int64, allowExternalCaregivers bool) error {
+	if allowExternalCaregivers || len(guestStaffIDs) == 0 {
+		return nil
+	}
+	staffWithPeople, err := s.deps.StaffRepo.FindWithPersonByIDs(ctx, guestStaffIDs)
+	if err != nil {
+		return fmt.Errorf("validate external staff_ids: %w", err)
+	}
+	for _, staffID := range guestStaffIDs {
+		staff, ok := staffWithPeople[staffID]
+		if !ok || staff == nil {
+			return fmt.Errorf("%w: invalid staff_ids", timetable.ErrInvalidInstanceReference)
+		}
+		if staff.IsGuest {
+			return fmt.Errorf("%w: external caregiver in staff_ids", timetable.ErrInvalidInstanceReference)
+		}
 	}
 	return nil
 }
 
-func (s *InstanceLifecycleService) validateStaffReferences(ctx context.Context, staffIDs []int64, createdByStaffID *int64) error {
-	uniqueStaffIDs := sliceutil.UniquePositive(staffIDs)
-	if len(uniqueStaffIDs) > 0 {
-		found, err := s.deps.StaffRepo.FindByIDs(ctx, uniqueStaffIDs)
-		if err != nil {
-			return fmt.Errorf("validate staff_ids: %w", err)
-		}
-		if len(found) != len(uniqueStaffIDs) {
-			return fmt.Errorf("%w: invalid staff_ids", timetable.ErrInvalidInstanceReference)
-		}
-	}
+func (s *InstanceLifecycleService) validateCreatedByStaffReference(ctx context.Context, createdByStaffID *int64) error {
 	if createdByStaffID == nil {
 		return nil
 	}

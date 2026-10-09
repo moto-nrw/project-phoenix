@@ -81,7 +81,7 @@ func (s *operations) loadOpenBlock(ctx context.Context, instanceID int64) (*sche
 		return nil, err
 	}
 	if inst.Status == scheduleModels.InstanceStatusCompleted || inst.Status == scheduleModels.InstanceStatusCancelled {
-		return nil, fmt.Errorf("%w: attendance is frozen after completion", timetable.ErrTimetableOperationConflict)
+		return nil, timetable.WithCode(fmt.Errorf("%w: attendance is frozen after completion", timetable.ErrTimetableOperationConflict), timetable.CodeAttendanceFrozen)
 	}
 	return inst, nil
 }

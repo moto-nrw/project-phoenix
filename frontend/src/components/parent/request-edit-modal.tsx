@@ -1,19 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { TimeField } from "~/components/ui/time-field";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { createLogger } from "~/lib/logger";
+import { useApiFormError } from "~/contexts/ToastContext";
 import {
-  ParentApiError,
   listParentRequestEvents,
   updateExcusedRequest,
   updateMasterDataRequest,
@@ -181,11 +181,13 @@ export function RequestEditModal({
   onSaved: () => void;
 }>) {
   const t = useTranslations("parentRequestEdit");
+  const tError = useTranslations("errorCatalog");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const [draft, setDraft] = useState<Draft>(() => initialDraft(request));
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
+  const { error, show, invalid, fieldError, clear } = useApiFormError(formRef);
   const { version, editedAt } = useRequestVersion(
     studentId,
     request.type,
@@ -197,8 +199,9 @@ export function RequestEditModal({
     setDraft((current) => ({ ...current, ...patch }));
 
   const submit = async () => {
+    const fieldHint = tError("actions.fieldCheck");
     if (request.type === "master_data" && draft.text.trim() === "") {
-      setError(t("valueRequired"));
+      invalid(t("valueRequired"), { "request-value": fieldHint });
       return;
     }
     if (
@@ -206,11 +209,11 @@ export function RequestEditModal({
       reasonRequired &&
       draft.text.trim() === ""
     ) {
-      setError(t("reasonRequired"));
+      invalid(t("reasonRequired"), { "request-reason": fieldHint });
       return;
     }
     setSaving(true);
-    setError(null);
+    clear();
     try {
       await saveRequest(studentId, request, draft, version);
       onSaved();
@@ -220,16 +223,21 @@ export function RequestEditModal({
         error: err instanceof Error ? err.message : String(err),
         request_type: request.type,
       });
-      setError(
-        err instanceof ParentApiError &&
-          err.code === "students.change_request_stale"
-          ? t("staleError")
-          : t("saveError"),
-      );
+      // A stale version (students.change_request_stale) has its own catalog
+      // text that asks to reload the page.
+      void show(err, {
+        object: t("errorObject"),
+        retry: () => void submitRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+  // The retry sends the latest draft, not the one of the failed attempt.
+  const submitRef = useRef(submit);
+  useLayoutEffect(() => {
+    submitRef.current = submit;
+  });
 
   return (
     <Modal
@@ -265,7 +273,8 @@ export function RequestEditModal({
         </>
       }
     >
-      <div className="space-y-4">
+      <div ref={formRef} className="space-y-4">
+        <FormErrorAlert message={error} />
         <p className="text-sm leading-6 text-gray-700">{t("intro")}</p>
         {editedAt && (
           <p className="text-sm text-gray-600">
@@ -341,6 +350,7 @@ export function RequestEditModal({
               autoComplete="off"
               value={draft.text}
               disabled={saving}
+              error={fieldError("request-value")}
               onChange={(event) => set({ text: event.target.value })}
             />
           </label>
@@ -351,6 +361,8 @@ export function RequestEditModal({
               {reasonRequired && <span aria-hidden="true"> *</span>}
             </span>
             <textarea
+              name="request-reason"
+              aria-invalid={fieldError("request-reason") ? true : undefined}
               value={draft.text}
               onChange={(event) => set({ text: event.target.value })}
               rows={3}
@@ -359,7 +371,6 @@ export function RequestEditModal({
             />
           </label>
         )}
-        {error && <Alert type="error" message={error} />}
       </div>
     </Modal>
   );

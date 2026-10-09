@@ -5,13 +5,20 @@
  * behaviour of the schools overview plus create/trash flows.
  */
 import {
-  render,
+  render as renderPlain,
   screen,
   fireEvent,
   waitFor,
   within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 const {
   mockUseSession,
@@ -373,9 +380,11 @@ describe("OperatorSchoolsPage", () => {
 
   it("shows subdomain conflict error when creating school", async () => {
     withDefaultSWR();
-    const { OperatorApiError } = await import("~/lib/operator/api-helpers");
     mockCreateSchool.mockRejectedValue(
-      new OperatorApiError("subdomain already exists", 409),
+      new ApiError("subdomain already exists", 409, {
+        code: "general.business_rejection",
+        errors: [{ field: "subdomain", reason: "taken" }],
+      }),
     );
 
     render(<OperatorSchoolsPage />);
@@ -395,18 +404,24 @@ describe("OperatorSchoolsPage", () => {
 
     fireEvent.click(screen.getByText("Erstellen"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Eine Schule mit dieser Subdomain existiert bereits."),
-      ).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "das Anlegen der Schule"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Subdomain/)).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
   });
 
   it("shows slug conflict error when creating school", async () => {
     withDefaultSWR();
-    const { OperatorApiError } = await import("~/lib/operator/api-helpers");
     mockCreateSchool.mockRejectedValue(
-      new OperatorApiError("slug conflict", 409),
+      new ApiError("slug conflict", 409, {
+        code: "general.business_rejection",
+        errors: [{ field: "slug", reason: "taken" }],
+      }),
     );
 
     render(<OperatorSchoolsPage />);
@@ -426,18 +441,20 @@ describe("OperatorSchoolsPage", () => {
 
     fireEvent.click(screen.getByText("Erstellen"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Eine Schule mit diesem Slug existiert bereits in dieser Organisation.",
-        ),
-      ).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "das Anlegen der Schule"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Slug/)).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
   });
 
   it("handles generic error when creating school", async () => {
     withDefaultSWR();
-    mockCreateSchool.mockRejectedValue(new Error("Network failure"));
+    mockCreateSchool.mockRejectedValue(new ApiError("Network failure", 503));
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {
       // noop
     });
@@ -460,7 +477,12 @@ describe("OperatorSchoolsPage", () => {
     fireEvent.click(screen.getByText("Erstellen"));
 
     await waitFor(() => {
-      expect(screen.getByText("Network failure")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          catalogText("general.unavailable", "das Anlegen der Schule"),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Network failure")).toBeNull();
       expect(consoleError).toHaveBeenCalledWith(
         "school_create_failed",
         expect.objectContaining({ error: "Network failure" }),
@@ -667,5 +689,23 @@ describe("OperatorSchoolsPage", () => {
       expect(screen.getByText("A School")).toBeInTheDocument();
       expect(screen.getByText("Z School")).toBeInTheDocument();
     });
+  });
+
+  // #2519: a failed load is not an empty list.
+  it("shows a failed list load without claiming the list is empty", async () => {
+    withDefaultSWR({
+      schools: [],
+      schoolsError: new ApiError("down", 503),
+      staleData: true,
+    });
+
+    render(<OperatorSchoolsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Schulen"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Keine Schulen")).toBeNull();
   });
 });

@@ -40,7 +40,7 @@ import (
 // MaxParticipants is optional. Omitted or null means no participant limit.
 type createTemplateRequest struct {
 	Name            string `json:"name"`
-	Type            string `json:"type"` // care | activity | external
+	Type            string `json:"type"` // care | activity | external | duty
 	Weekdays        []int  `json:"weekdays"`
 	StartTime       string `json:"start_time"` // HH:MM
 	EndTime         string `json:"end_time"`   // HH:MM
@@ -188,29 +188,24 @@ func normalizeTemplateTargetFields(
 // Bind enforces presence, but defers format/business validation to the
 // handler so error messages are precise.
 func (req *createTemplateRequest) Bind(_ *http.Request) error {
-	if req.Name == "" {
-		return errors.New("name is required")
-	}
-	if len(req.Name) > 255 {
-		return errors.New("name cannot exceed 255 characters")
-	}
-	if req.Notes != nil && len(*req.Notes) > 2000 {
-		return errors.New("notes cannot exceed 2000 characters")
+	invalid := common.CodeTimetableTemplateInvalid
+	if err := validateTemplateTextFields(req.Name, req.Notes); err != nil {
+		return err
 	}
 	if req.StartTime == "" {
-		return errors.New("start_time is required (HH:MM)")
+		return invalidField(invalid, "start_time", "start_time is required (HH:MM)")
 	}
 	if req.EndTime == "" {
-		return errors.New("end_time is required (HH:MM)")
-	}
-	if req.RoomID <= 0 {
-		return errors.New("room_id is required")
+		return invalidField(invalid, "end_time", "end_time is required (HH:MM)")
 	}
 	if req.CategoryID <= 0 {
-		return errors.New("category_id is required")
+		return invalidField(invalid, "category_id", "category_id is required")
 	}
 	if len(req.Weekdays) == 0 {
-		return errors.New("at least one weekday is required")
+		return invalidField(invalid, "weekdays", "at least one weekday is required")
+	}
+	if req.RoomID == 0 && req.Type != timetableModule.GroupTypeDuty {
+		return invalidField(invalid, "room_id", "room_id is required")
 	}
 	if err := validateTemplateWorkdays(req.Weekdays); err != nil {
 		return err
@@ -234,7 +229,48 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 		return err
 	}
 	req.ListKind = listKind
+	return timetableModule.ValidateTemplateShape(timetableModule.TemplateShape{
+		Type: req.Type, RoomID: req.RoomID, TargetGroupType: req.TargetGroupType,
+		HasTargets: len(req.Targets) > 0, HasStudents: hasAssignedStudents(req.StudentIDs, req.WeekdayAssignments),
+		HasOfferingSource: len(req.SourceCareOfferingIDs) > 0, MaxParticipants: derefInt(req.MaxParticipants),
+		ListKind: req.ListKind, EducationGroupID: req.EducationGroupID,
+	})
+}
+
+// validateTemplateTextFields checks the name and note of a template write.
+func validateTemplateTextFields(name string, notes *string) error {
+	invalid := common.CodeTimetableTemplateInvalid
+	if name == "" {
+		return invalidField(invalid, "name", "name is required")
+	}
+	if len(name) > 255 {
+		return invalidField(invalid, "name", "name cannot exceed 255 characters")
+	}
+	if notes != nil && len(*notes) > 2000 {
+		return invalidField(invalid, "notes", "notes cannot exceed 2000 characters")
+	}
 	return nil
+}
+
+// hasAssignedStudents reports whether a template write names any child, on
+// the shared roster or on a weekday deviation.
+func hasAssignedStudents(studentIDs []int64, assignments []weekdayAssignmentRequest) bool {
+	if len(studentIDs) > 0 {
+		return true
+	}
+	for _, assignment := range assignments {
+		if len(assignment.StudentIDs) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func derefInt(value *int) int {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
 
 func validateTemplateWorkdays(weekdays []int) error {
@@ -243,7 +279,8 @@ func validateTemplateWorkdays(weekdays []int) error {
 	}
 	for _, weekday := range weekdays {
 		if weekday > timetableModule.WeekdayFriday {
-			return errors.New("timetable templates can only be scheduled from Monday to Friday")
+			return invalidField(common.CodeTimetableTemplateWeekend, "weekdays",
+				"timetable templates can only be scheduled from Monday to Friday")
 		}
 	}
 	return nil
@@ -307,7 +344,7 @@ type parsedCreateTemplate struct {
 func parseCreateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsedCreateTemplate, bool) {
 	req := &createTemplateRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, bindErrorRenderer(err))
 		return nil, false
 	}
 	return parseBoundCreateTemplateRequest(w, r, req)
@@ -322,7 +359,7 @@ func parseBoundCreateTemplateRequest(
 ) (*parsedCreateTemplate, bool) {
 	if !isValidActivityType(req.Type) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
-			fmt.Errorf("invalid type %q (must be care, activity, or external)", req.Type)))
+			fmt.Errorf("invalid type %q (must be care, activity, external, or duty)", req.Type)))
 		return nil, false
 	}
 	timing, ok := parseTemplateTiming(w, r, req.StartTime, req.EndTime, req.WeekPattern, req.MaxParticipants)
@@ -464,18 +501,11 @@ func buildCreateTemplateInput(
 // the client-correctable grade-cap and education-group precheck failures become
 // 400, everything else a 500.
 func renderCreateTemplateError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, timetableModule.ErrCategoryNotAssignable):
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
-	case errors.Is(err, timetableModule.ErrPlanningTrackNotFound), errors.Is(err, timetableModule.ErrPlanningTrackArchived):
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
-	case errors.Is(err, timetableModule.ErrOfferingSourceInvalid):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case renderTemplateEducationGroupError(w, r, err):
-	case renderTemplateTargetGradeLimit(w, r, err):
-	default:
-		common.RenderError(w, r, common.ErrorInternalServerWrap("create template failed", err))
+	if renderer := templateRefusalRenderer(err); renderer != nil {
+		common.RenderError(w, r, renderer)
+		return
 	}
+	common.RenderError(w, r, common.ErrorInternalServerWrap("create template failed", err))
 }
 
 // materializeTemplateWindow best-effort materializes the requested visible
@@ -513,14 +543,7 @@ func (rs *Resource) materializeTemplateWindow(
 	resp.MaterializedTo = to.Format(dateLayout)
 }
 
-// isValidActivityType matches the constants in models/activities/group.go.
-// Kept local to the handler so the imports stay narrow.
+// isValidActivityType matches the block types of the timetable owner.
 func isValidActivityType(t string) bool {
-	switch t {
-	case timetableModule.GroupTypeCare,
-		timetableModule.GroupTypeActivity,
-		timetableModule.GroupTypeExternal:
-		return true
-	}
-	return false
+	return timetableModule.IsValidGroupType(t)
 }

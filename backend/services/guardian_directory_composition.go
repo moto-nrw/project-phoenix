@@ -341,6 +341,10 @@ func mapGuardianError(err error) error {
 	var validation *usersSvc.ValidationError
 	var stillLinked *usersSvc.GuardianStillLinkedError
 	switch {
+	case errors.As(err, &validation) && errors.Is(err, usersSvc.ErrGuardianEmailInUse):
+		// Still invalid input for every caller; the sentinel adds the code.
+		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianEmailTaken,
+			&peopledirectory.InvalidGuardianError{Reason: validation.Error()})
 	case errors.As(err, &validation):
 		return &peopledirectory.InvalidGuardianError{Reason: validation.Error()}
 	case errors.As(err, &stillLinked):
@@ -587,6 +591,7 @@ type GuardianInvitationSummary struct {
 type PendingGuardianInvitation struct {
 	ID                int64
 	GuardianProfileID int64
+	Token             string
 	CreatedAt         time.Time
 	ExpiresAt         time.Time
 	EmailSentAt       *time.Time
@@ -703,7 +708,7 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 			result := make([]PendingGuardianInvitation, 0, len(invitations))
 			for _, invitation := range invitations {
 				result = append(result, PendingGuardianInvitation{
-					ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, CreatedAt: invitation.CreatedAt,
+					ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, Token: invitation.Token, CreatedAt: invitation.CreatedAt,
 					ExpiresAt: invitation.ExpiresAt, EmailSentAt: invitation.EmailSentAt, EmailError: invitation.EmailError,
 				})
 			}

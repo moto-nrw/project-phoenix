@@ -18,9 +18,9 @@ func newStaffTestResource(module schoolmembership.Capability, svc services.Staff
 	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffAdmin, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth,
 		svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport)
 	admin := newStaffAdminResource(capabilities, nil, nil, nil, db, logger)
-	return newStaffResource(module, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
+	return newStaffResource(module, svc.PeopleDirectory, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
 		return svc.NewStaffMembershipRuntime(db, logger, hooks)
-	}, admin, db, logger)
+	}, admin, logger)
 }
 
 func newCareScheduleTestRouter(db *bun.DB, module services.StudentTestModule) (chi.Router, error) {
@@ -47,5 +47,5 @@ func newDatabaseStatsTestRouter(db *bun.DB) (chi.Router, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newDatabaseStatsRouter(db, read, slog.Default()), nil
+	return newDatabaseStatsRouter(read, slog.Default()), nil
 }

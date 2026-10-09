@@ -79,16 +79,16 @@ func (rs *Resource) renderCorrectionError(w http.ResponseWriter, r *http.Request
 	case errors.As(err, &validationErr):
 		renderValidationErrors(w, r, attendancePatchFieldErrors(validationErr.Fields))
 	case errors.Is(err, timetable.ErrCorrectionReasonRequired):
-		renderValidationErrors(w, r, []fieldError{{Field: "reason", Reason: "a reason is required"}})
+		common.RenderError(w, r, invalidOnField(common.CodeTimetableCorrectionReasonMissing, "reason", "a reason is required"))
 	case errors.Is(err, timetable.ErrCorrectionReasonTooLong):
-		renderValidationErrors(w, r, []fieldError{{Field: "reason", Reason: "reason is too long"}})
+		common.RenderError(w, r, invalidOnField(common.CodeTimetableCorrectionReasonTooLong, "reason", "reason is too long"))
 	case errors.Is(err, timetable.ErrAttendanceEntryNotFound),
 		errors.Is(err, timetable.ErrCorrectionInstanceNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("instance student not found")))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("instance student not found"), common.CodeTimetableAttendanceEntryNotFound))
 	case errors.Is(err, timetable.ErrCorrectionRequiresCompleted):
-		common.RenderError(w, r, common.ErrorConflict(errors.New("only a completed block can be corrected")))
+		common.RenderError(w, r, common.ErrorConflictWithCode(errors.New("only a completed block can be corrected"), common.CodeTimetableCorrectionNotCompleted))
 	case errors.Is(err, timetable.ErrCorrectionCancelled):
-		common.RenderError(w, r, common.ErrorConflict(errors.New("attendance of a cancelled block cannot be corrected")))
+		common.RenderError(w, r, common.ErrorConflictWithCode(errors.New("attendance of a cancelled block cannot be corrected"), common.CodeTimetableCorrectionCancelled))
 	case errors.Is(err, timetable.ErrCorrectionTrailUnavailable):
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("correction trail is not available")))
 	default:

@@ -50,6 +50,7 @@ func newCallerContext(wiring callerContextWiring) (identityaccess.CallerContext,
 	review := &identityCompose.ParentRequestReviewDependencies{
 		Permissions:           ReviewPermissions,
 		GroupLeaderSettingKey: configModels.KeyParentRequestGroupLeaderReviewEnabled,
+		RequestSettingKey:     configModels.KeyParentRequestReviewScope,
 		AbsenceSettingKey:     configModels.KeyParentAbsenceReviewScope,
 		AbsenceReadRequired:   securityruntime.ErrAbsenceReadRequired,
 	}

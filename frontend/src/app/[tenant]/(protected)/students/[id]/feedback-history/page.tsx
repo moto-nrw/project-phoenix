@@ -84,7 +84,11 @@ function StudentFeedbackHistoryPageContent() {
   useSession();
 
   const [student, setStudent] = useState<Student | null>(null);
-  const [feedbackHistory, setFeedbackHistory] = useState<FeedbackEntry[]>([]);
+  // `null` while the history never loaded: no "0 Einträge" next to a load
+  // error (#2517).
+  const [feedbackHistory, setFeedbackHistory] = useState<
+    FeedbackEntry[] | null
+  >(null);
   const [loading, setLoading] = useState(true);
   // Set at once when a load fails, so no „Kind nicht gefunden“ flashes
   // while the catalog text is on its way.
@@ -122,9 +126,9 @@ function StudentFeedbackHistoryPageContent() {
       const studentData =
         studentResult.status === "fulfilled" ? studentResult.value : null;
       setStudent(studentData);
-      if (feedbackResult.status === "fulfilled") {
-        setFeedbackHistory(feedbackResult.value);
-      }
+      setFeedbackHistory(
+        feedbackResult.status === "fulfilled" ? feedbackResult.value : null,
+      );
       const failure =
         studentResult.status === "rejected"
           ? (studentResult.reason as unknown)
@@ -162,6 +166,7 @@ function StudentFeedbackHistoryPageContent() {
   }, [attempt, clearPageError, showPageError, studentId]);
 
   const filteredFeedbackHistory = useMemo(() => {
+    if (feedbackHistory === null) return [];
     if (timeRange === "all") return feedbackHistory;
     const now = new Date();
     const startDate = getStartDateForTimeRange(timeRange, now);
@@ -253,11 +258,15 @@ function StudentFeedbackHistoryPageContent() {
 
   // Statuszeile: Klasse, Gruppe und die Zahl der Einträge im gewählten
   // Zeitraum, alles aus den Daten, die die Seite ohnehin geladen hat.
+  const feedbackLine =
+    feedbackHistory === null
+      ? null
+      : `${totalFeedback} ${totalFeedback === 1 ? "Eintrag" : "Einträge"}`;
   const studentMeta = student
     ? [
         student.school_class,
         student.group_name ? `Gruppe: ${student.group_name}` : null,
-        `${totalFeedback} ${totalFeedback === 1 ? "Eintrag" : "Einträge"}`,
+        feedbackLine,
       ]
         .filter(Boolean)
         .join(" · ")
@@ -290,10 +299,7 @@ function StudentFeedbackHistoryPageContent() {
       <TenantPage
         leading={<ConceptIconTile concept="feedback" variant="page" />}
         title={student?.name ?? "Feedbackhistorie"}
-        stats={
-          studentMeta ||
-          `${totalFeedback} ${totalFeedback === 1 ? "Eintrag" : "Einträge"}`
-        }
+        stats={studentMeta || feedbackLine}
         statsLoading={loading}
         loading={loading}
         error={errorMessage}

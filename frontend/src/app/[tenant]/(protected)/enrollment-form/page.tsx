@@ -10,8 +10,14 @@ export default function EnrollmentFormPage() {
   const { isReady } = useRequirePermission("config:manage");
   // Statuszeile des Seitenkopfs: die Vorlagen, die der Editor ohnehin lädt.
   const [templateCount, setTemplateCount] = useState<number | null>(null);
+  // Nach einem Ladefehler gibt es keine Zahl; die Statuszeile bleibt dann
+  // leer statt dauerhaft als Skelett zu laden.
+  const [loadFailed, setLoadFailed] = useState(false);
   const handleTemplateCountChange = useCallback(
-    (count: number | null) => setTemplateCount(count),
+    (count: number | null, failed: boolean) => {
+      setTemplateCount(count);
+      setLoadFailed(failed);
+    },
     [],
   );
   const statusLine =
@@ -23,7 +29,7 @@ export default function EnrollmentFormPage() {
     <TenantPage
       title="Anmeldeformulare"
       stats={statusLine}
-      statsLoading={statusLine === null}
+      statsLoading={statusLine === null && !loadFailed}
       loading={!isReady}
     >
       <DesktopOnlyNotice />

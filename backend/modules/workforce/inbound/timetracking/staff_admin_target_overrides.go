@@ -155,8 +155,12 @@ func renderTargetOverrideError(w http.ResponseWriter, r *http.Request, err error
 	switch {
 	case errors.Is(err, workforce.ErrStaffTargetOverrideNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.As(err, &typed) && errors.Is(err, workforce.ErrStaffTargetOverrideRejected) && typed.Code != "":
+		common.RenderError(w, r, common.ErrorConflictWithDetails(typed, typed.Code, targetOverrideDetails(typed.Values)))
 	case errors.As(err, &typed) && errors.Is(err, workforce.ErrStaffTargetOverrideRejected):
 		common.RenderError(w, r, common.ErrorConflictMessage(typed.Reason))
+	case errors.As(err, &typed) && typed.Code != "":
+		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(typed, typed.Code, targetOverrideDetails(typed.Values)))
 	case errors.As(err, &typed):
 		common.RenderError(w, r, common.ErrorInvalidRequestMessage(typed.Reason))
 	case errors.Is(err, workforce.ErrInvalidWorkTime):
@@ -164,4 +168,29 @@ func renderTargetOverrideError(w http.ResponseWriter, r *http.Request, err error
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}
+}
+
+// targetOverrideDetails puts the values a coded refusal names into wire form;
+// an unset value is left out, so each code carries only its own parameters.
+func targetOverrideDetails(values workforce.TargetOverrideValues) map[string]any {
+	details := map[string]any{}
+	if values.MaxDays != 0 {
+		details["max_days"] = values.MaxDays
+	}
+	if values.MaxHours != 0 {
+		details["max_hours"] = values.MaxHours
+	}
+	if values.StartDate != "" {
+		details["start_date"] = values.StartDate
+	}
+	if values.EndDate != "" {
+		details["end_date"] = values.EndDate
+	}
+	if values.Month != "" {
+		details["month"] = values.Month
+	}
+	if len(details) == 0 {
+		return nil
+	}
+	return details
 }

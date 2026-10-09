@@ -4,6 +4,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -66,6 +67,8 @@ import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Button, ButtonLink } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
@@ -75,7 +78,11 @@ import {
   useCareOfferingsEnabled,
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
@@ -151,6 +158,18 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const tenantSlug = useTenantSlugSafe();
   const tenantPath = useTenantAwarePath();
   const toast = useToast();
+  const { show: showActionError } = useApiErrorDisplay();
+  const pageError = useApiLoadError();
+  const showPageError = pageError.show;
+  const clearPageError = pageError.clear;
+  const reportLoadError = useApiLoadError();
+  // „Wiederholen“ ruft die aktuelle Fassung auf, nicht die vom Fehler.
+  const reloadPageRef = useRef<() => Promise<void>>(async () => undefined);
+  const handleToggleReadRef = useRef<
+    (requestId: string, read: boolean) => Promise<void>
+  >(async () => undefined);
+  const showReportError = reportLoadError.show;
+  const clearReportError = reportLoadError.clear;
   const [phase, setPhase] = useState<Phase | null>(null);
   const [requests, setRequests] = useState<AdminRequestSummary[]>([]);
   const [statusFilter, setStatusFilter] =
@@ -169,8 +188,9 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const [report, setReport] = useState<CareUsageReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [reportLoading, setReportLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [reportError, setReportError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reportFailed, setReportFailed] = useState(false);
+  const [reportAttempt, setReportAttempt] = useState(0);
   const [busyChildId, setBusyChildId] = useState<string | null>(null);
   const [approvalWithoutOfferingRow, setApprovalWithoutOfferingRow] =
     useState<CareUsageRow | null>(null);
@@ -196,12 +216,20 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   // Rücklauf der bestehenden Kinder (#3379). Der Reiter erscheint nur, wenn
   // die Phase Anmeldungen einem bestehenden Kind zuordnet.
   const [activeTab, setActiveTab] = useState<PhaseDetailTab>("requests");
-  const { data: responseOverview, error: responseOverviewError } =
-    useSWRAuth<PhaseResponseOverview>(
-      `enrollment-phase-responses-${phaseId}`,
-      async () => getPhaseResponseOverview(phaseId),
-      { shouldRetryOnError: false },
-    );
+  const {
+    data: responseOverview,
+    error: responseOverviewError,
+    mutate: reloadResponseOverview,
+  } = useSWRAuth<PhaseResponseOverview>(
+    `enrollment-phase-responses-${phaseId}`,
+    async () => getPhaseResponseOverview(phaseId),
+    { shouldRetryOnError: false },
+  );
+  const responseOverviewLoadError = useSwrLoadError(
+    responseOverviewError,
+    "die Rücklaufübersicht",
+    reloadResponseOverview,
+  );
   const showResponses = responseOverview?.applicable === true;
   const responsesTabActive = showResponses && activeTab === "responses";
 
@@ -215,15 +243,16 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           statusFilter === ALL_STATUS_FILTER ? undefined : statusFilter;
         await exportPhaseRegistrations(phaseId, format, childStatus);
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Export fehlgeschlagen";
-        logger.error("phase_export_failed", { error: message, format });
-        toast.error("Export fehlgeschlagen. Bitte erneut versuchen.");
+        logger.error("phase_export_failed", {
+          error: err instanceof Error ? err.message : "unknown",
+          format,
+        });
+        await showActionError(err, { object: "die Exportdatei" });
       } finally {
         setExportingFormat(null);
       }
     },
-    [phaseId, statusFilter, toast],
+    [phaseId, statusFilter, showActionError],
   );
 
   const reportFilters = useMemo<CareUsageFilters>(() => {
@@ -269,7 +298,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const loadReport = useCallback(
     async (filters: CareUsageFilters, isCancelled?: () => boolean) => {
       setReportLoading(true);
-      setReportError(null);
+      setReportFailed(false);
+      clearReportError();
       setReport(null);
       try {
         const data = await getCareUsageReport(filters);
@@ -282,20 +312,20 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         );
       } catch (err) {
         if (isCancelled?.()) return;
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Auswertung konnte nicht geladen werden";
         logger.error("phase_care_usage_report_load_failed", {
-          error: message,
+          error: err instanceof Error ? err.message : "unknown",
           phase_id: phaseId,
         });
-        setReportError(message);
+        setReportFailed(true);
+        await showReportError(err, {
+          object: "die Auswertung",
+          retry: () => setReportAttempt((attempt) => attempt + 1),
+        });
       } finally {
         if (!isCancelled?.()) setReportLoading(false);
       }
     },
-    [phaseId],
+    [phaseId, clearReportError, showReportError],
   );
   const displayedOfferingIds = explicitOfferingIds ?? defaultOfferingIds;
 
@@ -305,7 +335,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [loadReport, reportFilters]);
+  }, [loadReport, reportFilters, reportAttempt]);
 
   const handleReportExport = useCallback(
     async (
@@ -319,22 +349,20 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         } else {
           await exportCareUsageReport(reportFilters, format);
         }
-        toast.success("Auswertungsexport wurde erstellt.");
+        toast.success("Die Auswertung wurde erstellt.");
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Export fehlgeschlagen";
         logger.error("phase_care_usage_report_export_failed", {
-          error: message,
+          error: err instanceof Error ? err.message : "unknown",
           format,
           layout,
           phase_id: phaseId,
         });
-        toast.error(message);
+        await showActionError(err, { object: "die Auswertung" });
       } finally {
         setExportingReportFormat(null);
       }
     },
-    [phaseId, reportFilters, toast],
+    [phaseId, reportFilters, toast, showActionError],
   );
 
   const handleClassRosterExport = useCallback(
@@ -346,22 +374,20 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           classRosterSchoolClass === ALL_VALUE ? null : classRosterSchoolClass,
           format,
         );
-        toast.success("Klassenliste wurde erstellt.");
+        toast.success("Die Klassenliste wurde erstellt.");
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Export fehlgeschlagen";
         logger.error("phase_class_roster_export_failed", {
-          error: message,
+          error: err instanceof Error ? err.message : "unknown",
           format,
           phase_id: phaseId,
           school_class: classRosterSchoolClass,
         });
-        toast.error(message);
+        await showActionError(err, { object: "die Klassenliste" });
       } finally {
         setExportingClassRosterFormat(null);
       }
     },
-    [classRosterSchoolClass, phaseId, toast],
+    [classRosterSchoolClass, phaseId, toast, showActionError],
   );
 
   const overviewPath = "/admin/enrollments";
@@ -376,7 +402,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const loadData = useCallback(
     async (isCancelled?: () => boolean) => {
       setLoading(true);
-      setError(null);
+      clearPageError();
+      setLoadFailed(false);
       try {
         const [phasesData, requestsData] = await Promise.all([
           listPhases(),
@@ -387,19 +414,24 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         setRequests(requestsData);
       } catch (err) {
         if (isCancelled?.()) return;
-        const message =
-          err instanceof Error ? err.message : "Unbekannter Fehler";
         logger.error("admin_enrollment_phase_detail_load_failed", {
-          error: message,
+          error: err instanceof Error ? err.message : "unknown",
           phase_id: phaseId,
         });
-        setError(message);
+        setLoadFailed(true);
+        await showPageError(err, {
+          object: "die Anmeldephase",
+          retry: () => void reloadPageRef.current(),
+        });
       } finally {
         if (!isCancelled?.()) setLoading(false);
       }
     },
-    [phaseId],
+    [phaseId, clearPageError, showPageError],
   );
+  useLayoutEffect(() => {
+    reloadPageRef.current = () => loadData();
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -454,19 +486,21 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           ),
         );
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Unbekannter Fehler";
         logger.error("admin_enrollment_toggle_read_failed", {
-          error: message,
+          error: err instanceof Error ? err.message : "unknown",
           request_id: requestId,
         });
-        toast.error(
-          "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
-        );
+        await showActionError(err, {
+          object: "die Markierung",
+          retry: () => void handleToggleReadRef.current(requestId, read),
+        });
       }
     },
-    [toast],
+    [showActionError],
   );
+  useLayoutEffect(() => {
+    handleToggleReadRef.current = handleToggleRead;
+  });
 
   const handleQuickDecision = useCallback(
     async (row: CareUsageRow, status: DecisionStatus) => {
@@ -474,27 +508,25 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       try {
         await decideAdminChild(row.request_id, row.child_id, status);
         toast.success(
-          `Entscheidung gespeichert: ${CHILD_STATUS_LABELS[status as ChildStatus]}`,
+          `Die Entscheidung wurde gespeichert: ${CHILD_STATUS_LABELS[status as ChildStatus]}.`,
         );
         await loadData();
         await loadReport(reportFilters);
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Unbekannter Fehler";
         logger.error("admin_enrollment_phase_quick_decision_failed", {
-          error: message,
+          error: err instanceof Error ? err.message : "unknown",
           request_id: row.request_id,
           child_id: row.child_id,
           status,
         });
         // Nur als Toast: der Seitenfehler ersetzt die ganze Tabelle und ist
         // Ladefehlern vorbehalten (#3570).
-        toast.error(message);
+        await showActionError(err, { object: "die Entscheidung" });
       } finally {
         setBusyChildId(null);
       }
     },
-    [loadData, loadReport, reportFilters, toast],
+    [loadData, loadReport, reportFilters, toast, showActionError],
   );
 
   const requestQuickDecision = useCallback(
@@ -834,14 +866,14 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     );
   }
 
-  if (error) {
+  if (loadFailed) {
     return (
       <TenantPage
         title="Anmeldephase"
         back
         backHref={overviewPath}
         backLabel="Zurück zur Anmeldungs-Übersicht"
-        error={error}
+        error={pageError.error ?? undefined}
       />
     );
   }
@@ -950,13 +982,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           : undefined
       }
     >
-      {responseOverviewError ? (
-        <Alert
-          type="error"
-          title="Rücklauf nicht geladen"
-          message="Der Rücklauf konnte nicht geladen werden. Die Anmeldungen bleiben verfügbar."
-        />
-      ) : null}
+      <LoadErrorAlert error={responseOverviewLoadError} />
       {responsesTabActive ? (
         <PhaseResponseOverviewPanel
           overview={responseOverview}
@@ -991,39 +1017,45 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             onExport={(format) => void handleClassRosterExport(format)}
           />
 
-          {reportError ? <Alert type="error" message={reportError} /> : null}
+          {reportFailed ? (
+            // Ohne Auswertung keine Zahlen und keine Tabelle: 0 Kinder oder
+            // "Noch keine Anmeldungen" wären falsch.
+            <LoadErrorAlert error={reportLoadError.error} />
+          ) : (
+            <>
+              <ReportStats
+                report={report}
+                loading={reportLoading}
+                exportingFormat={exportingReportFormat}
+                onExport={(format, layout) =>
+                  void handleReportExport(format, layout)
+                }
+              />
 
-          <ReportStats
-            report={report}
-            loading={reportLoading}
-            exportingFormat={exportingReportFormat}
-            onExport={(format, layout) =>
-              void handleReportExport(format, layout)
-            }
-          />
-
-          <DataTable
-            columns={columns}
-            rows={report?.rows ?? []}
-            getRowKey={(row) => row.child_id}
-            defaultSortKey="child"
-            defaultSortDirection="asc"
-            isLoading={reportLoading}
-            emptyState={
-              <div className="mx-auto max-w-md py-6">
-                <p className="font-medium text-gray-900">
-                  {requests.length === 0 && !reportLoading
-                    ? "Noch keine Anmeldungen eingegangen"
-                    : "Keine Kinder für diese Filter gefunden"}
-                </p>
-                <p className="mt-1 text-sm text-gray-500">
-                  {requests.length === 0 && !reportLoading
-                    ? "Sobald Eltern das Formular absenden, erscheinen die Eingänge hier."
-                    : "Passe Status, Angebot, Betreuungstage, Zielklasse oder Suche an."}
-                </p>
-              </div>
-            }
-          />
+              <DataTable
+                columns={columns}
+                rows={report?.rows ?? []}
+                getRowKey={(row) => row.child_id}
+                defaultSortKey="child"
+                defaultSortDirection="asc"
+                isLoading={reportLoading}
+                emptyState={
+                  <div className="mx-auto max-w-md py-6">
+                    <p className="font-medium text-gray-900">
+                      {requests.length === 0 && !reportLoading
+                        ? "Noch keine Anmeldungen eingegangen"
+                        : "Keine Kinder für diese Filter gefunden"}
+                    </p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {requests.length === 0 && !reportLoading
+                        ? "Sobald Eltern das Formular absenden, erscheinen die Eingänge hier."
+                        : "Passen Sie Status, Angebot, Betreuungstage, Zielklasse oder Suche an."}
+                    </p>
+                  </div>
+                }
+              />
+            </>
+          )}
           <ConfirmationModal
             isOpen={approvalWithoutOfferingRow !== null}
             onClose={() => setApprovalWithoutOfferingRow(null)}

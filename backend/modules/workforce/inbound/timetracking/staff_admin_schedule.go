@@ -81,7 +81,9 @@ func (rs *StaffAdminResource) updateSchedule(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := rs.WorkSessionService.UpdateStaffSchedule(r.Context(), staff.ID, req.toServiceInput()); err != nil {
-		if errors.Is(err, workforce.ErrScheduleValidation) {
+		// ErrInvalidWorkTime is the Workforce module refusing the version itself,
+		// such as a valid_from it does not accept (#3892).
+		if errors.Is(err, workforce.ErrScheduleValidation) || errors.Is(err, workforce.ErrInvalidWorkTime) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServer(err))

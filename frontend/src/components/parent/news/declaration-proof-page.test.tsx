@@ -1,9 +1,22 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DeclarationProofPage } from "./declaration-proof-page";
 import * as parentApi from "~/lib/parent-api";
 import { ParentApiError, type ParentDeclarationProof } from "~/lib/parent-api";
+import { ToastProvider } from "~/contexts/ToastContext";
+import { catalogText } from "~/test/error-catalog-text";
+
+// The PDF download reports its error as a toast of the shared error path.
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 const searchParams = vi.hoisted(() => new URLSearchParams("student=5"));
 
@@ -145,7 +158,7 @@ describe("Nachweis eines Einverständnisses im Eltern-Portal (#3430)", () => {
     vi.spyOn(parentApi, "fetchDeclarationProof").mockResolvedValue(proof);
     const download = vi
       .spyOn(parentApi, "downloadDeclarationProofPdf")
-      .mockRejectedValueOnce(new ParentApiError("boom", 500))
+      .mockRejectedValueOnce(new ParentApiError("boom", 500, "general.server"))
       .mockResolvedValueOnce(undefined);
 
     render(<DeclarationProofPage announcementId="42" />);
@@ -154,20 +167,14 @@ describe("Nachweis eines Einverständnisses im Eltern-Portal (#3430)", () => {
       await screen.findByRole("button", { name: "Als PDF herunterladen" }),
     );
     await waitFor(() => expect(download).toHaveBeenCalledWith("42", "5"));
-    expect(
-      await screen.findByText(
-        "Das PDF konnte nicht erstellt werden. Bitte versuchen Sie es noch einmal.",
-      ),
-    ).toBeInTheDocument();
+    const text = catalogText("general.server", "das PDF");
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Als PDF herunterladen" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Wiederholen/ }));
     await waitFor(() => expect(download).toHaveBeenCalledTimes(2));
     await waitFor(() =>
-      expect(
-        screen.queryByText(/Das PDF konnte nicht erstellt werden/),
-      ).not.toBeInTheDocument(),
+      expect(screen.queryByText(text)).not.toBeInTheDocument(),
     );
   });
 
@@ -191,14 +198,20 @@ describe("Nachweis eines Einverständnisses im Eltern-Portal (#3430)", () => {
   it("offers a retry when loading fails", async () => {
     const load = vi
       .spyOn(parentApi, "fetchDeclarationProof")
-      .mockRejectedValueOnce(new ParentApiError("boom", 500))
+      .mockRejectedValueOnce(
+        new ParentApiError("boom", 503, "general.unavailable"),
+      )
       .mockResolvedValueOnce(proof);
 
     render(<DeclarationProofPage announcementId="42" />);
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Erneut versuchen" }),
-    );
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "das Nachweisdokument"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     expect(
       await screen.findByRole("button", { name: "Als PDF herunterladen" }),

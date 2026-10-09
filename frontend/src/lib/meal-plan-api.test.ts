@@ -73,13 +73,15 @@ describe("getMealPlanWeek", () => {
     expect(out).toEqual([]);
   });
 
-  it("throws on a non-OK response", async () => {
+  it("throws an ApiError with the status class on a non-OK response", async () => {
     mockedFetch.mockResolvedValue(
       new Response("boom", { status: 500, statusText: "Server Error" }),
     );
-    await expect(getMealPlanWeek("2026-07-06")).rejects.toThrow(
-      /Failed to fetch meal plan/,
-    );
+    await expect(getMealPlanWeek("2026-07-06")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 500,
+      code: "general.server",
+    });
   });
 
   it("URL-encodes the week start", async () => {
@@ -111,13 +113,24 @@ describe("setDay", () => {
     });
   });
 
-  it("throws and logs on a non-OK response", async () => {
+  it("keeps code, field errors and request id of a refused save", async () => {
     mockedFetch.mockResolvedValue(
-      new Response("nope", { status: 409, statusText: "Conflict" }),
+      new Response(
+        JSON.stringify({
+          code: "meals.invalid_dishes",
+          errors: [{ field: "dishes", reason: "invalid" }],
+          instance: "req-1",
+        }),
+        { status: 400, statusText: "Bad Request" },
+      ),
     );
-    await expect(setDay("2026-07-06", [])).rejects.toThrow(
-      /Failed to save meal plan day/,
-    );
+    await expect(setDay("2026-07-06", [])).rejects.toMatchObject({
+      name: "ApiError",
+      status: 400,
+      code: "meals.invalid_dishes",
+      errors: [{ field: "dishes", reason: "invalid" }],
+      requestId: "req-1",
+    });
   });
 });
 

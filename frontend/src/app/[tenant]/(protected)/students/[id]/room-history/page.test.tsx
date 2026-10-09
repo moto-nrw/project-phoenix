@@ -1,6 +1,7 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useSession } from "next-auth/react";
+import { catalogText } from "~/test/error-catalog-text";
 import StudentRoomHistoryPage from "./page";
 
 const mockPush = vi.fn();
@@ -361,10 +362,10 @@ describe("StudentRoomHistoryPage", () => {
     expect(mockPush).toHaveBeenCalledWith("/test-tenant/students/search");
   });
 
-  it("handles fetch exception gracefully", async () => {
+  it("shows a failed connection as unavailable, not as a crash", async () => {
     mockFetch.mockImplementation((url: string) => {
       if (url.includes("/attendance-history")) {
-        return Promise.reject(new Error("Network error"));
+        return Promise.reject(new TypeError("Failed to fetch"));
       }
       return Promise.resolve(mockStudentResponse());
     });
@@ -374,10 +375,12 @@ describe("StudentRoomHistoryPage", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Das Anwesenheitsprotokoll konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+          catalogText("general.unavailable", "das Anwesenheitsprotokoll"),
         ),
       ).toBeInTheDocument();
     });
+    // #2517: keine Zählung aus einem Protokoll, das nie geladen wurde.
+    expect(screen.queryByText(/0 Tage erfasst/)).not.toBeInTheDocument();
   });
 
   it("handles student fetch failure without crashing", async () => {

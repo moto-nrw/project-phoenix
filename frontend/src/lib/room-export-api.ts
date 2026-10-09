@@ -1,3 +1,4 @@
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 export type RoomSnapshotExportFormat = "pdf" | "docx" | "xlsx";
@@ -17,14 +18,14 @@ export interface RoomSnapshotExportRequest {
 export async function exportRoomSnapshot(
   request: RoomSnapshotExportRequest,
 ): Promise<void> {
-  const response = await fetch("/api/rooms/export", {
+  const response = await transportFetch("/api/rooms/export", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
   });
 
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw await apiErrorFromResponse(response, "Room snapshot export failed");
   }
 
   const blob = await response.blob();

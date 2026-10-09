@@ -47,7 +47,7 @@ func (s *InstanceLifecycleService) Reopen(ctx context.Context, instanceID, accou
 	}
 	if err := s.deps.RecoveryRepo.Restore(ctx, instance.ID, snapshot, s.now()); err != nil {
 		if modelBase.IsUniqueViolation(err) {
-			return nil, fmt.Errorf("%w: concurrent check-in", timetable.ErrTimetableOperationConflict)
+			return nil, timetable.WithCode(fmt.Errorf("%w: concurrent check-in", timetable.ErrTimetableOperationConflict), timetable.CodeOperationStale)
 		}
 		return nil, &ScheduleError{Op: "reopen instance: restore snapshot", Err: err}
 	}
@@ -137,7 +137,7 @@ func (s *InstanceLifecycleService) lockReopenSnapshotStudents(ctx context.Contex
 		return nil, err
 	}
 	if len(currentVisits) > 0 {
-		return nil, fmt.Errorf("%w: student %d already has an active visit", timetable.ErrTimetableOperationConflict, currentVisits[0].StudentID)
+		return nil, timetable.WithCode(fmt.Errorf("%w: student %d already has an active visit", timetable.ErrTimetableOperationConflict, currentVisits[0].StudentID), timetable.CodeReopenStudentActive)
 	}
 	return studentIDs, nil
 }
@@ -194,7 +194,7 @@ func (s *InstanceLifecycleService) validateReopenAttendanceUnchanged(ctx context
 	}
 	for _, row := range rows {
 		if row.UpdatedAt.After(*instance.CompletedAt) {
-			return fmt.Errorf("%w: attendance changed after completion", timetable.ErrTimetableOperationConflict)
+			return timetable.WithCode(fmt.Errorf("%w: attendance changed after completion", timetable.ErrTimetableOperationConflict), timetable.CodeReopenAttendanceChanged)
 		}
 	}
 	return nil
@@ -254,14 +254,14 @@ func reopenSupervisorConflict(
 	instance *scheduleModel.ActivityInstance, row *studentpresence.StaffedSupervision, activeByStaff map[int64][]studentpresence.GroupSupervision,
 ) error {
 	if row == nil {
-		return fmt.Errorf("%w: supervisor snapshot missing", timetable.ErrTimetableOperationConflict)
+		return timetable.WithCode(fmt.Errorf("%w: supervisor snapshot missing", timetable.ErrTimetableOperationConflict), timetable.CodeReopenSupervisionChanged)
 	}
 	if instance.CompletedAt != nil && row.UpdatedAt.After(*instance.CompletedAt) {
-		return fmt.Errorf("%w: supervisor changed after completion", timetable.ErrTimetableOperationConflict)
+		return timetable.WithCode(fmt.Errorf("%w: supervisor changed after completion", timetable.ErrTimetableOperationConflict), timetable.CodeReopenSupervisionChanged)
 	}
 	for _, other := range activeByStaff[row.StaffID] {
 		if other.ID != row.ID {
-			return fmt.Errorf("%w: staff %d now supervises another group", timetable.ErrTimetableOperationConflict, row.StaffID)
+			return timetable.WithCode(fmt.Errorf("%w: staff %d now supervises another group", timetable.ErrTimetableOperationConflict, row.StaffID), timetable.CodeReopenStaffBusy)
 		}
 	}
 	return nil

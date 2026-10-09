@@ -16,6 +16,7 @@ import (
 
 const (
 	reviewGroupLeaderKey = "review.enabled"
+	reviewRequestKey     = "operations.parent_request_review_scope"
 	reviewAbsenceKey     = "operations.parent_absence_review_scope"
 	reviewGroupID        = int64(71)
 )
@@ -35,18 +36,26 @@ var reviewPermissionFacts = map[string]domain.ReviewPermissions{
 	"users:absence":            {AbsenceReadPrerequisiteUnmet: true},
 }
 
+// reviewTestSettings stands in for the tenant settings: scope is the absence
+// scope, request the request scope, enabled the group-leader switch. An
+// empty scope resolves to the registry default inherit.
 type reviewTestSettings struct {
 	scope   string
+	request string
 	enabled bool
 	err     error
 	key     string
 }
 
-func (s *reviewTestSettings) ResolveString(context.Context, string) (string, error) {
-	if s.scope == "" {
-		return absenceScopeInherit, s.err
+func (s *reviewTestSettings) ResolveString(_ context.Context, key string) (string, error) {
+	scope := s.scope
+	if key == reviewRequestKey {
+		scope = s.request
 	}
-	return s.scope, s.err
+	if scope == "" {
+		return reviewScopeInherit, s.err
+	}
+	return scope, s.err
 }
 
 func (s *reviewTestSettings) ResolveBool(_ context.Context, key string) (bool, error) {
@@ -74,6 +83,7 @@ func newTestReview(t *testing.T, h *callerHarness, settings *reviewTestSettings)
 			return facts
 		},
 		GroupLeaderSettingKey: reviewGroupLeaderKey,
+		RequestSettingKey:     reviewRequestKey,
 		AbsenceSettingKey:     reviewAbsenceKey,
 		AbsenceReadRequired:   errReviewAbsenceReadRequired,
 	}
@@ -88,13 +98,13 @@ func newTestReview(t *testing.T, h *callerHarness, settings *reviewTestSettings)
 func TestParentAbsenceReviewScopePreservesOtherRequestKinds(t *testing.T) {
 	t.Parallel()
 	for _, oldEnabled := range []bool{false, true} {
-		for _, scope := range []string{absenceScopeInherit, absenceScopeAdmins, absenceScopeGroupLeaders} {
+		for _, scope := range []string{reviewScopeInherit, reviewScopeAdmins, reviewScopeGroupLeaders} {
 			t.Run(fmt.Sprintf("%t/%s", oldEnabled, scope), func(t *testing.T) {
 				review := newTestReview(t, reviewerHarness(reviewGroupID), &reviewTestSettings{enabled: oldEnabled, scope: scope})
 				wide, ids, err := review.AbsenceScope(context.Background(), []string{"users:update"})
 				require.NoError(t, err)
 				assert.False(t, wide)
-				wantGroups := scope == absenceScopeGroupLeaders || (scope == absenceScopeInherit && oldEnabled)
+				wantGroups := scope == reviewScopeGroupLeaders || (scope == reviewScopeInherit && oldEnabled)
 				assert.Equal(t, wantGroups, slices.Contains(ids, reviewGroupID))
 				wide, ids, err = review.Scope(context.Background(), []string{"users:update"})
 				require.NoError(t, err)
@@ -142,7 +152,7 @@ func TestParentAbsenceReviewTeamRequiresVerifiedTenantStaff(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := tc.harness()
-			review := newTestReview(t, h, &reviewTestSettings{scope: absenceScopeAllStaff})
+			review := newTestReview(t, h, &reviewTestSettings{scope: reviewScopeAllStaff})
 			wide, ids, err := review.AbsenceScope(context.Background(), tc.permissions)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, wide)
@@ -171,7 +181,7 @@ func TestParentAbsenceReviewTeamRefusesCallerWithoutTenantStaff(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := tc.harness()
-			review := newTestReview(t, h, &reviewTestSettings{scope: absenceScopeAllStaff})
+			review := newTestReview(t, h, &reviewTestSettings{scope: reviewScopeAllStaff})
 			wide, ids, err := review.AbsenceScope(context.Background(), tc.permissions)
 			require.ErrorIs(t, err, domain.ErrCallerNotLinkedToStaff)
 			assert.False(t, wide)
@@ -351,4 +361,117 @@ func TestParentRequestReviewScopeRequiresQueuePermission(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, wide)
 	assert.NotContains(t, ids, reviewGroupID)
+}
+
+// #3804: an explicit request scope replaces the group-leader switch for the
+// write queues, whatever the switch says.
+func TestParentRequestReviewExplicitScopeOverridesSwitch(t *testing.T) {
+	t.Parallel()
+	for _, enabled := range []bool{false, true} {
+		for _, scope := range []string{reviewScopeAdmins, reviewScopeGroupLeaders} {
+			t.Run(fmt.Sprintf("%t/%s", enabled, scope), func(t *testing.T) {
+				h := reviewerHarness(reviewGroupID)
+				review := newTestReview(t, h, &reviewTestSettings{enabled: enabled, request: scope})
+				wide, ids, err := review.Scope(context.Background(), []string{"users:update"})
+				require.NoError(t, err)
+				assert.False(t, wide)
+				assert.Equal(t, scope == reviewScopeGroupLeaders, slices.Contains(ids, reviewGroupID))
+				if scope == reviewScopeAdmins {
+					assert.Zero(t, h.structure.groupCalls())
+				}
+			})
+		}
+	}
+}
+
+// #3804: the team scope opens the write queues school-wide to verified staff
+// of the token's own school, never to platform, parent or cross-school tokens.
+func TestParentRequestReviewTeamRequiresVerifiedTenantStaff(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []reviewTeamCase{
+		{"eligible", "tenant", 71, 71, []string{"users:update"}, true, true},
+		{"org token", "org", 71, 71, []string{"users:update"}, true, true},
+		{"read only", "tenant", 71, 71, []string{"users:read"}, true, false},
+		{"not staff", "tenant", 71, 71, []string{"users:update"}, false, false},
+		{"other claim tenant", "tenant", 72, 71, []string{"users:update"}, true, false},
+		{"school portal", "school", 71, 71, []string{"users:update"}, true, false},
+		{"parent portal", "parent", 71, 71, []string{"users:update"}, true, false},
+		{"platform", "platform", 71, 71, []string{"users:update"}, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := tc.harness()
+			// The absence scope stays explicit admins: team access comes
+			// from the request scope alone.
+			review := newTestReview(t, h, &reviewTestSettings{request: reviewScopeAllStaff, scope: reviewScopeAdmins})
+			wide, ids, err := review.Scope(context.Background(), tc.permissions)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, wide)
+			assert.Empty(t, ids)
+			assert.Zero(t, h.structure.groupCalls(), "team access does not depend on group assignments")
+			level, err := review.AccessLevel(context.Background(), tc.permissions)
+			require.NoError(t, err)
+			if tc.want {
+				assert.Equal(t, domain.ReviewAccessTeam, level)
+			} else {
+				assert.Equal(t, domain.ReviewAccessNone, level)
+			}
+		})
+	}
+}
+
+func TestParentRequestReviewTeamRefusesCallerWithoutTenantStaff(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []reviewTeamCase{
+		{"not linked to staff", "tenant", 71, 0, []string{"users:update"}, true, false},
+		{"other staff tenant", "tenant", 71, 72, []string{"users:update"}, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := tc.harness()
+			review := newTestReview(t, h, &reviewTestSettings{request: reviewScopeAllStaff})
+			wide, ids, err := review.Scope(context.Background(), tc.permissions)
+			require.ErrorIs(t, err, domain.ErrCallerNotLinkedToStaff)
+			assert.False(t, wide)
+			assert.Empty(t, ids)
+		})
+	}
+}
+
+// The absence scope's inherit value follows the request scope, so a school
+// that hands parent requests to the team also hands it the absences unless it
+// chose an absence-only scope.
+func TestParentAbsenceReviewInheritFollowsRequestScope(t *testing.T) {
+	t.Parallel()
+	review := newTestReview(t, reviewerHarness(), &reviewTestSettings{request: reviewScopeAllStaff})
+	wide, _, err := review.AbsenceScope(context.Background(), []string{"users:absence", "users:read"})
+	require.NoError(t, err)
+	assert.True(t, wide)
+
+	review = newTestReview(t, reviewerHarness(), &reviewTestSettings{request: reviewScopeAllStaff, scope: reviewScopeAdmins})
+	wide, _, err = review.AbsenceScope(context.Background(), []string{"users:update"})
+	require.NoError(t, err)
+	assert.False(t, wide)
+}
+
+// Administrators keep reporting admin when the team is school-wide too: the
+// client unlocks admin-only surfaces on that level.
+func TestParentRequestReviewAccessLevelKeepsAdminDistinctFromTeam(t *testing.T) {
+	t.Parallel()
+	review := newTestReview(t, reviewerHarness(), &reviewTestSettings{request: reviewScopeAllStaff})
+	level, err := review.AccessLevel(context.Background(), []string{"admin:*"})
+	require.NoError(t, err)
+	assert.Equal(t, domain.ReviewAccessAdmin, level)
+	level, err = review.AccessLevel(context.Background(), []string{"users:update"})
+	require.NoError(t, err)
+	assert.Equal(t, domain.ReviewAccessTeam, level)
+}
+
+func TestParentRequestReviewScopeFailsClosedOnUnknownScope(t *testing.T) {
+	t.Parallel()
+	review := newTestReview(t, reviewerHarness(reviewGroupID), &reviewTestSettings{request: "unknown"})
+	wide, ids, err := review.Scope(context.Background(), []string{"users:update"})
+	require.Error(t, err)
+	assert.False(t, wide)
+	assert.Empty(t, ids)
+	_, err = review.AccessLevel(context.Background(), []string{"users:update"})
+	require.Error(t, err)
 }

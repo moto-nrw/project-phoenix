@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowCounterClockwiseIcon,
   CaretDownIcon,
@@ -9,7 +9,7 @@ import { ButtonLink } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { registerDemoVisit, trackDemoEvent } from "~/lib/analytics";
 import {
   DEMO_RESTART_CONFIRM,
@@ -35,11 +35,13 @@ import { createLogger } from "~/lib/logger";
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantSafe } from "~/lib/tenant-context";
+import { DemoWeekendNotice } from "./demo-weekend-notice";
 
 const logger = createLogger({ component: "DemoBanner" });
 
-const SWITCH_FAILED =
-  "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
+// Kein Fehlertext einer Anfrage, sondern der Weg zurück: ohne gültigen Link
+// in diesem Browser (abgelaufen oder nie geöffnet) hilft nur der Link aus der
+// E-Mail.
 const OPEN_MAILED_LINK =
   "Bitte öffnen Sie die Demo noch einmal über den Link aus Ihrer E-Mail.";
 
@@ -85,6 +87,11 @@ function ActiveDemoBanner() {
   const inParentsApp = useShellAuthSafe()?.mode === "parent";
   const startPath = useTenantAwarePath()("/");
   const toast = useToast();
+  // Rollenwechsel und Neustart sind Aktionen ohne Formular: Toast mit
+  // Katalogtext und Wiederholen (#2517).
+  const { show: showActionError } = useApiErrorDisplay();
+  const latestChooseRoleRef = useRef<(role: DemoRole) => void>(() => undefined);
+  const latestRestartRef = useRef<() => void>(() => undefined);
   // Undefined until mounted: the server knows no stored visit, so reading it
   // during the first render would not match the server's markup. Null without
   // a stored visit (no storage, a direct visit): the banner then claims no
@@ -140,7 +147,10 @@ function ActiveDemoBanner() {
       logger.error("demo_role_switch_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      toast.error(SWITCH_FAILED);
+      void showActionError(error, {
+        object: "das Wechseln der Rolle",
+        retry: () => latestChooseRoleRef.current(role),
+      });
     } finally {
       setSwitching(false);
     }
@@ -168,9 +178,17 @@ function ActiveDemoBanner() {
       });
       setRestarting(false);
       setRestartAsked(false);
-      toast.error(SWITCH_FAILED);
+      void showActionError(error, {
+        object: "das Neustarten der Demo",
+        retry: () => latestRestartRef.current(),
+      });
     }
   };
+
+  useLayoutEffect(() => {
+    latestChooseRoleRef.current = (role) => void chooseRole(role);
+    latestRestartRef.current = () => void restart();
+  });
 
   const roleLabel = visit ? demoRoleLabel(visit.role) : CHOOSE_ROLE;
 
@@ -216,6 +234,9 @@ function ActiveDemoBanner() {
             },
           ]}
         />
+      )}
+      {visit === undefined ? null : (
+        <DemoWeekendNotice inParentsApp={inParentsApp} />
       )}
       <ConfirmationModal
         isOpen={restartAsked}

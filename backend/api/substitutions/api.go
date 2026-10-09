@@ -48,6 +48,10 @@ type Failure struct {
 	Code    string
 	Message string
 	Err     error
+	// Details and Field come from a refusal that names its values and the
+	// request field it is about (#2516).
+	Details map[string]any
+	Field   string
 }
 
 // Runtime carries the HTTP-platform behavior this adapter must not own.
@@ -390,8 +394,11 @@ func (rs *Resource) renderModuleError(w http.ResponseWriter, r *http.Request, er
 
 func classify(err error) Failure {
 	spec := internalModuleError
+	var details map[string]any
+	field := ""
 	if operation, ok := errors.AsType[*workforce.SubstitutionOperationError](err); ok {
 		spec = operationErrorSpec(operation)
+		details, field = refusalDetails(operation.Details), operation.Field
 	} else {
 		for _, candidate := range moduleErrorSpecs {
 			if errors.Is(err, candidate.target) {
@@ -400,7 +407,7 @@ func classify(err error) Failure {
 			}
 		}
 	}
-	return Failure{Status: spec.status, Code: spec.code, Message: spec.message, Err: err}
+	return Failure{Status: spec.status, Code: spec.code, Message: spec.message, Err: err, Details: details, Field: field}
 }
 
 type moduleErrorSpec struct {
@@ -438,4 +445,20 @@ func operationErrorSpec(operation *workforce.SubstitutionOperationError) moduleE
 
 var internalModuleError = moduleErrorSpec{
 	status: http.StatusInternalServerError, code: codeInternal, message: "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+}
+
+// refusalDetails puts the values a schedule refusal names into wire form;
+// nil when it names none (#2516).
+func refusalDetails(values workforce.SubstitutionRefusalValues) map[string]any {
+	details := map[string]any{}
+	if values.Date != "" {
+		details["date"] = values.Date
+	}
+	if values.Max > 0 {
+		details["max"] = values.Max
+	}
+	if len(details) == 0 {
+		return nil
+	}
+	return details
 }

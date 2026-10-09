@@ -2,6 +2,8 @@ import { fireEvent, render as renderUi, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 import { StammdatenTab } from "./stammdaten-tab";
 
@@ -48,10 +50,10 @@ describe("StammdatenTab", () => {
     };
   });
 
-  it("zeigt bei einem Ladefehler keinen vermeintlich leeren Wert", () => {
+  it("zeigt bei einem Ladefehler keinen vermeintlich leeren Wert", async () => {
     swrResult.current = {
       data: undefined,
-      error: new Error("request failed"),
+      error: new ApiError("boom", 503, { code: "general.unavailable" }),
       isLoading: false,
       isValidating: false,
       mutate,
@@ -66,14 +68,16 @@ describe("StammdatenTab", () => {
     );
 
     expect(
-      screen.getByText("Die Personalnummer konnte nicht geladen werden."),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Personalnummer"),
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Nicht gesetzt")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Bearbeiten" }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(mutate).toHaveBeenCalledTimes(1);
   });
 

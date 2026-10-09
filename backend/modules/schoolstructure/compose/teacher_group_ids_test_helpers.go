@@ -3,7 +3,7 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/education"
+	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 )
 
 // TeacherGroupRecords supplies the existing assignment query at composition.

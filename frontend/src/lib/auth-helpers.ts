@@ -260,6 +260,61 @@ export function getRoleDisplayDescription(
   );
 }
 
+// Labels of school roles that are not system roles. The demo school seeds
+// both (backend/seed/api/demo_roles.go); role names are stored lowercase, so
+// "ogs-leitung" would otherwise read as „Ogs-leitung".
+const SCHOOL_ROLE_LABELS: Record<string, string> = {
+  "ogs-leitung": "OGS-Leitung",
+  betreuungskraft: "Betreuungskraft",
+};
+
+// "teacher" is the retired predecessor of "user". It can no longer be
+// assigned, but existing sessions still carry it and must not be presented as
+// a school-specific role.
+const SYSTEM_ROLE_NAMES = new Set([
+  ...Object.keys(SYSTEM_ROLE_TRANSLATIONS),
+  "teacher",
+]);
+
+/**
+ * The role label next to the name in the staff portal's header (#3891). An
+ * administrator stays „Admin"; otherwise the school's own role names the
+ * person better than the system role behind it, so the OGS lead of the demo
+ * reads „OGS-Leitung", not „Betreuer".
+ */
+export function getAccountRoleLabel(
+  roleNames: readonly string[],
+  roleIsSystem?: readonly boolean[],
+): string {
+  const hasRoleOrigins = roleIsSystem?.length === roleNames.length;
+  const roles = roleNames.map((name, index) => ({
+    name: name.toLowerCase(),
+    // Sessions issued before role origins were added retain the earlier
+    // name-based display until their next refresh.
+    isSystem: hasRoleOrigins
+      ? roleIsSystem[index]!
+      : SYSTEM_ROLE_NAMES.has(name.toLowerCase()),
+  }));
+  if (roles.some((role) => role.isSystem && role.name === "admin")) {
+    return "Admin";
+  }
+  const schoolRole = roles.find((role) => !role.isSystem)?.name;
+  if (schoolRole) {
+    return (
+      SCHOOL_ROLE_LABELS[schoolRole] ??
+      schoolRole.charAt(0).toUpperCase() + schoolRole.slice(1)
+    );
+  }
+  const systemRole = roles.find(
+    (role) => role.isSystem && role.name !== "user",
+  )?.name;
+  return systemRole === "teacher"
+    ? "Betreuer"
+    : systemRole
+      ? getRoleDisplayName(systemRole)
+      : "Betreuer";
+}
+
 export interface RoleOption {
   id: string;
   name: string;

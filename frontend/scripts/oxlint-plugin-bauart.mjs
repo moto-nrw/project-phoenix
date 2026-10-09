@@ -308,26 +308,26 @@ const ROW_ACTION_BASELINE = new Map(
     // Formular-intern (Eintrag eines Formularwerts, kein gespeichertes
     // Objekt): fest an die bestehende Stelle gebunden, damit keine neue
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
-    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1190"],
+    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1289"],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
-      "Gericht entfernen@738",
+      "Gericht entfernen@770",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1400",
-      "Entfernen@1837",
+      "Antwort entfernen@1574",
+      "Entfernen@2017",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@1976",
+      "Bedingung löschen@2040",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
       "abweichend bearbeiten@2512",
       "Auswahlzeit entfernen@3436",
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
-      "Entfernen@585",
-      "Telefonnummer entfernen@844",
+      "Entfernen@589",
+      "Telefonnummer entfernen@848",
     ],
-    "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1233"],
+    "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1312"],
     "src/components/staff/stammdaten-section-forms.tsx": [
       "Qualifikation entfernen@422",
     ],
@@ -336,7 +336,7 @@ const ROW_ACTION_BASELINE = new Map(
       "Erziehungsberechtigte/n entfernen@718",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
-      "Rückgängig Entfernen@765",
+      "Rückgängig Entfernen@801",
     ],
   }),
 );
@@ -1465,8 +1465,8 @@ const FORM_CONTEXT_EXCEPTIONS = new Map(
   Object.entries({
     // Übergabe einer Gruppe: Erklärung und die Gruppe, um die es geht.
     "src/components/groups/group-transfer-modal.tsx": [
-      "InfoSection@232",
-      "DataGrid@246",
+      "InfoSection@225",
+      "DataGrid@239",
     ],
   }),
 );
@@ -1576,7 +1576,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // seinen eigenen Fuß (BAUARTEN-SPEC Bauart 2 Regel 4, #3115); die Anzeige
     // liegt auf der Route `parent-announcements/[id]`.
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1301",
+      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1458",
     ],
     // Einträge ohne eigene Objektansicht (Termin, Schließtag,
     // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,
@@ -1584,41 +1584,41 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // kennt für sie noch keine Bauart (Entscheidung in #3119 offen gelassen).
     // Bis sie eine bekommen, bleibt der Bestand stehen und wächst nicht.
     "src/app/[tenant]/(protected)/calendar/page.tsx": [
-      "Termin bearbeiten Termin erstellen@918",
+      "Termin bearbeiten Termin erstellen@1002",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
-      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@538",
+      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@604",
     ],
     "src/components/database/grade-transitions/transition-editor.tsx": [
-      "Jahrgangswechsel bearbeiten Neuer Jahrgangswechsel@243",
+      "Jahrgangswechsel bearbeiten Neuer Jahrgangswechsel@266",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@938",
+      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@988",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@854",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@948",
     ],
     "src/components/files/folder-modal.tsx": [
-      "Ordner bearbeiten Neuer Ordner@131",
+      "Ordner bearbeiten Neuer Ordner@145",
     ],
     "src/components/planning/closing-day-modal.tsx": [
-      "Schließtag bearbeiten Schließtag anlegen@89",
+      "Schließtag bearbeiten Schließtag anlegen@90",
     ],
     "src/components/staff-notices/staff-notice-modal.tsx": [
-      "Tagesinformation bearbeiten Neue Tagesinformation@182",
+      "Tagesinformation bearbeiten Neue Tagesinformation@186",
     ],
     "src/components/timetable/calendar-period-modal.tsx": [
-      "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@380",
+      "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@403",
     ],
     // Kontoaktionen mit eigenem Ablauf (Begründung und Rückfrage bei der
     // Zwei-Faktor-Authentifizierung, Auflösen offener Zuordnungen bei der
     // Betreuung): keine Feldgruppe des Datensatzes, aus dem Kebab der
     // Personalakte geöffnet (#3116).
     "src/components/auth/mfa-admin-override-modal.tsx": [
-      "Zwei-Faktor-Authentifizierung verwalten@314",
+      "Zwei-Faktor-Authentifizierung verwalten@380",
     ],
     "src/components/teachers/caregiver-capability-modal.tsx": [
-      "resolve Zuordnungen auflösen: Betreuung verwalten:@268",
+      "resolve Zuordnungen auflösen: Betreuung verwalten:@330",
     ],
   }),
 );

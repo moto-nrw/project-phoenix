@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Pure unit tests against in-memory port records: the IDs below are struct
@@ -18,7 +18,7 @@ import (
 
 // monday is 2026-07-27, a Monday, so days[0..4] are Mon–Fri.
 var (
-	monday    = timezone.NewDate(2026, time.July, 27)
+	monday    = calendar.NewDate(2026, time.July, 27)
 	tuesday   = monday.AddDays(1)
 	wednesday = monday.AddDays(2)
 )
@@ -90,7 +90,7 @@ func (s stubHolidays) HolidaysInRange(context.Context, Date, Date) ([]Holiday, e
 	return s.days, s.err
 }
 
-func closingRange(start, end timezone.Date, reason string) *ClosingPeriod {
+func closingRange(start, end calendar.Date, reason string) *ClosingPeriod {
 	return &ClosingPeriod{StartDate: dayKey(start), EndDate: dayKey(end), Reason: reason}
 }
 
@@ -102,7 +102,7 @@ func clock(hour, minute int) time.Time {
 	return time.Date(2000, time.January, 1, hour, minute, 0, 0, time.UTC)
 }
 
-func shift(id, staffID int64, date timezone.Date, from, to time.Time) *Shift {
+func shift(id, staffID int64, date calendar.Date, from, to time.Time) *Shift {
 	return &Shift{ID: id, StaffID: staffID, Date: dayKey(date), StartTime: from, EndTime: to}
 }
 
@@ -245,7 +245,7 @@ func (s stubPlanningTracks) ListPlanningTracks(context.Context) ([]*PlanningTrac
 	return s.tracks, s.err
 }
 
-func instance(id int64, date timezone.Date, from, to time.Time, title string, roomID int64) *Instance {
+func instance(id int64, date calendar.Date, from, to time.Time, title string, roomID int64) *Instance {
 	return &Instance{
 		ID:        id,
 		Date:      dayKey(date),

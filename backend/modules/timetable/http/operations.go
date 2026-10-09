@@ -24,13 +24,13 @@ import (
 )
 
 type spontaneousStartRequest struct {
-	Title           string  `json:"title"`
-	Description     *string `json:"description,omitempty"`
-	Notes           *string `json:"notes,omitempty"`
-	RoomID          int64   `json:"room_id"`
-	ActivityGroupID *int64  `json:"activity_group_id,omitempty"`
-	StaffIDs        []int64 `json:"staff_ids,omitempty"`
-	StudentIDs      []int64 `json:"student_ids,omitempty"`
+	Title           string          `json:"title"`
+	Description     *string         `json:"description,omitempty"`
+	Notes           *string         `json:"notes,omitempty"`
+	RoomID          int64           `json:"room_id"`
+	ActivityGroupID *int64          `json:"activity_group_id,omitempty"`
+	StaffIDs        []common.JSONID `json:"staff_ids,omitempty"`
+	StudentIDs      []int64         `json:"student_ids,omitempty"`
 }
 
 func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
@@ -217,14 +217,18 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		return
 	}
 
-	req.StaffIDs = appendUniquePositive(req.StaffIDs, currentStaffID)
+	staffIDs := make([]int64, 0, len(req.StaffIDs)+1)
+	for _, staffID := range req.StaffIDs {
+		staffIDs = append(staffIDs, staffID.Int64())
+	}
+	staffIDs = appendUniquePositive(staffIDs, currentStaffID)
 	createdBy := currentStaffID
 	// Room and caller validation can span a Berlin day boundary. Capture the
 	// authoritative start window immediately before the first write-capable
 	// step so a request that crosses into a weekend cannot mutate anything.
 	window, err := spontaneousStartWorkdayWindow(rs.Now())
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, codedInvalid(err))
 		return
 	}
 	activityGroupID, err := rs.TimetableData.ResolveSpontaneousActivity(r.Context(), req.Title, req.ActivityGroupID, createdBy)
@@ -237,7 +241,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	window, err = spontaneousStartWorkdayWindow(rs.Now())
 	if err != nil {
 		tenant.MarkRollback(r.Context())
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, codedInvalid(err))
 		return
 	}
 
@@ -251,7 +255,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		Notes:            req.Notes,
 		RoomID:           req.RoomID,
 		ActivityGroupID:  activityGroupID,
-		StaffIDs:         req.StaffIDs,
+		StaffIDs:         staffIDs,
 		CreatedByStaffID: &createdBy,
 	})
 	if err != nil {
@@ -276,7 +280,7 @@ func (rs *Resource) admitSpontaneousStart(w http.ResponseWriter, r *http.Request
 		return nil, 0, false
 	}
 	if !rs.webSpontaneousActivitiesEnabled(r) {
-		common.RenderError(w, r, common.ErrorForbidden(timetable.ErrTimetableOperationForbidden))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(timetable.ErrTimetableOperationForbidden, common.CodeTimetableSpontaneousActivitiesDisabled))
 		return nil, 0, false
 	}
 	req, ok := bindSpontaneousStartRequest(w, r)
@@ -284,7 +288,7 @@ func (rs *Resource) admitSpontaneousStart(w http.ResponseWriter, r *http.Request
 		return nil, 0, false
 	}
 	if _, err := spontaneousStartWorkdayWindow(rs.Now()); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, codedInvalid(err))
 		return nil, 0, false
 	}
 	if len(req.StudentIDs) > 0 {
@@ -297,7 +301,7 @@ func (rs *Resource) admitSpontaneousStart(w http.ResponseWriter, r *http.Request
 
 	currentStaffID := rs.resolveStartedByStaffID(r.Context())
 	if currentStaffID <= 0 {
-		common.RenderError(w, r, common.ErrorForbidden(timetable.ErrTimetableOperationForbidden))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(timetable.ErrTimetableOperationForbidden, common.CodeTimetableNoStaffProfile))
 		return nil, 0, false
 	}
 	return req, currentStaffID, true
@@ -340,7 +344,7 @@ func (rs *Resource) validateSpontaneousRoom(w http.ResponseWriter, r *http.Reque
 		return false
 	}
 	if hasRoomConflict {
-		common.RenderError(w, r, common.ErrorConflict(studentpresence.ErrRoomConflict))
+		common.RenderError(w, r, common.ErrorConflictWithCode(studentpresence.ErrRoomConflict, common.CodeTimetableRoomOccupied))
 		return false
 	}
 	return true
@@ -439,6 +443,70 @@ func (rs *Resource) operationsCheckInStudent(w http.ResponseWriter, r *http.Requ
 		redactOperationRosterPickupTimes(result)
 	}
 	common.Respond(w, r, http.StatusOK, result, "Student checked in to timetable instance")
+}
+
+// maxBulkCheckInStudents bounds one bulk check-in. A school's whole roster of
+// present children fits; anything above is not a selection a person made.
+const maxBulkCheckInStudents = 500
+
+type bulkCheckInRequest struct {
+	StudentIDs []common.JSONID `json:"student_ids"`
+	studentIDs []int64
+}
+
+// Bind rejects an empty or oversized selection and non-positive IDs, and
+// drops duplicates while keeping the order of first appearance.
+func (req *bulkCheckInRequest) Bind(_ *http.Request) error {
+	if len(req.StudentIDs) == 0 {
+		return errors.New("student_ids is required")
+	}
+	if len(req.StudentIDs) > maxBulkCheckInStudents {
+		return errors.New("student_ids cannot exceed 500 entries")
+	}
+	seen := make(map[int64]struct{}, len(req.StudentIDs))
+	unique := make([]int64, 0, len(req.StudentIDs))
+	for _, studentID := range req.StudentIDs {
+		id := studentID.Int64()
+		if id <= 0 {
+			return errors.New("student_ids must be positive")
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	req.studentIDs = unique
+	return nil
+}
+
+// operationsCheckInStudents checks a selection of children into a running
+// block in one transaction (#3824): the children a spontaneous activity takes
+// over from the Ganztag are picked together, not one search at a time.
+func (rs *Resource) operationsCheckInStudents(w http.ResponseWriter, r *http.Request) {
+	if rs.OperationsService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
+		return
+	}
+	instanceID, ok := parseOperationID(w, r, "id")
+	if !ok {
+		return
+	}
+	req := &bulkCheckInRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	accountID, isAdmin := operationActor(r.Context())
+	result, err := rs.OperationsService.CheckInStudents(r.Context(), accountID, isAdmin, instanceID, req.studentIDs)
+	if err != nil {
+		rs.renderOperationsError(w, r, err)
+		return
+	}
+	if !canViewOperationPickupTimes(r.Context()) {
+		redactOperationRosterPickupTimes(result)
+	}
+	common.Respond(w, r, http.StatusOK, result, "Students checked in to timetable instance")
 }
 
 func (rs *Resource) operationsCheckOutStudent(w http.ResponseWriter, r *http.Request) {
@@ -582,7 +650,7 @@ func appendUniquePositive(ids []int64, id int64) []int64 {
 
 func renderSpontaneousActivityResolutionError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, timetable.ErrSpontaneousCategoryArchived) {
-		common.RenderError(w, r, common.ErrorConflict(err))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeTimetableSpontaneousCategoryArchived))
 		return
 	}
 	common.RenderError(w, r, common.ErrorInternalServerWrap("resolve spontaneous activity group failed", err))
@@ -590,40 +658,9 @@ func renderSpontaneousActivityResolutionError(w http.ResponseWriter, r *http.Req
 
 func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request, err error) {
 	var validationErr *timetable.AttendanceValidationError
-	switch {
-	case errors.As(err, &validationErr):
+	if errors.As(err, &validationErr) {
 		renderValidationErrors(w, r, attendancePatchFieldErrors(validationErr.Fields))
-	case errors.Is(err, timetable.ErrTimetableOperationForbidden):
-		common.RenderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, timetable.ErrTimetableOperationNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, timetable.ErrTimetableOperationConflict), errors.Is(err, timetable.ErrInvalidInstanceTransition),
-		errors.Is(err, timetable.ErrInstanceStartTooEarly), errors.Is(err, timetable.ErrInstanceStartExpired),
-		errors.Is(err, timetable.ErrInstanceCompleteEarly):
-		common.RenderError(w, r, common.ErrorConflict(err))
-	case errors.Is(err, timetable.ErrInstanceWeekend):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, timetable.ErrCompletionConfirmationStale):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeTimetableCompletionConfirmationStale))
-	case errors.Is(err, timetable.ErrInstanceNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, studentpresence.ErrRoomCapacityExceeded):
-		// A full room names itself with code and numbers (#3633).
-		common.RenderError(w, r, common.ErrorBusinessRejectionOr(studentpresence.RoomCapacityCode)(err))
-	case errors.Is(err, studentpresence.ErrActivityParticipantLimitExceeded):
-		// A full activity names itself too (#3632, #3633).
-		common.RenderError(w, r, common.ErrorBusinessRejection(err))
-	case errors.Is(err, studentpresence.ErrStudentAlreadyActive), errors.Is(err, studentpresence.ErrRoomConflict),
-		errors.Is(err, studentpresence.ErrStudentsNotPresent), errors.Is(err, studentpresence.ErrGroupAlreadyEnded):
-		common.RenderError(w, r, common.ErrorConflict(err))
-	case errors.Is(err, studentpresence.ErrStudentNotFound), errors.Is(err, studentpresence.ErrVisitNotFound),
-		// A graduated (alumnus) student left on a roster is treated like an
-		// unknown/absent student (404), matching the IoT check-in mapper (#405).
-		errors.Is(err, studentpresence.ErrStudentGraduated), errors.Is(err, studentpresence.ErrStudentCareEnded):
-		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, studentpresence.ErrInvalidData):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	default:
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
 	}
+	common.RenderError(w, r, operationErrorRenderer(err))
 }

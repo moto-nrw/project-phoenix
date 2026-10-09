@@ -11,22 +11,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // NewSubstitutionsResource wires /api/substitutions over the substitution
 // operations capability.
-func NewSubstitutionsResource(substitutions workforce.Substitutions, db *bun.DB) *substitutionsHTTP.Resource {
-	if substitutions == nil || db == nil {
+func NewSubstitutionsResource(substitutions workforce.Substitutions) *substitutionsHTTP.Resource {
+	if substitutions == nil {
 		panic("substitutions HTTP composition: all dependencies are required")
 	}
-	return substitutionsHTTP.NewResource(substitutions, substitutionsRuntime(db))
+	return substitutionsHTTP.NewResource(substitutions, substitutionsRuntime())
 }
 
-func substitutionsRuntime(db *bun.DB) substitutionsHTTP.Runtime {
+func substitutionsRuntime() substitutionsHTTP.Runtime {
 	return substitutionsHTTP.Runtime{
 		Protected: func(router chi.Router, routes func(chi.Router, substitutionsHTTP.Middleware)) {
-			common.ProtectedTenantGroup(router, db, routes)
+			common.ProtectedTenantRoutes(router, routes)
 		},
 		Caller:  substitutionCaller,
 		Success: common.Respond,
@@ -50,7 +49,12 @@ func substitutionCaller(ctx context.Context) (workforce.SubstitutionCaller, erro
 // renderSubstitutionsFailure renders the stable status, code and message the
 // adapter classified; the underlying error only reaches the log.
 func renderSubstitutionsFailure(w http.ResponseWriter, r *http.Request, failure substitutionsHTTP.Failure) {
-	common.RenderError(w, r, &common.ErrResponse{
+	resp := &common.ErrResponse{
 		Err: failure.Err, HTTPStatusCode: failure.Status, Status: "error", ErrorText: failure.Message, Code: failure.Code,
-	})
+		Details: failure.Details,
+	}
+	if failure.Field != "" {
+		resp.Errors = []common.FieldError{{Field: failure.Field, Reason: failure.Message}}
+	}
+	common.RenderError(w, r, resp)
 }

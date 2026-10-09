@@ -74,7 +74,7 @@ func setupRoomsRoute(t *testing.T) *testContext {
 	resource := NewResource(rooms, Dependencies{
 		Facilities: svc.Facilities, Settings: svc.Settings, UserContext: svc.UserContext,
 		Active: svc.Active, Users: svc.Users, Education: svc.Education, ListExport: svc.ListExport,
-	}, db, slog.Default())
+	}, slog.Default())
 
 	return &testContext{
 		services: svc,
@@ -175,6 +175,10 @@ func TestGetRoom(t *testing.T) {
 		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		testutil.AssertNotFound(t, rr)
+		// A deleted or unknown room link names itself (#2517) instead of the
+		// input class text "konnte nicht übernommen werden".
+		body := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		assert.Equal(t, "rooms.not_found", body["code"], "Body: %s", rr.Body.String())
 	})
 
 	t.Run("bad_request_for_invalid_id", func(t *testing.T) {

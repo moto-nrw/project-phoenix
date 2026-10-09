@@ -1,6 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { listAnnouncements, type ParentAnnouncement } from "~/lib/parent-api";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { ParentNewsPage } from "./parent-news-page";
 
 let searchParams = new URLSearchParams();
@@ -164,5 +166,30 @@ describe("ParentNewsPage", () => {
     expect(
       await screen.findByText("Derzeit gibt es keine neuen Elternbriefe."),
     ).toBeInTheDocument();
+  });
+
+  // #2518: der Ladefehler ersetzt die Liste, mit Katalogtext und Wiederholen.
+  it("zeigt einen Ladefehler mit Wiederholen statt eines Leerzustands", async () => {
+    mocked
+      .mockRejectedValueOnce(
+        new ApiError("feed kaputt", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce([announcement()]);
+    render(<ParentNewsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Elternbriefe"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/feed kaputt/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Derzeit gibt es keine neuen Elternbriefe."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(await screen.findByText("Sommerfest")).toBeInTheDocument();
+    expect(mocked).toHaveBeenCalledTimes(2);
   });
 });

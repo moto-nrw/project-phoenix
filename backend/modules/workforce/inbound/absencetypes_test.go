@@ -221,6 +221,6 @@ func setupAbsenceTypesRoute(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
 
 	db, svc := testutil.SetupAbsenceTypeModule(t)
-	resource := NewAbsenceTypesResource(services.AbsenceTypeAdministration(svc.Catalog, slog.Default()), db, svc.UserContext.Caller().StaffID)
+	resource := NewAbsenceTypesResource(services.AbsenceTypeAdministration(svc.Catalog, slog.Default()), svc.UserContext.Caller().StaffID)
 	return db, resource.Router()
 }

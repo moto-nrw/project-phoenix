@@ -20,8 +20,12 @@ import (
 // path that real users do — no DB layer bypassed.
 //
 // Per staff:
-//   - PUT /api/staff/{id}/schedule (admin auth) sets Mo-Fr at 480 min Soll
-//   - For each weekday of the trailing 90-day window before today the admin
+//   - PUT /api/staff/{id}/schedule (admin auth) sets Mo-Fr at 480 min Soll,
+//     valid from the first day of the history. A schedule that starts today
+//     prices every history day at a Soll of 0, and the Saldo then shows the
+//     whole Ist as overtime (#3892).
+//   - For each weekday of the trailing 90-day window before today that is no
+//     statutory holiday (no Soll on it), the admin
 //     enters the day as a Nachtrag (POST /api/staff/{id}/time-tracking/sessions,
 //     several staff members in parallel). The audit trail records it like any
 //     other admin correction. No history block touches today or the clock, so
@@ -61,11 +65,15 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 		return err
 	}
 
-	scheduleCount, err := seedSchedulesViaAPI(rt, staffOrder, staffIDByEmail)
+	todayDate := todaySeedDate()
+	scheduleCount, err := seedSchedulesViaAPI(rt, staffOrder, staffIDByEmail, historyStart(todayDate.UTCMidnight()))
 	if err != nil {
 		return err
 	}
-	todayDate := todaySeedDate()
+	holidays, err := seedHistoryHolidays(rt, todayDate.UTCMidnight())
+	if err != nil {
+		return err
+	}
 	if err := seedTimeTrackingCoverage(rt, staffIDByEmail[staffOrder[0].Email], todayDate.Year()); err != nil {
 		return err
 	}
@@ -104,6 +112,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 		customAbsenceTypeID:  customAbsenceTypeID,
 		breakStaffIdx:        breakStaffIndex(staffOrder),
 		compTimeDays:         map[string]bool{},
+		holidays:             holidays,
 	}
 	// Wissingen (#3258): a colleague took Fridays off to use up
 	// Krank-Urlaubstage before that allowance existed, so the Leitung entered
@@ -142,6 +151,12 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 	wg.Wait()
 	if err := errors.Join(errs...); err != nil {
+		return err
+	}
+	// The opening books the difference to the balance it finds, so it waits
+	// for the history; booked before it, it would carry the whole Soll of the
+	// window as overtime.
+	if err := seedOpeningBalance(rt, staffIDByEmail[staffOrder[0].Email]); err != nil {
 		return err
 	}
 	sessionCount, absenceCount := 0, 0
@@ -206,14 +221,46 @@ func shouldSeedTimeTrackingDay(day, today time.Time) bool {
 	return day.Before(today)
 }
 
-// breakSessionDay is the oldest weekday of the history window. The break
+// historyStart is the first day of the history window, and the day the
+// seeded schedules start.
+func historyStart(today time.Time) time.Time {
+	return today.AddDate(0, 0, -(timeTrackingDaysBack - 1))
+}
+
+// breakSessionDay is the oldest working day of the history window. The break
 // block sits there, and the history leaves that day to it.
-func breakSessionDay(today time.Time) time.Time {
-	day := today.AddDate(0, 0, -(timeTrackingDaysBack - 1))
-	for !shouldSeedTimeTrackingDay(day, today) {
+func breakSessionDay(today time.Time, holidays map[string]bool) time.Time {
+	day := historyStart(today)
+	for !shouldSeedTimeTrackingDay(day, today) || holidays[toDateKey(day)] {
 		day = day.AddDate(0, 0, 1)
 	}
 	return day
+}
+
+// seedHistoryHolidays reads the statutory holidays of the history window. They
+// carry no Soll, so a session on one would count in full as overtime.
+func seedHistoryHolidays(rt *Runtime, today time.Time) (map[string]bool, error) {
+	currentAuth := rt.Client.auth
+	defer rt.Client.BindAuth(currentAuth)
+	rt.Client.BindAuth(rt.TenantAuth)
+	raw, err := rt.Client.Get(fmt.Sprintf("/api/time-tracking/holidays?from=%s&to=%s",
+		toDateKey(historyStart(today)), toDateKey(today.AddDate(0, 0, -1))))
+	if err != nil {
+		return nil, fmt.Errorf("read history holidays: %w", err)
+	}
+	var response struct {
+		Data []struct {
+			Date string `json:"date"`
+		} `json:"data"`
+	}
+	if err := parseJSON(raw, &response); err != nil {
+		return nil, fmt.Errorf("parse history holidays: %w", err)
+	}
+	holidays := make(map[string]bool, len(response.Data))
+	for _, holiday := range response.Data {
+		holidays[holiday.Date] = true
+	}
+	return holidays, nil
 }
 
 // breakStaffIndex is the staff member whose block carries a break: the first
@@ -262,7 +309,12 @@ func (seedWorkSessionBreakStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("login as %s: %w", cred.Email, err)
 	}
 	rng := rand.New(rand.NewPCG(0xC0FFEE, 0xB4EA))
-	day := breakSessionDay(todaySeedDate().UTCMidnight())
+	today := todaySeedDate().UTCMidnight()
+	holidays, err := seedHistoryHolidays(rt, today)
+	if err != nil {
+		return err
+	}
+	day := breakSessionDay(today, holidays)
 	if _, err := seedSessionViaAPI(client, rng, day, seedBerlinLocation(), true); err != nil {
 		return fmt.Errorf("seed break session on %s: %w", toDateKey(day), err)
 	}
@@ -280,6 +332,8 @@ type timeTrackingHistoryPlan struct {
 	// compTimeDays are the days the second staff member stays at home on
 	// Freizeitausgleich (#3258), so no session is written for them.
 	compTimeDays map[string]bool
+	// holidays are the statutory holidays of the window: nobody works then.
+	holidays map[string]bool
 }
 
 // seedStaff logs in as one staff member and writes that person's absences;
@@ -305,7 +359,7 @@ func (p timeTrackingHistoryPlan) seedStaff(client, admin *Client, idx int, cred 
 	var sickDay *time.Time
 	if rng.Float64() < 0.25 {
 		day := mostRecentWeekday(p.today.AddDate(0, 0, -rng.IntN(timeTrackingDaysBack)), time.Wednesday)
-		if idx == p.breakStaffIdx && day.Equal(breakSessionDay(p.today)) {
+		if idx == p.breakStaffIdx && day.Equal(breakSessionDay(p.today, p.holidays)) {
 			day = day.AddDate(0, 0, 7) // That day already carries the break block.
 		}
 		sickDay = &day
@@ -329,10 +383,10 @@ func (p timeTrackingHistoryPlan) seedStaff(client, admin *Client, idx int, cred 
 
 	for offset := timeTrackingDaysBack - 1; offset >= 0; offset-- {
 		day := p.today.AddDate(0, 0, -offset)
-		if !shouldSeedTimeTrackingDay(day, p.today) {
+		if !shouldSeedTimeTrackingDay(day, p.today) || p.holidays[toDateKey(day)] {
 			continue
 		}
-		if idx == p.breakStaffIdx && day.Equal(breakSessionDay(p.today)) {
+		if idx == p.breakStaffIdx && day.Equal(breakSessionDay(p.today, p.holidays)) {
 			continue
 		}
 		if sickDay != nil && day.Equal(*sickDay) {
@@ -378,7 +432,7 @@ func buildStaffOrder(fs *FixedSeeder) ([]StaffCredentials, map[string]int64) {
 	return ordered, emailToStaff
 }
 
-func seedSchedulesViaAPI(rt *Runtime, staff []StaffCredentials, staffIDByEmail map[string]int64) (int, error) {
+func seedSchedulesViaAPI(rt *Runtime, staff []StaffCredentials, staffIDByEmail map[string]int64, validFrom time.Time) (int, error) {
 	rt.Client.BindAuth(rt.TenantAuth)
 	entries := make([]map[string]any, 0, 4-0+1)
 	for d := 0; d <= 4; d++ {
@@ -399,6 +453,7 @@ func seedSchedulesViaAPI(rt *Runtime, staff []StaffCredentials, staffIDByEmail m
 		body := map[string]any{
 			"mode":            "custom",
 			"rotation_length": 1,
+			"valid_from":      toDateKey(validFrom),
 			"entries":         entries,
 		}
 		if _, err := rt.Client.Put(path, body); err != nil {
@@ -456,7 +511,7 @@ func seedSessionViaAPI(client *Client, rng *rand.Rand, day time.Time, loc *time.
 	}
 
 	checkInWall := time.Date(day.Year(), day.Month(), day.Day(), 8, rng.IntN(20)-10, 0, 0, loc)
-	checkOutWall := time.Date(day.Year(), day.Month(), day.Day(), 16, rng.IntN(30)-15, 0, 0, loc)
+	checkOutWall := time.Date(day.Year(), day.Month(), day.Day(), 16, 30+rng.IntN(30)-15, 0, 0, loc)
 	breakMinutes := 30 + rng.IntN(11) - 5 // 25..35
 
 	// The backend decodes Date as *time.Time (RFC3339), so we send a
@@ -486,7 +541,7 @@ func seedHistorySession(admin *Client, rng *rand.Rand, staffID int64, day time.T
 		status = "home_office"
 	}
 	checkInWall := time.Date(day.Year(), day.Month(), day.Day(), 8, rng.IntN(20)-10, 0, 0, loc)
-	checkOutWall := time.Date(day.Year(), day.Month(), day.Day(), 16, rng.IntN(30)-15, 0, 0, loc)
+	checkOutWall := time.Date(day.Year(), day.Month(), day.Day(), 16, 30+rng.IntN(30)-15, 0, 0, loc)
 	if _, err := admin.Post(fmt.Sprintf("/api/staff/%d/time-tracking/sessions", staffID), map[string]any{
 		"date":           time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
 		"check_in_time":  checkInWall.Format(time.RFC3339),
@@ -508,6 +563,33 @@ func seedTimeTrackingCoverage(rt *Runtime, staffID int64, year int) error {
 	}); err != nil {
 		return fmt.Errorf("seed vacation quota for staff %d: %w", staffID, err)
 	}
+	// Sonderarbeitszeit (#3259): a holiday-care week in the future with 8.5h
+	// per day, so the Arbeitszeitmodell tab and the daily table show one.
+	careStart := nextWeekday(todaySeedDate().UTCMidnight().AddDate(0, 0, 14), time.Monday)
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/target-overrides", staffID), map[string]any{
+		"start_date":    toDateKey(careStart),
+		"end_date":      toDateKey(careStart.AddDate(0, 0, 4)),
+		"daily_minutes": 510,
+	}); err != nil {
+		return fmt.Errorf("seed target override for staff %d: %w", staffID, err)
+	}
+	// The week after, a part-time pattern with its own hours per weekday
+	// (#3745): 3.5h on Monday, 0.5h on Tuesday to Friday.
+	partTimeStart := careStart.AddDate(0, 0, 7)
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/target-overrides", staffID), map[string]any{
+		"start_date":      toDateKey(partTimeStart),
+		"end_date":        toDateKey(partTimeStart.AddDate(0, 0, 4)),
+		"weekday_minutes": []int{210, 30, 30, 30, 30},
+	}); err != nil {
+		return fmt.Errorf("seed weekday target override for staff %d: %w", staffID, err)
+	}
+	return nil
+}
+
+// seedOpeningBalance books a go-live Übertrag and a removed balance
+// adjustment for staffID, as the admin.
+func seedOpeningBalance(rt *Runtime, staffID int64) error {
+	rt.Client.BindAuth(rt.TenantAuth)
 	if _, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/time-tracking/opening", staffID), map[string]any{
 		"effective_date":  todaySeedDate().UTCMidnight().AddDate(0, 0, -1).Format(time.DateOnly),
 		"balance_minutes": 600,
@@ -529,26 +611,6 @@ func seedTimeTrackingCoverage(rt *Runtime, staffID int64, year int) error {
 	}
 	if _, err := rt.Client.Delete(fmt.Sprintf("/api/staff/%d/time-tracking/adjustments/%d", staffID, adjustmentID)); err != nil {
 		return fmt.Errorf("delete demo balance adjustment for staff %d: %w", staffID, err)
-	}
-	// Sonderarbeitszeit (#3259): a holiday-care week in the future with 8.5h
-	// per day, so the Arbeitszeitmodell tab and the daily table show one.
-	careStart := nextWeekday(todaySeedDate().UTCMidnight().AddDate(0, 0, 14), time.Monday)
-	if _, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/target-overrides", staffID), map[string]any{
-		"start_date":    toDateKey(careStart),
-		"end_date":      toDateKey(careStart.AddDate(0, 0, 4)),
-		"daily_minutes": 510,
-	}); err != nil {
-		return fmt.Errorf("seed target override for staff %d: %w", staffID, err)
-	}
-	// The week after, a part-time pattern with its own hours per weekday
-	// (#3745): 3.5h on Monday, 0.5h on Tuesday to Friday.
-	partTimeStart := careStart.AddDate(0, 0, 7)
-	if _, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/target-overrides", staffID), map[string]any{
-		"start_date":      toDateKey(partTimeStart),
-		"end_date":        toDateKey(partTimeStart.AddDate(0, 0, 4)),
-		"weekday_minutes": []int{210, 30, 30, 30, 30},
-	}); err != nil {
-		return fmt.Errorf("seed weekday target override for staff %d: %w", staffID, err)
 	}
 	return nil
 }

@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -12,11 +13,18 @@ import useSWR from "swr";
 import { MessagesSquare } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import { formErrorMessage, type FormError } from "~/components/ui/form-error";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble } from "~/components/messaging/chat-bubble";
 import { TeamThreadSkeleton } from "~/components/messaging/team-chat-skeletons";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   type StaffMessage,
   type StaffThreadDetail,
@@ -24,7 +32,6 @@ import {
   isStaffMessagingDisabled,
   staffRoleKindLabel,
 } from "~/lib/staff-messages-api";
-import { getApiErrorMessage } from "~/lib/api-error-message";
 import { createLogger } from "~/lib/logger";
 import type { TeamChatPortal } from "~/lib/team-chat-portal";
 
@@ -51,7 +58,7 @@ export interface TeamChatThreadParts {
    * `ready`: Verlauf (oder sein Skelett) steht in `body`.
    * `disabled`: die Schule hat den Chat aus — `empty` beschreibt es.
    * `error`: der Verlauf ist nicht ladbar oder es gibt ihn nicht —
-   * `errorMessage` sagt, was.
+   * `error` sagt, was.
    */
   readonly state: "ready" | "disabled" | "error";
   readonly empty: {
@@ -59,7 +66,11 @@ export interface TeamChatThreadParts {
     readonly title: string;
     readonly description: string;
   };
-  readonly errorMessage: string;
+  /**
+   * Ladefehler über den gemeinsamen Anzeigeweg (#2517), mit Wiederholen und
+   * Vorgangskennung; ein Satz, wenn es die Unterhaltung nicht gibt.
+   */
+  readonly error: FormError | string | null;
   /** Skelett statt Verlauf. */
   readonly loading: boolean;
   /** Zurück-Navigation des Portals, unverändert durchgereicht. */
@@ -156,9 +167,18 @@ export function TeamChatThread({
   // Getrennt vom Aus-Zustand: der Chat läuft, nur DIESE Unterhaltung ist zu.
   const readOnlyThread = !chatDisabled && counterpartGone;
 
+  // Katalogtext, Wiederholen und Vorgangskennung für einen Ladefehler (#2517).
+  const shownLoadError = useSwrLoadError(
+    threadLoadFailed ? loadError : undefined,
+    "die Unterhaltung",
+    mutate,
+  );
+
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
+  // Ein Sendefehler steht direkt über dem Eingabefeld, nie als Toast.
+  const sendError = useApiFormError();
+  const latestSendRef = useRef<() => void>(() => undefined);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // A colleague wrote in THIS conversation → reload it. The internal event
@@ -202,7 +222,7 @@ export function TeamChatThread({
     const body = draft.trim();
     if (!body || isSending) return;
     setIsSending(true);
-    setSendError(null);
+    sendError.clear();
     try {
       const sent = await api.postMessage(threadID, body);
       // Show the sent message immediately, then revalidate as a freshness
@@ -222,25 +242,23 @@ export function TeamChatThread({
         // Auch das ist ein Zustand, kein Fehlschlag: ohne diesen Zweig bliebe
         // der Composer bedienbar und liefe bei jedem Versuch in denselben 409.
         setCounterpartGone(true);
-        setSendError(null);
       } else if (isStaffMessagingDisabled(err)) {
         // Kein roter Fehler: das ist kein Fehlschlag, sondern ein Zustand.
         setDisabledWhileOpen(true);
-        setSendError(null);
       } else {
-        setSendError(
-          getApiErrorMessage(
-            err,
-            "senden",
-            "Nachricht",
-            "Die Nachricht konnte nicht gesendet werden.",
-          ),
-        );
+        void sendError.show(err, {
+          object: "die Nachricht",
+          retry: () => latestSendRef.current(),
+        });
       }
     } finally {
       setIsSending(false);
     }
   };
+  // „Wiederholen“ sendet den Text, der dann im Feld steht.
+  useLayoutEffect(() => {
+    latestSendRef.current = () => void handleSend();
+  });
 
   const containerRef = useChatViewportLock<HTMLDivElement>(
     Boolean(thread) && !isLoading,
@@ -249,7 +267,12 @@ export function TeamChatThread({
   // Ein Fehler beendet das Skelett. Ohne das `!loadError` hält jede laufende
   // SWR-Wiederholung isLoading wahr und die Seite zeigt ewig Platzhalter statt
   // zu sagen, was los ist.
-  const showSkeleton = !thread && isLoading && !loadError && !chatDisabled;
+  // Bis der Katalogtext da ist, bleibt das Skelett stehen.
+  const errorTextPending =
+    threadLoadFailed && formErrorMessage(shownLoadError) === null;
+  const showSkeleton =
+    (!thread && isLoading && !loadError && !chatDisabled) ||
+    (!thread && errorTextPending);
 
   const roleLabel = staffRoleKindLabel(
     thread?.counterpart_role_kind,
@@ -275,10 +298,7 @@ export function TeamChatThread({
           className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
         >
           {threadLoadFailed && messages.length > 0 && (
-            <Alert
-              type="error"
-              message="Der Verlauf konnte nicht aktualisiert werden."
-            />
+            <LoadErrorAlert error={shownLoadError} />
           )}
 
           {messages.length > 0 ? (
@@ -295,10 +315,7 @@ export function TeamChatThread({
               />
             ))
           ) : threadLoadFailed ? (
-            <Alert
-              type="error"
-              message="Der Verlauf konnte nicht geladen werden."
-            />
+            <LoadErrorAlert error={shownLoadError} />
           ) : (
             <EmptyState
               title="Noch keine Nachrichten"
@@ -308,11 +325,7 @@ export function TeamChatThread({
         </div>
       )}
 
-      {sendError && (
-        <div className="mt-3">
-          <Alert type="error" message={sendError} />
-        </div>
-      )}
+      <FormErrorAlert message={sendError.error} className="mt-3" />
 
       <div className="mt-4">
         {readOnlyThread ? (
@@ -350,8 +363,8 @@ export function TeamChatThread({
       title: DISABLED_TITLE,
       description: DISABLED_DESCRIPTION,
     },
-    errorMessage: loadError
-      ? "Der Verlauf konnte nicht geladen werden."
+    error: threadLoadFailed
+      ? shownLoadError
       : "Diese Unterhaltung gibt es nicht.",
     loading: showSkeleton,
     backNav,
@@ -373,7 +386,7 @@ function DefaultThreadFrame({
     roleLabel,
     state,
     empty,
-    errorMessage,
+    error,
     loading,
     backNav,
     containerRef,
@@ -390,8 +403,10 @@ function DefaultThreadFrame({
             title={empty.title}
             description={empty.description}
           />
+        ) : typeof error === "string" ? (
+          <Alert type="error" message={error} />
         ) : (
-          <Alert type="error" message={errorMessage} />
+          <LoadErrorAlert error={error} />
         )}
       </div>
     );

@@ -8,7 +8,9 @@ import {
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ErrorCode } from "~/lib/error-codes.generated";
 import { ShiftApiError, staffShiftService } from "~/lib/shift-api";
+import { catalogText } from "~/test/error-catalog-text";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
 
@@ -27,7 +29,7 @@ vi.mock("~/lib/hooks/use-closing-days", () => ({
 }));
 
 // Spy on the CRUD service while keeping the real ShiftApiError class (the
-// dialog classifies errors against it). vitest hoists this above the imports,
+// client throws it with the wire code). vitest hoists this above the imports,
 // so `staffShiftService` above is the mocked singleton.
 vi.mock("~/lib/shift-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/shift-api")>();
@@ -108,6 +110,18 @@ function renderDialog(
     />,
   );
   return { onClose, onDataChanged };
+}
+
+function shiftError(
+  status: number,
+  detail: string,
+  code: ErrorCode,
+  instance?: string,
+): ShiftApiError {
+  const error = new ShiftApiError(status, detail);
+  error.code = code;
+  error.requestId = instance;
+  return error;
 }
 
 function selectPerson(comboboxName: string, optionName: string) {
@@ -261,17 +275,23 @@ describe("ShiftMoveDialog person change", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("shows an error without reporting a data change when the move fails", async () => {
+  it("shows a failed move in the dialog without reporting a data change", async () => {
     vi.mocked(staffShiftService.moveShift).mockRejectedValue(
-      new ShiftApiError(500, "boom"),
+      shiftError(500, "boom", "general.server", "req-move"),
     );
     const { onDataChanged, onClose } = renderDialog();
 
     selectPerson("Zielperson", "Yilmaz, Bo");
     await confirmMove();
 
-    // moveErrorMessage falls through to the raw detail for a 500.
-    await waitFor(() => expect(screen.getByText("boom")).toBeInTheDocument());
+    // The catalog sentence, never the backend detail.
+    expect(
+      await screen.findByText(catalogText("general.server", "die Schicht")),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("boom")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+    ).toHaveTextContent("req-move");
     expect(staffShiftService.moveShift).toHaveBeenCalledTimes(1);
     expect(staffShiftService.deleteShift).not.toHaveBeenCalled();
     expect(staffShiftService.createShift).not.toHaveBeenCalled();
@@ -282,11 +302,33 @@ describe("ShiftMoveDialog person change", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("maps an origin-link 400 to the Vertretung-specific message", async () => {
+  it("retries a failed move with the current form through the confirmation", async () => {
+    vi.mocked(staffShiftService.moveShift)
+      .mockRejectedValueOnce(shiftError(503, "down", "general.unavailable"))
+      .mockResolvedValueOnce(baseShift());
+    const { onDataChanged } = renderDialog();
+
+    selectPerson("Zielperson", "Yilmaz, Bo");
+    await confirmMove();
+    fireEvent.click(await screen.findByRole("button", { name: "Wiederholen" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Verschieben" }));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(onDataChanged).toHaveBeenCalledTimes(1));
+    expect(staffShiftService.moveShift).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(staffShiftService.moveShift).mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({ targetStaffId: other.id }),
+    );
+  });
+
+  it("shows the catalog text for the code of a refused replacement move", async () => {
     vi.mocked(staffShiftService.moveShift).mockRejectedValue(
-      new ShiftApiError(
+      shiftError(
         400,
         "replacement must be on the same date as the shift it covers",
+        "general.input",
       ),
     );
     renderDialog({ shift: baseShift({ originShiftId: "42" }) });
@@ -294,18 +336,23 @@ describe("ShiftMoveDialog person change", () => {
     selectPerson("Zielperson", "Yilmaz, Bo");
     await confirmMove();
 
-    await waitFor(() =>
-      expect(
-        screen.getByText(/kann nur innerhalb des Tages und Zeitfensters/i),
-      ).toBeInTheDocument(),
-    );
+    expect(
+      await screen.findByText(catalogText("general.input", "die Schicht")),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/replacement must be on the same date/),
+    ).not.toBeInTheDocument();
     expect(staffShiftService.moveShift).toHaveBeenCalledTimes(1);
     expect(staffShiftService.deleteShift).not.toHaveBeenCalled();
   });
 
-  it("maps a stale-move conflict to a reload message", async () => {
+  it("shows the catalog text for a stale-move conflict", async () => {
     vi.mocked(staffShiftService.moveShift).mockRejectedValue(
-      new ShiftApiError(409, "shift changed concurrently"),
+      shiftError(
+        409,
+        "shift changed concurrently",
+        "general.business_rejection",
+      ),
     );
     renderDialog();
 
@@ -313,8 +360,27 @@ describe("ShiftMoveDialog person change", () => {
     await confirmMove();
 
     expect(
-      await screen.findByText(/zwischenzeitlich geändert/i),
+      await screen.findByText(
+        catalogText("general.business_rejection", "die Schicht"),
+      ),
     ).toBeInTheDocument();
+  });
+
+  it("marks the field of a refused move", async () => {
+    const error = shiftError(400, "invalid", "general.input");
+    error.errors = [{ field: "break_minutes", reason: "too long" }];
+    vi.mocked(staffShiftService.moveShift).mockRejectedValue(error);
+    renderDialog();
+
+    selectPerson("Zielperson", "Yilmaz, Bo");
+    await confirmMove();
+
+    await waitFor(() =>
+      expect(screen.getByRole("spinbutton")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      ),
+    );
   });
 
   it("requires an active or empty shift type when the person changes", () => {

@@ -22,16 +22,21 @@ func (q overviewStaffQuery) ListOverviewStaff(ctx context.Context) ([]timetracki
 	if err != nil {
 		return nil, err
 	}
-	staff := make([]timetracking.OverviewStaff, len(rows))
-	for i, row := range rows {
-		staff[i] = timetracking.OverviewStaff{
+	staff := make([]timetracking.OverviewStaff, 0, len(rows))
+	for _, row := range rows {
+		// External caregivers (#3823) record no working time.
+		if row.IsGuest {
+			continue
+		}
+		member := timetracking.OverviewStaff{
 			ID: row.ID, EmploymentType: row.EmploymentType, PersonnelNumber: row.PersonnelNumber,
 			WorkTimeModelID: row.WorkTimeModelID, RotationAnchorDate: row.RotationAnchorDate,
 		}
 		if row.Person != nil {
-			staff[i].FirstName = row.Person.FirstName
-			staff[i].LastName = row.Person.LastName
+			member.FirstName = row.Person.FirstName
+			member.LastName = row.Person.LastName
 		}
+		staff = append(staff, member)
 	}
 	return staff, nil
 }

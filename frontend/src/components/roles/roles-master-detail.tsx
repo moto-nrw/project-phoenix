@@ -18,6 +18,9 @@ import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
 import { rolesConfig } from "~/components/database/configs/roles.config";
 import { DatabaseForm } from "~/components/ui/database/database-form";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import {
   DataField,
   DataGrid,
@@ -38,6 +41,9 @@ interface RolesMasterDetailProps {
   selectedId: string | null;
   selectedRole: Role | null;
   detailLoading: boolean;
+  /** Ladefehler des Details (aus `useApiLoadError`); ohne ihn wären die
+   *  Zahlen der Liste ohne Berechtigungen falsch. */
+  detailError?: FormErrorInput;
   /** Darf den Berechtigungskatalog laden und Rollenrechte ändern. */
   canManagePermissions?: boolean;
   onSelect: (id: string | null) => void;
@@ -62,6 +68,7 @@ export function RolesMasterDetail({
   selectedId,
   selectedRole,
   detailLoading,
+  detailError = null,
   canManagePermissions = false,
   onSelect,
   onSaveRole,
@@ -97,6 +104,7 @@ export function RolesMasterDetail({
       key={selectedRole.id}
       role={selectedRole}
       loading={detailLoading}
+      detailError={detailError}
       canManagePermissions={canManagePermissions}
       onSaveRole={onSaveRole}
       onDeleteClick={onDeleteClick}
@@ -126,6 +134,7 @@ export function RolesMasterDetail({
 interface RoleDetailContentProps {
   role: Role;
   loading: boolean;
+  detailError: FormErrorInput;
   canManagePermissions: boolean;
   onSaveRole: (data: Partial<Role>) => Promise<void>;
   onDeleteClick: () => void;
@@ -135,6 +144,7 @@ interface RoleDetailContentProps {
 function RoleDetailContent({
   role,
   loading,
+  detailError,
   canManagePermissions,
   onSaveRole,
   onDeleteClick,
@@ -189,6 +199,7 @@ function RoleDetailContent({
         <RoleStammdatenTab
           role={role}
           loading={loading}
+          detailError={detailError}
           editing={editing && activeTab === "master-data"}
           onSaveRole={handleSaveRole}
           onCancelEdit={() => setEditing(false)}
@@ -240,18 +251,28 @@ function RoleDetailContent({
 function RoleStammdatenTab({
   role,
   loading,
+  detailError,
   editing,
   onSaveRole,
   onCancelEdit,
 }: {
   role: Role;
   loading: boolean;
+  detailError: FormErrorInput;
   editing: boolean;
   onSaveRole: (data: Partial<Role>) => Promise<void>;
   onCancelEdit: () => void;
 }) {
+  // Speicherfehler im Formular, Namensdopplung am Feld (#2517).
+  const saveErrors = useApiFormError();
+
   if (loading) {
     return <DetailLoadingSpinner label="Rollendaten werden geladen..." />;
+  }
+
+  // Ohne Detail fehlen die Berechtigungen: keine „0 Berechtigungen“ zeigen.
+  if (detailError) {
+    return <LoadErrorAlert error={detailError} />;
   }
 
   const description = getRoleDisplayDescription(role.name, role.description);
@@ -265,6 +286,8 @@ function RoleStammdatenTab({
         onCancel={onCancelEdit}
         submitLabel="Speichern"
         stickyActions
+        errorPath={saveErrors}
+        errorObject="die Rolle"
       />
     );
   }

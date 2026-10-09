@@ -341,6 +341,7 @@ var roleSentinels = []struct {
 }{
 	{domain.ErrSystemRoleImmutable, identityaccess.ErrSystemRoleImmutable},
 	{domain.ErrPermissionNotFound, identityaccess.ErrPermissionNotFound},
+	{domain.ErrRoleNameTaken, identityaccess.ErrRoleNameTaken},
 	{domain.ErrRoleNotFound, identityaccess.ErrRoleNotFound},
 	{domain.ErrRoleCaregiverNeedsProfile, identityaccess.ErrRoleCaregiverNeedsProfile},
 	{domain.ErrLehrkraftRoleImmutable, identityaccess.ErrLehrkraftRoleImmutable},

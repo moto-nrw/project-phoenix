@@ -2,6 +2,7 @@ import {
   ApiError,
   apiErrorFromBody,
   apiErrorFromResponse,
+  transportFetch,
 } from "~/lib/api-error";
 import type { ErrorCode } from "~/lib/error-codes.generated";
 
@@ -128,7 +129,7 @@ export async function fetchStudentStatusDays(
   from: string,
   to: string,
 ): Promise<StudentStatusDay[]> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/status-days?from=${from}&to=${to}`,
   );
   if (!response.ok) {
@@ -173,17 +174,6 @@ export interface StatusDayOverview {
   has_more: boolean;
 }
 
-/** Thrown when the account has no staff link (backend 403). */
-export class StatusDayOverviewForbiddenError extends ApiError {
-  constructor() {
-    super(
-      "Ihr Konto ist keinem Personaleintrag zugeordnet. Bitte wenden Sie sich an Ihre Administration.",
-      403,
-    );
-    this.name = "StatusDayOverviewForbiddenError";
-  }
-}
-
 export async function fetchStatusDayOverview(
   from: string,
   to: string,
@@ -198,10 +188,7 @@ export async function fetchStatusDayOverview(
   if (filters.query.trim()) params.set("q", filters.query.trim());
   if (filters.status !== "all") params.set("status", filters.status);
   if (filters.groupId !== "all") params.set("group_id", filters.groupId);
-  const response = await fetch(`/api/students/status-days?${params}`);
-  if (response.status === 403) {
-    throw new StatusDayOverviewForbiddenError();
-  }
+  const response = await transportFetch(`/api/students/status-days?${params}`);
   if (!response.ok) {
     throw await apiErrorFromResponse(
       response,
@@ -220,15 +207,18 @@ export async function createStudentStatusDays(
   dates: string[],
   reason?: string,
 ): Promise<StudentStatusDay[]> {
-  const response = await fetch(`/api/students/${studentId}/status-days`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    // Only include the reason when one is supplied so the default request
-    // shape is unchanged (the backend treats an absent reason as no note).
-    body: JSON.stringify(
-      reason ? { status, dates, reason } : { status, dates },
-    ),
-  });
+  const response = await transportFetch(
+    `/api/students/${studentId}/status-days`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // Only include the reason when one is supplied so the default request
+      // shape is unchanged (the backend treats an absent reason as no note).
+      body: JSON.stringify(
+        reason ? { status, dates, reason } : { status, dates },
+      ),
+    },
+  );
   if (response.status === 409) {
     const result = (await response.json()) as ApiResponse<
       BackendStudentStatusDay[]
@@ -255,7 +245,7 @@ export async function bulkCreateStudentStatusDays(
   to: string,
   reason?: string,
 ): Promise<{ student_count: number; date_count: number }> {
-  const response = await fetch("/api/students/status-days/bulk", {
+  const response = await transportFetch("/api/students/status-days/bulk", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(
@@ -286,7 +276,7 @@ export async function deleteStudentStatusDay(
   studentId: string,
   statusDayId: string,
 ): Promise<void> {
-  const response = await fetch(
+  const response = await transportFetch(
     `/api/students/${studentId}/status-days/${statusDayId}`,
     { method: "DELETE" },
   );

@@ -203,10 +203,20 @@ func SetupRFIDModule(t *testing.T) (*bun.DB, services.RFIDTestModule) {
 	return db, module
 }
 
-func SetupGroupsModule(t *testing.T) (*bun.DB, services.GroupsTestModule) {
+func SetupGroupsModule(t *testing.T, publishers ...*testpkg.RecordingBroadcaster) (*bun.DB, services.GroupsTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewGroupsTestModule(db, testpkg.TenantRuntime(t, db))
+	var broadcaster *testpkg.RecordingBroadcaster
+	if len(publishers) > 0 {
+		broadcaster = publishers[0]
+	}
+	var module services.GroupsTestModule
+	var err error
+	if broadcaster != nil {
+		module, err = services.NewGroupsTestModule(db, testpkg.TenantRuntime(t, db), broadcaster)
+	} else {
+		module, err = services.NewGroupsTestModule(db, testpkg.TenantRuntime(t, db))
+	}
 	require.NoError(t, err)
 	return db, module
 }

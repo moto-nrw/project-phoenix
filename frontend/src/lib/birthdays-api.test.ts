@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "./api-error";
 import {
   exportStaffBirthdays,
   fetchBirthdayOptOut,
@@ -294,47 +295,71 @@ describe("exportStaffBirthdays", () => {
     expect(link.download).toBe("geburtstagsliste-personal.docx");
   });
 
-  // The proxy forwards the backend's human-readable message; the toast must
-  // show that rather than the JSON envelope.
-  it("surfaces the backend error message", async () => {
+  // The display path reads the code and request ID, never the backend
+  // sentence (#2514): the error keeps the envelope's code.
+  it("keeps the backend code and request ID of a refused export", async () => {
     globalThis.fetch = vi.fn(
       async () =>
-        new Response(JSON.stringify({ error: "Ungültiger Geburtsmonat" }), {
-          status: 400,
-        }),
+        new Response(
+          JSON.stringify({
+            error: "Ungültiger Geburtsmonat",
+            code: "general.input",
+            instance: "req-birthday",
+          }),
+          { status: 400 },
+        ),
     );
 
-    await expect(exportStaffBirthdays({ format: "pdf" })).rejects.toThrow(
-      "Ungültiger Geburtsmonat",
-    );
+    const failure = exportStaffBirthdays({ format: "pdf" });
+    await expect(failure).rejects.toBeInstanceOf(ApiError);
+    await expect(failure).rejects.toMatchObject({
+      code: "general.input",
+      status: 400,
+      requestId: "req-birthday",
+    });
   });
 
-  it("forwards a plain-text error body unchanged", async () => {
+  it("classifies a plain-text 401 as a missing permission", async () => {
     globalThis.fetch = vi.fn(
       async () => new Response("Unauthorized", { status: 401 }),
     );
 
-    await expect(exportStaffBirthdays({ format: "pdf" })).rejects.toThrow(
-      "Unauthorized",
+    await expect(exportStaffBirthdays({ format: "pdf" })).rejects.toMatchObject(
+      { code: "general.permission", status: 401 },
     );
   });
 
-  it("falls back to a generic message on an empty error body", async () => {
+  it("classifies an empty 500 body as a server error", async () => {
     globalThis.fetch = vi.fn(async () => new Response("", { status: 500 }));
 
-    await expect(exportStaffBirthdays({ format: "pdf" })).rejects.toThrow(
-      "Export fehlgeschlagen",
-    );
+    const failure = exportStaffBirthdays({ format: "pdf" });
+    await expect(failure).rejects.toBeInstanceOf(ApiError);
+    await expect(failure).rejects.toMatchObject({
+      code: "general.server",
+      status: 500,
+    });
   });
 
-  it("keeps the generic message when the error payload has no error field", async () => {
+  it("classifies a 500 envelope without code by its status", async () => {
     globalThis.fetch = vi.fn(
       async () =>
         new Response(JSON.stringify({ detail: "nope" }), { status: 500 }),
     );
 
-    await expect(exportStaffBirthdays({ format: "pdf" })).rejects.toThrow(
-      '{"detail":"nope"}',
+    await expect(exportStaffBirthdays({ format: "pdf" })).rejects.toMatchObject(
+      { code: "general.server", status: 500 },
     );
+  });
+
+  it("reports a network failure as unavailable", async () => {
+    globalThis.fetch = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+
+    const failure = exportStaffBirthdays({ format: "pdf" });
+    await expect(failure).rejects.toBeInstanceOf(ApiError);
+    await expect(failure).rejects.toMatchObject({
+      code: "general.unavailable",
+    });
   });
 });

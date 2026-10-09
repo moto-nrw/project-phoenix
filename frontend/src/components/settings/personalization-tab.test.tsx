@@ -24,12 +24,25 @@ vi.mock("next/image", () => ({
 // Mock Toast Context
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
+// Stable references: the component lists them as effect dependencies.
+const mockShowActionError = vi.fn();
+const mockShowLoadError = vi.fn();
+const mockClearLoadError = vi.fn();
+const toastApi = {
+  success: mockToastSuccess,
+  error: mockToastError,
+  info: vi.fn(),
+};
+const actionErrorApi = { show: mockShowActionError };
+const loadErrorApi = {
+  error: null,
+  show: mockShowLoadError,
+  clear: mockClearLoadError,
+};
 vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({
-    success: mockToastSuccess,
-    error: mockToastError,
-    info: vi.fn(),
-  }),
+  useToast: () => toastApi,
+  useApiErrorDisplay: () => actionErrorApi,
+  useApiLoadError: () => loadErrorApi,
 }));
 
 // Mock sessionFetch for the initial GET
@@ -166,7 +179,7 @@ describe("PersonalizationTab", () => {
 
     await waitFor(() => {
       expect(mockToastSuccess).toHaveBeenCalledWith(
-        "Login-Bild erfolgreich hochgeladen",
+        "Das Login-Bild ist hochgeladen.",
       );
     });
     expect(mockRefresh).toHaveBeenCalled();
@@ -193,8 +206,10 @@ describe("PersonalizationTab", () => {
     fireEvent.change(input, { target: { files: [file] } });
 
     await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(
-        "Fehler beim Hochladen des Bildes",
+      // #2517: shared error path with the backend status class.
+      expect(mockShowActionError).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 500, code: "general.server" }),
+        expect.objectContaining({ object: "das Hochladen des Login-Bilds" }),
       );
     });
   });
@@ -220,7 +235,7 @@ describe("PersonalizationTab", () => {
 
     await waitFor(() => {
       expect(mockToastSuccess).toHaveBeenCalledWith(
-        "Login-Bild erfolgreich entfernt",
+        "Das Login-Bild ist entfernt.",
       );
     });
     expect(mockRefresh).toHaveBeenCalled();
@@ -248,8 +263,9 @@ describe("PersonalizationTab", () => {
     fireEvent.click(screen.getByText("Bild entfernen"));
 
     await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(
-        "Fehler beim Entfernen des Bildes",
+      expect(mockShowActionError).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 500, code: "general.server" }),
+        expect.objectContaining({ object: "das Entfernen des Login-Bilds" }),
       );
     });
   });
@@ -272,7 +288,7 @@ describe("PersonalizationTab", () => {
     // After fetch resolves with null, it updates to null — read-only description is shown
     await waitFor(() => {
       expect(
-        screen.getByText(/Das aktuelle Bild wird auf der Login-Seite/),
+        screen.getByText(/nur hochladen, wer Einstellungen ändern darf/),
       ).toBeDefined();
     });
   });
@@ -285,9 +301,28 @@ describe("PersonalizationTab", () => {
     render(<PersonalizationTab />);
     await waitFor(() => {
       expect(
-        screen.getByText(/Das aktuelle Bild wird auf der Login-Seite/),
+        screen.getByText(/nur hochladen, wer Einstellungen ändern darf/),
       ).toBeDefined();
     });
+  });
+
+  // #3893: Ohne Recht und ohne Bild war die Karte leer, ohne Vorschau und
+  // ohne Grund. Jetzt zeigt sie, was auf der Login-Seite steht.
+  it("previews the moto logo when no image is set, also read-only", async () => {
+    mockSessionFetch.mockResolvedValue(
+      jsonResponse({ data: { login_image_url: null, can_edit: false } }),
+    );
+
+    render(<PersonalizationTab />);
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Noch kein eigenes Bild. Die Login-Seite zeigt das moto-Logo.",
+        ),
+      ).toBeDefined();
+    });
+    expect(screen.getByText("moto")).toBeDefined();
+    expect(screen.queryByText("Bild auswählen")).toBeNull();
   });
 
   it("shows editable description when can_edit is true", async () => {
@@ -321,7 +356,7 @@ describe("PersonalizationTab", () => {
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith(
-        "Datei ist zu groß (max. 2 MB)",
+        "Das Bild ist zu groß. Bitte wählen Sie ein Bild bis 2 MB.",
       );
     });
     // Should NOT have called fetch for upload
@@ -348,7 +383,7 @@ describe("PersonalizationTab", () => {
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith(
-        "Nur JPG, PNG oder WebP erlaubt",
+        "Bitte wählen Sie ein Bild im Format JPG, PNG oder WebP.",
       );
     });
     expect(globalThis.fetch).not.toHaveBeenCalled();
@@ -420,7 +455,7 @@ describe("PersonalizationTab", () => {
 
     await waitFor(() => {
       expect(mockToastSuccess).toHaveBeenCalledWith(
-        "Login-Bild erfolgreich hochgeladen",
+        "Das Login-Bild ist hochgeladen.",
       );
     });
   });
@@ -470,6 +505,11 @@ describe("PersonalizationTab", () => {
     await waitFor(() => {
       expect(document.querySelector(".animate-spin")).toBeNull();
     });
+    // #2517: the failed load is shown in place with retry.
+    expect(mockShowLoadError).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 500, code: "general.server" }),
+      expect.objectContaining({ object: "das Login-Bild" }),
+    );
   });
 
   it("handles fetch exception on mount gracefully", async () => {
@@ -479,5 +519,6 @@ describe("PersonalizationTab", () => {
     await waitFor(() => {
       expect(document.querySelector(".animate-spin")).toBeNull();
     });
+    expect(mockShowLoadError).toHaveBeenCalledTimes(1);
   });
 });

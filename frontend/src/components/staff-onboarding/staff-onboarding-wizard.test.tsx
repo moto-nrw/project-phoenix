@@ -1,3 +1,4 @@
+import { catalogText } from "~/test/error-catalog-text";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
@@ -563,7 +564,7 @@ describe("StaffOnboardingWizard", () => {
 
   it("says so when a step could not be saved", async () => {
     const { StaffOnboardingError } = await import("~/lib/staff-onboarding-api");
-    api.setStaffOnboardingStepState.mockRejectedValue(
+    api.setStaffOnboardingStepState.mockRejectedValueOnce(
       new StaffOnboardingError(500),
     );
     render(<StaffOnboardingWizard />);
@@ -572,9 +573,19 @@ describe("StaffOnboardingWizard", () => {
 
     expect(
       await screen.findByText(
-        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+        catalogText("general.server", "die Änderung der ersten Schritte"),
       ),
     ).toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();
+
+    // „Wiederholen“ sendet dieselbe Änderung noch einmal.
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(api.setStaffOnboardingStepState).toHaveBeenCalledTimes(2),
+    );
+    expect(api.setStaffOnboardingStepState).toHaveBeenLastCalledWith(
+      expect.any(String),
+      "skipped",
+    );
   });
 });

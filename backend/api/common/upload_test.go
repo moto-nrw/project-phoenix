@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/randstr"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -100,12 +100,12 @@ func TestFileExtension_DerivedFromContentType(t *testing.T) {
 func TestGenerateRandomString(t *testing.T) {
 	t.Parallel()
 
-	result, err := randstr.String(8, randstr.Alphanumeric)
+	result, err := securityruntime.UploadFilenameSuffix()
 	assert.NoError(t, err)
 	assert.Len(t, result, 8)
 
 	// Uniqueness
-	result2, err := randstr.String(8, randstr.Alphanumeric)
+	result2, err := securityruntime.UploadFilenameSuffix()
 	assert.NoError(t, err)
 	assert.NotEqual(t, result, result2)
 }
@@ -549,4 +549,58 @@ func TestPublicDirCandidates(t *testing.T) {
 	parent := filepath.Dir(base)
 	assert.Contains(t, candidates, filepath.Join(parent, "public"))
 	assert.Contains(t, candidates, filepath.Join(parent, "backend", "public"))
+}
+
+// A refused upload carries its code (#2517); the size refusal names the limit.
+func TestErrorUpload_CarriesTheRefusalCode(t *testing.T) {
+	t.Parallel()
+
+	render := func(err error) *ErrResponse {
+		t.Helper()
+		resp, ok := ErrorUpload(err, 10<<20).(*ErrResponse)
+		require.True(t, ok)
+		return resp
+	}
+
+	plainZIP := makeZIP(t, map[string]string{"notes.txt": "not a Word document"})
+	req := createMultipartRequest(t, "document", "renamed.docx", plainZIP)
+	_, err := ParseDocumentWithLimits(httptest.NewRecorder(), req, "document", 10<<20, 10<<20)
+	typeResp := render(err)
+	assert.Equal(t, http.StatusBadRequest, typeResp.HTTPStatusCode)
+	assert.Equal(t, CodeFilesFileTypeNotAllowed, typeResp.Code)
+
+	req = createMultipartRequest(t, "document", "big.pdf", []byte("%PDF-1.4 large"))
+	_, err = ParseDocumentWithLimits(httptest.NewRecorder(), req, "document", 4, 10<<20)
+	sizeResp, ok := ErrorUpload(err, 4).(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, CodeFilesFileTooLarge, sizeResp.Code)
+	assert.Equal(t, int64(1), sizeResp.Details["max_mb"])
+	assert.Contains(t, sizeResp.ErrorText, "bis zu 1 MB")
+
+	req = createMultipartRequest(t, "other", "a.pdf", []byte("%PDF-1.4"))
+	_, err = ParseDocumentWithLimits(httptest.NewRecorder(), req, "document", 10<<20, 10<<20)
+	assert.Equal(t, CodeFilesFileMissing, render(err).Code)
+
+	assert.Empty(t, render(assert.AnError).Code)
+}
+
+func TestParseDocumentWithLimits_RejectsMalformedMultipartAsUnreadable(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/",
+		strings.NewReader(
+			"--broken\r\n"+
+				"Content-Disposition: form-data; name=\"document\"; filename=\"broken.pdf\"\r\n"+
+				"Content-Type: application/pdf\r\n\r\n"+
+				"%PDF-1.4",
+		),
+	)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=broken")
+	_, err := ParseDocumentWithLimits(httptest.NewRecorder(), req, "document", 10<<20, 10<<20)
+	resp, ok := ErrorUpload(err, 10<<20).(*ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, CodeFilesFileUnreadable, resp.Code)
+	assert.Nil(t, resp.Details)
 }

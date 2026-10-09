@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -345,6 +346,12 @@ func TestOptOutWithoutStaffRecord(t *testing.T) {
 	rr := birthdayAuthExec(t, tc, req, claimsFor(t, account.ID), []string{})
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
+	var body struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, common.CodeWorkforceStaffProfileMissing, body.Code,
+		"the profile card hides itself on this code")
 }
 
 // Berechtigung: the staff list reveals full birth dates, so users:read is not

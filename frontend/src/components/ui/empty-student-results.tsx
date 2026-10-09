@@ -9,6 +9,8 @@ interface EmptyStudentResultsProps {
   readonly totalCount: number;
   /** Number of students after filtering */
   readonly filteredCount: number;
+  /** Says where the search looked when that is narrower than all children. */
+  readonly description?: string;
 }
 
 /**
@@ -19,12 +21,13 @@ interface EmptyStudentResultsProps {
 export function EmptyStudentResults({
   totalCount,
   filteredCount,
+  description = "Versuchen Sie, Ihre Suchkriterien anzupassen.",
 }: Readonly<EmptyStudentResultsProps>) {
   return (
     <EmptyState
       icon={<Search className="h-12 w-12" strokeWidth={2} />}
       title="Keine Kinder gefunden"
-      description="Versuchen Sie, Ihre Suchkriterien anzupassen."
+      description={description}
       action={
         <p className="text-sm text-gray-500">
           {totalCount} Kinder insgesamt, {filteredCount} nach Filtern

@@ -5,7 +5,6 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/xuri/excelize/v2"
 
@@ -60,7 +59,7 @@ func ParseOpeningBalanceCSV(reader io.Reader) ([]importModels.OpeningBalanceImpo
 		mapping[normalizeHeaderKey(col)] = i
 	}
 	if missing := missingOpeningBalanceColumns(mapping); len(missing) > 0 {
-		return nil, fmt.Errorf("fehlende erforderliche Spalten: %s", strings.Join(missing, ", "))
+		return nil, missingColumns(missing)
 	}
 
 	var rows []importModels.OpeningBalanceImportRow
@@ -71,7 +70,7 @@ func ParseOpeningBalanceCSV(reader io.Reader) ([]importModels.OpeningBalanceImpo
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("row %d: %w", rowNum, err)
+			return nil, rowError(rowNum, err)
 		}
 
 		if isEmptyRow(values) {
@@ -85,7 +84,7 @@ func ParseOpeningBalanceCSV(reader io.Reader) ([]importModels.OpeningBalanceImpo
 	}
 
 	if len(rows) == 0 {
-		return nil, fmt.Errorf("die CSV-Datei enthält keine Datenzeilen. Möglicherweise haben Sie versehentlich die Vorlage hochgeladen")
+		return nil, noCSVDataRows()
 	}
 
 	return rows, nil
@@ -124,7 +123,7 @@ func ParseOpeningBalanceXLSX(reader io.Reader) ([]importModels.OpeningBalanceImp
 		mapping[normalizeHeaderKey(col)] = i
 	}
 	if missing := missingOpeningBalanceColumns(mapping); len(missing) > 0 {
-		return nil, fmt.Errorf("fehlende erforderliche Spalten: %s", strings.Join(missing, ", "))
+		return nil, missingColumns(missing)
 	}
 
 	var rows []importModels.OpeningBalanceImportRow
@@ -138,7 +137,7 @@ func ParseOpeningBalanceXLSX(reader io.Reader) ([]importModels.OpeningBalanceImp
 	}
 
 	if len(rows) == 0 {
-		return nil, fmt.Errorf("die Excel-Datei enthält keine Datenzeilen. Möglicherweise haben Sie versehentlich die Vorlage hochgeladen")
+		return nil, noExcelDataRows()
 	}
 
 	return rows, nil

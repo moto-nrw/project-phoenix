@@ -10,7 +10,9 @@ import {
   type GuardianNoticeDraft,
 } from "./guardian-notice-fields";
 import { cancelledToast } from "./guardian-notice-toast";
+import { ApiError } from "~/lib/api-error";
 import type { GuardianNoticeReach } from "~/lib/timetable-types";
+import { catalogText } from "~/test/error-catalog-text";
 
 const getGuardianNoticeReach = vi.fn();
 
@@ -97,7 +99,7 @@ describe("cancelledToast", () => {
         childCount: 2,
         familyCount: 0,
       }),
-    ).toBe("Block abgesagt. Keine Familie mit Elternportal-Zugang betroffen.");
+    ).toBe("Block abgesagt. Keine betroffene Familie nutzt das Elternportal.");
     expect(
       cancelledToast("Block abgesagt", {
         announcementId: "1",
@@ -112,6 +114,17 @@ describe("cancelledToast", () => {
         familyCount: 3,
       }),
     ).toBe("Block abgesagt. 3 Familien wurden informiert.");
+    // Ein ganzer Satz als Anfang bekommt keinen zweiten Punkt.
+    expect(
+      cancelledToast("Die Aktivität ist abgesagt.", {
+        announcementId: "1",
+        childCount: 2,
+        familyCount: 1,
+      }),
+    ).toBe("Die Aktivität ist abgesagt. 1 Familie wurde informiert.");
+    expect(cancelledToast("Die Aktivität ist abgesagt.", undefined)).toBe(
+      "Die Aktivität ist abgesagt.",
+    );
   });
 });
 
@@ -173,12 +186,24 @@ describe("GuardianNoticeFields", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("explains a failed lookup without blocking the cancellation", async () => {
-    getGuardianNoticeReach.mockRejectedValue(new Error("boom"));
+  it("explains a failed lookup in place without blocking the cancellation", async () => {
+    getGuardianNoticeReach
+      .mockRejectedValueOnce(
+        new ApiError("Failed to fetch", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(reachOn);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     render(<Harness />);
     expect(
-      await screen.findByText(/ließ sich gerade nicht laden/),
+      await screen.findByText(
+        catalogText("general.unavailable", "die Information der Eltern"),
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Sie können trotzdem absagen/)).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByLabelText(CHECKBOX_LABEL)).toBeChecked();
+    expect(getGuardianNoticeReach).toHaveBeenCalledTimes(2);
   });
 });

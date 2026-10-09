@@ -1,15 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import {
   adminGetMFAState,
   adminResetMFA,
   adminSetMFAOverride,
-  germanMFAErrorMessage,
   operatorAdminGetGlobalMFAOverride,
   operatorAdminResetMFA,
   operatorAdminSetGlobalMFAOverride,
@@ -21,6 +34,14 @@ const logger = createLogger({ component: "MFAAdminOverrideModal" });
 
 const DANGER_RED = MOTO_COLOR_PALETTE.red.base;
 const MIN_REASON_LENGTH = 3;
+
+const TEXTAREA_CLASS =
+  "block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 transition-all ring-inset focus:outline-none focus-visible:ring-2 disabled:bg-gray-50";
+
+/** Rahmen der Begründung: rot, wenn eine Prüfung sie abgelehnt hat. */
+function reasonClass(invalid: boolean, focusRing: string): string {
+  return `${TEXTAREA_CLASS} ${invalid ? "ring-moto-red" : "ring-gray-200"} ${focusRing}`;
+}
 
 type View = { kind: "form" } | { kind: "reset-done" };
 
@@ -66,7 +87,23 @@ export function MFAAdminOverrideModal({
   const [view, setView] = useState<View>({ kind: "form" });
   const [reason, setReason] = useState("");
   const [isWorking, setIsWorking] = useState(false);
-  const [error, setError] = useState("");
+  // Jeder Abschnitt hat seinen eigenen Fehlerkasten im Dialog (#2517):
+  // Katalogtext, Feldfehler an der Begründung, Wiederholen.
+  const resetRef = useRef<HTMLFormElement>(null);
+  const resetErrors = useApiFormError(resetRef);
+  const overrideRef = useRef<HTMLElement>(null);
+  const overrideErrors = useApiFormError(overrideRef);
+  const globalRef = useRef<HTMLElement>(null);
+  const globalErrors = useApiFormError(globalRef);
+  const stateLoad = useApiLoadError();
+  const { clear: clearResetError } = resetErrors;
+  const { clear: clearOverrideError } = overrideErrors;
+  const { clear: clearGlobalError } = globalErrors;
+  const { show: showStateError, clear: clearStateError } = stateLoad;
+  const latestResetRef = useRef<() => void>(() => undefined);
+  const latestOverrideRef = useRef<() => void>(() => undefined);
+  const latestGlobalRef = useRef<() => void>(() => undefined);
+  const latestLoadRef = useRef<() => void>(() => undefined);
 
   // Override-section state. The current override drives which toggle
   // buttons are offered. We fetch it lazily once the modal opens.
@@ -80,7 +117,6 @@ export function MFAAdminOverrideModal({
   const [enrolled, setEnrolled] = useState<boolean>(false);
   const [stateLoaded, setStateLoaded] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
-  const [overrideError, setOverrideError] = useState("");
   const [overrideWorking, setOverrideWorking] = useState(false);
 
   // Account-wide override section state. Only rendered on the operator
@@ -94,30 +130,36 @@ export function MFAAdminOverrideModal({
     useState<MFAAdminOverride>("none");
   const [globalStateLoaded, setGlobalStateLoaded] = useState(false);
   const [globalReason, setGlobalReason] = useState("");
-  const [globalError, setGlobalError] = useState("");
   const [globalWorking, setGlobalWorking] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
       setView({ kind: "form" });
       setReason("");
-      setError("");
+      clearResetError();
       setIsWorking(false);
       setOverride("none");
       setSelectedOverride("none");
       setEnrolled(false);
       setStateLoaded(false);
       setOverrideReason("");
-      setOverrideError("");
+      clearOverrideError();
       setOverrideWorking(false);
       setGlobalOverride("none");
       setSelectedGlobalOverride("none");
       setGlobalStateLoaded(false);
       setGlobalReason("");
-      setGlobalError("");
+      clearGlobalError();
+      clearStateError();
       setGlobalWorking(false);
     }
-  }, [isOpen]);
+  }, [
+    isOpen,
+    clearResetError,
+    clearOverrideError,
+    clearGlobalError,
+    clearStateError,
+  ]);
 
   // Tenant-only: the per-school override state. The operator surface
   // does NOT render the per-school section, so it skips this call
@@ -125,23 +167,27 @@ export function MFAAdminOverrideModal({
   // school the operator modal isn't even scoped to and 404.
   const loadState = useCallback(async () => {
     if (scope !== "tenant") return;
+    clearStateError();
     try {
       const state = await adminGetMFAState(bearerToken, accountId);
       setOverride(state.override);
       setSelectedOverride(state.override);
       setEnrolled(state.enrolled);
+      setStateLoaded(true);
     } catch (err) {
-      // State load failures don't block the reset path — log and continue
-      // with safe defaults. The override section will still render with
-      // "none" + an inline notice.
+      // Das Zurücksetzen bleibt möglich. Statt eines geratenen "Standard"
+      // steht über der Auswahl der Ladefehler mit Wiederholen; die Auswahl
+      // bleibt gesperrt, bis der Stand geladen ist.
       logger.warn("admin_mfa_state_load_failed", {
         account_id: accountId,
         error: err instanceof Error ? err.message : String(err),
       });
-    } finally {
-      setStateLoaded(true);
+      void showStateError(err, {
+        object: "die 2FA-Einstellung",
+        retry: () => latestLoadRef.current(),
+      });
     }
-  }, [bearerToken, accountId, scope]);
+  }, [bearerToken, accountId, scope, clearStateError, showStateError]);
 
   // Operator-only: the account-wide override row + enrollment flag.
   // This is the operator modal's single source of state (it renders no
@@ -149,6 +195,7 @@ export function MFAAdminOverrideModal({
   // for the header.
   const loadGlobalState = useCallback(async () => {
     if (scope !== "operator") return;
+    clearStateError();
     try {
       const state = await operatorAdminGetGlobalMFAOverride(
         bearerToken,
@@ -158,16 +205,18 @@ export function MFAAdminOverrideModal({
       setSelectedGlobalOverride(state.override);
       setEnrolled(state.enrolled);
       setStateLoaded(true);
+      setGlobalStateLoaded(true);
     } catch (err) {
       logger.warn("operator_global_mfa_state_load_failed", {
         account_id: accountId,
         error: err instanceof Error ? err.message : String(err),
       });
-      setStateLoaded(true);
-    } finally {
-      setGlobalStateLoaded(true);
+      void showStateError(err, {
+        object: "die Account-weite 2FA-Einstellung",
+        retry: () => latestLoadRef.current(),
+      });
     }
-  }, [bearerToken, accountId, scope]);
+  }, [bearerToken, accountId, scope, clearStateError, showStateError]);
 
   useEffect(() => {
     if (isOpen) {
@@ -178,18 +227,28 @@ export function MFAAdminOverrideModal({
     }
   }, [isOpen, loadState, loadGlobalState]);
 
+  // „Wiederholen“ sendet den Stand, der dann im Dialog steht.
+  useLayoutEffect(() => {
+    latestResetRef.current = () => void handleReset();
+    latestOverrideRef.current = () => void handleOverrideSubmit();
+    latestGlobalRef.current = () => void handleGlobalOverrideSubmit();
+    latestLoadRef.current = () => {
+      void loadState();
+      void loadGlobalState();
+    };
+  });
+
   if (!isOpen) return null;
 
-  const handleReset = async () => {
+  async function handleReset() {
     const trimmed = reason.trim();
     if (trimmed.length < MIN_REASON_LENGTH) {
-      setError(
-        `Bitte geben Sie einen Grund mit mindestens ${MIN_REASON_LENGTH} Zeichen an.`,
-      );
+      const hint = `Bitte geben Sie einen Grund mit mindestens ${MIN_REASON_LENGTH} Zeichen an.`;
+      resetErrors.invalid(hint, { reason: hint });
       return;
     }
     setIsWorking(true);
-    setError("");
+    resetErrors.clear();
     try {
       if (scope === "operator") {
         if (!schoolId) {
@@ -199,30 +258,32 @@ export function MFAAdminOverrideModal({
       } else {
         await adminResetMFA(bearerToken, accountId, trimmed);
       }
-      toast.success(`2FA für ${accountLabel} wurde zurückgesetzt.`);
+      toast.success(`Die 2FA für ${accountLabel} ist zurückgesetzt.`);
       setView({ kind: "reset-done" });
     } catch (err) {
-      setError(germanMFAErrorMessage(err));
       logger.warn("admin_reset_failed", {
         account_id: accountId,
         error: err instanceof Error ? err.message : String(err),
       });
+      void resetErrors.show(err, {
+        object: "das Zurücksetzen der 2FA",
+        retry: () => latestResetRef.current(),
+      });
     } finally {
       setIsWorking(false);
     }
-  };
+  }
 
-  const handleGlobalOverrideSubmit = async () => {
+  async function handleGlobalOverrideSubmit() {
     if (selectedGlobalOverride === globalOverride) return;
     const trimmed = globalReason.trim();
     if (trimmed.length < MIN_REASON_LENGTH) {
-      setGlobalError(
-        `Bitte geben Sie eine Begründung mit mindestens ${MIN_REASON_LENGTH} Zeichen an.`,
-      );
+      const hint = `Bitte geben Sie eine Begründung mit mindestens ${MIN_REASON_LENGTH} Zeichen an.`;
+      globalErrors.invalid(hint, { reason: hint });
       return;
     }
     setGlobalWorking(true);
-    setGlobalError("");
+    globalErrors.clear();
     try {
       await operatorAdminSetGlobalMFAOverride(
         bearerToken,
@@ -242,31 +303,33 @@ export function MFAAdminOverrideModal({
       toast.success(msg);
       setGlobalReason("");
     } catch (err) {
-      setGlobalError(germanMFAErrorMessage(err));
       logger.warn("operator_global_mfa_override_failed", {
         account_id: accountId,
         target: selectedGlobalOverride,
         error: err instanceof Error ? err.message : String(err),
       });
+      void globalErrors.show(err, {
+        object: "das Speichern der Account-weiten 2FA-Einstellung",
+        retry: () => latestGlobalRef.current(),
+      });
     } finally {
       setGlobalWorking(false);
     }
-  };
+  }
 
-  const handleOverrideSubmit = async () => {
+  async function handleOverrideSubmit() {
     if (selectedOverride === override) {
       // No-op: the radio matches what's already stored.
       return;
     }
     const trimmed = overrideReason.trim();
     if (trimmed.length < MIN_REASON_LENGTH) {
-      setOverrideError(
-        `Bitte geben Sie eine Begründung mit mindestens ${MIN_REASON_LENGTH} Zeichen an.`,
-      );
+      const hint = `Bitte geben Sie eine Begründung mit mindestens ${MIN_REASON_LENGTH} Zeichen an.`;
+      overrideErrors.invalid(hint, { reason: hint });
       return;
     }
     setOverrideWorking(true);
-    setOverrideError("");
+    overrideErrors.clear();
     try {
       if (scope === "operator") {
         if (!schoolId) {
@@ -290,25 +353,28 @@ export function MFAAdminOverrideModal({
       setOverride(selectedOverride);
       let msg: string;
       if (selectedOverride === "force_off") {
-        msg = `2FA für ${accountLabel} wurde deaktiviert.`;
+        msg = `Die 2FA für ${accountLabel} ist ausgeschaltet.`;
       } else if (selectedOverride === "force_on") {
-        msg = `2FA für ${accountLabel} wurde aktiviert.`;
+        msg = `Die 2FA für ${accountLabel} ist eingeschaltet.`;
       } else {
-        msg = `Für ${accountLabel} gilt wieder die Standard-Einstellung.`;
+        msg = `Für ${accountLabel} gilt wieder die Einstellung der Schule.`;
       }
       toast.success(msg);
       setOverrideReason("");
     } catch (err) {
-      setOverrideError(germanMFAErrorMessage(err));
       logger.warn("admin_override_failed", {
         account_id: accountId,
         target: selectedOverride,
         error: err instanceof Error ? err.message : String(err),
       });
+      void overrideErrors.show(err, {
+        object: "das Speichern der 2FA-Einstellung",
+        retry: () => latestOverrideRef.current(),
+      });
     } finally {
       setOverrideWorking(false);
     }
-  };
+  }
 
   return (
     <Modal
@@ -340,12 +406,14 @@ export function MFAAdminOverrideModal({
               Bisherige 2FA zurücksetzen
             </h3>
             <form
+              ref={resetRef}
               onSubmit={(e) => {
                 e.preventDefault();
                 void handleReset();
               }}
               className="space-y-4"
             >
+              <FormErrorAlert message={resetErrors.error} />
               <p className="text-sm text-gray-600">
                 Die bestehende 2FA-Einrichtung und alle vertrauenswürdigen
                 Geräte werden entfernt. Beim nächsten Login wird der Account neu
@@ -361,6 +429,7 @@ export function MFAAdminOverrideModal({
                 </label>
                 <textarea
                   id="admin-mfa-reason"
+                  name="reason"
                   rows={3}
                   required
                   autoFocus
@@ -369,17 +438,13 @@ export function MFAAdminOverrideModal({
                   maxLength={500}
                   placeholder="z. B. „Mitarbeiter hat keinen Zugriff mehr auf sein E-Mail-Postfach"
                   disabled={isWorking}
-                  className="focus-visible:ring-moto-blue block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 disabled:bg-gray-50"
+                  aria-invalid={Boolean(resetErrors.fieldError("reason"))}
+                  className={reasonClass(
+                    Boolean(resetErrors.fieldError("reason")),
+                    "focus-visible:ring-moto-blue",
+                  )}
                 />
               </div>
-              {error && (
-                <div
-                  role="alert"
-                  className="bg-moto-red-soft text-moto-red-strong rounded-lg p-3 text-sm"
-                >
-                  {error}
-                </div>
-              )}
               <div className="flex justify-end gap-2">
                 <button
                   type="submit"
@@ -396,7 +461,10 @@ export function MFAAdminOverrideModal({
           </section>
 
           {scope === "tenant" && (
-            <section className="border-t border-gray-100 pt-6">
+            <section
+              ref={overrideRef}
+              className="border-t border-gray-100 pt-6"
+            >
               <h3 className="mb-2 text-sm font-semibold text-gray-900">
                 2FA für diesen Mitarbeiter aktivieren oder deaktivieren
               </h3>
@@ -411,6 +479,9 @@ export function MFAAdminOverrideModal({
                 Einstellung gilt nur für diese Schule. Wenn der Mitarbeiter an
                 weiteren Schulen aktiv ist, bleibt 2FA dort unverändert.
               </div>
+
+              <FormErrorAlert message={overrideErrors.error} className="mb-3" />
+              <LoadErrorAlert error={stateLoad.error} className="mb-3" />
 
               <fieldset
                 className="space-y-2"
@@ -482,23 +553,19 @@ export function MFAAdminOverrideModal({
                   </label>
                   <textarea
                     id="admin-mfa-override-reason"
+                    name="reason"
                     rows={2}
                     value={overrideReason}
                     onChange={(e) => setOverrideReason(e.target.value)}
                     maxLength={500}
                     placeholder="z. B. „Mitarbeiter im Urlaub, Postfach gesperrt"
                     disabled={overrideWorking}
-                    className="focus-visible:ring-moto-blue block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 disabled:bg-gray-50"
+                    aria-invalid={Boolean(overrideErrors.fieldError("reason"))}
+                    className={reasonClass(
+                      Boolean(overrideErrors.fieldError("reason")),
+                      "focus-visible:ring-moto-blue",
+                    )}
                   />
-                </div>
-              )}
-
-              {overrideError && (
-                <div
-                  role="alert"
-                  className="bg-moto-red-soft text-moto-red-strong mt-3 rounded-lg p-3 text-sm"
-                >
-                  {overrideError}
                 </div>
               )}
 
@@ -516,7 +583,10 @@ export function MFAAdminOverrideModal({
           )}
 
           {scope === "operator" && (
-            <section className="border-moto-orange/30 bg-moto-orange-soft mt-6 rounded-lg border-2 p-4">
+            <section
+              ref={globalRef}
+              className="border-moto-orange/30 bg-moto-orange-soft mt-6 rounded-lg border-2 p-4"
+            >
               <h3 className="mb-1 text-sm font-semibold text-gray-900">
                 Notfall: 2FA Account-weit verwalten
               </h3>
@@ -527,6 +597,9 @@ export function MFAAdminOverrideModal({
                 sein E-Mail-Postfach hat — also nicht über die Schul-spezifische
                 Einstellung oben gelöst werden kann.
               </p>
+
+              <FormErrorAlert message={globalErrors.error} className="mb-3" />
+              <LoadErrorAlert error={stateLoad.error} className="mb-3" />
 
               <fieldset
                 className="space-y-2"
@@ -600,23 +673,19 @@ export function MFAAdminOverrideModal({
                   </label>
                   <textarea
                     id="admin-mfa-global-reason"
+                    name="reason"
                     rows={2}
                     value={globalReason}
                     onChange={(e) => setGlobalReason(e.target.value)}
                     maxLength={500}
                     placeholder="z. B. „Mitarbeiter hat dauerhaft keinen E-Mail-Zugriff mehr — Account-weite Notfall-Freischaltung"
                     disabled={globalWorking}
-                    className="focus-visible:ring-moto-red block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 disabled:bg-gray-50"
+                    aria-invalid={Boolean(globalErrors.fieldError("reason"))}
+                    className={reasonClass(
+                      Boolean(globalErrors.fieldError("reason")),
+                      "focus-visible:ring-moto-red",
+                    )}
                   />
-                </div>
-              )}
-
-              {globalError && (
-                <div
-                  role="alert"
-                  className="bg-moto-red-soft text-moto-red-strong mt-3 rounded-lg p-3 text-sm"
-                >
-                  {globalError}
                 </div>
               )}
 

@@ -224,4 +224,33 @@ describe("activitiesConfig", () => {
   it("does not expose custom detail actions for removed activity subpages", () => {
     expect(activitiesConfig.detail.actions?.custom).toBeUndefined();
   });
+
+  // An empty list would look like a school without categories or
+  // supervisors; the form shows the catalog text with retry instead (#2517).
+  it.each([
+    ["ag_category_id", 0],
+    ["supervisor_id", 1],
+  ])(
+    "throws the ApiError when the %s options fail to load",
+    async (name, sectionIndex) => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ status: "error", code: "general.unavailable" }),
+          { status: 503 },
+        ),
+      );
+      const field = activitiesConfig.form.sections[sectionIndex]?.fields.find(
+        (candidate) => candidate.name === name,
+      );
+      const loadOptions =
+        field && typeof field.options === "function"
+          ? field.options
+          : undefined;
+
+      await expect(loadOptions?.()).rejects.toMatchObject({
+        status: 503,
+        code: "general.unavailable",
+      });
+    },
+  );
 });

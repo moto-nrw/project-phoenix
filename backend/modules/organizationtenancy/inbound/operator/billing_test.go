@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -140,10 +141,11 @@ func TestBillingKeyDayUpdateValidatesTheBody(t *testing.T) {
 		name   string
 		body   string
 		status int
+		code   string
 	}{
-		{"missing key day", `{}`, http.StatusBadRequest},
-		{"day outside 1..28", `{"key_day":31}`, http.StatusBadRequest},
-		{"valid day", `{"key_day":10}`, http.StatusOK},
+		{"missing key day", `{}`, http.StatusBadRequest, common.CodeGeneralInput},
+		{"day outside 1..28", `{"key_day":31}`, http.StatusBadRequest, common.CodeBillingInvalidKeyDay},
+		{"valid day", `{"key_day":10}`, http.StatusOK, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -154,6 +156,10 @@ func TestBillingKeyDayUpdateValidatesTheBody(t *testing.T) {
 			request.Header.Set("Content-Type", "application/json")
 			NewBillingResource(report, nil, nil).UpdateKeyDay(recorder, request)
 			assert.Equal(t, tc.status, recorder.Code, recorder.Body.String())
+			if tc.code != "" {
+				// #2519: the operator portal shows the reason by code.
+				assert.Contains(t, recorder.Body.String(), `"code":"`+tc.code+`"`)
+			}
 			if tc.status == http.StatusOK {
 				assert.Equal(t, []int{10}, report.setDays)
 				assert.Contains(t, recorder.Body.String(), `"key_day":10`)

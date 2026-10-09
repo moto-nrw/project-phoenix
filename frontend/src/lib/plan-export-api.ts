@@ -3,6 +3,7 @@
 // PDF or XLSX; "Drucken" is the PDF opened in a print dialog, not a second
 // rendering path.
 
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import {
   downloadBlob,
   filenameFromDisposition,
@@ -110,14 +111,14 @@ export async function exportPlan(
   }
 
   try {
-    const response = await fetch(ROUTES[plan], {
+    const response = await transportFetch(ROUTES[plan], {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...request, format }),
     });
 
     if (!response.ok) {
-      throw new Error(await readErrorMessage(response));
+      throw await apiErrorFromResponse(response, `${plan} export failed`);
     }
 
     const blob = await response.blob();
@@ -132,33 +133,5 @@ export async function exportPlan(
   } catch (error) {
     printTarget?.close();
     throw error;
-  }
-}
-
-async function readErrorMessage(response: Response): Promise<string> {
-  try {
-    const payload = (await response.json()) as {
-      error?: string;
-      message?: string;
-    };
-    const raw = payload.error ?? payload.message;
-    if (raw) return unwrapBackendMessage(raw);
-  } catch {
-    // Not JSON — fall through to the generic message below.
-  }
-  return "Der Plan konnte nicht erstellt werden.";
-}
-
-/**
- * The proxy route wraps the backend body in {"error": "<json>"}, so a
- * useful message ("range exceeds 8 weeks") would otherwise reach the user
- * as a blob of JSON.
- */
-function unwrapBackendMessage(raw: string): string {
-  try {
-    const inner = JSON.parse(raw) as { error?: string; message?: string };
-    return inner.error ?? inner.message ?? raw;
-  } catch {
-    return raw;
   }
 }

@@ -1,12 +1,12 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "~/components/ui/modal";
-import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization } from "~/lib/operator/provisioning-helpers";
-import { isOperatorApiError } from "~/lib/operator/api-helpers";
 import { createLogger } from "~/lib/logger";
-import { FormField, FormError, FieldWarning } from "./provisioning-shared";
+import { FormField, FieldWarning } from "./provisioning-shared";
 
 const logger = createLogger({ component: "EditOrganizationModal" });
 
@@ -24,29 +24,30 @@ export function EditOrganizationModal({
   const [orgName, setOrgName] = useState("");
   const [orgSlug, setOrgSlug] = useState("");
   const [orgSaving, setOrgSaving] = useState(false);
-  const [orgError, setOrgError] = useState("");
-  const errorRef = useScrollToError(orgError);
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { show: showError, invalid, clear: clearError } = formErrors;
 
   useEffect(() => {
     if (isOpen && organization) {
       setOrgName(organization.name);
       setOrgSlug(organization.slug);
-      setOrgError("");
+      clearError();
     }
-  }, [isOpen, organization]);
+  }, [isOpen, organization, clearError]);
 
   const handleUpdate = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       if (!organization || !orgName.trim() || !orgSlug.trim()) return;
       if (!isValidSlug(orgSlug)) {
-        setOrgError(
-          "Slug darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.",
-        );
+        const hint =
+          "Slug darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.";
+        invalid("Bitte prüfen Sie die markierten Felder.", { slug: hint });
         return;
       }
       setOrgSaving(true);
-      setOrgError("");
+      clearError();
       try {
         await operatorProvisioningService.updateOrganization(organization.id, {
           name: orgName.trim(),
@@ -56,21 +57,24 @@ export function EditOrganizationModal({
         onClose();
         await onUpdated();
       } catch (error) {
-        if (isOperatorApiError(error) && error.status === 409) {
-          setOrgError("Ein Träger mit diesem Slug existiert bereits.");
-        } else {
-          setOrgError(
-            error instanceof Error ? error.message : "Fehler beim Speichern.",
-          );
-          logger.error("organization_update_failed", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
+        logger.error("organization_update_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        void showError(error, { object: "die Änderung am Träger" });
       } finally {
         setOrgSaving(false);
       }
     },
-    [organization, orgName, orgSlug, onClose, onUpdated],
+    [
+      organization,
+      orgName,
+      orgSlug,
+      onClose,
+      onUpdated,
+      invalid,
+      clearError,
+      showError,
+    ],
   );
 
   return (
@@ -99,13 +103,21 @@ export function EditOrganizationModal({
       }
     >
       <form
+        ref={formRef}
         onSubmit={(e) => void handleUpdate(e)}
         className="space-y-4"
         id="edit-org-form"
       >
-        <FormField label="Name" htmlFor="edit-org-name" required>
+        <FormErrorAlert message={formErrors.error} />
+        <FormField
+          label="Name"
+          htmlFor="edit-org-name"
+          required
+          error={formErrors.fieldError("name")}
+        >
           <input
             id="edit-org-name"
+            name="name"
             type="text"
             value={orgName}
             onChange={(e) => setOrgName(e.target.value)}
@@ -114,9 +126,15 @@ export function EditOrganizationModal({
             required
           />
         </FormField>
-        <FormField label="Slug" htmlFor="edit-org-slug" required>
+        <FormField
+          label="Slug"
+          htmlFor="edit-org-slug"
+          required
+          error={formErrors.fieldError("slug")}
+        >
           <input
             id="edit-org-slug"
+            name="slug"
             type="text"
             value={orgSlug}
             onChange={(e) => setOrgSlug(e.target.value)}
@@ -126,7 +144,6 @@ export function EditOrganizationModal({
           />
           <FieldWarning message="Slug-Änderungen können bestehende Verweise ungültig machen." />
         </FormField>
-        {orgError && <FormError ref={errorRef} message={orgError} />}
       </form>
     </Modal>
   );

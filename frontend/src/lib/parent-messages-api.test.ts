@@ -163,6 +163,36 @@ describe("fetchInboxWithFilters", () => {
     );
   });
 
+  // #2517: the shared display path reads code and request ID, not the text.
+  it("throws an ApiError with the envelope's code and request ID", async () => {
+    mockFetch(async () =>
+      jsonOk(
+        {
+          error: "messaging disabled",
+          code: "communication.parent_news_disabled",
+          instance: "req-7",
+        },
+        403,
+      ),
+    );
+    const error = await fetchInboxWithFilters({}).catch((err: unknown) => err);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 403,
+      code: "communication.parent_news_disabled",
+      requestId: "req-7",
+    });
+  });
+
+  it("turns a request that never reached the API into general.unavailable", async () => {
+    mockFetch(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    await expect(fetchInboxWithFilters({})).rejects.toMatchObject({
+      code: "general.unavailable",
+    });
+  });
+
   it("returns multiple threads", async () => {
     mockFetch(async () =>
       jsonOk({
@@ -563,12 +593,14 @@ describe("message count setting", () => {
     expect(JSON.parse(seenBody)).toEqual({ scope: "none" });
   });
 
-  it("throws the backend error when saving fails", async () => {
+  // #2517: the card shows the catalog text; the client keeps status and code.
+  it("throws an ApiError when saving fails", async () => {
     mockFetch(async () =>
       jsonOk({ error: "messaging: invalid count scope" }, 400),
     );
-    await expect(saveMessageCountScope("all")).rejects.toThrow(
-      "messaging: invalid count scope",
-    );
+    await expect(saveMessageCountScope("all")).rejects.toMatchObject({
+      status: 400,
+      code: "general.input",
+    });
   });
 });

@@ -16,6 +16,9 @@ type Failure struct {
 	Cause   error
 	Message string
 	Code    string
+	// Details are the values a coded refusal names (#2517); Result marks a
+	// batch failure and travels in details.result instead.
+	Details map[string]any
 	Result  any
 }
 

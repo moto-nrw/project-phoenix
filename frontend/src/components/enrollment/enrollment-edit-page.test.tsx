@@ -8,6 +8,8 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const {
   mockCreateEnrollmentChangeRequest,
@@ -17,6 +19,13 @@ const {
   mockCreateEnrollmentChangeRequest: vi.fn(),
   mockFetchEnrollmentEditBootstrap: vi.fn(),
   mockUpdateEnrollmentRequest: vi.fn(),
+}));
+
+const toastSuccess = vi.hoisted(() => vi.fn());
+const toastError = vi.hoisted(() => vi.fn());
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useToast: () => ({ success: toastSuccess, error: toastError }),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -35,6 +44,7 @@ vi.mock("next-intl", () => {
     adjustTitle: "Adjust offerings",
     adjustDescription: "Only offerings and weekdays",
     adjustSubmit: "Send adjustment",
+    errorObject: "the enrollment",
   };
   const t = (key: string) => messages[key] ?? key;
   return {
@@ -236,5 +246,32 @@ describe("EnrollmentEditPage change requests", () => {
 
     await waitFor(() => expect(refreshListener).toHaveBeenCalledTimes(1));
     window.removeEventListener("change-requests-refresh", refreshListener);
+  });
+
+  it("shows a failed load with retry instead of the form (#2515)", async () => {
+    mockFetchEnrollmentEditBootstrap.mockReset();
+    mockFetchEnrollmentEditBootstrap
+      .mockRejectedValueOnce(new ApiError("down", 503))
+      .mockResolvedValueOnce(bootstrap);
+
+    await act(async () => {
+      render(
+        <Suspense fallback={null}>
+          <EnrollmentEditPage params={Promise.resolve({ token: "tok" })} />
+        </Suspense>,
+      );
+    });
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "the enrollment"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Save changes" }),
+    ).toBeInTheDocument();
+    expect(mockFetchEnrollmentEditBootstrap).toHaveBeenCalledTimes(2);
   });
 });

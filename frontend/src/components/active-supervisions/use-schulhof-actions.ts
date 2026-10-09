@@ -1,6 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import type { FormError } from "~/components/ui/form-error";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
@@ -24,11 +37,12 @@ interface SchulhofActionsOptions {
   readonly supervisedActiveGroupId: string | null;
   readonly spontaneousStartBlockedReason?: string;
   readonly refresh: () => void;
-  readonly setError: (message: string | null) => void;
 }
 
 export interface SchulhofActions {
   readonly showReleaseModal: boolean;
+  /** A failed release; stays in the open release dialog. */
+  readonly releaseError: FormError | null;
   readonly setShowReleaseModal: (open: boolean) => void;
   readonly isReleasingSupervision: boolean;
   readonly isTogglingSchulhof: boolean;
@@ -50,10 +64,22 @@ export function useSchulhofActions(
     supervisedActiveGroupId,
     spontaneousStartBlockedReason,
     refresh,
-    setError,
   } = options;
+  const toast = useToast();
+  const { show: showActionError } = useApiErrorDisplay();
+  const releaseErrors = useApiFormError();
+  const { clear: clearReleaseError, show: showReleaseError } = releaseErrors;
+  // „Wiederholen“ gibt mit dem aktuellen Stand ab.
+  const retryReleaseRef = useRef<() => void>(() => undefined);
 
-  const [showReleaseModal, setShowReleaseModal] = useState(false);
+  const [showReleaseModal, setShowReleaseModalState] = useState(false);
+  const setShowReleaseModal = useCallback(
+    (open: boolean) => {
+      clearReleaseError();
+      setShowReleaseModalState(open);
+    },
+    [clearReleaseError],
+  );
   const [isReleasingSupervision, setIsReleasingSupervision] = useState(false);
   const [isTogglingSchulhof, setIsTogglingSchulhof] = useState(false);
 
@@ -64,6 +90,7 @@ export function useSchulhofActions(
   const handleReleaseSupervision = useCallback(async () => {
     if (!supervisedActiveGroupId || !currentStaffId) return;
 
+    clearReleaseError();
     try {
       setIsReleasingSupervision(true);
 
@@ -91,11 +118,25 @@ export function useSchulhofActions(
       logger.error("failed to release Schulhof supervision", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError("Fehler beim Abgeben der Schulhof-Aufsicht.");
+      // Der Fehler bleibt im offenen Dialog „Aufsicht abgeben“.
+      void showReleaseError(err, {
+        object: "das Abgeben der Schulhof-Aufsicht",
+        retry: () => retryReleaseRef.current(),
+      });
     } finally {
       setIsReleasingSupervision(false);
     }
-  }, [supervisedActiveGroupId, currentStaffId, refresh, setError]);
+  }, [
+    supervisedActiveGroupId,
+    currentStaffId,
+    refresh,
+    setShowReleaseModal,
+    clearReleaseError,
+    showReleaseError,
+  ]);
+  useLayoutEffect(() => {
+    retryReleaseRef.current = () => void handleReleaseSupervision();
+  });
 
   // Start a fresh Schulhof session via the generic spontaneous flow (#2161).
   // A "room is already occupied" conflict means another session won the race
@@ -106,7 +147,14 @@ export function useSchulhofActions(
       throw new Error("Schulhof room is not provisioned");
     }
     if (!currentStaffId) {
-      throw new Error("no staff profile for spontaneous Schulhof start");
+      // Same code as the backend's refusal, so the catalog names the reason.
+      throw new ApiError(
+        "no staff profile for spontaneous Schulhof start",
+        403,
+        {
+          code: "timetable.no_staff_profile",
+        },
+      );
     }
     try {
       await timetableOperationsApi.createAndStartSpontaneous({
@@ -115,11 +163,13 @@ export function useSchulhofActions(
         activity_group_id: schulhofState.activityGroupId
           ? Number(schulhofState.activityGroupId)
           : undefined,
-        staff_ids: [Number(currentStaffId)],
+        staff_ids: [currentStaffId],
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (!message.includes("room is already occupied")) throw err;
+      const occupied =
+        err instanceof ApiError &&
+        wireErrorCode(err.code) === "timetable.room_occupied";
+      if (!occupied) throw err;
       const fresh = await activeService.getSchulhofStatus();
       if (!fresh.activeGroupId) throw err;
       await activeService.claimActiveGroup(fresh.activeGroupId);
@@ -141,7 +191,8 @@ export function useSchulhofActions(
         await activeService.claimActiveGroup(schulhofStatus.activeGroupId);
       } else {
         if (spontaneousStartBlockedReason) {
-          setError(spontaneousStartBlockedReason);
+          // Kein API-Fehler: der Grund (z. B. Wochenende) steht als Hinweis.
+          toast.info(spontaneousStartBlockedReason);
           setIsTogglingSchulhof(false);
           return;
         }
@@ -156,19 +207,20 @@ export function useSchulhofActions(
       logger.error("failed to toggle Schulhof supervision", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        schulhofStatus.isUserSupervising
-          ? "Fehler beim Abgeben der Schulhof-Aufsicht."
-          : "Fehler beim Übernehmen der Schulhof-Aufsicht.",
-      );
+      void showActionError(err, {
+        object: schulhofStatus.isUserSupervising
+          ? "das Abgeben der Schulhof-Aufsicht"
+          : "die Schulhof-Aufsicht",
+      });
       // Only reset loading state on error - success case handled by useEffect
       setIsTogglingSchulhof(false);
     }
   }, [
     refresh,
     schulhofStatus,
-    setError,
+    showActionError,
     spontaneousStartBlockedReason,
+    toast,
     startSchulhofSpontaneously,
   ]);
 
@@ -198,6 +250,7 @@ export function useSchulhofActions(
 
   return {
     showReleaseModal,
+    releaseError: releaseErrors.error,
     setShowReleaseModal,
     isReleasingSupervision,
     isTogglingSchulhof,

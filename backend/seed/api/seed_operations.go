@@ -35,7 +35,7 @@ func (seedOperationsDemoStep) Run(_ context.Context, rt *Runtime) error {
 	if err := seedStaffShift(rt, today, staffIDs[0]); err != nil {
 		return err
 	}
-	fmt.Println("  1 closing day, 1 meal plan and 1 staff shift created")
+	fmt.Println("  1 closing day, 2 weeks of meal plan and 1 staff shift created")
 	return nil
 }
 
@@ -63,17 +63,32 @@ func seedClosingDay(rt *Runtime, today seedDate) error {
 	return nil
 }
 
+// demoMeals is lunch for two weeks, Monday to Friday. The tenant meal plan
+// and the parents portal open on the current week, and the parents portal
+// also offers the next one (#3894).
+var demoMeals = [10][]map[string]any{
+	{{"dish": "Gemüsenudeln", "note": "Auch ohne Milch erhältlich"}, {"dish": "Obst und Wasser"}},
+	{{"dish": "Hähnchen mit Reis und Erbsen", "note": "Vegetarisch: Gemüsebratling"}},
+	{{"dish": "Kartoffelsuppe mit Brötchen"}, {"dish": "Joghurt mit Beeren"}},
+	{{"dish": "Spaghetti Bolognese", "note": "Vegetarisch: Linsen-Bolognese"}},
+	{{"dish": "Fischstäbchen mit Kartoffelpüree", "note": "Vegetarisch: Gemüsestäbchen"}, {"dish": "Obst"}},
+	{{"dish": "Milchreis mit Zimt und Kirschen"}},
+	{{"dish": "Gemüsecurry mit Reis"}, {"dish": "Apfelschnitze"}},
+	{{"dish": "Linseneintopf mit Würstchen", "note": "Vegetarisch: ohne Würstchen"}},
+	{{"dish": "Gemüselasagne"}, {"dish": "Apfelkompott"}},
+	{{"dish": "Pfannkuchen mit Apfelmus"}, {"dish": "Rohkost"}},
+}
+
+// seedMealPlan publishes lunch for every weekday of the week today lies in
+// and of the week after it. On a weekend the current week is the one that
+// just ended; that is the week the meal plan opens on.
 func seedMealPlan(rt *Runtime, today seedDate) error {
-	for today.Weekday() == time.Saturday || today.Weekday() == time.Sunday {
-		today = today.AddDays(1)
-	}
-	if _, err := rt.Client.Put("/api/meal-plan/"+today.String(), map[string]any{
-		"dishes": []map[string]any{
-			{"dish": "Gemüsenudeln", "note": "Auch ohne Milch erhältlich"},
-			{"dish": "Obst und Wasser"},
-		},
-	}); err != nil {
-		return fmt.Errorf("seed meal plan: %w", err)
+	monday := seedDate{Time: mostRecentWeekday(today.Time, time.Monday)}
+	for index, dishes := range demoMeals {
+		day := monday.AddDays(index + 2*(index/5)).String()
+		if _, err := rt.Client.Put("/api/meal-plan/"+day, map[string]any{"dishes": dishes}); err != nil {
+			return fmt.Errorf("seed meal plan %s: %w", day, err)
+		}
 	}
 	return nil
 }

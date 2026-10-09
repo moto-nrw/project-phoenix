@@ -1,7 +1,7 @@
 "use client";
 
 import { TenantPage } from "~/components/ui/tenant-page";
-import { getTimeBasedGreeting } from "~/lib/greeting";
+import { useTimeBasedGreeting } from "~/lib/greeting";
 
 /**
  * Ladezustand der Startseite. Er kommt aus dem Seitengeruest selbst
@@ -11,9 +11,10 @@ import { getTimeBasedGreeting } from "~/lib/greeting";
  * Eintreffen der Sitzung nur um den Vornamen waechst und nicht wechselt.
  */
 export function DashboardSkeleton() {
+  const greeting = useTimeBasedGreeting();
   return (
     <TenantPage
-      title={getTimeBasedGreeting()}
+      title={greeting}
       prominent
       loading
       testId="dashboard-skeleton"

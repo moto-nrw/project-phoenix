@@ -4,6 +4,8 @@ import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { BackButton } from "~/components/ui/back-button";
 import { ButtonLink } from "~/components/ui/button";
+import { formErrorDetail, formErrorMessage } from "~/components/ui/form-error";
+import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
@@ -31,7 +33,13 @@ export function renderThreadFrame(parts: TeamChatThreadParts) {
     return (
       <TenantPage
         title="Unterhaltung"
-        error={{ message: parts.errorMessage, keepContent: true }}
+        // Die Zurück-Navigation bleibt unter dem Fehler stehen; Wiederholen
+        // und Vorgangskennung kommen aus dem Ladefehler (#2517).
+        error={{
+          message: formErrorMessage(parts.error) ?? "",
+          action: errorAlertActions(formErrorDetail(parts.error)),
+          keepContent: true,
+        }}
       >
         {parts.backNav}
       </TenantPage>

@@ -33,7 +33,7 @@ const (
 // documents. It is constructed per request rather than stored on the Resource
 // so a bare test Resource stays usable.
 func (rs *Resource) studentDocumentCoordinator() (*apiDocuments.Coordinator, error) {
-	backend, err := common.UploadsBackend()
+	backend, err := common.PrivateUploadsBackend()
 	if err != nil {
 		return nil, err
 	}
@@ -269,7 +269,7 @@ func (rs *Resource) openStudentDocumentUpload(w http.ResponseWriter, r *http.Req
 
 	uploaded, err := common.ParseDocumentWithLimits(w, r, "file", maxStudentDocumentFile, maxStudentDocumentBody)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorUpload(err, maxStudentDocumentFile))
 		return nil, false
 	}
 

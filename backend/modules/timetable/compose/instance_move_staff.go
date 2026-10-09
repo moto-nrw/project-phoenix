@@ -32,17 +32,17 @@ const (
 // target block atomically, inside the caller's tenant tx.
 func (s *InstanceLifecycleService) MoveStaffBetweenBlocks(ctx context.Context, targetID int64, in timetable.MoveStaffInput) (*timetable.MoveStaffResult, error) {
 	if in.StaffID <= 0 {
-		return nil, timetable.DeviationBadRequest("staff_id must be a positive id")
+		return nil, timetable.DeviationBadRequest("staff_id must be a positive id").WithCode(timetable.CodeDeviationSelectionInvalid).OnField("staff_id")
 	}
 	if in.SourceInstanceID != nil && *in.SourceInstanceID == targetID {
-		return nil, timetable.DeviationBadRequest("source and target block must differ")
+		return nil, timetable.DeviationBadRequest("source and target block must differ").WithCode(timetable.CodeMoveSameInstance).OnField("source_instance_id")
 	}
 	target, err := s.loadDeviationInstance(ctx, targetID)
 	if err != nil {
 		return nil, err
 	}
 	if target.Date.Before(timezone.TodayDate()) {
-		return nil, timetable.DeviationBadRequest("block date is in the past")
+		return nil, timetable.DeviationBadRequest("block date is in the past").WithCode(timetable.CodeInstanceInPast)
 	}
 	targetDate := timezone.Date(target.Date)
 	// Serialize with every other day-wide staffing mutation, then re-read
@@ -121,21 +121,24 @@ func (s *InstanceLifecycleService) loadMoveSource(ctx context.Context, target *s
 		return nil, timetable.DeviationConflict(timetable.CodeInvalidTransition, "source block is no longer editable")
 	}
 	if source.Date != target.Date {
-		return nil, timetable.DeviationBadRequest("source and target block must be on the same day")
+		return nil, timetable.DeviationBadRequest("source and target block must be on the same day").WithCode(timetable.CodeMoveOtherDay).OnField("source_instance_id")
 	}
 	return source, nil
 }
 
 func (s *InstanceLifecycleService) requireStaff(ctx context.Context, staffID int64) error {
-	staff, err := s.deps.StaffRepo.FindByID(ctx, staffID)
+	staff, err := s.deps.StaffRepo.FindWithPerson(ctx, staffID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
-			return timetable.DeviationNotFound("staff not found")
+			return timetable.DeviationNotFound("staff not found").WithCode(timetable.CodeStaffNotFound).OnField("staff_id")
 		}
 		return timetable.DeviationInternal("load staff failed", err)
 	}
 	if staff == nil || staff.ID == 0 {
-		return timetable.DeviationNotFound("staff not found")
+		return timetable.DeviationNotFound("staff not found").WithCode(timetable.CodeStaffNotFound).OnField("staff_id")
+	}
+	if staff.IsGuest && staff.Person != nil && staff.Person.AccountID == nil {
+		return timetable.DeviationBadRequest("Diese Person kann nicht im Dienstplan eingeplant werden.").WithCode(timetable.CodeDeviationSelectionInvalid).OnField("staff_id")
 	}
 	return nil
 }
@@ -186,10 +189,10 @@ func (s *InstanceLifecycleService) planRelocation(ctx context.Context, plan *sta
 		return nil, timetable.DeviationConflict(timetable.CodeStaffAlreadyOnTarget, msgStaffAlreadyOnTarget)
 	}
 	if onSource == nil {
-		return nil, timetable.DeviationBadRequest(msgStaffNotOnSource)
+		return nil, timetable.DeviationBadRequest(msgStaffNotOnSource).WithCode(timetable.CodeStaffNotOnSource).OnField("staff_id")
 	}
 	if onSource.IsAbsent {
-		return nil, timetable.DeviationBadRequest(msgStaffAbsentOnSource)
+		return nil, timetable.DeviationBadRequest(msgStaffAbsentOnSource).WithCode(timetable.CodeStaffAbsentOnSource).OnField("staff_id")
 	}
 	// An absent row on ANY same-day block blocks the move (#1840).
 	if err := s.rejectDayWideAbsence(ctx, plan.staffID, timezone.Date(plan.target.Date)); err != nil {

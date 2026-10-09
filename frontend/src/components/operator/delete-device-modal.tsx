@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import type { OperatorDevice } from "~/lib/operator/provisioning-helpers";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { createLogger } from "~/lib/logger";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 
 const logger = createLogger({ component: "DeleteDeviceModal" });
@@ -21,17 +22,18 @@ export function DeleteDeviceModal({
   onDeleted,
 }: Readonly<DeleteDeviceModalProps>) {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const deleteErrors = useApiFormError();
+  const { show: showError, clear: clearError } = deleteErrors;
 
   const handleClose = useCallback(() => {
-    setError("");
+    clearError();
     onClose();
-  }, [onClose]);
+  }, [onClose, clearError]);
 
   const handleDelete = useCallback(async () => {
     if (!device) return;
     setLoading(true);
-    setError("");
+    clearError();
     try {
       await operatorProvisioningService.deleteDevice(device.id);
       await onDeleted();
@@ -40,13 +42,11 @@ export function DeleteDeviceModal({
       logger.error("device_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        err instanceof Error ? err.message : "Fehler beim Löschen des Geräts",
-      );
+      void showError(err, { object: "das Löschen des Geräts" });
     } finally {
       setLoading(false);
     }
-  }, [device, onClose, onDeleted]);
+  }, [device, onClose, onDeleted, showError, clearError]);
 
   return (
     <ConfirmDeleteModal
@@ -72,7 +72,7 @@ export function DeleteDeviceModal({
       onConfirm={handleDelete}
       onClose={handleClose}
       loading={loading}
-      error={error}
+      error={deleteErrors.error}
     />
   );
 }

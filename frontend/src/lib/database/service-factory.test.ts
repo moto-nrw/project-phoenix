@@ -6,7 +6,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   createCrudService,
   createExtendedService,
-  getDeleteErrorMessage,
   MalformedCrudListResponseError,
 } from "./service-factory";
 import type { EntityConfig } from "./types";
@@ -497,7 +496,7 @@ describe("createCrudService", () => {
     });
   });
 
-  describe("delete", () => {
+  describe("remove", () => {
     it("deletes entity", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
@@ -508,7 +507,7 @@ describe("createCrudService", () => {
       });
 
       const service = createCrudService(mockConfig);
-      await service.delete("1");
+      await expect(service.remove("1")).resolves.toBe(true);
 
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining("/api/test/1"),
@@ -543,13 +542,13 @@ describe("createCrudService", () => {
       };
 
       const service = createCrudService(configWithHooks);
-      await service.delete("1");
+      await service.remove("1");
 
       expect(beforeDelete).toHaveBeenCalledWith("1");
       expect(afterDelete).toHaveBeenCalledWith("1");
     });
 
-    it("cancels delete when beforeDelete returns false", async () => {
+    it("resolves false when beforeDelete cancels", async () => {
       const beforeDelete = vi.fn((_id: string): Promise<boolean> =>
         Promise.resolve(false),
       );
@@ -563,47 +562,44 @@ describe("createCrudService", () => {
 
       const service = createCrudService(configWithHooks);
 
-      const result = await service.delete("1");
-      expect(result).toBe("Löschen wurde abgebrochen");
+      await expect(service.remove("1")).resolves.toBe(false);
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
-    it("returns null on successful delete", async () => {
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: true,
-        status: 204,
-        headers: new Headers({ "content-length": "0" }),
-      });
-
-      const service = createCrudService(mockConfig);
-      const result = await service.delete("1");
-      expect(result).toBeNull();
-    });
-
-    it("returns error message on 409 Conflict with nested JSON", async () => {
-      const backendError = JSON.stringify({
-        status: "error",
-        error:
-          "education: DeleteGroup: Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Kinder",
-      });
-      const routeHandlerError = JSON.stringify({
-        error: `API error (409): ${backendError}`,
-      });
-
+    it("throws an ApiError with the code of a refused delete", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: false,
         status: 409,
-        text: () => Promise.resolve(routeHandlerError),
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              status: "error",
+              error: "group has students",
+              code: "general.business_rejection",
+              instance: "req-delete",
+            }),
+          ),
       });
-
-      const service = createCrudService(mockConfig);
-      const result = await service.delete("1");
-      expect(result).toBe(
-        "Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Kinder",
+      const afterDelete = vi.fn((_id: string): Promise<void> =>
+        Promise.resolve(),
       );
+
+      const service = createCrudService({
+        ...mockConfig,
+        hooks: { afterDelete },
+      });
+      const caught = await service.remove("1").catch((error: unknown) => error);
+
+      expect(caught).toBeInstanceOf(ApiError);
+      expect(caught).toMatchObject({
+        status: 409,
+        code: "general.business_rejection",
+        requestId: "req-delete",
+      });
+      expect(afterDelete).not.toHaveBeenCalled();
     });
 
-    it("returns generic German message on 500 server error", async () => {
+    it("throws an ApiError with the status class on a server error", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: false,
         status: 500,
@@ -611,44 +607,10 @@ describe("createCrudService", () => {
       });
 
       const service = createCrudService(mockConfig);
-      const result = await service.delete("1");
-      expect(result).toBe(
-        "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.",
-      );
-    });
+      const caught = await service.remove("1").catch((error: unknown) => error);
 
-    it("returns error message on 409 with simple JSON error", async () => {
-      const simpleError = JSON.stringify({
-        error: "Raum wird noch von Gruppen verwendet",
-      });
-
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: false,
-        status: 409,
-        text: () => Promise.resolve(simpleError),
-      });
-
-      const service = createCrudService(mockConfig);
-      const result = await service.delete("1");
-      expect(result).toBe("Raum wird noch von Gruppen verwendet");
-    });
-  });
-
-  describe("getDeleteErrorMessage", () => {
-    it("extracts message from Error objects", () => {
-      expect(getDeleteErrorMessage(new Error("test error"))).toBe("test error");
-    });
-
-    it("returns fallback for non-Error objects", () => {
-      expect(getDeleteErrorMessage("string error")).toBe(
-        "Fehler beim Löschen. Bitte versuchen Sie es erneut.",
-      );
-    });
-
-    it("returns fallback for null", () => {
-      expect(getDeleteErrorMessage(null)).toBe(
-        "Fehler beim Löschen. Bitte versuchen Sie es erneut.",
-      );
+      expect(caught).toBeInstanceOf(ApiError);
+      expect(caught).toMatchObject({ status: 500 });
     });
   });
 
@@ -898,6 +860,6 @@ describe("createExtendedService", () => {
     expect(typeof service.getOne).toBe("function");
     expect(typeof service.create).toBe("function");
     expect(typeof service.update).toBe("function");
-    expect(typeof service.delete).toBe("function");
+    expect(typeof service.remove).toBe("function");
   });
 });

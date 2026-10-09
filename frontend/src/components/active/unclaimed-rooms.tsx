@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import { X } from "lucide-react";
 import { activeService } from "~/lib/active-api";
 import { userContextService } from "~/lib/usercontext-api";
@@ -8,6 +14,7 @@ import type { Supervisor } from "~/lib/active-helpers";
 import { createLogger } from "~/lib/logger";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SpinnerIcon } from "~/components/ui/icons";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 
 const logger = createLogger({ component: "UnclaimedRooms" });
 
@@ -54,7 +61,9 @@ export function UnclaimedRooms({
     loading: true,
   });
   const [claiming, setClaiming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { show: showError } = useApiErrorDisplay();
+  // „Wiederholen“ übernimmt mit dem aktuellen Stand.
+  const retryClaimRef = useRef<() => void>(() => undefined);
   const [dismissed, setDismissed] = useState(false);
 
   // Schulhof is now handled by the permanent tab in active-supervisions page
@@ -90,7 +99,9 @@ export function UnclaimedRooms({
         [
           activeService.getActiveGroupSupervisors(schulhofGroup.id),
           needsStaffFetch
-            ? userContextService.getCurrentStaff().catch(() => null)
+            ? // Bewusst still: ohne Personalprofil gilt niemand als Aufsicht,
+              // das Banner bietet die Übernahme dann an.
+              userContextService.getCurrentStaff().catch(() => null)
             : Promise.resolve(null),
         ];
 
@@ -132,6 +143,8 @@ export function UnclaimedRooms({
         loading: false,
       });
     } catch (err) {
+      // Bewusst still: das Banner ist ein Zusatzangebot; ohne Status bleibt
+      // es aus, die Aufsicht übernimmt man weiter über den Schulhof-Reiter.
       logger.error("failed to load schulhof status", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -143,7 +156,7 @@ export function UnclaimedRooms({
   useEffect(() => {
     const wasDismissed = localStorage.getItem(DISMISSED_KEY) === "true";
     setDismissed(wasDismissed);
-    loadSchulhofStatus().catch(() => undefined);
+    void loadSchulhofStatus();
   }, [loadSchulhofStatus]);
 
   async function handleClaim() {
@@ -152,14 +165,17 @@ export function UnclaimedRooms({
     try {
       setClaiming(true);
       await activeService.claimActiveGroup(state.activeGroupId);
-      setError(null);
       onClaimed();
       // Reload to update supervisor list
       await loadSchulhofStatus();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Unknown error";
-      logger.error("failed to claim schulhof", { error: errorMessage });
-      setError("Fehler beim Übernehmen der Schulhof-Aufsicht.");
+      logger.error("failed to claim schulhof", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showError(err, {
+        object: "die Schulhof-Aufsicht",
+        retry: () => retryClaimRef.current(),
+      });
     } finally {
       setClaiming(false);
     }
@@ -169,6 +185,10 @@ export function UnclaimedRooms({
     setDismissed(true);
     localStorage.setItem(DISMISSED_KEY, "true");
   }
+
+  useLayoutEffect(() => {
+    retryClaimRef.current = () => void handleClaim();
+  });
 
   // Schulhof banner is disabled - permanent tab handles this now
   if (isDisabled) {
@@ -193,14 +213,6 @@ export function UnclaimedRooms({
   // Don't show if dismissed (but only when there ARE supervisors)
   if (dismissed && state.supervisors.length > 0) {
     return null;
-  }
-
-  if (error) {
-    return (
-      <div className="border-moto-red/30 bg-moto-red/10 mb-4 rounded-lg border p-3">
-        <p className="text-moto-red-hover text-sm">{error}</p>
-      </div>
-    );
   }
 
   const hasSupervisors = state.supervisors.length > 0;

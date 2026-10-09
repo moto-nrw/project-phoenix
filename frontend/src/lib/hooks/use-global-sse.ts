@@ -105,6 +105,14 @@ const STUDENT_SCOPED_KEY_PREFIXES = [
 // The per-group student list on the OGS page ("<slug>:ogs-students-7").
 const OGS_STUDENTS_KEY_PREFIX = "ogs-students-";
 
+// Reasons the timetable lifecycle puts on active_supervision_changed
+// (instanceRefreshReason in backend/modules/timetable/compose).
+const TIMETABLE_LIFECYCLE_REASONS: ReadonlySet<string> = new Set([
+  "instance_started",
+  "instance_completed",
+  "instance_cancelled",
+]);
+
 // Every cache family that renders a child's resolved PICKUP (Gehzeit) time.
 // "active-supervision-dashboard-" carries the Aktuelle-Aufsicht pickup rows
 // since #2096 folded them into the aggregate; the key disables focus
@@ -177,6 +185,7 @@ function revalidateKeyParts(parts: readonly string[], scope: string): void {
     (key) =>
       typeof key === "string" && parts.some((part) => key.includes(part)),
   ).catch((err) => {
+    // Fire-and-forget: the screen keeps its data until the next event or load.
     logger.debug("swr_revalidation_failed", {
       error: err instanceof Error ? err.message : String(err),
       scope,
@@ -343,6 +352,7 @@ export function useGlobalSSE(): SSEHookState {
             key.includes(part),
           ),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "staff_time_tracking",
@@ -395,6 +405,7 @@ export function useGlobalSSE(): SSEHookState {
                   keyTargetsId(key, gid, [OGS_STUDENTS_KEY_PREFIX]),
                 )),
         ).catch((err) => {
+          // Fire-and-forget: the screen keeps its data until the next event or load.
           logger.debug("swr_revalidation_failed", {
             error: err instanceof Error ? err.message : String(err),
             scope: "ogs_students",
@@ -448,6 +459,7 @@ export function useGlobalSSE(): SSEHookState {
                 searchStudentsKeyTargetsGroup(key, gid),
               )),
         ).catch((err) => {
+          // Fire-and-forget: the screen keeps its data until the next event or load.
           logger.debug("swr_revalidation_failed", {
             error: err instanceof Error ? err.message : String(err),
             scope: "search_students",
@@ -510,6 +522,7 @@ export function useGlobalSSE(): SSEHookState {
             // silently re-broaden the #2057 scoping if swapped in.)
             ROOM_LIST_CACHE_KEYS.some((cacheKey) => key.includes(cacheKey))),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "student_lists",
@@ -529,6 +542,7 @@ export function useGlobalSSE(): SSEHookState {
       mutate(
         (key) => typeof key === "string" && keyTargetsId(key, studentId),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "student_detail",
@@ -579,6 +593,7 @@ export function useGlobalSSE(): SSEHookState {
         (key) =>
           typeof key === "string" && key.includes(SEARCH_STUDENTS_KEY_PREFIX),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "student_companions",
@@ -650,6 +665,7 @@ export function useGlobalSSE(): SSEHookState {
           typeof key === "string" &&
           DASHBOARD_COUNT_CACHE_KEYS.some((cacheKey) => key.includes(cacheKey)),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "dashboard",
@@ -680,6 +696,7 @@ export function useGlobalSSE(): SSEHookState {
         (key) =>
           typeof key === "string" && key.includes("room-bulk-active-groups"),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "room_move_active_groups",
@@ -701,6 +718,7 @@ export function useGlobalSSE(): SSEHookState {
             key.includes("room-detail-") ||
             key.includes("tracking-indicators-")),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "active_supervision",
@@ -724,6 +742,7 @@ export function useGlobalSSE(): SSEHookState {
             key.includes("user-context") ||
             key.includes("change-request-access")),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "group_access",
@@ -771,6 +790,7 @@ export function useGlobalSSE(): SSEHookState {
             key.includes("care-plan-day-") ||
             key.includes("care-plan-week-")),
       ).catch((err) => {
+        // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "timetable",
@@ -913,6 +933,15 @@ export function useGlobalSSE(): SSEHookState {
       ) {
         hasPendingActivityEvent.current = true;
         hasPendingBroadOgsEvent.current = true;
+      } else if (
+        event.data.reason !== undefined &&
+        TIMETABLE_LIFECYCLE_REASONS.has(event.data.reason)
+      ) {
+        // A planned block started, ended or was cancelled: the running
+        // sessions changed, so the sidebar's supervision list is stale
+        // (#3888). The children moved by it arrive with their own scoped
+        // check-in/check-out events.
+        hasPendingActivityEvent.current = true;
       }
     },
     [collectEduGroupScope],

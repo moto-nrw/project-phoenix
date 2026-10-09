@@ -1,9 +1,23 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import type { HomeBlockAccess, HomeBlockContext } from "~/lib/home-blocks";
 import type { OwnAssignment } from "~/lib/shift-helpers";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
+import { catalogText } from "~/test/error-catalog-text";
+
+// Ein gescheitertes Starten kommt als Toast (#2517).
+function render(ui: ReactElement) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 /**
  * Die Jetzt-Zone (#2180) fragt bis zu drei Quellen; welche, hängt an Rechten
@@ -215,13 +229,17 @@ describe("NowStrip (#2180)", () => {
   it("sagt es, wenn das Starten scheitert, und lädt den Tag neu", async () => {
     sources.own = [];
     sources.school = [block({ id: "4", isAssigned: true, canStart: true })];
-    api.start.mockRejectedValue(new Error("boom"));
+    api.start.mockRejectedValue(
+      new ApiError("conflict", 409, { code: "general.business_rejection" }),
+    );
 
     render(<NowStrip access={care} context={context(care)} />);
     fireEvent.click(screen.getByRole("button", { name: "Aufsicht starten" }));
 
     expect(
-      await screen.findByText(/konnte nicht gestartet werden/),
+      await screen.findByText(
+        catalogText("general.business_rejection", "das Starten des Blocks"),
+      ),
     ).toBeInTheDocument();
     expect(sources.mutateDay).toHaveBeenCalled();
     expect(router.push).not.toHaveBeenCalled();

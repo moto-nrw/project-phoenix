@@ -199,6 +199,13 @@ Eine **zusätzliche Aufsicht** ordnet einer bereits laufenden Betreuung eine
 weitere Betreuungskraft zu. Sie ersetzt keine abwesende Person und verändert
 weder Gruppenübergaben noch geplante Termine.
 
+Eine **externe Betreuungskraft** ist eine Person ohne moto-Konto, etwa eine
+AG-Leitung der Musikschule (#3823). Sie wird als Personal mit Gastprofil
+(`users.guests`) geführt, kann einer spontanen Aktivität und einer zusätzlichen
+Aufsicht zugeordnet werden, übernimmt aber nie eine Gruppe. Zeiterfassung und
+Dienstplan führen sie nicht. Personal, das nur ohne E-Mail-Adresse importiert
+wurde, ist keine externe Betreuungskraft.
+
 Die **Vertretungsübersicht** ist die gemeinsame Arbeitsfläche für
 Gruppenübergaben, Vertretungen und zusätzliche Aufsichten. Die drei Vorgänge
 bleiben trotz der gemeinsamen Arbeitsfläche fachlich getrennt.

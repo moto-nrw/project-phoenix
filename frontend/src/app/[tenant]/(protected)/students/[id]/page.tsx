@@ -36,6 +36,10 @@ import {
 import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollment-extra-fields";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
+import {
+  LAST_GROUP_SECTION_STORAGE_KEY,
+  parseOgsGroupSection,
+} from "~/lib/ogs-group-sections";
 import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
@@ -100,7 +104,10 @@ import {
   type StudentStatusDay,
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
-import { formatDate as formatCalendarDate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  formatDate as formatCalendarDate,
+} from "~/lib/date-helpers";
 import {
   fetchStudentCareWithdrawal,
   type CareWithdrawalCompletion,
@@ -125,6 +132,13 @@ type TodayArrival = {
 };
 
 const logger = createLogger({ component: "StudentDetailPage" });
+
+// Shown when lifting today's status left it in place (#3854). Checking the
+// child in also lifts today's status, so it names that way out.
+const SICK_STILL_ACTIVE =
+  "Die Krankmeldung für heute ist noch eingetragen. Bitte versuchen Sie es noch einmal. Kommt das Kind doch, können Sie es auch anmelden.";
+const EXCUSED_STILL_ACTIVE =
+  "Die Entschuldigung für heute ist noch eingetragen. Bitte versuchen Sie es noch einmal. Kommt das Kind doch, können Sie es auch anmelden.";
 
 const EMPTY_GROUP_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [];
 
@@ -492,6 +506,8 @@ function StudentDetailPageContent() {
   });
   const refreshDataAndHistory = useCallback(() => {
     refreshData();
+    // Best effort: the change history reloads with its own load error path
+    // when it is opened; a failed background refresh only leaves it stale.
     return mutate(`/api/students/${studentId}/change-history`).catch((err) => {
       logger.debug("change_history_revalidation_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -559,9 +575,13 @@ function StudentDetailPageContent() {
       : visibleTabs;
 
   // Set breadcrumb data, include group/room name for 3-level breadcrumb
-  // when navigating from an accordion section (e.g. Meine Gruppe > 1a > Mia Fischer)
+  // when navigating from an accordion section (e.g. Weitere Gruppen > 1a > Mia Fischer)
   const breadcrumbGroupName = useLocalStorageValue(
     "sidebar-last-group-name",
+    referrer.startsWith("/ogs-groups"),
+  );
+  const breadcrumbGroupSection = useLocalStorageValue(
+    LAST_GROUP_SECTION_STORAGE_KEY,
     referrer.startsWith("/ogs-groups"),
   );
   const breadcrumbRoomName = useLocalStorageValue(
@@ -573,6 +593,7 @@ function StudentDetailPageContent() {
     studentName: student?.name,
     referrerPage: referrer,
     ogsGroupName: breadcrumbGroupName ?? undefined,
+    ogsGroupSection: parseOgsGroupSection(breadcrumbGroupSection),
     activeSupervisionName: breadcrumbRoomName ?? undefined,
   });
 
@@ -713,14 +734,34 @@ function StudentDetailPageContent() {
   // portal), shown next to the absence badge in the header.
   const currentSickReason = useMemo(() => {
     if (!student?.sick) return undefined;
-    const now = new Date();
-    const todayIso = `${now.getFullYear()}-${`${now.getMonth() + 1}`.padStart(2, "0")}-${`${now.getDate()}`.padStart(2, "0")}`;
     const row = statusDays.find(
       (s) =>
-        s.status === "sick" && !s.cleared_at && s.date === todayIso && s.note,
+        s.status === "sick" &&
+        !s.cleared_at &&
+        s.date === berlinTodayISO() &&
+        s.note,
     );
     return row?.note ?? undefined;
   }, [student?.sick, statusDays]);
+  // Who entered today's status. A parent's Abmeldung looks the same as a
+  // staff entry everywhere else, so the lift dialog names it (#3854).
+  const todayStatusSource = useCallback(
+    (status: StudentStatusKind) =>
+      statusDays.find(
+        (s) =>
+          s.status === status && !s.cleared_at && s.date === berlinTodayISO(),
+      )?.source,
+    [statusDays],
+  );
+  const sickFromParents = todayStatusSource("sick") === "parent";
+  const excusedFromParents = todayStatusSource("excused") === "parent";
+  const openPlannedStatusFromLift = (status: "sick" | "excused") => {
+    setShowConfirmSick(false);
+    setSickReason("");
+    setShowConfirmExcused(false);
+    dialogErrors.clear();
+    setPlannedStatusModal(status);
+  };
   // Today's pickup slot for the header. Mirrors todayArrival below: a failed
   // fetch (e.g. permission denied for non-full-access users) leaves pickupData
   // undefined, which renders the same empty header as "no pickup planned".
@@ -1015,7 +1056,7 @@ function StudentDetailPageContent() {
     try {
       const newSickStatus = !(student.sick ?? false);
       const trimmedReason = sickReason.trim();
-      await studentService.updateStudent(studentId, {
+      const updated = await studentService.updateStudent(studentId, {
         sick: newSickStatus,
         // Only send a reason when marking sick; clearing carries none.
         ...(newSickStatus && trimmedReason
@@ -1024,6 +1065,12 @@ function StudentDetailPageContent() {
       });
       refreshData();
       await mutateStatusDays();
+      // The response carries today's effective status. A lift that left it
+      // in place is no success (#3854).
+      if (!newSickStatus && updated.sick) {
+        dialogErrors.invalid(SICK_STILL_ACTIVE);
+        return;
+      }
       setShowConfirmSick(false);
       setSickReason("");
       toast.success(
@@ -1051,11 +1098,15 @@ function StudentDetailPageContent() {
     dialogErrors.clear();
     try {
       const newExcusedStatus = !isQuickExcused;
-      await studentService.updateStudent(studentId, {
+      const updated = await studentService.updateStudent(studentId, {
         excused: newExcusedStatus,
       });
       refreshData();
       await mutateStatusDays();
+      if (!newExcusedStatus && updated.excused) {
+        dialogErrors.invalid(EXCUSED_STILL_ACTIVE);
+        return;
+      }
       setShowConfirmExcused(false);
       toast.success(
         newExcusedStatus
@@ -1428,6 +1479,9 @@ function StudentDetailPageContent() {
             <p>
               {student.sick ? (
                 <>
+                  {sickFromParents && (
+                    <>Die Krankmeldung für heute kam von den Eltern. </>
+                  )}
                   Möchten Sie die Krankmeldung für{" "}
                   <strong>{student.name}</strong> für heute aufheben? Geplante
                   Kranktage in der Zukunft bleiben bestehen.
@@ -1438,6 +1492,17 @@ function StudentDetailPageContent() {
                 </>
               )}
             </p>
+            {student.sick && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                className="mt-4"
+                onClick={() => openPlannedStatusFromLift("sick")}
+              >
+                Alle Kranktage ansehen
+              </Button>
+            )}
             {!student.sick && (
               <div className="mt-4">
                 <label
@@ -1478,6 +1543,9 @@ function StudentDetailPageContent() {
             <p>
               {isQuickExcused ? (
                 <>
+                  {excusedFromParents && (
+                    <>Die Abmeldung für heute kam von den Eltern. </>
+                  )}
                   Möchten Sie die Entschuldigung für{" "}
                   <strong>{student.name}</strong> für heute aufheben? Geplante
                   Entschuldigungen in der Zukunft bleiben bestehen.
@@ -1489,6 +1557,17 @@ function StudentDetailPageContent() {
                 </>
               )}
             </p>
+            {isQuickExcused && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                className="mt-4"
+                onClick={() => openPlannedStatusFromLift("excused")}
+              >
+                Alle entschuldigten Tage ansehen
+              </Button>
+            )}
           </ConfirmationModal>
 
           {/* Switch Dialog, shown when user clicks one flag but the other is set */}
@@ -1896,10 +1975,11 @@ function FullAccessView({
     }),
     [studentId],
   );
-  const { groups: enrollmentExtraGroups } = useStudentEnrollmentExtraFields(
-    studentId,
-    true,
-  );
+  const {
+    groups: enrollmentExtraGroups,
+    error: enrollmentExtraError,
+    reload: reloadEnrollmentExtra,
+  } = useStudentEnrollmentExtraFields(studentId, true);
   // Lazy-mount the Nachrichten tab: ParentMessagesCard runs the inbox-projection
   // query (two correlated COUNT subqueries) on mount, and forceMount would fire
   // it for every student-detail load even when staff never open the tab — paging
@@ -1956,6 +2036,8 @@ function FullAccessView({
           <PersonalInfoReadOnly
             student={student}
             enrollmentExtraGroups={enrollmentExtraGroups}
+            enrollmentExtraError={enrollmentExtraError}
+            onRetryEnrollmentExtra={reloadEnrollmentExtra}
             showEditButton={hasWriteAccess}
             onEditClick={hasWriteAccess ? onOpenPersonalInfoEdit : undefined}
           />

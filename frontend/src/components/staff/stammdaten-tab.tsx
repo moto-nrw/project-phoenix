@@ -2,10 +2,12 @@
 
 import { useRef, useState } from "react";
 import { Eye, EyeOff, Lock } from "lucide-react";
-import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import {
   DataField,
@@ -45,6 +47,7 @@ import {
   type FinancialDraft,
   type StammdatenDraft,
 } from "./stammdaten-section-forms";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 // Stammdaten tab (#1417 Tranche 2b + #1423): the master-data home of one
 // staff member. Sections Person / Kontakt / Arbeitsvertrag / Qualifikationen
@@ -102,7 +105,6 @@ export function StammdatenTab({
     data: personnelNumber,
     error: payrollError,
     isLoading: payrollLoading,
-    isValidating: payrollValidating,
     mutate: mutatePayroll,
   } = useSWRAuth(
     canManagePayroll ? `staff-payroll-number-${staffId}` : null,
@@ -112,7 +114,6 @@ export function StammdatenTab({
   const {
     data: stammdaten,
     error: stammdatenError,
-    isValidating: stammdatenValidating,
     mutate: mutateStammdaten,
   } = useSWRAuth(canViewSections ? `staff-stammdaten-${staffId}` : null, () =>
     staffStammdatenService.get(staffId),
@@ -150,47 +151,29 @@ export function StammdatenTab({
   // ist: ein erneutes Speichern schickt ihn nicht noch einmal (sonst doppelte
   // Einträge im Änderungsprotokoll).
   const savedSectionsRef = useRef(new Map<string, string>());
+  // Ladefehler stehen dort, wo die Daten fehlen, mit Wiederholen (#2514).
+  const payrollLoadError = useSwrLoadError(
+    canManagePayroll ? payrollError : undefined,
+    "die Personalnummer",
+    mutatePayroll,
+  );
+  const stammdatenLoadError = useSwrLoadError(
+    canViewSections ? stammdatenError : undefined,
+    "die Übersicht der Stammdaten",
+    mutateStammdaten,
+  );
+  const financialLoadError = useSwrLoadError(
+    canViewFinancial ? financialError : undefined,
+    "die Anzeige der Bank- und Steuerdaten",
+    mutateFinancial,
+  );
 
   if (canManagePayroll && payrollError) {
-    return (
-      <div className="space-y-2">
-        <Alert
-          type="error"
-          message="Die Personalnummer konnte nicht geladen werden."
-        />
-        <Button
-          type="button"
-          size="compact"
-          variant="outline"
-          isLoading={payrollValidating}
-          loadingText="Wird geladen..."
-          onClick={() => void mutatePayroll()}
-        >
-          Erneut laden
-        </Button>
-      </div>
-    );
+    return <LoadErrorAlert error={payrollLoadError} />;
   }
 
   if (canViewSections && stammdatenError) {
-    return (
-      <div className="space-y-2">
-        <Alert
-          type="error"
-          message="Die Stammdaten konnten nicht geladen werden."
-        />
-        <Button
-          type="button"
-          size="compact"
-          variant="outline"
-          isLoading={stammdatenValidating}
-          loadingText="Wird geladen..."
-          onClick={() => void mutateStammdaten()}
-        >
-          Erneut laden
-        </Button>
-      </div>
-    );
+    return <LoadErrorAlert error={stammdatenLoadError} />;
   }
 
   const today = todayISO();
@@ -781,20 +764,7 @@ export function StammdatenTab({
           }
         >
           {financialError ? (
-            <Alert
-              type="error"
-              message="Die Bank- und Steuerdaten konnten nicht geladen werden."
-              action={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="compact"
-                  onClick={() => void mutateFinancial()}
-                >
-                  Erneut laden
-                </Button>
-              }
-            />
+            <LoadErrorAlert error={financialLoadError} />
           ) : editing && draft ? (
             draft.financial ? (
               <FinancialFields

@@ -6,7 +6,7 @@
  * the other tests render.
  */
 import {
-  render,
+  render as rtlRender,
   screen,
   waitFor,
   cleanup,
@@ -344,7 +344,16 @@ import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
 import MeinRaumPage from "./page";
+
+import { ToastProvider } from "~/contexts/ToastContext";
+
+// Aktionen melden Fehler als Toast oder im Dialog (#2517); der Provider
+// zeigt den Toast echt an.
+function render(ui: Parameters<typeof rtlRender>[0]) {
+  return rtlRender(ui, { wrapper: ToastProvider });
+}
 
 const defaultPageHeader = vi
   .mocked(PageHeaderWithSearch)
@@ -402,7 +411,10 @@ function roomVisit(
 // Key-aware SWR stub: the dashboard, plus one roster per instance id.
 function mockDashboardAndRosters(
   dashboardData: unknown,
-  rosters: Record<string, { canOperate: boolean }> = {},
+  rosters: Record<
+    string,
+    { canOperate: boolean; rows?: readonly Partial<TimetableRosterRow>[] }
+  > = {},
 ) {
   vi.mocked(useSWRAuth).mockImplementation(((key: unknown) => {
     const loaded = (data: unknown) =>
@@ -426,7 +438,7 @@ function mockDashboardAndRosters(
       roster
         ? {
             instance: { id: instanceId },
-            rows: [],
+            rows: roster.rows ?? [],
             canOperate: roster.canOperate,
           }
         : null,
@@ -1652,6 +1664,51 @@ describe("released room with running blocks (#3281)", () => {
     expect(
       screen.queryByRole("button", { name: /Aufsicht abgeben/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("offers groups from expected, absent and departed children in loaded block rosters", async () => {
+    mockDashboardAndRosters(
+      schulhof(
+        [
+          blockSession("gt2", "GT 2", { own: true }),
+          blockSession("gt4", "GT 4", { planned: true }),
+        ],
+        [],
+        { activeGroupId: "gt2", isUserSupervising: true },
+      ),
+      {
+        "instance-gt2": {
+          canOperate: true,
+          rows: [{ groupName: "Erwartete Gruppe", status: "expected" }],
+        },
+        "instance-gt4": {
+          canOperate: true,
+          rows: [
+            { groupName: "Abwesende Gruppe", status: "absent" },
+            {
+              groupName: "Gegangene Gruppe",
+              status: "present",
+              currentlyPresent: false,
+            },
+          ],
+        },
+      },
+    );
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      const header = vi.mocked(PageHeaderWithSearch).mock.calls.at(-1)?.[0];
+      const groupFilter = header?.filters?.find(
+        (filter) => filter.id === "group",
+      );
+      expect(groupFilter?.options?.map((option) => option.value)).toEqual([
+        "all",
+        "Abwesende Gruppe",
+        "Erwartete Gruppe",
+        "Gegangene Gruppe",
+      ]);
+    });
   });
 
   it("keeps every block collapsed without an own one and shows a foreign block's children on request", async () => {

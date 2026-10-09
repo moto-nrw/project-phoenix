@@ -37,7 +37,6 @@ vi.mock("./session-cache", () => {
         headers: {
           "Content-Type": "application/json",
           ...(init?.headers as Record<string, string> | undefined),
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
       if (response.status === 401) {
@@ -49,13 +48,14 @@ vi.mock("./session-cache", () => {
           const freshSession = (await getCachedSession()) as {
             user?: { token?: string };
           } | null;
-          const freshToken = freshSession?.user?.token;
+          if (!freshSession?.user?.token) {
+            throw new Error("Authentication expired");
+          }
           return fetch(url, {
             ...init,
             headers: {
               "Content-Type": "application/json",
               ...(init?.headers as Record<string, string> | undefined),
-              ...(freshToken ? { Authorization: `Bearer ${freshToken}` } : {}),
             },
           });
         }
@@ -1278,7 +1278,11 @@ describe("activity-api", () => {
 
       await expect(
         activityApi.updateGroupEnrollments("1", { student_ids: ["1"] }),
-      ).rejects.toThrow("permission");
+      ).rejects.toMatchObject({
+        name: "ApiError",
+        status: 403,
+        code: "general.permission",
+      });
     });
   });
 });

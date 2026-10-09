@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
-import { useFormError } from "~/components/ui/form-error";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import {
   CardGridSkeleton,
@@ -19,7 +20,11 @@ import { Radio } from "~/components/ui/radio";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
   staffMonthSummaryService,
@@ -98,12 +103,31 @@ export function ArbeitszeitmodellTab({
   const {
     data: schedule,
     isLoading,
+    error: scheduleError,
     mutate: mutateSchedule,
   } = useSWRAuth(`staff-schedule-${staffId}`, () =>
     staffScheduleService.getSchedule(staffId),
   );
 
   const { mutate } = useSWRConfig();
+  const load = useApiLoadError();
+  const showLoadError = load.show;
+  const clearLoadError = load.clear;
+  useEffect(() => {
+    if (scheduleError) {
+      void showLoadError(scheduleError, {
+        object: "das Arbeitszeitmodell",
+        retry: () => void mutateSchedule(),
+      });
+    } else {
+      clearLoadError();
+    }
+  }, [scheduleError, mutateSchedule, showLoadError, clearLoadError]);
+
+  // Ein Ladefehler steht an Stelle des Modells, statt ewig zu laden.
+  if (!schedule && load.error) {
+    return <LoadErrorAlert error={load.error} />;
+  }
 
   if (isLoading || !schedule) {
     return (
@@ -254,10 +278,32 @@ function FourWeekPreview({
   lastDay.setDate(lastDay.getDate() + PREVIEW_WEEKS * 7 - 1);
   const fromKey = toDateKey(firstMonday);
   const toKey = toDateKey(lastDay);
-  const { data: projection, error: projectionError } = useSWRAuth(
+  const {
+    data: projection,
+    error: projectionError,
+    mutate: mutateProjection,
+  } = useSWRAuth(
     `staff-schedule-targets-preview-${staffId}-${fromKey}-${toKey}`,
     () => staffMonthSummaryService.getDailyProjection(staffId, fromKey, toKey),
   );
+  const projectionLoad = useApiLoadError();
+  const showProjectionError = projectionLoad.show;
+  const clearProjectionError = projectionLoad.clear;
+  useEffect(() => {
+    if (projectionError) {
+      void showProjectionError(projectionError, {
+        object: "das Soll der nächsten Wochen",
+        retry: () => void mutateProjection(),
+      });
+    } else {
+      clearProjectionError();
+    }
+  }, [
+    projectionError,
+    mutateProjection,
+    showProjectionError,
+    clearProjectionError,
+  ]);
 
   const weeks = useMemo(() => {
     const result: Array<{
@@ -302,12 +348,9 @@ function FourWeekPreview({
 
   return (
     <SectionCard title="Vorschau (nächste 4 Wochen)" headingLevel={3}>
-      {projectionError ? (
+      {projectionLoad.error ? (
         <div className="mb-3">
-          <Alert
-            type="error"
-            message="Das Soll der nächsten Wochen konnte nicht geladen werden. Bitte laden Sie die Seite neu."
-          />
+          <LoadErrorAlert error={projectionLoad.error} />
         </div>
       ) : null}
       <div className="space-y-2">
@@ -383,7 +426,7 @@ function ArbeitszeitmodellEditor({
 }) {
   const toast = useToast();
 
-  const [saveError, setSaveError] = useFormError();
+  const formErrors = useApiFormError();
   const [mode, setMode] = useState<"template" | "custom">(schedule.mode);
   const [selectedModelId, setSelectedModelId] = useState<string>(
     schedule.model?.id ?? "",
@@ -446,17 +489,17 @@ function ArbeitszeitmodellEditor({
 
   const handleSave = async () => {
     setSaving(true);
-    setSaveError(null);
+    formErrors.clear();
     try {
       if (mode === "template" && !selectedModelId) {
-        setSaveError("Bitte eine Vorlage auswählen.");
+        formErrors.invalid("Bitte wählen Sie eine Vorlage.");
         setSaving(false);
         return;
       }
 
       if (mode === "custom") {
         if (invalidDecimalHourInputs.size > 0) {
-          setSaveError("Bitte die ungültigen Dezimalstunden korrigieren.");
+          formErrors.invalid("Bitte korrigieren Sie die markierten Stunden.");
           setSaving(false);
           return;
         }
@@ -470,8 +513,8 @@ function ArbeitszeitmodellEditor({
           0,
         );
         if (totalMinutes === 0) {
-          setSaveError(
-            "Das Modell hat kein Wochensoll. Bitte mindestens einen Tag eintragen.",
+          formErrors.invalid(
+            "Das Modell hat noch keine Stunden. Bitte tragen Sie mindestens einen Tag ein.",
           );
           setSaving(false);
           return;
@@ -484,8 +527,8 @@ function ArbeitszeitmodellEditor({
             .filter((e) => e.weekIndex === w)
             .reduce((sum, e) => sum + e.targetMinutes, 0);
           if (weekTotal === 0) {
-            setSaveError(
-              `Woche ${WEEK_BADGE_LETTERS[w] ?? w + 1} hat kein Wochensoll. Bitte mindestens einen Tag eintragen.`,
+            formErrors.invalid(
+              `Woche ${WEEK_BADGE_LETTERS[w] ?? w + 1} hat noch keine Stunden. Bitte tragen Sie mindestens einen Tag ein.`,
             );
             setSaving(false);
             return;
@@ -513,20 +556,26 @@ function ArbeitszeitmodellEditor({
             };
 
       await staffScheduleService.updateSchedule(staffId, payload);
-      toast.success("Arbeitszeitmodell gespeichert");
+      toast.success("Das Arbeitszeitmodell ist gespeichert.");
       onSaved();
     } catch (error) {
       logger.error("schedule_save_failed", {
         error: error instanceof Error ? error.message : String(error),
         staff_id: staffId,
       });
-      setSaveError(
-        "Das Arbeitszeitmodell konnte nicht gespeichert werden. Bitte versuchen Sie es noch einmal.",
-      );
+      await formErrors.show(error, {
+        object: "das Arbeitszeitmodell",
+        retry: () => void latestSave.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+  // „Wiederholen“ sendet den aktuellen Entwurf.
+  const latestSave = useRef(handleSave);
+  useLayoutEffect(() => {
+    latestSave.current = handleSave;
+  });
 
   const updateEntry = (
     weekIndex: number,
@@ -594,7 +643,7 @@ function ArbeitszeitmodellEditor({
 
   return (
     <div className="space-y-5">
-      <FormErrorAlert message={saveError} />
+      <FormErrorAlert message={formErrors.error} />
 
       <ModeChoice mode={mode} onChange={setMode} disabled={saving} />
 

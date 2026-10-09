@@ -11,7 +11,9 @@ import {
   StaffSessionTable,
   isStaleAfterSessionSave,
 } from "./staff-session-table";
+import { ApiError } from "~/lib/api-error";
 import { setTestClock } from "~/test/clock";
+import { catalogText } from "~/test/error-catalog-text";
 
 describe("staff-session-table.targets", () => {
   // Mo–Fr 8h nach dem HEUTE gültigen Plan. Genau dieser Plan darf bei einem
@@ -62,11 +64,11 @@ describe("staff-session-table.targets", () => {
 
   function renderTable(props: {
     dailyProjection?: ReadonlyMap<string, DayProjection>;
-    dailyProjectionError?: boolean;
+    dailyProjectionError?: unknown;
     dailyProjectionPending?: boolean;
     accountStartDate?: string | null;
     accountStartDatePending?: boolean;
-    accountStartDateError?: boolean;
+    accountStartDateError?: unknown;
     sessions?: readonly StaffHistorySession[];
     absences?: readonly StaffAbsenceRow[];
   }) {
@@ -156,14 +158,45 @@ describe("staff-session-table.targets", () => {
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 
-    it("zeigt bei fehlgeschlagenem Targets-Fetch kein Soll aus dem aktuellen Plan", () => {
-      renderTable({ dailyProjectionError: true });
+    it("zeigt bei fehlgeschlagenem Targets-Fetch kein Soll aus dem aktuellen Plan", async () => {
+      const retry = vi.fn();
+      render(
+        <StaffSessionTable
+          staffId="1"
+          from={from}
+          to={to}
+          sessions={[]}
+          schedule={schedule}
+          dailyProjectionError={
+            new ApiError("boom", 500, {
+              code: "general.server",
+              instance: "req-targets",
+            })
+          }
+          onRetryDailyProjection={retry}
+          accountStartDate=""
+          accountStartDatePending={false}
+          accountStartDateError={false}
+          today={today}
+          isAdminView
+        />,
+      );
 
       // Der aktuelle Plan darf nicht als historisches Soll auftauchen.
       expect(screen.queryByText("8h")).not.toBeInTheDocument();
       // Die Tabelle zeigt nur Mo–Fr.
       expect(screen.getAllByText("?").length).toBe(5);
-      expect(screen.getByRole("alert")).toBeInTheDocument();
+      // Der Ladefehler steht vor Ort, mit Wiederholen und Vorgangskennung.
+      expect(
+        await screen.findByText(
+          catalogText("general.server", "das Soll für diesen Zeitraum"),
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
+      ).toHaveTextContent("req-targets");
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(retry).toHaveBeenCalled();
     });
 
     it("zeigt nach einem Targets-Fehler keinen Saldo für Sessions mit ungelöstem Soll", () => {
@@ -230,7 +263,7 @@ describe("staff-session-table.targets", () => {
       expect(screen.queryByText("+3h")).not.toBeInTheDocument();
     });
 
-    it("zeigt Soll-0-Salden mit Warnung, wenn der Kontostart nicht geladen werden konnte", () => {
+    it("zeigt Soll-0-Salden mit Warnung, wenn der Kontostart nicht geladen werden konnte", async () => {
       renderTable({
         sessions: [mondaySession],
         dailyProjection: dayProjection({
@@ -241,13 +274,20 @@ describe("staff-session-table.targets", () => {
           },
         }),
         accountStartDate: null,
-        accountStartDateError: true,
+        accountStartDateError: new ApiError("down", 503, {
+          code: "general.unavailable",
+        }),
       });
 
       expect(screen.getByText("+3h")).toBeInTheDocument();
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "Der Stundenkonto-Start konnte nicht geladen werden.",
-      );
+      expect(
+        await screen.findByText(
+          catalogText(
+            "general.unavailable",
+            "die Einstellung zum Stundenkonto",
+          ),
+        ),
+      ).toBeInTheDocument();
     });
   });
 
@@ -1025,6 +1065,42 @@ describe("staff-session-table.blocks", () => {
         const expandable = screen.getAllByLabelText(/Änderungshistorie öffnen/);
         expect(expandable).toHaveLength(1);
         expect(expandable[0]).toHaveAccessibleName(/05\.01\./);
+      });
+
+      it("zeigt einen Ladefehler der Änderungshistorie an Stelle der Liste", async () => {
+        const fetchEdits = vi
+          .fn()
+          .mockRejectedValueOnce(
+            new ApiError("boom", 500, { code: "general.server" }),
+          )
+          .mockResolvedValueOnce([]);
+        render(
+          <StaffSessionTable
+            staffId="1"
+            from={new Date(2026, 0, 5)}
+            to={new Date(2026, 0, 5)}
+            sessions={[{ ...morningHomeOffice, audit_count: 1 }]}
+            schedule={schedule}
+            accountStartDate=""
+            accountStartDatePending={false}
+            accountStartDateError={false}
+            today={today}
+            isAdminView
+            fetchEdits={fetchEdits}
+          />,
+        );
+
+        fireEvent.click(
+          screen.getAllByLabelText(/Änderungshistorie öffnen/)[0]!,
+        );
+
+        expect(
+          await screen.findByText(
+            catalogText("general.server", "die Liste der Änderungen"),
+          ),
+        ).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+        await vi.waitFor(() => expect(fetchEdits).toHaveBeenCalledTimes(2));
       });
 
       it("behält einen Block ohne volle Minute in der Tabelle", () => {

@@ -12,7 +12,11 @@ import {
   NewsDetailModal,
   isOutstandingAnnouncement,
 } from "./news-components";
-import { declarationErrorKey, isOpenDeclaration } from "./declaration-section";
+import {
+  declarationErrorOutcome,
+  isOpenDeclaration,
+} from "./declaration-section";
+import { catalogText } from "~/test/error-catalog-text";
 import type {
   ParentAnnouncement,
   ParentDeclaration,
@@ -171,55 +175,42 @@ describe("isOpenDeclaration", () => {
   });
 });
 
-describe("declarationErrorKey", () => {
+describe("declarationErrorOutcome", () => {
   function apiError(status: number, code?: string) {
     return new ParentApiError("failed", status, code);
   }
 
   it.each([
-    [404, "not_found", "notFound", false, true],
-    [403, "care.declaration_not_permitted", "notPermitted", false, true],
-    [409, "care.declaration_version_changed", "versionChanged", false, true],
-    [409, "care.declaration_closed", "closed", false, true],
-    [
-      409,
-      "care.declaration_action_not_allowed",
-      "actionNotAllowed",
-      false,
-      true,
-    ],
-    [409, "care.child_care_ended", "careEnded", false, true],
-    [
-      403,
-      "care.declaration_password_required",
-      "passwordRequired",
-      true,
-      false,
-    ],
-    [
-      403,
-      "care.declaration_password_incorrect",
-      "passwordIncorrect",
-      true,
-      false,
-    ],
-    [429, undefined, "tooMany", true, false],
-    [400, undefined, "generic", true, false],
-    [500, undefined, "uncertain", false, true],
-    [502, undefined, "uncertain", false, true],
-  ] as const)("maps %s %s to %s", (status, code, key, keepDialog, reload) => {
-    expect(declarationErrorKey(apiError(status, code))).toEqual({
-      key,
-      keepDialog,
-      reload,
-    });
-  });
+    [404, "not_found", false, true, false, false],
+    [403, "care.declaration_not_permitted", false, true, false, false],
+    [409, "care.declaration_version_changed", false, true, false, false],
+    [409, "care.declaration_closed", false, true, false, false],
+    [409, "care.declaration_action_not_allowed", false, true, false, false],
+    [409, "care.child_care_ended", false, true, false, false],
+    [403, "care.declaration_password_required", true, false, false, false],
+    [403, "care.declaration_password_incorrect", true, false, false, true],
+    [429, undefined, true, false, false, false],
+    [400, undefined, true, false, false, false],
+    [500, undefined, false, true, true, false],
+    [502, undefined, false, true, true, false],
+  ] as const)(
+    "maps %s %s",
+    (status, code, keepDialog, reload, uncertain, clearPassword) => {
+      expect(declarationErrorOutcome(apiError(status, code))).toEqual({
+        keepDialog,
+        reload,
+        uncertain,
+        clearPassword,
+      });
+    },
+  );
 
   it("reloads after a network failure, because the backend may have saved it", () => {
-    expect(declarationErrorKey(new TypeError("Failed to fetch"))).toEqual({
-      key: "uncertain",
+    expect(declarationErrorOutcome(new TypeError("Failed to fetch"))).toEqual({
       keepDialog: false,
       reload: true,
+      uncertain: true,
+      clearPassword: false,
     });
   });
 });
@@ -375,11 +366,17 @@ describe("Einverständnis in the detail view", () => {
     fireEvent.change(field, { target: { value: "falsch" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Ablehnen" }));
 
+    // #2518: the shared error path, inside the confirmation.
     expect(
       await within(dialog).findByText(
-        "Das Passwort stimmt nicht. Bitte versuchen Sie es noch einmal.",
+        catalogText("care.declaration_password_incorrect", "die Antwort"),
       ),
     ).toBeInTheDocument();
+    expect(within(dialog).queryByText("wrong")).not.toBeInTheDocument();
+    // The wrong password is cleared for the next try.
+    expect(
+      within(dialog).getByLabelText("Passwort Ihres Eltern-Kontos"),
+    ).toHaveValue("");
     expect(submit).toHaveBeenCalledWith("42", {
       studentId: "5",
       action: "declined",
@@ -425,7 +422,7 @@ describe("Einverständnis in the detail view", () => {
 
     expect(
       await screen.findByText(
-        "Die Schule hat den Text geändert. Bitte lesen Sie ihn noch einmal und antworten Sie dann neu.",
+        catalogText("care.declaration_version_changed", "die Antwort"),
       ),
     ).toBeInTheDocument();
     expect(onStale).toHaveBeenCalledWith("42");
@@ -753,7 +750,7 @@ describe("unclear submit result (#3430)", () => {
 
     expect(
       await within(dialog).findByText(
-        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+        catalogText("general.input", "die Antwort"),
       ),
     ).toBeInTheDocument();
     expect(onStale).not.toHaveBeenCalled();

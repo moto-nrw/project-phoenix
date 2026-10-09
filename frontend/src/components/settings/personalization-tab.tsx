@@ -1,14 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import Image from "next/image";
 import { ImageUp } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { MotoBrand } from "~/components/auth/moto-brand";
 import { useTenant } from "~/lib/tenant-context";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { sessionFetch } from "~/lib/session-cache";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { createLogger } from "~/lib/logger";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "PersonalizationTab" });
@@ -28,46 +41,64 @@ export function PersonalizationTab() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Fetch current login image + edit permission on mount.
-  // On failure, keep the existing preview from tenant context instead of clearing it.
-  useEffect(() => {
-    sessionFetch("/api/settings/login-image")
-      .then((res) => {
-        if (!res.ok) {
-          logger.warn("login_image_fetch_non_ok", { status: res.status });
-          return;
-        }
-        return res.json().then(
-          (json: {
-            data?: {
-              login_image_url?: string | null;
-              can_edit?: boolean;
-            };
-          }) => {
-            setCurrentImageUrl(json?.data?.login_image_url ?? null);
-            setCanEdit(json?.data?.can_edit ?? false);
-          },
+  // Laden: Fehler vor Ort mit Wiederholen, das Bild aus dem Schulkontext
+  // bleibt stehen. Hochladen und Entfernen sind Aktionen ohne Formular: ein
+  // Fehler kommt als Toast (#2517).
+  const { error: loadError, show: showLoadError, clear } = useApiLoadError();
+  const { show: showActionError } = useApiErrorDisplay();
+  const latestLoadRef = useRef<() => void>(() => undefined);
+  const latestUploadRef = useRef<(file: File) => void>(() => undefined);
+  const latestDeleteRef = useRef<() => void>(() => undefined);
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    clear();
+    try {
+      const res = await sessionFetch("/api/settings/login-image");
+      if (!res.ok) {
+        throw await apiErrorFromResponse(
+          res,
+          `Login image fetch failed (${res.status})`,
         );
-      })
-      .catch((err) => {
-        logger.warn("login_image_fetch_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      })
-      .finally(() => setIsLoading(false));
-  }, []);
+      }
+      const json = (await res.json()) as {
+        data?: {
+          login_image_url?: string | null;
+          can_edit?: boolean;
+        };
+      };
+      setCurrentImageUrl(json?.data?.login_image_url ?? null);
+      setCanEdit(json?.data?.can_edit ?? false);
+    } catch (err) {
+      logger.warn("login_image_fetch_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showLoadError(err, {
+        object: "das Login-Bild",
+        retry: () => latestLoadRef.current(),
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [clear, showLoadError]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const processFile = useCallback(
     async (file: File) => {
+      // Prüfung vor dem Hochladen. Es gibt kein Formular, an dem der Hinweis
+      // stehen könnte; die Ablagefläche zeigt die Grenzen schon dauerhaft.
       const maxSize = 2 * 1024 * 1024;
       if (file.size > maxSize) {
-        toastError("Datei ist zu groß (max. 2 MB)");
+        toastError("Das Bild ist zu groß. Bitte wählen Sie ein Bild bis 2 MB.");
         return;
       }
 
       const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
       if (!allowedTypes.includes(file.type)) {
-        toastError("Nur JPG, PNG oder WebP erlaubt");
+        toastError("Bitte wählen Sie ein Bild im Format JPG, PNG oder WebP.");
         return;
       }
 
@@ -76,21 +107,23 @@ export function PersonalizationTab() {
         const formData = new FormData();
         formData.append("login_image", file);
 
-        const response = await fetch("/api/settings/login-image", {
+        const response = await transportFetch("/api/settings/login-image", {
           method: "POST",
           body: formData,
         });
 
         if (!response.ok) {
-          const errorBody = await response.text();
-          throw new Error(`Upload failed: ${response.status} — ${errorBody}`);
+          throw await apiErrorFromResponse(
+            response,
+            `Login image upload failed (${response.status})`,
+          );
         }
 
         const result = (await response.json()) as {
           data: { login_image_url: string };
         };
         setCurrentImageUrl(result.data.login_image_url);
-        toastSuccess("Login-Bild erfolgreich hochgeladen");
+        toastSuccess("Das Login-Bild ist hochgeladen.");
 
         // Refresh server components so TenantProvider picks up the new settings
         router.refresh();
@@ -98,7 +131,10 @@ export function PersonalizationTab() {
         logger.error("login_image_upload_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
-        toastError("Fehler beim Hochladen des Bildes");
+        void showActionError(error, {
+          object: "das Hochladen des Login-Bilds",
+          retry: () => latestUploadRef.current(file),
+        });
       } finally {
         setIsUploading(false);
         if (fileInputRef.current) {
@@ -106,7 +142,7 @@ export function PersonalizationTab() {
         }
       }
     },
-    [toastSuccess, toastError, router],
+    [toastSuccess, toastError, router, showActionError],
   );
 
   const handleUpload = useCallback(
@@ -120,16 +156,19 @@ export function PersonalizationTab() {
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
     try {
-      const response = await fetch("/api/settings/login-image", {
+      const response = await transportFetch("/api/settings/login-image", {
         method: "DELETE",
       });
 
       if (!response.ok) {
-        throw new Error(`Delete failed: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `Login image delete failed (${response.status})`,
+        );
       }
 
       setCurrentImageUrl(null);
-      toastSuccess("Login-Bild erfolgreich entfernt");
+      toastSuccess("Das Login-Bild ist entfernt.");
 
       // Refresh server components so TenantProvider picks up the removal
       router.refresh();
@@ -137,11 +176,20 @@ export function PersonalizationTab() {
       logger.error("login_image_delete_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      toastError("Fehler beim Entfernen des Bildes");
+      void showActionError(error, {
+        object: "das Entfernen des Login-Bilds",
+        retry: () => latestDeleteRef.current(),
+      });
     } finally {
       setIsDeleting(false);
     }
-  }, [toastSuccess, toastError, router]);
+  }, [toastSuccess, router, showActionError]);
+
+  useLayoutEffect(() => {
+    latestLoadRef.current = () => void load();
+    latestUploadRef.current = (file) => void processFile(file);
+    latestDeleteRef.current = () => void handleDelete();
+  });
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -184,16 +232,22 @@ export function PersonalizationTab() {
   }, []);
 
   return (
-    <div className="space-y-6">
+    // Ein Gitter wächst nicht mit dem Seitenrumpf: Die Karte ist so hoch wie
+    // ihr Inhalt, statt als leere weiße Fläche bis zur Unterkante zu reichen
+    // (#3893).
+    <div className="grid grid-cols-1 gap-6">
       <SectionCard
         headingLevel={3}
         title="Login-Seite"
         description={
           canEdit
             ? "Laden Sie ein eigenes Bild hoch, das auf der Login-Seite Ihrer Einrichtung angezeigt wird."
-            : "Das aktuelle Bild wird auf der Login-Seite Ihrer Einrichtung angezeigt."
+            : "So sieht die Login-Seite Ihrer Einrichtung oben aus. Ein neues Bild kann nur hochladen, wer Einstellungen ändern darf."
         }
       >
+        {loadError ? (
+          <LoadErrorAlert error={loadError} className="mb-4" />
+        ) : null}
         {/* Current image preview */}
         {isLoading ? (
           <div className="flex h-[120px] items-center justify-center rounded-xl border border-gray-100 bg-gray-50">
@@ -220,11 +274,20 @@ export function PersonalizationTab() {
               </button>
             )}
           </div>
-        ) : null}
+        ) : loadError ? null : (
+          // Ohne eigenes Bild zeigt die Login-Seite das moto-Logo. Die
+          // Vorschau sagt das, statt die Karte leer zu lassen (#3893).
+          <div className="moto-content-surface flex flex-col items-center gap-3 rounded-xl border p-6 shadow-sm">
+            <MotoBrand />
+            <p className="text-center text-sm text-gray-600">
+              Noch kein eigenes Bild. Die Login-Seite zeigt das moto-Logo.
+            </p>
+          </div>
+        )}
 
         {/* Upload dropzone — shown when editable */}
         {canEdit && (
-          <div className={currentImageUrl ? "mt-4" : ""}>
+          <div className={loadError && !currentImageUrl ? "" : "mt-4"}>
             {/* Hidden file input */}
             <input
               ref={fileInputRef}

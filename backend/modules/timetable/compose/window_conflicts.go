@@ -108,7 +108,7 @@ func (d *conflictDetection) appendPairStaffConflicts(out map[int64][]timetable.I
 		}
 		roomA := effectiveRoom(a.RoomID, aRow.RoomID)
 		roomB := effectiveRoom(b.RoomID, bRow.RoomID)
-		if roomA == roomB {
+		if roomA == roomB && roomA > 0 {
 			continue // same concrete room — sanctioned parallel supervision
 		}
 		fingerprint := d.conflictFingerprint(timetable.ConflictKindStaff, aRow.StaffID, a.Date,

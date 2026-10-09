@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { catalogText } from "~/test/error-catalog-text";
 import StudentChangeHistoryPage from "./page";
 
 vi.mock("next/navigation", () => ({
@@ -64,6 +65,13 @@ describe("StudentChangeHistoryPage", () => {
     expect(
       screen.getByRole("button", { name: "Vorgangskennung kopieren" }),
     ).toHaveTextContent("req-ch");
+    // #2517: keine Zählung aus einer Liste, die nie geladen wurde.
+    expect(
+      screen.getByText(
+        catalogText("general.server", "die Liste der Änderungen"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/0 Einträge/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 

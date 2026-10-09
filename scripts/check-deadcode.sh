@@ -35,7 +35,7 @@ fi
 
 production_output=$(run_deadcode production)
 if production_findings=$(printf '%s\n' "$production_output" | grep -Ev \
-  '(^|/)(test|testutil|testdb|[[:alpha:]]+test)/|^internal/architecture/|_test_helpers\.go|models/config/registry\.go:.*unreachable func: ResetRegistry$'); then
+  '(^|/)(test|testutil|testdb|[[:alpha:]]+test)/|^internal/architecture/|_test_helpers\.go'); then
   :
 else
   production_filter_status=$?

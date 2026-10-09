@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const mocks = vi.hoisted(() => ({
   fetchBootstrap: vi.fn(),
@@ -126,5 +128,35 @@ describe("EnrollPhaseFormPage", () => {
       "href",
       "/demo/anmeldung",
     );
+  });
+
+  it("names a closed window from the catalog where the form would be (#2515)", async () => {
+    mocks.fetchBootstrap.mockReset();
+    mocks.fetchBootstrap.mockRejectedValueOnce(
+      new ApiError("enrollment window is closed", 409, {
+        code: "enrollment.window_closed",
+      }),
+    );
+    await act(async () => {
+      render(
+        <Suspense fallback={null}>
+          <EnrollPhaseFormPage
+            params={Promise.resolve({ tenant: "demo", phaseId: "5" })}
+          />
+        </Suspense>,
+      );
+    });
+
+    expect(
+      await screen.findByText(
+        catalogText("enrollment.window_closed", "das Anmeldeformular"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("enrollment window is closed"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("public-enrollment-form"),
+    ).not.toBeInTheDocument();
   });
 });

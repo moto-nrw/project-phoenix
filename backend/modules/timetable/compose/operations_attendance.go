@@ -14,11 +14,20 @@ import (
 )
 
 func (s *operations) CheckInStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*timetable.OperationRoster, error) {
-	roster, err := s.checkInStudent(ctx, accountID, isAdmin, instanceID, studentID)
+	roster, err := s.checkInStudents(ctx, accountID, isAdmin, instanceID, []int64{studentID})
 	return s.rosterWithActionAccess(ctx, accountID, isAdmin, instanceID, roster, err)
 }
 
-func (s *operations) checkInStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*timetable.OperationRoster, error) {
+// CheckInStudents checks several children into a running block at once
+// (#3824). It shares every per-child rule of CheckInStudent and builds the
+// roster once at the end. A failure for one child fails the whole call, so
+// the request transaction rolls back and no partial selection stays behind.
+func (s *operations) CheckInStudents(ctx context.Context, accountID int64, isAdmin bool, instanceID int64, studentIDs []int64) (*timetable.OperationRoster, error) {
+	roster, err := s.checkInStudents(ctx, accountID, isAdmin, instanceID, studentIDs)
+	return s.rosterWithActionAccess(ctx, accountID, isAdmin, instanceID, roster, err)
+}
+
+func (s *operations) checkInStudents(ctx context.Context, accountID int64, isAdmin bool, instanceID int64, studentIDs []int64) (*timetable.OperationRoster, error) {
 	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ScopedAttendance)
 	if err != nil {
 		return nil, err
@@ -31,31 +40,67 @@ func (s *operations) checkInStudent(ctx context.Context, accountID int64, isAdmi
 		return nil, err
 	}
 	if inst.Status != scheduleModels.InstanceStatusActive || inst.ActiveGroupID == nil {
-		return nil, fmt.Errorf("%w: instance is not active", timetable.ErrTimetableOperationConflict)
+		return nil, timetable.WithCode(fmt.Errorf("%w: instance is not active", timetable.ErrTimetableOperationConflict), timetable.CodeInstanceNotActive)
 	}
-	if err := s.requireRosterStudent(ctx, inst, instanceID, studentID); err != nil {
-		return nil, err
+	now := s.now()
+	openedVisit := false
+	var movedFrom *string
+	for _, studentID := range studentIDs {
+		outcome, err := s.checkInOneStudent(ctx, staffID, inst, instanceID, studentID, now)
+		if err != nil {
+			return nil, err
+		}
+		openedVisit = openedVisit || outcome.openedVisit
+		movedFrom = outcome.movedFrom
 	}
-	current, err := s.currentVisit(ctx, studentID)
+	if openedVisit {
+		if err := s.deps.Sessions.UpdateLastActivity(ctx, *inst.ActiveGroupID, now); err != nil {
+			s.logger().WarnContext(ctx, "failed to update active group activity after timetable check-in",
+				slog.Int64("active_group_id", *inst.ActiveGroupID),
+				slog.String("error", err.Error()))
+		}
+	}
+	roster, err := s.buildRoster(ctx, instanceID)
 	if err != nil {
 		return nil, err
 	}
-	if current != nil {
-		return s.checkInStudentWithCurrentVisit(ctx, staffID, inst, instanceID, studentID, current)
+	// The move notice names one child's previous session; a batch has no
+	// single answer, so only a one-child check-in carries it.
+	if len(studentIDs) == 1 {
+		roster.MovedFrom = movedFrom
 	}
-	now := s.now()
-	if roster, handled, err := s.createCheckInVisit(ctx, staffID, inst, instanceID, studentID, now); handled {
-		return roster, err
+	return roster, nil
+}
+
+// checkInOutcome is what one child's check-in did: a new visit in the
+// block's session, or a move out of another running session (movedFrom names
+// that session, possibly empty when it has no label).
+type checkInOutcome struct {
+	openedVisit bool
+	movedFrom   *string
+}
+
+// checkInOneStudent applies the check-in of one child to an admitted running
+// block.
+func (s *operations) checkInOneStudent(ctx context.Context, staffID int64, inst *scheduleModels.ActivityInstance, instanceID, studentID int64, now time.Time) (checkInOutcome, error) {
+	if err := s.requireRosterStudent(ctx, inst, instanceID, studentID); err != nil {
+		return checkInOutcome{}, err
+	}
+	current, err := s.currentVisit(ctx, studentID)
+	if err != nil {
+		return checkInOutcome{}, err
+	}
+	if current != nil {
+		movedFrom, err := s.checkInStudentWithCurrentVisit(ctx, staffID, inst, instanceID, studentID, current)
+		return checkInOutcome{movedFrom: movedFrom}, err
+	}
+	if handled, movedFrom, err := s.createCheckInVisit(ctx, staffID, inst, instanceID, studentID, now); handled {
+		return checkInOutcome{movedFrom: movedFrom}, err
 	}
 	if err := s.markPlannedStudentPresent(ctx, instanceID, studentID); err != nil {
-		return nil, err
+		return checkInOutcome{}, err
 	}
-	if err := s.deps.Sessions.UpdateLastActivity(ctx, *inst.ActiveGroupID, now); err != nil {
-		s.logger().WarnContext(ctx, "failed to update active group activity after timetable check-in",
-			slog.Int64("active_group_id", *inst.ActiveGroupID),
-			slog.String("error", err.Error()))
-	}
-	return s.buildRoster(ctx, instanceID)
+	return checkInOutcome{openedVisit: true}, nil
 }
 
 // createCheckInVisit opens the child's visit in the block's session,
@@ -63,7 +108,7 @@ func (s *operations) checkInStudent(ctx context.Context, accountID int64, isAdmi
 // runs in a savepoint, so a child that meanwhile checked in elsewhere is
 // resolved without aborting the transaction. handled reports that the check-in
 // already produced its answer (the concurrent visit path or a failure).
-func (s *operations) createCheckInVisit(ctx context.Context, staffID int64, inst *scheduleModels.ActivityInstance, instanceID, studentID int64, now time.Time) (*timetable.OperationRoster, bool, error) {
+func (s *operations) createCheckInVisit(ctx context.Context, staffID int64, inst *scheduleModels.ActivityInstance, instanceID, studentID int64, now time.Time) (bool, *string, error) {
 	visit := &studentpresence.Visit{StudentID: studentID, ActiveGroupID: *inst.ActiveGroupID, EntryTime: now}
 	visit.TenantID = tenant.FromContext(ctx)
 	var createErr error
@@ -75,37 +120,34 @@ func (s *operations) createCheckInVisit(ctx context.Context, staffID int64, inst
 		createErr = s.deps.Attendance.CreateVisitAs(ctx, staffID, visit)
 	}
 	if createErr == nil {
-		return nil, false, nil
+		return false, nil, nil
 	}
 	if errors.Is(createErr, tenant.ErrSavepointControl) || !errors.Is(createErr, studentpresence.ErrStudentAlreadyActive) {
-		return nil, true, createErr
+		return true, nil, createErr
 	}
 	current, err := s.currentVisit(ctx, studentID)
 	if err != nil {
-		return nil, true, err
+		return true, nil, err
 	}
 	if current == nil {
-		return nil, true, createErr
+		return true, nil, createErr
 	}
-	roster, err := s.checkInStudentWithCurrentVisit(ctx, staffID, inst, instanceID, studentID, current)
-	return roster, true, err
+	movedFrom, err := s.checkInStudentWithCurrentVisit(ctx, staffID, inst, instanceID, studentID, current)
+	return true, movedFrom, err
 }
 
-func (s *operations) checkInStudentWithCurrentVisit(ctx context.Context, staffID int64, inst *scheduleModels.ActivityInstance, instanceID, studentID int64, current *studentpresence.Visit) (*timetable.OperationRoster, error) {
+func (s *operations) checkInStudentWithCurrentVisit(ctx context.Context, staffID int64, inst *scheduleModels.ActivityInstance, instanceID, studentID int64, current *studentpresence.Visit) (*string, error) {
 	if current.ActiveGroupID != *inst.ActiveGroupID {
 		return s.moveStudentFromOtherSession(ctx, staffID, inst, instanceID, studentID)
 	}
-	if err := s.markPlannedStudentPresent(ctx, instanceID, studentID); err != nil {
-		return nil, err
-	}
-	return s.buildRoster(ctx, instanceID)
+	return nil, s.markPlannedStudentPresent(ctx, instanceID, studentID)
 }
 
 // moveStudentFromOtherSession resolves the "child is still present in
 // another running session" check-in by moving the child (#2386). The shared
 // bulk move owns checkout semantics, attendance mirroring and broadcasts;
 // the target was authorized already, so the move's own check is bypassed.
-func (s *operations) moveStudentFromOtherSession(ctx context.Context, staffID int64, inst *scheduleModels.ActivityInstance, instanceID, studentID int64) (*timetable.OperationRoster, error) {
+func (s *operations) moveStudentFromOtherSession(ctx context.Context, staffID int64, inst *scheduleModels.ActivityInstance, instanceID, studentID int64) (*string, error) {
 	result, err := s.deps.Attendance.MoveStudentsToActiveGroupAuthorized(ctx, []int64{studentID}, *inst.ActiveGroupID, studentpresence.StudentMoveAuthorization{
 		StaffID:              staffID,
 		BypassResourceChecks: true,
@@ -115,23 +157,19 @@ func (s *operations) moveStudentFromOtherSession(ctx context.Context, staffID in
 	}
 	if len(result.Moved) == 0 && len(result.Unchanged) == 0 {
 		tenant.MarkRollback(ctx)
-		return nil, fmt.Errorf("%w: student could not be moved from other session", timetable.ErrTimetableOperationConflict)
+		return nil, timetable.WithCode(fmt.Errorf("%w: student could not be moved from other session", timetable.ErrTimetableOperationConflict), timetable.CodeOperationStale)
 	}
 	if err := s.markPlannedStudentPresent(ctx, instanceID, studentID); err != nil {
 		return nil, err
 	}
-	roster, err := s.buildRoster(ctx, instanceID)
-	if err != nil {
-		return nil, err
+	if len(result.Moved) == 0 {
+		return nil, nil
 	}
-	if len(result.Moved) > 0 {
-		movedFrom := ""
-		if previousActiveGroupID := result.PreviousActiveGroupIDs[studentID]; previousActiveGroupID > 0 {
-			movedFrom = s.resolveActiveGroupLabel(ctx, previousActiveGroupID)
-		}
-		roster.MovedFrom = &movedFrom
+	movedFrom := ""
+	if previousActiveGroupID := result.PreviousActiveGroupIDs[studentID]; previousActiveGroupID > 0 {
+		movedFrom = s.resolveActiveGroupLabel(ctx, previousActiveGroupID)
 	}
-	return roster, nil
+	return &movedFrom, nil
 }
 
 // resolveActiveGroupLabel names a running session for the move notice: the
@@ -187,7 +225,7 @@ func (s *operations) checkOutStudent(ctx context.Context, accountID int64, isAdm
 		return nil, err
 	}
 	if inst.ActiveGroupID == nil {
-		return nil, fmt.Errorf("%w: instance has no active group", timetable.ErrTimetableOperationConflict)
+		return nil, timetable.WithCode(fmt.Errorf("%w: instance has no active group", timetable.ErrTimetableOperationConflict), timetable.CodeInstanceNotActive)
 	}
 	if err := s.requireRosterStudent(ctx, inst, instanceID, studentID); err != nil {
 		return nil, err
@@ -197,7 +235,7 @@ func (s *operations) checkOutStudent(ctx context.Context, accountID int64, isAdm
 		return nil, err
 	}
 	if visit == nil {
-		return nil, timetable.ErrTimetableOperationNotFound
+		return nil, timetable.WithCode(timetable.ErrTimetableOperationNotFound, timetable.CodeStudentNotCheckedIn)
 	}
 	if err := s.deps.Attendance.EndVisitAs(ctx, staffID, visit.TenantID, visit.ID); err != nil && !errors.Is(err, studentpresence.ErrVisitAlreadyEnded) {
 		return nil, err

@@ -16,6 +16,7 @@ import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -58,6 +59,7 @@ import { useStudentFilters } from "~/components/active-supervisions/use-student-
 import { useReopenBanner } from "~/components/active-supervisions/use-reopen-banner";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useSchulhofActions } from "~/components/active-supervisions/use-schulhof-actions";
+import { PresentChildrenPicker } from "~/components/active-supervisions/present-children-picker";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import {
   SupervisionStudentGrid,
@@ -78,6 +80,21 @@ import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
+
+function reopenBannerMessage(title: string | null): string {
+  const ended = title
+    ? `„${title}“ wurde beendet.`
+    : "Die Aktivität wurde beendet.";
+  return `${ended} Sie können das fünf Minuten lang rückgängig machen.`;
+}
+
+function hasSameGroupNames(
+  previous: readonly string[] | undefined,
+  next: readonly string[],
+): boolean {
+  if (!previous || previous.length !== next.length) return false;
+  return previous.every((group, index) => group === next[index]);
+}
 
 function MeinRaumPageContent() {
   const attendanceWebEnabled = useAttendanceWebEnabled();
@@ -123,8 +140,7 @@ function MeinRaumPageContent() {
     currentOpenRoom,
     selectedTimetableInstanceId,
     students,
-    error,
-    setError,
+    loadError,
     mutateDashboard,
     refresh,
   } = dashboard;
@@ -143,8 +159,36 @@ function MeinRaumPageContent() {
   });
   const { currentTimetableRoster } = roster;
   const { overviewEnabled } = useOptionalSupervision();
+  const [openRoomRosterGroups, setOpenRoomRosterGroups] = useState<
+    ReadonlyMap<string, readonly string[]>
+  >(() => new Map());
+  const rememberOpenRoomRosterGroups = useCallback(
+    (instanceId: string, groups: readonly string[]) => {
+      setOpenRoomRosterGroups((current) => {
+        if (hasSameGroupNames(current.get(instanceId), groups)) return current;
+        const next = new Map(current);
+        next.set(instanceId, groups);
+        return next;
+      });
+    },
+    [],
+  );
+  const filterOpenRoomRosterGroups = useMemo(() => {
+    if (!openRoomLayout) return [];
+    return openRoomLayout.flatMap((section) =>
+      section.kind === "block"
+        ? (openRoomRosterGroups.get(section.block.instanceId) ?? [])
+        : [],
+    );
+  }, [openRoomLayout, openRoomRosterGroups]);
 
-  const filters = useStudentFilters(students);
+  // The header search covers the block list too (#3889): expected, absent
+  // and departed children, not only those checked in right now.
+  const filters = useStudentFilters(
+    students,
+    currentTimetableRoster?.rows,
+    filterOpenRoomRosterGroups,
+  );
   const reopen = useReopenBanner();
   // The session „Betreuer hinzufügen“ was opened for: the head action or one
   // section of a released room.
@@ -159,12 +203,10 @@ function MeinRaumPageContent() {
     currentTimetableRoster,
     mutateRoster: roster.mutateRoster,
     mutateDashboard,
-    refresh,
     adoptSession: dashboard.adoptSession,
     setSelectedTimetableInstanceId: dashboard.setSelectedTimetableInstanceId,
-    setError,
     router,
-    reopenableInstanceId: reopen.reopenableInstanceId,
+    reopenable: reopen.reopenable,
     rememberReopenable: reopen.rememberReopenable,
     clearReopenable: reopen.clearReopenable,
   });
@@ -185,7 +227,6 @@ function MeinRaumPageContent() {
       ? undefined
       : spontaneousStartBlockedReason,
     refresh,
-    setError,
   });
 
   // The Schulhof's own supervision offer (#2161) belongs to the Schulhof room,
@@ -369,6 +410,7 @@ function MeinRaumPageContent() {
 
   const spontaneousStartBanner = dashboard.webSpontaneousActivitiesEnabled ? (
     <SpontaneousActivityStart
+      canCreateExternalCaregiver={hasPermission(session, "users:create")}
       currentStaffId={currentStaffId}
       defaultRoomId={currentRoom?.room_id ?? currentOpenRoom?.roomId}
       disabled={dashboard.spontaneousStartAvailability?.available === false}
@@ -380,16 +422,21 @@ function MeinRaumPageContent() {
       }
     />
   ) : null;
-  const reopenBanner = reopen.reopenableInstanceId ? (
+  // Das Banner steht über jeder Aufsicht, die nach dem Beenden offen ist. Es
+  // nennt deshalb die beendete Aktivität, sonst wirkt die gerade offene
+  // beendet (#3887).
+  const reopenBanner = reopen.reopenable ? (
     <div>
       <Alert
         type="success"
-        message="Aktivität wurde beendet. Die Rücknahme ist fünf Minuten lang möglich."
+        message={reopenBannerMessage(reopen.reopenable.title)}
         action={
           <Button
             type="button"
             variant="outline"
             size="compact"
+            isLoading={actions.isReopeningInstance}
+            loadingText="Wird zurückgenommen…"
             onClick={() => void actions.handleReopenTimetableInstance()}
           >
             Rückgängig
@@ -573,20 +620,24 @@ function MeinRaumPageContent() {
             allRooms,
             currentStaffId,
             mutateDashboard,
-            refresh,
             adoptSession: dashboard.adoptSession,
             setSelectedTimetableInstanceId:
               dashboard.setSelectedTimetableInstanceId,
-            setError,
             router,
-            reopenableInstanceId: reopen.reopenableInstanceId,
+            reopenable: reopen.reopenable,
             rememberReopenable: reopen.rememberReopenable,
             clearReopenable: reopen.clearReopenable,
             attendanceWebEnabled,
             showTimetableCounts,
+            canReadPresentChildren: hasPermission(session, "users:read"),
             canExcuseRestOfDay: hasPermission(session, "users:update"),
             overviewEnabled,
             onAddSupervisor: setAddSupervisorTarget,
+            onRosterGroups: rememberOpenRoomRosterGroups,
+            rosterRowFilter: filters.rosterRowFilter,
+            presentPickerAutoOpenInstanceId:
+              actions.presentPickerAutoOpenInstanceId,
+            onPresentPickerAutoOpened: actions.clearPresentPickerAutoOpen,
           }}
         />
       );
@@ -612,6 +663,17 @@ function MeinRaumPageContent() {
             showTimetableCounts={showTimetableCounts}
             occupancy={supervisionOccupancy}
             onAddStudent={actions.handleAddUnplannedStudent}
+            onAddPresentStudents={
+              hasPermission(session, "users:read")
+                ? actions.handleAddPresentStudents
+                : undefined
+            }
+            presentChildrenPicker={PresentChildrenPicker}
+            presentPickerAutoOpen={
+              actions.presentPickerAutoOpenInstanceId ===
+              currentTimetableRoster.instance.id
+            }
+            onPresentPickerAutoOpened={actions.clearPresentPickerAutoOpen}
             onComplete={actions.handleCompleteTimetableInstance}
             onConfirmExpected={actions.handleConfirmExpectedStudents}
             onRosterAction={actions.handleRosterAction}
@@ -621,6 +683,7 @@ function MeinRaumPageContent() {
                 : undefined
             }
             onSearchChange={actions.handleAddStudentSearchChange}
+            rowFilter={filters.rosterRowFilter}
           />
         </>
       );
@@ -722,6 +785,7 @@ function MeinRaumPageContent() {
             isOpen={actions.showCompleteConfirmation}
             roster={currentTimetableRoster}
             isCompleting={actions.isCompletingInstance}
+            error={actions.completeError}
             onClose={() => actions.setShowCompleteConfirmation(false)}
             onConfirm={() => void actions.confirmCompleteTimetableInstance()}
           />
@@ -733,10 +797,15 @@ function MeinRaumPageContent() {
               schulhof.handleReleaseSupervision().catch(() => undefined)
             }
             isConfirmLoading={schulhof.isReleasingSupervision}
+            error={schulhof.releaseError}
           />
           {addSupervisorTarget ? (
             <AddSupervisorModal
               activeGroupId={addSupervisorTarget}
+              canCreateExternalCaregiver={hasPermission(
+                session,
+                "users:create",
+              )}
               isOpen
               onClose={() => setAddSupervisorTarget(null)}
               onAdded={mutateDashboard}
@@ -745,11 +814,10 @@ function MeinRaumPageContent() {
         </>
       }
     >
-      {/* Fehler der Seite stehen als Alert oben im Inhalt und nicht im
-          `error`-Zustand des Geruests: hier meldet auch eine misslungene
-          Einzelaktion (Kind hinzufuegen, Aufsicht wechseln), und die Flaeche
-          darunter muss bedienbar bleiben, damit man es erneut versuchen kann. */}
-      {error && !hasNoAccess ? <Alert type="error" message={error} /> : null}
+      {/* Ein Ladefehler steht oben im Inhalt und nicht im `error`-Zustand des
+          Geruests: der zuletzt geladene Stand bleibt darunter bedienbar.
+          Einzelaktionen melden sich als Toast oder in ihrem Dialog (#2517). */}
+      {!hasNoAccess ? <LoadErrorAlert error={loadError} /> : null}
       {showUnclaimedOnly ? (
         <>
           {reopenBanner}

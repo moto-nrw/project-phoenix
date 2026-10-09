@@ -5,6 +5,8 @@ import {
   updateAnnouncement,
   type Announcement,
 } from "~/lib/parent-announcements-api";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import ParentAnnouncementsPage from "./page";
 import { stashAnnouncementStudents } from "~/lib/announcement-prefill";
 
@@ -262,6 +264,127 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Terminabstimmung (#3861): a list copied from a spreadsheet becomes one
+  // answer per line instead of one long label.
+  it("splits a pasted list into one answer per line", async () => {
+    listState.data = [draftPoll];
+    searchParams.set("art", "umfragen");
+    searchParams.set("bearbeiten", "4");
+    render(<ParentAnnouncementsPage />);
+
+    const second = await screen.findByRole("textbox", { name: "Antwort 2" });
+    fireEvent.paste(second, {
+      clipboardData: {
+        getData: () => "Di 14.10.\t15:00\nDi 14.10.\t15:15\n\n",
+      },
+    });
+
+    expect(screen.getByRole("textbox", { name: "Antwort 2" })).toHaveValue(
+      "Nein",
+    );
+    expect(screen.getByRole("textbox", { name: "Antwort 3" })).toHaveValue(
+      "Di 14.10. 15:00",
+    );
+    expect(screen.getByRole("textbox", { name: "Antwort 4" })).toHaveValue(
+      "Di 14.10. 15:15",
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "Antwort 5" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/Zwei bis 60 Antworten\./)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Als Entwurf speichern" }),
+    );
+    await waitFor(() =>
+      expect(updateAnnouncement).toHaveBeenCalledWith(
+        "4",
+        expect.objectContaining({
+          options: ["Ja", "Nein", "Di 14.10. 15:00", "Di 14.10. 15:15"],
+        }),
+      ),
+    );
+  });
+
+  it("replaces untouched default answers with a full appointment list", async () => {
+    listState.data = [];
+    searchParams.set("art", "umfragen");
+    render(<ParentAnnouncementsPage />);
+
+    fireEvent.click(
+      (
+        await screen.findAllByRole("button", {
+          name: "Neue Umfrage erstellen",
+        })
+      )[0]!,
+    );
+
+    const lines = Array.from({ length: 60 }, (_, i) => `Termin ${i + 1}`);
+    fireEvent.paste(await screen.findByRole("textbox", { name: "Antwort 1" }), {
+      clipboardData: { getData: () => lines.join("\n") },
+    });
+
+    expect(screen.getByRole("textbox", { name: "Antwort 1" })).toHaveValue(
+      "Termin 1",
+    );
+    expect(screen.getByRole("textbox", { name: "Antwort 60" })).toHaveValue(
+      "Termin 60",
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "Antwort 61" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Es passen höchstens 60 Antworten/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says how many pasted lines did not fit", async () => {
+    listState.data = [draftPoll];
+    searchParams.set("art", "umfragen");
+    searchParams.set("bearbeiten", "4");
+    render(<ParentAnnouncementsPage />);
+
+    const second = await screen.findByRole("textbox", { name: "Antwort 2" });
+    const lines = Array.from({ length: 61 }, (_, i) => `Termin ${i + 1}`);
+    fireEvent.paste(second, {
+      clipboardData: { getData: () => lines.join("\n") },
+    });
+
+    expect(
+      await screen.findByText(
+        "Es passen höchstens 60 Antworten. 3 Zeilen wurden nicht übernommen.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Antwort 60" })).toHaveValue(
+      "Termin 58",
+    );
+    expect(
+      screen.getByRole("button", { name: "Antwort hinzufügen" }),
+    ).toBeDisabled();
+  });
+
+  it("rejects pasted answers longer than 120 characters", async () => {
+    listState.data = [draftPoll];
+    searchParams.set("art", "umfragen");
+    searchParams.set("bearbeiten", "4");
+    render(<ParentAnnouncementsPage />);
+
+    const second = await screen.findByRole("textbox", { name: "Antwort 2" });
+    fireEvent.paste(second, {
+      clipboardData: { getData: () => `${"A".repeat(121)}\nVielleicht` },
+    });
+
+    expect(
+      await screen.findByText(
+        "Eine Zeile ist länger als 120 Zeichen. Sie wurde nicht übernommen.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Antwort 3" })).toHaveValue(
+      "Vielleicht",
+    );
+  });
+
   it("saves a draft with an elapsed reminder", async () => {
     listState.data = [
       {
@@ -297,6 +420,66 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Uhrzeit");
     expect(updateAnnouncement).not.toHaveBeenCalled();
+  });
+
+  // #2517: Fehler über den gemeinsamen Anzeigeweg.
+  it("marks a missing title at the field before going on", async () => {
+    listState.data = [{ ...base, title: "" }];
+    searchParams.set("bearbeiten", "1");
+    render(<ParentAnnouncementsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText("Bitte geben Sie einen Titel ein."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Titel" })).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+  });
+
+  it("keeps a failed save in the form with the catalog text and retries", async () => {
+    vi.mocked(updateAnnouncement)
+      .mockRejectedValueOnce(
+        new ApiError("db exploded", 500, { code: "general.server" }),
+      )
+      .mockResolvedValueOnce({ ...base });
+    listState.data = [base];
+    searchParams.set("bearbeiten", "1");
+    render(<ParentAnnouncementsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Weiter" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Als Entwurf speichern" }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "das Speichern der Mitteilung"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/db exploded/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(updateAnnouncement).toHaveBeenCalledTimes(2));
+  });
+
+  it("shows a failed list load with the catalog text, not an empty list", async () => {
+    listState.data = undefined;
+    listState.error = new ApiError("down", 503, {
+      code: "general.unavailable",
+    });
+    render(<ParentAnnouncementsPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Mitteilungen"),
+      ),
+    ).toBeInTheDocument();
+    // #2517: keine Zählung aus einer Liste, die nie geladen wurde.
+    expect(screen.queryByText(/0 Mitteilungen/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 veröffentlicht/)).not.toBeInTheDocument();
   });
 });
 

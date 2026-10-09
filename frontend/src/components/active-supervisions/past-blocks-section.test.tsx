@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { PastBlocksSection } from "./past-blocks-section";
 import type {
   PlannedTimetableInstance,
@@ -250,20 +252,28 @@ describe("PastBlocksSection", () => {
     expect(screen.queryByText("Gegangen")).not.toBeInTheDocument();
   });
 
-  it("surfaces a load error", async () => {
-    plannedNowMock.mockRejectedValue(new Error("kaputt"));
+  it("surfaces a load error with the catalog text and retries", async () => {
+    plannedNowMock
+      .mockRejectedValueOnce(
+        new ApiError("kaputt", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce([]);
 
     render(<PastBlocksSection />);
     fireEvent.click(
       screen.getByRole("button", { name: /Beendete und abgelaufene Blöcke/ }),
     );
 
-    await waitFor(() =>
-      expect(
-        screen.getByText(
-          "Vergangene Blöcke konnten nicht geladen werden. Bitte später erneut versuchen.",
-        ),
-      ).toBeInTheDocument(),
-    );
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der vergangenen Blöcke"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(
+      await screen.findByText(
+        "Heute sind noch keine Blöcke beendet oder abgelaufen.",
+      ),
+    ).toBeInTheDocument();
   });
 });

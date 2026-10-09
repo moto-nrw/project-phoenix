@@ -14,7 +14,14 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { Check, ExternalLink } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -22,12 +29,16 @@ import type { Session } from "next-auth";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatabaseSelect } from "~/components/ui/database/database-select";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { roomService, studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import {
@@ -35,7 +46,7 @@ import {
   summarizeStudentMoveResult,
 } from "~/lib/active-service";
 import type { ActiveGroup, Supervisor, Visit } from "~/lib/active-helpers";
-import type { ApiError } from "~/lib/api-error";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
 import type { Room } from "~/lib/room-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
@@ -43,7 +54,7 @@ import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { createLogger } from "~/lib/logger";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
-import { capacityErrorMessage } from "~/lib/capacity-error";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 const logger = createLogger({ component: "StudentsInRoomSection" });
 const EMPTY_STUDENTS: Student[] = [];
@@ -93,8 +104,19 @@ export function StudentsInRoomSection({
   // released room.
   const [targetValue, setTargetValue] = useState("");
   const [bulkMoveState, setBulkMoveState] = useState<
-    { type: "idle" } | { type: "loading" } | { type: "error"; message: string }
+    { type: "idle" } | { type: "loading" }
   >({ type: "idle" });
+  // „In Raum setzen“ ist ein kleines Formular: Fehler stehen in seiner Leiste,
+  // der Zielraum wird markiert (#2517).
+  const moveToolbarRef = useRef<HTMLDivElement>(null);
+  const moveErrors = useApiFormError(moveToolbarRef);
+  const { clear: clearMoveErrors } = moveErrors;
+  // „Wiederholen“ setzt die aktuell gewählten Kinder in den aktuellen Zielraum.
+  const retryMoveRef = useRef<() => void>(() => undefined);
+  const resetBulkMove = () => {
+    setBulkMoveState({ type: "idle" });
+    clearMoveErrors();
+  };
   const sectionSearchParams = useSearchParams();
   // Drilling into a child must return to the room page the user came from
   // (#3115). Its own query (the `from` back to the grid or the register, the
@@ -109,7 +131,12 @@ export function StudentsInRoomSection({
   // groups in Sporthalle/Aula/Mensa cap well below 100 in normal usage) so
   // every present child shows up. Backend default is only 50, which would
   // silently truncate larger rooms, see PR #1374 review.
-  const { data, error, isLoading } = useSWRAuth<{
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: reloadStudents,
+  } = useSWRAuth<{
     students: Student[];
     pagination?: { total_records: number };
   }>(`room-students-${roomId}`, async () =>
@@ -137,12 +164,10 @@ export function StudentsInRoomSection({
     () => roomService.getRooms(),
   );
 
-  if (error) {
-    logger.warn("students_in_room_load_failed", {
-      room_id: roomId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
+  // Ladefehler mit Katalogtext, Wiederholen und Vorgangskennung (#2517).
+  const loadError = useSwrLoadError(error, "die Liste der Kinder im Raum", () =>
+    reloadStudents(),
+  );
 
   const students = data?.students ?? EMPTY_STUDENTS;
   const visibleStudentIds = useMemo(
@@ -279,7 +304,8 @@ export function StudentsInRoomSection({
     setSelectedStudentIds(new Set());
     setTargetValue("");
     setBulkMoveState({ type: "idle" });
-  }, [roomId]);
+    clearMoveErrors();
+  }, [roomId, clearMoveErrors]);
 
   useEffect(() => {
     onSelectionActiveChange?.(selectedVisibleCount > 0);
@@ -313,7 +339,7 @@ export function StudentsInRoomSection({
 
   const clearSelection = () => {
     setSelectedStudentIds(new Set());
-    setBulkMoveState({ type: "idle" });
+    resetBulkMove();
   };
 
   const toggleStudentSelection = (studentId: string) => {
@@ -323,7 +349,7 @@ export function StudentsInRoomSection({
         next.delete(studentId);
         return next;
       });
-      setBulkMoveState({ type: "idle" });
+      resetBulkMove();
       return;
     }
 
@@ -332,25 +358,25 @@ export function StudentsInRoomSection({
       next.add(studentId);
       return next;
     });
-    setBulkMoveState({ type: "idle" });
+    resetBulkMove();
   };
 
   const selectAllVisible = () => {
     setSelectedStudentIds(new Set(selectableStudentIds));
-    setBulkMoveState({ type: "idle" });
+    resetBulkMove();
   };
 
   const changeTarget = (value: string) => {
     setTargetValue(value);
-    setBulkMoveState({ type: "idle" });
+    resetBulkMove();
   };
 
   const moveSelectedStudents = async () => {
     const target = selectedTarget;
+    clearMoveErrors();
     if (!target) {
-      setBulkMoveState({
-        type: "error",
-        message: "Bitte wähle zuerst einen Zielraum aus.",
+      moveErrors.invalid("Bitte wählen Sie zuerst einen Zielraum.", {
+        "room-bulk-target": "Bitte wählen Sie einen Zielraum.",
       });
       return;
     }
@@ -359,10 +385,7 @@ export function StudentsInRoomSection({
       visibleStudentIds.has(studentId),
     );
     if (studentIds.length === 0) {
-      setBulkMoveState({
-        type: "error",
-        message: "Bitte wähle mindestens ein Kind aus.",
-      });
+      moveErrors.invalid("Bitte wählen Sie mindestens ein Kind.");
       return;
     }
 
@@ -390,10 +413,11 @@ export function StudentsInRoomSection({
           ...targetLog,
           skipped_reasons: result.skipped.map((item) => item.reason),
         });
-        setBulkMoveState({
-          type: "error",
-          message: `${skipped} von ${studentIds.length} Kindern konnten nicht bewegt werden.`,
-        });
+        setBulkMoveState({ type: "idle" });
+        // Teilerfolg, kein API-Fehler: die übrigen Kinder sind bewegt.
+        moveErrors.invalid(
+          `${skipped} von ${studentIds.length} Kindern konnten nicht bewegt werden.`,
+        );
         await refreshRoomConsumers();
         return;
       }
@@ -403,9 +427,9 @@ export function StudentsInRoomSection({
       setBulkMoveState({ type: "idle" });
       const successCount = summarizeStudentMoveResult(result).successCount;
       toastSuccess(
-        `${successCount} ${
-          successCount === 1 ? "Kind" : "Kinder"
-        } nach ${target.roomName} bewegt.`,
+        successCount === 1
+          ? `1 Kind ist jetzt in ${target.roomName}.`
+          : `${successCount} Kinder sind jetzt in ${target.roomName}.`,
       );
       await refreshRoomConsumers();
     } catch (err) {
@@ -415,23 +439,28 @@ export function StudentsInRoomSection({
         error: err instanceof Error ? err.message : String(err),
       });
       const releaseRemoved =
-        (err as ApiError | undefined)?.code === "rooms.not_released";
+        err instanceof ApiError &&
+        wireErrorCode(err.code) === "rooms.not_released";
       if (releaseRemoved) {
         // The release was removed after the room list loaded: drop the stale
         // choice and reload the rooms, so the list stops offering it.
         setTargetValue("");
         await refreshMoveRooms();
       }
-      setBulkMoveState({
-        type: "error",
-        message: releaseRemoved
-          ? "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum."
-          : (capacityErrorMessage(err) ??
-            "Die ausgewählten Kinder konnten nicht bewegt werden."),
+      setBulkMoveState({ type: "idle" });
+      // Katalogtext; ein voller Raum oder eine volle Aktivität nennt sich
+      // selbst über Code und Details (#3633).
+      void moveErrors.show(err, {
+        object: "das Verschieben der Kinder",
+        retry: releaseRemoved ? undefined : () => retryMoveRef.current(),
       });
       await refreshRoomConsumers();
     }
   };
+
+  useLayoutEffect(() => {
+    retryMoveRef.current = () => void moveSelectedStudents();
+  });
 
   return (
     // Quiet section header to match the other slide-over blocks
@@ -487,6 +516,8 @@ export function StudentsInRoomSection({
             targetOptions={targetOptions}
             targetScope={targetScope}
             state={bulkMoveState}
+            error={moveErrors.error}
+            containerRef={moveToolbarRef}
             onSelectAll={selectAllVisible}
             onClearSelection={clearSelection}
             onTargetChange={changeTarget}
@@ -496,7 +527,7 @@ export function StudentsInRoomSection({
         <StudentsInRoomBody
           fromReferrer={fromReferrer}
           loading={isLoading}
-          hasError={!!error}
+          loadError={loadError}
           students={students}
           selectable={canBulkMove}
           selectableStudentIds={selectableStudentIds}
@@ -635,8 +666,9 @@ interface BulkMoveToolbarProps {
   readonly targetValue: string;
   readonly targetOptions: readonly TargetRoomOption[];
   readonly targetScope: TargetScope;
-  readonly state:
-    { type: "idle" } | { type: "loading" } | { type: "error"; message: string };
+  readonly state: { type: "idle" } | { type: "loading" };
+  readonly error: FormErrorInput;
+  readonly containerRef: RefObject<HTMLDivElement | null>;
   readonly onSelectAll: () => void;
   readonly onClearSelection: () => void;
   readonly onTargetChange: (value: string) => void;
@@ -650,6 +682,8 @@ function BulkMoveToolbar({
   targetOptions,
   targetScope,
   state,
+  error,
+  containerRef,
   onSelectAll,
   onClearSelection,
   onTargetChange,
@@ -663,6 +697,7 @@ function BulkMoveToolbar({
 
   return (
     <div
+      ref={containerRef}
       className={`mb-4 rounded-xl border p-3 transition-shadow ${
         hasSelection
           ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-sm backdrop-blur"
@@ -729,11 +764,7 @@ function BulkMoveToolbar({
         </p>
       ) : null}
 
-      {state.type === "error" ? (
-        <p role="alert" className="text-moto-red mt-2 text-sm">
-          {state.message}
-        </p>
-      ) : null}
+      <FormErrorAlert message={error} className="mt-2" />
     </div>
   );
 }
@@ -756,7 +787,7 @@ const NO_TARGET_HINT: Record<TargetScope, string> = {
 interface StudentsInRoomBodyProps {
   readonly fromReferrer: string;
   readonly loading: boolean;
-  readonly hasError: boolean;
+  readonly loadError: FormErrorInput;
   readonly students: readonly Student[];
   readonly selectable: boolean;
   readonly selectableStudentIds: ReadonlySet<string>;
@@ -768,7 +799,7 @@ interface StudentsInRoomBodyProps {
 function StudentsInRoomBody({
   fromReferrer,
   loading,
-  hasError,
+  loadError,
   students,
   selectable,
   selectableStudentIds,
@@ -777,13 +808,8 @@ function StudentsInRoomBody({
   router,
 }: StudentsInRoomBodyProps) {
   const { enabled: photosEnabled } = useStudentPhotosEnabled();
-  if (hasError) {
-    return (
-      <Alert
-        type="error"
-        message="Die Liste der Kinder konnte nicht geladen werden."
-      />
-    );
+  if (loadError) {
+    return <LoadErrorAlert error={loadError} />;
   }
 
   // All three states (loading / empty / loaded) occupy similar vertical

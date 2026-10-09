@@ -144,7 +144,9 @@ describe("CareRequestReviewItem", () => {
         "impact-v1",
       ),
     );
-    expect(onDecided).toHaveBeenCalledWith("Betreuungszeiten übernommen");
+    expect(onDecided).toHaveBeenCalledWith(
+      "Die Betreuungszeiten sind übernommen.",
+    );
   });
 
   it("preserves the request kind in an empty collapsed summary", () => {
@@ -252,7 +254,9 @@ describe("CareRequestReviewItem", () => {
         "impact-v1",
       ),
     );
-    expect(onDecided).toHaveBeenCalledWith("Betreuungszeit-Anfrage abgelehnt");
+    expect(onDecided).toHaveBeenCalledWith(
+      "Die Anfrage zu den Betreuungszeiten ist abgelehnt.",
+    );
   });
 
   it("shows the parent's mandatory reason for a pickup change and reports the pickup notice", async () => {
@@ -277,7 +281,7 @@ describe("CareRequestReviewItem", () => {
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     await waitFor(() =>
-      expect(onDecided).toHaveBeenCalledWith("Abholzeit übernommen"),
+      expect(onDecided).toHaveBeenCalledWith("Die Abholzeit ist übernommen."),
     );
   });
 

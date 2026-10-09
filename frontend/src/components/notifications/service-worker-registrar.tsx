@@ -23,6 +23,8 @@ export function ServiceWorkerRegistrar() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("/sw.js").catch((err: unknown) => {
+      // Background registration without a user action: the push card checks
+      // the worker again when someone opens it.
       logger.warn("service_worker_registration_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -54,6 +56,7 @@ export function PushSubscriptionSync({
   useEffect(() => {
     if (status !== "authenticated" || !isPushSupported()) return;
     syncExistingPushSubscription(portal).catch((err: unknown) => {
+      // Silent rebind on session start; the push card shows the real state.
       if (isPushConfigurationMissing(err)) return;
       logger.warn("push_subscription_sync_failed", {
         portal,

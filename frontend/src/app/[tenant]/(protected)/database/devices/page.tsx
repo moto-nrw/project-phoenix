@@ -1,6 +1,14 @@
 "use client";
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -18,14 +26,14 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { devicesConfig } from "@/components/database/configs/devices.config";
 import { getDeviceTypeDisplayName, type Device } from "@/lib/iot-helpers";
 import { DevicesMasterDetail } from "@/components/devices/devices-master-detail";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
@@ -72,8 +80,6 @@ function DevicesPageContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const isMobile = useIsMobile();
 
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [savingDevice, setSavingDevice] = useState(false);
   // The list response never carries `api_key` (it's a one-time create-only
   // secret). We snapshot the freshly-created device here so the detail panel
   // can render the key until the user navigates away — same dismiss semantics
@@ -84,10 +90,20 @@ function DevicesPageContent() {
     showConfirmModal: showDeleteConfirmModal,
     handleDeleteClick,
     handleDeleteCancel,
-    confirmDelete,
   } = useDeleteConfirmation();
 
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
+  // Schreibfehler bleiben im jeweiligen Dialog (#2517).
+  const createErrors = useApiFormError();
+  const deleteErrors = useApiFormError();
+  const [deletePending, setDeletePending] = useState(false);
+  const latestDeleteRef = useRef<() => void>(() => undefined);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const { clear: clearCreateErrors } = createErrors;
+  // Ein neu geöffnetes Anlegen beginnt ohne den Fehler des vorigen Versuchs.
+  useEffect(() => {
+    if (showCreateModal) clearCreateErrors();
+  }, [showCreateModal, clearCreateErrors]);
 
   const { status } = useSession({
     required: true,
@@ -101,16 +117,19 @@ function DevicesPageContent() {
 
   const {
     data: devicesData,
-    isLoading: loading,
+    isLoading: swrLoading,
     error: devicesError,
+    mutate: mutateDevices,
   } = useSWRAuth("database-devices-list", async () => {
     const data = await service.getList({ page: 1, pageSize: 500 });
     return Array.isArray(data.data) ? data.data : [];
   });
 
-  const error = devicesError
-    ? "Fehler beim Laden der Geräte. Bitte versuchen Sie es später erneut."
-    : null;
+  const error = useSwrLoadError(devicesError, "die Liste der Geräte", () =>
+    mutateDevices(),
+  );
+  // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett stehen.
+  const loading = swrLoading || (Boolean(devicesError) && error === null);
 
   // Snapshot lifecycle is managed synchronously in the click/edit/delete
   // handlers below — never via an effect on `selectedId`. router.replace is
@@ -226,39 +245,19 @@ function DevicesPageContent() {
 
   const handleCreateDevice = useCallback(
     async (data: Partial<Device>) => {
-      try {
-        const payload = devicesConfig.form.transformBeforeSubmit
-          ? devicesConfig.form.transformBeforeSubmit(data)
-          : data;
-        const created = await service.create(payload);
-        toastSuccess(
-          getDbOperationMessage(
-            "create",
-            devicesConfig.name.singular,
-            created.name ?? created.device_id,
-          ),
-        );
-        setShowCreateModal(false);
-        setCreatedDevice(created);
-        handleSelectDevice(created.id);
-        await tenantMutate("database-devices-list");
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        logger.error("device_create_failed", { error: errorMessage });
-        if (
-          errorMessage.includes("ist bereits vergeben") ||
-          errorMessage.includes("409")
-        ) {
-          throw new Error(
-            `Die Geräte-ID "${data.device_id ?? ""}" ist bereits vergeben. Bitte wählen Sie eine andere ID.`,
-            { cause: err },
-          );
-        }
-        throw new Error(
-          "Fehler beim Erstellen des Geräts. Bitte versuchen Sie es erneut.",
-          { cause: err },
-        );
-      }
+      // Ein Fehler bleibt im Dialog: DatabaseForm zeigt ihn über errorPath,
+      // eine vergebene Geräte-ID (iot.device_id_taken) markiert das Feld.
+      const payload = devicesConfig.form.transformBeforeSubmit
+        ? devicesConfig.form.transformBeforeSubmit(data)
+        : data;
+      const created = await service.create(payload);
+      toastSuccess(
+        `Das Gerät „${created.name ?? created.device_id}“ ist registriert.`,
+      );
+      setShowCreateModal(false);
+      setCreatedDevice(created);
+      handleSelectDevice(created.id);
+      await tenantMutate("database-devices-list");
     },
     [service, handleSelectDevice, tenantMutate, toastSuccess],
   );
@@ -266,71 +265,62 @@ function DevicesPageContent() {
   const handleUpdateDevice = useCallback(
     async (data: Partial<Device>) => {
       if (!selectedDevice) return;
-      try {
-        setSavingDevice(true);
-        const payload = devicesConfig.form.transformBeforeSubmit
-          ? devicesConfig.form.transformBeforeSubmit(data)
-          : data;
-        const updatedDevice = await service.update(selectedDevice.id, payload);
-        // Editing closes the api_key flash — the snapshot would otherwise
-        // overlay the freshly-edited list values on the next render.
-        setCreatedDevice(null);
-        toastSuccess(
-          getDbOperationMessage(
-            "update",
-            devicesConfig.name.singular,
-            updatedDevice.name ?? updatedDevice.device_id,
-          ),
-        );
-        await tenantMutate("database-devices-list");
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        logger.error("failed to update device", {
-          device_id: selectedDevice.id,
-          error: errorMessage,
-        });
-        if (
-          errorMessage.includes("ist bereits vergeben") ||
-          errorMessage.includes("409")
-        ) {
-          throw new Error(
-            `Die Geräte-ID "${data.device_id ?? ""}" ist bereits vergeben. Bitte wählen Sie eine andere ID.`,
-            { cause: err },
-          );
-        }
-        throw err;
-      } finally {
-        setSavingDevice(false);
-      }
+      // Ein Fehler bleibt im Formular (errorPath im Stammdaten-Reiter).
+      const payload = devicesConfig.form.transformBeforeSubmit
+        ? devicesConfig.form.transformBeforeSubmit(data)
+        : data;
+      const updatedDevice = await service.update(selectedDevice.id, payload);
+      // Editing closes the api_key flash — the snapshot would otherwise
+      // overlay the freshly-edited list values on the next render.
+      setCreatedDevice(null);
+      toastSuccess(
+        `Das Gerät „${updatedDevice.name ?? updatedDevice.device_id}“ ist gespeichert.`,
+      );
+      await tenantMutate("database-devices-list");
     },
     [selectedDevice, service, tenantMutate, toastSuccess],
   );
 
   const handleDeleteDevice = useCallback(async () => {
     if (!selectedDevice) return;
-    const deleteError = await service.delete(selectedDevice.id);
-    if (deleteError) {
-      toastError(deleteError);
-      return;
+    setDeletePending(true);
+    deleteErrors.clear();
+    try {
+      const deleted = await service.remove(selectedDevice.id);
+      if (!deleted) return;
+      toastSuccess(
+        `Das Gerät „${selectedDevice.name ?? selectedDevice.device_id}“ ist gelöscht.`,
+      );
+      handleDeleteCancel();
+      setCreatedDevice(null);
+      handleSelectDevice(null);
+      await tenantMutate("database-devices-list");
+    } catch (err) {
+      logger.warn("device_delete_failed", {
+        device_id: selectedDevice.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // Der Bestätigungsdialog bleibt offen und nennt den Grund.
+      void deleteErrors.show(err, {
+        object: "das Löschen des Geräts",
+        retry: () => latestDeleteRef.current(),
+      });
+    } finally {
+      setDeletePending(false);
     }
-    toastSuccess(
-      getDbOperationMessage(
-        "delete",
-        devicesConfig.name.singular,
-        selectedDevice.name ?? selectedDevice.device_id,
-      ),
-    );
-    setCreatedDevice(null);
-    handleSelectDevice(null);
-    await tenantMutate("database-devices-list");
   }, [
     selectedDevice,
     service,
-    toastError,
     toastSuccess,
+    handleDeleteCancel,
     handleSelectDevice,
     tenantMutate,
+    deleteErrors,
   ]);
+
+  useLayoutEffect(() => {
+    latestDeleteRef.current = () => void handleDeleteDevice();
+  });
 
   const canShowDetail =
     !loading && (filteredDevices.length > 0 || selectedDevice !== null);
@@ -375,13 +365,15 @@ function DevicesPageContent() {
             mode="create"
             config={devicesConfig}
             onSubmit={handleCreateDevice}
+            errorPath={createErrors}
+            errorObject="das Gerät"
           />
 
           {selectedDevice && (
             <ConfirmDeleteModal
               isOpen={showDeleteConfirmModal}
               onClose={handleDeleteCancel}
-              onConfirm={() => confirmDelete(() => void handleDeleteDevice())}
+              onConfirm={() => void handleDeleteDevice()}
               title="Gerät löschen?"
               description={
                 <>
@@ -394,8 +386,8 @@ function DevicesPageContent() {
                 </>
               }
               gate={{ mode: "twoStep" }}
-              loading={savingDevice}
-              error=""
+              loading={deletePending}
+              error={deleteErrors.error}
             />
           )}
         </>

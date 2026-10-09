@@ -594,17 +594,20 @@ func TestFullDemoWorkflowSeedsParentLetterAfterParentAccounts(t *testing.T) {
 	t.Parallel()
 
 	workflow := fullDemoWorkflow(&Seeder{})
-	parentAccounts, parentLetter := -1, -1
+	parentAccounts, parentLetter, parentPoll := -1, -1, -1
 	for i, step := range workflow.Steps {
 		switch step.(type) {
 		case parentEnrollmentSeedStep:
 			parentAccounts = i
 		case seedParentLetterStep:
 			parentLetter = i
+		case seedParentPollStep:
+			parentPoll = i
 		}
 	}
 	require.GreaterOrEqual(t, parentAccounts, 0, "parent enrollment step missing")
 	require.Greater(t, parentLetter, parentAccounts, "parent letter must follow parent accounts")
+	require.Greater(t, parentPoll, parentAccounts, "parent poll must follow parent accounts")
 }
 
 func TestSeeder_Seed_FullWorkflow(t *testing.T) {
@@ -1088,6 +1091,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		w.Header().Set("Content-Type", "application/json")
 		authorization := r.Header.Get("Authorization")
 		manualAuth := authorization == "Bearer manual-admin-token"
+		if !manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+			return
+		}
 
 		if r.Method == seedHTTPMethodPut && ((manualAuth && strings.HasPrefix(r.URL.Path, "/api/settings/values/")) || strings.Contains(r.URL.Path, "/operator/schools/2/settings/values/")) {
 			var body struct {
@@ -1650,7 +1657,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"data":   []map[string]any{{"id": idCounter, "name": "Betreuung"}},
 			})
 
-		case "/api/active/visits":
+		case "/api/active/visits", "/api/time-tracking/holidays":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
 				"data":   []any{},
@@ -1675,6 +1682,24 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"data": map[string]any{
 					"id": fmt.Sprintf("%d", idCounter),
 				},
+			})
+
+		case "/api/guardians/invitations/pending":
+			// Three approvals left an open invitation; two stay open.
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": []map[string]any{
+					{"id": 1, "guardian_profile_id": 703, "token": "existing-invite-703"},
+					{"id": 2, "guardian_profile_id": 701, "token": "existing-invite-701"},
+					{"id": 3, "guardian_profile_id": 702, "token": "existing-invite-702"},
+				},
+			})
+
+		case "/api/import/students/import":
+			// The import audit upserts one child the school already has.
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data":   map[string]any{"CreatedCount": 0, "UpdatedCount": 1, "ErrorCount": 0},
 			})
 
 		case "/api/files/audience":

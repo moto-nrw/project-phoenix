@@ -15,6 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -211,6 +212,24 @@ func TestMoveStaffBetweenBlocks_AssignFromPoolCreatesRow(t *testing.T) {
 	assert.Equal(t, compose.DeviationEventStaffMoved, events[0].EventType)
 	assert.NotContains(t, string(events[0].OldValue), "from_instance_id", "no source block for a pool assign")
 	assert.Contains(t, string(events[0].NewValue), fmt.Sprintf(`"to_instance_id": %d`, s.target.ID))
+}
+
+func TestMoveStaffBetweenBlocks_RejectsExternalCaregiver(t *testing.T) {
+	t.Parallel()
+
+	s := makeMoveSetup(t)
+	external := &usersModels.Guest{StaffID: s.otherID, ActivityExpertise: "Musik"}
+	external.SetTenantID(s.tenantID)
+	_, err := s.db.NewInsert().Model(external).ModelTableExpr(`users.guests`).Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+		StaffID: external.StaffID,
+	})
+	de := requireDeviationErr(t, err)
+	assert.Equal(t, http.StatusBadRequest, de.Status)
+	assert.Equal(t, timetable.CodeDeviationSelectionInvalid, de.Code)
+	assert.Empty(t, loadInstanceStaffRows(t, s.db, s.ctx, s.target.ID))
 }
 
 func TestMoveStaffBetweenBlocks_RetryIsIdempotent(t *testing.T) {

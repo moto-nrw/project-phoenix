@@ -15,6 +15,7 @@ import {
   type CatalogConfig,
 } from "~/components/database/catalog/catalog-page";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { CatalogColorField } from "~/components/ui/database/catalog-color-field";
 import type { SectionConfig } from "~/lib/database/types";
 import { formatCount } from "~/lib/format-utils";
@@ -65,9 +66,16 @@ function PlanningTracksPageContent() {
   const {
     data,
     isLoading,
-    error: loadError,
+    error: swrError,
+    mutate,
   } = useSWRAuth<PlanningTrack[]>(timetableEnabled ? CACHE_KEY : null, () =>
     planningTrackService.list(),
+  );
+  // Ladefehler mit Katalogtext statt eines eigenen Satzes (#2516).
+  const loadError = useSwrLoadError(
+    swrError,
+    "die Liste der Planungsspuren",
+    () => mutate(),
   );
 
   const onChanged = useCallback(() => tenantMutate(CACHE_KEY), [tenantMutate]);
@@ -138,12 +146,13 @@ function PlanningTracksPageContent() {
         describe: (track) =>
           `Die Planungsspur „${track.name}“ wird für neue Termine nicht mehr angeboten. Bestehende Termine behalten sie. Sie können die Spur jederzeit wiederherstellen.`,
         run: (track) => planningTrackService.archive(track.id),
-        toast: (track) => `Planungsspur „${track.name}“ archiviert`,
+        toast: (track) => `Die Planungsspur „${track.name}“ ist archiviert.`,
       },
       restore: {
         menuLabel: "Wieder anbieten",
         run: (track) => planningTrackService.restore(track.id),
-        toast: (track) => `Planungsspur „${track.name}“ wird wieder angeboten`,
+        toast: (track) =>
+          `Die Planungsspur „${track.name}“ wird wieder angeboten.`,
       },
     };
   }, [items]);
@@ -163,12 +172,13 @@ function PlanningTracksPageContent() {
     <CatalogPage
       config={config}
       items={items}
-      isLoading={isLoading && data === undefined}
-      error={
-        loadError
-          ? "Die Planungsspuren konnten nicht geladen werden. Bitte laden Sie die Seite neu."
-          : null
+      // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett
+      // stehen: sonst blitzt „Noch keine Planungsspuren“ auf.
+      isLoading={
+        (isLoading && data === undefined) ||
+        (swrError !== undefined && loadError === null)
       }
+      error={loadError}
       onChanged={onChanged}
       // Die Route liegt hinter schedules:manage (database/layout).
       canManage

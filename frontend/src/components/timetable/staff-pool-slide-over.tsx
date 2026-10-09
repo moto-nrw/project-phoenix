@@ -16,11 +16,16 @@
  * (gleiches Problemfeld wie PR #1962).
  */
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { TriangleAlert, UserPlus } from "lucide-react";
 
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
@@ -30,8 +35,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { useToast } from "~/contexts/ToastContext";
-import { getApiErrorMessage } from "~/lib/api-error-message";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
@@ -85,10 +89,24 @@ export function StaffPoolSlideOver({
   );
 
   const grouped = useMemo(() => groupEntries(pool), [pool]);
+  // Ladefehler vor Ort mit Wiederholen (#2516), nicht als leerer Pool.
+  const poolLoadError = useSwrLoadError(error, "die Liste des Personals", () =>
+    mutate(),
+  );
+
+  // Der Fehler eines Moves bleibt in der offenen Rückfrage: sie liegt über
+  // den Toasts (#2516). Wiederholen sendet dieselbe Auswahl erneut.
+  const moveErrors = useApiFormError();
+  const latestMoveRef = useRef<() => void>(() => undefined);
+  const openMoveConfirm = (move: PendingMove) => {
+    moveErrors.clear();
+    setPendingMove(move);
+  };
 
   const handleConfirmMove = async () => {
     if (!canManage || !pendingMove || !instanceId) return;
     setSaving(true);
+    moveErrors.clear();
     try {
       const result = await timetableService.moveStaff(instanceId, {
         staffId: pendingMove.entry.staffId,
@@ -104,18 +122,20 @@ export function StaffPoolSlideOver({
         staff_id: pendingMove.entry.staffId,
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error(
-        getApiErrorMessage(
-          err,
-          "verschieben",
-          "Person",
-          "Die Person konnte nicht verschoben werden.",
-        ),
-      );
+      void moveErrors.show(err, {
+        object: pendingMove.assignment
+          ? "das Verschieben der Person"
+          : "die Zuweisung der Person",
+        retry: () => latestMoveRef.current(),
+      });
     } finally {
       setSaving(false);
     }
   };
+
+  useLayoutEffect(() => {
+    latestMoveRef.current = () => void handleConfirmMove();
+  });
 
   return (
     <>
@@ -137,14 +157,10 @@ export function StaffPoolSlideOver({
           </SlideOverHeader>
 
           <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-            {isLoading && (
+            {(isLoading || (error && !poolLoadError)) && (
               <p className="text-sm text-gray-500">Lade Personalpool …</p>
             )}
-            {error && (
-              <p className="text-moto-red-strong text-sm">
-                Personalpool konnte nicht geladen werden.
-              </p>
-            )}
+            <LoadErrorAlert error={poolLoadError} />
             {pool && !pool.dienstplanInUse && (
               <div className="border-moto-orange/30 bg-moto-orange/10 flex items-start gap-2 rounded-xl border p-3 text-xs text-gray-700">
                 <TriangleAlert className="text-moto-orange mt-0.5 h-4 w-4 shrink-0" />
@@ -182,7 +198,7 @@ export function StaffPoolSlideOver({
                               size="compact"
                               disabled={saving}
                               onClick={() =>
-                                setPendingMove({ entry, assignment })
+                                openMoveConfirm({ entry, assignment })
                               }
                             >
                               <span className="inline-flex items-center gap-1.5">
@@ -210,7 +226,7 @@ export function StaffPoolSlideOver({
                             variant="outline"
                             size="compact"
                             disabled={saving}
-                            onClick={() => setPendingMove({ entry })}
+                            onClick={() => openMoveConfirm({ entry })}
                           >
                             <span className="inline-flex items-center gap-1.5">
                               <UserPlus className="h-3.5 w-3.5" />
@@ -258,6 +274,7 @@ export function StaffPoolSlideOver({
           cancelText="Abbrechen"
           isConfirmLoading={saving}
         >
+          <FormErrorAlert message={moveErrors.error} className="mb-3" />
           <p className="text-sm text-gray-600">
             {confirmMessage(pendingMove, instance)}
           </p>

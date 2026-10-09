@@ -1,15 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
+import { credentialError } from "./credential-error";
 import {
   enrollConfirm,
   enrollStart,
-  germanMFAErrorMessage,
   type LoginScope,
   type MFATokenResponse,
 } from "~/lib/mfa-api";
@@ -55,7 +63,12 @@ export function MFAEnrollmentScreen({
   onExit,
 }: MFAEnrollmentScreenProps) {
   const [step, setStep] = useState<Step>("intro");
-  const [error, setError] = useState("");
+  // Fehler über den gemeinsamen Weg (#2517). Ein abgelehnter Code kommt als
+  // 401; das ist hier kein Sitzungsende, deshalb credentialError.
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { show: showError, clear: clearError } = formErrors;
+  const latestStartRef = useRef<() => void>(() => undefined);
   const [isStarting, setIsStarting] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   // tokensRef holds the access/refresh pair returned by /enroll/confirm.
@@ -76,23 +89,30 @@ export function MFAEnrollmentScreen({
 
   const handleStart = async () => {
     setIsStarting(true);
-    setError("");
+    clearError();
     try {
       challengeTokenRef.current = await enrollStart(scope, bearerToken);
       setStep("code");
     } catch (err) {
-      setError(germanMFAErrorMessage(err));
       logger.warn("enroll_start_failed", {
         scope,
         error: err instanceof Error ? err.message : String(err),
+      });
+      void showError(credentialError(err), {
+        object: "das Senden des Codes",
+        retry: () => latestStartRef.current(),
       });
     } finally {
       setIsStarting(false);
     }
   };
 
+  useLayoutEffect(() => {
+    latestStartRef.current = () => void handleStart();
+  });
+
   const handleBack = () => {
-    setError("");
+    clearError();
     if (step === "code") {
       otpRef.current?.reset();
       setStep("intro");
@@ -104,7 +124,7 @@ export function MFAEnrollmentScreen({
   const performConfirm = useCallback(
     async (submittedCode: string) => {
       setIsConfirming(true);
-      setError("");
+      clearError();
       try {
         const tokens = await enrollConfirm(
           scope,
@@ -116,23 +136,26 @@ export function MFAEnrollmentScreen({
         tokensRef.current = tokens;
         setStep("success");
       } catch (err) {
-        setError(germanMFAErrorMessage(err));
         logger.warn("enroll_confirm_failed", {
           scope,
           error: err instanceof Error ? err.message : String(err),
         });
         otpRef.current?.reset();
+        // Kein Wiederholen: der Code steht nicht mehr im Feld.
+        void showError(credentialError(err), {
+          object: "die Prüfung des Codes",
+        });
       } finally {
         setIsConfirming(false);
       }
     },
-    [scope, bearerToken],
+    [scope, bearerToken, clearError, showError],
   );
 
   const showBack = step !== "success";
 
   return (
-    <div className="space-y-7 text-left">
+    <div ref={formRef} className="space-y-7 text-left">
       {showBack && (
         <div>
           <button
@@ -192,6 +215,7 @@ export function MFAEnrollmentScreen({
               einen Code per E-Mail.
             </p>
           </div>
+          <FormErrorAlert message={formErrors.error} />
           <Button
             type="button"
             variant="primary"
@@ -204,8 +228,8 @@ export function MFAEnrollmentScreen({
                 // resolves with tokens, so tokensRef must be set. If it
                 // isn't, surface an error rather than silently falling
                 // through to a broken session.
-                setError(
-                  "Etwas ist schiefgelaufen. Bitte melden Sie sich erneut an.",
+                formErrors.invalid(
+                  "Das hat leider nicht geklappt. Bitte melden Sie sich erneut an.",
                 );
                 return;
               }
@@ -241,7 +265,7 @@ export function MFAEnrollmentScreen({
             </p>
           </div>
 
-          {error && <Alert type="error" message={error} />}
+          <FormErrorAlert message={formErrors.error} />
 
           {step === "intro" && (
             <div className="space-y-5">

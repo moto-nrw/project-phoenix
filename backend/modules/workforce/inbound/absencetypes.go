@@ -15,23 +15,22 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/uptrace/bun"
 )
 
 // NewAbsenceTypesResource wires /api/absence-types over the absence-type
 // administration capability. resolveActor identifies the staff member behind
 // an allowance change.
-func NewAbsenceTypesResource(types workforce.AbsenceTypeAdministration, db *bun.DB, resolveActor func(context.Context) (int64, error)) *absencetypesHTTP.Resource {
-	if types == nil || db == nil || resolveActor == nil {
+func NewAbsenceTypesResource(types workforce.AbsenceTypeAdministration, resolveActor func(context.Context) (int64, error)) *absencetypesHTTP.Resource {
+	if types == nil || resolveActor == nil {
 		panic("absence-types HTTP composition: all dependencies are required")
 	}
-	return absencetypesHTTP.NewResource(types, absenceTypesRuntime(db, resolveActor))
+	return absencetypesHTTP.NewResource(types, absenceTypesRuntime(resolveActor))
 }
 
-func absenceTypesRuntime(db *bun.DB, resolveActor func(context.Context) (int64, error)) absencetypesHTTP.Runtime {
+func absenceTypesRuntime(resolveActor func(context.Context) (int64, error)) absencetypesHTTP.Runtime {
 	return absencetypesHTTP.Runtime{
 		Protected: func(router chi.Router, routes func(chi.Router, absencetypesHTTP.Middleware)) {
-			common.ProtectedTenantGroup(router, db, routes)
+			common.ProtectedTenantRoutes(router, routes)
 		},
 		Permission:         common.RequiresPermission,
 		AnyPermission:      common.RequiresAnyPermission,

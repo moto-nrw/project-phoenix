@@ -19,20 +19,19 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/uptrace/bun"
 )
 
 // Resource is the statistics API resource.
 type Resource struct {
 	Service    studentpresence.StatisticsReports
 	ListExport *listexport.RendererService
-	DB         *bun.DB
-	Logger     *slog.Logger
+
+	Logger *slog.Logger
 }
 
 // NewResource creates the statistics resource.
-func NewResource(service studentpresence.StatisticsReports, listExport *listexport.RendererService, db *bun.DB, logger *slog.Logger) *Resource {
-	return &Resource{Service: service, ListExport: listExport, DB: db, Logger: logger}
+func NewResource(service studentpresence.StatisticsReports, listExport *listexport.RendererService, logger *slog.Logger) *Resource {
+	return &Resource{Service: service, ListExport: listExport, Logger: logger}
 }
 
 func (rs *Resource) logger() *slog.Logger {
@@ -47,7 +46,7 @@ func (rs *Resource) logger() *slog.Logger {
 // per-child rows are personal data), mirroring the class-roster export.
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
-	common.ProtectedTenantGroup(r, rs.DB, func(r chi.Router, withTx common.Middleware) {
+	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		guard := common.RequiresAllPermissions(permissions.ConfigRead, permissions.UsersRead)
 		r.With(guard, withTx).Get("/report", rs.getReport)
 		r.With(guard, withTx).Get("/export", rs.exportReport)
@@ -56,7 +55,9 @@ func (rs *Resource) Router() chi.Router {
 }
 
 var renderError = common.RulesRenderer([]common.ErrorRule{
-	{Target: studentpresence.ErrInvalidStatisticsRange, Render: common.ErrorInvalidRequest},
+	{Target: studentpresence.ErrInvalidStatisticsRange, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodePresenceStatisticsRangeInvalid)
+	}},
 }, func(err error) render.Renderer {
 	return common.ErrorInternalServerWrap("statistics failed", err)
 })

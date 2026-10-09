@@ -6,6 +6,7 @@ import {
   waitFor,
   act,
 } from "@testing-library/react";
+import { catalogText } from "~/test/error-catalog-text";
 import { MFAEnrollmentScreen } from "./mfa-enrollment-screen";
 
 vi.mock("~/components/ui/alert", () => ({
@@ -167,7 +168,10 @@ describe("MFAEnrollmentScreen", () => {
   });
 
   it("renders error when enroll/start fails", async () => {
-    global.fetch = mockResponse(429, { error: "rate limited" });
+    global.fetch = mockResponse(429, {
+      error: "rate limited",
+      code: "identity.mfa_blocked",
+    });
     render(<MFAEnrollmentScreen {...props} onComplete={vi.fn()} />);
 
     fireEvent.click(
@@ -176,7 +180,9 @@ describe("MFAEnrollmentScreen", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Zu viele Versuche. Bitte warten Sie einen Moment."),
+        screen.getByText(
+          catalogText("identity.mfa_blocked", "das Senden des Codes"),
+        ),
       ).toBeInTheDocument();
     });
   });

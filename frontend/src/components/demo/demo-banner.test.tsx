@@ -4,6 +4,7 @@ import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { saveDemoVisit } from "~/lib/demo-access";
+import { catalogText } from "~/test/error-catalog-text";
 import { DemoBanner } from "./demo-banner";
 
 const signIn = vi.fn();
@@ -276,7 +277,7 @@ describe("DemoBanner", () => {
 
     expect(
       await screen.findByText(
-        "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+        catalogText("general.server", "das Wechseln der Rolle"),
       ),
     ).toBeInTheDocument();
     expect(signIn).not.toHaveBeenCalled();
@@ -284,6 +285,28 @@ describe("DemoBanner", () => {
     expect(
       screen.getByRole("button", { name: /Rolle wechseln/ }),
     ).toHaveTextContent("Betreuungskraft");
+  });
+
+  it("names a coded rejection of the switch with its catalog text", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockReturnValueOnce(
+      json(429, { code: "identity.demo_access_rate_limited" }),
+    );
+    renderBanner();
+
+    await user.click(screen.getByRole("button", { name: /Rolle wechseln/ }));
+    await user.click(
+      screen.getByRole("menuitemradio", { name: "OGS-Leitung" }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText(
+          "identity.demo_access_rate_limited",
+          "das Wechseln der Rolle",
+        ),
+      ),
+    ).toBeInTheDocument();
   });
 
   // The role parent lives in the parents app on its own host (#3468): the
@@ -421,7 +444,7 @@ describe("DemoBanner", () => {
 
       expect(
         await screen.findByText(
-          "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
+          catalogText("general.server", "das Neustarten der Demo"),
         ),
       ).toBeInTheDocument();
       expect(assign).not.toHaveBeenCalled();

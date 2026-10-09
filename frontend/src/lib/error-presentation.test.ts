@@ -19,16 +19,67 @@ describe("presentError", () => {
     expect(result.retryable).toBe(false);
   });
 
-  it("falls back to the German class text when a code is unknown", () => {
-    const error = new ApiError("English diagnostic", 503, {
+  it("explains the remaining capacity for a partial bulk admission", () => {
+    const error = new ApiError("capacity", 409, {
+      code: "presence.room_capacity_exceeded",
+      details: {
+        room_name: "Turnhalle",
+        current_occupancy: 29,
+        max_capacity: 30,
+        incoming_students: 2,
+      },
+    });
+
+    expect(presentError(error, "die Anwesenheit").message).toBe(
+      "Der Raum Turnhalle: 29 von 30 Plätzen sind belegt. Freie Plätze: 1. Es sollen 2 Kinder dazukommen.",
+    );
+  });
+
+  it("names the browser's cookies, not the reader's entries, for an oversized request", () => {
+    // #3883: Node rejects the request with 431 before any route answers, so
+    // the error has no envelope and only the status says what happened.
+    const result = presentError(
+      new ApiError("Request Header Fields Too Large", 431),
+      "Die Personalliste",
+    );
+
+    expect(result.message).toBe(
+      "Die Personalliste konnte nicht bearbeitet werden. Bitte löschen Sie im Browser die Cookies dieser Seite. Melden Sie sich danach neu an.",
+    );
+    expect(result.retryable).toBe(false);
+    expect(result.requestId).toBeUndefined();
+  });
+
+  it("falls back to the class text in the reader's language when a code is unknown", () => {
+    const error = new ApiError("Backend diagnostic", 503, {
       code: "future.unknown",
       instance: "req-18",
     });
-    const result = presentError(error, "die Gruppe", "en");
-    expect(result.message).toContain("Die Gruppe");
-    expect(result.message).not.toContain("English diagnostic");
+    const result = presentError(error, "the group", "en");
+    // #2518: parents read the next step in their own language, also for a
+    // code this frontend does not know yet.
+    expect(result.message).toBe(
+      "The group is unavailable right now. Please try again.",
+    );
+    expect(result.message).not.toContain("Backend diagnostic");
     expect(result.requestId).toBe("req-18");
     expect(result.retryable).toBe(true);
+  });
+
+  it.each([
+    "identity.mfa_blocked",
+    "identity.password_reset_rate_limited",
+  ] as const)("makes %s retryable after its cooldown", (code) => {
+    const error = new ApiError("rate limited", 429, {
+      code,
+      instance: "req-429",
+    });
+
+    expect(presentError(error, "die Anmeldung")).toMatchObject({
+      errorClass: "unavailable",
+      retryable: true,
+      requestId: "req-429",
+    });
   });
 
   it("uses the class text when a known code has no runtime override", () => {

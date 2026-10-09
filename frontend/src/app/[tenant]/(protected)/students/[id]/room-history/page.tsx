@@ -20,7 +20,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
-import { apiErrorFromResponse } from "~/lib/api-error";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -674,7 +674,7 @@ function StudentRoomHistoryPageContent() {
 
   const fetchStudent = useCallback(async (): Promise<Student | null> => {
     try {
-      const res = await fetch(`/api/students/${studentId}`);
+      const res = await transportFetch(`/api/students/${studentId}`);
       // The name only decorates the header; without it the page still shows
       // the protocol under its generic title.
       if (!res.ok) return null;
@@ -692,7 +692,9 @@ function StudentRoomHistoryPageContent() {
 
   const fetchHistory = useCallback(async (): Promise<void> => {
     try {
-      const res = await fetch(`/api/students/${studentId}/attendance-history`);
+      const res = await transportFetch(
+        `/api/students/${studentId}/attendance-history`,
+      );
       if (res.status === 404) {
         setNotFound(true);
         setHistory(null);
@@ -725,7 +727,7 @@ function StudentRoomHistoryPageContent() {
     async (format: ExportFormat): Promise<void> => {
       setExporting(format);
       try {
-        const res = await fetch(
+        const res = await transportFetch(
           `/api/students/${studentId}/attendance-history/export?format=${format}`,
         );
         if (!res.ok) {
@@ -783,14 +785,15 @@ function StudentRoomHistoryPageContent() {
     ? (student.name ?? `${student.first_name} ${student.second_name}`)
     : "";
   // Statuszeile: Klasse, Gruppe und die Zahl der protokollierten Tage, alles
-  // aus den Daten, die die Seite ohnehin geladen hat.
-  const dayCount = history?.days.length ?? 0;
+  // aus den Daten, die die Seite ohnehin geladen hat. Ohne geladenes
+  // Protokoll steht keine "0 Tage erfasst" neben dem Ladefehler (#2517).
+  const dayCount = history ? history.days.length : null;
+  const dayLine =
+    dayCount === null
+      ? null
+      : `${dayCount} ${dayCount === 1 ? "Tag" : "Tage"} erfasst`;
   const studentMeta = student
-    ? [
-        student.school_class,
-        student.group_name,
-        `${dayCount} ${dayCount === 1 ? "Tag" : "Tage"} erfasst`,
-      ]
+    ? [student.school_class, student.group_name, dayLine]
         .filter(Boolean)
         .join(" · ")
     : "";
@@ -820,10 +823,7 @@ function StudentRoomHistoryPageContent() {
       <TenantPage
         leading={<ConceptIconTile concept="changeHistory" variant="page" />}
         title={displayName || "Anwesenheitsprotokoll"}
-        stats={
-          studentMeta ||
-          `${dayCount} ${dayCount === 1 ? "Tag" : "Tage"} erfasst`
-        }
+        stats={studentMeta || dayLine}
         statsLoading={loading}
         loading={loading}
         error={pageError}

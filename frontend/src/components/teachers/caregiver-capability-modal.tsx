@@ -1,8 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { FormModal } from "~/components/ui/form-modal";
-import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import {
   DataField,
@@ -10,7 +16,11 @@ import {
   DetailIcons,
   InfoSection,
 } from "~/components/ui/detail-modal-components";
-import { useToast } from "~/contexts/ToastContext";
+import {
+  useApiFormError,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import {
   caregiverCapabilityService,
@@ -67,14 +77,25 @@ export function CaregiverCapabilityModal({
   schoolName,
   onUpdated,
 }: CaregiverCapabilityModalProps) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
   const [state, setState] = useState<CaregiverCapabilityState | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [position, setPosition] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  // Ladefehler im Dialog, Speicherfehler oben im Dialog, beide mit
+  // Wiederholen (#2517).
+  const {
+    error: loadError,
+    show: showLoadError,
+    clear: clearLoadError,
+  } = useApiLoadError();
+  const formRef = useRef<HTMLDivElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { clear: clearFormErrors } = formErrors;
+  const latestEnableRef = useRef<() => void>(() => undefined);
+  const latestDisableRef = useRef<() => void>(() => undefined);
   // Zwei Schritte in EINEM Dialog: Übersicht und das Auflösen der offenen
   // Zuordnungen. Ein zweiter Dialog darüber ist portalweit verboten.
   const [step, setStep] = useState<"overview" | "resolve">("overview");
@@ -88,13 +109,20 @@ export function CaregiverCapabilityModal({
   const operatorSchoolId = scope === "operator" ? schoolId : undefined;
 
   const loadState = useCallback(async () => {
-    if (!accountId || (needsSchoolId && !operatorSchoolId)) {
+    if (!accountId) return;
+    if (needsSchoolId && !operatorSchoolId) {
+      // Ohne Schule gibt es im Operator-Portal keinen Stand zu laden; der
+      // Dialog sagt es, statt leer zu bleiben.
+      void showLoadError(new Error("Operator scope requires a school"), {
+        object: "die Betreuung dieses Kontos",
+      });
       return;
     }
 
     try {
       setLoading(true);
-      setErrorMessage("");
+      clearLoadError();
+      clearFormErrors();
       setPosition("");
 
       let nextState: CaregiverCapabilityState;
@@ -125,11 +153,22 @@ export function CaregiverCapabilityModal({
         schoolId: operatorSchoolId,
         scope,
       });
-      setErrorMessage("Die Betreuerfähigkeit konnte nicht geladen werden.");
+      void showLoadError(error, {
+        object: "die Betreuung dieses Kontos",
+        retry: () => void loadState(),
+      });
     } finally {
       setLoading(false);
     }
-  }, [accountId, needsSchoolId, operatorSchoolId, scope]);
+  }, [
+    accountId,
+    needsSchoolId,
+    operatorSchoolId,
+    scope,
+    clearLoadError,
+    clearFormErrors,
+    showLoadError,
+  ]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -152,15 +191,23 @@ export function CaregiverCapabilityModal({
     const trimmedPosition = position.trim();
 
     if (needsNames && (!trimmedFirstName || !trimmedLastName)) {
-      setErrorMessage(
-        "Vorname und Nachname werden benötigt, da noch kein Personalprofil existiert.",
+      formErrors.invalid(
+        "Bitte geben Sie Vor- und Nachnamen an. Für dieses Konto gibt es noch keine Personaldaten.",
+        {
+          ...(trimmedFirstName
+            ? {}
+            : { firstName: "Bitte einen Vornamen eingeben." }),
+          ...(trimmedLastName
+            ? {}
+            : { lastName: "Bitte einen Nachnamen eingeben." }),
+        },
       );
       return;
     }
 
     try {
       setSaving(true);
-      setErrorMessage("");
+      formErrors.clear();
 
       let nextState: CaregiverCapabilityState;
       if (scope === "operator") {
@@ -191,7 +238,7 @@ export function CaregiverCapabilityModal({
       }
 
       setState(nextState);
-      toastSuccess("Betreuung wurde erfolgreich aktiviert.");
+      toastSuccess(`Die Betreuung für ${accountLabel} ist eingeschaltet.`);
       await onUpdated?.(nextState);
     } catch (error) {
       logger.error("failed to enable caregiver capability", {
@@ -200,11 +247,10 @@ export function CaregiverCapabilityModal({
         schoolId: operatorSchoolId,
         scope,
       });
-      if (error instanceof CaregiverCapabilityApiError) {
-        setErrorMessage(error.message);
-      } else {
-        setErrorMessage("Die Betreuung konnte nicht aktiviert werden.");
-      }
+      void formErrors.show(error, {
+        object: "das Einschalten der Betreuung",
+        retry: () => latestEnableRef.current(),
+      });
     } finally {
       setSaving(false);
     }
@@ -217,7 +263,7 @@ export function CaregiverCapabilityModal({
 
     try {
       setSaving(true);
-      setErrorMessage("");
+      formErrors.clear();
 
       let nextState: CaregiverCapabilityState;
       if (scope === "operator") {
@@ -238,7 +284,7 @@ export function CaregiverCapabilityModal({
       }
 
       setState(nextState);
-      toastSuccess("Betreuung wurde deaktiviert.");
+      toastSuccess(`Die Betreuung für ${accountLabel} ist ausgeschaltet.`);
       await onUpdated?.(nextState);
     } catch (error) {
       logger.error("failed to disable caregiver capability", {
@@ -247,20 +293,36 @@ export function CaregiverCapabilityModal({
         schoolId: operatorSchoolId,
         scope,
       });
-      if (error instanceof CaregiverCapabilityApiError) {
-        setErrorMessage(error.message);
-        if (error.blockers.length > 0) {
-          toastError(
-            "Betreuung kann nicht deaktiviert werden. Bitte zuerst die offenen Zuordnungen entfernen.",
-          );
-        }
-      } else {
-        setErrorMessage("Die Betreuung konnte nicht deaktiviert werden.");
+      void formErrors.show(error, {
+        object: "das Ausschalten der Betreuung",
+        retry: () => latestDisableRef.current(),
+      });
+      // Offene Zuordnungen stehen danach im Abschnitt darunter, mit dem Weg
+      // zum Auflösen.
+      if (
+        error instanceof CaregiverCapabilityApiError &&
+        error.blockers.length > 0
+      ) {
+        setState((current) =>
+          current
+            ? {
+                ...current,
+                disableBlocked: true,
+                disableBlockers: error.blockers,
+              }
+            : current,
+        );
       }
     } finally {
       setSaving(false);
     }
   }
+
+  // Wiederholen sendet den Stand, der dann im Dialog steht.
+  useLayoutEffect(() => {
+    latestEnableRef.current = () => void handleEnable();
+    latestDisableRef.current = () => void handleDisable();
+  });
 
   const showEnableButton = !state?.isActiveCaregiver || needsNames;
 
@@ -275,6 +337,7 @@ export function CaregiverCapabilityModal({
       }
       suspended={blockerConfirmationOpen}
       size="lg"
+      error={step === "resolve" ? null : formErrors.error}
       footer={
         step === "resolve" ? (
           <button
@@ -329,7 +392,7 @@ export function CaregiverCapabilityModal({
       ) : loading ? (
         <div className="py-8 text-sm text-gray-500">Wird geladen...</div>
       ) : state ? (
-        <div className="space-y-4">
+        <div ref={formRef} className="space-y-4">
           {/* Current role overview */}
           <InfoSection
             title="Aktuelle Rolle"
@@ -374,6 +437,7 @@ export function CaregiverCapabilityModal({
                 <Input
                   label="Vorname"
                   name="firstName"
+                  error={formErrors.fieldError("firstName")}
                   value={firstName}
                   onChange={(event) => setFirstName(event.target.value)}
                   placeholder="Vorname"
@@ -381,6 +445,7 @@ export function CaregiverCapabilityModal({
                 <Input
                   label="Nachname"
                   name="lastName"
+                  error={formErrors.fieldError("lastName")}
                   value={lastName}
                   onChange={(event) => setLastName(event.target.value)}
                   placeholder="Nachname"
@@ -440,15 +505,9 @@ export function CaregiverCapabilityModal({
               </div>
             </InfoSection>
           ) : null}
-
-          {/* Error display */}
-          <Alert type="error" message={errorMessage} />
         </div>
       ) : (
-        <Alert
-          type="error"
-          message="Die Betreuerfähigkeit konnte nicht geladen werden."
-        />
+        <LoadErrorAlert error={loadError} />
       )}
     </FormModal>
   );
