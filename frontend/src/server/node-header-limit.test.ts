@@ -15,6 +15,8 @@ const NATIVE_DEV_SCRIPT = path.resolve(
   "scripts",
   "dev-native.sh",
 );
+const PACKAGE_JSON = path.resolve(process.cwd(), "package.json");
+const NEXT_CLI = "node_modules/next/dist/bin/next";
 
 function nodeCommand(dockerfile: string, entrypoint: string): string[] {
   const source = readFileSync(path.join(process.cwd(), dockerfile), "utf8");
@@ -41,6 +43,15 @@ function nativeDevCommand(): string[] {
   return command?.split(" ") ?? [];
 }
 
+function packageScript(name: "dev" | "start" | "preview"): string {
+  const packageJson = JSON.parse(readFileSync(PACKAGE_JSON, "utf8")) as {
+    scripts: Record<string, string | undefined>;
+  };
+  const script = packageJson.scripts[name];
+  expect(script, `package script ${name} exists`).toBeDefined();
+  return script ?? "";
+}
+
 describe("frontend server header limit", () => {
   it("raises the Node header limit for the development server", () => {
     const command = nodeCommand(
@@ -59,6 +70,22 @@ describe("frontend server header limit", () => {
     expect(headerLimit(command)).toBeGreaterThanOrEqual(MIN_HEADER_BYTES);
   });
 
+  it.each([
+    ["dev", "dev"],
+    ["start", "start"],
+  ] as const)("raises the Node header limit for pnpm run %s", (name, mode) => {
+    const command = packageScript(name);
+    expect(command).toBe(
+      `node --max-http-header-size=65536 ${NEXT_CLI} ${mode}`,
+    );
+  });
+
+  it("raises the Node header limit for pnpm run preview", () => {
+    expect(packageScript("preview")).toBe(
+      `next build && node --max-http-header-size=65536 ${NEXT_CLI} start`,
+    );
+  });
+
   it.each(DOCKERFILES)(
     "%s raises the Node header limit for server.js",
     (dockerfile) => {
@@ -73,6 +100,9 @@ describe("frontend server header limit", () => {
     const limits = [
       headerLimit(nodeCommand("Dockerfile", "node_modules/next/dist/bin/next")),
       headerLimit(nativeDevCommand()),
+      headerLimit(packageScript("dev").split(" ")),
+      headerLimit(packageScript("start").split(" ")),
+      headerLimit(packageScript("preview").split(" ")),
       ...DOCKERFILES.map((file) => headerLimit(nodeCommand(file, "server.js"))),
     ];
     expect(new Set(limits).size).toBe(1);
