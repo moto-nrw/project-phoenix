@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.16.0/.schema/devbox.schema.json",
   "packages": [
-    "go@1.27.0",
+    "github:NixOS/nixpkgs/c1fb7e0ee8dd0c6f820e8126c9353311a8c7ba0f#go_1_27",
     "nodejs_24@latest",
     "pnpm_10@10.34.4",
     "openssl@latest",
