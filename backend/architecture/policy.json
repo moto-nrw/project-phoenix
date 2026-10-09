@@ -7065,17 +7065,6 @@
       "target_role": "public"
     },
     {
-      "id": "group-live-view.adapter.people-directory-application",
-      "description": "The live-group compatibility adapter reads group members, person names, and care participation from the retained people services (#2702).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
-      "source_role": "adapter",
-      "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
       "id": "group-live-view.adapter.legacy-shared-domain",
       "description": "The live-group compatibility adapter translates calendar dates, Berlin wall clocks, and German collation for the retained signatures (#2702).",
       "scopes": [
@@ -9128,17 +9117,6 @@
       "target_role": "public"
     },
     {
-      "id": "communication.messages.compose-people-application",
-      "description": "Communication composition adapts the existing staff directory service pending #2727.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
       "id": "communication.messages.adapter-orm",
       "description": "The retained message implementation joins the ambient tenant transaction pending #2727.",
       "scopes": [
@@ -9190,17 +9168,6 @@
       "source_owner": "communication",
       "source_role": "adapter",
       "target_owner": "communication",
-      "target_role": "application"
-    },
-    {
-      "id": "communication.messages.adapter-people-application",
-      "description": "The retained message implementation uses the existing staff directory service pending #2727.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "adapter",
-      "target_owner": "people-directory",
       "target_role": "application"
     },
     {
@@ -11481,17 +11448,6 @@
       "source_owner": "facilities",
       "source_role": "compose",
       "target_owner": "document-rendering",
-      "target_role": "application"
-    },
-    {
-      "id": "facilities.compose.people-application",
-      "description": "Room snapshot composition resolves student and person records.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "people-directory",
       "target_role": "application"
     },
     {
