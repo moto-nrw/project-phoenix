@@ -853,7 +853,7 @@ func TestPersonService_GetAllStudentsWithGroups(t *testing.T) {
 		// Both students should be in results
 		ids := make(map[int64]bool)
 		for _, r := range result {
-			ids[r.Student.ID] = true
+			ids[r.ID] = true
 		}
 		assert.True(t, ids[studentWithGroup.ID], "student with group should be present")
 		assert.True(t, ids[studentNoGroup.ID], "student without group should be present")

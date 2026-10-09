@@ -24,7 +24,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
 
@@ -71,6 +70,11 @@ type ThreadDetail struct {
 	Messages            []*usersModels.StaffMessage
 }
 
+// PersonLookup resolves the person behind a sender's account for display.
+type PersonLookup interface {
+	FindByAccountID(ctx context.Context, accountID int64) (*usersModels.Person, error)
+}
+
 // Service is the OGS-internal messaging service.
 type Service struct {
 	Config
@@ -81,7 +85,7 @@ type Config struct {
 	ThreadRepo  usersModels.StaffMessageThreadRepository
 	MessageRepo usersModels.StaffMessageRepository
 	ReadRepo    usersModels.StaffMessageReadRepository
-	Persons     userService.PersonService
+	Persons     PersonLookup
 	Settings    configService.SettingsService
 	Broadcaster realtime.Broadcaster
 	DB          *bun.DB

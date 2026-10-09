@@ -2677,7 +2677,7 @@ func newFactory(
 	studentStatusDayOverviewService := presenceservice.NewStatusDayOverviews(repos.StudentStatusDay, StatusDayOverviewPeople(usersService))
 	ogsGroupLiveService, err := grouplivelegacy.New(grouplivelegacy.Sources{
 		Presence:          newStudentPresence(db, logger),
-		People:            usersService,
+		People:            GroupRosterPeople(usersService),
 		Education:         educationService,
 		Substitutions:     substitutionService,
 		UserContext:       groupLiveCaller{userContextService},

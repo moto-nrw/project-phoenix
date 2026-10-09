@@ -12,14 +12,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 type SessionLifecycle = devicescan.SessionLifecycle
 
 // NewSessionLifecycle binds manual kiosk controls to the retained presence
 // and people services without constructing a legacy service graph.
-func NewSessionLifecycle(active studentpresence.Presence, presence SupervisionQuery, people usersSvc.PersonService, heartbeat application.SessionHeartbeat, mirror application.SessionMirror, logger *slog.Logger) SessionLifecycle {
+func NewSessionLifecycle(active studentpresence.Presence, presence SupervisionQuery, people PersonDirectory, heartbeat application.SessionHeartbeat, mirror application.SessionMirror, logger *slog.Logger) SessionLifecycle {
 	return application.NewSessionLifecycle(lifecycleStore{active: active, presence: presence}, lifecyclePeople{people}, principals{}, heartbeat, mirror, clock{now: time.Now}, logger)
 }
 
@@ -191,7 +190,7 @@ func (s lifecycleStore) TimeoutInfo(ctx context.Context, deviceID int64) (device
 	return devicescan.SessionTimeoutInfoResponse{SessionID: info.SessionID, ActivityID: info.ActivityID, StartTime: info.StartTime, LastActivity: info.LastActivity, TimeoutMinutes: info.TimeoutMinutes, InactivitySeconds: int(info.InactivityDuration.Seconds()), TimeUntilTimeoutSeconds: int(info.TimeUntilTimeout.Seconds()), IsTimedOut: info.IsTimedOut, ActiveStudentCount: info.ActiveStudentCount}, nil
 }
 
-type lifecyclePeople struct{ people usersSvc.PersonService }
+type lifecyclePeople struct{ people PersonDirectory }
 
 func (p lifecyclePeople) StaffNames(ctx context.Context, ids []int64) (map[int64]ports.Person, error) {
 	staff, err := p.people.GetStaffWithPersonByIDs(ctx, ids)

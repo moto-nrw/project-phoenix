@@ -19,7 +19,6 @@ import (
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 type Resource = roomsHTTP.Resource
@@ -29,7 +28,7 @@ type Dependencies struct {
 	Settings    configService.SettingsService
 	UserContext CallerStaff
 	Active      studentpresence.Presence
-	Users       usersService.PersonService
+	Users       Students
 	Education   SchoolGroups
 	ListExport  *listexport.RendererService
 }
