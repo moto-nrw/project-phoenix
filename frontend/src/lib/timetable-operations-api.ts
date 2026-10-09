@@ -208,7 +208,10 @@ export const timetableOperationsApi = {
             Accept: "application/json",
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ student_ids: studentIds.map(Number) }),
+          // int64 IDs travel as decimal strings. The BFF parses and serializes
+          // this body again, so JSON numbers above 2^53 would otherwise lose
+          // their identity before the Go handler sees them.
+          body: JSON.stringify({ student_ids: studentIds }),
         },
       ),
     );

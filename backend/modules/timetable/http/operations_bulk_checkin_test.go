@@ -28,6 +28,11 @@ func TestOperationsCheckInStudentsValidatesAndDelegates(t *testing.T) {
 	assert.Equal(t, int64(250), service.lastInstanceID)
 	assert.Equal(t, []int64{352, 350, 351}, service.lastStudentIDs)
 
+	rr = executeOperationRequest(t, router, http.MethodPost, "/instances/250/students/check-in",
+		map[string]any{"student_ids": []string{"9007199254740993", "9007199254740993"}})
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Equal(t, []int64{9007199254740993}, service.lastStudentIDs)
+
 	tooMany := make([]int64, maxBulkCheckInStudents+1)
 	for i := range tooMany {
 		tooMany[i] = int64(i + 1)

@@ -446,7 +446,8 @@ func (rs *Resource) operationsCheckInStudent(w http.ResponseWriter, r *http.Requ
 const maxBulkCheckInStudents = 500
 
 type bulkCheckInRequest struct {
-	StudentIDs []int64 `json:"student_ids"`
+	StudentIDs []common.JSONID `json:"student_ids"`
+	studentIDs []int64
 }
 
 // Bind rejects an empty or oversized selection and non-positive IDs, and
@@ -460,7 +461,8 @@ func (req *bulkCheckInRequest) Bind(_ *http.Request) error {
 	}
 	seen := make(map[int64]struct{}, len(req.StudentIDs))
 	unique := make([]int64, 0, len(req.StudentIDs))
-	for _, id := range req.StudentIDs {
+	for _, studentID := range req.StudentIDs {
+		id := studentID.Int64()
 		if id <= 0 {
 			return errors.New("student_ids must be positive")
 		}
@@ -470,7 +472,7 @@ func (req *bulkCheckInRequest) Bind(_ *http.Request) error {
 		seen[id] = struct{}{}
 		unique = append(unique, id)
 	}
-	req.StudentIDs = unique
+	req.studentIDs = unique
 	return nil
 }
 
@@ -492,7 +494,7 @@ func (rs *Resource) operationsCheckInStudents(w http.ResponseWriter, r *http.Req
 		return
 	}
 	accountID, isAdmin := operationActor(r.Context())
-	result, err := rs.OperationsService.CheckInStudents(r.Context(), accountID, isAdmin, instanceID, req.StudentIDs)
+	result, err := rs.OperationsService.CheckInStudents(r.Context(), accountID, isAdmin, instanceID, req.studentIDs)
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
