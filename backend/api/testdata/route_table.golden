@@ -859,6 +859,7 @@ POST /api/timetable/materialize
 POST /api/timetable/operations/instances/{id}/complete
 POST /api/timetable/operations/instances/{id}/reopen
 POST /api/timetable/operations/instances/{id}/start
+POST /api/timetable/operations/instances/{id}/students/check-in
 POST /api/timetable/operations/instances/{id}/students/{student_id}/check-in
 POST /api/timetable/operations/instances/{id}/students/{student_id}/check-out
 POST /api/timetable/operations/spontaneous/start

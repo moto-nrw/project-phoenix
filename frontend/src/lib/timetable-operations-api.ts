@@ -192,6 +192,32 @@ export const timetableOperationsApi = {
     return mapRoster(raw);
   },
 
+  // Sammel-Check-in (#3824): alle ausgewählten Kinder in einem Aufruf. Der
+  // Server trägt alle ein oder keines.
+  async checkInMany(
+    instanceId: string,
+    studentIds: readonly string[],
+  ): Promise<TimetableRoster> {
+    const raw = await unwrap<BackendTimetableRoster>(
+      await transportFetch(
+        `/api/timetable/operations/instances/${instanceId}/students/check-in`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          // int64 IDs travel as decimal strings. The BFF parses and serializes
+          // this body again, so JSON numbers above 2^53 would otherwise lose
+          // their identity before the Go handler sees them.
+          body: JSON.stringify({ student_ids: studentIds }),
+        },
+      ),
+    );
+    return mapRoster(raw);
+  },
+
   async checkOut(
     instanceId: string,
     studentId: string,

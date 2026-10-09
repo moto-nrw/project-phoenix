@@ -311,6 +311,9 @@ type OperationCommand interface {
 	Complete(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*ScheduledInstance, error)
 	Reopen(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*StartedOperation, error)
 	CheckInStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error)
+	// CheckInStudents checks several children in at once, all or nothing
+	// (#3824).
+	CheckInStudents(ctx context.Context, accountID int64, isAdmin bool, instanceID int64, studentIDs []int64) (*OperationRoster, error)
 	CheckOutStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error)
 	PatchAttendance(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64, patch AttendancePatch) (*OperationRosterRow, error)
 }

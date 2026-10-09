@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   checkIn: vi.fn(),
   instances: [] as unknown[],
   roster: null as unknown,
+  canAddUnplanned: undefined as boolean | undefined,
+  onAddPresentStudents: undefined as unknown,
 }));
 
 vi.mock("~/lib/school-supervisions-api", () => ({
@@ -70,17 +72,25 @@ vi.mock("~/components/active-supervisions/timetable-roster", () => ({
   TimetableRosterContent: ({
     roster,
     onRosterAction,
+    canAddUnplanned,
+    onAddPresentStudents,
   }: {
     roster: TimetableRoster;
     onRosterAction: (action: string, row: TimetableRosterRow) => unknown;
-  }) => (
-    <button
-      type="button"
-      onClick={() => void onRosterAction("check-in", roster.rows[0]!)}
-    >
-      Einchecken
-    </button>
-  ),
+    canAddUnplanned?: boolean;
+    onAddPresentStudents?: unknown;
+  }) => {
+    mocks.canAddUnplanned = canAddUnplanned;
+    mocks.onAddPresentStudents = onAddPresentStudents;
+    return (
+      <button
+        type="button"
+        onClick={() => void onRosterAction("check-in", roster.rows[0]!)}
+      >
+        Einchecken
+      </button>
+    );
+  },
 }));
 
 vi.mock("./student-sheet-modal", () => ({
@@ -168,6 +178,15 @@ describe("SchoolSupervisionsView: Fehler beim Einchecken (#3633)", () => {
       rows: [row],
       pickupTimesLoaded: true,
     };
+    mocks.canAddUnplanned = undefined;
+    mocks.onAddPresentStudents = undefined;
+  });
+
+  it("offers no present-children picker outside the assigned roster", () => {
+    render(<SchoolSupervisionsView />);
+
+    expect(mocks.canAddUnplanned).toBe(false);
+    expect(mocks.onAddPresentStudents).toBeUndefined();
   });
 
   it("nennt die volle Aktivität mit ihrer Belegung", async () => {

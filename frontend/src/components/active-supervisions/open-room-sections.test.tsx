@@ -99,7 +99,10 @@ function block(
   };
 }
 
-function context(overviewEnabled: boolean): OpenRoomBlockContext {
+function context(
+  overviewEnabled: boolean,
+  canReadPresentChildren = true,
+): OpenRoomBlockContext {
   return {
     allRooms: [],
     currentStaffId: "staff-1",
@@ -112,6 +115,7 @@ function context(overviewEnabled: boolean): OpenRoomBlockContext {
     clearReopenable: vi.fn(),
     attendanceWebEnabled: true,
     showTimetableCounts: false,
+    canReadPresentChildren,
     canExcuseRestOfDay: false,
     overviewEnabled,
     onAddSupervisor: vi.fn(),
@@ -121,6 +125,7 @@ function context(overviewEnabled: boolean): OpenRoomBlockContext {
 function renderRoom(
   sessions: readonly OpenRoomSessionView[],
   overviewEnabled = true,
+  canReadPresentChildren = true,
 ) {
   const sections = openRoomSections({ sessions });
   if (!sections) throw new Error("the room has blocks");
@@ -138,7 +143,7 @@ function renderRoom(
         now: new Date(),
         onOpenStudent: vi.fn(),
       }}
-      blocks={context(overviewEnabled)}
+      blocks={context(overviewEnabled, canReadPresentChildren)}
     />,
     { wrapper: ToastProvider },
   );
@@ -195,6 +200,14 @@ describe("OpenRoomSections (#3281)", () => {
         screen.getByRole("heading", { name: "GT planned" }).parentElement!,
       ).getByText("Eingeplant"),
     ).toBeInTheDocument();
+  });
+
+  it("hides the present-children picker without directory access", () => {
+    renderRoom([block("own", { own: true, canOperate: true })], true, false);
+
+    expect(
+      screen.queryByRole("button", { name: "Anwesende Kinder" }),
+    ).not.toBeInTheDocument();
   });
 
   // #3634: the section header shows count against limit and names an
