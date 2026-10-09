@@ -82,8 +82,9 @@ func (s *Store) CountCareOfferingBookings(ctx context.Context, childIDs []int64)
 	if err != nil {
 		return 0, err
 	}
-	return db.NewSelect().Model((*careOfferingBookingRow)(nil)).
+	count, err := db.NewSelect().Model((*careOfferingBookingRow)(nil)).
 		Where("care_booking.tenant_id = ? AND care_booking.request_child_id IN (?)", tenantID, bun.List(childIDs)).Count(ctx)
+	return int(count), err
 }
 
 func (s *Store) CareOfferingBookingHistory(ctx context.Context, childIDs []int64) ([]careplan.CareOfferingBooking, error) {

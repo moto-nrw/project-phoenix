@@ -387,10 +387,10 @@ func (s *Store) ListDateframes(ctx context.Context, filter domain.DateframeFilte
 		}
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit)
+		query = query.Limit(int64(filter.Limit))
 	}
 	if filter.Offset > 0 {
-		query = query.Offset(filter.Offset)
+		query = query.Offset(int64(filter.Offset))
 	}
 	stats, err := scanAll(ctx, query, "list dateframes")
 	if err != nil {

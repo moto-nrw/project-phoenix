@@ -36,7 +36,7 @@ func (r *Store) CountUnreadRequests(ctx context.Context, accountID int64) (int, 
 	if err != nil {
 		return 0, fmt.Errorf("failed to count unread enrollment requests: %w", err)
 	}
-	return count, nil
+	return int(count), nil
 }
 
 // UnreadRequestIDs keeps the ids among requestIDs that are unread for the

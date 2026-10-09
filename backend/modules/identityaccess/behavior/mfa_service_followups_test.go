@@ -620,7 +620,7 @@ func waitForOperatorAuditLogs(t *testing.T, db *bun.DB, operatorID, resourceID i
 			Where("action = ?", action).
 			Count(context.Background())
 		require.NoError(t, err)
-		if count >= wanted {
+		if count >= int64(wanted) {
 			return
 		}
 		if time.Now().After(deadline) {

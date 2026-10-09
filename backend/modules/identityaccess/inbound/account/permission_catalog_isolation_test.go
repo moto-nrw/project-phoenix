@@ -85,7 +85,7 @@ func TestTenantAndOrganizationAdminsCannotMutateGlobalPermissionCatalog(t *testi
 				Where("id = ?", deleteTarget.ID).
 				Count(testpkg.Ctx(t))
 			require.NoError(t, err)
-			assert.Equal(t, 1, deleteCount)
+			assert.Equal(t, 1, int(deleteCount))
 		})
 	}
 }

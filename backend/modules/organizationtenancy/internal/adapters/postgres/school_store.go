@@ -216,7 +216,7 @@ func (s *Store) CountSchoolsByID(ctx context.Context, ids []int64) (int, domain.
 	if err != nil {
 		return 0, stats, fmt.Errorf("organization tenancy postgres: count schools: %w", err)
 	}
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 func (s *Store) SetSchoolDeleted(ctx context.Context, id int64, deleted bool) (domain.OperationStats, error) {

@@ -311,7 +311,7 @@ func TestFormSchemaService_DeleteSchema_HappyPathDropsAllVersions(t *testing.T) 
 		Where("name = ?", name).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 0, count, "delete removes every row under the logical name")
+	assert.Equal(t, int64(0), count, "delete removes every row under the logical name")
 }
 
 // uniqueSchemaName builds a per-test schema name so parallel tests

@@ -88,7 +88,7 @@ func TestCreateStudent_SelectExistingGuardian(t *testing.T) {
 		Where("student_id = ?", resp.Data.ID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, relCount, "exactly one student-guardian relationship")
+	assert.Equal(t, 1, int(relCount), "exactly one student-guardian relationship")
 
 	// No duplicate profile was created for the same email.
 	profileCount, err := tc.db.NewSelect().
@@ -96,7 +96,7 @@ func TestCreateStudent_SelectExistingGuardian(t *testing.T) {
 		Where("email = ?", "sibling.parent.existing@example.com").
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, profileCount, "the existing profile must not be duplicated")
+	assert.Equal(t, 1, int(profileCount), "the existing profile must not be duplicated")
 
 	// The existing profile's own data is untouched.
 	var reloaded struct {
@@ -120,7 +120,7 @@ func TestCreateStudent_SelectExistingGuardian(t *testing.T) {
 		Where("guardian_profile_id = ?", existingID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, phoneCount, "linking an existing guardian must not write phone numbers")
+	assert.Equal(t, int64(0), phoneCount, "linking an existing guardian must not write phone numbers")
 
 	// The relationship flags from the form were applied to the new link.
 	var rel struct {
@@ -172,7 +172,7 @@ func TestCreateStudent_SelectExistingGuardian_DuplicateSkipped(t *testing.T) {
 		Where("student_id = ?", resp.Data.ID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, relCount, "the duplicate existing selection must be skipped, leaving exactly one link")
+	assert.Equal(t, 1, int(relCount), "the duplicate existing selection must be skipped, leaving exactly one link")
 }
 
 // TestCreateStudent_MixedNewAndExistingGuardian verifies one request can both
@@ -214,17 +214,17 @@ func TestCreateStudent_MixedNewAndExistingGuardian(t *testing.T) {
 		Where("student_id = ?", resp.Data.ID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 2, relCount, "both the existing link and the new guardian must be linked")
+	assert.Equal(t, 2, int(relCount), "both the existing link and the new guardian must be linked")
 
 	// The existing profile is linked alongside a freshly created one.
-	var existingLinks int
+	var existingLinks int64
 	existingLinks, err = tc.db.NewSelect().
 		TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(tc.db)).
 		Where("student_id = ?", resp.Data.ID).
 		Where("guardian_profile_id = ?", existingID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, existingLinks, "the existing profile must be linked exactly once")
+	assert.Equal(t, 1, int(existingLinks), "the existing profile must be linked exactly once")
 }
 
 // TestCreateStudent_SelectExistingGuardian_NotFound verifies a guardian_profile_id

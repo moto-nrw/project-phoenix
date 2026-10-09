@@ -222,7 +222,7 @@ func applyRequestQueueFilters(query *bun.SelectQuery, alias, keysetColumn string
 	}
 	query = query.OrderExpr("? DESC", instantColumn).OrderExpr("? DESC", idColumn)
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit)
+		query = query.Limit(int64(filter.Limit))
 	}
 	return query
 }
@@ -664,7 +664,7 @@ func (s *requestStore) ListStudentDataRequests(ctx context.Context, filter carep
 	} else {
 		query = query.OrderExpr(`"student_data_change_request".created_at DESC`).OrderExpr(`"student_data_change_request".id DESC`)
 		if filter.Limit > 0 {
-			query = query.Limit(filter.Limit)
+			query = query.Limit(int64(filter.Limit))
 		}
 	}
 	started := time.Now()

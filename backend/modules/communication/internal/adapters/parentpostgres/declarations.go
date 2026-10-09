@@ -288,7 +288,7 @@ func (s *AnnouncementStore) CountDeclarationSubmissions(ctx context.Context, ten
 	if err != nil {
 		return 0, fmt.Errorf("count declaration submissions: %w", err)
 	}
-	return count, nil
+	return int(count), nil
 }
 
 // declarationSubmissionColumns selects a submission with its version number.

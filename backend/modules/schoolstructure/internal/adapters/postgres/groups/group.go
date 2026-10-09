@@ -451,7 +451,7 @@ func (r *GroupRepository) ListWithRooms(ctx context.Context, params *domain.Grou
 			}
 		}
 		if params.Limit > 0 {
-			query = query.Limit(params.Limit).Offset(params.Offset)
+			query = query.Limit(int64(params.Limit)).Offset(int64(params.Offset))
 		}
 	}
 	if err := query.Scan(ctx); err != nil {
@@ -477,7 +477,7 @@ func (r *GroupRepository) CountGroups(ctx context.Context, params *domain.GroupL
 	if err != nil {
 		return 0, &domain.StoreError{Op: "count with options", Err: err}
 	}
-	return count, nil
+	return int(count), nil
 }
 
 // Exists reports whether a group with the given ID exists in the current
