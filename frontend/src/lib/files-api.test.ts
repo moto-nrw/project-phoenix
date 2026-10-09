@@ -18,7 +18,6 @@ vi.mock("./session-cache", () => {
         headers: {
           "Content-Type": "application/json",
           ...(init?.headers as Record<string, string> | undefined),
-          ...{ Authorization: `Bearer ${token}` },
         },
       });
     }),
