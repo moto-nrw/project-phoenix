@@ -1321,6 +1321,8 @@ describe("staff-api", () => {
               ...sampleBackendStaff,
               employment_type: "mini_job",
               work_status: "present",
+              is_external: true,
+              external_organization: "Musikschule Bergstadt",
             },
           }),
       } as Response);
@@ -1334,6 +1336,8 @@ describe("staff-api", () => {
       expect(result.id).toBe("1");
       expect(result.currentLocation).toBe("Anwesend");
       expect(result.employmentType).toBe("mini_job");
+      expect(result.isExternal).toBe(true);
+      expect(result.externalOrganization).toBe("Musikschule Bergstadt");
     });
 
     it("throws when the staff member request fails", async () => {

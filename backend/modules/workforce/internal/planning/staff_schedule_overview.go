@@ -249,14 +249,15 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 	if err != nil {
 		return nil, fmt.Errorf("load instance staff: %w", err)
 	}
+	staff, externalStaffIDs, err := s.loadPlannableStaff(ctx)
+	if err != nil {
+		return nil, err
+	}
+	assignmentRows = filterExternalCaregiverAssignments(assignmentRows, externalStaffIDs)
 	roomIDs := effectiveAssignmentRoomIDs(visibleInstances, assignmentRows)
 	rooms, err := s.deps.Rooms.FindByIDs(ctx, roomIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load assignment rooms: %w", err)
-	}
-	staff, err := s.loadPlannableStaff(ctx)
-	if err != nil {
-		return nil, err
 	}
 
 	var workSchedules []*configModel.StaffWorkSchedule
@@ -288,18 +289,39 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 // loadPlannableStaff reads the staff directory without the external
 // caregivers (#3823): they have no shifts to plan, so the duty roster carries
 // no row for them.
-func (s *staffScheduleOverviewService) loadPlannableStaff(ctx context.Context) ([]*usersModel.Staff, error) {
+func (s *staffScheduleOverviewService) loadPlannableStaff(ctx context.Context) ([]*usersModel.Staff, map[int64]struct{}, error) {
 	directory, err := s.deps.Staff.ListAllWithPerson(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("load staff directory: %w", err)
+		return nil, nil, fmt.Errorf("load staff directory: %w", err)
 	}
 	staff := make([]*usersModel.Staff, 0, len(directory))
+	externalStaffIDs := make(map[int64]struct{})
 	for _, member := range directory {
-		if member != nil && !member.IsGuest {
-			staff = append(staff, member)
+		if member == nil {
+			continue
+		}
+		if member.IsGuest {
+			externalStaffIDs[member.ID] = struct{}{}
+			continue
+		}
+		staff = append(staff, member)
+	}
+	return staff, externalStaffIDs, nil
+}
+
+// filterExternalCaregiverAssignments keeps historical assignments intact but
+// omits entries for external caregivers: they have no Dienstplan row and must
+// not leave a dangling assignment in the response.
+func filterExternalCaregiverAssignments(rows []*timetable.InstanceStaff, externalStaffIDs map[int64]struct{}) []*timetable.InstanceStaff {
+	filtered := make([]*timetable.InstanceStaff, 0, len(rows))
+	for _, row := range rows {
+		if row != nil {
+			if _, external := externalStaffIDs[row.StaffID]; !external {
+				filtered = append(filtered, row)
+			}
 		}
 	}
-	return staff, nil
+	return filtered
 }
 
 func visibleActivityInstances(instances []*timetable.ScheduledInstance) ([]*timetable.ScheduledInstance, []int64) {

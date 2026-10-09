@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,17 +21,22 @@ func TestStaffScheduleOverview_LeavesExternalCaregiversOut(t *testing.T) {
 	external := fakeStaff(2, "Ella", "Extern")
 	external.IsGuest = true
 	employee.ID, external.ID = 1, 2
+	monday := timezone.NewDate(2026, time.July, 6)
+	instance := &timetable.ScheduledInstance{
+		Date: timezone.Date(monday), Title: "Musik-AG", StartTime: testClock(t, "14:00"), EndTime: testClock(t, "15:00"), Status: timetable.InstanceStatusPlanned,
+	}
+	instance.ID = 3
 	service := NewStaffScheduleOverviewService(StaffScheduleOverviewDependencies{
 		Shifts:        &fakeShiftReader{},
-		Instances:     &fakeInstanceReader{},
-		InstanceStaff: &fakeInstanceStaffReader{},
+		Instances:     &fakeInstanceReader{rows: []*timetable.ScheduledInstance{instance}},
+		InstanceStaff: &fakeInstanceStaffReader{rows: []*timetable.InstanceStaff{{InstanceID: instance.ID, StaffID: external.ID}}},
 		Rooms:         &fakeRoomReader{},
 		Staff:         &fakeStaffReader{rows: []*users.Staff{employee, external}},
 	})
 
-	monday := timezone.NewDate(2026, time.July, 6)
 	got, err := service.GetOverview(context.Background(), monday, monday.AddDays(4))
 	require.NoError(t, err)
 	require.Len(t, got.Staff, 1)
 	require.Equal(t, employee.ID, got.Staff[0].ID)
+	require.Empty(t, got.Assignments, "external caregivers have no Dienstplan assignments")
 }

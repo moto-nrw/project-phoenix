@@ -505,6 +505,8 @@ class StaffService {
       workStatus: staff.work_status,
       absenceType: staff.absence_type,
       absenceTypeLabel: staff.absence_type_label,
+      isExternal: staff.is_external ?? false,
+      externalOrganization: staff.external_organization ?? undefined,
     };
   }
 
