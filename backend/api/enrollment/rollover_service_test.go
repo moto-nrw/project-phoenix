@@ -861,6 +861,12 @@ func (f *fakeApproveDecisionService) Decide(ctx context.Context, input capabilit
 	return &capability.DecideOutcome{}, nil
 }
 
+// ApplyDueClassSwitches is a no-op: the stub approves without planning a
+// class switch, so none can be due.
+func (f *fakeApproveDecisionService) ApplyDueClassSwitches(context.Context, timezone.Date) (int, error) {
+	return 0, nil
+}
+
 func TestRolloverService_RunDeadlineWorker_AutoApprovePromotesToApproved(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
