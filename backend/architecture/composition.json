@@ -376,6 +376,18 @@
     {
       "scope": "test",
       "file": "database/repositories/staff_membership_adapters_test.go",
+      "declaration": "TestStaffMembershipAdapter_ExpiredGuestIsNotExternal",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        413
+      ],
+      "tables": [
+        "users.guests"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/staff_membership_adapters_test.go",
       "declaration": "TestStaffMembershipAdapter_IDLookupsKeepLegacyDeletedSemantics",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -389,7 +401,7 @@
       "declaration": "TestStaffMembershipAdapter_ListRejectsUnknownFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        413
+        434
       ],
       "tables": []
     },
@@ -441,7 +453,7 @@
       "declaration": "TestTeacherMembershipAdapter_ActiveCaregiversSortInGermanDictionaryOrder",
       "target": "database/repositories.NewFactory",
       "lines": [
-        434
+        455
       ],
       "tables": []
     },
