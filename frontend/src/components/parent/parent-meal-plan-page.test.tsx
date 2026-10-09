@@ -132,6 +132,131 @@ describe("ParentMealPlanPage", () => {
     });
   });
 
+  describe("opening week with meal registration", () => {
+    const participationDay = (date: string, changeable: boolean) => ({
+      date,
+      participating: true,
+      source: "regular",
+      changeable,
+    });
+
+    beforeEach(() => {
+      mocks.getChildFeatures.mockResolvedValue({
+        meal_plan_enabled: true,
+        meal_registration_enabled: true,
+      });
+    });
+
+    it("opens next week when no day of this week can be changed anymore", async () => {
+      mocks.today = "2026-08-15";
+      mocks.getMealParticipation.mockResolvedValue({
+        weekdays: [1, 2, 3, 4],
+        effective_from: "2026-08-17",
+        cutoff_time: "09:00",
+        days: [
+          participationDay("2026-08-14", false),
+          participationDay("2026-08-17", true),
+        ],
+      });
+
+      render(<ParentMealPlanPage />);
+
+      const weekStatus = within(
+        await screen.findByRole("navigation", {
+          name: "Kalenderwoche wechseln",
+        }),
+      ).getByRole("status");
+      await waitFor(() => {
+        expect(weekStatus).toHaveTextContent(/KW 34\s*· Nächste Woche/);
+      });
+      expect(mocks.getChildMealPlan).toHaveBeenLastCalledWith(
+        "child-1",
+        "2026-08-17",
+      );
+
+      // Die Familie kann danach in diese Woche zurück; die Seite springt
+      // nicht erneut.
+      const previousWeek = screen.getByRole("button", {
+        name: "Vorherige Woche",
+      });
+      // Der Pfeil ist gesperrt, bis die nächste Woche geladen ist.
+      await waitFor(() => expect(previousWeek).toBeEnabled());
+      fireEvent.click(previousWeek);
+      await waitFor(() => {
+        expect(weekStatus).toHaveTextContent(/KW 33\s*· Diese Woche/);
+      });
+    });
+
+    it("stays on this week while a day of it can still be changed", async () => {
+      mocks.getMealParticipation.mockResolvedValue({
+        weekdays: [1, 2, 3, 4],
+        effective_from: "2026-08-13",
+        cutoff_time: "09:00",
+        days: [
+          participationDay("2026-08-12", false),
+          participationDay("2026-08-13", true),
+        ],
+      });
+
+      render(<ParentMealPlanPage />);
+
+      await screen.findByRole("heading", {
+        name: "Wann isst Mia Muster mit?",
+      });
+      await screen.findByText("Montag, Dienstag, Mittwoch und Donnerstag");
+      const weekStatus = within(
+        screen.getByRole("navigation", { name: "Kalenderwoche wechseln" }),
+      ).getByRole("status");
+      expect(weekStatus).toHaveTextContent(/KW 33\s*· Diese Woche/);
+    });
+
+    it("rechecks the opening week after Berlin midnight", async () => {
+      mocks.today = "2026-08-14";
+      mocks.getMealParticipation
+        .mockResolvedValueOnce({
+          weekdays: [1, 2, 3, 4],
+          effective_from: "2026-08-14",
+          cutoff_time: "09:00",
+          days: [
+            participationDay("2026-08-14", true),
+            participationDay("2026-08-17", true),
+          ],
+        })
+        .mockResolvedValueOnce({
+          weekdays: [1, 2, 3, 4],
+          effective_from: "2026-08-16",
+          cutoff_time: "09:00",
+          days: [
+            participationDay("2026-08-14", false),
+            participationDay("2026-08-17", true),
+          ],
+        });
+
+      const { rerender } = render(<ParentMealPlanPage />);
+
+      const weekStatus = within(
+        await screen.findByRole("navigation", {
+          name: "Kalenderwoche wechseln",
+        }),
+      ).getByRole("status");
+      await waitFor(() => {
+        expect(weekStatus).toHaveTextContent(/KW 33\s*· Diese Woche/);
+      });
+
+      mocks.today = "2026-08-15";
+      rerender(<ParentMealPlanPage />);
+
+      await waitFor(() => {
+        expect(mocks.getMealParticipation).toHaveBeenLastCalledWith(
+          "child-1",
+          "2026-08-10",
+          "2026-08-21",
+        );
+        expect(weekStatus).toHaveTextContent(/KW 34\s*· Nächste Woche/);
+      });
+    });
+  });
+
   it("keeps the week container stable while the next week loads", async () => {
     let resolveNextWeek: (entries: []) => void = () => undefined;
     const nextWeekRequest = new Promise<[]>((resolve) => {

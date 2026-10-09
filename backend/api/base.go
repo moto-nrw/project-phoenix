@@ -1341,7 +1341,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Rooms = roomsHTTPAdapter.NewResource(api.rooms, roomsHTTPAdapter.Dependencies{
 		Facilities: api.Services.Facilities, Settings: api.Services.Settings,
 		UserContext: api.Services.UserContext, Active: api.Services.Active,
-		Users: api.Services.Users, Education: api.Services.Education,
+		Users: services.NewRoomSnapshotPeople(api.Services.Users), Education: api.Services.Education,
 		ListExport: api.Services.ListExport,
 	}, logger.With("handler", "rooms"))
 	api.Services.EnableStudentPhotos(services.StudentPhotoBootstrap{
