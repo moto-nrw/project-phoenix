@@ -17418,12 +17418,12 @@
         },
         {
           "file": "services/people_repository_test_helpers.go",
-          "line": 24,
+          "line": 25,
           "declaration": "type PeopleRepositorySuiteFactory, PeopleRepositorySuiteParentMessaging, PeopleRepositorySuiteCareLifecycle, PeopleRepositorySuiteAuditCommand, PeopleRepositorySuiteAnnouncementAudience, PeopleRepositorySuiteGuardianProfileOption, PeopleRepositorySuiteRelationshipOption, PeopleRepositorySuitePortalMemberships, PeopleRepositorySuiteSchoolMemberships, PeopleRepositorySuiteStaffAccounts, PeopleRepositorySuiteStaffMessageIdentity, PeopleRepositorySuiteSchoolRoleClass, PeopleRepositorySuitePickupCommand, PeopleRepositorySuiteAccessCommand, PeopleRepositorySuiteRecipients, PeopleRepositorySuiteColleagues, PeopleRepositorySuitePeople, PeopleRepositorySuiteSchoolStructure, PeopleRepositorySuiteCarePlan, PeopleRepositorySuiteCompanionLinks"
         },
         {
           "file": "services/people_repository_test_helpers.go",
-          "line": 48,
+          "line": 49,
           "declaration": "NewPeopleRepositorySuiteFactory"
         }
       ]

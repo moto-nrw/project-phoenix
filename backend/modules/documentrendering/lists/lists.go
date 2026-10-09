@@ -69,6 +69,24 @@ func NewRecordRenderer() RecordRenderer {
 	return listexport.NewService()
 }
 
+// RecordDOCXRenderer renders a record document as an editable DOCX, in the
+// same block layout as the PDF.
+type RecordDOCXRenderer interface {
+	RenderRecordsDOCX(doc RecordDocument, filenameBase string) (File, error)
+}
+
+var _ RecordDOCXRenderer = (*listexport.RendererService)(nil)
+
+// DocumentRenderer renders a consumer's exports in every layout: list
+// documents in any format and record documents as PDF or DOCX (#2734).
+type DocumentRenderer interface {
+	Renderer
+	RecordRenderer
+	RecordDOCXRenderer
+}
+
+var _ DocumentRenderer = (*listexport.RendererService)(nil)
+
 const (
 	FormatPDF  = listexport.FormatPDF
 	FormatDOCX = listexport.FormatDOCX
@@ -110,6 +128,7 @@ const (
 	ColumnHealthInfo        = listexport.ColumnHealthInfo
 	ColumnBirthday          = listexport.ColumnBirthday
 	ColumnAge               = listexport.ColumnAge
+	ColumnGuardianContacts  = listexport.ColumnGuardianContacts
 )
 
 // ResolveColumns resolves a caller-chosen column list against the catalog,
