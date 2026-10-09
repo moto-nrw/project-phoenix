@@ -299,7 +299,7 @@ func (s *staffScheduleOverviewService) loadAssignmentData(
 	return assignmentRows, staff, rooms, nil
 }
 
-// loadPlannableStaff reads the staff directory without the external
+// loadPlannableStaff reads the staff directory without accountless guest
 // caregivers (#3823): they have no shifts to plan, so the duty roster carries
 // no row for them.
 func (s *staffScheduleOverviewService) loadPlannableStaff(ctx context.Context) ([]*usersModel.Staff, map[int64]struct{}, error) {
@@ -313,7 +313,7 @@ func (s *staffScheduleOverviewService) loadPlannableStaff(ctx context.Context) (
 		if member == nil {
 			continue
 		}
-		if member.IsGuest {
+		if member.IsGuest && member.Person != nil && member.Person.AccountID == nil {
 			externalStaffIDs[member.ID] = struct{}{}
 			continue
 		}
