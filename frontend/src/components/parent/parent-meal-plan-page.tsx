@@ -454,6 +454,26 @@ function ParticipationWeek({
     void load();
   }, [load]);
 
+  // Ist in dieser Woche kein Tag mehr änderbar (Wochenende, Freitag nach
+  // Annahmeschluss), öffnet die Seite einmalig die nächste Woche: Nur dort
+  // kann die Familie noch etwas ändern (#3923).
+  const weekChosenRef = useRef(false);
+  useEffect(() => {
+    if (!participation || weekChosenRef.current) return;
+    weekChosenRef.current = true;
+    if (weekOffset !== 0) return;
+    const thisWeek = new Set(workWeekDates(mondayISOFromOffset(today, 0)));
+    const thisWeekDays = participation.days.filter((day) =>
+      thisWeek.has(day.date),
+    );
+    if (
+      thisWeekDays.length > 0 &&
+      thisWeekDays.every((day) => !day.changeable)
+    ) {
+      onWeekChange(1);
+    }
+  }, [onWeekChange, participation, today, weekOffset]);
+
   function toggleWeekday(weekday: number) {
     setWeekdays((current) =>
       current.includes(weekday)
