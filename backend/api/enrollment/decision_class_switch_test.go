@@ -127,3 +127,46 @@ func TestDecisionService_Decide_InactiveExistingStudentRenewalSwitchesAtOnce(t *
 	require.NoError(t, err)
 	assert.Equal(t, 0, applied, "nothing was planned for a child switched at once")
 }
+
+// Non-school-year phases only cover a limited care period. Even when one
+// starts in the future, an active child's selected class applies at approval
+// and no school-year class switch is planned.
+func TestDecisionService_Decide_ActiveExistingStudentNonSchoolYearRenewalSwitchesAtOnce(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range []string{enrollmentModels.PhaseKindHoliday, enrollmentModels.PhaseKindCustom} {
+		t.Run(kind, func(t *testing.T) {
+			env, cleanup := setupDecisionTest(t)
+			defer cleanup()
+			ctx := testpkg.Ctx(t)
+
+			phaseStart := timezone.NewDate(2030, 10, 14)
+			phaseEnd := timezone.NewDate(2030, 10, 25)
+			env.sourcePhase.Kind = kind
+			env.sourcePhase.ServiceStartDate = capability.Date(phaseStart)
+			env.sourcePhase.ServiceEndDate = capability.Date(phaseEnd)
+			require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
+
+			existing := testpkg.CreateTestStudent(t, env.db, "Jana", kind, "1a")
+			existing.Status = usersModels.StudentStatusActive
+			require.NoError(t, env.repos.Student.Update(ctx, existing))
+
+			requestID, childID := submitReEnrollment(t, env, "Eltern", kind, kind+"-renewal@example.com", nil,
+				"Jana", kind, map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": true})
+			matchChildToExistingStudent(t, env, childID, existing.ID)
+
+			_, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
+				RequestID: requestID, ChildID: childID, Status: capability.DecisionApproved, ReviewedBy: env.creatorID,
+			})
+			require.NoError(t, err)
+
+			student, err := env.repos.Student.FindByID(ctx, existing.ID)
+			require.NoError(t, err)
+			assert.Equal(t, "2", student.SchoolClass)
+
+			applied, err := decisionOwner(t, env.decision).ApplyDueClassSwitches(ctx, phaseStart)
+			require.NoError(t, err)
+			assert.Zero(t, applied, "a non-school-year renewal must not plan a deferred class switch")
+		})
+	}
+}

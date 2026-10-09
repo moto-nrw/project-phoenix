@@ -132,7 +132,8 @@ func (d *Decisions) renewExistingStudent(ctx context.Context, child *RequestChil
 	previousSchoolClass := existing.SchoolClass
 	targetSchoolClass := resolveRolloverSchoolClass(child, existing.SchoolClass)
 	switchOn := calendar.Date(phase.ServiceStartDate)
-	deferred := existing.Status == studentStatusActive && switchOn.After(d.todayDate())
+	deferred := phase.Kind == enrollment.PhaseKindSchoolYear &&
+		existing.Status == studentStatusActive && switchOn.After(d.todayDate())
 	enrolledFrom, enrolledUntil := renewedEnrollmentWindow(phase, existing.EnrolledFrom, existing.EnrolledUntil)
 	if !deferred {
 		existing.SchoolClass = targetSchoolClass

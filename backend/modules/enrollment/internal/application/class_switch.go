@@ -55,15 +55,18 @@ func (d *Decisions) replanApprovedChildClass(ctx context.Context, run *approvedC
 // class-writes and recurrence gates first and resyncs the offering-sourced
 // templates from asOf, so the Jahrgang-filtered rosters follow the new class.
 func (d *Decisions) ApplyDueClassSwitches(ctx context.Context, asOf calendar.Date) (int, error) {
+	// Take the same gates an approved-child sync uses before reading the
+	// plans. Otherwise an edit can replace a plan after this worker's read,
+	// leaving this run to apply and clear the stale target.
+	if err := d.lockExistingStudentGates(ctx); err != nil {
+		return 0, err
+	}
 	due, err := d.deps.Children.DueClassSwitches(ctx, enrollment.Date(asOf.String()))
 	if err != nil {
 		return 0, fmt.Errorf("class switch: list due switches: %w", err)
 	}
 	if len(due) == 0 {
 		return 0, nil
-	}
-	if err := d.lockExistingStudentGates(ctx); err != nil {
-		return 0, err
 	}
 	applied := 0
 	for _, change := range due {
