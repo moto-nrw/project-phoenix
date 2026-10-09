@@ -1789,7 +1789,7 @@ func newFactory(
 	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: repositories.NewEducationHandovers(repos.GroupSubstitution),
 		Persons: newEducationPersonQuery(persons), Teachers: repositories.NewEducationCaregivers(repos.Teacher),
-		Staff: repositories.NewEducationStaff(repos.Staff), ExternalCaregivers: repositories.NewEducationStaff(repos.Staff),
+		Staff: repositories.NewEducationStaff(repos.Staff), ExternalCaregivers: repositories.NewEducationExternalCaregivers(repos.Staff, repos.Guest),
 		Actors:       substitutionActorResolver{identity: callerContext},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,

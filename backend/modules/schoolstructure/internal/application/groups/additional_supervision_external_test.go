@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -28,12 +29,16 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, "Trommel-AG")
 	room := testpkg.CreateTestRoom(t, db, "Musikraum")
 	running := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	ctx := testpkg.Ctx(t)
 	owner, ownerAccountID := activeTeacher(t, db, "Robin", "Owner")
 	colleague, _ := activeTeacher(t, db, "Toni", "Kollege")
 	external := testpkg.CreateTestGuest(t, db, "Trommeln").Staff
+	expired := testpkg.CreateTestGuest(t, db, "Abgelaufen")
+	expiredUntil := calendar.TodayDate().AddDays(-1)
+	expired.EndDate = &expiredUntil
+	require.NoError(t, repos.Guest.Update(ctx, expired))
 	testpkg.CreateTestStaff(t, db, "Ohne", "Konto")
 	testpkg.CreateTestGroupSupervisor(t, db, owner.StaffID, running.ID, "supervisor")
-	ctx := testpkg.Ctx(t)
 	caller := substitutionCaller(t, ownerAccountID, false)
 
 	overview, err := module.Overview(ctx, caller, OverviewQuery{ActiveGroupID: running.ID, IncludeTargets: true})
@@ -43,6 +48,9 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 		{ID: colleague.StaffID, FullName: "Toni Kollege"},
 		{ID: external.ID, FullName: "Guest Instructor", IsExternal: true},
 	}, overview.RunningSupervisions[0].AvailableTargets)
+	for _, target := range overview.RunningSupervisions[0].AvailableTargets {
+		require.NotEqual(t, expired.StaffID, target.ID, "expired guest profiles are not available")
+	}
 	for _, target := range overview.Targets {
 		require.NotEqual(t, external.ID, target.ID, "a person without an account never takes over a group")
 	}

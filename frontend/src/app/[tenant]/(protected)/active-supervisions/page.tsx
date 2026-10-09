@@ -409,6 +409,7 @@ function MeinRaumPageContent() {
 
   const spontaneousStartBanner = dashboard.webSpontaneousActivitiesEnabled ? (
     <SpontaneousActivityStart
+      canCreateExternalCaregiver={hasPermission(session, "users:create")}
       currentStaffId={currentStaffId}
       defaultRoomId={currentRoom?.room_id ?? currentOpenRoom?.roomId}
       disabled={dashboard.spontaneousStartAvailability?.available === false}
@@ -785,6 +786,10 @@ function MeinRaumPageContent() {
           {addSupervisorTarget ? (
             <AddSupervisorModal
               activeGroupId={addSupervisorTarget}
+              canCreateExternalCaregiver={hasPermission(
+                session,
+                "users:create",
+              )}
               isOpen
               onClose={() => setAddSupervisorTarget(null)}
               onAdded={mutateDashboard}

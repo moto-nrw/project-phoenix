@@ -29,6 +29,7 @@ const logger = createLogger({ component: "AddSupervisorModal" });
 
 interface AddSupervisorModalProps {
   readonly activeGroupId: string | null;
+  readonly canCreateExternalCaregiver?: boolean;
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onAdded: () => Promise<unknown>;
@@ -78,12 +79,14 @@ function SupervisionDetails({
   targets,
   selectedStaffId,
   setSelectedStaffId,
+  canCreateExternalCaregiver,
   onExternalAdded,
 }: {
   overview: RunningSupervision;
   targets: readonly SupervisionTarget[];
   selectedStaffId: string;
   setSelectedStaffId: (value: string) => void;
+  canCreateExternalCaregiver: boolean;
   onExternalAdded: (result: ExternalCaregiverResult) => void;
 }) {
   if (!overview.canAssign)
@@ -107,22 +110,24 @@ function SupervisionDetails({
           setSelectedStaffId={setSelectedStaffId}
         />
       )}
-      <ExternalCaregiverEntry
-        existing={[
-          ...targets.map((target) => ({
-            id: target.id,
-            fullName: target.fullName,
-            isExternal: target.isExternal === true,
-          })),
-          ...overview.supervisors.map((supervisor) => ({
-            id: supervisor.id,
-            fullName: supervisor.fullName,
-            isExternal: supervisor.isExternal === true,
-            isAlreadyAssigned: true,
-          })),
-        ]}
-        onAdded={onExternalAdded}
-      />
+      {canCreateExternalCaregiver ? (
+        <ExternalCaregiverEntry
+          existing={[
+            ...targets.map((target) => ({
+              id: target.id,
+              fullName: target.fullName,
+              isExternal: target.isExternal === true,
+            })),
+            ...overview.supervisors.map((supervisor) => ({
+              id: supervisor.id,
+              fullName: supervisor.fullName,
+              isExternal: supervisor.isExternal === true,
+              isAlreadyAssigned: true,
+            })),
+          ]}
+          onAdded={onExternalAdded}
+        />
+      ) : null}
     </div>
   );
 }
@@ -224,6 +229,7 @@ function ModalBody(props: {
   selectedStaffId: string;
   setSelectedStaffId: (value: string) => void;
   onExternalAdded: (result: ExternalCaregiverResult) => void;
+  canCreateExternalCaregiver: boolean;
 }) {
   return (
     <div className="space-y-5">
@@ -356,6 +362,7 @@ export function AddSupervisorModal(props: AddSupervisorModalProps) {
         {...state}
         targets={targets}
         onExternalAdded={onExternalAdded}
+        canCreateExternalCaregiver={props.canCreateExternalCaregiver ?? false}
         saveError={action.error}
         selectedStaffId={selectedStaffId}
         setSelectedStaffId={setSelectedStaffId}

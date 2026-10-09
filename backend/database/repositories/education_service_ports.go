@@ -69,20 +69,47 @@ func (s EducationStaff) LockStaff(ctx context.Context, id int64) error {
 	return err
 }
 
-// ListExternalCaregivers returns the live external caregivers (#3823): staff
-// members recorded with a guest profile and without a moto account, ordered
-// like the caregiver directory. They may help with a running supervision but
-// never take over a group, so the substitution module keeps them out of the
-// handover targets. Other staff without an account (an import without an
-// e-mail address) stay out: nobody vouched for them as caregivers.
-func (s EducationStaff) ListExternalCaregivers(ctx context.Context) ([]*educationModels.Caregiver, error) {
+// EducationExternalCaregivers serves the running-supervision directory from
+// the staff and guest repositories.
+type EducationExternalCaregivers struct {
+	staff  userModels.StaffRepository
+	guests userModels.GuestRepository
+}
+
+// NewEducationExternalCaregivers binds the external-caregiver directory to
+// the staff and guest repositories.
+func NewEducationExternalCaregivers(staff userModels.StaffRepository, guests userModels.GuestRepository) EducationExternalCaregivers {
+	return EducationExternalCaregivers{staff: staff, guests: guests}
+}
+
+// ListExternalCaregivers returns the currently valid external caregivers
+// (#3823): staff members recorded with an active guest profile and without a
+// moto account, ordered like the caregiver directory. They may help with a
+// running supervision but never take over a group, so the substitution module
+// keeps them out of the handover targets. Other staff without an account (an
+// import without an e-mail address) stay out: nobody vouched for them as
+// caregivers.
+func (s EducationExternalCaregivers) ListExternalCaregivers(ctx context.Context) ([]*educationModels.Caregiver, error) {
+	guests, err := s.guests.List(ctx, map[string]any{"active": true})
+	if err != nil {
+		return nil, err
+	}
+	activeStaffIDs := make(map[int64]struct{}, len(guests))
+	for _, guest := range guests {
+		if guest != nil {
+			activeStaffIDs[guest.StaffID] = struct{}{}
+		}
+	}
 	members, err := s.staff.ListAllWithPerson(ctx)
 	if err != nil {
 		return nil, err
 	}
 	externals := make([]*userModels.Staff, 0, len(members))
 	for _, member := range members {
-		if member != nil && member.IsGuest && member.Person != nil && member.Person.AccountID == nil {
+		if member == nil || !member.IsGuest || member.Person == nil || member.Person.AccountID != nil {
+			continue
+		}
+		if _, active := activeStaffIDs[member.ID]; active {
 			externals = append(externals, member)
 		}
 	}

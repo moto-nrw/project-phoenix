@@ -114,7 +114,7 @@ func NewSubstitutionSuiteModule(repos *PeopleRepositorySuiteFactory, db *bun.DB,
 		deps.Staff = repositories.NewEducationStaff(repos.Staff)
 	}
 	if deps.ExternalCaregivers == nil {
-		deps.ExternalCaregivers = repositories.NewEducationStaff(repos.Staff)
+		deps.ExternalCaregivers = repositories.NewEducationExternalCaregivers(repos.Staff, repos.Guest)
 	}
 	if deps.Audit == nil {
 		deps.Audit = repositories.NewEducationSubstitutionAudit(repos.SubstitutionChange)

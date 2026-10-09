@@ -44,6 +44,7 @@ export interface SpontaneousActivityStartPayload {
 }
 
 interface SpontaneousActivityStartProps {
+  readonly canCreateExternalCaregiver?: boolean;
   readonly currentStaffId?: string;
   readonly defaultRoomId?: string;
   readonly disabled?: boolean;
@@ -97,6 +98,7 @@ function isRoomOccupied(
 }
 
 export function SpontaneousActivityStart({
+  canCreateExternalCaregiver = false,
   currentStaffId,
   defaultRoomId,
   disabled = false,
@@ -625,14 +627,16 @@ export function SpontaneousActivityStart({
                   ))}
                 </div>
               ) : null}
-              <ExternalCaregiverEntry
-                existing={staff.map((item) => ({
-                  id: item.id,
-                  fullName: staffLabel(item),
-                  isExternal: item.isExternal === true,
-                }))}
-                onAdded={addExternalCaregiver}
-              />
+              {canCreateExternalCaregiver ? (
+                <ExternalCaregiverEntry
+                  existing={staff.map((item) => ({
+                    id: item.id,
+                    fullName: staffLabel(item),
+                    isExternal: item.isExternal === true,
+                  }))}
+                  onAdded={addExternalCaregiver}
+                />
+              ) : null}
             </div>
           )}
         </form>

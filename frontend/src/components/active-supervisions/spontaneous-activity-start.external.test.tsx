@@ -122,7 +122,13 @@ describe("SpontaneousActivityStart external caregivers", () => {
   });
 
   it("marks external people in the list", async () => {
-    render(<SpontaneousActivityStart currentStaffId="11" onStart={vi.fn()} />);
+    render(
+      <SpontaneousActivityStart
+        canCreateExternalCaregiver
+        currentStaffId="11"
+        onStart={vi.fn()}
+      />,
+    );
     await openModalAndWaitForRefs();
 
     expect(screen.getByText("Extern · Musikschule")).toBeInTheDocument();
@@ -130,7 +136,13 @@ describe("SpontaneousActivityStart external caregivers", () => {
 
   it("records a new external person, ticks it and starts with it", async () => {
     const onStart = vi.fn();
-    render(<SpontaneousActivityStart currentStaffId="11" onStart={onStart} />);
+    render(
+      <SpontaneousActivityStart
+        canCreateExternalCaregiver
+        currentStaffId="11"
+        onStart={onStart}
+      />,
+    );
     await openModalAndWaitForRefs();
 
     fireEvent.click(
@@ -156,5 +168,14 @@ describe("SpontaneousActivityStart external caregivers", () => {
         additionalStaffIds: ["88"],
       }),
     );
+  });
+
+  it("does not offer the entry without permission to create users", async () => {
+    render(<SpontaneousActivityStart currentStaffId="11" onStart={vi.fn()} />);
+    await openModalAndWaitForRefs();
+
+    expect(
+      screen.queryByRole("button", { name: "Externe Person eintragen" }),
+    ).not.toBeInTheDocument();
   });
 });

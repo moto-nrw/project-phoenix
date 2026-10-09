@@ -84,10 +84,11 @@ const overview = {
   canAssign: true,
 };
 
-function renderModal() {
+function renderModal(canCreateExternalCaregiver = true) {
   render(
     <AddSupervisorModal
       activeGroupId="41"
+      canCreateExternalCaregiver={canCreateExternalCaregiver}
       isOpen
       onAdded={vi.fn().mockResolvedValue(undefined)}
       onClose={vi.fn()}
@@ -192,6 +193,17 @@ describe("AddSupervisorModal external caregivers", () => {
 
     expect(
       await screen.findByText(/Deshalb können Sie niemanden hinzufügen/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Externe Person eintragen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not offer the entry without permission to create users", async () => {
+    renderModal(false);
+
+    expect(
+      await screen.findByRole("option", { name: "Jonas Becker (extern)" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Externe Person eintragen" }),
