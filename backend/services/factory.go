@@ -692,13 +692,13 @@ func newFactory(
 	// Initialize education service first (needed for active service)
 	educationService := education.NewGroupManagement(
 		repos.Group,
-		repositories.NewEducationGroupTeachers(repos.GroupTeacher),
-		repositories.NewEducationClassTeachers(repos.ClassTeacher),
+		repos.GroupTeacher,
+		repos.ClassTeacher,
 		repositories.NewEducationRooms(repos.Room),
 		NewEducationTeachers(repos.Teacher),
 		repositories.NewEducationStaff(repos.Staff),
 		repos.Student,
-		repositories.NewEducationHandovers(repos.GroupSubstitution),
+		repos.GroupSubstitution,
 		education.NewLegacyRepositoryRuntime(db),
 		education.GroupServiceOptions{Broadcaster: realtimeHub, Audit: repositories.NewEducationClassAssignmentAudit(repos.StaffMasterDataChange)},
 	)
@@ -2305,7 +2305,7 @@ func newFactory(
 	staffNotificationRecipients := notifications.NewStaffRecipientResolver(
 		notificationPreferencesService,
 		repos.Student,
-		notificationGroupSupervisors{groups: repos.Group},
+		repos.Group,
 		repos.Staff,
 		identityAccess,
 		settingsService,

@@ -13,8 +13,6 @@ type (
 	RoomProjection     = domain.GroupRoom
 	GroupListQuery     = domain.GroupListQuery
 	StaffGroupID       = domain.StaffGroupID
-	TeacherAssignment  = domain.TeacherAssignment
-	ClassAssignment    = domain.ClassAssignment
 	GroupSubstitution  = domain.GroupSubstitution
 	SubstitutionStaff  = domain.SubstitutionStaff
 	Caregiver          = domain.Caregiver

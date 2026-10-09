@@ -166,25 +166,28 @@ only those suites used are deleted.
 retained group store maps `education.groups` through a private row, and the
 not-found and store-failure shapes are `domain.RecordNotFound` and
 `domain.StoreError`. The legacy composition names the values through
-`modules/schoolstructure/compose` aliases (`Group`, `GroupTeacher`,
-`ClassTeacher`, `GroupSubstitution`, `HandoverQuery` and the other port
-values), which drops `database/repositories -> models/education` (#2743).
-Values another owner's table carries go to that owner: the retained teacher
-assignment repositories speak School Membership's `GroupAssignment` and
-`ClassAssignment`, and the group service's ports read the slim
-`TeacherAssignment` and `ClassAssignment` values that
-`repositories.NewEducationGroupTeachers` and `NewEducationClassTeachers` bind
-over them; the Workforce
-adapter in `modules/workforce/legacy` serves its own `GroupSubstitution` row,
-and the legacy root's `groupSubstitutions` decorator attaches School
-Structure's group and School Membership's staff to the reads with relations,
-which shrinks the Workforce legacy budget (15,926 -> 15,903 LOC). The
-notification recipients read supervising staff as their own `StaffGroupPair`
-through `services.notificationGroupSupervisors`; the grade transition lock
+`modules/schoolstructure/compose` aliases (`Group`, `GroupSubstitution`,
+`HandoverQuery` and the other port values), which drops
+`database/repositories -> models/education` (#2743). Values another owner's
+table carries go to that owner. The teacher assignments are School
+Membership's `GroupAssignment` and `ClassAssignment` alone: the group
+service's ports name no assignment type but take and return identifiers and
+class strings (`AssignTeacher`, `TeacherAssignmentIDs`,
+`SchoolClassAssignmentsOfStaff`, ...), which the retained teacher assignment
+repositories implement over that owner's contract. The Workforce adapter in
+`modules/workforce/legacy` serves its own `GroupSubstitution` row, and the
+legacy root's `groupSubstitutions` decorator attaches School Structure's
+group and School Membership's staff to the reads with relations and serves
+the deletion guard's `FindGroupHandovers`, which shrinks the Workforce
+legacy budget (15,926 -> 15,903 LOC). The notification recipients read
+supervising staff as their own `StaffGroupPair` through
+`ListGroupSupervisors`, which the retained group repository serves. The
+root passes the same repositories as before: `services/factory.go` is
+unchanged. The grade transition lock
 key is `schoolstructure.TransitionsLockKey`. `test` maps the rows its
 fixtures write itself (`test/school_structure_rows.go`), which drops
 `test -> models/education` (#2748); the People Directory suites write the
-transition history through `CreateTestGradeTransitionHistory`, which drops
+transition history through `CreateTestGradeTransitionHistoryForTenant`, which drops
 the external-test `services/users -> models/education` (#2728). The rules
 `delivery-cutover.009`, `delivery-cutover.023` and
 `workforce.adapter.school-structure-domain` allowed only those imports and

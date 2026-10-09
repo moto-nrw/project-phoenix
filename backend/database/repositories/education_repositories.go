@@ -4,6 +4,7 @@ import (
 	"context"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
@@ -65,6 +66,23 @@ type EducationGroupRepository interface {
 	// the given day. It mirrors the caller context's group chain from the
 	// group side, so the two must agree on the join shape.
 	ListStaffIDsByEducationGroupIDs(ctx context.Context, groupIDs []int64, on calendar.Date) ([]educationRepo.StaffGroupID, error)
+	// ListGroupSupervisors is the same answer for the staff notification
+	// recipients, in their own pair type (#3556).
+	ListGroupSupervisors(ctx context.Context, groupIDs []int64, on calendar.Date) ([]notifications.StaffGroupPair, error)
+}
+
+// ListGroupSupervisors answers who supervises the groups on the day for the
+// staff notification recipients.
+func (r *educationGroupRepository) ListGroupSupervisors(ctx context.Context, groupIDs []int64, on calendar.Date) ([]notifications.StaffGroupPair, error) {
+	pairs, err := r.ListStaffIDsByEducationGroupIDs(ctx, groupIDs, on)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]notifications.StaffGroupPair, 0, len(pairs))
+	for _, pair := range pairs {
+		result = append(result, notifications.StaffGroupPair{StaffID: pair.StaffID, GroupID: pair.GroupID})
+	}
+	return result, nil
 }
 
 // GroupTeacherRepository is the retained contract of education.group_teacher,
@@ -78,6 +96,8 @@ type GroupTeacherRepository interface {
 	FindByGroup(ctx context.Context, groupID int64) ([]*schoolmembership.GroupAssignment, error)
 	FindByTeacher(ctx context.Context, teacherID int64) ([]*schoolmembership.GroupAssignment, error)
 	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*schoolmembership.GroupAssignment, error)
+	// The group service's teacher assignment store (#3556).
+	educationRepo.GroupTeacherStore
 	// ListGroupTeacherBlockers returns group assignments as
 	// caregiver-capability blocker rows.
 	ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]userModels.BlockerGroup, error)
@@ -91,6 +111,8 @@ type ClassTeacherRepository interface {
 	Update(ctx context.Context, assignment *schoolmembership.ClassAssignment) error
 	Delete(ctx context.Context, id any) error
 	List(ctx context.Context, filters map[string]any) ([]*schoolmembership.ClassAssignment, error)
+	// The class assignment service's store (#3556).
+	educationRepo.ClassTeacherStore
 	// FindByStaff returns the class assignments of one staff member.
 	FindByStaff(ctx context.Context, staffID int64) ([]*schoolmembership.ClassAssignment, error)
 }
@@ -104,6 +126,9 @@ type GroupSubstitutionRow = workforceLegacy.GroupSubstitution
 // relations as School Structure values.
 type GroupSubstitutionRepository interface {
 	GroupSubstitutionRows
+	// FindGroupHandovers lists the substitutions of one group as School
+	// Structure values, the group service's deletion guard.
+	FindGroupHandovers(ctx context.Context, groupID int64) ([]*educationRepo.GroupSubstitution, error)
 	// ListWithRelations is ListWithOptions with the group and staff attached.
 	ListWithRelations(ctx context.Context, options *userModels.QueryOptions) ([]*educationRepo.GroupSubstitution, error)
 }

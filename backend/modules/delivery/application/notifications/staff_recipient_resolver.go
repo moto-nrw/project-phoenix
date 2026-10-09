@@ -47,7 +47,7 @@ type staffRecipientResolver struct {
 // GroupSupervisors answers who supervises the given education groups on a
 // day. The composition root binds it over School Structure's group reads.
 type GroupSupervisors interface {
-	ListStaffIDsByEducationGroupIDs(ctx context.Context, groupIDs []int64, on timezone.Date) ([]StaffGroupPair, error)
+	ListGroupSupervisors(ctx context.Context, groupIDs []int64, on timezone.Date) ([]StaffGroupPair, error)
 }
 
 // StaffGroupPair pairs a staff member with one education group they
@@ -152,7 +152,7 @@ func (r *staffRecipientResolver) addGroupStaff(ctx context.Context, visibleByAcc
 	if len(groupIDs) == 0 {
 		return nil
 	}
-	pairs, err := r.groups.ListStaffIDsByEducationGroupIDs(ctx, groupIDs, timezone.TodayDate())
+	pairs, err := r.groups.ListGroupSupervisors(ctx, groupIDs, timezone.TodayDate())
 	if err != nil {
 		return fmt.Errorf("resolve supervising staff: %w", err)
 	}

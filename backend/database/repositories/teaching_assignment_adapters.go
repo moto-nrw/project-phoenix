@@ -359,3 +359,68 @@ func groupAssignmentFilter(filters map[string]any) (schoolmembership.GroupAssign
 }
 
 func nilEntity(entity string) error { return fmt.Errorf("%s cannot be nil or zero value", entity) }
+
+// AssignSchoolClass assigns the staff member to the class as entered.
+func (r *classTeacherRepository) AssignSchoolClass(ctx context.Context, staffID int64, schoolClass string) error {
+	return r.Create(ctx, &schoolmembership.ClassAssignment{StaffID: staffID, SchoolClass: schoolClass})
+}
+
+// RenameSchoolClass rewrites the display form of one assignment.
+func (r *classTeacherRepository) RenameSchoolClass(ctx context.Context, assignmentID, staffID int64, schoolClass string) error {
+	return r.Update(ctx, &schoolmembership.ClassAssignment{ID: assignmentID, StaffID: staffID, SchoolClass: schoolClass})
+}
+
+// RemoveSchoolClass removes one assignment.
+func (r *classTeacherRepository) RemoveSchoolClass(ctx context.Context, assignmentID int64) error {
+	return r.Delete(ctx, assignmentID)
+}
+
+// SchoolClassAssignmentsOfStaff maps each assignment of the staff member to
+// its class as entered.
+func (r *classTeacherRepository) SchoolClassAssignmentsOfStaff(ctx context.Context, staffID int64) (map[int64]string, error) {
+	assignments, err := r.FindByStaff(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
+	classes := make(map[int64]string, len(assignments))
+	for _, assignment := range assignments {
+		classes[assignment.ID] = assignment.SchoolClass
+	}
+	return classes, nil
+}
+
+// AssignTeacher assigns the teacher to the group.
+func (r *groupTeacherRepository) AssignTeacher(ctx context.Context, groupID, teacherID int64) error {
+	return r.Create(ctx, &schoolmembership.GroupAssignment{GroupID: groupID, TeacherID: teacherID})
+}
+
+// RemoveTeacherAssignment removes one assignment.
+func (r *groupTeacherRepository) RemoveTeacherAssignment(ctx context.Context, assignmentID int64) error {
+	return r.Delete(ctx, assignmentID)
+}
+
+// TeacherAssignmentIDs maps each teacher of the group to its assignment.
+func (r *groupTeacherRepository) TeacherAssignmentIDs(ctx context.Context, groupID int64) (map[int64]int64, error) {
+	assignments, err := r.FindByGroup(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make(map[int64]int64, len(assignments))
+	for _, assignment := range assignments {
+		ids[assignment.TeacherID] = assignment.ID
+	}
+	return ids, nil
+}
+
+// TeacherIDsByGroup lists the teachers of each group in assignment order.
+func (r *groupTeacherRepository) TeacherIDsByGroup(ctx context.Context, groupIDs []int64) (map[int64][]int64, error) {
+	assignments, err := r.FindByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, err
+	}
+	teachers := make(map[int64][]int64, len(groupIDs))
+	for _, assignment := range assignments {
+		teachers[assignment.GroupID] = append(teachers[assignment.GroupID], assignment.TeacherID)
+	}
+	return teachers, nil
+}

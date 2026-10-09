@@ -40,27 +40,41 @@ type GroupRecords interface {
 	Delete(ctx context.Context, id any) error
 }
 
-// GroupTeacherStore is the education.group_teacher store of the group service.
+// GroupTeacherStore reads and changes the teacher-to-group assignments.
+// School Membership owns them and their value type; the root binds this port
+// over that owner's contract, so the group service names no assignment type
+// (#3556).
 type GroupTeacherStore interface {
-	Create(ctx context.Context, relation *domain.TeacherAssignment) error
-	Delete(ctx context.Context, id any) error
-	FindByGroup(ctx context.Context, groupID int64) ([]*domain.TeacherAssignment, error)
-	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*domain.TeacherAssignment, error)
+	// AssignTeacher assigns the teacher to the group.
+	AssignTeacher(ctx context.Context, groupID, teacherID int64) error
+	// RemoveTeacherAssignment removes one assignment.
+	RemoveTeacherAssignment(ctx context.Context, assignmentID int64) error
+	// TeacherAssignmentIDs maps each teacher of the group to its assignment.
+	TeacherAssignmentIDs(ctx context.Context, groupID int64) (map[int64]int64, error)
+	// TeacherIDsByGroup lists the teachers of each group in assignment order;
+	// a group without teachers is absent.
+	TeacherIDsByGroup(ctx context.Context, groupIDs []int64) (map[int64][]int64, error)
 }
 
-// ClassTeacherStore is the store of the staff-to-school-class assignments
-// (#1772).
+// ClassTeacherStore reads and changes the staff-to-school-class assignments
+// (#1772). School Membership owns them and their value type; the root binds
+// this port over that owner's contract (#3556).
 type ClassTeacherStore interface {
-	Create(ctx context.Context, assignment *domain.ClassAssignment) error
-	Update(ctx context.Context, assignment *domain.ClassAssignment) error
-	Delete(ctx context.Context, id any) error
-	FindByStaff(ctx context.Context, staffID int64) ([]*domain.ClassAssignment, error)
+	// AssignSchoolClass assigns the staff member to the class as entered.
+	AssignSchoolClass(ctx context.Context, staffID int64, schoolClass string) error
+	// RenameSchoolClass rewrites the display form of one assignment.
+	RenameSchoolClass(ctx context.Context, assignmentID, staffID int64, schoolClass string) error
+	// RemoveSchoolClass removes one assignment.
+	RemoveSchoolClass(ctx context.Context, assignmentID int64) error
+	// SchoolClassAssignmentsOfStaff maps each assignment of the staff member
+	// to its class as entered.
+	SchoolClassAssignmentsOfStaff(ctx context.Context, staffID int64) (map[int64]string, error)
 }
 
 // HandoverReader lists the substitutions of one group, the deletion guard's
 // read.
 type HandoverReader interface {
-	FindByGroup(ctx context.Context, groupID int64) ([]*domain.GroupSubstitution, error)
+	FindGroupHandovers(ctx context.Context, groupID int64) ([]*domain.GroupSubstitution, error)
 }
 
 // RoomDirectory resolves the room a group is assigned to. Any error means the

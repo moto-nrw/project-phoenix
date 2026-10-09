@@ -102,9 +102,9 @@ func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db *bun.DB, b
 	if len(broadcasters) > 0 {
 		broadcaster = broadcasters[0]
 	}
-	service := education.NewService(repos.Group, repositories.NewEducationGroupTeachers(repos.GroupTeacher), repositories.NewEducationClassTeachers(repos.ClassTeacher),
+	service := education.NewService(repos.Group, repos.GroupTeacher, repos.ClassTeacher,
 		repositories.NewEducationRooms(repos.Room), NewEducationTeachers(repos.Teacher),
-		repositories.NewEducationStaff(repos.Staff), repos.Student, repositories.NewEducationHandovers(repos.GroupSubstitution),
+		repositories.NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
 		education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: broadcaster, Audit: repositories.NewEducationClassAssignmentAudit(repos.StaffMasterDataChange)})
 
 	return service

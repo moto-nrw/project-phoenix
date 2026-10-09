@@ -136,6 +136,12 @@ func newGroupSubstitutions(rows GroupSubstitutionRows, groups func(context.Conte
 	return groupSubstitutions{GroupSubstitutionRows: rows, groups: groups, membership: membership}
 }
 
+// FindGroupHandovers lists the substitutions of one group as School
+// Structure values, the group service's deletion guard.
+func (r groupSubstitutions) FindGroupHandovers(ctx context.Context, groupID int64) ([]*educationRepo.GroupSubstitution, error) {
+	return educationHandovers(r.FindByGroup(ctx, groupID))
+}
+
 // ListWithRelations resolves the groups and then the staff members. Soft-
 // deleted staff are included so historical substitutions keep resolving
 // after offboarding, as the replaced WhereAllWithDeleted lookup did.

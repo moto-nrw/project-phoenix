@@ -45,9 +45,9 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork, publishers ...realt
 	if len(publishers) > 0 {
 		publisher = publishers[0]
 	}
-	groups := education.NewGroupManagement(tt.Group, repositories.NewEducationGroupTeachers(tt.GroupTeacher), repositories.NewEducationClassTeachers(tt.ClassTeacher),
+	groups := education.NewGroupManagement(tt.Group, tt.GroupTeacher, tt.ClassTeacher,
 		repositories.NewEducationRooms(tt.Room), NewEducationTeachers(tt.Teacher), repositories.NewEducationStaff(tt.Staff),
-		tt.Student, repositories.NewEducationHandovers(r.Substitutions), education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: publisher})
+		tt.Student, r.Substitutions, education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: publisher})
 
 	persons := users.NewPersonService(users.PersonServiceDependencies{
 		PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),

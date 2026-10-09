@@ -227,7 +227,7 @@ func (s *service) validateGroupDeletion(ctx context.Context, id int64) error {
 		return &EducationError{Op: "DeleteGroup", Err: ErrGroupHasStudents}
 	}
 
-	handovers, err := s.substitutionRepo.FindByGroup(ctx, id)
+	handovers, err := s.substitutionRepo.FindGroupHandovers(ctx, id)
 	if err != nil {
 		return &EducationError{Op: "DeleteGroup", Err: err}
 	}
@@ -242,17 +242,17 @@ func (s *service) validateGroupDeletion(ctx context.Context, id int64) error {
 
 // deleteGroupTeacherRelations deletes all teacher relationships for a group.
 func (s *service) deleteGroupTeacherRelations(ctx context.Context, groupID int64) (bool, error) {
-	groupTeachers, err := s.groupTeacherRepo.FindByGroup(ctx, groupID)
+	assignments, err := s.groupTeacherRepo.TeacherAssignmentIDs(ctx, groupID)
 	if err != nil {
 		return false, err
 	}
-	for _, relation := range groupTeachers {
-		if err := s.groupTeacherRepo.Delete(ctx, relation.ID); err != nil {
+	for _, assignmentID := range assignments {
+		if err := s.groupTeacherRepo.RemoveTeacherAssignment(ctx, assignmentID); err != nil {
 			return false, err
 		}
 	}
 
-	return len(groupTeachers) > 0, nil
+	return len(assignments) > 0, nil
 }
 
 // Group-Teacher operations
@@ -264,28 +264,19 @@ func (s *service) RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID
 			return &EducationError{Op: "RemoveTeacherFromGroup", Err: ErrGroupNotFound}
 		}
 		// Find the group-teacher relationship
-		relations, err := s.groupTeacherRepo.FindByGroup(txCtx, groupID)
+		assignments, err := s.groupTeacherRepo.TeacherAssignmentIDs(txCtx, groupID)
 		if err != nil {
 			return &EducationError{Op: "RemoveTeacherFromGroup", Err: ErrGroupTeacherNotFound}
 		}
 
 		// Find the specific relationship to delete
-		var relationID int64
-		found := false
-		for _, rel := range relations {
-			if rel.TeacherID == teacherID {
-				relationID = rel.ID
-				found = true
-				break
-			}
-		}
-
+		relationID, found := assignments[teacherID]
 		if !found {
 			return &EducationError{Op: "RemoveTeacherFromGroup", Err: ErrGroupTeacherNotFound}
 		}
 
 		// Delete the relationship
-		if err := s.groupTeacherRepo.Delete(txCtx, relationID); err != nil {
+		if err := s.groupTeacherRepo.RemoveTeacherAssignment(txCtx, relationID); err != nil {
 			return &EducationError{Op: "RemoveTeacherFromGroup", Err: err}
 		}
 
@@ -320,12 +311,15 @@ func (s *service) updateGroupTeachersInTx(ctx context.Context, groupID int64, te
 		return false, &EducationError{Op: "UpdateGroupTeachers", Err: ErrGroupNotFound}
 	}
 
-	currentRelations, err := s.groupTeacherRepo.FindByGroup(ctx, groupID)
+	currentTeacherIDs, err := s.groupTeacherRepo.TeacherAssignmentIDs(ctx, groupID)
 	if err != nil {
 		return false, &EducationError{Op: "UpdateGroupTeachers", Err: err}
 	}
 
-	currentTeacherIDs, newTeacherIDs := buildTeacherIDMaps(currentRelations, teacherIDs)
+	newTeacherIDs := make(map[int64]bool, len(teacherIDs))
+	for _, teacherID := range teacherIDs {
+		newTeacherIDs[teacherID] = true
+	}
 
 	removed, err := s.removeObsoleteTeachers(ctx, currentTeacherIDs, newTeacherIDs)
 	if err != nil {
@@ -339,21 +333,6 @@ func (s *service) updateGroupTeachersInTx(ctx context.Context, groupID int64, te
 	return removed || added, nil
 }
 
-// buildTeacherIDMaps builds maps for current and new teacher IDs
-func buildTeacherIDMaps(currentRelations []*domain.TeacherAssignment, teacherIDs []int64) (map[int64]int64, map[int64]bool) {
-	currentTeacherIDs := make(map[int64]int64)
-	for _, rel := range currentRelations {
-		currentTeacherIDs[rel.TeacherID] = rel.ID
-	}
-
-	newTeacherIDs := make(map[int64]bool)
-	for _, teacherID := range teacherIDs {
-		newTeacherIDs[teacherID] = true
-	}
-
-	return currentTeacherIDs, newTeacherIDs
-}
-
 // removeObsoleteTeachers removes teachers that are no longer in the assignment list
 // removeObsoleteTeachers drops the links no longer in the submitted set and
 // reports whether it removed any, so the caller only announces a real change.
@@ -361,7 +340,7 @@ func (s *service) removeObsoleteTeachers(ctx context.Context, currentTeacherIDs 
 	removed := false
 	for teacherID, relationID := range currentTeacherIDs {
 		if !newTeacherIDs[teacherID] {
-			if err := s.groupTeacherRepo.Delete(ctx, relationID); err != nil {
+			if err := s.groupTeacherRepo.RemoveTeacherAssignment(ctx, relationID); err != nil {
 				return removed, &EducationError{Op: "UpdateGroupTeachers", Err: err}
 			}
 			removed = true
@@ -392,11 +371,7 @@ func (s *service) addTeacherToGroup(ctx context.Context, groupID, teacherID int6
 		return &EducationError{Op: "UpdateGroupTeachers", Err: ErrTeacherNotFound}
 	}
 
-	relation := &domain.TeacherAssignment{
-		GroupID:   groupID,
-		TeacherID: teacherID,
-	}
-	if err := s.groupTeacherRepo.Create(ctx, relation); err != nil {
+	if err := s.groupTeacherRepo.AssignTeacher(ctx, groupID, teacherID); err != nil {
 		return &EducationError{Op: "UpdateGroupTeachers", Err: err}
 	}
 
@@ -412,15 +387,12 @@ func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*Teach
 	}
 
 	// Find all group-teacher relationships
-	relations, err := s.groupTeacherRepo.FindByGroup(ctx, groupID)
+	byGroup, err := s.groupTeacherRepo.TeacherIDsByGroup(ctx, []int64{groupID})
 	if err != nil {
 		return []*Teacher{}, nil
 	}
 
-	teacherIDs := make([]int64, 0, len(relations))
-	for _, rel := range relations {
-		teacherIDs = append(teacherIDs, rel.TeacherID)
-	}
+	teacherIDs := byGroup[groupID]
 	if len(teacherIDs) == 0 {
 		return []*Teacher{}, nil
 	}
@@ -441,25 +413,15 @@ func (s *service) GetTeachersForGroups(ctx context.Context, groupIDs []int64) (m
 	}
 
 	// 1. Batch fetch all group-teacher relationships (1 query)
-	relations, err := s.groupTeacherRepo.FindByGroupIDs(ctx, groupIDs)
+	teacherIDsByGroup, err := s.groupTeacherRepo.TeacherIDsByGroup(ctx, groupIDs)
 	if err != nil {
 		return nil, &EducationError{Op: "GetTeachersForGroups", Err: err}
 	}
 
 	// 2. Collect unique teacher IDs
-	teacherIDSet := make(map[int64]bool)
-	for _, rel := range relations {
-		teacherIDSet[rel.TeacherID] = true
-	}
-
-	teacherIDs := slices.Collect(maps.Keys(teacherIDSet))
-
+	teacherIDs := uniqueTeacherIDs(teacherIDsByGroup)
 	if len(teacherIDs) == 0 {
-		result := make(map[int64][]*Teacher)
-		for _, gid := range groupIDs {
-			result[gid] = []*Teacher{}
-		}
-		return result, nil
+		return teachersByGroup(groupIDs, nil, nil), nil
 	}
 
 	// 3. Batch fetch all teachers with staff+person (1 query)
@@ -468,28 +430,41 @@ func (s *service) GetTeachersForGroups(ctx context.Context, groupIDs []int64) (m
 		return nil, &EducationError{Op: "GetTeachersForGroups", Err: err}
 	}
 
-	// 4. Build teacher lookup map
+	// 4. Build result: groupID -> []Teacher
+	return teachersByGroup(groupIDs, teacherIDsByGroup, teachers), nil
+}
+
+// uniqueTeacherIDs collects every teacher of the groups once.
+func uniqueTeacherIDs(teacherIDsByGroup map[int64][]int64) []int64 {
+	teacherIDSet := make(map[int64]bool)
+	for _, ids := range teacherIDsByGroup {
+		for _, teacherID := range ids {
+			teacherIDSet[teacherID] = true
+		}
+	}
+	return slices.Collect(maps.Keys(teacherIDSet))
+}
+
+// teachersByGroup resolves each group's teachers in assignment order; every
+// requested group gets an entry, an empty one without resolvable teachers.
+func teachersByGroup(groupIDs []int64, teacherIDsByGroup map[int64][]int64, teachers []*Teacher) map[int64][]*Teacher {
 	teacherMap := make(map[int64]*Teacher, len(teachers))
 	for _, t := range teachers {
 		teacherMap[t.ID] = t
 	}
 
-	// 5. Build result: groupID -> []Teacher
 	result := make(map[int64][]*Teacher, len(groupIDs))
-	for _, rel := range relations {
-		if teacher, ok := teacherMap[rel.TeacherID]; ok {
-			result[rel.GroupID] = append(result[rel.GroupID], teacher)
-		}
-	}
-
-	// Ensure all requested group IDs have an entry
 	for _, gid := range groupIDs {
-		if _, ok := result[gid]; !ok {
-			result[gid] = []*Teacher{}
+		result[gid] = []*Teacher{}
+	}
+	for groupID, ids := range teacherIDsByGroup {
+		for _, teacherID := range ids {
+			if teacher, ok := teacherMap[teacherID]; ok {
+				result[groupID] = append(result[groupID], teacher)
+			}
 		}
 	}
-
-	return result, nil
+	return result
 }
 
 // GetTeacherGroups gets all groups for a teacher

@@ -137,22 +137,3 @@ func IsRecordNotFound(err error) bool {
 	var marker interface{ RepositoryNotFound() }
 	return errors.As(err, &marker)
 }
-
-// TeacherAssignment is a teacher's assignment to a group, as the group
-// service reads and changes it. School Membership owns the assignments; the
-// root binds the store over that owner's contract (#3556).
-type TeacherAssignment struct {
-	ID        int64
-	GroupID   int64
-	TeacherID int64
-}
-
-// ClassAssignment is a staff member's assignment to a free-text school class
-// (#1772), as the class assignment service reads and changes it. School
-// Membership owns the assignments; the root binds the store over that
-// owner's contract (#3556).
-type ClassAssignment struct {
-	ID          int64
-	StaffID     int64
-	SchoolClass string
-}

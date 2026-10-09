@@ -58,7 +58,7 @@ type fakeGroupReader struct {
 	err          error
 }
 
-func (f *fakeGroupReader) ListStaffIDsByEducationGroupIDs(_ context.Context, groupIDs []int64, _ timezone.Date) ([]notifications.StaffGroupPair, error) {
+func (f *fakeGroupReader) ListGroupSupervisors(_ context.Context, groupIDs []int64, _ timezone.Date) ([]notifications.StaffGroupPair, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
