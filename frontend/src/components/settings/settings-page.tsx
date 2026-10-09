@@ -72,6 +72,14 @@ const TABS_RENDERED_ELSEWHERE = new Set(["abrechnung", "startseite"]);
 // NFC does not see the tab at all instead of an empty one.
 const NFC_ONLY_TABS = new Set(["devices"]);
 
+// A tab whose settings are all hidden (DependsOn, access) would open onto the
+// search box and nothing else (#3925). It is left out like the NFC tabs.
+function hasVisibleSetting(tab: SchemaTab): boolean {
+  return tab.categories.some(
+    (category) => visibleCategoryItems(category).length > 0,
+  );
+}
+
 function schemaTabsForPage(
   schema: SettingsSchema | null | undefined,
   nfcEnabled: boolean,
@@ -79,7 +87,8 @@ function schemaTabsForPage(
   return (schema?.tabs ?? []).filter(
     (tab) =>
       !TABS_RENDERED_ELSEWHERE.has(tab.key) &&
-      (nfcEnabled || !NFC_ONLY_TABS.has(tab.key)),
+      (nfcEnabled || !NFC_ONLY_TABS.has(tab.key)) &&
+      hasVisibleSetting(tab),
   );
 }
 
