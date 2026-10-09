@@ -332,6 +332,7 @@ export function AddSupervisorModal(props: AddSupervisorModalProps) {
       isOpen={props.isOpen}
       onClose={props.onClose}
       title="Betreuer hinzufügen"
+      mobileSheet
       footer={
         <ModalFooter
           onClose={props.onClose}

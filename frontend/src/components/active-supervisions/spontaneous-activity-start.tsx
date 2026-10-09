@@ -390,7 +390,6 @@ export function SpontaneousActivityStart({
         title="Spontane Aktivität"
         size="md"
         error={formErrors.error}
-        mobilePosition="center"
         footer={
           <>
             <Button
