@@ -1736,7 +1736,7 @@ function findStaffTopic(presenceMode: HelpPresenceMode): HelpTopic {
         ? "Sie sehen, ob die Person gerade arbeitet."
         : "Sie sehen, ob die Person gerade arbeitet. Manchmal steht dort auch ihre Aufsicht.",
     differences: [
-      "Persönliche Personalunterlagen und Arbeitszeiten sind besonders geschützt. Ohne zusätzliches Recht sehen Sie diese Angaben nicht.",
+      "Auch ohne Recht für Personalakten sehen Sie, wo die Person gerade ist. Die Karte öffnet dann keine Personalakte. Fragen Sie bei Bedarf Ihre Leitung.",
       "Möchten Sie der Person schreiben? Öffnen Sie den `Team-Chat`.",
     ],
     related: [HELP_TOPICS.teamChat, HELP_TOPICS.activeSupervision],
