@@ -82,7 +82,7 @@ func TestSeedPhaseSchoolYearCreatesTheNextYear(t *testing.T) {
 	assert.Equal(t, seedCalendarPeriod{ID: 9, Name: "Schuljahr 2027/2028", PeriodType: "school_year", StartDate: "2027-08-01", EndDate: "2028-07-31", WeekCycleLength: 1, IsActive: true}, period)
 }
 
-func TestSeedPhaseSchoolYearReusesAnOverlappingActiveYear(t *testing.T) {
+func TestSeedPhaseSchoolYearRejectsAnOverlappingActiveYear(t *testing.T) {
 	t.Parallel()
 
 	const overlappingSchoolYearID = 6
@@ -96,13 +96,10 @@ func TestSeedPhaseSchoolYearReusesAnOverlappingActiveYear(t *testing.T) {
 	defer srv.Close()
 
 	rt := &Runtime{Client: newTestClient(srv.URL, false)}
-	period, err := seedPhaseSchoolYear(rt, AuthRef{Token: "admin"}, 2026)
-	require.NoError(t, err)
+	_, err := seedPhaseSchoolYear(rt, AuthRef{Token: "admin"}, 2026)
+	require.EqualError(t, err, "active school year \"Schuljahr 2026/2027\" (2026-09-01 to 2027-08-31) overlaps requested school year 2026/2027")
 
 	assert.Equal(t, []string{"/api/timetable/periods/bootstrap"}, paths)
-	assert.EqualValues(t, overlappingSchoolYearID, period.ID)
-	assert.Equal(t, "2026-09-01", period.StartDate)
-	assert.Equal(t, "2027-08-31", period.EndDate)
 }
 
 func TestSeedPhaseSchoolYearActivatesAnExactInactiveYear(t *testing.T) {

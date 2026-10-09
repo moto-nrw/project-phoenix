@@ -55,7 +55,10 @@ func seedPhaseSchoolYear(rt *Runtime, auth AuthRef, startYear int) (seedCalendar
 		}
 	}
 	if activeOverlap != nil {
-		return *activeOverlap, nil
+		return seedCalendarPeriod{}, fmt.Errorf(
+			"active school year %q (%s to %s) overlaps requested school year %d/%d",
+			activeOverlap.Name, activeOverlap.StartDate, activeOverlap.EndDate, startYear, startYear+1,
+		)
 	}
 	if inactiveExact != nil {
 		if err := activateSeedPhaseSchoolYear(rt, auth, *inactiveExact); err != nil {
