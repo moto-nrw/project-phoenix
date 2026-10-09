@@ -68,6 +68,51 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// externalCaregiverExpertise fills the guest profile's required expertise:
+// the flow records a name only, and what the person does follows from the
+// supervision they are added to.
+const externalCaregiverExpertise = "Externe Betreuung"
+
+// createExternalStaff records an external caregiver without a moto account
+// (#3823): a person, a staff record and the guest profile that marks the
+// record as external. The three writes share the request transaction; a
+// failure answers 500, which rolls all of them back.
+func (rs *Resource) createExternalStaff(w http.ResponseWriter, r *http.Request) {
+	req := &ExternalStaffRequest{}
+	if err := render.Bind(r, req); err != nil {
+		rs.failure(w, r, FailureInvalidRequest, err, "invalid_request")
+		return
+	}
+	ctx := r.Context()
+
+	person, err := rs.runtime.CreatePerson(ctx, req.FirstName, req.LastName)
+	if err != nil {
+		rs.internal(w, r, err)
+		return
+	}
+	staff, err := rs.membership.CreateStaff(ctx, schoolmembership.CreateStaff{
+		StaffFields: schoolmembership.StaffFields{PersonID: person.ID},
+	})
+	if err != nil {
+		rs.internal(w, r, err)
+		return
+	}
+	guest, err := rs.membership.CreateGuest(ctx, schoolmembership.CreateGuest{
+		GuestFields: schoolmembership.GuestFields{
+			StaffID: staff.ID, Organization: req.Organization, ActivityExpertise: externalCaregiverExpertise,
+		},
+	})
+	if err != nil {
+		rs.internal(w, r, err)
+		return
+	}
+	staff.IsGuest, staff.GuestOrganization = true, guest.Organization
+
+	rs.respond(w, r, http.StatusCreated,
+		buildStaffResponse(rs.fieldAccess(ctx), staff, &person, false, enrichment{}),
+		"External caregiver created successfully")
+}
+
 // updateStaff updates a staff record and its teacher profile.
 func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	staff, ok := rs.parseAndFindStaff(w, r)

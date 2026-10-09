@@ -20,6 +20,11 @@ import { createLogger } from "~/lib/logger";
 import { substitutionService } from "~/lib/substitution-api";
 import type { RunningSupervision } from "~/lib/substitution-helpers";
 
+import {
+  ExternalCaregiverEntry,
+  type ExternalCaregiverResult,
+} from "./external-caregiver-entry";
+
 const logger = createLogger({ component: "AddSupervisorModal" });
 
 interface AddSupervisorModalProps {
@@ -66,14 +71,20 @@ function useSupervisionOverview(activeGroupId: string | null, isOpen: boolean) {
   return { overview, loadError, isLoading };
 }
 
+type SupervisionTarget = RunningSupervision["availableTargets"][number];
+
 function SupervisionDetails({
   overview,
+  targets,
   selectedStaffId,
   setSelectedStaffId,
+  onExternalAdded,
 }: {
   overview: RunningSupervision;
+  targets: readonly SupervisionTarget[];
   selectedStaffId: string;
   setSelectedStaffId: (value: string) => void;
+  onExternalAdded: (result: ExternalCaregiverResult) => void;
 }) {
   if (!overview.canAssign)
     return (
@@ -82,28 +93,41 @@ function SupervisionDetails({
         message="Sie beaufsichtigen diese Betreuung nicht mehr. Deshalb können Sie niemanden hinzufügen."
       />
     );
-  if (overview.availableTargets.length === 0)
-    return (
-      <Alert
-        type="info"
-        message="Alle verfügbaren Betreuungskräfte sind schon eingetragen."
-      />
-    );
   return (
-    <SupervisorSelect
-      overview={overview}
-      selectedStaffId={selectedStaffId}
-      setSelectedStaffId={setSelectedStaffId}
-    />
+    <div className="space-y-3">
+      {targets.length === 0 ? (
+        <Alert
+          type="info"
+          message="Alle verfügbaren Betreuungskräfte sind schon eingetragen."
+        />
+      ) : (
+        <SupervisorSelect
+          targets={targets}
+          selectedStaffId={selectedStaffId}
+          setSelectedStaffId={setSelectedStaffId}
+        />
+      )}
+      <ExternalCaregiverEntry
+        existing={targets.map((target) => ({
+          id: target.id,
+          fullName: target.fullName,
+        }))}
+        onAdded={onExternalAdded}
+      />
+    </div>
   );
 }
 
+function targetLabel(target: SupervisionTarget): string {
+  return target.isExternal ? `${target.fullName} (extern)` : target.fullName;
+}
+
 function SupervisorSelect({
-  overview,
+  targets,
   selectedStaffId,
   setSelectedStaffId,
 }: {
-  overview: RunningSupervision;
+  targets: readonly SupervisionTarget[];
   selectedStaffId: string;
   setSelectedStaffId: (value: string) => void;
 }) {
@@ -122,9 +146,9 @@ function SupervisorSelect({
         value={selectedStaffId}
         onChange={setSelectedStaffId}
         placeholder="Person auswählen..."
-        options={overview.availableTargets.map((staff) => ({
-          value: staff.id,
-          label: staff.fullName,
+        options={targets.map((target) => ({
+          value: target.id,
+          label: targetLabel(target),
         }))}
       />
     </div>
@@ -184,11 +208,13 @@ function useAddSupervisor(
 
 function ModalBody(props: {
   overview: RunningSupervision | null;
+  targets: readonly SupervisionTarget[];
   loadError: FormErrorInput;
   saveError: FormErrorInput;
   isLoading: boolean;
   selectedStaffId: string;
   setSelectedStaffId: (value: string) => void;
+  onExternalAdded: (result: ExternalCaregiverResult) => void;
 }) {
   return (
     <div className="space-y-5">
@@ -250,16 +276,56 @@ function ModalFooter(props: {
   );
 }
 
+/**
+ * The targets the overview offers plus the external people recorded in this
+ * dialog (#3823), so a new entry is selectable without reloading.
+ */
+function useSupervisionTargets(
+  overview: RunningSupervision | null,
+  activeGroupId: string | null,
+  isOpen: boolean,
+  setSelectedStaffId: (value: string) => void,
+) {
+  const [added, setAdded] = useState<SupervisionTarget[]>([]);
+  useEffect(() => setAdded([]), [activeGroupId, isOpen]);
+  const offered = overview?.availableTargets ?? [];
+  const targets = [
+    ...offered,
+    ...added.filter((extra) => !offered.some((item) => item.id === extra.id)),
+  ];
+  const onExternalAdded = (result: ExternalCaregiverResult) => {
+    if (result.kind === "created") {
+      const { staff } = result;
+      const fullName =
+        staff.name || [staff.firstName, staff.lastName].join(" ").trim();
+      setAdded((prev) => [
+        ...prev,
+        { id: staff.id, fullName, isExternal: true },
+      ]);
+      setSelectedStaffId(staff.id);
+      return;
+    }
+    setSelectedStaffId(result.id);
+  };
+  return { targets, onExternalAdded };
+}
+
 export function AddSupervisorModal(props: AddSupervisorModalProps) {
   const state = useSupervisionOverview(props.activeGroupId, props.isOpen);
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const action = useAddSupervisor(props, selectedStaffId);
   useEffect(() => setSelectedStaffId(""), [props.activeGroupId, props.isOpen]);
+  const { targets, onExternalAdded } = useSupervisionTargets(
+    state.overview,
+    props.activeGroupId,
+    props.isOpen,
+    setSelectedStaffId,
+  );
   const disabled =
     !selectedStaffId ||
     state.isLoading ||
     !state.overview?.canAssign ||
-    state.overview.availableTargets.length === 0 ||
+    targets.length === 0 ||
     action.isSaving;
   return (
     <Modal
@@ -278,6 +344,8 @@ export function AddSupervisorModal(props: AddSupervisorModalProps) {
     >
       <ModalBody
         {...state}
+        targets={targets}
+        onExternalAdded={onExternalAdded}
         saveError={action.error}
         selectedStaffId={selectedStaffId}
         setSelectedStaffId={setSelectedStaffId}

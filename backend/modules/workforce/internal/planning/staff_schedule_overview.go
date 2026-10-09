@@ -254,9 +254,9 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 	if err != nil {
 		return nil, fmt.Errorf("load assignment rooms: %w", err)
 	}
-	staff, err := s.deps.Staff.ListAllWithPerson(ctx)
+	staff, err := s.loadPlannableStaff(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("load staff directory: %w", err)
+		return nil, err
 	}
 
 	var workSchedules []*configModel.StaffWorkSchedule
@@ -283,6 +283,23 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 		staff:            staff,
 		workSchedules:    workSchedules,
 	}, nil
+}
+
+// loadPlannableStaff reads the staff directory without the external
+// caregivers (#3823): they have no shifts to plan, so the duty roster carries
+// no row for them.
+func (s *staffScheduleOverviewService) loadPlannableStaff(ctx context.Context) ([]*usersModel.Staff, error) {
+	directory, err := s.deps.Staff.ListAllWithPerson(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load staff directory: %w", err)
+	}
+	staff := make([]*usersModel.Staff, 0, len(directory))
+	for _, member := range directory {
+		if member != nil && !member.IsGuest {
+			staff = append(staff, member)
+		}
+	}
+	return staff, nil
 }
 
 func visibleActivityInstances(instances []*timetable.ScheduledInstance) ([]*timetable.ScheduledInstance, []int64) {

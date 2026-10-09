@@ -32,6 +32,9 @@ export interface BackendStaffResponse {
   absence_type?: string;
   /** The school's own Abwesenheitsart wording for today's absence (#2403). */
   absence_type_label?: string;
+  /** External caregiver without a moto account (#3823). */
+  is_external?: boolean;
+  external_organization?: string | null;
 }
 
 interface ActiveSupervisionResponse {
@@ -88,6 +91,17 @@ export interface Staff {
   absenceTypeLabel?: string;
   isFinancialProfile?: boolean;
   isLimitedProfile?: boolean;
+  /** Externe Betreuungskraft ohne moto-Konto (#3823). */
+  isExternal?: boolean;
+  /** Organisation der externen Kraft, z. B. die Musikschule. */
+  externalOrganization?: string;
+}
+
+/** Name of an external caregiver recorded from a supervision (#3823). */
+interface ExternalStaffInput {
+  firstName: string;
+  lastName: string;
+  organization?: string;
 }
 
 export interface StaffFilters {
@@ -328,6 +342,8 @@ function mapStaffMember(
     workStatus: staff.work_status,
     absenceType: staff.absence_type,
     absenceTypeLabel: staff.absence_type_label,
+    isExternal: staff.is_external ?? false,
+    externalOrganization: staff.external_organization ?? undefined,
   };
 }
 
@@ -422,6 +438,28 @@ class StaffService {
     );
 
     return applyStaffFilters(mappedStaff, filters);
+  }
+
+  // Records an external caregiver without a moto account (#3823): a name and,
+  // optionally, the organization. The new entry is selectable right away.
+  async createExternal(input: ExternalStaffInput): Promise<Staff> {
+    const response = await sessionFetch("/api/staff/externals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        first_name: input.firstName.trim(),
+        last_name: input.lastName.trim(),
+        organization: input.organization?.trim() ?? "",
+      }),
+    });
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to create external caregiver: ${response.statusText}`,
+      );
+    }
+    const payload = (await response.json()) as { data: BackendStaffResponse };
+    return mapStaffMember(payload.data, {});
   }
 
   // Get a single staff member by ID

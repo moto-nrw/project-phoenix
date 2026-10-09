@@ -80,6 +80,15 @@ function mapTeacherResponse(data: unknown): Teacher {
     person_id: toOptionalIdString(typedData.person_id as WireID | undefined),
     account_id: accountId,
     is_teacher: typedData.is_teacher as boolean | undefined,
+    // Nur für externe Kräfte (#3823), damit bestehende Formen gleich bleiben.
+    ...(typedData.is_external === true
+      ? {
+          is_external: true,
+          external_organization:
+            (typedData.external_organization as string | null | undefined) ??
+            null,
+        }
+      : {}),
     staff_id: typedData.staff_id as string | undefined,
     teacher_id: typedData.teacher_id as string | undefined,
     person: person,

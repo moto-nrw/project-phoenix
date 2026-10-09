@@ -92,11 +92,16 @@ type StaffResponse struct {
 	// AbsenceTypeLabel carries the school's own Abwesenheitsart wording for
 	// today's absence (#2403). Empty for the five standard types — the client
 	// keeps deriving those labels from AbsenceType itself.
-	AbsenceTypeLabel string    `json:"absence_type_label,omitempty"`
-	AccountRole      string    `json:"account_role,omitempty"`
-	EmploymentType   *string   `json:"employment_type,omitempty"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	AbsenceTypeLabel string  `json:"absence_type_label,omitempty"`
+	AccountRole      string  `json:"account_role,omitempty"`
+	EmploymentType   *string `json:"employment_type,omitempty"`
+	// IsExternal marks an external caregiver without a moto account (#3823)
+	// and ExternalOrganization names where they come from. Every colleague
+	// sees both on purpose: the supervision pickers label these people.
+	IsExternal           bool      `json:"is_external"`
+	ExternalOrganization string    `json:"external_organization,omitempty"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 // TeacherResponse represents a teacher response (extends staff).
@@ -148,6 +153,39 @@ func (req *StaffRequest) Bind(*http.Request) error {
 	req.Specialization = strings.TrimSpace(req.Specialization)
 	req.Role = strings.TrimSpace(req.Role)
 	req.Qualifications = strings.TrimSpace(req.Qualifications)
+	return nil
+}
+
+// Name length limits of an external caregiver entry: long enough for any real
+// name, short enough to keep a typo'd paste out of every picker.
+const (
+	maxExternalNameLength         = 100
+	maxExternalOrganizationLength = 150
+)
+
+// ExternalStaffRequest records an external caregiver without a moto account
+// (#3823): only a name and, optionally, the organization they come from.
+type ExternalStaffRequest struct {
+	FirstName    string `json:"first_name"`
+	LastName     string `json:"last_name"`
+	Organization string `json:"organization,omitempty"`
+}
+
+// Bind trims and validates the external caregiver request.
+func (req *ExternalStaffRequest) Bind(*http.Request) error {
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
+	req.Organization = strings.TrimSpace(req.Organization)
+	switch {
+	case req.FirstName == "":
+		return errors.New("first name is required")
+	case req.LastName == "":
+		return errors.New("last name is required")
+	case len([]rune(req.FirstName)) > maxExternalNameLength || len([]rune(req.LastName)) > maxExternalNameLength:
+		return fmt.Errorf("names must not exceed %d characters", maxExternalNameLength)
+	case len([]rune(req.Organization)) > maxExternalOrganizationLength:
+		return fmt.Errorf("organization must not exceed %d characters", maxExternalOrganizationLength)
+	}
 	return nil
 }
 
@@ -236,18 +274,20 @@ func newPersonResponse(person *Person, email, avatar string) *PersonResponse {
 // cannot forget it.
 func buildStaffResponse(access staffFieldAccess, staff schoolmembership.Staff, person *Person, isTeacher bool, data enrichment) StaffResponse {
 	response := StaffResponse{
-		ID:               staff.ID,
-		PersonID:         staff.PersonID,
-		StaffNotes:       staff.StaffNotes,
-		IsTeacher:        isTeacher,
-		WasPresentToday:  data.present,
-		WorkStatus:       data.workStatus,
-		AbsenceType:      data.absenceType,
-		AbsenceTypeLabel: data.absenceTypeLabel,
-		AccountRole:      data.accountRole,
-		EmploymentType:   staff.EmploymentType,
-		CreatedAt:        staff.CreatedAt,
-		UpdatedAt:        staff.UpdatedAt,
+		ID:                   staff.ID,
+		PersonID:             staff.PersonID,
+		StaffNotes:           staff.StaffNotes,
+		IsTeacher:            isTeacher,
+		WasPresentToday:      data.present,
+		WorkStatus:           data.workStatus,
+		AbsenceType:          data.absenceType,
+		AbsenceTypeLabel:     data.absenceTypeLabel,
+		AccountRole:          data.accountRole,
+		EmploymentType:       staff.EmploymentType,
+		IsExternal:           staff.IsGuest,
+		ExternalOrganization: staff.GuestOrganization,
+		CreatedAt:            staff.CreatedAt,
+		UpdatedAt:            staff.UpdatedAt,
 	}
 	if person != nil {
 		response.Person = newPersonResponse(person, data.email, data.avatar)

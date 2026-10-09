@@ -2,6 +2,7 @@ package groups
 
 import (
 	"context"
+	"errors"
 	"sort"
 
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -28,6 +29,11 @@ func (s *substitutionModule) listRunningSupervisions(
 	if err != nil {
 		return nil, err
 	}
+	if len(groups) > 0 {
+		if targets, err = s.withExternalTargets(ctx, targets); err != nil {
+			return nil, err
+		}
+	}
 	result := make([]RunningSupervision, 0, len(groups))
 	for _, group := range groups {
 		if query.ActiveGroupID > 0 && group.ID != query.ActiveGroupID {
@@ -44,6 +50,44 @@ func (s *substitutionModule) listRunningSupervisions(
 	}
 	sort.SliceStable(result, func(i, j int) bool { return result[i].ID < result[j].ID })
 	return result, nil
+}
+
+// withExternalTargets appends the external caregivers to the caregiver
+// targets: an external caregiver (#3823) can help with a running supervision,
+// while group handovers keep offering caregivers only.
+func (s *substitutionModule) withExternalTargets(ctx context.Context, caregivers []StaffRef) ([]StaffRef, error) {
+	if s.deps.ExternalCaregivers == nil {
+		return caregivers, nil
+	}
+	externals, err := s.deps.ExternalCaregivers.ListExternalCaregivers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]StaffRef, 0, len(caregivers)+len(externals))
+	result = append(result, caregivers...)
+	for _, member := range externals {
+		result = append(result, StaffRef{ID: member.StaffID, FullName: member.FullName, IsExternal: true})
+	}
+	return result, nil
+}
+
+// findAndLockSupervisionTarget resolves an additional supervisor: an active
+// caregiver or, when the directory is wired, an external caregiver.
+func (s *substitutionModule) findAndLockSupervisionTarget(ctx context.Context, staffID int64) (*educationModels.Caregiver, error) {
+	target, err := s.findAndLockTarget(ctx, staffID)
+	if !errors.Is(err, ErrNotFound) || s.deps.ExternalCaregivers == nil {
+		return target, err
+	}
+	externals, err := s.deps.ExternalCaregivers.ListExternalCaregivers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, member := range externals {
+		if member.StaffID == staffID {
+			return member, nil
+		}
+	}
+	return nil, ErrNotFound
 }
 
 func (s *substitutionModule) loadRunningSupervisionState(ctx context.Context) (
@@ -188,7 +232,7 @@ func (s *substitutionModule) assignAdditionalSupervisionLocked(
 	if err != nil {
 		return nil, nil, err
 	}
-	target, err := s.findAndLockTarget(ctx, request.TargetStaffID)
+	target, err := s.findAndLockSupervisionTarget(ctx, request.TargetStaffID)
 	if err != nil {
 		return nil, nil, err
 	}

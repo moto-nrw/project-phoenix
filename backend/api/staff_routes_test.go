@@ -64,6 +64,7 @@ var staffRouteSurface = []string{
 	"POST /absences/{absenceId}/approve",
 	"POST /absences/{absenceId}/deny",
 	"POST /absences/{absenceId}/question",
+	"POST /externals",
 	"POST /time-tracking/month-close",
 	"POST /{id}/absences",
 	"POST /{id}/absences/rebook",

@@ -254,6 +254,9 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 			}
 			return result, nil
 		},
+		CreatePerson: func(_ context.Context, firstName, lastName string) (staffHTTP.Person, error) {
+			return staffHTTP.Person{FirstName: firstName, LastName: lastName}, nil
+		},
 		PresentStaffIDs: func(context.Context) ([]int64, error) { return h.present, nil },
 		WorkStatusMap:   func(context.Context) (map[int64]string, error) { return h.workStatus, nil },
 		AbsenceMap:      func(context.Context) (map[int64]string, error) { return h.absence, nil },

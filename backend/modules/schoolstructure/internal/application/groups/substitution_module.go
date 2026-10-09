@@ -49,6 +49,13 @@ type CaregiverDirectory interface {
 	ListActiveCaregivers(ctx context.Context) ([]*educationModels.Caregiver, error)
 }
 
+// ExternalCaregiverDirectory reads the external caregivers without a moto
+// account (#3823). They may join a running supervision as an additional
+// supervisor, never take over a group.
+type ExternalCaregiverDirectory interface {
+	ListExternalCaregivers(ctx context.Context) ([]*educationModels.Caregiver, error)
+}
+
 type ActiveSupervisorCreator interface {
 	CreateGroupSupervisor(context.Context, *studentpresence.GroupSupervision) error
 }
@@ -57,8 +64,11 @@ type SubstitutionDependencies struct {
 	Groups        GroupStore
 	Substitutions GroupHandoverStore
 	// Persons resolves the staff names the overview shows (#2661).
-	Persons                 PersonQuery
-	Teachers                CaregiverDirectory
+	Persons  PersonQuery
+	Teachers CaregiverDirectory
+	// ExternalCaregivers adds the external caregivers to the additional
+	// supervision targets; nil offers caregivers only.
+	ExternalCaregivers      ExternalCaregiverDirectory
 	Staff                   StaffLockStore
 	Actors                  ActorResolver
 	Audit                   SubstitutionAudit

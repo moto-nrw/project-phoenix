@@ -114,6 +114,7 @@ func applyStaffToLegacy(target *userModels.Staff, value schoolmembership.Staff) 
 	target.RotationAnchorDate = usersRepo.ParseCalendarDate(value.RotationAnchorDate)
 	target.BirthdayDisplayOptOut = value.BirthdayDisplayOptOut
 	target.DeletedAt = value.DeletedAt
+	target.IsGuest = value.IsGuest
 }
 
 func toLegacyStaff(value schoolmembership.Staff) *userModels.Staff {
