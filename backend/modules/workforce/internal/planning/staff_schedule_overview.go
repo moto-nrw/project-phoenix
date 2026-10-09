@@ -245,19 +245,9 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 
 	visibleInstances, instanceIDs := visibleActivityInstances(instances)
 
-	assignmentRows, err := s.deps.InstanceStaff.FindByInstanceIDs(ctx, instanceIDs)
-	if err != nil {
-		return nil, fmt.Errorf("load instance staff: %w", err)
-	}
-	staff, externalStaffIDs, err := s.loadPlannableStaff(ctx)
+	assignmentRows, staff, rooms, err := s.loadAssignmentData(ctx, visibleInstances, instanceIDs)
 	if err != nil {
 		return nil, err
-	}
-	assignmentRows = filterExternalCaregiverAssignments(assignmentRows, externalStaffIDs)
-	roomIDs := effectiveAssignmentRoomIDs(visibleInstances, assignmentRows)
-	rooms, err := s.deps.Rooms.FindByIDs(ctx, roomIDs)
-	if err != nil {
-		return nil, fmt.Errorf("load assignment rooms: %w", err)
 	}
 
 	var workSchedules []*configModel.StaffWorkSchedule
@@ -284,6 +274,29 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 		staff:            staff,
 		workSchedules:    workSchedules,
 	}, nil
+}
+
+// loadAssignmentData reads the staffing that can appear beside the Dienstplan
+// rows and filters external caregivers before resolving the referenced rooms.
+func (s *staffScheduleOverviewService) loadAssignmentData(
+	ctx context.Context,
+	visibleInstances []*timetable.ScheduledInstance,
+	instanceIDs []int64,
+) ([]*timetable.InstanceStaff, []*usersModel.Staff, []*facilitiesModel.Room, error) {
+	assignmentRows, err := s.deps.InstanceStaff.FindByInstanceIDs(ctx, instanceIDs)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("load instance staff: %w", err)
+	}
+	staff, externalStaffIDs, err := s.loadPlannableStaff(ctx)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	assignmentRows = filterExternalCaregiverAssignments(assignmentRows, externalStaffIDs)
+	rooms, err := s.deps.Rooms.FindByIDs(ctx, effectiveAssignmentRoomIDs(visibleInstances, assignmentRows))
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("load assignment rooms: %w", err)
+	}
+	return assignmentRows, staff, rooms, nil
 }
 
 // loadPlannableStaff reads the staff directory without the external
