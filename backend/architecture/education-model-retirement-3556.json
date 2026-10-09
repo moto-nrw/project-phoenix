@@ -7,22 +7,24 @@
     "#3555",
     "#3020"
   ],
-  "owner_and_capability": "School Structure: retire models/education (#3556). The School Structure values move to modules/schoolstructure/internal/domain without an ORM mapping; the legacy composition names them through modules/schoolstructure/compose aliases; values of another owner's table stay with that owner (the Workforce group substitution row) or the consumer (the notification recipients' staff-group pair).",
+  "owner_and_capability": "School Structure: retire models/education (#3556). The School Structure values move to modules/schoolstructure/internal/domain without an ORM mapping; the legacy composition names them through modules/schoolstructure/compose aliases. Values of another owner's table go to that owner: the retained teacher assignment repositories speak School Membership's GroupAssignment and ClassAssignment, the Workforce adapter serves its own GroupSubstitution row, the arrival fixtures write through the Timetable ClassArrivals contract, and the notification recipients read their own staff-group pair.",
   "affected_packages": [
+    "api/testutil",
+    "database/repositories",
     "models/education",
+    "modules/careplan/contracttest",
+    "modules/delivery/application/notifications",
     "modules/schoolstructure",
     "modules/schoolstructure/compose",
     "modules/schoolstructure/http",
-    "modules/schoolstructure/internal/domain",
-    "modules/schoolstructure/internal/application/groups",
     "modules/schoolstructure/internal/adapters/postgres",
     "modules/schoolstructure/internal/adapters/postgres/groups",
+    "modules/schoolstructure/internal/application/groups",
+    "modules/schoolstructure/internal/domain",
+    "modules/timetable/compose",
     "modules/workforce/legacy",
-    "modules/delivery/application/notifications",
-    "database/repositories",
     "services",
     "services/users",
-    "api/testutil",
     "test"
   ],
   "affected_tables": [
@@ -32,17 +34,19 @@
     "education.group_substitution",
     "education.grade_transitions",
     "education.grade_transition_mappings",
-    "education.grade_transition_history"
+    "education.grade_transition_history",
+    "education.class_arrival_times"
   ],
   "exact_ratchet_keys": [
     "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/models/education",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories|github.com/moto-nrw/project-phoenix/models/education",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/test|github.com/moto-nrw/project-phoenix/models/education"
   ],
-  "atomic_cutover": "One code-only change. models/education is deleted with its policy package entry. Group, GroupRoom, GroupListQuery, StaffGroupID, GroupTeacher, ClassTeacher, GroupSubstitution, the substitution staff and person, Teacher, Caregiver, HandoverQuery, SchoolClassChange, SubstitutionChange and ErrHandoverExists move to modules/schoolstructure/internal/domain without bun tags; the existing domain.Group gains the room projection and the name validation; the store failure and missing-row shapes become domain.StoreError and domain.RecordNotFound with the same text and markers. The retained group store maps education.groups through a private groupRow. The grade transition lock key becomes schoolstructure.TransitionsLockKey; the unused setters, Duration, HasRoom, the substitution Validate, the tenant accessors and the grade transition rows (only fixtures wrote them) are deleted. database/repositories, services and api/testutil name the values through modules/schoolstructure/compose aliases. The Workforce adapter in modules/workforce/legacy serves its own GroupSubstitution row and names groups through a GroupNames lookup; the relations of the reads with relations (School Structure group, School Membership staff) are attached by the legacy root's groupSubstitutions decorator, and EducationHandovers translates the rows into School Structure values for the substitution module and the group service's deletion guard. The staff recipient resolver declares its own GroupSupervisors port and StaffGroupPair, bound by services.notificationGroupSupervisors. test maps the rows its fixtures write itself (test/school_structure_rows.go) and adds CreateTestGradeTransitionHistory. The rules delivery-cutover.009, delivery-cutover.023 and workforce.adapter.school-structure-domain allowed only the removed imports and are deleted. No fallback provider, no second implementation, no route, status code, error text, authorization or tenant scope change.",
+  "atomic_cutover": "One code-only change. models/education is deleted with its policy package entry. Group, GroupRoom, GroupListQuery, StaffGroupID, GroupSubstitution, the substitution staff and person, Teacher, Caregiver, HandoverQuery, SchoolClassChange, SubstitutionChange and ErrHandoverExists move to modules/schoolstructure/internal/domain without bun tags; the existing domain.Group gains the room projection and the name validation; the store failure and missing-row shapes become domain.StoreError and domain.RecordNotFound with the same text and markers. The retained group store maps education.groups through a private groupRow. The grade transition lock key becomes schoolstructure.TransitionsLockKey; the unused setters, Duration, HasRoom, the substitution Validate, the tenant accessors and the grade transition rows (only fixtures wrote them) are deleted. database/repositories, services and api/testutil name the values through modules/schoolstructure/compose aliases. The retained group and class teacher repositories return School Membership's GroupAssignment and ClassAssignment; the group service's ports take the slim domain TeacherAssignment and ClassAssignment, bound by repositories.NewEducationGroupTeachers and NewEducationClassTeachers. The arrival fixtures (CreateTestClassArrivalTime, UpsertTestClassArrivalTime, ClassArrivalTimesOf) take the Timetable ClassArrivals capability and write and read education.class_arrival_times through it. The Workforce adapter in modules/workforce/legacy serves its own GroupSubstitution row and names groups through a GroupNames lookup; the relations of the reads with relations (School Structure group, School Membership staff) are attached by the legacy root's groupSubstitutions decorator, and EducationHandovers translates the rows into School Structure values for the substitution module and the group service's deletion guard. The staff recipient resolver declares its own GroupSupervisors port and StaffGroupPair, bound by services.notificationGroupSupervisors. test maps the rows its fixtures write itself (test/school_structure_rows.go) and adds CreateTestGradeTransitionHistory. The rules delivery-cutover.009, delivery-cutover.023 and workforce.adapter.school-structure-domain allowed only the removed imports and are deleted. No fallback provider, no second implementation, no route, status code, error text, authorization or tenant scope change.",
   "tests": [
-    "modules/schoolstructure/internal/domain: the name validation and trimming of Group, the GroupTeacher and ClassTeacher validation and the RecordNotFound marker classification moved from models/education; the tests of the deleted setters, Duration, HasRoom, substitution Validate, tenant accessors and the row-tag pin went with the code.",
+    "modules/schoolstructure/internal/domain: the name validation and trimming of Group, the RecordNotFound marker classification moved from models/education; the tests of the deleted setters, Duration, HasRoom, substitution Validate, tenant accessors and the row-tag pin went with the code.",
     "modules/schoolstructure/...: the retained group, group-teacher, class-teacher and group-substitution repository suites, the group service and substitution module suites and the HTTP route suites pass with their assertions; fixture rows reach the owner's API through testutil.SchoolStructureGroupOf or a read through the repository.",
+    "modules/timetable/compose and modules/careplan/contracttest: the class arrival suites pass with the fixtures composed over timetable compose.NewClassArrivals; database/repositories keeps the teacher assignment validation messages ('group ID is required', 'staff ID is required', ...).",
     "database/repositories, services, services/users, modules/delivery/application/notifications and test pass; the People Directory deletion suites write the transition history through testpkg.CreateTestGradeTransitionHistory.",
     "scripts/backend-architecture.sh check: 239 -> 236 legacy keys, composition surface 591 -> 591; go test ./test -run 'Ratchet|TestDateColumnTypes' (the Workforce legacy budget falls 15,926 -> 15,903 LOC, the total 19,629 -> 19,606) and TestCompositionInventory with only line shifts; golangci-lint run ./... reports 0 issues; go tool deadcode with and without test entry points reports nothing outside internal/architecture."
   ],
@@ -117,5 +121,5 @@
     }
   },
   "rollback_and_cleanup": "Revert the code-only change if a hidden caller appears. No table, migration or configuration is touched; nothing remains to clean up.",
-  "exit_criterion": "models/education no longer exists; no production package outside timetable-activities reads or writes education.class_arrival_times (test support still writes the rows its fixtures need directly, as since #2742, instead of through the Timetable contract, which would add a test -> timetable key); the three listed keys are absent from legacy.jsonl, and scripts/backend-architecture.sh check passes with no key added, no data object ownership changed and a composition surface that does not grow."
+  "exit_criterion": "models/education no longer exists; education.class_arrival_times is read and written only through timetable-activities (production and test fixtures); the three listed keys are absent from legacy.jsonl; and scripts/backend-architecture.sh check passes with no key added, no rule added, no data object ownership changed and a composition surface that does not grow."
 }

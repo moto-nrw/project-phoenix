@@ -158,8 +158,8 @@ func dedupeSchoolClasses(classes []string) (map[string]string, error) {
 	return wanted, nil
 }
 
-func (s *service) reconcileSchoolClasses(ctx context.Context, current []*domain.ClassTeacher, wanted map[string]string) (map[string]*domain.ClassTeacher, error) {
-	currentByKey := make(map[string]*domain.ClassTeacher, len(current))
+func (s *service) reconcileSchoolClasses(ctx context.Context, current []*domain.ClassAssignment, wanted map[string]string) (map[string]*domain.ClassAssignment, error) {
+	currentByKey := make(map[string]*domain.ClassAssignment, len(current))
 	for _, assignment := range current {
 		currentByKey[schoolclass.Normalize(assignment.SchoolClass)] = assignment
 	}
@@ -182,12 +182,12 @@ func (s *service) reconcileSchoolClasses(ctx context.Context, current []*domain.
 
 	return currentByKey, nil
 }
-func (s *service) addSchoolClasses(ctx context.Context, staffID int64, currentByKey map[string]*domain.ClassTeacher, wanted map[string]string) error {
+func (s *service) addSchoolClasses(ctx context.Context, staffID int64, currentByKey map[string]*domain.ClassAssignment, wanted map[string]string) error {
 	for key, display := range wanted {
 		if _, exists := currentByKey[key]; exists {
 			continue
 		}
-		assignment := &domain.ClassTeacher{StaffID: staffID, SchoolClass: display}
+		assignment := &domain.ClassAssignment{StaffID: staffID, SchoolClass: display}
 		if err := s.classTeacherRepo.Create(ctx, assignment); err != nil {
 			return err
 		}

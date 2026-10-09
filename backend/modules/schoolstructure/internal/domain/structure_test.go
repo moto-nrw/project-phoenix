@@ -36,50 +36,6 @@ func TestGroupValidateRequiresAndTrimsTheName(t *testing.T) {
 	}
 }
 
-func TestGroupTeacherValidateRequiresGroupAndTeacher(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name    string
-		link    GroupTeacher
-		wantErr bool
-	}{
-		{"valid", GroupTeacher{GroupID: 1, TeacherID: 1}, false},
-		{"zero group", GroupTeacher{GroupID: 0, TeacherID: 1}, true},
-		{"negative group", GroupTeacher{GroupID: -1, TeacherID: 1}, true},
-		{"zero teacher", GroupTeacher{GroupID: 1, TeacherID: 0}, true},
-		{"negative teacher", GroupTeacher{GroupID: 1, TeacherID: -1}, true},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if err := tt.link.Validate(); (err != nil) != tt.wantErr {
-				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestClassTeacherValidateRequiresStaffAndClass(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name       string
-		assignment ClassTeacher
-		wantErr    bool
-	}{
-		{"valid", ClassTeacher{StaffID: 1, SchoolClass: "1a"}, false},
-		{"zero staff", ClassTeacher{StaffID: 0, SchoolClass: "1a"}, true},
-		{"blank class", ClassTeacher{StaffID: 1, SchoolClass: "  "}, true},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if err := tt.assignment.Validate(); (err != nil) != tt.wantErr {
-				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
 func TestIsRecordNotFoundRecognisesTheMarker(t *testing.T) {
 	t.Parallel()
 

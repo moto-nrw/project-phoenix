@@ -692,8 +692,8 @@ func newFactory(
 	// Initialize education service first (needed for active service)
 	educationService := education.NewGroupManagement(
 		repos.Group,
-		repos.GroupTeacher,
-		repos.ClassTeacher,
+		repositories.NewEducationGroupTeachers(repos.GroupTeacher),
+		repositories.NewEducationClassTeachers(repos.ClassTeacher),
 		repositories.NewEducationRooms(repos.Room),
 		NewEducationTeachers(repos.Teacher),
 		repositories.NewEducationStaff(repos.Staff),

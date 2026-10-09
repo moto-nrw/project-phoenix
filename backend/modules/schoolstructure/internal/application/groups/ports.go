@@ -42,19 +42,19 @@ type GroupRecords interface {
 
 // GroupTeacherStore is the education.group_teacher store of the group service.
 type GroupTeacherStore interface {
-	Create(ctx context.Context, relation *domain.GroupTeacher) error
+	Create(ctx context.Context, relation *domain.TeacherAssignment) error
 	Delete(ctx context.Context, id any) error
-	FindByGroup(ctx context.Context, groupID int64) ([]*domain.GroupTeacher, error)
-	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*domain.GroupTeacher, error)
+	FindByGroup(ctx context.Context, groupID int64) ([]*domain.TeacherAssignment, error)
+	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*domain.TeacherAssignment, error)
 }
 
 // ClassTeacherStore is the store of the staff-to-school-class assignments
 // (#1772).
 type ClassTeacherStore interface {
-	Create(ctx context.Context, assignment *domain.ClassTeacher) error
-	Update(ctx context.Context, assignment *domain.ClassTeacher) error
+	Create(ctx context.Context, assignment *domain.ClassAssignment) error
+	Update(ctx context.Context, assignment *domain.ClassAssignment) error
 	Delete(ctx context.Context, id any) error
-	FindByStaff(ctx context.Context, staffID int64) ([]*domain.ClassTeacher, error)
+	FindByStaff(ctx context.Context, staffID int64) ([]*domain.ClassAssignment, error)
 }
 
 // HandoverReader lists the substitutions of one group, the deletion guard's

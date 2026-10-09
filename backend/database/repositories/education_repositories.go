@@ -4,6 +4,7 @@ import (
 	"context"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -69,14 +70,14 @@ type EducationGroupRepository interface {
 // GroupTeacherRepository is the retained contract of education.group_teacher,
 // served over School Membership.
 type GroupTeacherRepository interface {
-	Create(ctx context.Context, relation *educationRepo.GroupTeacher) error
-	FindByID(ctx context.Context, id any) (*educationRepo.GroupTeacher, error)
-	Update(ctx context.Context, relation *educationRepo.GroupTeacher) error
+	Create(ctx context.Context, relation *schoolmembership.GroupAssignment) error
+	FindByID(ctx context.Context, id any) (*schoolmembership.GroupAssignment, error)
+	Update(ctx context.Context, relation *schoolmembership.GroupAssignment) error
 	Delete(ctx context.Context, id any) error
-	List(ctx context.Context, filters map[string]any) ([]*educationRepo.GroupTeacher, error)
-	FindByGroup(ctx context.Context, groupID int64) ([]*educationRepo.GroupTeacher, error)
-	FindByTeacher(ctx context.Context, teacherID int64) ([]*educationRepo.GroupTeacher, error)
-	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*educationRepo.GroupTeacher, error)
+	List(ctx context.Context, filters map[string]any) ([]*schoolmembership.GroupAssignment, error)
+	FindByGroup(ctx context.Context, groupID int64) ([]*schoolmembership.GroupAssignment, error)
+	FindByTeacher(ctx context.Context, teacherID int64) ([]*schoolmembership.GroupAssignment, error)
+	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*schoolmembership.GroupAssignment, error)
 	// ListGroupTeacherBlockers returns group assignments as
 	// caregiver-capability blocker rows.
 	ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]userModels.BlockerGroup, error)
@@ -85,13 +86,13 @@ type GroupTeacherRepository interface {
 // ClassTeacherRepository is the retained contract of the staff-to-school-class
 // assignments (#1772), served over School Membership.
 type ClassTeacherRepository interface {
-	Create(ctx context.Context, assignment *educationRepo.ClassTeacher) error
-	FindByID(ctx context.Context, id any) (*educationRepo.ClassTeacher, error)
-	Update(ctx context.Context, assignment *educationRepo.ClassTeacher) error
+	Create(ctx context.Context, assignment *schoolmembership.ClassAssignment) error
+	FindByID(ctx context.Context, id any) (*schoolmembership.ClassAssignment, error)
+	Update(ctx context.Context, assignment *schoolmembership.ClassAssignment) error
 	Delete(ctx context.Context, id any) error
-	List(ctx context.Context, filters map[string]any) ([]*educationRepo.ClassTeacher, error)
+	List(ctx context.Context, filters map[string]any) ([]*schoolmembership.ClassAssignment, error)
 	// FindByStaff returns the class assignments of one staff member.
-	FindByStaff(ctx context.Context, staffID int64) ([]*educationRepo.ClassTeacher, error)
+	FindByStaff(ctx context.Context, staffID int64) ([]*schoolmembership.ClassAssignment, error)
 }
 
 // GroupSubstitutionRow is the Workforce row the group substitution contract

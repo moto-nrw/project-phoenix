@@ -169,7 +169,12 @@ not-found and store-failure shapes are `domain.RecordNotFound` and
 `modules/schoolstructure/compose` aliases (`Group`, `GroupTeacher`,
 `ClassTeacher`, `GroupSubstitution`, `HandoverQuery` and the other port
 values), which drops `database/repositories -> models/education` (#2743).
-Values another owner's table carries go to that owner: the Workforce
+Values another owner's table carries go to that owner: the retained teacher
+assignment repositories speak School Membership's `GroupAssignment` and
+`ClassAssignment`, and the group service's ports read the slim
+`TeacherAssignment` and `ClassAssignment` values that
+`repositories.NewEducationGroupTeachers` and `NewEducationClassTeachers` bind
+over them; the Workforce
 adapter in `modules/workforce/legacy` serves its own `GroupSubstitution` row,
 and the legacy root's `groupSubstitutions` decorator attaches School
 Structure's group and School Membership's staff to the reads with relations,
@@ -183,9 +188,11 @@ transition history through `CreateTestGradeTransitionHistory`, which drops
 the external-test `services/users -> models/education` (#2728). The rules
 `delivery-cutover.009`, `delivery-cutover.023` and
 `workforce.adapter.school-structure-domain` allowed only those imports and
-are deleted with the package entry. `education.class_arrival_times` had no
-foreign reader left: #2742 already deleted the legacy repository, and the
-fixtures write the Timetable owner's rows directly.
+are deleted with the package entry. #2742 already deleted the legacy
+`education.class_arrival_times` repository; the arrival fixtures in `test`
+now write and read the table through the Timetable owner's
+`ClassArrivals` contract, which the suites compose, so only
+`timetable-activities` touches it.
 
 #3349 settles the one table two owners reached for: `users.privacy_consents`
 stays with `student-presence`. The recorded window bounds how long presence

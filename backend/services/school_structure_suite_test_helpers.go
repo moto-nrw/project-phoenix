@@ -63,8 +63,8 @@ type (
 type (
 	SchoolStructureSuiteGroup              = education.Group
 	SchoolStructureSuiteGroupListQuery     = education.GroupListQuery
-	SchoolStructureSuiteGroupTeacher       = education.GroupTeacher
-	SchoolStructureSuiteClassTeacher       = education.ClassTeacher
+	SchoolStructureSuiteGroupTeacher       = schoolmembership.GroupAssignment
+	SchoolStructureSuiteClassTeacher       = schoolmembership.ClassAssignment
 	SchoolStructureSuiteStaffGroupID       = education.StaffGroupID
 	SchoolStructureSuiteSubstitutionChange = education.SubstitutionChange
 	SchoolStructureSuiteSubstitutionRow    = repositories.GroupSubstitutionRow
@@ -102,7 +102,7 @@ func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db *bun.DB, b
 	if len(broadcasters) > 0 {
 		broadcaster = broadcasters[0]
 	}
-	service := education.NewService(repos.Group, repos.GroupTeacher, repos.ClassTeacher,
+	service := education.NewService(repos.Group, repositories.NewEducationGroupTeachers(repos.GroupTeacher), repositories.NewEducationClassTeachers(repos.ClassTeacher),
 		repositories.NewEducationRooms(repos.Room), NewEducationTeachers(repos.Teacher),
 		repositories.NewEducationStaff(repos.Staff), repos.Student, repositories.NewEducationHandovers(repos.GroupSubstitution),
 		education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: broadcaster, Audit: repositories.NewEducationClassAssignmentAudit(repos.StaffMasterDataChange)})

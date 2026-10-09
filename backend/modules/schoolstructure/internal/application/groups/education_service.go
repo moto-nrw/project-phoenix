@@ -340,7 +340,7 @@ func (s *service) updateGroupTeachersInTx(ctx context.Context, groupID int64, te
 }
 
 // buildTeacherIDMaps builds maps for current and new teacher IDs
-func buildTeacherIDMaps(currentRelations []*domain.GroupTeacher, teacherIDs []int64) (map[int64]int64, map[int64]bool) {
+func buildTeacherIDMaps(currentRelations []*domain.TeacherAssignment, teacherIDs []int64) (map[int64]int64, map[int64]bool) {
 	currentTeacherIDs := make(map[int64]int64)
 	for _, rel := range currentRelations {
 		currentTeacherIDs[rel.TeacherID] = rel.ID
@@ -392,12 +392,10 @@ func (s *service) addTeacherToGroup(ctx context.Context, groupID, teacherID int6
 		return &EducationError{Op: "UpdateGroupTeachers", Err: ErrTeacherNotFound}
 	}
 
-	relation := &domain.GroupTeacher{
+	relation := &domain.TeacherAssignment{
 		GroupID:   groupID,
 		TeacherID: teacherID,
 	}
-	relation.TenantID = s.runtime.TenantID(ctx)
-
 	if err := s.groupTeacherRepo.Create(ctx, relation); err != nil {
 		return &EducationError{Op: "UpdateGroupTeachers", Err: err}
 	}

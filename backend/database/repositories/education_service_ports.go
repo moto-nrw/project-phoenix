@@ -11,6 +11,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 )
@@ -361,4 +362,97 @@ func (a EducationClassAssignmentAudit) RecordSchoolClassChange(ctx context.Conte
 		OldValue:  change.OldValue,
 		NewValue:  change.NewValue,
 	})
+}
+
+// EducationGroupTeachers serves the group service's teacher assignment store
+// from the retained repository, which speaks School Membership's contract
+// (#3556).
+type EducationGroupTeachers struct{ assignments GroupTeacherRepository }
+
+// NewEducationGroupTeachers binds the store to the group teacher repository.
+func NewEducationGroupTeachers(assignments GroupTeacherRepository) EducationGroupTeachers {
+	return EducationGroupTeachers{assignments: assignments}
+}
+
+// Create stores an assignment and reports its ID back.
+func (s EducationGroupTeachers) Create(ctx context.Context, assignment *educationRepo.TeacherAssignment) error {
+	stored := &schoolmembership.GroupAssignment{GroupID: assignment.GroupID, TeacherID: assignment.TeacherID}
+	if err := s.assignments.Create(ctx, stored); err != nil {
+		return err
+	}
+	assignment.ID = stored.ID
+	return nil
+}
+
+// Delete removes an assignment.
+func (s EducationGroupTeachers) Delete(ctx context.Context, id any) error {
+	return s.assignments.Delete(ctx, id)
+}
+
+// FindByGroup lists the assignments of one group.
+func (s EducationGroupTeachers) FindByGroup(ctx context.Context, groupID int64) ([]*educationRepo.TeacherAssignment, error) {
+	return teacherAssignments(s.assignments.FindByGroup(ctx, groupID))
+}
+
+// FindByGroupIDs lists the assignments of the groups.
+func (s EducationGroupTeachers) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*educationRepo.TeacherAssignment, error) {
+	return teacherAssignments(s.assignments.FindByGroupIDs(ctx, groupIDs))
+}
+
+func teacherAssignments(rows []*schoolmembership.GroupAssignment, err error) ([]*educationRepo.TeacherAssignment, error) {
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*educationRepo.TeacherAssignment, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &educationRepo.TeacherAssignment{ID: row.ID, GroupID: row.GroupID, TeacherID: row.TeacherID})
+	}
+	return result, nil
+}
+
+// EducationClassTeachers serves the class assignment service's store from
+// the retained repository, which speaks School Membership's contract (#3556).
+type EducationClassTeachers struct{ assignments ClassTeacherRepository }
+
+// NewEducationClassTeachers binds the store to the class teacher repository.
+func NewEducationClassTeachers(assignments ClassTeacherRepository) EducationClassTeachers {
+	return EducationClassTeachers{assignments: assignments}
+}
+
+// Create stores an assignment and reports its ID back.
+func (s EducationClassTeachers) Create(ctx context.Context, assignment *educationRepo.ClassAssignment) error {
+	stored := &schoolmembership.ClassAssignment{StaffID: assignment.StaffID, SchoolClass: assignment.SchoolClass}
+	if err := s.assignments.Create(ctx, stored); err != nil {
+		return err
+	}
+	assignment.ID = stored.ID
+	return nil
+}
+
+// Update rewrites an assignment.
+func (s EducationClassTeachers) Update(ctx context.Context, assignment *educationRepo.ClassAssignment) error {
+	stored := &schoolmembership.ClassAssignment{ID: assignment.ID, StaffID: assignment.StaffID, SchoolClass: assignment.SchoolClass}
+	if err := s.assignments.Update(ctx, stored); err != nil {
+		return err
+	}
+	assignment.SchoolClass = stored.SchoolClass
+	return nil
+}
+
+// Delete removes an assignment.
+func (s EducationClassTeachers) Delete(ctx context.Context, id any) error {
+	return s.assignments.Delete(ctx, id)
+}
+
+// FindByStaff lists the class assignments of one staff member.
+func (s EducationClassTeachers) FindByStaff(ctx context.Context, staffID int64) ([]*educationRepo.ClassAssignment, error) {
+	rows, err := s.assignments.FindByStaff(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*educationRepo.ClassAssignment, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &educationRepo.ClassAssignment{ID: row.ID, StaffID: row.StaffID, SchoolClass: row.SchoolClass})
+	}
+	return result, nil
 }

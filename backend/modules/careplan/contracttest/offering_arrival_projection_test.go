@@ -95,7 +95,7 @@ func createArrivalOffering(t *testing.T, env *decisionTestEnv, name string, days
 
 func setArrivalClassTimes(t *testing.T, env *decisionTestEnv, class string, times map[string]string) {
 	t.Helper()
-	testpkg.UpsertTestClassArrivalTime(t, env.db, class, times)
+	testpkg.UpsertTestClassArrivalTime(t, timetableClassArrivals(t, env.db), class, times)
 }
 
 func setStudentClass(t *testing.T, env *decisionTestEnv, studentID int64, class string) {
