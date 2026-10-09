@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM golang:1.27.0-alpine3.24 AS builder
+FROM golang:1.27.2-alpine3.24 AS builder
 
 ENV GOTOOLCHAIN=local
 
