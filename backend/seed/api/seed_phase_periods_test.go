@@ -79,5 +79,60 @@ func TestSeedPhaseSchoolYearCreatesTheNextYear(t *testing.T) {
 	assert.Equal(t, "2027-08-01", created["start_date"])
 	assert.Equal(t, "2028-07-31", created["end_date"])
 	assert.Equal(t, true, created["is_active"])
-	assert.Equal(t, seedCalendarPeriod{ID: 9, PeriodType: "school_year", StartDate: "2027-08-01", EndDate: "2028-07-31", IsActive: true}, period)
+	assert.Equal(t, seedCalendarPeriod{ID: 9, Name: "Schuljahr 2027/2028", PeriodType: "school_year", StartDate: "2027-08-01", EndDate: "2028-07-31", WeekCycleLength: 1, IsActive: true}, period)
+}
+
+func TestSeedPhaseSchoolYearReusesAnOverlappingActiveYear(t *testing.T) {
+	t.Parallel()
+
+	var paths []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{"periods":[`+
+			`{"id":6,"name":"Schuljahr 2026/2027","period_type":"school_year","start_date":"2026-09-01","end_date":"2027-08-31","week_cycle_length":1,"is_active":true}]}}`)
+	})
+	defer srv.Close()
+
+	rt := &Runtime{Client: newTestClient(srv.URL, false)}
+	period, err := seedPhaseSchoolYear(rt, AuthRef{Token: "admin"}, 2026)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"/api/timetable/periods/bootstrap"}, paths)
+	assert.Equal(t, int64(6), period.ID)
+	assert.Equal(t, "2026-09-01", period.StartDate)
+	assert.Equal(t, "2027-08-31", period.EndDate)
+}
+
+func TestSeedPhaseSchoolYearActivatesAnExactInactiveYear(t *testing.T) {
+	t.Parallel()
+
+	var paths []string
+	var updated map[string]any
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/timetable/periods/bootstrap":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"periods":[`+
+				`{"id":6,"name":"Schuljahr 2026/2027","period_type":"school_year","start_date":"2026-08-01","end_date":"2027-07-31","week_cycle_length":2,"week_cycle_anchor":"2026-08-03","is_active":false}]}}`)
+		case "/api/timetable/periods/6":
+			require.Equal(t, "PUT", r.Method)
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&updated))
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":6}}`)
+		}
+	})
+	defer srv.Close()
+
+	rt := &Runtime{Client: newTestClient(srv.URL, false)}
+	period, err := seedPhaseSchoolYear(rt, AuthRef{Token: "admin"}, 2026)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"/api/timetable/periods/bootstrap", "/api/timetable/periods/6"}, paths)
+	assert.Equal(t, map[string]any{
+		"name": "Schuljahr 2026/2027", "period_type": "school_year",
+		"start_date": "2026-08-01", "end_date": "2027-07-31",
+		"week_cycle_length": float64(2), "week_cycle_anchor": "2026-08-03", "is_active": true,
+	}, updated)
+	assert.True(t, period.IsActive)
 }
