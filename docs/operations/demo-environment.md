@@ -35,7 +35,7 @@ database access, open a tunnel: `ssh -L 5434:127.0.0.1:5434 root@<DEMO_HOST>`.
 | Type | CPX22 (2 vCPU, 4 GB RAM, 80 GB). Scale up to 4 vCPU / 8 GB when load or active demo schools grow; rescaling reboots and keeps the IP, and a disk upgrade cannot be undone. |
 | OS | Ubuntu 26.04 LTS |
 | Firewall | Hetzner firewall `moto-demo-fw`: inbound TCP 22, 80, 443 only |
-| SSH | `root`, with a personal key and the CI deploy key behind `DEMO_SSH_KEY` |
+| SSH | `root`, with one personal key per team member (key comment names the owner) and the CI deploy key behind `DEMO_SSH_KEY`. Revoke access by deleting that line from `/root/.ssh/authorized_keys`. |
 | Backups | None at Hetzner (synthetic data); take a snapshot before trade fairs |
 
 Ubuntu 26.04 ships Rust coreutils (uutils) and `sudo-rs`. The release scripts

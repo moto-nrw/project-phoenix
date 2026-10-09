@@ -88,7 +88,7 @@ func (s *Store) List(ctx context.Context, tenantID int64, limit int) ([]domain.G
 	rows := []groupRow{}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	err = groupSelect(db, &rows).Where(`"group".tenant_id = ?`, tenantID).Limit(limit).Scan(ctx)
+	err = groupSelect(db, &rows).Where(`"group".tenant_id = ?`, tenantID).Limit(int64(limit)).Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return nil, stats, fmt.Errorf("school structure postgres: list groups: %w", err)

@@ -530,7 +530,7 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 		Where("id = ?", student.ID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, studentCount,
+	assert.Equal(t, 1, int(studentCount),
 		"student created from the phase must survive phase deletion")
 }
 

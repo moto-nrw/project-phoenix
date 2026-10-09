@@ -229,9 +229,9 @@ func (s *Store) Search(ctx context.Context, filter domain.Filter) ([]domain.Pers
 	}
 	query = query.OrderExpr(`"person".last_name ASC, "person".first_name ASC, "person".id ASC`)
 	if filter.PageSize > 0 {
-		query = query.Limit(filter.PageSize)
+		query = query.Limit(int64(filter.PageSize))
 		if filter.Page > 1 {
-			query = query.Offset((filter.Page - 1) * filter.PageSize)
+			query = query.Offset(int64((filter.Page - 1) * filter.PageSize))
 		}
 	}
 	return scanPersons(ctx, rows, query, "search persons")

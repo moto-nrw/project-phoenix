@@ -57,7 +57,7 @@ func attendanceQuery(db bun.IDB, tenantID int64, rows any, filter ports.Attendan
 		query = query.OrderExpr("attendance.check_in_time ASC")
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit)
+		query = query.Limit(int64(filter.Limit))
 	}
 	if filter.ForUpdate {
 		query = query.For("UPDATE")

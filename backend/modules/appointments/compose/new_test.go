@@ -436,7 +436,7 @@ func assertAppointmentRecipientTableCounts(t *testing.T, db *bun.DB, ctx context
 		} {
 			count, countErr := scoped.NewSelect().TableExpr(table).Count(txCtx)
 			require.NoError(t, countErr)
-			assert.Equal(t, expected, count, "%s must expose only the active tenant's rows", table)
+			assert.Equal(t, int64(expected), count, "%s must expose only the active tenant's rows", table)
 		}
 		return nil
 	})

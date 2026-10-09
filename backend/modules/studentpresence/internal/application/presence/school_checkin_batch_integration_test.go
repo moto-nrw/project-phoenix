@@ -139,7 +139,7 @@ func TestProcessSchoolCheckinBatch_CheckInClearsPlannedStatusDay(t *testing.T) {
 		Where("id = ? AND cleared_at IS NOT NULL", statusDay.ID).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 1, cleared, "planned sick day must be cleared by the batch check-in")
+	assert.Equal(t, 1, int(cleared), "planned sick day must be cleared by the batch check-in")
 }
 
 func TestProcessSchoolCheckinBatch_UnknownActionRejected(t *testing.T) {

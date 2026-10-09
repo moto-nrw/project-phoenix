@@ -79,7 +79,7 @@ func (s *Store) ListPlannedInstanceStudents(ctx context.Context, filter domain.I
 	query = filterInstanceStudentDates(query, filter)
 	query = query.OrderExpr(`"instance_student".id ASC`)
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit).Offset(filter.Offset)
+		query = query.Limit(int64(filter.Limit)).Offset(int64(filter.Offset))
 	}
 	stats, err := scanAll(ctx, query, "list planned instance students")
 	if err != nil {
@@ -105,7 +105,7 @@ func filterInstanceStudents(query *bun.SelectQuery, filter domain.InstanceStuden
 	query = filterInstanceStudentDates(query, filter)
 	query = orderInstanceStudents(query, filter)
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit).Offset(filter.Offset)
+		query = query.Limit(int64(filter.Limit)).Offset(int64(filter.Offset))
 	}
 	return query
 }

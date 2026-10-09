@@ -199,7 +199,7 @@ func (s *Store) CountCompanionLinks(ctx context.Context, studentID int64) (int, 
 		return 0, stats, fmt.Errorf("care plan postgres: count companion links: %w", err)
 	}
 	stats.Rows = int64(count)
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 func (s *Store) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, domain.OperationStats, error) {

@@ -124,7 +124,7 @@ func TestPickupExtensions_ListAndResolve(t *testing.T) {
 		Where("instance_id = ?", s.freePlay).Where("student_id = ?", childID).
 		Count(testpkg.WithPackageTenantRuntime(context.Background()))
 	require.NoError(t, err)
-	assert.Equal(t, 1, count, "the team sees the child on the block's list")
+	assert.Equal(t, 1, int(count), "the team sees the child on the block's list")
 
 	w = executeRequest(router, http.MethodGet, fmt.Sprintf("/pickup-extensions?student_id=%d", childID), nil)
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())

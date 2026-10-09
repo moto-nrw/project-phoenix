@@ -31,7 +31,7 @@ func (r *fileEventRepository) ListRecent(ctx context.Context, limit int) ([]*aud
 		Model(&rows).
 		ModelTableExpr(fileEventTableExpr).
 		OrderExpr(`"file_event".created_at DESC, "file_event".id DESC`).
-		Limit(limit)
+		Limit(int64(limit))
 	if tenantID := runtimeTenantID(ctx, r.runtime); tenantID > 0 {
 		query = query.Where(`"file_event".tenant_id = ?`, tenantID)
 	}

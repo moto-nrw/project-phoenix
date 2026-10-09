@@ -47,5 +47,5 @@ func TestImportBatches_EachBatchChecksTheChildQuota(t *testing.T) {
 	count, err := db.NewSelect().TableExpr("users.student_school_memberships").
 		Where("tenant_id = ?", testpkg.Tenant(t)).Where("deleted_at IS NULL").Count(testpkg.Ctx(t))
 	require.NoError(t, err)
-	assert.Equal(t, 100, count, "the first batch stays, the refused one is rolled back whole")
+	assert.Equal(t, int64(100), count, "the first batch stays, the refused one is rolled back whole")
 }
