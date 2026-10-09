@@ -56,6 +56,13 @@ export type OpenRoomBlockContext = Omit<
   readonly rosterRowFilter?: ComponentProps<
     typeof TimetableRosterContent
   >["rowFilter"];
+  /**
+   * A spontaneous activity the page just started opens its picker of present
+   * children once (#3824). The start runs through the page's actions, the
+   * block's roster through this section's own, so the page hands it down.
+   */
+  readonly presentPickerAutoOpenInstanceId?: string | null;
+  readonly onPresentPickerAutoOpened?: () => void;
 };
 
 type StudentGridProps = Omit<
@@ -226,6 +233,8 @@ function OpenRoomBlock({
     onAddSupervisor,
     onRosterGroups,
     rosterRowFilter,
+    presentPickerAutoOpenInstanceId,
+    onPresentPickerAutoOpened,
     ...actionOptions
   } = context;
   const [collapsed, setCollapsed] = useState(!section.isOwn);
@@ -322,6 +331,11 @@ function OpenRoomBlock({
             />
           }
           onAddStudent={actions.handleAddUnplannedStudent}
+          onAddPresentStudents={actions.handleAddPresentStudents}
+          presentPickerAutoOpen={
+            presentPickerAutoOpenInstanceId === currentRoster.instance.id
+          }
+          onPresentPickerAutoOpened={onPresentPickerAutoOpened}
           onComplete={actions.handleCompleteTimetableInstance}
           onConfirmExpected={actions.handleConfirmExpectedStudents}
           onRosterAction={actions.handleRosterAction}

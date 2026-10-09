@@ -632,6 +632,9 @@ function MeinRaumPageContent() {
             onAddSupervisor: setAddSupervisorTarget,
             onRosterGroups: rememberOpenRoomRosterGroups,
             rosterRowFilter: filters.rosterRowFilter,
+            presentPickerAutoOpenInstanceId:
+              actions.presentPickerAutoOpenInstanceId,
+            onPresentPickerAutoOpened: actions.clearPresentPickerAutoOpen,
           }}
         />
       );
@@ -657,6 +660,12 @@ function MeinRaumPageContent() {
             showTimetableCounts={showTimetableCounts}
             occupancy={supervisionOccupancy}
             onAddStudent={actions.handleAddUnplannedStudent}
+            onAddPresentStudents={actions.handleAddPresentStudents}
+            presentPickerAutoOpen={
+              actions.presentPickerAutoOpenInstanceId ===
+              currentTimetableRoster.instance.id
+            }
+            onPresentPickerAutoOpened={actions.clearPresentPickerAutoOpen}
             onComplete={actions.handleCompleteTimetableInstance}
             onConfirmExpected={actions.handleConfirmExpectedStudents}
             onRosterAction={actions.handleRosterAction}

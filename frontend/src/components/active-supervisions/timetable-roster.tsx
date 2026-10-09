@@ -1,7 +1,7 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
-import { UserPlus } from "lucide-react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { UserPlus, Users } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -11,6 +11,7 @@ import { FormModal } from "~/components/ui/form-modal";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import { Input } from "~/components/ui/input";
 import { OccupancyBadges } from "~/components/ui/occupancy-badges";
+import { PresentChildrenPicker } from "~/components/active-supervisions/present-children-picker";
 import { SectionCard } from "~/components/ui/section-card";
 import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
 import { useNFCEnabled } from "~/lib/tenant-context";
@@ -545,6 +546,7 @@ interface TimetableRosterHeaderProps {
   readonly toggle?: ReactNode;
   /** Öffnet den Dialog „Kind ungeplant hinzufügen“; fehlt ohne das Recht. */
   readonly onAddStudent?: () => void;
+  readonly onAddPresentStudents?: () => void;
   readonly onComplete: () => Promise<void>;
   readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
 }
@@ -565,6 +567,7 @@ function TimetableRosterHeader({
   extraActions,
   toggle,
   onAddStudent,
+  onAddPresentStudents,
   onComplete,
   onConfirmExpected,
 }: TimetableRosterHeaderProps) {
@@ -591,7 +594,9 @@ function TimetableRosterHeader({
           Knöpfe darunter; ab sm steht der Pfeil hinter den Knöpfen, wie in
           der eingeklappten Karte. */}
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-100 p-4 sm:flex">
-        <div className="flex min-w-0 items-center gap-3">
+        {/* Ab sm hält der Titel seine Mindestbreite: viele Knöpfe brechen
+            um, statt Raum und Uhrzeit abzuschneiden. */}
+        <div className="flex min-w-0 items-center gap-3 sm:min-w-64">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
             <MotoConceptIcon concept="present" size={18} />
           </span>
@@ -630,6 +635,18 @@ function TimetableRosterHeader({
         {toggle ? <div className="sm:order-last">{toggle}</div> : null}
         <div className="col-span-2 flex flex-wrap gap-2 sm:ml-auto sm:justify-end">
           {extraActions}
+          {attendanceWebEnabled && onAddPresentStudents ? (
+            <Button
+              type="button"
+              onClick={onAddPresentStudents}
+              variant="outline"
+              size="md"
+              className="bg-white"
+            >
+              <Users className="h-4 w-4" aria-hidden="true" />
+              Anwesende Kinder
+            </Button>
+          ) : null}
           {attendanceWebEnabled && onAddStudent ? (
             <Button
               type="button"
@@ -886,6 +903,17 @@ interface TimetableRosterContentProps {
    */
   readonly headerToggle?: ReactNode;
   readonly onAddStudent: (studentId: string) => Promise<boolean>;
+  /**
+   * Trägt eine Auswahl der gerade anwesenden Kinder gesammelt ein (#3824).
+   * Ohne ihn fehlt die Kopf-Aktion „Anwesende Kinder“.
+   */
+  readonly onAddPresentStudents?: (studentIds: string[]) => Promise<boolean>;
+  /**
+   * Öffnet die Auswahl „Anwesende Kinder hinzufügen“ einmal von selbst, z. B.
+   * direkt nach dem Start einer spontanen Aktivität.
+   */
+  readonly presentPickerAutoOpen?: boolean;
+  readonly onPresentPickerAutoOpened?: () => void;
   readonly onComplete: () => Promise<void>;
   readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
   readonly onRosterAction: RosterRowActionsProps["onAction"];
@@ -992,6 +1020,9 @@ export function TimetableRosterContent({
   headerActions,
   headerToggle,
   onAddStudent,
+  onAddPresentStudents,
+  presentPickerAutoOpen = false,
+  onPresentPickerAutoOpened,
   onComplete,
   onConfirmExpected,
   onRosterAction,
@@ -1036,6 +1067,14 @@ export function TimetableRosterContent({
     .filter(Boolean)
     .join(" ");
   const [addStudentOpen, setAddStudentOpen] = useState(false);
+  const [presentPickerOpen, setPresentPickerOpen] = useState(false);
+  const presentPickerEnabled =
+    actionsEnabled && canAddUnplanned && onAddPresentStudents !== undefined;
+  useEffect(() => {
+    if (!presentPickerAutoOpen) return;
+    if (presentPickerEnabled) setPresentPickerOpen(true);
+    onPresentPickerAutoOpened?.();
+  }, [presentPickerAutoOpen, presentPickerEnabled, onPresentPickerAutoOpened]);
   const [excuseRow, setExcuseRow] = useState<TimetableRosterRow | null>(null);
   const [isExcusing, setIsExcusing] = useState(false);
   // Mit dem Recht für Teilabwesenheiten fragt „Entschuldigt“ zuerst, ob nur
@@ -1070,6 +1109,16 @@ export function TimetableRosterContent({
     // wird vom gemeinsamen Such-Handler zurückgesetzt.
     onSearchChange("");
   };
+  const closePresentPicker = () => {
+    setPresentPickerOpen(false);
+    // Fehler gehören zu diesem Dialog; der gemeinsame Such-Handler räumt sie.
+    onSearchChange("");
+  };
+  const inBlockStudentIds = new Set(
+    roster.rows
+      .filter((row) => row.currentlyPresent)
+      .map((row) => row.studentId),
+  );
   const all = rosterSections(roster.rows, now, roster.instance.date);
   const { present, expected, arrivingLater, absent, departed, unplanned } = all;
   // The page's search and filters narrow the sections, never the figures in
@@ -1114,6 +1163,9 @@ export function TimetableRosterContent({
         onAddStudent={
           canAddUnplanned ? () => setAddStudentOpen(true) : undefined
         }
+        onAddPresentStudents={
+          presentPickerEnabled ? () => setPresentPickerOpen(true) : undefined
+        }
         summary={{
           absent: absent.length,
           arrivingLater: arrivingLater.length,
@@ -1143,6 +1195,17 @@ export function TimetableRosterContent({
           onAdd={onAddStudent}
           onClose={closeAddStudent}
           onSearchChange={onSearchChange}
+        />
+      ) : null}
+      {presentPickerEnabled && onAddPresentStudents ? (
+        <PresentChildrenPicker
+          isOpen={presentPickerOpen}
+          instanceId={roster.instance.id}
+          inBlockStudentIds={inBlockStudentIds}
+          isAdding={isAddingStudent}
+          error={addStudentError}
+          onAdd={onAddPresentStudents}
+          onClose={closePresentPicker}
         />
       ) : null}
       {actionAccess.absence && onExcuseRestOfDay ? (
