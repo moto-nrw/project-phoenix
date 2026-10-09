@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -189,7 +190,6 @@ func (m *wsMockWorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id
 
 type wsMockStaffWorkScheduleRepository struct {
 	getCurrentByStaffIDFunc        func(ctx context.Context, staffID int64) ([]*WorkScheduleRow, error)
-	getByStaffIDAndDateFunc        func(ctx context.Context, staffID int64, date Date) ([]*WorkScheduleRow, error)
 	replaceScheduleFunc            func(ctx context.Context, staffID int64, entries []*WorkScheduleRow, anchor Date) error
 	replaceScheduleWithValidFromFn func(ctx context.Context, staffID int64, entries []*WorkScheduleRow, anchor, validFrom Date) error
 	findByStaffIDsValidInRangeFunc func(ctx context.Context, staffIDs []int64, from, to Date) ([]*WorkScheduleRow, error)
@@ -199,13 +199,6 @@ type wsMockStaffWorkScheduleRepository struct {
 func (m *wsMockStaffWorkScheduleRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) ([]*WorkScheduleRow, error) {
 	if m.getCurrentByStaffIDFunc != nil {
 		return m.getCurrentByStaffIDFunc(ctx, staffID)
-	}
-	return nil, nil
-}
-
-func (m *wsMockStaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, staffID int64, date Date) ([]*WorkScheduleRow, error) {
-	if m.getByStaffIDAndDateFunc != nil {
-		return m.getByStaffIDAndDateFunc(ctx, staffID, date)
 	}
 	return nil, nil
 }
@@ -281,6 +274,7 @@ type wsMockSettingsResolver struct {
 // The time-tracking questions the work-session service asks.
 const (
 	enforcePlannedStartQuestion    = "enforce planned start"
+	plannedStartToleranceQuestion  = "planned start tolerance minutes"
 	requireDeviationReasonQuestion = "require deviation reason"
 	deviationToleranceQuestion     = "deviation tolerance minutes"
 	timeTrackingRetentionQuestion  = "time tracking retention days"
@@ -305,6 +299,10 @@ func (m *wsMockSettingsResolver) resolveInt(ctx context.Context, key string) (in
 
 func (m *wsMockSettingsResolver) EnforcePlannedStart(ctx context.Context) (bool, error) {
 	return m.resolveBool(ctx, enforcePlannedStartQuestion)
+}
+
+func (m *wsMockSettingsResolver) PlannedStartToleranceMinutes(ctx context.Context) (int, error) {
+	return m.resolveInt(ctx, plannedStartToleranceQuestion)
 }
 
 func (m *wsMockSettingsResolver) RequireDeviationReason(ctx context.Context) (bool, error) {
@@ -784,98 +782,106 @@ func TestWSCheckInAnnouncesTimeTrackingChange(t *testing.T) {
 	assert.Equal(t, int64(42), broadcaster.tenants[0])
 }
 
+// wsPlannedStartSettings switches the planned-start lock (#3825) on with the
+// given tolerance; the F9 reason gate on the same path stays off.
+func wsPlannedStartSettings(toleranceMinutes int) *wsMockSettingsResolver {
+	return &wsMockSettingsResolver{
+		resolveBoolFunc: func(_ context.Context, key string) (bool, error) {
+			return key == enforcePlannedStartQuestion, nil
+		},
+		resolveIntFunc: func(_ context.Context, key string) (int, error) {
+			if key != plannedStartToleranceQuestion {
+				return 0, fmt.Errorf("unexpected int question %q", key)
+			}
+			return toleranceMinutes, nil
+		},
+	}
+}
+
 func TestWSCheckIn_PlannedStartEnforcement(t *testing.T) {
 	t.Parallel()
-	startAt := func(t *testing.T, hhmm string) *time.Time {
-		t.Helper()
-		parsed, err := time.Parse("15:04", hhmm)
-		require.NoError(t, err)
-		wallClock := NormalizeWallClock(parsed)
-		return &wallClock
+	day := NewDate(2026, 7, 6) // Monday
+	at := func(hour, minute int) time.Time {
+		return time.Date(2026, time.July, 6, hour, minute, 0, 0, Berlin)
+	}
+	cancelled := func(shift *TimeTrackingShift) *TimeTrackingShift {
+		shift.Cancelled = true
+		return shift
 	}
 
 	tests := []struct {
 		name          string
 		now           time.Time
-		rows          []*WorkScheduleRow
+		tolerance     int
+		shifts        []*TimeTrackingShift
 		wantErr       bool
-		wantCreate    bool
-		wantPlannedAt string
+		wantOpensAt   string
+		wantCurrentAt string
 	}{
 		{
-			name: "before planned start rejects",
-			now:  time.Date(2026, time.July, 6, 8, 59, 0, 0, Berlin),
-			rows: []*WorkScheduleRow{{
-				WeekIndex:      0,
-				RotationLength: 1,
-				DayOfWeek:      DayMonday,
-				TargetMinutes:  480,
-				StartTime:      startAt(t, "09:00"),
-				ValidFrom:      DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, Berlin)),
-			}},
+			name:          "before the window rejects with the opening time",
+			now:           at(7, 54),
+			tolerance:     5,
+			shifts:        []*TimeTrackingShift{shiftFor(100, day, 8, 16)},
 			wantErr:       true,
-			wantPlannedAt: "09:00",
+			wantOpensAt:   "07:55",
+			wantCurrentAt: "07:54",
 		},
 		{
-			name: "exact planned start allows",
-			now:  time.Date(2026, time.July, 6, 9, 0, 0, 0, Berlin),
-			rows: []*WorkScheduleRow{{
-				WeekIndex:      0,
-				RotationLength: 1,
-				DayOfWeek:      DayMonday,
-				TargetMinutes:  480,
-				StartTime:      startAt(t, "09:00"),
-				ValidFrom:      DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, Berlin)),
-			}},
-			wantCreate: true,
+			name:      "window opening minute allows",
+			now:       at(7, 55),
+			tolerance: 5,
+			shifts:    []*TimeTrackingShift{shiftFor(100, day, 8, 16)},
 		},
 		{
-			name: "after planned start allows",
-			now:  time.Date(2026, time.July, 6, 9, 1, 0, 0, Berlin),
-			rows: []*WorkScheduleRow{{
-				WeekIndex:      0,
-				RotationLength: 1,
-				DayOfWeek:      DayMonday,
-				TargetMinutes:  480,
-				StartTime:      startAt(t, "09:00"),
-				ValidFrom:      DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, Berlin)),
-			}},
-			wantCreate: true,
+			name:      "late arrival is never locked",
+			now:       at(9, 30),
+			tolerance: 5,
+			shifts:    []*TimeTrackingShift{shiftFor(100, day, 8, 16)},
 		},
 		{
-			name:       "no schedule keeps existing behavior",
-			now:        time.Date(2026, time.July, 6, 8, 30, 0, 0, Berlin),
-			rows:       nil,
-			wantCreate: true,
+			name:        "zero tolerance locks until the shift start",
+			now:         at(7, 59),
+			tolerance:   0,
+			shifts:      []*TimeTrackingShift{shiftFor(100, day, 8, 16)},
+			wantErr:     true,
+			wantOpensAt: "08:00",
 		},
 		{
-			name: "schedule without start time keeps existing behavior",
-			now:  time.Date(2026, time.July, 6, 8, 30, 0, 0, Berlin),
-			rows: []*WorkScheduleRow{{
-				WeekIndex:      0,
-				RotationLength: 1,
-				DayOfWeek:      DayMonday,
-				TargetMinutes:  480,
-				ValidFrom:      DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, Berlin)),
-			}},
-			wantCreate: true,
+			name:      "day without a shift is not locked",
+			now:       at(6, 0),
+			tolerance: 5,
+			shifts:    nil,
+		},
+		{
+			name:      "day with only cancelled shifts is not locked",
+			now:       at(6, 0),
+			tolerance: 5,
+			shifts:    []*TimeTrackingShift{cancelled(shiftFor(100, day, 8, 16))},
+		},
+		{
+			name:        "earliest active shift is the reference, cancelled ones are skipped",
+			now:         at(10, 0),
+			tolerance:   5,
+			shifts:      []*TimeTrackingShift{cancelled(shiftFor(100, day, 8, 12)), shiftFor(100, day, 15, 17), shiftFor(100, day, 13, 14)},
+			wantErr:     true,
+			wantOpensAt: "12:55",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			svc, sessionRepo, _, _, _ := wsCreateTestService()
 			svc.nowFunc = func() time.Time { return tt.now }
-			svc.settings = &wsMockSettingsResolver{resolveBoolFunc: func(_ context.Context, key string) (bool, error) {
-				assert.Equal(t, enforcePlannedStartQuestion, key)
-				return true, nil
-			}}
-			svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
-				getByStaffIDAndDateFunc: func(_ context.Context, _ int64, _ Date) ([]*WorkScheduleRow, error) {
-					return tt.rows, nil
+			svc.settings = wsPlannedStartSettings(tt.tolerance)
+			svc.staffShiftRepo = &wsMockStaffShiftRepository{
+				findByStaffIDsAndDateFunc: func(_ context.Context, staffIDs []int64, date Date) ([]*TimeTrackingShift, error) {
+					assert.Equal(t, []int64{100}, staffIDs)
+					assert.Equal(t, day, date)
+					return tt.shifts, nil
 				},
 			}
-
 			sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ Date) ([]*WorkSession, error) {
 				return nil, nil
 			}
@@ -890,18 +896,98 @@ func TestWSCheckIn_PlannedStartEnforcement(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Nil(t, session)
-				var plannedErr *PlannedStartNotReachedError
-				require.ErrorAs(t, err, &plannedErr)
-				assert.Equal(t, tt.wantPlannedAt, plannedErr.PlannedStartTime)
+				plannedErr, ok := errors.AsType[*PlannedStartNotReachedError](err)
+				require.True(t, ok, "want PlannedStartNotReachedError, got %v", err)
+				assert.Equal(t, tt.wantOpensAt, plannedErr.PlannedStartTime)
+				if tt.wantCurrentAt != "" {
+					assert.Equal(t, tt.wantCurrentAt, plannedErr.CurrentTime)
+				}
 				assert.False(t, created, "early check-in must not create a work session")
 				return
 			}
 
 			require.NoError(t, err)
 			require.NotNil(t, session)
-			assert.Equal(t, tt.wantCreate, created)
+			assert.True(t, created)
 		})
 	}
+}
+
+func TestWSCheckIn_PlannedStartLockSkipsLaterBlocksOfTheDay(t *testing.T) {
+	t.Parallel()
+	day := NewDate(2026, 7, 6)
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return time.Date(2026, time.July, 6, 7, 0, 0, 0, Berlin) }
+	svc.settings = wsPlannedStartSettings(5)
+	svc.staffShiftRepo = &wsMockStaffShiftRepository{
+		findByStaffIDsAndDateFunc: func(context.Context, []int64, Date) ([]*TimeTrackingShift, error) {
+			t.Fatal("a later block of the day must not consult the shift plan")
+			return nil, nil
+		},
+	}
+	checkOut := time.Date(2026, time.July, 6, 6, 30, 0, 0, Berlin)
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ Date) ([]*WorkSession, error) {
+		return []*WorkSession{{
+			StaffID:      100,
+			Date:         day,
+			CheckInTime:  time.Date(2026, time.July, 6, 6, 0, 0, 0, Berlin),
+			CheckOutTime: &checkOut,
+		}}, nil
+	}
+	sessionRepo.createFunc = func(_ context.Context, entity *WorkSession) error {
+		entity.ID = 11
+		return nil
+	}
+
+	session, err := svc.CheckIn(context.Background(), 100, WorkSessionStatusPresent, WorkSessionSourceApp, "")
+	require.NoError(t, err)
+	require.NotNil(t, session)
+}
+
+func TestWSCheckIn_PlannedStartLockOffIgnoresShifts(t *testing.T) {
+	t.Parallel()
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return time.Date(2026, time.July, 6, 5, 0, 0, 0, Berlin) }
+	svc.settings = &wsMockSettingsResolver{}
+	svc.staffShiftRepo = &wsMockStaffShiftRepository{
+		findByStaffIDsAndDateFunc: func(context.Context, []int64, Date) ([]*TimeTrackingShift, error) {
+			t.Fatal("with the lock off the shift plan must not be read")
+			return nil, nil
+		},
+	}
+	sessionRepo.createFunc = func(_ context.Context, entity *WorkSession) error {
+		entity.ID = 12
+		return nil
+	}
+
+	_, err := svc.CheckIn(context.Background(), 100, WorkSessionStatusPresent, WorkSessionSourceApp, "")
+	require.NoError(t, err)
+}
+
+func TestWSCheckIn_PlannedStartToleranceErrorFailsTheStamp(t *testing.T) {
+	t.Parallel()
+	day := NewDate(2026, 7, 6)
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return time.Date(2026, time.July, 6, 7, 0, 0, 0, Berlin) }
+	resolveErr := errors.New("settings store down")
+	svc.settings = &wsMockSettingsResolver{
+		resolveBoolFunc: func(_ context.Context, key string) (bool, error) {
+			return key == enforcePlannedStartQuestion, nil
+		},
+		resolveIntFunc: func(context.Context, string) (int, error) { return 0, resolveErr },
+	}
+	svc.staffShiftRepo = &wsMockStaffShiftRepository{
+		findByStaffIDsAndDateFunc: func(context.Context, []int64, Date) ([]*TimeTrackingShift, error) {
+			return []*TimeTrackingShift{shiftFor(100, day, 8, 16)}, nil
+		},
+	}
+	sessionRepo.createFunc = func(context.Context, *WorkSession) error {
+		t.Fatal("a failed tolerance lookup must not create a work session")
+		return nil
+	}
+
+	_, err := svc.CheckIn(context.Background(), 100, WorkSessionStatusPresent, WorkSessionSourceApp, "")
+	require.ErrorIs(t, err, resolveErr)
 }
 
 func TestWSCreateSessionAsAdmin_IgnoresPlannedStartEnforcement(t *testing.T) {

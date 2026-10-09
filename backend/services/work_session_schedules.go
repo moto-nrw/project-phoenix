@@ -17,7 +17,6 @@ import (
 // contract the schedule port is served from.
 type WorkSessionScheduleRecords interface {
 	GetCurrentByStaffID(context.Context, int64) ([]*config.StaffWorkSchedule, error)
-	GetByStaffIDAndDate(context.Context, int64, config.CalendarDate) ([]*config.StaffWorkSchedule, error)
 	FindByStaffIDsValidInRange(context.Context, []int64, config.CalendarDate, config.CalendarDate) ([]*config.StaffWorkSchedule, error)
 	ReplaceSchedule(context.Context, int64, []*config.StaffWorkSchedule, config.CalendarDate) error
 	ReplaceScheduleWithValidFrom(context.Context, int64, []*config.StaffWorkSchedule, config.CalendarDate, config.CalendarDate) error
@@ -31,11 +30,6 @@ func NewWorkSessionSchedules(records WorkSessionScheduleRecords) *WorkSessionSch
 
 func (r *WorkSessionSchedules) GetCurrentByStaffID(ctx context.Context, staffID int64) ([]*timetracking.WorkScheduleRow, error) {
 	rows, err := r.records.GetCurrentByStaffID(ctx, staffID)
-	return workScheduleRows(rows), err
-}
-
-func (r *WorkSessionSchedules) GetByStaffIDAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*timetracking.WorkScheduleRow, error) {
-	rows, err := r.records.GetByStaffIDAndDate(ctx, staffID, config.CalendarDate(date))
 	return workScheduleRows(rows), err
 }
 
