@@ -185,6 +185,40 @@ describe("TagesplanView", () => {
     expect(push).toHaveBeenCalledWith("/active-supervisions?session=91");
   });
 
+  // #3921: Flos Abend-Rundgang zeigte „Kreativraum · 41 von 0 da“ an einem
+  // spontanen Block, der um 20:32 noch „bis 16:16“ lief.
+  it("counts a spontaneous block by who is there and shows no invented end", () => {
+    setSWR({
+      data: [
+        makeInstance({
+          id: "4",
+          title: "Basteln",
+          roomName: "Kreativraum",
+          status: "active",
+          activeGroupId: "92",
+          isSpontaneous: true,
+          startTime: "15:16",
+          endTime: "16:16",
+          expectedStudentsCount: 0,
+          presentStudentsCount: 41,
+          currentStudentsCount: 13,
+          plannedStudentsCount: 0,
+        }),
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<TagesplanView />);
+
+    expect(
+      screen.getByText(/Kreativraum · 13 da · 28 gegangen/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/von 0 da/)).not.toBeInTheDocument();
+    expect(screen.getByText("Ende offen")).toBeInTheDocument();
+    expect(screen.queryByText("bis 16:16")).not.toBeInTheDocument();
+  });
+
   it("starts an own planned block via the existing start flow and jumps to its list", async () => {
     vi.mocked(timetableOperationsApi.start).mockResolvedValue({
       instanceId: "4",

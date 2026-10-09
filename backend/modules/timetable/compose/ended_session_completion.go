@@ -29,6 +29,7 @@ import (
 type EndedSessionInstances interface {
 	List(ctx context.Context, options *ActivityInstanceQueryOptions) ([]*scheduleModels.ActivityInstance, error)
 	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
+	UpdateColumns(ctx context.Context, instance *scheduleModels.ActivityInstance, columns ...string) (int64, error)
 }
 
 // EndedSessionParticipants is the slice of the retained participant
@@ -81,7 +82,38 @@ func (c *endedSessionCompletion) CompleteActiveByActiveGroupIDs(ctx context.Cont
 	if err := c.deps.Participants.MarkExpectedAbsentByActiveGroupIDs(ctx, activeGroupIDs, completedAt, notScheduled); err != nil {
 		return 0, fmt.Errorf("complete bridged instances: mark absent: %w", err)
 	}
-	return c.deps.Instances.CompleteActiveByActiveGroupIDs(ctx, activeGroupIDs, completedAt)
+	completed, err := c.deps.Instances.CompleteActiveByActiveGroupIDs(ctx, activeGroupIDs, completedAt)
+	if err != nil {
+		return 0, err
+	}
+	if err := c.recordSpontaneousEnds(ctx, activeGroupIDs, completedAt); err != nil {
+		return 0, err
+	}
+	return completed, nil
+}
+
+// recordSpontaneousEnds gives the spontaneous blocks behind the ended
+// sessions their real end (#3921). Kiosk sessions end here, by the kiosk,
+// the timeout or the nightly close, and their mirrored block's end is only
+// the placeholder hour the mirror wrote.
+func (c *endedSessionCompletion) recordSpontaneousEnds(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) error {
+	instances, err := c.deps.Instances.List(ctx, &modelBase.QueryOptions{
+		Filter: modelBase.NewFilter().In("active_group_id", int64Args(activeGroupIDs)...),
+	})
+	if err != nil {
+		return fmt.Errorf("complete bridged instances: load spontaneous blocks: %w", err)
+	}
+	for _, instance := range instances {
+		end, ok := spontaneousCompletionEnd(instance, completedAt)
+		if !ok {
+			continue
+		}
+		instance.EndTime = end
+		if _, err := c.deps.Instances.UpdateColumns(ctx, instance, "end_time"); err != nil {
+			return fmt.Errorf("complete bridged instances: record spontaneous end: %w", err)
+		}
+	}
+	return nil
 }
 
 // notScheduledForEndedSessions collects the (instance, student) pairs whose

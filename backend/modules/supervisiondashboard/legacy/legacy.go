@@ -410,6 +410,9 @@ func plannedInstance(instance timetable.OperationPlannedInstance) supervisiondas
 		ExpectedStudentsCount: instance.ExpectedStudentsCount,
 		PresentStudentsCount:  instance.PresentStudentsCount,
 		NotScheduledCount:     instance.NotScheduledCount,
+		CurrentStudentsCount:  instance.CurrentStudentsCount,
+		PlannedStudentsCount:  instance.PlannedStudentsCount,
+		IsSpontaneous:         instance.IsSpontaneous,
 		AssignedStaffIDs:      instance.AssignedStaffIDs,
 		IsAssigned:            instance.IsAssigned,
 		IsPrimary:             instance.IsPrimary,
@@ -435,13 +438,8 @@ func plannedInstance(instance timetable.OperationPlannedInstance) supervisiondas
 
 func rosterRow(row timetable.OperationRosterRow) supervisiondashboard.RosterRow {
 	var parallel *supervisiondashboard.ParallelPresence
-	if row.ParallelPresentIn != nil {
-		parallel = &supervisiondashboard.ParallelPresence{
-			InstanceID: row.ParallelPresentIn.InstanceID,
-			Title:      row.ParallelPresentIn.Title,
-			StartTime:  row.ParallelPresentIn.StartTime,
-			EndTime:    row.ParallelPresentIn.EndTime,
-		}
+	if in := row.ParallelPresentIn; in != nil {
+		parallel = &supervisiondashboard.ParallelPresence{InstanceID: in.InstanceID, Title: in.Title, StartTime: in.StartTime, EndTime: in.EndTime}
 	}
 	return supervisiondashboard.RosterRow{
 		StudentID:        row.StudentID,

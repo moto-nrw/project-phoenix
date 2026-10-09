@@ -113,6 +113,9 @@ type enrichedInstance struct {
 	CancelReason          *string                  `json:"cancel_reason,omitempty"`
 	ExpectedStudentsCount int                      `json:"expected_students_count"`
 	PresentStudentsCount  int                      `json:"present_students_count"`
+	// CurrentStudentsCount is the children still there: present and not
+	// checked out. PresentStudentsCount keeps the ones who left (#3921).
+	CurrentStudentsCount int `json:"current_students_count"`
 	// Occupancy pairs the template's Teilnehmergrenze with the children still
 	// there; nil without a limit (#3634).
 	Occupancy         *instanceOccupancy `json:"occupancy,omitempty"`
@@ -429,6 +432,7 @@ func (rs *Resource) enrichInstance(
 		CancelReason:           inst.CancelReason,
 		ExpectedStudentsCount:  attendance.expected,
 		PresentStudentsCount:   attendance.present,
+		CurrentStudentsCount:   attendance.current,
 		Occupancy:              newInstanceOccupancy(metadata.ParticipantLimit, attendance.current),
 		EmptyRosterReason:      rs.resolveEmptyRosterReason(ctx, inst, metadata, studentRows, offeringSourceCache),
 		NotScheduledCount:      attendance.notScheduled,

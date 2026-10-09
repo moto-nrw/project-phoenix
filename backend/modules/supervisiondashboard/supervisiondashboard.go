@@ -140,37 +140,42 @@ type ActiveSession struct {
 
 // PlannedInstance mirrors the Timetable owner's planned-now row on the wire.
 type PlannedInstance struct {
-	ID                    int64             `json:"id"`
-	Title                 string            `json:"title"`
-	Date                  string            `json:"date"`
-	StartTime             string            `json:"start_time"`
-	EndTime               string            `json:"end_time"`
-	RoomID                int64             `json:"room_id"`
-	RoomName              *string           `json:"room_name,omitempty"`
-	Status                string            `json:"status"`
-	IsOverdue             bool              `json:"is_overdue"`
-	MinutesUntilStart     int               `json:"minutes_until_start"`
-	ExpectedStudentsCount int               `json:"expected_students_count"`
-	PresentStudentsCount  int               `json:"present_students_count"`
-	NotScheduledCount     int               `json:"not_scheduled_students_count"`
-	AssignedStaffIDs      []int64           `json:"assigned_staff_ids"`
-	IsAssigned            bool              `json:"is_assigned"`
-	IsPrimary             bool              `json:"is_primary"`
-	IsSubstitute          bool              `json:"is_substitute"`
-	IsAbsent              bool              `json:"is_absent"`
-	RosterPreview         []RosterRow       `json:"roster_preview,omitempty"`
-	PickupTimesLoaded     bool              `json:"pickup_times_loaded"`
-	PickupTimesRedacted   bool              `json:"pickup_times_redacted,omitempty"`
-	Warnings              []ConflictWarning `json:"warnings"`
-	CanStart              bool              `json:"can_start"`
-	StartAvailableAt      string            `json:"start_available_at"`
-	StartExpiresAt        string            `json:"start_expires_at"`
-	ActiveGroupID         *int64            `json:"active_group_id,omitempty"`
-	CancelReason          *string           `json:"cancel_reason,omitempty"`
-	PlanningTrackName     *string           `json:"planning_track_name,omitempty"`
-	PlanningTrackColor    *string           `json:"planning_track_color,omitempty"`
-	GroupName             *string           `json:"group_name,omitempty"`
-	StaffNames            []StaffName       `json:"staff_names,omitempty"`
+	ID                    int64   `json:"id"`
+	Title                 string  `json:"title"`
+	Date                  string  `json:"date"`
+	StartTime             string  `json:"start_time"`
+	EndTime               string  `json:"end_time"`
+	RoomID                int64   `json:"room_id"`
+	RoomName              *string `json:"room_name,omitempty"`
+	Status                string  `json:"status"`
+	IsOverdue             bool    `json:"is_overdue"`
+	MinutesUntilStart     int     `json:"minutes_until_start"`
+	ExpectedStudentsCount int     `json:"expected_students_count"`
+	PresentStudentsCount  int     `json:"present_students_count"`
+	NotScheduledCount     int     `json:"not_scheduled_students_count"`
+	// CurrentStudentsCount is the children still there; PresentStudentsCount
+	// keeps the ones who left (#3921).
+	CurrentStudentsCount int               `json:"current_students_count"`
+	PlannedStudentsCount int               `json:"planned_students_count"`
+	IsSpontaneous        bool              `json:"is_spontaneous"`
+	AssignedStaffIDs     []int64           `json:"assigned_staff_ids"`
+	IsAssigned           bool              `json:"is_assigned"`
+	IsPrimary            bool              `json:"is_primary"`
+	IsSubstitute         bool              `json:"is_substitute"`
+	IsAbsent             bool              `json:"is_absent"`
+	RosterPreview        []RosterRow       `json:"roster_preview,omitempty"`
+	PickupTimesLoaded    bool              `json:"pickup_times_loaded"`
+	PickupTimesRedacted  bool              `json:"pickup_times_redacted,omitempty"`
+	Warnings             []ConflictWarning `json:"warnings"`
+	CanStart             bool              `json:"can_start"`
+	StartAvailableAt     string            `json:"start_available_at"`
+	StartExpiresAt       string            `json:"start_expires_at"`
+	ActiveGroupID        *int64            `json:"active_group_id,omitempty"`
+	CancelReason         *string           `json:"cancel_reason,omitempty"`
+	PlanningTrackName    *string           `json:"planning_track_name,omitempty"`
+	PlanningTrackColor   *string           `json:"planning_track_color,omitempty"`
+	GroupName            *string           `json:"group_name,omitempty"`
+	StaffNames           []StaffName       `json:"staff_names,omitempty"`
 }
 
 // StaffName is one assigned staff member on a planned block.

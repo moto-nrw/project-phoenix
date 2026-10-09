@@ -248,6 +248,9 @@ func (s *operations) mapPlannedInstance(candidate plannedNowCandidate, now time.
 		ExpectedStudentsCount: counts.expected,
 		PresentStudentsCount:  counts.present,
 		NotScheduledCount:     counts.notScheduled,
+		CurrentStudentsCount:  counts.current,
+		PlannedStudentsCount:  counts.planned,
+		IsSpontaneous:         inst.IsSpontaneous,
 		Warnings:              []timetable.InstanceConflictWarning{},
 		ActiveGroupID:         inst.ActiveGroupID,
 		CancelReason:          inst.CancelReason,
@@ -272,8 +275,12 @@ func applyPlannedStaff(mapped *timetable.OperationPlannedInstance, staffRows []*
 	}
 }
 
+// plannedAttendanceCounts keeps present (everyone who came, including the
+// children who already left) apart from current (still there) and planned
+// (the block's own children of the day, walk-ins excluded): "X von Y da"
+// reads current of planned, never present of expected (#3921).
 type plannedAttendanceCounts struct {
-	expected, present, notScheduled int
+	expected, present, notScheduled, current, planned int
 }
 
 // plannedAttendanceCounts counts the day's children. An assignment alone
@@ -294,8 +301,15 @@ func (s *operations) plannedAttendanceCounts(inst *scheduleModels.ActivityInstan
 				continue
 			}
 			counts.expected++
+			counts.planned++
 		case scheduleModels.AttendanceStatusPresent:
 			counts.present++
+			if row.CheckedOutAt == nil {
+				counts.current++
+			}
+			if !row.IsUnplanned {
+				counts.planned++
+			}
 		case scheduleModels.AttendanceStatusAbsent:
 			if verdict == timetable.CareDayNotScheduled {
 				counts.notScheduled++

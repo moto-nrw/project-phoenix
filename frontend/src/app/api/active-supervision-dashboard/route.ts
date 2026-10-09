@@ -115,6 +115,7 @@ interface WirePlannedInstance {
   expected_students_count: number;
   present_students_count: number;
   not_scheduled_students_count?: number;
+  current_students_count?: number;
   assigned_staff_ids: number[];
   is_assigned?: boolean;
   is_primary?: boolean;
@@ -361,6 +362,8 @@ interface ActiveSupervisionDashboardResponse {
     expectedStudentsCount: number;
     presentStudentsCount: number;
     notScheduledStudentsCount: number;
+    /** Kinder, die gerade da sind; ohne die Gegangenen (#3921). */
+    currentStudentsCount?: number;
     assignedStaffIds: string[];
     isAssigned: boolean;
     isPrimary: boolean;
@@ -525,6 +528,9 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
       expectedStudentsCount: i.expected_students_count,
       presentStudentsCount: i.present_students_count,
       notScheduledStudentsCount: i.not_scheduled_students_count ?? 0,
+      ...(i.current_students_count === undefined
+        ? {}
+        : { currentStudentsCount: i.current_students_count }),
       assignedStaffIds: (i.assigned_staff_ids ?? []).map(String),
       isAssigned: i.is_assigned ?? false,
       isPrimary: i.is_primary ?? false,

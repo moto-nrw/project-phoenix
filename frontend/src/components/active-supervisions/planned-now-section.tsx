@@ -265,9 +265,9 @@ export function PlannedNowSection({
                           />
                           <SlotStat
                             label="Anwesend"
-                            value={instance.presentStudentsCount}
+                            value={instance.currentStudentsCount ?? 0}
                             tone={
-                              instance.presentStudentsCount > 0
+                              (instance.currentStudentsCount ?? 0) > 0
                                 ? "success"
                                 : "neutral"
                             }
