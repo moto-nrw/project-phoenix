@@ -58,14 +58,14 @@ func TestCreateStudent_WithSchedules(t *testing.T) {
 		Where("student_id = ?", resp.Data.ID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 2, arrivalCount, "expected two weekly arrival schedules")
+	assert.Equal(t, 2, int(arrivalCount), "expected two weekly arrival schedules")
 
 	pickupCount, err := tc.db.NewSelect().
 		TableExpr("schedule.student_pickup_schedules").
 		Where("student_id = ?", resp.Data.ID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 2, pickupCount, "expected two weekly pickup schedules")
+	assert.Equal(t, 2, int(pickupCount), "expected two weekly pickup schedules")
 
 	// Spot-check the persisted values: the time and notes mapped through, not
 	// silently dropped.
@@ -137,7 +137,7 @@ func TestCreateStudent_InvalidScheduleTimeRejected(t *testing.T) {
 		Where("first_name = ? AND last_name = ?", firstName, lastName).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, personCount, "person must not persist when schedule validation fails (Bind rejects before any write)")
+	assert.Equal(t, int64(0), personCount, "person must not persist when schedule validation fails (Bind rejects before any write)")
 }
 
 // TestCreateStudent_WithSchedulesRequiresUsersUpdate pins the permission split:
@@ -175,7 +175,7 @@ func TestCreateStudent_WithSchedulesRequiresUsersUpdate(t *testing.T) {
 		Where("first_name = ? AND last_name = ?", firstName, lastName).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, personCount, "student/person must not persist when schedule permission is missing")
+	assert.Equal(t, int64(0), personCount, "student/person must not persist when schedule permission is missing")
 }
 
 // TestCreateStudent_GuardianFailureRollsBackSchedules verifies the combined
@@ -258,7 +258,7 @@ func TestCreateStudent_GuardianFailureRollsBackSchedules(t *testing.T) {
 		Where("first_name = ? AND last_name = ?", firstName, lastName).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, personCount, "person must not persist when the guardian fails (transaction must roll back)")
+	assert.Equal(t, int64(0), personCount, "person must not persist when the guardian fails (transaction must roll back)")
 
 	// Schedules FK to the student; assert none leaked by joining back to the
 	// would-be person name. Catches any regression where schedules are written
@@ -273,14 +273,14 @@ func TestCreateStudent_GuardianFailureRollsBackSchedules(t *testing.T) {
 		Where("student_id IN (?)", studentSubquery).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, arrivalCount, "arrival schedules must not survive a rolled-back create")
+	assert.Equal(t, int64(0), arrivalCount, "arrival schedules must not survive a rolled-back create")
 
 	pickupCount, err := tc.db.NewSelect().
 		TableExpr("schedule.student_pickup_schedules").
 		Where("student_id IN (?)", studentSubquery).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, pickupCount, "pickup schedules must not survive a rolled-back create")
+	assert.Equal(t, int64(0), pickupCount, "pickup schedules must not survive a rolled-back create")
 }
 
 // TestCreateStudent_InvalidPickupTimeRejected is the pickup counterpart to
@@ -339,7 +339,7 @@ func TestCreateStudent_InvalidPickupTimeRejected(t *testing.T) {
 		Where("first_name = ? AND last_name = ?", firstName, lastName).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, personCount, "person must not persist when pickup validation fails (Bind rejects before any write)")
+	assert.Equal(t, int64(0), personCount, "person must not persist when pickup validation fails (Bind rejects before any write)")
 }
 
 // TestCreateStudent_SchedulesNonStaffAccountForbidden pins the staff-resolution
@@ -382,5 +382,5 @@ func TestCreateStudent_SchedulesNonStaffAccountForbidden(t *testing.T) {
 		Where("first_name = ? AND last_name = ?", firstName, lastName).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, personCount, "student/person must not persist when staff resolution fails")
+	assert.Equal(t, int64(0), personCount, "student/person must not persist when staff resolution fails")
 }

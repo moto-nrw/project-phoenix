@@ -42,13 +42,13 @@ func TestStoreScopesReadsAndDeletesWithoutRLS(t *testing.T) {
 	_, err = store.ClearDay(context.Background(), date)
 	require.NoError(t, err)
 
-	var remaining int
+	var remaining int64
 	remaining, err = db.NewSelect().Model((*row)(nil)).
 		ModelTableExpr(`schedule.meal_plan_entries AS "meal_plan_entry"`).
 		Where(`"meal_plan_entry".date = ?`, date).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 1, remaining)
+	assert.Equal(t, 1, int(remaining))
 
 	var survivor row
 	err = db.NewSelect().Model(&survivor).

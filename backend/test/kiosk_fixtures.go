@@ -185,7 +185,7 @@ func CountOpenActiveGroupsInRoom(tb testing.TB, db *bun.DB, roomID int64) int {
 	count, err := db.NewSelect().TableExpr(`active.groups AS "group"`).
 		Where(`"group".room_id = ?`, roomID).Where(`"group".end_time IS NULL`).Count(ctx)
 	require.NoError(tb, err, "failed to count open active groups in room %d", roomID)
-	return count
+	return int(count)
 }
 
 // ActiveGroupLastActivity reads the heartbeat of a session.

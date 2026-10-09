@@ -1398,7 +1398,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 			Where(`"guardian_financial_change".new_value = ?`, "false").
 			Count(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, 1, count, "removing a payer relationship must be audited")
+		assert.Equal(t, 1, int(count), "removing a payer relationship must be audited")
 	})
 
 	t.Run("refuses to unlink the payer without the financial permission", func(t *testing.T) {
@@ -1432,7 +1432,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 			Where(`"guardian_financial_change".new_value = ?`, "false").
 			Count(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, 0, count, "a refused unlink must not leave a payer-removed audit row")
+		assert.Equal(t, int64(0), count, "a refused unlink must not leave a payer-removed audit row")
 	})
 
 	t.Run("unlinks a guardian who is not the payer without the financial permission", func(t *testing.T) {

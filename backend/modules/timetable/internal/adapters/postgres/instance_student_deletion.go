@@ -21,7 +21,7 @@ func (s *Store) CountStudentAssignments(ctx context.Context, studentID int64) (i
 	if err != nil {
 		return 0, stats, fmt.Errorf("timetable postgres: count student assignments: %w", err)
 	}
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 func (s *Store) CountStudentRosterRemovals(ctx context.Context, studentID int64) (int, domain.OperationStats, error) {
@@ -37,7 +37,7 @@ func (s *Store) CountStudentRosterRemovals(ctx context.Context, studentID int64)
 	if err != nil {
 		return 0, stats, fmt.Errorf("timetable postgres: count student roster removals: %w", err)
 	}
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 func (s *Store) DeleteStudentAssignments(ctx context.Context, studentID int64) (domain.OperationStats, error) {

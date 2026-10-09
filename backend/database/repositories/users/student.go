@@ -55,7 +55,7 @@ func (r *StudentRepository) CountWithOptions(ctx context.Context, options *users
 	if err != nil {
 		return 0, &users.DatabaseError{Op: "count with options", Err: err}
 	}
-	return count, nil
+	return int(count), nil
 }
 
 func (r *StudentRepository) BindTeacherGroupIDs(query func(context.Context, int64) ([]int64, error)) {

@@ -120,7 +120,7 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 				Where("section = ?", testpkg.AuditStammdatenSectionSchoolClasses).
 				Count(ctx)
 			require.NoError(t, err)
-			return count
+			return int(count)
 		}
 
 		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a"}, actor.ID))

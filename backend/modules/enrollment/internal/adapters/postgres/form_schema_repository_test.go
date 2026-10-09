@@ -486,7 +486,7 @@ func TestFormSchemaRepository_DeleteUnusedSchema_RemovesEveryVersion(t *testing.
 		Where("tenant_id = ? AND name = ?", tenantID, name).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 0, count, "DeleteUnusedSchema must drop every version of the name")
+	assert.Equal(t, int64(0), count, "DeleteUnusedSchema must drop every version of the name")
 
 	// Survivor is intact.
 	count, err = db.NewSelect().
@@ -494,7 +494,7 @@ func TestFormSchemaRepository_DeleteUnusedSchema_RemovesEveryVersion(t *testing.
 		Where("tenant_id = ? AND name = ?", tenantID, survivor.Name).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 1, count, "different-name rows must survive")
+	assert.Equal(t, 1, int(count), "different-name rows must survive")
 }
 
 func TestFormSchemaRepository_DeleteUnusedSchema_MissingSchemaErrors(t *testing.T) {
@@ -682,14 +682,14 @@ func TestFormSchemaRepository_RenameSchema_RenamesEveryVersion(t *testing.T) {
 		Where("tenant_id = ? AND name = ?", tenantID, newName).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 3, count, "RenameSchema must rename every version of the lineage")
+	assert.Equal(t, 3, int(count), "RenameSchema must rename every version of the lineage")
 
 	count, err = db.NewSelect().
 		TableExpr("enrollment.form_schemas").
 		Where("tenant_id = ? AND name = ?", tenantID, oldName).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 0, count, "no row may keep the old name")
+	assert.Equal(t, int64(0), count, "no row may keep the old name")
 
 	// Survivor under a different name is unaffected.
 	count, err = db.NewSelect().
@@ -697,7 +697,7 @@ func TestFormSchemaRepository_RenameSchema_RenamesEveryVersion(t *testing.T) {
 		Where("tenant_id = ? AND name = ?", tenantID, survivor.Name).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 1, count, "rows under other names must not be touched")
+	assert.Equal(t, 1, int(count), "rows under other names must not be touched")
 }
 
 func TestFormSchemaRepository_RenameSchema_MissingSchemaErrors(t *testing.T) {

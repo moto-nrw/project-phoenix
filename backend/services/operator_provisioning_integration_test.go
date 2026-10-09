@@ -93,7 +93,7 @@ func countOperatorAudit(t *testing.T, db *bun.DB, action, resourceType string, r
 		Where("resource_id = ?", resourceID).
 		Count(testpkg.Ctx(t))
 	require.NoError(t, err)
-	return count
+	return int(count)
 }
 
 // =============================================================================
@@ -760,7 +760,7 @@ func TestOperatorProvisioningIntegration_CreateSchoolAccount_BuildsIdentityChain
 		Where("tenant_id = ?", schoolID).
 		Count(dbCtx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, membership, "account must be a member of the school")
+	assert.Equal(t, 1, int(membership), "account must be a member of the school")
 
 	var person struct {
 		ID        int64  `bun:"id"`
@@ -782,7 +782,7 @@ func TestOperatorProvisioningIntegration_CreateSchoolAccount_BuildsIdentityChain
 		Where("person_id = ?", person.ID).
 		Count(dbCtx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, staffCount, "admin account must get a staff record")
+	assert.Equal(t, 1, int(staffCount), "admin account must get a staff record")
 
 	accounts, err := service.ListSchoolAccounts(ctx, schoolID)
 	require.NoError(t, err)
@@ -865,7 +865,7 @@ func TestOperatorProvisioningIntegration_CreateSchoolAccount_FailedIdentityLeave
 	require.NoError(t, err)
 	assert.Zero(t, accounts, "the registered account must roll back")
 
-	var audited int
+	var audited int64
 	audited, err = db.NewSelect().
 		TableExpr("platform.operator_audit_log").
 		Where("operator_id = ?", operatorID).

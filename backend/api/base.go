@@ -769,7 +769,7 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL,
 	defer func() {
 		resultErr = errors.Join(resultErr, buildResources.close())
 	}()
-	db.AddQueryHook(database.NewLockWaitQueryHook(services.ObserveUnitOfWorkLockWait))
+	db.AddQueryHook(database.NewLockWaitQueryHook(services.ObserveUnitOfWorkLockWait)) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
 	postgresUnitOfWork, err := database.NewPostgresUnitOfWork(db, services.ObserveUnitOfWorkPoolWait)
 	if err != nil {
 		return nil, err
@@ -793,7 +793,7 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL,
 	}
 
 	if viper.GetBool("db_debug") {
-		db.AddQueryHook(database.NewQueryHook(logger.With("component", "database")))
+		db.AddQueryHook(database.NewQueryHook(logger.With("component", "database"))) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
 	}
 
 	// Compose one authoritative instance of each migrated module.

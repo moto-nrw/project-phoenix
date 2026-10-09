@@ -3758,7 +3758,7 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *te
 		Where(`"student_enrollment".valid_from = ?`, result.Phase.ServiceStartDate).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, count,
+	assert.Equal(t, 1, int(count),
 		"rollover approval must materialize the copied source-phase offering for the target phase window")
 
 	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentAPI.UpdateChildOfferingsInput{

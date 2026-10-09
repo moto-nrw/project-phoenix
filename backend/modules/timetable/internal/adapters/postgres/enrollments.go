@@ -73,7 +73,7 @@ func filterStudentEnrollments(query *bun.SelectQuery, filter domain.StudentEnrol
 		query = query.OrderExpr(`"student_enrollment".valid_from DESC`)
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit).Offset(filter.Offset)
+		query = query.Limit(int64(filter.Limit)).Offset(int64(filter.Offset))
 	}
 	return query
 }

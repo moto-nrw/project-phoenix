@@ -504,7 +504,7 @@ func TestTimetableCleanupRollbackUndoesEverything(t *testing.T) {
 		Where("tenant_id = ? AND student_id = ? AND deletion_type = 'timetable_retention'", testpkg.Tenant(t), student).
 		Count(f.ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, audits, "rollback must undo audit rows — otherwise the compliance log lies about deleted data")
+	assert.Equal(t, int64(0), audits, "rollback must undo audit rows — otherwise the compliance log lies about deleted data")
 }
 
 func TestNewTimetableCleanupRequiresTheOwner(t *testing.T) {

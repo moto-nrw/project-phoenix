@@ -67,7 +67,7 @@ func filterInstanceStaff(query *bun.SelectQuery, filter domain.InstanceStaffFilt
 	query = filterInstanceStaffDates(query, filter)
 	query = orderInstanceStaff(query, filter)
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit).Offset(filter.Offset)
+		query = query.Limit(int64(filter.Limit)).Offset(int64(filter.Offset))
 	}
 	return query
 }
