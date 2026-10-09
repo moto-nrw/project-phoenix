@@ -717,8 +717,10 @@ func seedOfferingPlanningTemplate(rt *Runtime, offeringID int64) error {
 		"target_group_type": "angebot", "source_care_offering_ids": []int64{offeringID},
 		"weekdays": []int{1, 2, 3, 4, 5}, "start_time": "12:00", "end_time": "13:00",
 		"room_id": roomID, "category_id": categoryID, "week_pattern": 0,
-		"staff_ids": staffIDs[:1], "primary_staff_id": staffIDs[0],
-		"materialize_from": today.String(), "materialize_to": today.AddDays(6).String(),
+		// The visitor's caregiver eats with the children too (#3922).
+		"staff_ids": withVisitorStaff(rt.FixedSeeder, staffIDs[:1]), "primary_staff_id": staffIDs[0],
+		// Two weeks, like the visitor's other blocks.
+		"materialize_from": today.String(), "materialize_to": today.AddDays(13).String(),
 	})
 	if err != nil {
 		return fmt.Errorf("create offering planning template: %w", err)

@@ -21,12 +21,18 @@ func demoClassGrade(class string) (int, error) {
 
 // demoStudentBirthday is the birthday the fixed seeder gives the demo child at
 // index i. Groups map to school classes: 1a/1b (born ~2019), 2a/2b (~2018),
-// 3a/3b (~2017), 4a/4b (~2016); the index spreads the days across the year.
+// 3a/3b (~2017), 4a/4b (~2016), so the year follows the group.
+//
+// Day and month follow the seed day (#3922): two children per Monday-to-Sunday
+// week, from four weeks before the seed week to 45 weeks after it, one on the
+// weekday of the seed day and one two days later. The birthday card shows two
+// children in every week a visitor can page to, and one of them today.
 //
 // It is a function because two steps need the same value: the child is created
 // with it, and a re-enrollment has to send the identical date, since an
-// existing_students phase finds the child by name AND birthday.
-func demoStudentBirthday(i int, student DemoStudent) string {
+// existing_students phase finds the child by name AND birthday. Both pass the
+// seed day the fixed seeder fixed at its start.
+func demoStudentBirthday(i int, student DemoStudent, seedDay seedDate) string {
 	baseYear := 2019
 	switch student.GroupKey {
 	case "bärengruppe", "sonnengruppe": // Klasse 1b/2a, 2a/2b
@@ -36,7 +42,23 @@ func demoStudentBirthday(i int, student DemoStudent) string {
 	case "blumengruppe", "schmetterlingsgruppe", "wiesengruppe": // Klasse 3b/4a, 4a/4b, 3a/4b
 		baseYear = 2016
 	}
-	return fmt.Sprintf("%d-%02d-%02d", baseYear, (i%12)+1, (i%28)+1)
+	weekday := (int(seedDay.Weekday()) + 6) % 7 // Monday = 0
+	monday := seedDay.AddDays(-weekday)
+	if i%2 == 1 {
+		weekday = (weekday + 2) % 7
+	}
+	day := monday.AddDays(7*(i/2-demoBirthdayWeeksBefore) + weekday)
+	if day.Month() == time.February && day.Day() == 29 && !isLeapYear(baseYear) {
+		return fmt.Sprintf("%d-02-28", baseYear)
+	}
+	return fmt.Sprintf("%d-%02d-%02d", baseYear, int(day.Month()), day.Day())
+}
+
+// demoBirthdayWeeksBefore is how far the birthday card pages back (#3777).
+const demoBirthdayWeeksBefore = 4
+
+func isLeapYear(year int) bool {
+	return year%4 == 0 && (year%100 != 0 || year%400 == 0)
 }
 
 // renewalPhaseAnswers says which of the seeded parents answer the
@@ -135,7 +157,7 @@ func renewalChildFor(rt *Runtime, parent ParentCredentials) (renewalChild, error
 		if err != nil {
 			return renewalChild{}, fmt.Errorf("demo child %s %s has no grade in class %q", student.FirstName, student.LastName, student.Class)
 		}
-		return renewalChild{student: student, birthday: demoStudentBirthday(index, student), nextGrade: int16(grade + 1)}, nil
+		return renewalChild{student: student, birthday: demoStudentBirthday(index, student, rt.FixedSeeder.seedDay), nextGrade: int16(grade + 1)}, nil
 	}
 	return renewalChild{}, fmt.Errorf("demo child %d of parent %s was not created", parent.StudentIDs[0], parent.Email)
 }
