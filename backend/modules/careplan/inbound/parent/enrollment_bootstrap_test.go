@@ -11,32 +11,47 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// parentBootstrapRequestStub records the per-audience access the handler
-// forwarded into the form-load gate. Only the bootstrap loader is exercised;
-// every other RequestService method panics through the embedded nil
-// interface, which would flag an unintended dependency.
-type parentBootstrapRequestStub struct {
-	enrollmentAPI.RequestService
-	enrolleeCalled bool
-	publicCalled   bool
-	access         enrollmentAPI.EnrolleeAudienceAccess
+// fakeEnrollmentForms records what the portal hands Enrollment's form flow:
+// the per-audience access of a form load and the school, account,
+// eligibility and client IP of a submission. The owner side of the flow
+// (wire shape, stamping, rendering) is pinned by the enrollment routes'
+// ParentForms tests.
+type fakeEnrollmentForms struct {
+	loadCalled       bool
+	linkedParents    bool
+	existingStudents bool
+	submitCalled     bool
+	schoolID         int64
+	accountID        int64
+	submitEligible   bool
+	clientIP         string
 }
 
-func (s *parentBootstrapRequestStub) LoadEnrolleeFormBootstrap(_ context.Context, _ int64, _ time.Time, _ string, access enrollmentAPI.EnrolleeAudienceAccess) (*enrollmentAPI.PublicFormBootstrapData, error) {
-	s.enrolleeCalled = true
-	s.access = access
-	return &enrollmentAPI.PublicFormBootstrapData{Phase: &enrollmentModels.Phase{}}, nil
+func (f *fakeEnrollmentForms) LoadFormBootstrap(_ context.Context, _ int64, _ time.Time, _ string, linkedParents, existingStudents bool) (EnrollmentResponse, error) {
+	f.loadCalled = true
+	f.linkedParents = linkedParents
+	f.existingStudents = existingStudents
+	return func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }, nil
 }
 
-func (s *parentBootstrapRequestStub) LoadPublicFormBootstrap(context.Context, int64, time.Time, string) (*enrollmentAPI.PublicFormBootstrapData, error) {
-	s.publicCalled = true
-	return &enrollmentAPI.PublicFormBootstrapData{Phase: &enrollmentModels.Phase{}}, nil
+func (*fakeEnrollmentForms) RenderFormBootstrapError(w http.ResponseWriter, _ *http.Request, _ error) {
+	w.WriteHeader(http.StatusInternalServerError)
+}
+
+func (f *fakeEnrollmentForms) DecodeSubmission(*http.Request) (EnrollmentSubmit, error) {
+	return func(_ context.Context, schoolID, accountID int64, submitEligible bool, clientIP string) (EnrollmentResponse, error) {
+		f.submitCalled = true
+		f.schoolID, f.accountID, f.submitEligible, f.clientIP = schoolID, accountID, submitEligible, clientIP
+		return func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusCreated) }, nil
+	}, nil
+}
+
+func (*fakeEnrollmentForms) RenderSubmitError(w http.ResponseWriter, _ *http.Request, _ error) {
+	w.WriteHeader(http.StatusBadRequest)
 }
 
 func serveBootstrap(t *testing.T, rs *Resource, accountID int) *httptest.ResponseRecorder {
@@ -62,25 +77,25 @@ func TestGetEnrollmentBootstrap_EligibleGuardianUsesEnrolleeGate(t *testing.T) {
 
 	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
-	requestSvc := &parentBootstrapRequestStub{}
+	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
 		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
-		RequestService: requestSvc,
-		SchoolService:  &parentSubmitSchoolStub{school: school},
-		db:             db,
+		EnrollmentForms: requestSvc,
+		SchoolService:   &parentSubmitSchoolStub{school: school},
+		db:              db,
 	}
 
 	w := serveBootstrap(t, rs, 7001)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	require.True(t, requestSvc.enrolleeCalled)
-	assert.True(t, requestSvc.access.LinkedParents,
+	require.True(t, requestSvc.loadCalled)
+	assert.True(t, requestSvc.linkedParents,
 		"an eligible guardian must unlock the linked_parents audience")
-	assert.False(t, requestSvc.access.ExistingStudents,
+	assert.False(t, requestSvc.existingStudents,
 		"existing_students needs a still-enrolled child, not just any submit permission")
 }
 
@@ -92,7 +107,7 @@ func TestGetEnrollmentBootstrap_EnrolledChildUnlocksExistingStudents(t *testing.
 
 	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
-	requestSvc := &parentBootstrapRequestStub{}
+	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
 		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
 			Linked:                      true,
@@ -100,17 +115,17 @@ func TestGetEnrollmentBootstrap_EnrolledChildUnlocksExistingStudents(t *testing.
 			HasSubmitPermission:         true,
 			HasEnrolledSubmitPermission: true,
 		}},
-		RequestService: requestSvc,
-		SchoolService:  &parentSubmitSchoolStub{school: school},
-		db:             db,
+		EnrollmentForms: requestSvc,
+		SchoolService:   &parentSubmitSchoolStub{school: school},
+		db:              db,
 	}
 
 	w := serveBootstrap(t, rs, 7004)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	require.True(t, requestSvc.enrolleeCalled)
-	assert.True(t, requestSvc.access.LinkedParents)
-	assert.True(t, requestSvc.access.ExistingStudents)
+	require.True(t, requestSvc.loadCalled)
+	assert.True(t, requestSvc.linkedParents)
+	assert.True(t, requestSvc.existingStudents)
 }
 
 // An account without the submit permission (revoked, or applying to a new
@@ -123,20 +138,20 @@ func TestGetEnrollmentBootstrap_IneligibleAccountUsesPublicGate(t *testing.T) {
 
 	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
-	requestSvc := &parentBootstrapRequestStub{}
+	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
 		// Zero-value status: no guardian link, no submit permission.
-		ParentService:  &fakeParentService{},
-		RequestService: requestSvc,
-		SchoolService:  &parentSubmitSchoolStub{school: school},
-		db:             db,
+		ParentService:   &fakeParentService{},
+		EnrollmentForms: requestSvc,
+		SchoolService:   &parentSubmitSchoolStub{school: school},
+		db:              db,
 	}
 
 	w := serveBootstrap(t, rs, 7002)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	require.True(t, requestSvc.enrolleeCalled)
-	assert.Equal(t, enrollmentAPI.EnrolleeAudienceAccess{}, requestSvc.access,
+	require.True(t, requestSvc.loadCalled)
+	assert.False(t, requestSvc.linkedParents || requestSvc.existingStudents,
 		"an account without submit permission must unlock no restricted audience")
 }
 
@@ -148,25 +163,24 @@ func TestGetEnrollmentBootstrap_RevokedPermissionUsesPublicGate(t *testing.T) {
 
 	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
-	requestSvc := &parentBootstrapRequestStub{}
+	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
 		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: false,
 		}},
-		RequestService: requestSvc,
-		SchoolService:  &parentSubmitSchoolStub{school: school},
-		db:             db,
+		EnrollmentForms: requestSvc,
+		SchoolService:   &parentSubmitSchoolStub{school: school},
+		db:              db,
 	}
 
 	w := serveBootstrap(t, rs, 7003)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	require.True(t, requestSvc.enrolleeCalled)
-	assert.Equal(t, enrollmentAPI.EnrolleeAudienceAccess{}, requestSvc.access,
+	require.True(t, requestSvc.loadCalled)
+	assert.False(t, requestSvc.linkedParents || requestSvc.existingStudents,
 		"revoked submit permission must unlock no restricted audience")
-	assert.False(t, requestSvc.publicCalled)
 }
 
 // A hidden school is excluded from the parents-portal picker for everyone
@@ -179,23 +193,22 @@ func TestGetEnrollmentBootstrap_HiddenSchoolIsUnreachableWithoutFamilyLink(t *te
 
 	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
-	requestSvc := &parentBootstrapRequestStub{}
+	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
 		// Linked as an account (e.g. staff, or a stale mapping) but with no
 		// guardian relationship — exactly the case ListEnrollable refuses.
 		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
 			Linked: true,
 		}},
-		RequestService: requestSvc,
-		SchoolService:  &parentSubmitSchoolStub{school: school},
-		db:             db,
+		EnrollmentForms: requestSvc,
+		SchoolService:   &parentSubmitSchoolStub{school: school},
+		db:              db,
 	}
 
 	w := serveBootstrap(t, rs, 7005)
 
 	require.Equal(t, http.StatusNotFound, w.Code)
-	assert.False(t, requestSvc.enrolleeCalled, "the form must not load for a hidden school without a family link")
-	assert.False(t, requestSvc.publicCalled)
+	assert.False(t, requestSvc.loadCalled, "the form must not load for a hidden school without a family link")
 }
 
 // The family-link fact mirrors guard.has_family_link in ListEnrollable: an
@@ -207,23 +220,23 @@ func TestGetEnrollmentBootstrap_HiddenSchoolLoadsForLinkedFamily(t *testing.T) {
 
 	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
-	requestSvc := &parentBootstrapRequestStub{}
+	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
 		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
-		RequestService: requestSvc,
-		SchoolService:  &parentSubmitSchoolStub{school: school},
-		db:             db,
+		EnrollmentForms: requestSvc,
+		SchoolService:   &parentSubmitSchoolStub{school: school},
+		db:              db,
 	}
 
 	w := serveBootstrap(t, rs, 7006)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	require.True(t, requestSvc.enrolleeCalled)
-	assert.True(t, requestSvc.access.LinkedParents)
+	require.True(t, requestSvc.loadCalled)
+	assert.True(t, requestSvc.linkedParents)
 }
 
 // A deactivated school is unreachable for everyone, family link or not — the
@@ -234,20 +247,20 @@ func TestGetEnrollmentBootstrap_InactiveSchoolIsUnreachable(t *testing.T) {
 
 	school := &EnrollmentSchool{Active: false}
 	school.ID = 1
-	requestSvc := &parentBootstrapRequestStub{}
+	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
 		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
-		RequestService: requestSvc,
-		SchoolService:  &parentSubmitSchoolStub{school: school},
-		db:             db,
+		EnrollmentForms: requestSvc,
+		SchoolService:   &parentSubmitSchoolStub{school: school},
+		db:              db,
 	}
 
 	w := serveBootstrap(t, rs, 7007)
 
 	require.Equal(t, http.StatusNotFound, w.Code)
-	assert.False(t, requestSvc.enrolleeCalled)
+	assert.False(t, requestSvc.loadCalled)
 }

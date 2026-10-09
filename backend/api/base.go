@@ -33,7 +33,6 @@ import (
 	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot/compose"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
@@ -69,6 +68,7 @@ import (
 	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter"
@@ -1453,7 +1453,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.AbsenceTypes = workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(workforce, logger.With("service", "active")), api.currentStaffID)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
-		api.Services.EnrollmentCareOfferingRows(),
+		enrollmentAPI.NewCareOfferingCatalog(services.NewEnrollmentCareOfferingValues(api.Services.EnrollmentCareOffering)),
 		enrollmentAPI.NewRequestService(api.Services.EnrollmentRequest),
 		api.Services.EnrollmentCaptcha,
 		api.Services.EnrollmentPhase,
@@ -1463,9 +1463,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		enrollmentAPI.NewChangeRequestService(api.Services.EnrollmentChangeRequest),
 		api.Services.EnrollmentDeletion,
 		enrollmentGuardianInvitations(api.Services.GuardianInvitation),
-		api.Services.GuardianProfileLoader,
+		services.NewEnrollmentGuardianAutofill(api.Services.GuardianProfileLoader),
 		enrollmentSchoolDirectory{schools: api.Services.Schools},
-		db,
 		repoFactory.Enrollment(),
 	)
 	api.Enrollment.ListExportService = api.Services.ListExport
@@ -1656,7 +1655,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Resets:                parentPasswordResets(api.Services.ParentPasswordResetRuntime()),
 		Parent:                api.Services.Parent,
 		Calendar:              api.Services.Calendar,
-		Requests:              enrollmentAPI.NewRequestService(api.Services.EnrollmentRequest),
+		Enrollment:            parentEnrollmentForms(enrollmentAPI.NewRequestService(api.Services.EnrollmentRequest)),
 		GuardianProfileLoader: api.Services.GuardianProfileLoader,
 		Schools:               parentSchoolDirectory{schools: api.Services.Schools},
 		Push:                  api.Services.PushSubscriptions,

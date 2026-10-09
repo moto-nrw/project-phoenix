@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "generator": "scripts/run-go-toolchain.sh go run scripts/backend-enrollment-route-callers/main.go; Go AST inventory over backend/**/*.go including tests, excluding testdata",
+  "retired_provider": {
+    "package": "github.com/moto-nrw/project-phoenix/api/enrollment",
+    "remaining_importers": [],
+    "remaining_source_files": []
+  },
+  "replacement_provider": "github.com/moto-nrw/project-phoenix/modules/enrollment/http",
+  "retired_symbols": [
+    {
+      "package": "github.com/moto-nrw/project-phoenix/modules/enrollment/http",
+      "symbol": "MapSubmitError",
+      "declarations": [],
+      "references": []
+    },
+    {
+      "package": "github.com/moto-nrw/project-phoenix/modules/enrollment/http",
+      "symbol": "BuildServiceRequest",
+      "declarations": [],
+      "references": []
+    },
+    {
+      "package": "github.com/moto-nrw/project-phoenix/modules/enrollment/http",
+      "symbol": "RenderPublicEnrollmentBootstrapError",
+      "declarations": [],
+      "references": []
+    },
+    {
+      "package": "github.com/moto-nrw/project-phoenix/modules/enrollment/http",
+      "symbol": "BuildPublicEnrollmentFormBootstrapResponse",
+      "declarations": [],
+      "references": []
+    }
+  ],
+  "scanned_go_files": 7054
+}

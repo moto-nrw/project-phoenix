@@ -1,0 +1,47 @@
+package enrollmenthttp
+
+import (
+	"context"
+	"net/http"
+	"testing"
+
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/stretchr/testify/assert"
+)
+
+type deletionServiceStub struct{}
+
+func (deletionServiceStub) PreviewRequest(context.Context, int64) (*capability.DeletionImpact, error) {
+	return &capability.DeletionImpact{}, nil
+}
+
+func (deletionServiceStub) PreviewChild(context.Context, int64, int64) (*capability.DeletionImpact, error) {
+	return &capability.DeletionImpact{}, nil
+}
+
+func (deletionServiceStub) DeleteRequest(context.Context, int64, int64, string) (*capability.DeletionImpact, error) {
+	return &capability.DeletionImpact{}, nil
+}
+
+func (deletionServiceStub) DeleteChild(context.Context, int64, int64, int64, string) (*capability.DeletionImpact, error) {
+	return &capability.DeletionImpact{}, nil
+}
+
+func TestAdminEnrollmentDeletionRoutesRequireConfigManage(t *testing.T) {
+	t.Parallel()
+
+	rs := &Resource{DeletionService: deletionServiceStub{}}
+
+	for _, test := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/admin/requests/42/delete-impact"},
+		{http.MethodDelete, "/admin/requests/42/"},
+		{http.MethodGet, "/admin/requests/42/children/7/delete-impact"},
+		{http.MethodDelete, "/admin/requests/42/children/7"},
+	} {
+		response := executeAdminRouteWithPermissions(t, rs, test.method, test.path, []string{"config:read"})
+		assert.Equal(t, http.StatusForbidden, response.Code, "%s %s", test.method, test.path)
+	}
+}

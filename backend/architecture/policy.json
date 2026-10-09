@@ -183,10 +183,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-enrollment",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-feedback",
       "kind": "inbound"
     },
@@ -839,11 +835,11 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/enrollment",
-      "owner": "inbound-enrollment",
+      "path": "modules/enrollment/http",
+      "owner": "enrollment",
       "role": "http",
       "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
+      "external_test_role": "workflow-integration-test"
     },
     {
       "path": "modules/feedback/http",
@@ -7163,17 +7159,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "enrollment.inbound-test.test-support",
-      "description": "Enrollment HTTP adapter tests compose the Enrollment owner through its test support.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-enrollment",
-      "source_role": "adapter-test",
-      "target_owner": "enrollment",
-      "target_role": "test-support"
-    },
-    {
       "id": "session-end.port.student-presence",
       "description": "Session end ports name the Student Presence group session command through its public contract.",
       "scopes": [
@@ -8952,15 +8937,202 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-enrollment.to.enrollment",
-      "description": "inbound-enrollment calls exactly one public capability.",
+      "id": "enrollment.http.public",
+      "description": "The enrollment routes drive the Enrollment owner through its public capability (#2734).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-enrollment",
+      "source_owner": "enrollment",
       "source_role": "http",
       "target_owner": "enrollment",
       "target_role": "public"
+    },
+    {
+      "id": "enrollment.http.inbound-common",
+      "description": "The enrollment routes reuse the shared HTTP runtime of api/common: the tenant route group, the permission gates, request parsing, response rendering and the shared error codes, like the other owners' HTTP adapters (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "enrollment.http.identity-adapter",
+      "description": "The enrollment routes read the authenticated claims from the session token adapter (ADR 0031, #2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "enrollment.http.security-contract",
+      "description": "The enrollment routes gate on the permission registry (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "enrollment.http.tenant-runtime",
+      "description": "The enrollment routes run their steps in the tenant and administrative transactions of the tenant runtime and read the request tenant (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.http.legacy-shared",
+      "description": "The enrollment reports order school classes with the shared collation helper, like the other owners' HTTP adapters (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "enrollment.http.document-rendering-lists",
+      "description": "The phase, student and care-usage exports fill and render the Document Rendering list contract (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "contract"
+    },
+    {
+      "id": "enrollment.http.people-directory-contract",
+      "description": "The change-request routes render the companion refusals of the People Directory departure contract (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
+    {
+      "id": "root-composition.to.enrollment-http",
+      "description": "The root API composition mounts the enrollment routes of the Enrollment owner and binds the parents portal's form flow to them (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "enrollment",
+      "target_role": "http"
+    },
+    {
+      "id": "enrollment.http-integration-test.subject",
+      "description": "The enrollment route suites drive the routes they test (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "http"
+    },
+    {
+      "id": "enrollment.http-integration-test.test-support",
+      "description": "The enrollment route suites compose the owner's phases, form schemas, decisions and notifications through its test support (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "test-support"
+    },
+    {
+      "id": "enrollment.http-integration-test.identity-adapter",
+      "description": "The enrollment route suites mint the claims the routes read from the session token adapter (ADR 0031, #2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "enrollment.http-integration-test.identity-access-compose",
+      "description": "The enrollment decision suites compose the real Identity & Access capability (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "compose"
+    },
+    {
+      "id": "enrollment.http-integration-test.legacy-composition",
+      "description": "The enrollment route suites compose the retained repositories the owner's flows still read through (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "enrollment.http-integration-test.domain",
+      "description": "The enrollment route suites seed and read the owner's enrollment rows (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "enrollment.http-integration-test.settings-domain",
+      "description": "The enrollment route suites set the tenant settings the flows resolve (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "enrollment.http-integration-test.organization-domain",
+      "description": "The enrollment route suites record the outbox mails and read the schools the flows brand them with (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "enrollment.http-integration-test.people-domain",
+      "description": "The enrollment route suites seed and read the students and guardians the decisions write (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
     },
     {
       "id": "inbound-feedback.to.feedback",
@@ -18205,17 +18377,6 @@
       "source_role": "module-internal-test",
       "target_owner": "identity-access",
       "target_role": "public"
-    },
-    {
-      "id": "inbound-enrollment.adapter-test.identity-access-compose",
-      "description": "Enrollment decision router tests compose the real Identity & Access capability.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-enrollment",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "compose"
     },
     {
       "id": "legacy-composition.to.identity-access-compose",

@@ -100,9 +100,9 @@
   "runtime_evidence": {
     "source": "The PR on the #3565 branch after the intake and change-request cutover. The PR description records the local architecture, lint, vet and changed-package test runs; the evidence is behavioral and structural, not a latency benchmark.",
     "sources": [
-      "backend/api/enrollment/request_service_test.go",
-      "backend/api/enrollment/change_request_service_test.go",
-      "backend/api/enrollment/n_plus_one_query_budget_test.go",
+      "backend/modules/enrollment/http/request_service_test.go",
+      "backend/modules/enrollment/http/change_request_service_test.go",
+      "backend/modules/enrollment/http/n_plus_one_query_budget_test.go",
       "backend/modules/enrollment/internal/application/form_visibility_internal_test.go",
       "backend/modules/careplan/contracttest/offering_source_service_test.go"
     ],
