@@ -16,20 +16,58 @@ const SEEN_KEY = "moto-demo-weekend-notice";
 // sind, damit nie zwei Dialoge übereinander liegen.
 const SETTLE_MS = 1500;
 
-function readSeenDay(): string | null {
+function readSeenDay(key: string): string | null {
   try {
-    return globalThis.localStorage.getItem(SEEN_KEY);
+    return globalThis.localStorage.getItem(key);
   } catch {
     return null;
   }
 }
 
-function saveSeenDay(day: string) {
+function saveSeenDay(key: string, day: string) {
   try {
-    globalThis.localStorage.setItem(SEEN_KEY, day);
+    globalThis.localStorage.setItem(key, day);
   } catch {
     // Ohne Speicher erscheint der Hinweis beim nächsten Laden wieder.
   }
+}
+
+/**
+ * Öffnet einen Demo-Hinweis einmal pro Tag von selbst, sobald er gilt und kein
+ * anderer Dialog offen ist. Danach öffnet ihn nur noch der Knopf im Streifen.
+ */
+export function useDemoDayNotice(
+  active: boolean,
+  seenKey: string,
+  today: string,
+) {
+  const [open, setOpen] = useState(false);
+  const [settled, setSettled] = useState(false);
+  const { isModalOpen } = useModal();
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(true), SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (active && settled && !isModalOpen && readSeenDay(seenKey) !== today) {
+      setOpen(true);
+    }
+  }, [active, settled, isModalOpen, seenKey, today]);
+
+  return {
+    open,
+    show: () => {
+      if (!isModalOpen) {
+        setOpen(true);
+      }
+    },
+    close: () => {
+      saveSeenDay(seenKey, today);
+      setOpen(false);
+    },
+  };
 }
 
 export function isWeekendDay(isoDay: string): boolean {
@@ -47,27 +85,9 @@ export function isWeekendDay(isoDay: string): boolean {
 export function DemoWeekendNotice({ inParentsApp }: { inParentsApp: boolean }) {
   const today = useBerlinToday();
   const weekend = isWeekendDay(today);
-  const [open, setOpen] = useState(false);
-  const [settled, setSettled] = useState(false);
-  const { isModalOpen } = useModal();
-
-  useEffect(() => {
-    const timer = setTimeout(() => setSettled(true), SETTLE_MS);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (weekend && settled && !isModalOpen && readSeenDay() !== today) {
-      setOpen(true);
-    }
-  }, [weekend, settled, isModalOpen, today]);
+  const { open, show, close } = useDemoDayNotice(weekend, SEEN_KEY, today);
 
   if (!weekend) return null;
-
-  const close = () => {
-    saveSeenDay(today);
-    setOpen(false);
-  };
 
   return (
     <>
@@ -77,11 +97,7 @@ export function DemoWeekendNotice({ inParentsApp }: { inParentsApp: boolean }) {
         size="compact"
         className="shrink-0 text-sm"
         aria-label="Hinweis zum Wochenende"
-        onClick={() => {
-          if (!isModalOpen) {
-            setOpen(true);
-          }
-        }}
+        onClick={show}
       >
         <CalendarBlankIcon aria-hidden="true" className="size-4" />
         <span className="hidden sm:inline">Wochenende</span>
