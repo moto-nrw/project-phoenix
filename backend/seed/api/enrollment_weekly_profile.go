@@ -105,7 +105,7 @@ func seedWeeklyProfileContents(ctx context.Context, rt *Runtime, child *Seeder) 
 	if err != nil {
 		return nil, err
 	}
-	phaseID, err := step.createEnrollmentPhase(rt, rt.TenantAuth, schemaID)
+	phaseID, _, err := step.createEnrollmentPhase(rt, rt.TenantAuth, schemaID)
 	if err != nil {
 		return nil, err
 	}
