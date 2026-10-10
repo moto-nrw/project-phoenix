@@ -354,6 +354,89 @@ type demoPlanClient struct {
 	ended  int
 }
 
+type retryLeftoverClient struct {
+	*demoDayClient
+	failComplete bool
+}
+
+func (c *retryLeftoverClient) Post(path string, body any) ([]byte, error) {
+	if c.failComplete && strings.HasSuffix(path, "/complete") {
+		c.failComplete = false
+		return nil, fmt.Errorf("temporary completion failure")
+	}
+	return c.demoDayClient.Post(path, body)
+}
+
+type retryDeviceSessionClient struct {
+	*demoPlanClient
+	failEnd  bool
+	endCalls int
+}
+
+func (c *retryDeviceSessionClient) DevicePost(path string, body any, key, pin string) ([]byte, error) {
+	if path == "/api/iot/session/end" {
+		c.endCalls++
+		if c.failEnd {
+			c.failEnd = false
+			return nil, fmt.Errorf("temporary session shutdown failure")
+		}
+	}
+	return c.demoPlanClient.DevicePost(path, body, key, pin)
+}
+
+func TestDemoTickerRetriesFailedLeftoverClosure(t *testing.T) {
+	t.Parallel()
+	block := plannedBlock(9, "14:00", "15:00", 5)
+	block.Date, block.Status = "2026-09-10", "active"
+	state := minimalLiveState("")
+	state.Accounts.Betreuer = []AccountCredentials{{StaffID: 17}}
+	state.Activities = map[string]int64{"Hausaufgaben": 23}
+	client := &retryLeftoverClient{
+		demoDayClient: newDemoDayClient(block),
+		failComplete:  true,
+	}
+	ticker, err := NewDemoTicker(DemoTickOptions{
+		State: state, Client: client, Now: func() time.Time { return demoDayAt(t, "15:00") },
+		Visits: func(context.Context) ([]DemoVisit, error) { return nil, nil },
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, ticker.closeLeftovers(demoDayAt(t, "15:00")))
+	assert.Empty(t, ticker.settled, "a failed close must be retried")
+	assert.Equal(t, "active", client.blocks[0].Status)
+
+	require.NoError(t, ticker.closeLeftovers(demoDayAt(t, "15:01")))
+	assert.Equal(t, "2026-09-11", ticker.settled)
+	assert.Equal(t, "completed", client.blocks[0].Status)
+}
+
+func TestDemoTickerRetriesFailedDeviceSessionShutdown(t *testing.T) {
+	t.Parallel()
+	state := minimalLiveState("")
+	state.Students = nil
+	state.Accounts.Betreuer = []AccountCredentials{{StaffID: 17}}
+	state.Activities = map[string]int64{"Hausaufgaben": 23}
+	client := &retryDeviceSessionClient{
+		demoPlanClient: &demoPlanClient{demoDayClient: *newDemoDayClient()},
+		failEnd:        true,
+	}
+	now := demoDayAt(t, "15:00")
+	ticker, err := NewDemoTicker(DemoTickOptions{
+		State: state, Client: client, Now: func() time.Time { return now },
+		Visits: func(context.Context) ([]DemoVisit, error) { return nil, nil },
+	})
+	require.NoError(t, err)
+
+	_, err = ticker.syncDay(t.Context(), now, nil)
+	require.Error(t, err)
+	assert.False(t, ticker.day.devices, "a failed shutdown must be retried")
+
+	_, err = ticker.syncDay(t.Context(), now.Add(5*time.Second), nil)
+	require.NoError(t, err)
+	assert.True(t, ticker.day.devices)
+	assert.Equal(t, 2, client.endCalls)
+}
+
 func (c *demoPlanClient) DeviceGet(path, key, pin string) ([]byte, error) {
 	if c.ended > 0 {
 		return []byte(`{"data":{"is_active":false}}`), nil

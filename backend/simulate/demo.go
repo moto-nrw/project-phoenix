@@ -302,18 +302,22 @@ func (d *DemoTicker) closeLeftovers(now time.Time) error {
 	if err != nil {
 		return fmt.Errorf("leftover demo blocks: %w", err)
 	}
+	allClosed := true
 	for _, block := range blocks {
 		if block.IsSpontaneous || block.Status != "active" {
 			continue
 		}
 		if err := completeBlock(d.options.Client, block.ID); err != nil {
+			allClosed = false
 			slog.Info("demo day: leftover block not closed",
 				"instance_id", block.ID,
 				"error", err,
 			)
 		}
 	}
-	d.settled = today
+	if allClosed {
+		d.settled = today
+	}
 	return nil
 }
 
@@ -407,6 +411,7 @@ func (d *DemoTicker) syncDay(ctx context.Context, now time.Time, latest map[int6
 func (d *DemoTicker) endDeviceSessions(ctx context.Context) (bool, error) {
 	state := d.options.State
 	ended := false
+	allEnded := true
 	for _, key := range sortedDeviceKeys(state.Devices) {
 		if err := ctx.Err(); err != nil {
 			return ended, err
@@ -414,6 +419,7 @@ func (d *DemoTicker) endDeviceSessions(ctx context.Context) (bool, error) {
 		device := state.Devices[key]
 		raw, err := d.options.Client.DeviceGet("/api/iot/session/current", device.APIKey, state.DevicePIN)
 		if err != nil {
+			allEnded = false
 			slog.Info("demo day: device session not read",
 				"device", key,
 				"error", err,
@@ -425,10 +431,19 @@ func (d *DemoTicker) endDeviceSessions(ctx context.Context) (bool, error) {
 				Active bool `json:"is_active"`
 			} `json:"data"`
 		}
-		if json.Unmarshal(raw, &response) != nil || !response.Data.Active {
+		if err := json.Unmarshal(raw, &response); err != nil {
+			allEnded = false
+			slog.Info("demo day: device session not decoded",
+				"device", key,
+				"error", err,
+			)
+			continue
+		}
+		if !response.Data.Active {
 			continue
 		}
 		if _, err := d.options.Client.DevicePost("/api/iot/session/end", nil, device.APIKey, state.DevicePIN); err != nil {
+			allEnded = false
 			slog.Info("demo day: device session not ended",
 				"device", key,
 				"error", err,
@@ -436,6 +451,9 @@ func (d *DemoTicker) endDeviceSessions(ctx context.Context) (bool, error) {
 			continue
 		}
 		ended = true
+	}
+	if !allEnded {
+		return ended, fmt.Errorf("not all demo device sessions were ended")
 	}
 	return ended, nil
 }
