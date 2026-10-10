@@ -171,13 +171,6 @@ func planWeekday(date timezone.Date, weekendFollowsFriday bool) int {
 	return weekday
 }
 
-// rosterWeekday is the weekday a roster row is checked against on date. A
-// weekend takes Friday's roster only when that tenant enabled the Friday plan;
-// retained weekend instances otherwise keep their own weekday scope.
-func rosterWeekday(date timezone.Date, weekendFollowsFriday bool) int {
-	return planWeekday(date, weekendFollowsFriday)
-}
-
 // weekendFollowsFridayIn resolves the weekend plan setting (#3921) only when
 // [from, to] holds a weekend, so a weekday-only read never touches settings.
 func weekendFollowsFridayIn(ctx context.Context, from, to timezone.Date) (bool, error) {
