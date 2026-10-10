@@ -918,8 +918,8 @@ func TestFixedSeeder_SeedPickupSchedules(t *testing.T) {
 	result := &FixedResult{}
 	err := fs.seedPickupSchedules(context.TODO(), result)
 	require.NoError(t, err)
-	// Every other student (odd indices) gets a schedule: 100/2 = 50
-	assert.Equal(t, 50, result.PickupScheduleCount)
+	// Every student but each tenth one gets a Gehzeit (#3922): 100 - 10 = 90
+	assert.Equal(t, 90, result.PickupScheduleCount)
 }
 
 func TestFixedSeeder_SeedPickupSchedules_EmptyStudents(t *testing.T) {
