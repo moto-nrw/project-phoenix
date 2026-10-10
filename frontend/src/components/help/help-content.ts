@@ -551,7 +551,7 @@ function editStudentTopic(): HelpTopic {
           "Wählen Sie oben rechts `Wochenplan`.",
           "Setzen Sie bei den Betreuungstagen einen Haken.",
           "Tragen Sie je Tag `Ankunft` und `Abholung` ein.",
-          "Kommt das Kind an einem Wochentag nicht? Lassen Sie `Abholung` leer.",
+          "Kommt das Kind an einem Betreuungstag nicht? Lassen Sie `Abholung` leer.",
           "Öffnen Sie `Notizen`. Tragen Sie den Hinweis unter `Notiz zum Tag (jede Woche)` ein.",
           "Wählen Sie `Speichern`.",
         ],
@@ -585,6 +585,7 @@ function editStudentTopic(): HelpTopic {
       // #3371: Knopf erscheint nur mit gepflegter Vorgabe unter einem leeren
       // Feld an einem Betreuungstag (care-weekly-plan-editor.tsx).
       "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
+      "Betreut Ihre OGS am Wochenende? Dann gelten Samstag und Sonntag nach dem Freitagsplan.",
     ],
     related: [
       HELP_TOPICS.studentSearch,
@@ -1208,6 +1209,9 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       // Live geprueft: die Kopfzeile des Reiters traegt das Kennzeichen.
       "Steht oben rechts `Nur ansehen`? Dann dürfen Sie den Plan lesen, aber nicht ändern.",
     ],
+    notes: [
+      "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
+    ],
     troubleshootingDetails: [
       "Der Tab `Betreuungsplan` fehlt? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
       "Steht dort `Noch kein Planungszeitraum`? Dann hat Ihre Leitung den Zeitraum noch nicht angelegt.",
@@ -1257,7 +1261,10 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
         ? ["Bei einfacher Anwesenheit gibt es den Tagesplan nicht."]
         : []),
     ],
-    notes: ["Mit den Pfeilen oben rechts sehen Sie einen anderen Tag."],
+    notes: [
+      "Mit den Pfeilen oben rechts sehen Sie einen anderen Tag.",
+      "Betreut Ihre OGS am Wochenende? Dann zeigt der Tagesplan auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
+    ],
     troubleshootingDetails: [
       // Live geprueft: der haeufigste Leerzustand einer Betreuungskraft.
       "Steht dort `Heute ist keine Betreuung geplant`? Dann sind Sie für diesen Tag nicht eingeteilt. Die Einteilung macht Ihre Leitung.",
@@ -3066,7 +3073,7 @@ function careTimesTopic(): HelpTopic {
           "Wählen Sie `Wochenplan`.",
           "Wählen Sie die Betreuungstage.",
           "Tragen Sie `Ankunft` und `Abholung` ein.",
-          "Kommt das Kind an einem Wochentag nicht? Lassen Sie `Abholung` leer.",
+          "Kommt das Kind an einem Betreuungstag nicht? Lassen Sie `Abholung` leer.",
           "Öffnen Sie `Notizen`. Tragen Sie den Hinweis unter `Notiz zum Tag (jede Woche)` ein.",
           "Wählen Sie `Wochenplan speichern`.",
         ],
@@ -3111,6 +3118,7 @@ function careTimesTopic(): HelpTopic {
       "Tippen Sie nur Ziffern, zum Beispiel 1600 für 16:00 Uhr.",
       "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
       "Die üblichen Zeiten stehen unter `Einstellungen` bei `Betreuungszeiten`. Jede Schule pflegt ihre eigenen Zeiten.",
+      "Betreut Ihre OGS am Wochenende? Dann gelten Samstag und Sonntag nach dem Freitagsplan.",
     ],
     differences: [
       // Einstellung `enrollment.bookings_authoritative`, Vorgabe aus. Der
@@ -4870,6 +4878,7 @@ function leadCarePlanTopic(): HelpTopic {
       "Ein Regeltermin wiederholt sich. Die Ansicht `Serien` zeigt alle Regeltermine.",
       "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
       "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
+      "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
     differences: [
       "Steht oben `Nur ansehen`? Dann dürfen Sie den Plan lesen, aber nicht ändern.",
@@ -6257,6 +6266,7 @@ function parentCareChangeTopic(): HelpTopic {
       "Eine Änderung am Wochenplan ist dauerhaft und gilt jede Woche.",
       "Geht es nur um einen Tag? Ändern Sie stattdessen die Abholzeit.",
       "Eine offene Anfrage lässt sich mit `Anfrage bearbeiten` noch ändern.",
+      "Betreut Ihre OGS am Wochenende? Dann gilt der Freitagsplan auch für Samstag und Sonntag.",
     ],
     differences: [
       "Die Entscheidung der OGS steht unter `Beantragte Änderung`: `Änderung übernommen` oder `Anfrage abgelehnt` mit Begründung.",
@@ -6889,8 +6899,9 @@ function teacherClassDayTopic(): HelpTopic {
     notes: [
       "Steht bei einer Klasse `4 Kinder anders als sonst`, weicht dort heute etwas vom üblichen Plan ab.",
       "Mit den Pfeilen sehen Sie den vorherigen oder nächsten Tag.",
+      "Betreut Ihre OGS am Wochenende? Dann sehen Sie auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
-    differences: ["An einem Tag ohne Unterricht steht `Kein Schultag`."],
+    differences: ["An einem Wochenende ohne Betreuung steht `Kein Schultag`."],
     troubleshootingDetails: [
       "Es steht `Keine Klassen zugewiesen`? Dann hat die OGS Ihnen noch keine Klasse zugeordnet.",
     ],
