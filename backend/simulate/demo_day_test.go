@@ -78,7 +78,7 @@ func TestDemoBlockUpdateBodyOmitsMissingRoom(t *testing.T) {
 	roomed := plannedBlock(1, "13:00", "14:00", 5)
 	roomless := plannedBlock(2, "13:00", "14:00", 0)
 
-	assert.Equal(t, int64(5), roomed.updateBody(13*60, 14*60)["room_id"])
+	assert.Equal(t, roomed.RoomID, roomed.updateBody(13*60, 14*60)["room_id"])
 	assert.NotContains(t, roomless.updateBody(13*60, 14*60), "room_id")
 }
 
