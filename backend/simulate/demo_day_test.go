@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -159,7 +160,13 @@ func (c *demoDayClient) Post(path string, body any) ([]byte, error) {
 		}
 		return json.Marshal(map[string]any{"data": rows})
 	case strings.HasSuffix(path, "-exceptions"):
-		c.exceptions[path] = body.(map[string]any)
+		values := body.(map[string]any)
+		c.exceptions[path] = values
+		if strings.Contains(path, "/arrival-") {
+			c.arrivals[studentIDFromPath(path)] = values["expected_arrival"].(string)
+		} else {
+			c.pickups[studentIDFromPath(path)] = values["pickup_time"].(string)
+		}
 	case path == "/api/timetable/instances":
 		c.created = append(c.created, body.(map[string]any))
 	}
@@ -173,6 +180,12 @@ func (c *demoDayClient) Post(path string, body any) ([]byte, error) {
 		}
 	}
 	return []byte(`{"data":{}}`), nil
+}
+
+func studentIDFromPath(path string) int64 {
+	parts := strings.Split(path, "/")
+	studentID, _ := strconv.ParseInt(parts[3], 10, 64)
+	return studentID
 }
 
 func TestDemoDayMovesTheEveningAndRunsIt(t *testing.T) {
@@ -264,6 +277,66 @@ func TestDemoDayDoesNotMoveChildrenWhenABlockMoveFails(t *testing.T) {
 	assert.False(t, day.planned, "a failed move must be retried")
 }
 
+type retryDemoTimeWriteClient struct {
+	*demoDayClient
+	failureSuffix string
+}
+
+func (c *retryDemoTimeWriteClient) Post(path string, body any) ([]byte, error) {
+	if c.failureSuffix != "" && strings.HasSuffix(path, c.failureSuffix) {
+		c.failureSuffix = ""
+		return nil, fmt.Errorf("temporary child time update failure")
+	}
+	return c.demoDayClient.Post(path, body)
+}
+
+func TestDemoDayRetriesMoveWhenChildTimeWriteFails(t *testing.T) {
+	t.Parallel()
+	client := &retryDemoTimeWriteClient{
+		demoDayClient: newDemoDayClient(plannedBlock(1, "14:45", "17:00", 5, 11)),
+		failureSuffix: "/pickup-exceptions",
+	}
+	client.arrivals[11], client.pickups[11] = "11:45", "15:30"
+	var day demoDay
+
+	_, err := day.sync(client, demoDayAt(t, "20:00"), []int64{11}, nil)
+	require.ErrorContains(t, err, "move demo pickup")
+	assert.False(t, day.planned, "a failed child update must be retried")
+
+	_, err = day.sync(client, demoDayAt(t, "20:00"), []int64{11}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "16:30", client.exceptions["/api/students/11/arrival-exceptions"]["expected_arrival"])
+	assert.Equal(t, "20:15", client.exceptions["/api/students/11/pickup-exceptions"]["pickup_time"])
+}
+
+func TestDemoDayKeepsReanchorStateWhenChildTimeWriteFails(t *testing.T) {
+	t.Parallel()
+	lunch := plannedBlock(1, "13:00", "14:00", 7, 11)
+	lunch.Status = "completed"
+	client := &retryDemoTimeWriteClient{
+		demoDayClient: newDemoDayClient(lunch),
+		failureSuffix: "/arrival-exceptions",
+	}
+	client.arrivals[11], client.pickups[11] = "11:45", "15:30"
+	day := demoDay{
+		date: "2026-09-11", anchor: demoDayReference, anchoredAt: -1,
+		planned: true, activities: true, failed: map[int64]bool{}, home: map[int64]bool{11: true},
+	}
+
+	_, err := day.sync(client, demoDayAt(t, "19:00"), []int64{11}, nil)
+	require.ErrorContains(t, err, "move demo arrival")
+	assert.Equal(t, demoDayReference, day.anchor)
+	assert.Equal(t, -1, day.anchoredAt)
+	assert.True(t, day.activities)
+	assert.Contains(t, day.home, int64(11))
+
+	_, err = day.sync(client, demoDayAt(t, "19:00"), []int64{11}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 19*60, day.anchor)
+	assert.Equal(t, 19*60, day.anchoredAt)
+	assert.Empty(t, day.home)
+}
+
 func TestDemoDayKeepsTheSchoolsOwnDay(t *testing.T) {
 	t.Parallel()
 	client := newDemoDayClient(plannedBlock(1, "13:00", "14:00", 5, 11), plannedBlock(2, "14:45", "17:00", 5, 11))
@@ -324,6 +397,39 @@ func TestDemoDayPlansTheActivitiesInTheAfternoon(t *testing.T) {
 	_, err = day.sync(client, demoDayAt(t, "10:30"), demoDayStudents(11, 40), demoDayActivities)
 	require.NoError(t, err)
 	assert.Empty(t, client.created, "the activities are planned once")
+}
+
+type retryDemoActivityClient struct {
+	*demoDayClient
+	failCreate bool
+}
+
+func (c *retryDemoActivityClient) Post(path string, body any) ([]byte, error) {
+	if c.failCreate && path == "/api/timetable/instances" {
+		c.failCreate = false
+		return nil, fmt.Errorf("temporary activity creation failure")
+	}
+	return c.demoDayClient.Post(path, body)
+}
+
+func TestDemoDayRetriesActivityPlanningAfterCreationFailure(t *testing.T) {
+	t.Parallel()
+	client := &retryDemoActivityClient{
+		demoDayClient: newDemoDayClient(plannedBlock(1, "13:00", "14:00", 7, 11)),
+		failCreate:    true,
+	}
+	client.arrivals[11] = "11:45"
+	var day demoDay
+
+	_, err := day.sync(client, demoDayAt(t, "10:00"), []int64{11}, demoDayActivities[:1])
+	require.ErrorContains(t, err, "plan demo activity")
+	assert.False(t, day.activities, "a failed activity must be retried")
+
+	_, err = day.sync(client, demoDayAt(t, "10:00"), []int64{11}, demoDayActivities[:1])
+	require.NoError(t, err)
+	assert.True(t, day.activities)
+	require.Len(t, client.created, 1)
+	assert.Equal(t, "Basteln", client.created[0]["title"])
 }
 
 func TestDemoDaySkipsActivitiesTheTimetableAlreadyHas(t *testing.T) {

@@ -86,6 +86,9 @@ func (c *endedSessionCompletion) CompleteActiveByActiveGroupIDs(ctx context.Cont
 	if err != nil {
 		return 0, err
 	}
+	if completed == 0 {
+		return 0, nil
+	}
 	if err := c.recordSpontaneousEnds(ctx, activeGroupIDs, completedAt); err != nil {
 		return 0, err
 	}

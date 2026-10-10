@@ -119,6 +119,10 @@ type demoDay struct {
 	loadedAt   time.Time
 	times      map[int64]demoTimes
 	timesAt    time.Time
+	// pendingTimes are the exact targets after a partially failed move. The
+	// effective-time API includes successful exceptions, so recalculating the
+	// shift on retry would move those children twice.
+	pendingTimes map[int64]demoTimes
 	// failed are blocks whose step failed today; they are not retried, so
 	// a refused start does not repeat every tick.
 	failed map[int64]bool
@@ -170,7 +174,8 @@ func (day *demoDay) sync(client Client, now time.Time, studentIDs []int64, activ
 		}
 	}
 	if !day.planned {
-		if shift := demoDayShift(day.blocks, minute); shift != 0 {
+		shift := demoDayShift(day.blocks, minute)
+		if day.pendingTimes != nil || shift != 0 {
 			if err := day.move(client, shift, studentIDs); err != nil {
 				return false, err
 			}
@@ -192,7 +197,14 @@ func (day *demoDay) sync(client Client, now time.Time, studentIDs []int64, activ
 		}
 	}
 	if !day.activities {
-		if day.planActivities(client, activities, studentIDs) {
+		created, err := day.planActivities(client, activities, studentIDs)
+		if err != nil {
+			// A successful write before a later failure must be read before the
+			// next attempt, so it is not created a second time.
+			day.loadedAt = time.Time{}
+			return false, err
+		}
+		if created {
 			if err := day.load(client, now); err != nil {
 				return false, err
 			}
@@ -281,6 +293,13 @@ func movedWindow(start, end, shift int) (int, int, bool) {
 // move shifts today's planned blocks and the children's arrival and pickup
 // times by shift minutes.
 func (day *demoDay) move(client Client, shift int, studentIDs []int64) error {
+	if day.pendingTimes != nil {
+		if err := day.writeTimes(client, studentIDs, day.pendingTimes); err != nil {
+			return err
+		}
+		day.pendingTimes = nil
+		return nil
+	}
 	for _, block := range day.blocks {
 		if block.IsSpontaneous || block.Status != "planned" {
 			continue
@@ -320,7 +339,11 @@ func (day *demoDay) move(client Client, shift int, studentIDs []int64) error {
 		}
 		moved[studentID] = demoTimes{arrival: arrival, pickup: pickup}
 	}
-	day.writeTimes(client, studentIDs, moved)
+	day.pendingTimes = moved
+	if err := day.writeTimes(client, studentIDs, day.pendingTimes); err != nil {
+		return err
+	}
+	day.pendingTimes = nil
 	return nil
 }
 
@@ -356,7 +379,9 @@ func (day *demoDay) reanchor(client Client, studentIDs []int64, minute int) erro
 		pickup := max(min(minute+90+(i%4)*15, demoDayLastMinute), arrival+1)
 		moved[studentID] = demoTimes{arrival: arrival, pickup: pickup}
 	}
-	day.writeTimes(client, studentIDs, moved)
+	if err := day.writeTimes(client, studentIDs, moved); err != nil {
+		return err
+	}
 	day.anchor, day.anchoredAt, day.activities = minute, minute, false
 	day.home = map[int64]bool{}
 	return nil
@@ -364,7 +389,7 @@ func (day *demoDay) reanchor(client Client, studentIDs []int64, minute int) erro
 
 // writeTimes stores the children's arrival and pickup of today as day
 // exceptions and closes the pickup tasks they open.
-func (day *demoDay) writeTimes(client Client, studentIDs []int64, moved map[int64]demoTimes) {
+func (day *demoDay) writeTimes(client Client, studentIDs []int64, moved map[int64]demoTimes) error {
 	movedPickups := map[int64]string{}
 	for _, studentID := range studentIDs {
 		times, ok := moved[studentID]
@@ -375,11 +400,7 @@ func (day *demoDay) writeTimes(client Client, studentIDs []int64, moved map[int6
 		if _, err := client.Post(path, map[string]any{
 			"exception_date": day.date, "expected_arrival": clockOf(times.arrival), "reason": demoDayReason,
 		}); err != nil {
-			slog.Warn("demo day: arrival not moved",
-				"student_id", studentID,
-				"error", err,
-			)
-			continue
+			return fmt.Errorf("move demo arrival for student %d: %w", studentID, err)
 		}
 		if times.pickup < 0 {
 			continue
@@ -389,14 +410,12 @@ func (day *demoDay) writeTimes(client Client, studentIDs []int64, moved map[int6
 		if _, err := client.Post(path, map[string]any{
 			"exception_date": day.date, "pickup_time": clockOf(times.pickup), "reason": demoDayReason,
 		}); err != nil {
-			slog.Warn("demo day: pickup not moved",
-				"student_id", studentID,
-				"error", err,
-			)
+			return fmt.Errorf("move demo pickup for student %d: %w", studentID, err)
 		}
 	}
 	day.times = nil
 	day.settlePickupTasks(client, movedPickups)
+	return nil
 }
 
 // settlePickupTasks closes the tasks the moved pickups opened (#3261): a
@@ -446,7 +465,7 @@ func ptr(value string) *string { return &value }
 // AG that is still planned or running today, or whose room another block
 // with children uses at the time, is left out. It reports whether it
 // planned any.
-func (day *demoDay) planActivities(client Client, activities []demoActivity, studentIDs []int64) bool {
+func (day *demoDay) planActivities(client Client, activities []demoActivity, studentIDs []int64) (bool, error) {
 	// An AG counts as planned when a block of that activity, or a block of
 	// the same name from the school's own timetable, is still to come or runs.
 	planned, titled := map[int64]bool{}, map[string]bool{}
@@ -495,15 +514,11 @@ func (day *demoDay) planActivities(client Client, activities []demoActivity, stu
 			"staff_ids": []int64{activity.staffID}, "student_ids": roster,
 		})
 		if err != nil {
-			slog.Info("demo day: activity not planned",
-				"activity_id", activity.id,
-				"error", err,
-			)
-			continue
+			return created, fmt.Errorf("plan demo activity %d: %w", activity.id, err)
 		}
 		created = true
 	}
-	return created
+	return created, nil
 }
 
 // roomTaken reports whether another block with children uses the room at

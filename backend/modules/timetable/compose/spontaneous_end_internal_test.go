@@ -80,3 +80,23 @@ func TestEndedSessionCompletionRecordsSpontaneousEnd(t *testing.T) {
 	assert.Equal(t, []string{"end_time"}, instances.updated[0].columns)
 	assert.Equal(t, "20:32", instances.updated[0].endTime.Format("15:04"))
 }
+
+func TestEndedSessionCompletionKeepsExistingSpontaneousEnd(t *testing.T) {
+	t.Parallel()
+	day := timezone.NewDate(2026, 10, 9)
+	instances := &endedSessionInstancesStub{
+		instances: []*scheduleModels.ActivityInstance{
+			spontaneousBlock(7713, day, 15, 16, true),
+		},
+		calls: &[]string{},
+	}
+	completion := newEndedSessionCompletion(t, EndedSessionCompletionDependencies{
+		Instances:    instances,
+		Participants: &endedSessionParticipantsStub{calls: &[]string{}},
+	})
+
+	completed, err := completion.CompleteActiveByActiveGroupIDs(context.Background(), []int64{8813}, berlinAt(day, 21, 7))
+	require.NoError(t, err)
+	assert.Zero(t, completed)
+	assert.Empty(t, instances.updated, "an already completed session keeps its recorded end")
+}

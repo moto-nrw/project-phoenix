@@ -30,6 +30,7 @@ import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { schoolClassLabel } from "~/lib/school-class-label";
+import type { ClassDayClasses } from "~/lib/school-class-day-api";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
 import { countDayChanges } from "./day-changes";
@@ -141,24 +142,18 @@ function ClassLink({
 }
 
 export interface ClassDayOverviewProps {
-  /** Klassenliste der angemeldeten Lehrkraft — portal-eigene Session. */
-  readonly fetchMyClasses: () => Promise<string[]>;
+  /** Klassenliste und Wochenendplan der angemeldeten Lehrkraft. */
+  readonly fetchClasses: () => Promise<ClassDayClasses>;
   /** Tagesreport einer Klasse — portal-eigene Session. */
   readonly fetchClassDay: (
     schoolClass: string,
     date: string,
   ) => Promise<ClassDayReport>;
-  /**
-   * Ob die Schule Sa/So nach dem Freitagsplan betreut (#3921). Ohne Abruf
-   * bleibt das Wochenende ein Tag ohne Schule und wird nicht geladen.
-   */
-  readonly fetchWeekendOpen?: () => Promise<boolean>;
 }
 
 export function ClassDayOverview({
-  fetchMyClasses,
+  fetchClasses,
   fetchClassDay,
-  fetchWeekendOpen,
 }: ClassDayOverviewProps) {
   const greeting = useTimeBasedGreeting();
   const { data: session } = useSession();
@@ -167,13 +162,6 @@ export function ClassDayOverview({
   // Der Tag steht in der Adresse, nicht nur im Zustand: nur so führt der
   // Zurück-Weg aus einer Klasse auf denselben Tag zurück.
   const dateISO = classDayDateParam(searchParams.get("tag"));
-  const { data: weekendOpen } = useSWRAuth(
-    fetchWeekendOpen ? "class-day-weekend-open" : null,
-    () => (fetchWeekendOpen ? fetchWeekendOpen() : Promise.resolve(false)),
-    { revalidateOnFocus: false },
-  );
-  const weekend = isWeekendISO(dateISO) && weekendOpen !== true;
-
   // Die Klassenliste MUSS mitrevalidieren (App-Default ist
   // revalidateOnFocus: false): bliebe sie auf dem Mount-Stand eingefroren,
   // würde eine entzogene Klasse für immer im Reports-Key stehen (jede
@@ -181,14 +169,17 @@ export function ClassDayOverview({
   // bliebe bis zum Reload stehen), und eine neu zugewiesene Klasse erschiene
   // nie.
   const {
-    data: classes,
+    data: classList,
     error: classesError,
     isLoading: classesLoading,
     mutate: reloadClasses,
-  } = useSWRAuth("class-day-my-classes", fetchMyClasses, {
+  } = useSWRAuth("class-day-my-classes", fetchClasses, {
     revalidateOnFocus: true,
     focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
   });
+  const classes = classList?.classes;
+  const weekend =
+    isWeekendISO(dateISO) && classList?.weekend_follows_friday !== true;
 
   // Alle zugewiesenen Klassen für den Tag parallel laden: die Übersicht
   // braucht von jeder Klasse die Zahlen und die Anzahl der Abweichungen.

@@ -60,6 +60,14 @@ function report(date: string): ClassDayReport {
   };
 }
 
+function classList(weekendFollowsFriday: boolean) {
+  return {
+    classes: ["4a"],
+    can_write_arrival_exception: false,
+    weekend_follows_friday: weekendFollowsFriday,
+  };
+}
+
 describe("ClassDayOverview on the weekend", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -72,9 +80,8 @@ describe("ClassDayOverview on the weekend", () => {
     );
     render(
       <ClassDayOverview
-        fetchMyClasses={() => Promise.resolve(["4a"])}
+        fetchClasses={() => Promise.resolve(classList(false))}
         fetchClassDay={fetchClassDay}
-        fetchWeekendOpen={() => Promise.resolve(false)}
       />,
     );
 
@@ -86,16 +93,17 @@ describe("ClassDayOverview on the weekend", () => {
     const fetchClassDay = vi.fn((_: string, date: string) =>
       Promise.resolve(report(date)),
     );
+    const fetchClasses = vi.fn(() => Promise.resolve(classList(true)));
     render(
       <ClassDayOverview
-        fetchMyClasses={() => Promise.resolve(["4a"])}
+        fetchClasses={fetchClasses}
         fetchClassDay={fetchClassDay}
-        fetchWeekendOpen={() => Promise.resolve(true)}
       />,
     );
 
     await waitFor(() =>
       expect(fetchClassDay).toHaveBeenCalledWith("4a", "2026-09-05"),
     );
+    expect(fetchClasses).toHaveBeenCalledTimes(1);
   });
 });

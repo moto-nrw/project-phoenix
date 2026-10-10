@@ -10,8 +10,7 @@ import { TodayNoticesCard } from "~/components/school/today-notices-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
   fetchClassDaySchool,
-  fetchClassDayWeekendOpenSchool,
-  fetchMyClassesSchool,
+  fetchClassDayClassesSchool,
 } from "~/lib/school-class-day-api";
 
 export default function SchoolHomePage() {
@@ -24,9 +23,8 @@ export default function SchoolHomePage() {
           eine Suspense-Grenze. */}
       <Suspense fallback={<Skeleton className="h-64 w-full" />}>
         <ClassDayOverview
-          fetchMyClasses={fetchMyClassesSchool}
+          fetchClasses={fetchClassDayClassesSchool}
           fetchClassDay={fetchClassDaySchool}
-          fetchWeekendOpen={fetchClassDayWeekendOpenSchool}
         />
       </Suspense>
     </div>
