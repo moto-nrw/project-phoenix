@@ -370,12 +370,27 @@ func TestDemoTickRunsAWeekdayWithoutKioskSessions(t *testing.T) {
 	assert.NotContains(t, client.device.studentActions, "/api/iot/attendance/toggle", "the kiosk has no session to confirm attendance in")
 }
 
+// demoWeekendClient records the kiosk side like demoRecordingClient and
+// serves the past week's blocks like demoDayClient.
+type demoWeekendClient struct {
+	demoRecordingClient
+	days *demoDayClient
+}
+
+func (c *demoWeekendClient) Get(path string) ([]byte, error) { return c.days.Get(path) }
+func (c *demoWeekendClient) Post(path string, body any) ([]byte, error) {
+	return c.days.Post(path, body)
+}
+
 func TestDemoTickKeepsKioskSessionsOnTheWeekend(t *testing.T) {
 	t.Parallel()
 	state := minimalLiveState("")
 	state.Accounts.Betreuer = []AccountCredentials{{StaffID: 17}}
 	state.Activities = map[string]int64{"Hausaufgaben": 23}
-	client := &demoRecordingClient{}
+	// Friday's AG still runs: the daily close was missed.
+	friday := plannedBlock(9, "19:05", "20:05", 5, 11)
+	friday.Date, friday.Status = "2026-09-11", "active"
+	client := &demoWeekendClient{days: newDemoDayClient(friday)}
 	saturday := time.Date(2026, 9, 12, 20, 0, 0, 0, demoBerlin)
 	ticker, err := NewDemoTicker(DemoTickOptions{
 		State: state, Client: client, Now: func() time.Time { return saturday }, PlanWeekdays: true,
@@ -383,5 +398,11 @@ func TestDemoTickKeepsKioskSessionsOnTheWeekend(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, ticker.Tick(t.Context()))
+	assert.Equal(t, "completed", client.days.blocks[0].Status, "a block left running from an earlier day is closed")
 	assert.Equal(t, 1, client.sessionsStarted, "weekends are never care days and keep the open simulation")
+
+	client.days.writes = nil
+	saturday = saturday.Add(5 * time.Second)
+	require.NoError(t, ticker.Tick(t.Context()))
+	assert.Empty(t, client.days.writes, "the leftovers are closed once a day")
 }

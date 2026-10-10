@@ -46,6 +46,8 @@ type DemoTicker struct {
 	prepared map[int64]bool
 	parents  demoParentState
 	day      demoDay
+	// settled is the day whose leftover blocks of earlier days are closed.
+	settled string
 }
 
 func NewDemoTicker(options DemoTickOptions) (*DemoTicker, error) {
@@ -74,6 +76,11 @@ func (d *DemoTicker) Tick(ctx context.Context) error {
 	latest := make(map[int64]DemoVisit, len(visits))
 	for _, visit := range visits {
 		latest[visit.StudentID] = visit
+	}
+	if d.options.PlanWeekdays {
+		if err := d.closeLeftovers(now); err != nil {
+			return err
+		}
 	}
 	planDay := d.options.PlanWeekdays && demoWeekday(now)
 	minute := now.In(demoBerlin).Hour()*60 + now.In(demoBerlin).Minute()
@@ -261,6 +268,46 @@ func (d *DemoTicker) rebuild(ctx context.Context, state *SeedState, rooms []int6
 			return fmt.Errorf("restore demo visit: %w", err)
 		}
 	}
+	return nil
+}
+
+// closeLeftovers closes, once a day, planned blocks of the past week that
+// still run. The daily close ends them at the end of the care day, but a
+// missed close (a restart at that minute) would keep their sessions open,
+// and a running block's activity refuses every kiosk session of the next
+// open-simulation day.
+func (d *DemoTicker) closeLeftovers(now time.Time) error {
+	local := now.In(demoBerlin)
+	today := local.Format(isoDate)
+	if d.settled == today {
+		return nil
+	}
+	from := local.AddDate(0, 0, -7).Format(isoDate)
+	to := local.AddDate(0, 0, -1).Format(isoDate)
+	raw, err := d.options.Client.Get(fmt.Sprintf("/api/timetable/instances?from=%s&to=%s", from, to))
+	if err != nil {
+		return fmt.Errorf("read leftover demo blocks: %w", err)
+	}
+	var envelope struct {
+		Data struct {
+			Instances []demoBlock `json:"instances"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return fmt.Errorf("decode leftover demo blocks: %w", err)
+	}
+	for _, block := range envelope.Data.Instances {
+		if block.IsSpontaneous || block.Status != "active" {
+			continue
+		}
+		if err := completeBlock(d.options.Client, block.ID); err != nil {
+			slog.Info("demo day: leftover block not closed",
+				"instance_id", block.ID,
+				"error", err,
+			)
+		}
+	}
+	d.settled = today
 	return nil
 }
 
