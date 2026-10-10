@@ -44,12 +44,12 @@ func verifyPreloadSettingKeys(keys []string) error {
 // schedulerSettings binds the Settings Platform service and its cross-tenant
 // batch read, so one query per minute preloads the polling settings of every
 // school.
-func schedulerSettings(api *API) (scheduler.SettingsResolver, error) {
-	snapshots, err := settingsCompose.NewTenantSnapshots(api.Services.Settings)
+func schedulerSettings(graph *serveGraph) (scheduler.SettingsResolver, error) {
+	snapshots, err := settingsCompose.NewTenantSnapshots(graph.services.Settings)
 	if err != nil {
 		return nil, fmt.Errorf("worker settings snapshots: %w", err)
 	}
-	return schedulerSettingsPort{SettingsResolver: api.Services.Settings, snapshots: snapshots}, nil
+	return schedulerSettingsPort{SettingsResolver: graph.services.Settings, snapshots: snapshots}, nil
 }
 
 type schedulerSettingsPort struct {
@@ -78,8 +78,8 @@ func (p schedulerSettingsPort) BindSettingsSnapshot(ctx context.Context, snapsho
 }
 
 // schedulerBookingConsistency binds the booking drift audit.
-func schedulerBookingConsistency(api *API) scheduler.BookingConsistencyAudit {
-	bookings := api.repos.BookingConsistency
+func schedulerBookingConsistency(graph *serveGraph) scheduler.BookingConsistencyAudit {
+	bookings := graph.repos.BookingConsistency
 	if bookings == nil {
 		return nil
 	}
@@ -101,8 +101,8 @@ func schedulerBookingConsistency(api *API) scheduler.BookingConsistencyAudit {
 
 // schedulerDayInstances binds the overdue tick to the day's activity
 // instances with their composed status.
-func schedulerDayInstances(api *API) scheduler.DayInstanceReader {
-	instances := api.repos.ActivityInstance
+func schedulerDayInstances(graph *serveGraph) scheduler.DayInstanceReader {
+	instances := graph.repos.ActivityInstance
 	if instances == nil {
 		return nil
 	}
@@ -129,8 +129,8 @@ func schedulerDayInstances(api *API) scheduler.DayInstanceReader {
 }
 
 // schedulerExistingRooms binds the overdue tick's room check.
-func schedulerExistingRooms(api *API) scheduler.ExistingRoomReader {
-	rooms := api.repos.Room
+func schedulerExistingRooms(graph *serveGraph) scheduler.ExistingRoomReader {
+	rooms := graph.repos.Room
 	if rooms == nil {
 		return nil
 	}
@@ -151,8 +151,8 @@ func schedulerExistingRooms(api *API) scheduler.ExistingRoomReader {
 
 // schedulerStudentLifecycle binds the activate-students tick to the
 // retained student repository.
-func schedulerStudentLifecycle(api *API) scheduler.StudentLifecycleRepository {
-	students := api.repos.Student
+func schedulerStudentLifecycle(graph *serveGraph) scheduler.StudentLifecycleRepository {
+	students := graph.repos.Student
 	if students == nil {
 		return nil
 	}
@@ -203,8 +203,8 @@ func (p studentLifecyclePort) TransitionStatus(ctx context.Context, studentID in
 
 // schedulerStudentAudit binds the history entry of an automated status
 // transition.
-func schedulerStudentAudit(api *API) scheduler.StudentLifecycleAuditor {
-	audit := api.Services.StudentAudit
+func schedulerStudentAudit(graph *serveGraph) scheduler.StudentLifecycleAuditor {
+	audit := graph.services.StudentAudit
 	if audit == nil {
 		return nil
 	}
@@ -220,8 +220,8 @@ func (p studentAuditPort) RecordSystemStatusChange(ctx context.Context, studentI
 }
 
 // schedulerStudentChangeLogCleanup binds the change-history retention sweep.
-func schedulerStudentChangeLogCleanup(api *API) scheduler.StudentChangeLogCleanup {
-	service := api.Services.StudentChangeLogCleanup
+func schedulerStudentChangeLogCleanup(graph *serveGraph) scheduler.StudentChangeLogCleanup {
+	service := graph.services.StudentChangeLogCleanup
 	if service == nil {
 		return nil
 	}

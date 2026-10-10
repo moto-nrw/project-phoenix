@@ -193,7 +193,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/identityaccess/internal/application/staff_preview.go:(*AccountLifecycle).ListStaffPreviewCandidates":               24,
 	"modules/identityaccess/internal/application/staff_preview.go:(*AccountLifecycle).StartStaffPreview":                        36,
 	"modules/identityaccess/internal/domain/operator_account_access.go:UnambiguousPersonIdentity":                               17,
-	"modules/identityaccess/legacy/jwt/tokenauth.go:ParseStructToMap":                                                           17,
+	"modules/identityaccess/legacy/jwt/token_test_helpers.go:ParseStructToMap":                                                  17,
 
 	"modules/mealplan/internal/application/service.go:(*Service).DailyParticipants":    20,
 	"modules/mealplan/internal/application/service.go:(*Service).resolveParticipation": 20,

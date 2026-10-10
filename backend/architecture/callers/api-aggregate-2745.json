@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "generator": "scripts/run-go-toolchain.sh go run scripts/backend-api-aggregate-callers/main.go; Go AST inventory over backend/**/*.go including tests, excluding testdata",
+  "replacement_provider": "package-private serveGraph and the mount functions in backend/api/base.go",
+  "retired_symbols": [
+    {
+      "package": "github.com/moto-nrw/project-phoenix/api",
+      "symbol": "API",
+      "declarations": [],
+      "references": []
+    },
+    {
+      "package": "github.com/moto-nrw/project-phoenix/api",
+      "symbol": "New",
+      "declarations": [],
+      "references": []
+    }
+  ],
+  "scanned_go_files": 7049
+}

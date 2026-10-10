@@ -106,12 +106,6 @@ func NewResource(cfg ResourceConfig) *Resource {
 	}
 }
 
-// Router returns the chi router scoped to /parent without a rate limiter on
-// the public auth endpoints; tests drive it directly.
-func (rs *Resource) Router() chi.Router {
-	return rs.RouterWithAuthRateLimiter(nil)
-}
-
 // RouterWithAuthRateLimiter returns the chi router scoped to /parent with the
 // given rate limiter middleware on the public parent auth endpoints. Mirrors
 // the tenant and operator wiring in api/base.go so brute-force attempts return

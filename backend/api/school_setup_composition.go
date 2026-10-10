@@ -11,8 +11,8 @@ import (
 	schoolSetupHTTP "github.com/moto-nrw/project-phoenix/modules/schoolsetup/http"
 )
 
-// moduleRoute is a tenant route group a module serves itself. Modules mount
-// through this list instead of new API fields, which are shrink-only (#2580).
+// moduleRoute is a tenant route group a module serves itself. The root mounts
+// it as it is built and keeps no resource behind it (#2745).
 type moduleRoute struct {
 	pattern string
 	router  chi.Router

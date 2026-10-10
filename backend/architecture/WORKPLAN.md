@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 09.10.2026 · Ratchet 206 · Composition 591 · Policy-Epoche 34 · 4 Regeln mit
+Stand 10.10.2026 · Ratchet 201 · Composition 490 · Policy-Epoche 34 · 4 Regeln mit
 `convert it to exact debt` · 19.606 LOC unter `modules/*/legacy`
 
-Summenprobe: 34 + 24 + 4 + 0 + 0 + 0 + 144 = 206 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 34 + 24 + 4 + 0 + 0 + 0 + 139 = 201 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -92,12 +92,12 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 - [x] [#2706](https://github.com/moto-nrw/project-phoenix/issues/2706) Dokument-Rendering — Plan-Export über `modules/planexport/compose` an Lesepfade im öffentlichen Vokabular von Workforce, Timetable und Facilities gebunden (Block-, Personal-, Angebots- und Kinderzahl-Lesepfade laufen in der Root weiter über die Retained-Repositories, Abbau mit #2743), `modules/planexport/legacy` gelöscht; File Storage bedient `documents.file_cleanup` mit eigenem Adapter und übernimmt die Tabelle per ADR 0045 (Policy-Epoche 31 → 32), generisches Dokument-Repository, Modell und Binder gelöscht; Upload-Koordinator mit eigenem Objektspeicher-Port; alle 17 Keys weg (282 → 265), Composition 596 → 596. Offen bleibt die benannte Ausnahme `people-directory.http.file-storage-adapter` (Kinderdokumente brauchen eine öffentliche File-Storage-Capability)
 
-## Endkette · 144 Keys
+## Endkette · 139 Keys
 
-- [ ] [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) root api, cmd, main composition — 60 (#2731: `api -> api/students` entfernt; #2742: `api -> api/admin` und `api -> api/groups` entfernt; #2734: `api -> api/enrollment` entfernt)
+- [ ] [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) root api, cmd, main composition — 55 (#2731: `api -> api/students` entfernt; #2742: `api -> api/admin` und `api -> api/groups` entfernt; #2734: `api -> api/enrollment` entfernt; #2745: `api -> api/absence-types`, `api/shift-types`, `api/staff-shifts`, `api/substitutions` und `api/work-time-models` entfernt)
 - [ ] [#2748](https://github.com/moto-nrw/project-phoenix/issues/2748) shared test und E2E composition — 36 (#2742: `test -> database/repositories/education` im internen Test entfernt; #3556: `test -> models/education` entfernt, die Fixtures bilden ihre Zeilen selbst ab; Schnitt 1: `internal/testdb` ohne `crypto`, E2E ohne `jwt`, `tenant`, `auth/device`, `models/users`, `models/audit`; Epoche 24 gewährt dem Fixture-Owner per ADR 0039 eigenes Werkzeug, `tenant-runtime/public`, `legacy-shared/domain` und `security-runtime/contract`; die restlichen Keys zeigen auf Pakete, die andere Carrier auflösen: `models/*` #2729/#2742/#2733, `services/users` #2728, `database/repositories/*` #2727, Settings, Root-Composition #2747/#2750, Stundenplan-Zeilen #3424 — keine Regel dafür)
 - [ ] [#2743](https://github.com/moto-nrw/project-phoenix/issues/2743) repository Factory — 15 (#3556: `models/education` entfernt, die Werte kommen über `modules/schoolstructure/compose`)
 - [ ] [#2747](https://github.com/moto-nrw/project-phoenix/issues/2747) service Factory — 30
 - [ ] [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition löschen, leeren Ratchet beweisen — 3 (#2742: `models -> models/education` im internen Test entfernt)
-- [ ] [#2745](https://github.com/moto-nrw/project-phoenix/issues/2745) API-Aggregat — 0
+- [x] [#2745](https://github.com/moto-nrw/project-phoenix/issues/2745) API-Aggregat — 0 (`api.API` und `api.New` gelöscht, `api` aus `legacy_composition`; jede Ressource wird gemountet, wo sie gebaut wird, `serveGraph` hält nur Router, Pool, Runtime und die Worker-Komposition (#2749); fünf #2750-Keys der reinen Feldtypen weg, 206 → 201, Composition 591 → 490)
 - [ ] [#2749](https://github.com/moto-nrw/project-phoenix/issues/2749) Scheduler-Setter, breite Test-Composition — 0
