@@ -3,11 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import {
-  CaretDownIcon,
-  CheckCircleIcon,
-  ListChecksIcon,
-} from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CoachMark } from "~/components/ui/coach-mark";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -319,7 +315,6 @@ export function ParentFirstSteps({
           aria-label={t("open", { count: steps.length - finished })}
           className="gap-2 rounded-full py-2.5 pr-3 pl-4 shadow-lg hover:shadow-xl"
         >
-          <ListChecksIcon size={20} weight="bold" aria-hidden />
           <span>{t("shortTitle")}</span>
           <span
             aria-hidden
@@ -400,12 +395,12 @@ export function ParentFirstSteps({
                       onClick={() => setExpanded(isExpanded ? null : step.key)}
                     >
                       {done ? (
-                        <CheckCircleIcon
-                          size={20}
-                          weight="fill"
-                          className="text-moto-green"
+                        <span
+                          className="bg-moto-green flex size-5 shrink-0 items-center justify-center rounded-full text-xs leading-none font-bold text-white"
                           aria-hidden
-                        />
+                        >
+                          ✓
+                        </span>
                       ) : (
                         <span
                           className="size-5 shrink-0 rounded-full border-2 border-gray-400"
