@@ -125,33 +125,9 @@ func (s *staffAssignmentService) ListAssignmentsForStaff(ctx context.Context, st
 
 	assignments := make([]*StaffAssignment, 0, len(mine))
 	for _, row := range mine {
-		inst := instanceByID[row.InstanceID]
-		if inst == nil {
-			continue
+		if assignment := staffAssignmentFor(row, instanceByID[row.InstanceID], roomNames, groupNames); assignment != nil {
+			assignments = append(assignments, assignment)
 		}
-		roomID := inst.RoomID
-		if row.RoomID != nil {
-			roomID = *row.RoomID
-		}
-		a := &StaffAssignment{
-			InstanceID:      inst.ID,
-			Title:           inst.Title,
-			GroupName:       groupNameFor(inst.ActivityGroupID, groupNames),
-			RoomName:        roomNames[roomID],
-			Date:            inst.Date,
-			StartTime:       timezone.NormalizeWallClock(inst.StartTime),
-			EndTime:         timezone.NormalizeWallClock(inst.EndTime),
-			Status:          inst.Status,
-			IsSpontaneous:   inst.IsSpontaneous,
-			Cancelled:       inst.Status == timetable.InstanceStatusCancelled,
-			IsPrimary:       row.IsPrimary,
-			IsSubstitute:    row.IsSubstitute,
-			IsAbsent:        row.IsAbsent,
-			AbsenceReason:   row.AbsenceReason,
-			CancelReason:    inst.CancelReason,
-			UnderstaffedAck: inst.UnderstaffedAck,
-		}
-		assignments = append(assignments, a)
 	}
 
 	slices.SortFunc(assignments, func(a, b *StaffAssignment) int {
@@ -161,6 +137,37 @@ func (s *staffAssignmentService) ListAssignmentsForStaff(ctx context.Context, st
 		return a.StartTime.Compare(b.StartTime)
 	})
 	return assignments, nil
+}
+
+// staffAssignmentFor combines one staff assignment row with its resolved
+// instance metadata. Missing instances are skipped consistently with the
+// former inline loop: a stale assignment row cannot form a visible block.
+func staffAssignmentFor(row *timetable.InstanceStaff, inst *timetable.ScheduledInstance, roomNames map[int64]string, groupNames map[int64]string) *StaffAssignment {
+	if inst == nil {
+		return nil
+	}
+	roomID := inst.RoomID
+	if row.RoomID != nil {
+		roomID = *row.RoomID
+	}
+	return &StaffAssignment{
+		InstanceID:      inst.ID,
+		Title:           inst.Title,
+		GroupName:       groupNameFor(inst.ActivityGroupID, groupNames),
+		RoomName:        roomNames[roomID],
+		Date:            inst.Date,
+		StartTime:       timezone.NormalizeWallClock(inst.StartTime),
+		EndTime:         timezone.NormalizeWallClock(inst.EndTime),
+		Status:          inst.Status,
+		IsSpontaneous:   inst.IsSpontaneous,
+		Cancelled:       inst.Status == timetable.InstanceStatusCancelled,
+		IsPrimary:       row.IsPrimary,
+		IsSubstitute:    row.IsSubstitute,
+		IsAbsent:        row.IsAbsent,
+		AbsenceReason:   row.AbsenceReason,
+		CancelReason:    inst.CancelReason,
+		UnderstaffedAck: inst.UnderstaffedAck,
+	}
 }
 
 // resolveRoomNames batch-loads the rooms referenced by the assignments (either
