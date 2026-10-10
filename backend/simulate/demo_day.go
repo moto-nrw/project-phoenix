@@ -211,6 +211,9 @@ func (day *demoDay) sync(client Client, now time.Time, studentIDs []int64, activ
 		if err := day.reanchor(client, studentIDs, minute); err != nil {
 			return false, err
 		}
+		if err := day.loadTimes(client, studentIDs, now); err != nil {
+			return false, err
+		}
 	}
 	if !day.activities {
 		created, err := day.planActivities(client, activities, studentIDs)

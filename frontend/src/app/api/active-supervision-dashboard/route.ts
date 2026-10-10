@@ -319,6 +319,7 @@ interface ActiveSupervisionDashboardResponse {
         instanceId: string;
         startTime: string;
         endTime: string;
+        isSpontaneous?: boolean;
         isUserAssigned: boolean;
         canOperate: boolean;
       } | null;

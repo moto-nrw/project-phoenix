@@ -253,6 +253,7 @@ describe("date and range helpers", () => {
   it("keeps weekend days as care days only when the weekend follows Friday (#3921)", () => {
     expect(careDayISO("2026-07-18", false)).toBe("2026-07-20"); // Sa -> Mo
     expect(careDayISO("2026-07-18", true)).toBe("2026-07-18"); // Sa bleibt
+    expect(careDayISO("2026-07-15", false)).toBe("2026-07-15"); // Mi bleibt
     expect(nextCareDayISO("2026-07-15", false)).toBe("2026-07-16"); // Mi -> Do
     expect(nextCareDayISO("2026-07-17", false)).toBe("2026-07-20"); // Fr -> Mo
     expect(nextCareDayISO("2026-07-17", true)).toBe("2026-07-18"); // Fr -> Sa

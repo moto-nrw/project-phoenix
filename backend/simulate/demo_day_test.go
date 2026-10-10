@@ -516,6 +516,8 @@ func TestDemoDayRebuildsAnEndedDayForALateVisitor(t *testing.T) {
 	byTitle := createdByTitle(client)
 	assert.Equal(t, "18:30", byTitle["Basteln"]["start_time"], "the AGs run again around the current hour")
 	assert.Equal(t, "19:30", byTitle["Fußball"]["start_time"])
+	assert.Equal(t, []int64{11, 12}, byTitle["Basteln"]["student_ids"])
+	assert.Equal(t, []int64{11, 12}, byTitle["Fußball"]["student_ids"])
 	assert.Empty(t, day.home, "the children come again")
 
 	// While the new afternoon runs, nothing is rebuilt.
