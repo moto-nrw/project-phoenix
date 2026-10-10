@@ -77,12 +77,6 @@ func NewSettingsResource(operations Operations, homeLayouts HomeLayoutOperations
 	return &SettingsResource{operations: operations, homeLayouts: homeLayouts, runtime: runtime}
 }
 
-func (rs *SettingsResource) OnValueSet(hook func(context.Context, int64, string, any) (func(), error)) {
-	if rs.operations != nil {
-		rs.operations.SetValueSetHook(hook)
-	}
-}
-
 // SettingsRouter returns a configured router for settings endpoints.
 func (rs *SettingsResource) SettingsRouter() chi.Router {
 	r := chi.NewRouter()
