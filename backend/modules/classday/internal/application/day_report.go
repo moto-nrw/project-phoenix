@@ -73,14 +73,9 @@ func newClassDayFacts() classDayFacts {
 	}
 }
 
-// classDayWeekdayKey maps a calendar date onto the report day keys
-// ("mon".."fri"). Weekend dates return "".
-func classDayWeekdayKey(date timezone.Date) string {
-	return classDayKeyOf(calendar.ISOWeekday(date))
-}
-
-// classDayPlanKey is the day key whose plans apply on date: Friday's for a
-// weekend that follows Friday's plan (#3921), else classDayWeekdayKey.
+// classDayPlanKey is the day key ("mon".."fri") whose plans apply on date:
+// Friday's for a weekend that follows Friday's plan (#3921), else the date's
+// own; "" for a weekend that does not.
 func classDayPlanKey(ctx context.Context, date timezone.Date) (string, error) {
 	weekday, err := calendar.PlanWeekday(ctx, date)
 	if err != nil {

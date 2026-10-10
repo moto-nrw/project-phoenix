@@ -27,18 +27,15 @@ func classDayReportedAt(facts classDayFacts, studentID int64, status string, pic
 	return nil
 }
 
-// buildClassDayReport projects full roster rows onto one calendar day: the
+// buildClassDayReportFor projects full roster rows onto one calendar day: the
 // weekday's offerings decide who stays, a reported day status wins over any
 // enrollment, a not-scheduled care day (materialized plan says "an dem Tag
 // nicht gebucht") overrides the offering, and everyone else goes home after
 // lessons. Effective arrival/pickup times (from the live plans) replace the
 // roster's form-answer values when available; the departure column comes
 // exclusively from the per-day plan (or "Keine Angabe") on school days.
-func buildClassDayReport(schoolClass string, date timezone.Date, phaseName string, rosterRows []DayRosterRow, facts classDayFacts) *classday.DayReport {
-	return buildClassDayReportFor(schoolClass, date, classDayWeekdayKey(date), phaseName, rosterRows, facts)
-}
-
-// buildClassDayReportFor builds the report for the plan weekday key: the
+//
+// It builds the report for the plan weekday key: the
 // date's own, or Friday's for a weekend that follows Friday's plan (#3921).
 func buildClassDayReportFor(schoolClass string, date timezone.Date, weekday, phaseName string, rosterRows []DayRosterRow, facts classDayFacts) *classday.DayReport {
 	report := &classday.DayReport{
