@@ -5,9 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   CaretDownIcon,
-  CaretUpIcon,
   CheckCircleIcon,
-  CircleIcon,
   ListChecksIcon,
 } from "@phosphor-icons/react";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -19,7 +17,6 @@ import {
   HELP_TOPICS,
   type HelpTopicId,
 } from "~/lib/help-topics";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   completeParentFirstStep,
   readParentFirstStepsState,
@@ -330,7 +327,12 @@ export function ParentFirstSteps({
           >
             {steps.length - finished}
           </span>
-          <CaretUpIcon size={16} weight="bold" aria-hidden />
+          <CaretDownIcon
+            size={16}
+            weight="bold"
+            className="rotate-180"
+            aria-hidden
+          />
         </Button>
       </div>
     );
@@ -401,13 +403,12 @@ export function ParentFirstSteps({
                         <CheckCircleIcon
                           size={20}
                           weight="fill"
-                          style={{ color: LOCATION_COLORS.GROUP_ROOM }}
+                          className="text-moto-green"
                           aria-hidden
                         />
                       ) : (
-                        <CircleIcon
-                          size={20}
-                          className="text-gray-400"
+                        <span
+                          className="size-5 shrink-0 rounded-full border-2 border-gray-400"
                           aria-hidden
                         />
                       )}
@@ -419,9 +420,9 @@ export function ParentFirstSteps({
                         {step.title}
                       </span>
                       {isExpanded ? (
-                        <CaretUpIcon
+                        <CaretDownIcon
                           size={16}
-                          className="text-gray-400"
+                          className="rotate-180 text-gray-400"
                           aria-hidden
                         />
                       ) : (
