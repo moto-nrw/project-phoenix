@@ -58,6 +58,16 @@ describe("blockChildrenLabel (#3921)", () => {
     ).toBe("10 da · 1 gegangen");
   });
 
+  it("nimmt ohne neue Felder die bisherigen Zählungen", () => {
+    expect(
+      blockChildrenLabel({
+        status: "active",
+        expectedStudentsCount: 6,
+        presentStudentsCount: 4,
+      }),
+    ).toBe("4 von 6 da");
+  });
+
   it("zählt beendet, wer da war, und davor, wer erwartet wird", () => {
     expect(
       blockChildrenLabel({

@@ -409,6 +409,27 @@ describe("PlannedNowSection", () => {
     expect(screen.getByText("Vertretung")).toBeInTheDocument();
   });
 
+  it("shows an open end for a running spontaneous block", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            status: "active",
+            isSpontaneous: true,
+            startTime: "15:16",
+            endTime: "16:16",
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("seit 15:16")).toBeInTheDocument();
+    expect(screen.queryByText("15:16-16:16")).toBeNull();
+  });
+
   it("sets children apart who are not in care today without hiding them", () => {
     render(
       <PlannedNowSection

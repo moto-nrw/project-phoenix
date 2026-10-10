@@ -7,6 +7,7 @@ import { Alert } from "~/components/ui/alert";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
+import { blockTimeRange } from "~/lib/block-children";
 import { isCareDayExpected } from "~/lib/timetable-types";
 import { useShowTimetableCounts } from "~/lib/tenant-context";
 import { useMinuteClock } from "~/lib/pickup-helpers";
@@ -224,7 +225,7 @@ export function PlannedNowSection({
                         <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
                           <span className="inline-flex items-center gap-1.5">
                             <MotoConceptIcon concept="careTimes" size={16} />
-                            {instance.startTime}-{instance.endTime}
+                            {blockTimeRange(instance)}
                           </span>
                           <span className="inline-flex items-center gap-1.5">
                             <MotoConceptIcon concept="rooms" size={18} />

@@ -172,11 +172,10 @@ func planWeekday(date timezone.Date, weekendFollowsFriday bool) int {
 }
 
 // rosterWeekday is the weekday a roster row is checked against on date. A
-// template occurrence on a weekend exists only where the weekend follows
-// Friday's plan (#3921): materialization, create, start and moves refuse it
-// otherwise. Its rosters are therefore Friday's.
-func rosterWeekday(date timezone.Date) int {
-	return planWeekday(date, true)
+// weekend takes Friday's roster only when that tenant enabled the Friday plan;
+// retained weekend instances otherwise keep their own weekday scope.
+func rosterWeekday(date timezone.Date, weekendFollowsFriday bool) int {
+	return planWeekday(date, weekendFollowsFriday)
 }
 
 // weekendFollowsFridayIn resolves the weekend plan setting (#3921) only when
@@ -238,9 +237,9 @@ func enrollmentStudentIsAlumnus(e *activities.StudentEnrollment) bool {
 //   - valid_until IS NULL OR valid_until > date  (end is exclusive; a row
 //     whose valid_until equals the instance date is NO LONGER contributing)
 //   - calendar_period_id IS NULL OR calendar_period_id == periodID
-//   - weekday IS NULL OR weekday == date's ISO weekday (#2129)
-//   - selected_weekdays IS NULL/empty OR contains date's ISO weekday
-func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, periodID int64) bool {
+//   - weekday IS NULL OR weekday == the date's effective plan weekday (#2129)
+//   - selected_weekdays IS NULL/empty OR contains that effective weekday
+func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, periodID int64, planWeekday int) bool {
 	if e == nil {
 		return false
 	}
@@ -253,13 +252,12 @@ func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, pe
 	if e.CalendarPeriodID != nil && *e.CalendarPeriodID != periodID {
 		return false
 	}
-	if !rosterWeekdayApplies(e.Weekday, date) {
+	if !rosterWeekdayApplies(e.Weekday, planWeekday) {
 		return false
 	}
 	if len(e.SelectedWeekdays) > 0 {
-		weekday := rosterWeekday(date)
 		for _, selected := range e.SelectedWeekdays {
-			if selected == weekday {
+			if selected == planWeekday {
 				return true
 			}
 		}
@@ -288,7 +286,7 @@ func scheduleNotStartedOn(sch *activities.Schedule, date timezone.Date) bool {
 }
 
 // isSupervisorValidOn mirrors isEnrollmentValidOn for activities.supervisors.
-func isSupervisorValidOn(sp *activities.SupervisorPlanned, date timezone.Date, periodID int64) bool {
+func isSupervisorValidOn(sp *activities.SupervisorPlanned, date timezone.Date, periodID int64, planWeekday int) bool {
 	if sp == nil {
 		return false
 	}
@@ -301,7 +299,7 @@ func isSupervisorValidOn(sp *activities.SupervisorPlanned, date timezone.Date, p
 	if sp.CalendarPeriodID != nil && *sp.CalendarPeriodID != periodID {
 		return false
 	}
-	return rosterWeekdayApplies(sp.Weekday, date)
+	return rosterWeekdayApplies(sp.Weekday, planWeekday)
 }
 
 // effectivePrimarySupervisor resolves overlapping legacy and scoped primary
@@ -318,11 +316,12 @@ func effectivePrimarySupervisor(
 	supervisors []*activities.SupervisorPlanned,
 	date timezone.Date,
 	periodID int64,
+	planWeekday int,
 ) (int64, bool) {
 	selectedRank := -1
 	var selectedStaffID, selectedRowID int64
 	for _, supervisor := range supervisors {
-		if !isSupervisorValidOn(supervisor, date, periodID) || !supervisor.IsPrimary {
+		if !isSupervisorValidOn(supervisor, date, periodID, planWeekday) || !supervisor.IsPrimary {
 			continue
 		}
 		rank := 0
@@ -347,8 +346,8 @@ func effectivePrimarySupervisor(
 // weekday. This is the single rule behind per-weekday staff and child lists —
 // the template writer expands "shared default + deviations" into concrete
 // per-weekday rows, so nothing here needs to know about that distinction.
-func rosterWeekdayApplies(weekday *int, date timezone.Date) bool {
-	return weekday == nil || *weekday == rosterWeekday(date)
+func rosterWeekdayApplies(weekday *int, planWeekday int) bool {
+	return weekday == nil || *weekday == planWeekday
 }
 
 // applyException returns the effective (start, end, room) for a candidate and

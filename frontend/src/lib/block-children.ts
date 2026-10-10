@@ -31,8 +31,11 @@ function kinder(count: number): string {
 export function blockChildrenLabel(block: BlockCounts): string {
   if (block.status === "completed") return kinder(block.presentStudentsCount);
   if (block.status !== "active") return kinder(block.expectedStudentsCount);
-  const current = block.currentStudentsCount ?? 0;
-  const planned = block.plannedStudentsCount ?? 0;
+  // Older BFF responses do not have the #3921 fields yet. Their established
+  // counts are the closest compatible values; treating omitted fields as zero
+  // turns a populated running block into the false label "0 da".
+  const current = block.currentStudentsCount ?? block.presentStudentsCount;
+  const planned = block.plannedStudentsCount ?? block.expectedStudentsCount;
   const departed = Math.max(0, block.presentStudentsCount - current);
   // Mehr Kinder da als geplant (dazugekommene): „10 von 6“ wäre unlogisch.
   const here =

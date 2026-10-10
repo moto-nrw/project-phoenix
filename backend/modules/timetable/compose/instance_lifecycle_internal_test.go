@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -521,16 +522,20 @@ func TestWeekendFollowsFridayOpensTheWeekend(t *testing.T) {
 	assert.False(t, replannableOccurrence(weekendOccurrence, nil, false))
 }
 
-func TestRosterWeekdayReadsFridayOnTheWeekend(t *testing.T) {
+func TestRosterWeekdayUsesFridayOnlyWhenWeekendPlanIsEnabled(t *testing.T) {
 	t.Parallel()
 
 	friday := timezone.NewDate(2026, time.May, 8)
-	assert.Equal(t, 5, rosterWeekday(friday))
-	assert.Equal(t, 5, rosterWeekday(friday.AddDays(1)))
-	assert.Equal(t, 5, rosterWeekday(friday.AddDays(2)))
-	assert.Equal(t, 1, rosterWeekday(friday.AddDays(3)))
+	assert.Equal(t, 5, rosterWeekday(friday, false))
+	assert.Equal(t, 5, rosterWeekday(friday.AddDays(1), true))
+	assert.Equal(t, 5, rosterWeekday(friday.AddDays(2), true))
+	assert.Equal(t, 1, rosterWeekday(friday.AddDays(3), false))
 	fridayOnly := 5
-	assert.True(t, rosterWeekdayApplies(&fridayOnly, friday.AddDays(1)), "a Saturday occurrence takes Friday's roster rows")
+	assert.True(t, rosterWeekdayApplies(&fridayOnly, rosterWeekday(friday.AddDays(1), true)), "an enabled Saturday occurrence takes Friday's roster rows")
+	assert.False(t, rosterWeekdayApplies(&fridayOnly, rosterWeekday(friday.AddDays(1), false)), "a retained Saturday occurrence keeps Saturday's roster rows")
+	enrollment := &activities.StudentEnrollment{Weekday: &fridayOnly}
+	assert.True(t, isEnrollmentValidOn(enrollment, friday.AddDays(1), 0, rosterWeekday(friday.AddDays(1), true)))
+	assert.False(t, isEnrollmentValidOn(enrollment, friday.AddDays(1), 0, rosterWeekday(friday.AddDays(1), false)))
 	assert.Equal(t, 6, planWeekday(friday.AddDays(1), false))
 	assert.Equal(t, 5, planWeekday(friday.AddDays(1), true))
 }

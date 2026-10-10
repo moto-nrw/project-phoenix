@@ -198,6 +198,7 @@ func (p *templateProjection) editedOccurrences(
 			p.roster.careBounds,
 			instanceDate,
 			calendarPeriodID(inst),
+			planWeekday(instanceDate, p.weekendFollowsFriday),
 		)
 		changes := diffOccurrenceWithExpectedStudents(
 			inst,
@@ -207,6 +208,7 @@ func (p *templateProjection) editedOccurrences(
 			p.staffByInstance[inst.ID],
 			p.studentsByInstance[inst.ID],
 			expected,
+			p.weekendFollowsFriday,
 		)
 		// Listenart is a template-level field materialization copies verbatim
 		// onto every occurrence, so it is compared here (template vs occurrence)
@@ -320,10 +322,11 @@ func diffOccurrenceWithExpectedStudents(
 	staffRows []*schedule.InstanceStaff,
 	studentRows []*schedule.InstanceStudent,
 	expected []materialParams,
+	weekendFollowsFriday bool,
 ) []string {
 	changes := diffOccurrenceText(inst, templateTitle)
 	changes = append(changes, diffOccurrenceSlot(inst, expected)...)
-	if staffRosterChanged(inst, supervisors, staffRows) {
+	if staffRosterChanged(inst, supervisors, staffRows, weekendFollowsFriday) {
 		changes = append(changes, timetable.EditedChangeStaff)
 	}
 	changes = append(changes, diffOccurrenceStudents(expectedStudentIDs, studentRows)...)
@@ -371,13 +374,15 @@ func staffRosterChanged(
 	inst *schedule.ActivityInstance,
 	supervisors []*activities.SupervisorPlanned,
 	staffRows []*schedule.InstanceStaff,
+	weekendFollowsFriday bool,
 ) bool {
 	periodID := calendarPeriodID(inst)
 	instanceDate := timezone.Date(inst.Date)
-	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, instanceDate, periodID)
+	planWeekday := planWeekday(instanceDate, weekendFollowsFriday)
+	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, instanceDate, periodID, planWeekday)
 	expectedStaff := make(map[int64]bool)
 	for _, sup := range supervisors {
-		if isSupervisorValidOn(sup, instanceDate, periodID) {
+		if isSupervisorValidOn(sup, instanceDate, periodID, planWeekday) {
 			expectedStaff[sup.StaffID] = hasPrimary && sup.StaffID == primaryStaffID
 		}
 	}

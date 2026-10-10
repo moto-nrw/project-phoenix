@@ -230,7 +230,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := isEnrollmentValidOn(tc.e, targetDay, tc.period)
+			got := isEnrollmentValidOn(tc.e, targetDay, tc.period, isoWeekday(targetDay))
 			assert.Equal(t, tc.want, got)
 		})
 	}
@@ -262,7 +262,7 @@ func TestExpectedStudentIDsOn_AppliesSharedRosterRules(t *testing.T) {
 	careBounds := map[int64]timezone.Date{506: endedBefore, 507: date, 508: endedBefore}
 
 	assert.Equal(t, []int64{501, 507}, expectedStudentIDsOn(
-		enrollments, targetStudentIDs, careBounds, date, periodID,
+		enrollments, targetStudentIDs, careBounds, date, periodID, isoWeekday(date),
 	))
 }
 
@@ -283,12 +283,12 @@ func TestIsSupervisorValidOn(t *testing.T) {
 	p200 := int64(200)
 	until := d(2026, time.April, 20) // exclusive
 
-	assert.True(t, isSupervisorValidOn(&activities.SupervisorPlanned{ValidFrom: target}, targetDay, p100))
-	assert.False(t, isSupervisorValidOn(&activities.SupervisorPlanned{ValidFrom: d(2026, time.April, 21)}, targetDay, p100))
-	assert.False(t, isSupervisorValidOn(&activities.SupervisorPlanned{ValidFrom: d(2026, time.January, 1), ValidUntil: &until}, targetDay, p100))
-	assert.False(t, isSupervisorValidOn(&activities.SupervisorPlanned{ValidFrom: d(2026, time.January, 1), CalendarPeriodID: &p100}, targetDay, p200))
-	assert.True(t, isSupervisorValidOn(&activities.SupervisorPlanned{ValidFrom: d(2026, time.January, 1), CalendarPeriodID: &p100}, targetDay, p100))
-	assert.False(t, isSupervisorValidOn(nil, targetDay, p100), "nil must be invalid")
+	assert.True(t, isSupervisorValidOn(&activities.SupervisorPlanned{ValidFrom: target}, targetDay, p100, isoWeekday(targetDay)))
+	assert.False(t, isSupervisorValidOn(&activities.SupervisorPlanned{ValidFrom: d(2026, time.April, 21)}, targetDay, p100, isoWeekday(targetDay)))
+	assert.False(t, isSupervisorValidOn(&activities.SupervisorPlanned{ValidFrom: d(2026, time.January, 1), ValidUntil: &until}, targetDay, p100, isoWeekday(targetDay)))
+	assert.False(t, isSupervisorValidOn(&activities.SupervisorPlanned{ValidFrom: d(2026, time.January, 1), CalendarPeriodID: &p100}, targetDay, p200, isoWeekday(targetDay)))
+	assert.True(t, isSupervisorValidOn(&activities.SupervisorPlanned{ValidFrom: d(2026, time.January, 1), CalendarPeriodID: &p100}, targetDay, p100, isoWeekday(targetDay)))
+	assert.False(t, isSupervisorValidOn(nil, targetDay, p100, isoWeekday(targetDay)), "nil must be invalid")
 }
 
 func TestEffectivePrimarySupervisorPrefersTheMostSpecificScope(t *testing.T) {
@@ -310,11 +310,11 @@ func TestEffectivePrimarySupervisorPrefersTheMostSpecificScope(t *testing.T) {
 		},
 	}
 
-	mondayPrimary, ok := effectivePrimarySupervisor(supervisors, monday, periodID)
+	mondayPrimary, ok := effectivePrimarySupervisor(supervisors, monday, periodID, isoWeekday(monday))
 	require.True(t, ok)
 	assert.Equal(t, int64(20), mondayPrimary, "the exact period and weekday override must win")
 
-	tuesdayPrimary, ok := effectivePrimarySupervisor(supervisors, tuesday, periodID)
+	tuesdayPrimary, ok := effectivePrimarySupervisor(supervisors, tuesday, periodID, isoWeekday(tuesday))
 	require.True(t, ok)
 	assert.Equal(t, int64(10), tuesdayPrimary, "the shared legacy primary remains the fallback")
 }
@@ -997,7 +997,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 		wrongWeekday := &activities.StudentEnrollment{StudentID: 502, ValidFrom: validFrom, SelectedWeekdays: []int{2}}
 		result := &timetable.MaterializationResult{}
 
-		err := svc.copyExpectedStudents(context.Background(), 601, []*activities.StudentEnrollment{valid, duplicate, wrongWeekday}, nil, nil, date, periodID, result, "materialize template: copy enrollment")
+		err := svc.copyExpectedStudents(context.Background(), 601, []*activities.StudentEnrollment{valid, duplicate, wrongWeekday}, nil, nil, date, periodID, isoWeekday(date), result, "materialize template: copy enrollment")
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, result.InstanceStudentsCreated)
@@ -1010,7 +1010,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 		svc := &materializationService{studentRepo: studentRepo, logger: slog.Default()}
 		result := &timetable.MaterializationResult{}
 
-		err := svc.copyExpectedStudents(context.Background(), 602, []*activities.StudentEnrollment{{StudentID: 503, ValidFrom: validFrom}}, nil, nil, date, periodID, result, "materialize template: copy enrollment")
+		err := svc.copyExpectedStudents(context.Background(), 602, []*activities.StudentEnrollment{{StudentID: 503, ValidFrom: validFrom}}, nil, nil, date, periodID, isoWeekday(date), result, "materialize template: copy enrollment")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "copy enrollment")
@@ -1025,7 +1025,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 		future := &activities.SupervisorPlanned{StaffID: 702, ValidFrom: validFrom.AddDays(1)}
 		result := &timetable.MaterializationResult{}
 
-		err := svc.copySupervisors(context.Background(), 603, []*activities.SupervisorPlanned{valid, duplicate, future}, date, periodID, result)
+		err := svc.copySupervisors(context.Background(), 603, []*activities.SupervisorPlanned{valid, duplicate, future}, date, periodID, isoWeekday(date), result)
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, result.InstanceStaffCreated)
@@ -1039,7 +1039,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 		svc := &materializationService{staffRepo: staffRepo, logger: slog.Default()}
 		result := &timetable.MaterializationResult{}
 
-		err := svc.copySupervisors(context.Background(), 604, []*activities.SupervisorPlanned{{StaffID: 703, ValidFrom: validFrom}}, date, periodID, result)
+		err := svc.copySupervisors(context.Background(), 604, []*activities.SupervisorPlanned{{StaffID: 703, ValidFrom: validFrom}}, date, periodID, isoWeekday(date), result)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "copy supervisor")

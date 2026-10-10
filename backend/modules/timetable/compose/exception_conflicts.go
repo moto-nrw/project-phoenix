@@ -342,7 +342,7 @@ func (d *conflictDetection) loadTemplatePreload(ctx context.Context, affected []
 func (pre *templatePreload) resolveOriginalStart(groupID int64, date timezone.Date, logger *slog.Logger) (string, bool) {
 	// An exception on a weekend replaces an occurrence only a weekend that
 	// follows Friday's plan has (#3921), so Friday's schedule is its origin.
-	weekday := rosterWeekday(date)
+	weekday := rosterWeekday(date, true)
 	starts, ok := pre.byKey[groupWeekdayKey{GroupID: groupID, Weekday: weekday}]
 	if !ok || len(starts) == 0 {
 		logger.Warn("modified exception but no template schedule for weekday",

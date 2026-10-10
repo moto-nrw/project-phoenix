@@ -116,6 +116,8 @@ interface WirePlannedInstance {
   present_students_count: number;
   not_scheduled_students_count?: number;
   current_students_count?: number;
+  planned_students_count?: number;
+  is_spontaneous?: boolean;
   assigned_staff_ids: number[];
   is_assigned?: boolean;
   is_primary?: boolean;
@@ -364,6 +366,10 @@ interface ActiveSupervisionDashboardResponse {
     notScheduledStudentsCount: number;
     /** Kinder, die gerade da sind; ohne die Gegangenen (#3921). */
     currentStudentsCount?: number;
+    /** Eigene Kinder des Blocks, ohne ungeplant dazugekommene (#3921). */
+    plannedStudentsCount?: number;
+    /** Spontane Blöcke haben bis zum Beenden kein festes Ende (#3921). */
+    isSpontaneous?: boolean;
     assignedStaffIds: string[];
     isAssigned: boolean;
     isPrimary: boolean;
@@ -531,6 +537,12 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
       ...(i.current_students_count === undefined
         ? {}
         : { currentStudentsCount: i.current_students_count }),
+      ...(i.planned_students_count === undefined
+        ? {}
+        : { plannedStudentsCount: i.planned_students_count }),
+      ...(i.is_spontaneous === undefined
+        ? {}
+        : { isSpontaneous: i.is_spontaneous }),
       assignedStaffIds: (i.assigned_staff_ids ?? []).map(String),
       isAssigned: i.is_assigned ?? false,
       isPrimary: i.is_primary ?? false,

@@ -415,8 +415,9 @@ func CourseInstances(ctx context.Context, db bun.IDB, tenantID int64, from, to, 
 // enrollment covers on that date, plus walk-ins and rows for courses the
 // child has no enrollment for at all.
 //
-// A template occurrence on a weekend exists only where the weekend follows
-// Friday's plan (#3921), so its enrollments are Friday's: LEAST(..., 5).
+// A template occurrence on a weekend follows Friday's enrollment plan only
+// when the tenant enabled that setting (#3921). Retained weekend instances
+// otherwise keep their own ISO weekday.
 const enrolledOnInstanceDate = `(
 		` + attendanceUnplanned + `
 		OR EXISTS (
@@ -429,9 +430,9 @@ const enrolledOnInstanceDate = `(
 				AND ("enrollment".calendar_period_id IS NULL
 					OR "enrollment".calendar_period_id = "activity_instance".calendar_period_id)
 				AND ("enrollment".weekday IS NULL
-					OR "enrollment".weekday = LEAST(date_part('isodow', "activity_instance".date)::integer, 5))
+					OR "enrollment".weekday = CASE WHEN ? AND date_part('isodow', "activity_instance".date)::integer > 5 THEN 5 ELSE date_part('isodow', "activity_instance".date)::integer END)
 				AND (COALESCE(jsonb_array_length("enrollment".selected_weekdays), 0) = 0
-					OR "enrollment".selected_weekdays @> to_jsonb(ARRAY[LEAST(date_part('isodow', "activity_instance".date)::integer, 5)]))
+					OR "enrollment".selected_weekdays @> to_jsonb(ARRAY[CASE WHEN ? AND date_part('isodow', "activity_instance".date)::integer > 5 THEN 5 ELSE date_part('isodow', "activity_instance".date)::integer END]))
 		)
 		OR NOT EXISTS (
 			SELECT 1 FROM activities.student_enrollments AS "enrollment"
@@ -447,8 +448,12 @@ func CourseParticipation(ctx context.Context, db bun.IDB, tenantID int64, from, 
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
+	weekendFollowsFriday, err := weekendFollowsFridayIn(ctx, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("presence projection: resolve weekend plan: %w", err)
+	}
 	rows := []CourseParticipationRow{}
-	err := db.NewSelect().TableExpr(`schedule.instance_students AS "instance_student"`).
+	err = db.NewSelect().TableExpr(`schedule.instance_students AS "instance_student"`).
 		Join(participantAttendanceJoin).
 		Join(`JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_student".instance_id AND "activity_instance".tenant_id = "instance_student".tenant_id`).
 		Join(instanceSessionJoin).
@@ -461,10 +466,21 @@ func CourseParticipation(ctx context.Context, db bun.IDB, tenantID int64, from, 
 		Where(`"activity_instance".date >= ? AND "activity_instance".date <= ?`, from, to).
 		Where(heldInstance, today).
 		Where(`NOT (`+attendanceNotScheduled+` AND `+attendanceStatus+` = 'expected')`).
-		Where(enrolledOnInstanceDate).Where(`"template".is_template`).
+		Where(enrolledOnInstanceDate, weekendFollowsFriday, weekendFollowsFriday).Where(`"template".is_template`).
 		GroupExpr(courseKeyExpr+`, "instance_student".student_id`).Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("presence projection: course participation: %w", err)
 	}
 	return rows, nil
+}
+
+// weekendFollowsFridayIn resolves the setting only when the report window
+// contains a weekend, preserving the weekday query budget.
+func weekendFollowsFridayIn(ctx context.Context, from, to timezone.Date) (bool, error) {
+	for date := from; !date.After(to); date = date.AddDays(1) {
+		if calendar.IsWeekend(date) {
+			return calendar.WeekendFollowsFriday(ctx)
+		}
+	}
+	return false, nil
 }

@@ -201,6 +201,9 @@ describe("GET /api/active-supervision-dashboard", () => {
             minutes_until_start: 30,
             expected_students_count: 2,
             present_students_count: 0,
+            current_students_count: 1,
+            planned_students_count: 2,
+            is_spontaneous: true,
             assigned_staff_ids: [5],
             pickup_times_loaded: false,
             roster_preview: [
@@ -309,6 +312,9 @@ describe("GET /api/active-supervision-dashboard", () => {
         activeSessions: Array<{ activeGroupId: string; title: string }>;
         plannedNow: Array<{
           pickupTimesLoaded: boolean;
+          currentStudentsCount?: number;
+          plannedStudentsCount?: number;
+          isSpontaneous?: boolean;
           rosterPreview: Array<{ pickupTime: string | null }>;
         }>;
         trackingIndicators: {
@@ -328,6 +334,11 @@ describe("GET /api/active-supervision-dashboard", () => {
     >(response);
 
     const data = json.data;
+    expect(data.plannedNow[0]).toMatchObject({
+      currentStudentsCount: 1,
+      plannedStudentsCount: 2,
+      isSpontaneous: true,
+    });
     expect(data.businessDay).toBe("2026-08-31");
     expect(data.spontaneousStartAvailability).toEqual({
       available: false,
