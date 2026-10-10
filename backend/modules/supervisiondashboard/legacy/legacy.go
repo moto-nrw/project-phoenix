@@ -635,6 +635,7 @@ func (s settings) Prepare(ctx context.Context) (context.Context, error) {
 		configModel.KeyGroupMode,
 		configModel.KeyStudentPhotosEnabled,
 		configModel.KeyWebSpontaneousActivities,
+		configModel.KeyWeekendFollowsFriday,
 		configModel.KeyTrackingIndicatorsEnabled,
 		configModel.KeyTrackingIndicator1,
 		configModel.KeyTrackingIndicator2,

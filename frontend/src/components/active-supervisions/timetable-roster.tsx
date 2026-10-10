@@ -35,6 +35,7 @@ import {
   canCompleteInstance,
   completeAvailableClock,
 } from "~/lib/timetable-lifecycle";
+import { hasOpenEnd } from "~/lib/block-children";
 import { TIMETABLE_VIEW_ONLY_NOTICE } from "~/lib/timetable-operation-access";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type {
@@ -625,8 +626,7 @@ function TimetableRosterHeader({
             </h2>
             <p className="truncate text-sm text-gray-600">
               {roster.instance.roomName ?? `Raum ${roster.instance.roomId}`} ·{" "}
-              {roster.instance.isSpontaneous &&
-              roster.instance.status !== "completed"
+              {hasOpenEnd(roster.instance)
                 ? `seit ${roster.instance.startTime}`
                 : `${roster.instance.startTime}-${roster.instance.endTime}`}
             </p>

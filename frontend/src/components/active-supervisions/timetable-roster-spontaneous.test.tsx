@@ -54,7 +54,9 @@ function walkIn(
   });
 }
 
-function spontaneous(status: "active" | "completed"): TimetableRoster {
+function spontaneous(
+  status: "active" | "completed" | "cancelled",
+): TimetableRoster {
   return {
     instance: {
       id: "instance-9",
@@ -79,7 +81,7 @@ function spontaneous(status: "active" | "completed"): TimetableRoster {
   };
 }
 
-function renderSpontaneous(status: "active" | "completed") {
+function renderSpontaneous(status: "active" | "completed" | "cancelled") {
   render(
     <TimetableRosterContent
       addStudentResults={[]}
@@ -130,5 +132,12 @@ describe("TimetableRosterContent for a spontaneous block (#3921)", () => {
     renderSpontaneous("completed");
 
     expect(screen.getByText(/15:16-17:40/)).toBeInTheDocument();
+  });
+
+  it("shows the recorded end when the block is cancelled", () => {
+    renderSpontaneous("cancelled");
+
+    expect(screen.getByText(/15:16-17:40/)).toBeInTheDocument();
+    expect(screen.queryByText(/seit 15:16/)).not.toBeInTheDocument();
   });
 });
