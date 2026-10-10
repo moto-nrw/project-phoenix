@@ -303,13 +303,7 @@ func (s *operations) plannedAttendanceCounts(inst *scheduleModels.ActivityInstan
 			counts.expected++
 			counts.planned++
 		case scheduleModels.AttendanceStatusPresent:
-			counts.present++
-			if row.CheckedOutAt == nil {
-				counts.current++
-			}
-			if !row.IsUnplanned && s.deps.CareDays.Expected(careDay[row.StudentID]) {
-				counts.planned++
-			}
+			s.countPresentAttendance(&counts, row, careDay[row.StudentID])
 		case scheduleModels.AttendanceStatusAbsent:
 			if verdict == timetable.CareDayNotScheduled {
 				counts.notScheduled++
@@ -317,6 +311,20 @@ func (s *operations) plannedAttendanceCounts(inst *scheduleModels.ActivityInstan
 		}
 	}
 	return counts
+}
+
+// countPresentAttendance keeps a child who attended visible in the numerator,
+// but includes them in the planned denominator only when their care day was
+// booked. The roster's display verdict deliberately preserves attendance even
+// for a non-booking, so this uses Care Plan's unmodified day verdict.
+func (s *operations) countPresentAttendance(counts *plannedAttendanceCounts, row *scheduleModels.InstanceStudent, careDay timetable.CareDayStatus) {
+	counts.present++
+	if row.CheckedOutAt == nil {
+		counts.current++
+	}
+	if !row.IsUnplanned && s.deps.CareDays.Expected(careDay) {
+		counts.planned++
+	}
 }
 
 func plannedNowWindow(inst *scheduleModels.ActivityInstance, now time.Time, horizonMinutes int) bool {
