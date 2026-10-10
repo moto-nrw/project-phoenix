@@ -48,6 +48,7 @@ interface TenantResolveResponse {
   analytics_recording_sample_percent?: number;
   early_checkout_note_enabled?: boolean;
   early_checkout_note_tolerance_minutes?: number;
+  weekend_follows_friday?: boolean;
 }
 
 /**
@@ -109,6 +110,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
       data.early_checkout_note_enabled,
       data.early_checkout_note_tolerance_minutes,
     ),
+    weekendFollowsFriday: data.weekend_follows_friday === true,
   };
 }
 

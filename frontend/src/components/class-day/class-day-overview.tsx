@@ -148,11 +148,17 @@ export interface ClassDayOverviewProps {
     schoolClass: string,
     date: string,
   ) => Promise<ClassDayReport>;
+  /**
+   * Ob die Schule Sa/So nach dem Freitagsplan betreut (#3921). Ohne Abruf
+   * bleibt das Wochenende ein Tag ohne Schule und wird nicht geladen.
+   */
+  readonly fetchWeekendOpen?: () => Promise<boolean>;
 }
 
 export function ClassDayOverview({
   fetchMyClasses,
   fetchClassDay,
+  fetchWeekendOpen,
 }: ClassDayOverviewProps) {
   const greeting = useTimeBasedGreeting();
   const { data: session } = useSession();
@@ -161,7 +167,12 @@ export function ClassDayOverview({
   // Der Tag steht in der Adresse, nicht nur im Zustand: nur so führt der
   // Zurück-Weg aus einer Klasse auf denselben Tag zurück.
   const dateISO = classDayDateParam(searchParams.get("tag"));
-  const weekend = isWeekendISO(dateISO);
+  const { data: weekendOpen } = useSWRAuth(
+    fetchWeekendOpen ? "class-day-weekend-open" : null,
+    () => (fetchWeekendOpen ? fetchWeekendOpen() : Promise.resolve(false)),
+    { revalidateOnFocus: false },
+  );
+  const weekend = isWeekendISO(dateISO) && weekendOpen !== true;
 
   // Die Klassenliste MUSS mitrevalidieren (App-Default ist
   // revalidateOnFocus: false): bliebe sie auf dem Mount-Stand eingefroren,

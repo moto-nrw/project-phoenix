@@ -5,6 +5,8 @@ import { ApiError } from "~/lib/api-error";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import type { StudentStatusDay } from "~/lib/student-status-days-api";
 import { useSWRAuth } from "~/lib/swr/hooks";
+import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import { setTestClock } from "~/test/clock";
 
 import { CarePlanView } from "./care-plan-view";
 
@@ -189,4 +191,27 @@ describe("CarePlanView", () => {
     expect(last?.[1]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(String(last?.[0]) < String(last?.[1])).toBe(true);
   });
+
+  it.each([
+    [false, "2026-09-14"],
+    [true, "2026-09-12"],
+  ])(
+    "steps from Friday to the next care day (weekend follows Friday: %s, #3921)",
+    (weekendOpen, next) => {
+      vi.mocked(useWeekendFollowsFriday).mockReturnValue(weekendOpen);
+      setTestClock(new Date("2026-09-11T12:00:00+02:00"));
+      const onVisibleDateRangeChange = vi.fn();
+      render(
+        <CarePlanView
+          studentId="1"
+          statusDays={[]}
+          onVisibleDateRangeChange={onVisibleDateRangeChange}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Nächster Tag" }));
+      expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(next, next);
+      vi.mocked(useWeekendFollowsFriday).mockReturnValue(false);
+    },
+  );
 });

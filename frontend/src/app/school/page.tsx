@@ -10,6 +10,7 @@ import { TodayNoticesCard } from "~/components/school/today-notices-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
   fetchClassDaySchool,
+  fetchClassDayWeekendOpenSchool,
   fetchMyClassesSchool,
 } from "~/lib/school-class-day-api";
 
@@ -25,6 +26,7 @@ export default function SchoolHomePage() {
         <ClassDayOverview
           fetchMyClasses={fetchMyClassesSchool}
           fetchClassDay={fetchClassDaySchool}
+          fetchWeekendOpen={fetchClassDayWeekendOpenSchool}
         />
       </Suspense>
     </div>

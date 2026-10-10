@@ -44,6 +44,7 @@ import {
 import type { StudentStatusDay } from "~/lib/student-status-days-api";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr/hooks";
+import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 
 import { CarePlanDayTimeline } from "./care-plan-day";
 
@@ -73,12 +74,16 @@ interface CarePlanViewProps {
 
 const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr"] as const;
 
-/** Step one weekday forward/back, skipping Sa/So. */
-function stepWeekday(iso: string, dir: 1 | -1): string {
+/**
+ * Step one care day forward/back: skips Sa/So unless the school runs the
+ * weekend on Friday's plan (operations.weekend_follows_friday, #3921).
+ */
+function stepWeekday(iso: string, dir: 1 | -1, weekendOpen: boolean): string {
   const d = parseISODate(iso);
-  do {
-    d.setDate(d.getDate() + dir);
-  } while (d.getDay() === 0 || d.getDay() === 6);
+  d.setDate(d.getDate() + dir);
+  if (!weekendOpen) {
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + dir);
+  }
   return toISODate(d);
 }
 
@@ -139,6 +144,7 @@ export function CarePlanView({
   active = true,
 }: CarePlanViewProps) {
   const today = berlinTodayISO();
+  const weekendOpen = useWeekendFollowsFriday();
   const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [selectedDate, setSelectedDate] = useState<string>(() =>
     berlinTodayISO(),
@@ -262,7 +268,9 @@ export function CarePlanView({
             <>
               <NavButton
                 ariaLabel="Vorheriger Tag"
-                onClick={() => setSelectedDate((d) => stepWeekday(d, -1))}
+                onClick={() =>
+                  setSelectedDate((d) => stepWeekday(d, -1, weekendOpen))
+                }
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Vorheriger Tag</span>
@@ -282,7 +290,9 @@ export function CarePlanView({
               )}
               <NavButton
                 ariaLabel="Nächster Tag"
-                onClick={() => setSelectedDate((d) => stepWeekday(d, 1))}
+                onClick={() =>
+                  setSelectedDate((d) => stepWeekday(d, 1, weekendOpen))
+                }
               >
                 <span className="hidden sm:inline">Nächster Tag</span>
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />

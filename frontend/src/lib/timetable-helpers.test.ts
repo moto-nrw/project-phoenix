@@ -52,6 +52,9 @@ import {
   firstSchoolDayInPeriod,
   nextWorkdayISO,
   previousWorkdayISO,
+  careDayISO,
+  nextCareDayISO,
+  previousCareDayISO,
   formatFullDayLabel,
   offeringPhaseStartWarning,
   parseTimeToMinutes,
@@ -245,6 +248,18 @@ describe("date and range helpers", () => {
     expect(nextWorkdayISO("2026-07-17")).toBe("2026-07-17"); // Fr bleibt
     expect(nextWorkdayISO("2026-08-01")).toBe("2026-08-03"); // Monatswechsel
     expect(nextWorkdayISO("2027-01-03")).toBe("2027-01-04"); // Jahreswechsel
+  });
+
+  it("keeps weekend days as care days only when the weekend follows Friday (#3921)", () => {
+    expect(careDayISO("2026-07-18", false)).toBe("2026-07-20"); // Sa -> Mo
+    expect(careDayISO("2026-07-18", true)).toBe("2026-07-18"); // Sa bleibt
+    expect(nextCareDayISO("2026-07-15", false)).toBe("2026-07-16"); // Mi -> Do
+    expect(nextCareDayISO("2026-07-17", false)).toBe("2026-07-20"); // Fr -> Mo
+    expect(nextCareDayISO("2026-07-17", true)).toBe("2026-07-18"); // Fr -> Sa
+    expect(nextCareDayISO("2026-07-19", true)).toBe("2026-07-20"); // So -> Mo
+    expect(previousCareDayISO("2026-07-20", false)).toBe("2026-07-17"); // Mo -> Fr
+    expect(previousCareDayISO("2026-07-20", true)).toBe("2026-07-19"); // Mo -> So
+    expect(previousCareDayISO("2026-07-16", true)).toBe("2026-07-15"); // Do -> Mi
   });
 
   it("steps back to the previous school day", () => {

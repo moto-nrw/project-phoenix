@@ -228,6 +228,17 @@ export function useDisplayEnabled(): boolean {
   return ctx?.tenant?.displayEnabled === true;
 }
 
+/**
+ * Returns whether Saturday and Sunday are care days on Friday's plan
+ * (operations.weekend_follows_friday, #3921). Day pickers and day views then
+ * stop skipping the weekend. Defaults to false when tenant metadata is
+ * unavailable, which keeps the weekend closed as before.
+ */
+export function useWeekendFollowsFriday(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.weekendFollowsFriday === true;
+}
+
 /** Whether staff may connect their personal calendar through CalDAV. */
 export function useCalDAVEnabled(): boolean {
   const ctx = useContext(TenantContext);

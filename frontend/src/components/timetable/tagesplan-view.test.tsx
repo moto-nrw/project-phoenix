@@ -6,6 +6,7 @@ import { useSWRAuth } from "~/lib/swr/hooks";
 import {
   useOperationalOverviewScope,
   useTimetableEnabled,
+  useWeekendFollowsFriday,
 } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
@@ -36,6 +37,7 @@ vi.mock("~/lib/tenant-router", () => ({
 vi.mock("~/lib/tenant-context", () => ({
   useTimetableEnabled: vi.fn(() => true),
   useOperationalOverviewScope: vi.fn(() => "all_staff"),
+  useWeekendFollowsFriday: vi.fn(() => false),
 }));
 
 // Feste Uhr: 10:00 Berliner Zeit, damit die "Jetzt"-Linie deterministisch ist.
@@ -115,8 +117,33 @@ describe("TagesplanView", () => {
     searchParams.current = new URLSearchParams();
     vi.mocked(useTimetableEnabled).mockReturnValue(true);
     vi.mocked(useOperationalOverviewScope).mockReturnValue("all_staff");
+    vi.mocked(useWeekendFollowsFriday).mockReturnValue(false);
     vi.mocked(useTenantRouter).mockReturnValue({ push, replace } as never);
     setSWR({ data: [], isLoading: false, error: null });
+  });
+
+  it("steps a day forward and back, skipping the weekend", () => {
+    searchParams.current = new URLSearchParams("d=2026-07-15");
+    render(<TagesplanView />);
+    fireEvent.click(screen.getByRole("button", { name: "Nächster Tag" }));
+    expect(replace).toHaveBeenLastCalledWith("/tagesplan?d=2026-07-16");
+
+    searchParams.current = new URLSearchParams("d=2026-07-17");
+    render(<TagesplanView />);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Nächster Tag" })[1]!,
+    );
+    expect(replace).toHaveBeenLastCalledWith("/tagesplan?d=2026-07-20");
+  });
+
+  it("steps onto Saturday when the weekend follows Friday's plan (#3921)", () => {
+    vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    searchParams.current = new URLSearchParams("d=2026-07-17");
+    render(<TagesplanView />);
+    fireEvent.click(screen.getByRole("button", { name: "Nächster Tag" }));
+    expect(replace).toHaveBeenLastCalledWith("/tagesplan?d=2026-07-18");
+    fireEvent.click(screen.getByRole("button", { name: "Vorheriger Tag" }));
+    expect(replace).toHaveBeenLastCalledWith("/tagesplan?d=2026-07-16");
   });
 
   it("renders the day's blocks in time order with room, Zielgruppe and staff", () => {

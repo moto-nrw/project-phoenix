@@ -45,9 +45,10 @@ import { useSWRAuth } from "~/lib/swr/hooks";
 import {
   useOperationalOverviewScope,
   useTimetableEnabled,
+  useWeekendFollowsFriday,
 } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { nextWorkdayISO, previousWorkdayISO } from "~/lib/timetable-helpers";
+import { nextCareDayISO, previousCareDayISO } from "~/lib/timetable-helpers";
 import { canStartPlannedInstance } from "~/lib/timetable-lifecycle";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
@@ -299,6 +300,7 @@ export function TagesplanView() {
   const router = useTenantRouter();
   const timetableEnabled = useTimetableEnabled();
   const overviewScope = useOperationalOverviewScope();
+  const weekendOpen = useWeekendFollowsFriday();
   const now = useMinuteClock();
 
   const today = berlinTodayISO();
@@ -437,7 +439,7 @@ export function TagesplanView() {
               variant="ghost"
               size="icon"
               aria-label="Vorheriger Tag"
-              onClick={() => goToDay(previousWorkdayISO(day))}
+              onClick={() => goToDay(previousCareDayISO(day, weekendOpen))}
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             </Button>
@@ -456,7 +458,7 @@ export function TagesplanView() {
               variant="ghost"
               size="icon"
               aria-label="Nächster Tag"
-              onClick={() => goToDay(nextWorkdayISO(day))}
+              onClick={() => goToDay(nextCareDayISO(day, weekendOpen))}
             >
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Button>
