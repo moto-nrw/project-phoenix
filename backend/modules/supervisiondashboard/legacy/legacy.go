@@ -389,6 +389,7 @@ func (s schedule) SessionBlocks(ctx context.Context, query supervisiondashboard.
 			Title:         block.Title,
 			StartTime:     block.StartTime,
 			EndTime:       block.EndTime,
+			IsSpontaneous: block.IsSpontaneous,
 			IsAssigned:    block.IsAssigned,
 			CanOperate:    block.CanOperate,
 		}

@@ -657,6 +657,34 @@ func TestDemoTickRunsAWeekdayWithoutKioskSessions(t *testing.T) {
 	assert.NotContains(t, client.device.studentActions, "/api/iot/attendance/toggle", "the kiosk has no session to confirm attendance in")
 }
 
+func TestDemoTickWaitsForEachChildsRunningPlannedBlock(t *testing.T) {
+	t.Parallel()
+	state := minimalLiveState("")
+	state.Accounts.Betreuer = []AccountCredentials{{StaffID: 17}}
+	state.Activities = map[string]int64{"Hausaufgaben": 23}
+	currentID := state.Students[0].ID
+	futureID := currentID + 1
+	state.Students = append(state.Students, SeedStudent{ID: futureID, FirstName: "Mia", LastName: "S"})
+	client := &demoPlanClient{demoDayClient: *newDemoDayClient(
+		plannedBlock(1, "14:45", "17:00", 5, currentID),
+		plannedBlock(2, "16:00", "17:00", 5, futureID),
+	)}
+	client.arrivals[currentID], client.arrivals[futureID] = "11:45", "11:45"
+	now := demoDayAt(t, "15:00")
+	ticker, err := NewDemoTicker(DemoTickOptions{
+		State: state, Client: client, Now: func() time.Time { return now }, PlanWeekdays: true,
+		Visits: func(context.Context) ([]DemoVisit, error) { return nil, nil },
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, ticker.Tick(t.Context()))
+	now = now.Add(5 * time.Second)
+	require.NoError(t, ticker.Tick(t.Context()))
+
+	assert.Contains(t, client.device.studentRFIDs, fmt.Sprintf("DE%06X", currentID))
+	assert.NotContains(t, client.device.studentRFIDs, fmt.Sprintf("DE%06X", futureID), "a child waits for their own planned block")
+}
+
 // demoWeekendClient records the kiosk side like demoRecordingClient and
 // serves the past week's blocks like demoDayClient.
 type demoWeekendClient struct {

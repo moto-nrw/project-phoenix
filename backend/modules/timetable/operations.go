@@ -132,6 +132,7 @@ type OperationSessionBlock struct {
 	Title         string
 	StartTime     string
 	EndTime       string
+	IsSpontaneous bool
 	// IsAssigned reports a plan entry of the caller that is not absent.
 	IsAssigned bool
 	// CanOperate reports whether the caller may act on the block.

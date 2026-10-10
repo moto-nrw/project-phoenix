@@ -47,8 +47,10 @@ export function blockChildrenLabel(block: BlockCounts): string {
 
 type BlockClock = Pick<
   PlannedTimetableInstance,
-  "status" | "startTime" | "endTime" | "isSpontaneous"
->;
+  "startTime" | "endTime" | "isSpontaneous"
+> & {
+  status: string;
+};
 
 /**
  * Ein spontan gestarteter Block hat bis zum Beenden kein Ende. Die geplante

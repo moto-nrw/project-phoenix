@@ -112,32 +112,11 @@ func (d *DemoTicker) Tick(ctx context.Context) error {
 	d.live.unterwegs = make(map[int64]bool)
 	d.live.rfidTags = make(map[int64]string)
 	d.live.clock = func() time.Time { return now }
-	active := 0
-	for _, student := range d.options.State.Students {
-		visit, exists := latest[student.ID]
-		if visit.Active {
-			active++
-		}
-		if visit.Web && now.Before(visit.ChangedAt.Add(demoWebGracePeriod)) {
-			continue
-		}
-		if planDay && !d.day.present(student.ID, minute) {
-			continue // At home: not arrived yet, or picked up.
-		}
-		state.Students = append(state.Students, student)
-		d.live.rfidTags[student.ID] = fmt.Sprintf("DE%06X", student.ID)
-		if visit.Active {
-			d.live.checkedIn[student.ID] = true
-		} else if exists || planDay {
-			// On a planned day a child due at the OGS but in no room is on
-			// its way there; returning brings it to its block.
-			d.live.unterwegs[student.ID] = true
-		}
-	}
-	// Every student action, including sick/attendance toggles and rebuilding,
-	// sees only this eligible slice. Web actions therefore win over simulation.
 	var rooms []int64
 	if planDay {
+		// A planned child belongs only to the block that is running now. Resolve
+		// it before filtering the live state so a later block cannot borrow an
+		// unrelated active room just because its arrival time has passed.
 		rooms, d.live.plannedRoom = d.day.rooms()
 		d.live.withoutDeviceSession = true
 	} else {
@@ -147,6 +126,31 @@ func (d *DemoTicker) Tick(ctx context.Context) error {
 		}
 		d.live.plannedRoom, d.live.withoutDeviceSession = nil, false
 	}
+	active := 0
+	for _, student := range d.options.State.Students {
+		visit, exists := latest[student.ID]
+		if visit.Web && now.Before(visit.ChangedAt.Add(demoWebGracePeriod)) {
+			continue
+		}
+		if planDay && !d.day.present(student.ID, minute) {
+			continue // At home: not arrived yet, or picked up.
+		}
+		if planDay && d.live.plannedRoom[student.ID] == 0 {
+			continue // Their next planned block has not started yet.
+		}
+		state.Students = append(state.Students, student)
+		d.live.rfidTags[student.ID] = fmt.Sprintf("DE%06X", student.ID)
+		if visit.Active {
+			active++
+			d.live.checkedIn[student.ID] = true
+		} else if exists || planDay {
+			// On a planned day a child due at the OGS but in no room is on
+			// its way there; returning brings it to its block.
+			d.live.unterwegs[student.ID] = true
+		}
+	}
+	// Every student action, including sick/attendance toggles and rebuilding,
+	// sees only this eligible slice. Web actions therefore win over simulation.
 	// The parents act apart from the children: a failing parent is logged
 	// and never stops the children or the opening of a school.
 	d.parentTick(now)
@@ -187,6 +191,9 @@ func (d *DemoTicker) arrive(state *SeedState, device SeedDevice, rooms []int64) 
 	for _, studentID := range waiting[:min(len(waiting), demoDayArrivalsPerTick)] {
 		room := d.live.plannedRoom[studentID]
 		if room == 0 {
+			if d.live.withoutDeviceSession {
+				continue // A planned child waits until their own block is running.
+			}
 			room = rooms[int(studentID)%len(rooms)]
 		}
 		_, err := d.options.Client.DevicePost("/api/iot/checkin", map[string]any{
@@ -274,6 +281,8 @@ func (d *DemoTicker) rebuild(ctx context.Context, state *SeedState, rooms []int6
 		room := rooms[i%len(rooms)]
 		if planned := d.live.plannedRoom[student.ID]; planned != 0 {
 			room = planned
+		} else if d.live.withoutDeviceSession {
+			continue // A planned child waits until their own block is running.
 		}
 		if _, err := client.DevicePost("/api/iot/checkin", map[string]any{"student_rfid": tag, "action": "checkin", "room_id": room}, device.APIKey, state.DevicePIN); err != nil {
 			if isRoomCapacityExceeded(err) {

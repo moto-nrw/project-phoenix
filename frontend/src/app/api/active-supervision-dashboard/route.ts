@@ -88,6 +88,7 @@ interface WireOpenRoomSession {
     instance_id: string;
     start_time: string;
     end_time: string;
+    is_spontaneous?: boolean;
     is_user_assigned: boolean;
     can_operate: boolean;
   } | null;
@@ -481,6 +482,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
               instanceId: session.block.instance_id,
               startTime: session.block.start_time,
               endTime: session.block.end_time,
+              isSpontaneous: session.block.is_spontaneous === true,
               isUserAssigned: session.block.is_user_assigned,
               canOperate: session.block.can_operate,
             }

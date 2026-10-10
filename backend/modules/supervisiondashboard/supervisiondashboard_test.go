@@ -892,7 +892,7 @@ func TestProjectionWireShape(t *testing.T) {
 		`"open_rooms":[{"room_id":"31","name":"Schulhof","is_user_supervising":true,"active_group_ids":["11","14"],"has_occupying_session":true,"student_count":1,` +
 		`"students":[{"student_id":"2","student_name":"Max Hof","school_class":"","group_name":"","active_group_id":"14","check_in_time":"2026-08-19T06:00:00Z","sick":false,"excused":false,"independent":true}],` +
 		`"sessions":[{"active_group_id":"11","title":"Malen","independent":false,"is_user_supervising":true,"can_assign":true,"student_count":0,"participant_limit":45,` +
-		`"block":{"instance_id":"5","start_time":"14:00","end_time":"15:00","is_user_assigned":true,"can_operate":true}},` +
+		`"block":{"instance_id":"5","start_time":"14:00","end_time":"15:00","is_spontaneous":false,"is_user_assigned":true,"can_operate":true}},` +
 		`{"active_group_id":"14","title":"","independent":true,"is_user_supervising":false,"can_assign":false,"student_count":1,"block":null}]}],` +
 		`"capabilities":{"web_spontaneous_activities_enabled":true},` +
 		`"active_sessions":[{"active_group_id":11,"instance_id":5,"title":"Malen","start_time":"14:00","end_time":"15:00"}],` +

@@ -30,6 +30,8 @@ type StaffAssignment struct {
 	StartTime time.Time
 	EndTime   time.Time
 	Status    string
+	// IsSpontaneous keeps the open-end display distinct from planned blocks.
+	IsSpontaneous bool
 	// Cancelled is a convenience mirror of Status == cancelled: the block does
 	// not take place ("fällt aus").
 	Cancelled bool
@@ -140,6 +142,7 @@ func (s *staffAssignmentService) ListAssignmentsForStaff(ctx context.Context, st
 			StartTime:       timezone.NormalizeWallClock(inst.StartTime),
 			EndTime:         timezone.NormalizeWallClock(inst.EndTime),
 			Status:          inst.Status,
+			IsSpontaneous:   inst.IsSpontaneous,
 			Cancelled:       inst.Status == timetable.InstanceStatusCancelled,
 			IsPrimary:       row.IsPrimary,
 			IsSubstitute:    row.IsSubstitute,

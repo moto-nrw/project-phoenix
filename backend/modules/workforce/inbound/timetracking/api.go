@@ -848,6 +848,7 @@ type assignmentResponse struct {
 	StartTime       string  `json:"start_time"`
 	EndTime         string  `json:"end_time"`
 	Status          string  `json:"status"`
+	IsSpontaneous   bool    `json:"is_spontaneous"`
 	Cancelled       bool    `json:"cancelled"`
 	IsPrimary       bool    `json:"is_primary"`
 	IsSubstitute    bool    `json:"is_substitute"`
@@ -869,6 +870,7 @@ func toAssignmentResponses(assignments []workforce.StaffAssignment) []assignment
 			StartTime:       assignmentClock(a.StartTime),
 			EndTime:         assignmentClock(a.EndTime),
 			Status:          a.Status,
+			IsSpontaneous:   a.IsSpontaneous,
 			Cancelled:       a.Cancelled,
 			IsPrimary:       a.IsPrimary,
 			IsSubstitute:    a.IsSubstitute,
