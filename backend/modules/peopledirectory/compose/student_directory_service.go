@@ -1,17 +1,16 @@
-package users
+package compose
 
 import (
 	"context"
 	"database/sql"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // StudentService is what the api layer holds (issue #584: handlers must not
-// hold repositories). Since #3350 it is the People Directory half alone: the
-// companion graph moved to its owner
+// hold repositories); it left services/users in #3753. Since #3350 it is the
+// People Directory half alone: the companion graph moved to its owner
 // (modules/careplan/legacy/carelifecycle.StudentCompanionService), which the
 // handlers now hold beside this one. CONTRACT: results and errors are returned
 // VERBATIM — the handlers keep their existing transaction wrappers,
@@ -97,14 +96,13 @@ func (s *studentService) GetByIDForUpdate(ctx context.Context, id int64) (*userM
 }
 
 // translateMissingStudent restates the owner's missing child in the error shape
-// this service's handlers have always branched on: a DatabaseError wrapping
-// both base.ErrNotFound and sql.ErrNoRows. The mapping lives here because the
-// composition seam that observes the owner may import neither of those.
+// the retained callers branch on: a DatabaseError wrapping base.ErrNotFound and
+// sql.ErrNoRows (userModels.MissingStudentError).
 func translateMissingStudent(op string, err error) error {
 	if !errors.Is(err, userModels.ErrStudentRowMissing) {
 		return err
 	}
-	return &base.DatabaseError{Op: op, Err: errors.Join(base.ErrNotFound, sql.ErrNoRows)}
+	return userModels.MissingStudentError(op, sql.ErrNoRows)
 }
 
 func (s *studentService) Create(ctx context.Context, student *userModels.Student) error {

@@ -9,8 +9,8 @@ import (
 	repoFactory "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -90,7 +90,7 @@ func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 	insertFieldEdit(t, db, student.ID, daysAgo(10))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := usersSvc.NewStudentChangeLogCleanupService(
+	svc := services.NewStudentChangeLogCleanup(
 		repos.StudentFieldEdit,
 		repos.DataDeletion,
 		changeLogSettings(90),
@@ -120,7 +120,7 @@ func TestStudentChangeLogCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	insertFieldEdit(t, db, student.ID, daysAgo(30))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := usersSvc.NewStudentChangeLogCleanupService(
+	svc := services.NewStudentChangeLogCleanup(
 		repos.StudentFieldEdit,
 		repos.DataDeletion,
 		changeLogSettings(90),

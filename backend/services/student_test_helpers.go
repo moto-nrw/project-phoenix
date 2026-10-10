@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -33,7 +35,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
 	"github.com/uptrace/bun"
@@ -46,7 +47,7 @@ type StudentTestModule struct {
 	Audit              auditModels.Command
 	Schools            organizationtenancy.Capability
 	CareLifecycle      careplan.CareLifecycle
-	StudentAudit       users.StudentAuditService
+	StudentAudit       peopleCompose.StudentAuditService
 	PartialAbsence     careplan.PartialAbsenceService
 	EnrollmentDecision enrollmentOwner.Decisions
 	CareRequests       carerequests.Service
@@ -56,11 +57,11 @@ type StudentTestModule struct {
 	MasterDataReview   masterdatarequests.Decisions
 	ParentRequests     parentrequests.Coordinator
 	OGSGroupLive       grouplive.Query
-	StudentPhotos      users.StudentPhotoService
+	StudentPhotos      peopleCompose.StudentPhotoService
 	// NewStudentPhotos rebinds the photo lifecycle to the caller's broadcaster
 	// and file cleanup. Adapter tests assert on both, and the stored files are
 	// an api-layer concern this graph cannot supply.
-	NewStudentPhotos func(PhotoBroadcaster, users.PhotoUnlinker) users.StudentPhotoService
+	NewStudentPhotos func(PhotoBroadcaster, peopleCompose.PhotoUnlinker) peopleCompose.StudentPhotoService
 	// NewPickupAdjustments rebinds the pickup adjustment to the caller's
 	// offering adjustments, so a route test can fail an apply after the
 	// offering write.
@@ -130,7 +131,12 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	today := timezone.CalendarDateClock(now)
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
 	settingsService := live.Settings
-	usersService := live.Users
+	// Care Plan is composed after the live graph's person directory; the
+	// module hands out the copy that reaches it.
+	usersService := live.Users.WithCareParticipation(careParticipationResolver(func() careplan.CareParticipation {
+		return care.CareLifecycle
+	}))
+	live.Users = usersService
 	userContextService := live.UserContext
 	educationService := live.Education
 	activeService := live.Active
@@ -146,14 +152,13 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	studentConsentService := repositories.NewStudentConsents(db)
 	// The stored files live in the API layer, so a services-only graph binds
 	// no unlinker: the runtime skips the cleanup instead of guessing a path.
-	newStudentPhotos := func(broadcaster PhotoBroadcaster, unlinker users.PhotoUnlinker) users.StudentPhotoService {
+	newStudentPhotos := func(broadcaster PhotoBroadcaster, unlinker peopleCompose.PhotoUnlinker) peopleCompose.StudentPhotoService {
 		return NewStudentPhotos(persons, guardian.PhotoRuntime, StudentPhotoRuntimeDependencies{
 			Settings: settingsService, Broadcaster: broadcaster, Unlinker: unlinker,
 			Consents: studentConsentService, Logger: logger,
 		})
 	}
 	studentPhotoService := newStudentPhotos(realtimeHub, nil)
-	users.WirePersonCareParticipation(usersService, careParticipationResolver(careLifecycleService))
 	careplanCompose.WireCareParticipation(careDayService, careLifecycleService)
 	approvedOfferings := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
 	pickupBaselines, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approvedOfferings, func(ctx context.Context) (bool, error) {

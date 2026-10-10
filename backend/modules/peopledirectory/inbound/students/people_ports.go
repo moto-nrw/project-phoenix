@@ -18,7 +18,7 @@ import (
 // the person writes with their account and RFID-card checks, the student-aware
 // bracelet assignment, the dated roster of the group day log and the staff
 // member behind a person. The root binds the retained person service
-// (services.NewStudentRoutePersons).
+// (compose.NewStudentRoutePersons in modules/peopledirectory/compose).
 type PersonRecords interface {
 	// CreatePerson validates and inserts a person, refusing a tag or account
 	// that does not exist.

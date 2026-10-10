@@ -1,23 +1,22 @@
-package services
+package compose
 
 import (
 	"context"
 	"fmt"
 
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // GroupRoutePeople binds the People Directory port of the group routes
-// (modules/schoolstructure/http, #2742) to the retained person service. It
+// (modules/schoolstructure/http, #2742) to the retained person directory. It
 // only translates the retained rows into the owner's public types and changes
 // nothing about which reads run.
 type GroupRoutePeople struct {
-	persons users.PersonService
+	persons *PersonDirectory
 }
 
-// NewGroupRoutePeople binds the retained person service.
-func NewGroupRoutePeople(persons users.PersonService) GroupRoutePeople {
+// NewGroupRoutePeople binds the retained person directory.
+func NewGroupRoutePeople(persons *PersonDirectory) GroupRoutePeople {
 	return GroupRoutePeople{persons: persons}
 }
 

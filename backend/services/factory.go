@@ -184,12 +184,12 @@ type Factory struct {
 	Materialization         timetable.MaterializationCapability
 	TimetableCleanup        timetable.TimetableCleanup
 	TimeTrackingCleanup     timetracking.TimeTrackingCleanupService
-	StudentChangeLogCleanup users.StudentChangeLogCleanupService
+	StudentChangeLogCleanup peopleCompose.StudentChangeLogCleanupService
 	Instance                timetable.InstanceLifecycleCapability
 	AutoStart               timetable.InstanceAutoStart
 	AutoEnd                 timetable.InstanceAutoEnd
 	TimetableOperations     timetable.OperationCapability
-	Users                   users.PersonService
+	Users                   *peopleCompose.PersonDirectory
 	Birthdays               peopledirectory.Birthdays
 	// StaffDocuments is Workforce's personnel-record administration: the
 	// Dokumente tab, the Stammdaten sections and the payroll number (#3752).
@@ -237,7 +237,7 @@ type Factory struct {
 	Students             StudentServices
 	StudentDeletion      *studentdeletion.Workflow
 	CareLifecycle        careplan.CareLifecycle
-	StudentAudit         users.StudentAuditService
+	StudentAudit         peopleCompose.StudentAuditService
 	MasterDataReview     masterdatarequests.Decisions
 	CareRequests         carerequests.Service
 	ExcusedRequests      careplan.ExcusedAbsenceRequests
@@ -313,7 +313,7 @@ type Factory struct {
 	// StudentPhotos is set by EnableStudentPhotos. nil until the API layer
 	// supplies a PhotoUnlinker (file IO is an api-layer concern, not a
 	// service-layer one).
-	StudentPhotos   users.StudentPhotoService
+	StudentPhotos   peopleCompose.StudentPhotoService
 	StudentConsents *repositories.StudentConsents
 }
 
@@ -814,8 +814,12 @@ func newFactory(
 		DB: db, Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher, LehrkraftRoles: identityRoles,
 	})
 
+	// Care Plan is composed further down and reads the person directory, so
+	// the directory reaches its participation decision at call time.
+	var careParticipation careplan.CareParticipation
+
 	// Initialize users service first (needed for active service)
-	usersService := users.NewPersonService(users.PersonServiceDependencies{
+	usersService := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
 		PersonDirectory:  repositories.NewPersonDirectory(persons),
 		StudentDirectory: repositories.NewStudentDirectory(persons),
 		PersonRepo:       repos.Person,
@@ -824,10 +828,9 @@ func newFactory(
 		StudentRepo:      repos.Student,
 		TeacherRepo:      repos.Teacher,
 		StaffDirectory:   staffDirectory,
-
-		DB:              db,
-		SettingsService: settingsService,
-		Logger:          logger.With("service", "users"),
+		CareParticipation: careParticipationResolver(func() careplan.CareParticipation {
+			return careParticipation
+		}),
 	})
 
 	// Birthday display (#1542): who is celebrating today, plus the school
@@ -1474,7 +1477,7 @@ func newFactory(
 	// audit.student_field_edits older than the tenant's retention window
 	// (gdpr.student_change_log_retention_days, default 90). One per-student
 	// DataDeletion audit row per run; shares the nightly cleanup window.
-	studentChangeLogCleanupService := users.NewStudentChangeLogCleanupService(
+	studentChangeLogCleanupService := NewStudentChangeLogCleanup(
 		repos.StudentFieldEdit,
 		repos.DataDeletion,
 		settingsService,
@@ -1928,7 +1931,7 @@ func newFactory(
 		repos.Enrollment(),
 	))
 
-	studentAuditService := users.NewStudentAuditService(requestAuditActor, repositories.NewStudentAuditFor(persons))
+	studentAuditService := peopleCompose.NewStudentAuditService(requestAuditActor, repositories.NewStudentAuditFor(persons))
 	careLifecycleService, err := careplanCompose.NewCareLifecycle(careplanCompose.CareLifecycleDependencies{
 		DB: db, Records: repos.CarePlan(),
 		Owners: repositories.NewCareLifecycleOwners(db, repositories.CareLifecycleOwnerSources{
@@ -1945,7 +1948,7 @@ func newFactory(
 	if err != nil {
 		return nil, fmt.Errorf("compose care lifecycle: %w", err)
 	}
-	users.WirePersonCareParticipation(usersService, careParticipationResolver(careLifecycleService))
+	careParticipation = careLifecycleService
 	careplanCompose.WireCareParticipation(careDayService, careLifecycleService)
 	// Offering-sourced weekly Gehzeit changes move the same baseline a staff
 	// weekly edit does, so they re-derive the auto excusals of the students'
@@ -2148,7 +2151,7 @@ func newFactory(
 		Logger:                 logger.With("service", "class-day-arrival-exceptions"),
 	})
 
-	studentService := users.NewStudentService(
+	studentService := peopleCompose.NewStudentService(
 		repositories.NewStudentDirectory(persons),
 		persons,
 		repos.Student,
@@ -3049,7 +3052,7 @@ func optionalClock(clocks []func() time.Time) func() time.Time {
 // login-image and avatar upload helpers), and the owner's runtime slot is
 // filled here because the factory holds the rest.
 type StudentPhotoBootstrap struct {
-	Unlinker users.PhotoUnlinker
+	Unlinker peopleCompose.PhotoUnlinker
 	// PhotoRuntime is the slot the People Directory owner resolves its photo
 	// runtime from; EnableStudentPhotos fills it with the surfaces this
 	// factory holds.

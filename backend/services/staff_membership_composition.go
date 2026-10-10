@@ -8,10 +8,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationSvc "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	offboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
 	"github.com/uptrace/bun"
@@ -84,7 +84,7 @@ type StaffUpdateInput struct {
 	Qualifications string
 }
 
-// StaffTeacherAction mirrors usersSvc.TeacherAction as a stable string.
+// StaffTeacherAction mirrors peopleCompose.TeacherAction as a stable string.
 type StaffTeacherAction string
 
 const (
@@ -241,11 +241,7 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 		SchoolClasses:    f.Education.GetStaffSchoolClasses,
 		SetSchoolClasses: f.Education.SetStaffSchoolClasses,
 		ActiveCaregivers: func(ctx context.Context) ([]StaffRoleRow, error) {
-			directory, err := usersSvc.CaregiverDirectoryFromPersonService(f.Users)
-			if err != nil {
-				return nil, err
-			}
-			caregivers, err := directory.ListActiveCaregivers(ctx)
+			caregivers, err := f.Users.ListActiveCaregivers(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -278,11 +274,7 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 		},
 
 		CreateStaff: func(ctx context.Context, input StaffCreateInput) (StaffCreateResult, error) {
-			staff, teacher, teacherCreationFailed, err := f.Users.CreateStaffWithTeacher(ctx, usersSvc.CreateStaffInput{
-				PersonID: input.PersonID, StaffNotes: input.StaffNotes, IsTeacher: input.IsTeacher,
-				Specialization: input.Specialization, Role: input.Role, Qualifications: input.Qualifications,
-				ActorPermissions: input.ActorPermissions,
-			})
+			staff, teacher, teacherCreationFailed, err := f.Users.CreateStaffWithTeacher(ctx, StaffDirectoryCreateInput(input))
 			if err != nil {
 				return StaffCreateResult{}, err
 			}
@@ -299,12 +291,12 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 			if err != nil {
 				return StaffUpdateResult{}, err
 			}
-			return StaffUpdateResult{Staff: legacyStaffToMembership(staff), Teacher: legacyTeacherToMembership(teacher), Action: staffTeacherAction(action)}, nil
+			return StaffUpdateResult{Staff: legacyStaffToMembership(staff), Teacher: legacyTeacherToMembership(teacher), Action: StaffTeacherActionFor(action)}, nil
 		},
 		Offboard: func(ctx context.Context, staffID int64, actorUsername string) error {
 			_, err := offboarding.Offboard(context.WithValue(ctx, staffOffboardingActorNameKey{}, actorUsername), staffID)
 			if errors.Is(err, staffoffboarding.ErrInUse) {
-				return usersSvc.ErrStaffInUse
+				return ErrStaffInUse
 			}
 			return err
 		},
@@ -318,14 +310,14 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 // database-error knowledge.
 func ClassifyStaffWriteFailure(err error) (StaffFailureKind, error) {
 	switch {
-	case errors.Is(err, usersSvc.ErrStaffAdoptionNotPermitted):
+	case errors.Is(err, ErrStaffAdoptionNotPermitted):
 		return StaffFailureForbidden, err
 	case errors.Is(err, schoolmembership.ErrStaffPersonConflict):
 		return StaffFailureConflict, err
-	case errors.Is(err, usersSvc.ErrStaffLehrkraftCaregiverProfile):
+	case errors.Is(err, ErrStaffLehrkraftCaregiverProfile):
 		return StaffFailureConflict, err
-	case errors.Is(err, usersSvc.ErrStaffInUse):
-		return StaffFailureConflict, usersSvc.ErrStaffInUse
+	case errors.Is(err, ErrStaffInUse):
+		return StaffFailureConflict, ErrStaffInUse
 	case errors.Is(err, staffoffboarding.ErrConflict):
 		return StaffFailureConflict, err
 	case errors.Is(err, staffoffboarding.ErrUnauthorized):
@@ -363,17 +355,28 @@ func toStaffDirectoryPerson(id int64, firstName, lastName string, tagID *string,
 	return person
 }
 
-func staffTeacherAction(action usersSvc.TeacherAction) StaffTeacherAction {
+// StaffDirectoryCreateInput is the staff directory's spelling of a create
+// request.
+func StaffDirectoryCreateInput(input StaffCreateInput) peopleCompose.CreateStaffInput {
+	return peopleCompose.CreateStaffInput{
+		PersonID: input.PersonID, StaffNotes: input.StaffNotes, IsTeacher: input.IsTeacher,
+		Specialization: input.Specialization, Role: input.Role, Qualifications: input.Qualifications,
+		ActorPermissions: input.ActorPermissions,
+	}
+}
+
+// StaffTeacherActionFor names the teacher-record outcome of a staff update.
+func StaffTeacherActionFor(action peopleCompose.TeacherAction) StaffTeacherAction {
 	switch action {
-	case usersSvc.TeacherActionExisting:
+	case peopleCompose.TeacherActionExisting:
 		return StaffTeacherActionExisting
-	case usersSvc.TeacherActionUpdated:
+	case peopleCompose.TeacherActionUpdated:
 		return StaffTeacherActionUpdated
-	case usersSvc.TeacherActionUpdateFailed:
+	case peopleCompose.TeacherActionUpdateFailed:
 		return StaffTeacherActionUpdateFailed
-	case usersSvc.TeacherActionCreated:
+	case peopleCompose.TeacherActionCreated:
 		return StaffTeacherActionCreated
-	case usersSvc.TeacherActionCreateFailed:
+	case peopleCompose.TeacherActionCreateFailed:
 		return StaffTeacherActionCreateFailed
 	default:
 		return StaffTeacherActionNone

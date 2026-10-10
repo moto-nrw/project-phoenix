@@ -1366,7 +1366,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	}
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PeopleDirectory:              api.Services.PeopleDirectory,
-		Persons:                      services.NewStudentRoutePersons(api.Services.Users),
+		Persons:                      peopleCompose.NewStudentRoutePersons(api.Services.Users),
 		CompanionService:             api.Services.Students.Companions,
 		ClassListEntries:             classListEntryStudentsReader{entries: api.membership},
 		ChildQuota:                   childQuotaStudentsReader{usages: api.membership},
@@ -1432,7 +1432,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Logger: logger.With("service", "staffnotice"),
 	}), func(ctx context.Context) int64 { return timeTrackingIdentity(ctx).AccountID })
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, logger.With("handler", "filestore"))
-	api.Groups = groupsHTTP.NewResource(api.Services.Education, api.Services.Active, services.NewGroupRoutePeople(api.Services.Users), api.Services.UserContext)
+	api.Groups = groupsHTTP.NewResource(api.Services.Education, api.Services.Active, peopleCompose.NewGroupRoutePeople(api.Services.Users), api.Services.UserContext)
 	api.Guardians = newGuardiansResource(api.Services.PeopleDirectory, api.Services.NewGuardianDirectoryRuntime(db), viper.GetString("app_env"), logger.With("handler", "guardians"))
 	api.Import = importAPI.NewResource(importAPI.Dependencies{
 		Students: api.Services.Import, Staff: api.Services.StaffImport, ClassList: api.Services.ClassListImport,

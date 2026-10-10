@@ -1,4 +1,4 @@
-package users
+package compose
 
 import (
 	"context"
@@ -7,9 +7,10 @@ import (
 )
 
 // The staff student directory moved to its owner in #3349. What stays here is
-// the contract the retained handlers call; the filter surface, the SQL and the
-// ordering belong to modules/peopledirectory, and the composition root binds
-// an implementation (database/repositories.NewStudentDirectory).
+// the contract the retained student service calls (it left services/users in
+// #3753); the filter surface, the SQL and the ordering belong to
+// modules/peopledirectory, and the composition root binds an implementation
+// (database/repositories.NewStudentDirectory).
 
 // StudentDirectoryReader is the filtered, paginated directory read.
 type StudentDirectoryReader interface {

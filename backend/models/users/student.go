@@ -49,10 +49,9 @@ const MaxDepartureCompanionNoteLen = departure.MaxDepartureCompanionNoteLen
 var ErrDepartureCompanionNoteRequired = departure.ErrDepartureCompanionNoteRequired
 
 // ErrStudentRowMissing says a child the caller named has no row. It lives here
-// because the two sides that need it — the People Directory composition seam
-// that observes the owner's not-found, and the retained student service that
-// translates it into the error shape its handlers branch on — may not import
-// each other (#3349).
+// because the People Directory composition seams that observe the owner's
+// not-found and the retained callers that branch on it may not import each
+// other (#3349).
 var ErrStudentRowMissing = errors.New("student row not found")
 
 // MissingStudentError is the error a lookup returns for a child that is not

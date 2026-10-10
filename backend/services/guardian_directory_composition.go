@@ -338,14 +338,14 @@ func mapGuardianError(err error) error {
 	if err == nil {
 		return nil
 	}
-	var validation *usersSvc.ValidationError
+	validation, isValidation := usersSvc.ValidationFailure(err)
 	var stillLinked *usersSvc.GuardianStillLinkedError
 	switch {
-	case errors.As(err, &validation) && errors.Is(err, usersSvc.ErrGuardianEmailInUse):
+	case isValidation && errors.Is(err, usersSvc.ErrGuardianEmailInUse):
 		// Still invalid input for every caller; the sentinel adds the code.
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianEmailTaken,
 			&peopledirectory.InvalidGuardianError{Reason: validation.Error()})
-	case errors.As(err, &validation):
+	case isValidation:
 		return &peopledirectory.InvalidGuardianError{Reason: validation.Error()}
 	case errors.As(err, &stillLinked):
 		return &peopledirectory.GuardianStillLinkedError{StudentNames: stillLinked.StudentNames}
@@ -359,8 +359,6 @@ func mapGuardianError(err error) error {
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianNotFound, err)
 	case errors.Is(err, userModels.ErrStudentGuardianNotFound):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianLinkNotFound, err)
-	case errors.Is(err, usersSvc.ErrStudentNotFound):
-		return fmt.Errorf("%w: %w", peopledirectory.ErrStudentNotFound, err)
 	case usersSvc.IsGuardianLinkConstraintViolation(err):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianLinkConflict, err)
 	case strings.Contains(err.Error(), "not found"):
@@ -399,8 +397,6 @@ func mapGuardianPaymentError(err error) error {
 	switch {
 	case errors.Is(err, sql.ErrNoRows), errors.Is(err, userModels.ErrGuardianProfileNotFound):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianNotFound, err)
-	case errors.Is(err, usersSvc.ErrStudentNotFound):
-		return fmt.Errorf("%w: %w", peopledirectory.ErrStudentNotFound, err)
 	case errors.Is(err, usersSvc.ErrGuardianIBANInvalid):
 		return peopledirectory.ErrGuardianIBANInvalid
 	case errors.Is(err, usersSvc.ErrGuardianAccountHolderTooLong):

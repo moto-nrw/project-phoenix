@@ -144,7 +144,8 @@ name the shared HTTP runtime, the token adapter, the permission registry, the
 tenant runtime and, for the group routes, their own group service and rows
 and the People Directory's public types. The group routes read the children
 and persons of a group through their `GroupPeople` port, which
-`services.NewGroupRoutePeople` binds over the retained person service.
+`compose.NewGroupRoutePeople` (`modules/peopledirectory/compose`, #3753) binds
+over the retained person directory.
 `services/education` names no foreign model, no ORM and no tenant runtime:
 its writes run on the `Runtime` port `schoolStructureCompose.LegacyRepositoryRuntime`
 binds, the rooms, teachers, staff, caregivers, handovers and both audit
@@ -338,6 +339,42 @@ reads were already native (#3182) and still go through `modules/requestreview`.
 No rule was added: five resolved `services/users` keys and the two rules only
 the deleted coordinator and its tests used are gone.
 
+#3753 (slice 4 of #2728) moved the person and student services out of
+`services/users`, which keeps only the caregiver and guardian clusters. The
+person service is the concrete `PersonDirectory` in
+`modules/peopledirectory/compose`, the one People Directory package that may
+name `models/users` and `userscontract` in production. It has no interface:
+every consumer keeps the port it owns (#3771), and the root passes the
+concrete type. Its staff half stays the embedded `StaffDirectory` port bound
+by `services.NewStaffDirectory`; the staff write inputs (`CreateStaffInput`,
+`TeacherAction`) moved with that port, so the open owner question for the two
+staff writes stays open. The student-route and group-route adapters moved
+beside it. The change-history retention sweep is a People Directory compose
+service over three ports (`StudentChangeLogStore`,
+`StudentChangeLogDeletionLog`, `StudentChangeLogRetention`) that
+`services.NewStudentChangeLogCleanup` binds. The photo, audit-actor and
+student-directory contracts and the student directory service moved there as
+well; the audit contract no longer carries `GetChangeHistory`, which needs
+`models/audit` and which only suites called (they read the trail through the
+repository seam), and `ErrPhotoNoTenant` moved to its one producer in
+`services`. The error aliases are gone: callers name
+`userscontract` directly, `ErrPersonNotFound` and `ErrStudentNotFound` moved
+into `userscontract` with their instances, and the three staff write refusals
+moved into `services` beside the staff directory, because the root may not
+import `userscontract`. The Care Plan participation resolver now arrives at
+construction, late-bound, instead of through a setter, so the composition
+surface stays at 591. The test scopes decided where the suites live: no
+People Directory test package may import `models/users`, so the behavior
+suites stay in `services/users` and reach the directory through the services
+factory, and the module suites outside build it with
+`services.NewTestPersonDirectory` and name the compose contracts through the
+`PeopleDirectorySuite*` entries in `services/people_directory_test_helpers.go`.
+Moving those suites out of `services/users` would add keys in every scope the
+policy offers (`models/users`, `models/audit`, `internal/timezone` and more),
+so they stay there, as the staff suites did in #3752. Eight rules that only allowed imports of
+the moved services and the `services/users/userstest` package are removed;
+ten baseline keys fall (206 → 196), none is added.
+
 #3356 cuts the six owner edges `api/students` held besides its carrier's
 shared plumbing. The HTTP role may not import these owners' public packages,
 and PR mode refuses a new rule between points that already exist, so five of
@@ -397,7 +434,7 @@ goldens are byte-identical.
   with their account and RFID-card checks, the student-aware bracelet
   assignment, the dated day-log roster, the staff member behind a person) is
   the `PersonRecords` port, bound over that service by
-  `services.NewStudentRoutePersons`. The group teachers the detail lists are
+  `compose.NewStudentRoutePersons` (`modules/peopledirectory/compose`, #3753). The group teachers the detail lists are
   plain `GroupTeacher` values. The companion sentinels and the companion link
   helpers moved to the `departure` contract; `models/users` aliases them, so
   every `errors.Is` keeps matching.
@@ -1128,7 +1165,8 @@ in the repository shape the HTTP layer classifies. The staff and teacher
 lookups and the two staff writes of the person service leave as the
 `users.StaffDirectory` port (`services/users/staff_directory_port.go`), bound
 by `services.NewStaffDirectory` and embedded in the person service, so the
-callers keep the verbatim repository results the IoT flows depend on.
+callers keep the verbatim repository results the IoT flows depend on. #3753
+moved that port with the person service to `modules/peopledirectory/compose`.
 
 The retained Workforce time-tracking services
 (`modules/workforce/legacy/timetracking`, #3213) are classified

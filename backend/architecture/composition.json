@@ -856,22 +856,12 @@
       "declaration": "TestPersonService_LinkStudentToRFIDCard",
       "target": "database/repositories.NewFactory",
       "lines": [
-        721
+        618
       ],
       "tables": [
         "users.persons",
         "users.student_school_memberships"
       ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/person_directory_service_test.go",
-      "declaration": "setupPersonService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        29
-      ],
-      "tables": []
     },
     {
       "scope": "test",
@@ -889,7 +879,7 @@
       "declaration": "newPayrollScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        70
+        71
       ],
       "tables": []
     },
@@ -909,7 +899,7 @@
       "declaration": "newOffboardingScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        67
+        66
       ],
       "tables": []
     },

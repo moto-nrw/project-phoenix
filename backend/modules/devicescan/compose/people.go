@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 )
 
 // PersonDirectory is the slice of the retained people service the kiosk flows
@@ -39,7 +39,7 @@ func (people) NormalizeTag(tag string) string { return users.NormalizeTagID(tag)
 func (p people) FindPersonByTag(ctx context.Context, tag string) (*ports.Person, error) {
 	person, err := p.users.FindByTagID(ctx, tag)
 	if err != nil {
-		if errors.Is(err, usersSvc.ErrPersonNotFound) {
+		if errors.Is(err, userscontract.ErrPersonNotFound) {
 			return nil, mapError(err, ports.ErrPersonNotFound)
 		}
 		return nil, err

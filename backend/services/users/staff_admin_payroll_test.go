@@ -13,7 +13,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/services"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,8 +28,10 @@ type payrollScenario struct {
 	db    *bun.DB
 	repos *repositories.Factory
 	svc   workforce.StaffRecordAdmin
-	dir   usersSvc.StaffDirectory
 	ctx   context.Context
+	// updateStaff runs the staff directory's directory-field update without a
+	// teacher-record change.
+	updateStaff func(context.Context, *userModels.Staff) error
 }
 
 type serializingStaffRepo struct {
@@ -74,7 +75,12 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 		DB: db, Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher,
 	})
 
-	return &payrollScenario{db: db, repos: repos, svc: svc, dir: dir, ctx: testpkg.Ctx(t)}
+	updateStaff := func(ctx context.Context, staff *userModels.Staff) error {
+		_, _, err := dir.UpdateStaffWithTeacher(ctx, staff, false, "", "", "")
+		return err
+	}
+
+	return &payrollScenario{db: db, repos: repos, svc: svc, ctx: testpkg.Ctx(t), updateStaff: updateStaff}
 }
 
 func payrollAdminDeps(db *bun.DB, repos *repositories.Factory, staff userModels.StaffRepository) services.StaffAdminDependencies {
@@ -274,7 +280,7 @@ func TestUpdateStaffWithTeacher_PreservesConcurrentPersonnelNumber(t *testing.T)
 	require.NoError(t, err)
 
 	staleStaff.StaffNotes = "Aktualisierte Notiz"
-	_, _, err = s.dir.UpdateStaffWithTeacher(s.ctx, staleStaff, false, "", "", "")
+	err = s.updateStaff(s.ctx, staleStaff)
 	require.NoError(t, err)
 
 	reloaded, err := s.repos.Staff.FindByID(s.ctx, staff.ID)

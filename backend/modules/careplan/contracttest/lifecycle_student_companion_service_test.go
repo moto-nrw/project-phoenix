@@ -4,12 +4,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -207,7 +208,8 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 		LastName:  "Confirm",
 	})
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	audit := usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(db))
+	trail := repositories.NewStudentAudit(db)
+	audit := services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, trail)
 	service := repositories.MustNewStudentCompanions(factory.CarePlan(), factory.Student, repositories.MustNewPeopleDirectory(db), audit)
 
 	subject := testpkg.CreateTestStudent(t, db, "AuditSubject", "Companion", "1a")
@@ -232,7 +234,7 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 	require.NoError(t, err)
 	require.Empty(t, conflicts)
 
-	history, err := audit.GetChangeHistory(ctx, companion.ID)
+	history, err := trail.GetChangeHistory(ctx, companion.ID)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 	assert.Equal(t, auditModels.StudentFieldDepartureDays, history[0].FieldName)

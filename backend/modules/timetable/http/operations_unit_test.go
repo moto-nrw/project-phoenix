@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -387,7 +386,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 	}
 	res := NewResource(Dependencies{
 		InstanceService:   instanceSvc,
-		OperationsService: newRealSpontaneousOpsService(t, instanceSvc, userstest.StaffAccount(224, 324), settings),
+		OperationsService: newRealSpontaneousOpsService(t, instanceSvc, testpkg.StaffAccountPeople{PersonID: 224, StaffID: 324}, settings),
 		TimetableData:     operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		People:            staffAccountPeople(224, 324),
 		SettingsService:   settings,
@@ -1141,7 +1140,7 @@ func (testOperationLifecycle) Reopen(context.Context, int64, int64, bool) (*time
 // newRealSpontaneousOpsService wires the Timetable owner's real operational
 // day so the handler exercises the real CreateAndStartSpontaneous (Create +
 // Start + MarkRollback), not a fake.
-func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLifecycleCapability, personSvc *userstest.PersonServiceMock, settings *fakeOperationSettingsService) timetable.OperationCapability {
+func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLifecycleCapability, personSvc timetableCompose.OperationPeople, settings *fakeOperationSettingsService) timetable.OperationCapability {
 	t.Helper()
 	operations, err := timetableCompose.NewOperations(timetableCompose.OperationDependencies{
 		Instances:            stubOpInstances{},
