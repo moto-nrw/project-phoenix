@@ -40,6 +40,9 @@ export function useDemoDayNotice(
   active: boolean,
   seenKey: string,
   today: string,
+  // false: only the strip's button opens it, e.g. while another demo notice
+  // opens by itself at the same moment.
+  autoOpen = true,
 ) {
   const [open, setOpen] = useState(false);
   const [settled, setSettled] = useState(false);
@@ -51,10 +54,16 @@ export function useDemoDayNotice(
   }, []);
 
   useEffect(() => {
-    if (active && settled && !isModalOpen && readSeenDay(seenKey) !== today) {
+    if (
+      active &&
+      autoOpen &&
+      settled &&
+      !isModalOpen &&
+      readSeenDay(seenKey) !== today
+    ) {
       setOpen(true);
     }
-  }, [active, settled, isModalOpen, seenKey, today]);
+  }, [active, autoOpen, settled, isModalOpen, seenKey, today]);
 
   return {
     open,

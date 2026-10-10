@@ -7,7 +7,7 @@ import { berlinClockFromISO } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useCurrentTimestamp } from "~/lib/hooks/use-current-timestamp";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import { useDemoDayNotice } from "./demo-weekend-notice";
+import { isWeekendDay, useDemoDayNotice } from "./demo-weekend-notice";
 
 // Pro Tag einmal von selbst; danach öffnet „Warum?“ in der Zeile ihn.
 const SEEN_KEY = "moto-demo-evening-notice";
@@ -47,7 +47,14 @@ export function DemoEveningRow({
 }: Readonly<{ inParentsApp: boolean }>) {
   const today = useBerlinToday();
   const active = useDemoEveningActive();
-  const { open, show, close } = useDemoDayNotice(active, SEEN_KEY, today);
+  // Am Wochenende geht der Wochenend-Hinweis von selbst auf; zwei Dialoge
+  // übereinander wären einer zu viel. Die Zeile und „Warum?“ bleiben.
+  const { open, show, close } = useDemoDayNotice(
+    active,
+    SEEN_KEY,
+    today,
+    !isWeekendDay(today),
+  );
 
   if (!active) return null;
 

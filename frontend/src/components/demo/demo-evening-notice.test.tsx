@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { setTestClock } from "~/test/clock";
@@ -33,12 +33,17 @@ describe("DemoEveningRow", () => {
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 
-  it("shows on a weekend evening too, which runs on Friday's plan", () => {
+  it("shows on a weekend evening too, but leaves the dialog to the weekend notice", async () => {
     setTestClock("2026-09-26T20:00:00+02:00");
+    const user = userEvent.setup();
     render(<DemoEveningRow inParentsApp={false} />);
     expect(screen.getByRole("note")).toHaveTextContent(
       "Uhrzeiten heute verschoben.",
     );
+    await act(() => new Promise((resolve) => setTimeout(resolve, 2000)));
+    expect(screen.queryByText(TITLE)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Warum?" }));
+    expect(await screen.findByText(TITLE)).toBeInTheDocument();
   });
 
   it("explains the moved times once per weekday evening", async () => {
