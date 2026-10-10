@@ -56,17 +56,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        310
-      ],
-      "tables": []
-    },
-    {
-      "scope": "production",
-      "file": "api/server.go",
-      "declaration": "newRuntime",
-      "target": "api.New",
-      "lines": [
-        133
+        304
       ],
       "tables": []
     },
@@ -17253,28 +17243,18 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 163,
+          "line": 157,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 513,
+          "line": 507,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 676,
-          "declaration": "type API"
-        },
-        {
-          "file": "api/base.go",
-          "line": 927,
-          "declaration": "initializeAPIResourcesWithRequestFeed"
-        },
-        {
-          "file": "api/base.go",
-          "line": 1324,
-          "declaration": "initializeAPIResources"
+          "line": 673,
+          "declaration": "type serveGraph"
         }
       ]
     },
@@ -17283,7 +17263,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 310,
+          "line": 304,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -17293,23 +17273,23 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 164,
+          "line": 158,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 382,
+          "line": 376,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 427,
+          "line": 421,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 673,
-          "declaration": "type API"
+          "line": 672,
+          "declaration": "type serveGraph"
         },
         {
           "file": "api/session_end.go",

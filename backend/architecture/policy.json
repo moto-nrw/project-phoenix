@@ -4643,13 +4643,6 @@
   ],
   "legacy_composition": [
     {
-      "package": "api",
-      "symbols": [
-        "API",
-        "New"
-      ]
-    },
-    {
       "package": "database/repositories",
       "symbols": [
         "Factory",
