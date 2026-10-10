@@ -25,6 +25,9 @@ type ArrivalBaselineProjection struct {
 	DerivedByStudentDate         ArrivalPlansByStudent
 	BookingsAuthoritative        bool
 	ClassExceptionsByStudentDate map[int64]ClassArrivalExceptionsByDate
+	// WeekendFollowsFriday reads Saturday and Sunday from Friday's row
+	// (#3921); it is only resolved when the range holds a weekend.
+	WeekendFollowsFriday bool
 }
 
 // ForDate returns the effective recurring row for the date's weekday. A
@@ -35,7 +38,7 @@ func (p *ArrivalBaselineProjection) ForDate(studentID int64, date calendar.Date)
 	if p == nil {
 		return nil
 	}
-	row := p.WeeklyByStudentDate[studentID][date][baselineWeekday(date)]
+	row := p.WeeklyByStudentDate[studentID][date][planWeekday(date, p.WeekendFollowsFriday)]
 	return classExceptionRow(row, p.ClassExceptionsByStudentDate[studentID][date])
 }
 
@@ -45,7 +48,7 @@ func (p *ArrivalBaselineProjection) DerivedForDate(studentID int64, date calenda
 	if p == nil {
 		return nil
 	}
-	return p.DerivedByStudentDate[studentID][date][baselineWeekday(date)]
+	return p.DerivedByStudentDate[studentID][date][planWeekday(date, p.WeekendFollowsFriday)]
 }
 
 // HasPlan reports whether any recurring arrival weekday exists on the date.
@@ -80,13 +83,16 @@ type PickupBaselineProjection struct {
 	OfferingByStudentDate PickupPlansByStudent
 	BookingsAuthoritative bool
 	CareDays              CareDayIndex
+	// WeekendFollowsFriday reads Saturday and Sunday from Friday's row
+	// (#3921); it is only resolved when the range holds a weekend.
+	WeekendFollowsFriday bool
 }
 
 // AllowsPickupForDate reports whether pickup data may affect the given day.
 // In legacy mode pickup rows remain independent. In booking mode the approved
 // care offering is the boundary, including for date-specific exceptions.
 func (p *PickupBaselineProjection) AllowsPickupForDate(studentID int64, date calendar.Date) bool {
-	return p.AllowsPickupForWeekday(studentID, date, baselineWeekday(date))
+	return p.AllowsPickupForWeekday(studentID, date, planWeekday(date, p != nil && p.WeekendFollowsFriday))
 }
 
 func (p *PickupBaselineProjection) AllowsPickupForWeekday(studentID int64, planDate calendar.Date, weekday int) bool {
@@ -99,7 +105,7 @@ func (p *PickupBaselineProjection) ForDate(studentID int64, date calendar.Date) 
 	if p == nil {
 		return nil
 	}
-	return p.WeeklyByStudentDate[studentID][date][baselineWeekday(date)]
+	return p.WeeklyByStudentDate[studentID][date][planWeekday(date, p.WeekendFollowsFriday)]
 }
 
 // OfferingForDate returns the booking-derived row hidden underneath a manual
@@ -108,7 +114,7 @@ func (p *PickupBaselineProjection) OfferingForDate(studentID int64, date calenda
 	if p == nil {
 		return nil
 	}
-	return p.OfferingByStudentDate[studentID][date][baselineWeekday(date)]
+	return p.OfferingByStudentDate[studentID][date][planWeekday(date, p.WeekendFollowsFriday)]
 }
 
 // HasPlan reports whether any recurring pickup weekday exists on the date.
@@ -158,6 +164,16 @@ func (c CareDayIndex) Covers(studentID int64, date calendar.Date, weekday int) b
 	return c[studentID][date][weekday]
 }
 func baselineWeekday(date calendar.Date) int { return (int(date.Weekday())+6)%7 + 1 }
+
+// planWeekday is the weekday whose row applies on date: Friday for a weekend
+// that follows Friday's plan (#3921), else the date's own weekday.
+func planWeekday(date calendar.Date, weekendFollowsFriday bool) int {
+	weekday := baselineWeekday(date)
+	if weekendFollowsFriday && weekday > 5 {
+		return 5
+	}
+	return weekday
+}
 func classExceptionRow(
 	row *ArrivalSchedule,
 	exception *ArrivalBaselineException,

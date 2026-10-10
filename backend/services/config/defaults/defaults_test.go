@@ -37,6 +37,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.sick_clear_mode",
 		"operations.excused_clear_mode",
 		"operations.federal_state",
+		// Saturday and Sunday on Friday's plan, demo schools only (#3921).
+		"operations.weekend_follows_friday",
 		"gdpr.data_cleanup_enabled",
 		"gdpr.data_cleanup_time",
 		"gdpr.data_cleanup_timeout_minutes",
@@ -345,6 +347,16 @@ func TestPresenceModeSetting(t *testing.T) {
 	values := []any{def.Options.Static[0].Value, def.Options.Static[1].Value}
 	assert.Contains(t, values, config.PresenceModeDetailed)
 	assert.Contains(t, values, config.PresenceModeBinary)
+}
+
+func TestWeekendFollowsFridaySetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyWeekendFollowsFriday)
+	require.NotNil(t, def, "operations.weekend_follows_friday should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "real schools never care on weekends")
+	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy, "turns the weekend into care days for the whole school")
 }
 
 func TestFederalStateSetting(t *testing.T) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
@@ -68,7 +67,11 @@ func (s *ClassArrivalExceptions) UpsertClassArrivalException(
 	if input.Date.Before(calendar.TodayDate()) {
 		return nil, &careplan.ScheduleError{Op: opUpsertClassArrivalException, Err: careplan.ErrClassArrivalExceptionPastDate}
 	}
-	if isWeekend(input.Date) {
+	careDay, err := calendar.IsCareWeekday(ctx, input.Date)
+	if err != nil {
+		return nil, &careplan.ScheduleError{Op: opUpsertClassArrivalException, Err: err}
+	}
+	if !careDay {
 		return nil, &careplan.ScheduleError{Op: opUpsertClassArrivalException, Err: careplan.ErrClassArrivalExceptionWeekend}
 	}
 	if err := s.requireActiveClass(ctx, class, opUpsertClassArrivalException); err != nil {
@@ -146,9 +149,4 @@ func trimmedOptionalReason(reason *string) *string {
 		return nil
 	}
 	return &value
-}
-
-func isWeekend(date calendar.Date) bool {
-	weekday := date.Weekday()
-	return weekday == time.Saturday || weekday == time.Sunday
 }

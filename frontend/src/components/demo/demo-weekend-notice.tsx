@@ -76,10 +76,10 @@ export function isWeekendDay(isoDay: string): boolean {
 }
 
 /**
- * Hinweis der öffentlichen Demo am Wochenende (#3894). Die Demo spielt auch
- * samstags und sonntags einen Betreuungstag, damit es etwas zu sehen gibt.
- * Geplante Zeiten gibt es aber nur von Montag bis Freitag, also zeigt die App
- * jedes anwesende Kind als „Ungeplant anwesend". Ohne Hinweis sieht das wie
+ * Hinweis der öffentlichen Demo am Wochenende (#3894). Eine Demo-Schule
+ * betreut samstags und sonntags nach dem Plan vom Freitag
+ * (operations.weekend_follows_friday, #3921), damit es etwas zu sehen gibt.
+ * Eine echte OGS hat am Wochenende zu; ohne Hinweis sähe der volle Tag wie
  * ein Fehler aus.
  */
 export function DemoWeekendNotice({ inParentsApp }: { inParentsApp: boolean }) {
@@ -114,14 +114,8 @@ export function DemoWeekendNotice({ inParentsApp }: { inParentsApp: boolean }) {
       >
         <div className="flex flex-col gap-3 text-sm text-gray-700">
           <p>Die Demo zeigt trotzdem einen normalen Betreuungstag.</p>
-          {inParentsApp ? (
-            <p>Deshalb ist Ihr Kind heute in der OGS.</p>
-          ) : (
-            <p>
-              Geplante Zeiten gibt es nur von Montag bis Freitag. Deshalb steht
-              bei den Kindern heute „Ungeplant anwesend“.
-            </p>
-          )}
+          <p>Am Wochenende gilt in der Demo der Plan vom Freitag.</p>
+          {inParentsApp ? <p>Deshalb ist Ihr Kind heute in der OGS.</p> : null}
           <p>An einem Werktag sehen Sie die Demo wie im echten Alltag.</p>
         </div>
       </Modal>

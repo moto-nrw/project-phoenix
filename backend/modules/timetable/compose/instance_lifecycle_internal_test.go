@@ -11,6 +11,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -57,14 +58,14 @@ func TestValidateSpontaneousStartWorkday(t *testing.T) {
 	spontaneous := plannedLifecycleInstance()
 	spontaneous.IsSpontaneous = true
 	saturday := time.Date(2026, 8, 15, 0, 0, 0, 0, timezone.Berlin)
-	assert.ErrorIs(t, validateSpontaneousStartWorkday(spontaneous, saturday), timetable.ErrInstanceWeekend)
+	assert.ErrorIs(t, validateSpontaneousStartWorkday(context.Background(), spontaneous, saturday), timetable.ErrInstanceWeekend)
 
 	monday := time.Date(2026, 8, 17, 0, 0, 0, 0, timezone.Berlin)
-	assert.NoError(t, validateSpontaneousStartWorkday(spontaneous, monday))
+	assert.NoError(t, validateSpontaneousStartWorkday(context.Background(), spontaneous, monday))
 
 	planned := *spontaneous
 	planned.IsSpontaneous = false
-	assert.NoError(t, validateSpontaneousStartWorkday(&planned, saturday))
+	assert.NoError(t, validateSpontaneousStartWorkday(context.Background(), &planned, saturday))
 }
 
 func TestValidateCompleteTime(t *testing.T) {
@@ -210,9 +211,9 @@ func TestValidateLegacyWeekendInstanceDate(t *testing.T) {
 	saturday := timezone.NewDate(2026, time.May, 9)
 	monday := saturday.AddDays(2)
 
-	assert.NoError(t, validateLegacyWeekendInstanceDate(monday, monday), "weekday updates stay valid")
-	assert.NoError(t, validateLegacyWeekendInstanceDate(saturday, saturday), "legacy weekend rows may retain their original date")
-	assert.ErrorIs(t, validateLegacyWeekendInstanceDate(monday, saturday), timetable.ErrInstanceWeekend,
+	assert.NoError(t, validateLegacyWeekendInstanceDate(context.Background(), monday, monday), "weekday updates stay valid")
+	assert.NoError(t, validateLegacyWeekendInstanceDate(context.Background(), saturday, saturday), "legacy weekend rows may retain their original date")
+	assert.ErrorIs(t, validateLegacyWeekendInstanceDate(context.Background(), monday, saturday), timetable.ErrInstanceWeekend,
 		"new weekend dates must be rejected")
 }
 
@@ -485,4 +486,51 @@ func (r *deleteUnitExceptionRepo) Update(_ context.Context, exc *scheduleModel.A
 	}
 	r.updated = append(r.updated, exc)
 	return nil
+}
+
+func weekendPlanContext(follows bool, err error) context.Context {
+	return calendar.WithWeekendPlan(context.Background(), func(context.Context) (bool, error) { return follows, err })
+}
+
+// A weekend that follows Friday's plan (#3921) is a care day: spontaneous
+// starts and moves onto it are allowed, and its occurrences are re-planned.
+func TestWeekendFollowsFridayOpensTheWeekend(t *testing.T) {
+	t.Parallel()
+
+	spontaneous := plannedLifecycleInstance()
+	spontaneous.IsSpontaneous = true
+	saturdayNoon := time.Date(2026, 8, 15, 12, 0, 0, 0, timezone.Berlin)
+	assert.NoError(t, validateSpontaneousStartWorkday(weekendPlanContext(true, nil), spontaneous, saturdayNoon))
+	assert.ErrorIs(t, validateSpontaneousStartWorkday(weekendPlanContext(false, nil), spontaneous, saturdayNoon), timetable.ErrInstanceWeekend)
+	boom := errors.New("settings unavailable")
+	err := validateSpontaneousStartWorkday(weekendPlanContext(true, boom), spontaneous, saturdayNoon)
+	require.ErrorIs(t, err, boom, "a failed read is no refusal")
+	assert.NotErrorIs(t, err, timetable.ErrInstanceWeekend)
+
+	saturday := timezone.NewDate(2026, time.May, 9)
+	monday := saturday.AddDays(2)
+	assert.NoError(t, validateLegacyWeekendInstanceDate(weekendPlanContext(true, nil), monday, saturday))
+	assert.ErrorIs(t, validateLegacyWeekendInstanceDate(weekendPlanContext(false, nil), monday, saturday), timetable.ErrInstanceWeekend)
+
+	groupID := int64(7)
+	weekendOccurrence := plannedLifecycleInstance()
+	weekendOccurrence.Date = scheduleModel.Date(saturday)
+	weekendOccurrence.ActivityGroupID = &groupID
+	weekendOccurrence.Status = scheduleModel.InstanceStatusPlanned
+	assert.True(t, replannableOccurrence(weekendOccurrence, nil, true))
+	assert.False(t, replannableOccurrence(weekendOccurrence, nil, false))
+}
+
+func TestRosterWeekdayReadsFridayOnTheWeekend(t *testing.T) {
+	t.Parallel()
+
+	friday := timezone.NewDate(2026, time.May, 8)
+	assert.Equal(t, 5, rosterWeekday(friday))
+	assert.Equal(t, 5, rosterWeekday(friday.AddDays(1)))
+	assert.Equal(t, 5, rosterWeekday(friday.AddDays(2)))
+	assert.Equal(t, 1, rosterWeekday(friday.AddDays(3)))
+	fridayOnly := 5
+	assert.True(t, rosterWeekdayApplies(&fridayOnly, friday.AddDays(1)), "a Saturday occurrence takes Friday's roster rows")
+	assert.Equal(t, 6, planWeekday(friday.AddDays(1), false))
+	assert.Equal(t, 5, planWeekday(friday.AddDays(1), true))
 }

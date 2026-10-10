@@ -1367,7 +1367,7 @@ func executeOperationRequest(tb testing.TB, router chi.Router, method, path stri
 func TestSpontaneousStartWorkdayWindow_RejectsWeekend(t *testing.T) {
 	t.Parallel()
 
-	_, err := spontaneousStartWorkdayWindow(time.Date(2026, time.May, 9, 14, 0, 0, 0, calendar.Berlin))
+	_, err := spontaneousStartWorkdayWindow(context.Background(), time.Date(2026, time.May, 9, 14, 0, 0, 0, calendar.Berlin))
 	require.ErrorIs(t, err, errTimetableWeekend)
 }
 
@@ -1431,4 +1431,24 @@ func TestOperationsCheckInRoomCapacityWire(t *testing.T) {
 	assert.Equal(t, "Turnhalle", details["room_name"])
 	assert.Equal(t, float64(30), details["max_capacity"])
 	assert.Equal(t, float64(1), details["incoming_students"])
+}
+
+// A school whose weekend follows Friday's plan (#3921) plans and starts on
+// Saturday; a failed read of the setting is no weekend refusal.
+func TestValidateTimetableWorkday_WeekendFollowsFriday(t *testing.T) {
+	t.Parallel()
+
+	saturday := calendar.Date("2026-05-09")
+	following := func(follows bool, err error) context.Context {
+		return calendar.WithWeekendPlan(context.Background(), func(context.Context) (bool, error) { return follows, err })
+	}
+	require.NoError(t, validateTimetableWorkday(following(true, nil), saturday))
+	require.ErrorIs(t, validateTimetableWorkday(following(false, nil), saturday), errTimetableWeekend)
+	boom := errors.New("settings unavailable")
+	err := validateTimetableWorkday(following(true, boom), saturday)
+	require.ErrorIs(t, err, boom)
+	require.NotErrorIs(t, err, errTimetableWeekend)
+
+	_, err = spontaneousStartWorkdayWindow(following(true, nil), time.Date(2026, time.May, 9, 14, 0, 0, 0, calendar.Berlin))
+	require.NoError(t, err)
 }

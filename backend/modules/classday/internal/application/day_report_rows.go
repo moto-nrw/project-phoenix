@@ -35,7 +35,12 @@ func classDayReportedAt(facts classDayFacts, studentID int64, status string, pic
 // roster's form-answer values when available; the departure column comes
 // exclusively from the per-day plan (or "Keine Angabe") on school days.
 func buildClassDayReport(schoolClass string, date timezone.Date, phaseName string, rosterRows []DayRosterRow, facts classDayFacts) *classday.DayReport {
-	weekday := classDayWeekdayKey(date)
+	return buildClassDayReportFor(schoolClass, date, classDayWeekdayKey(date), phaseName, rosterRows, facts)
+}
+
+// buildClassDayReportFor builds the report for the plan weekday key: the
+// date's own, or Friday's for a weekend that follows Friday's plan (#3921).
+func buildClassDayReportFor(schoolClass string, date timezone.Date, weekday, phaseName string, rosterRows []DayRosterRow, facts classDayFacts) *classday.DayReport {
 	report := &classday.DayReport{
 		SchoolClass: schoolClass,
 		Date:        classday.Date(date.String()),

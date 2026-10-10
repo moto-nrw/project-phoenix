@@ -226,9 +226,9 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	// Room and caller validation can span a Berlin day boundary. Capture the
 	// authoritative start window immediately before the first write-capable
 	// step so a request that crosses into a weekend cannot mutate anything.
-	window, err := spontaneousStartWorkdayWindow(rs.Now())
+	window, err := spontaneousStartWorkdayWindow(r.Context(), rs.Now())
 	if err != nil {
-		common.RenderError(w, r, codedInvalid(err))
+		renderWorkdayRefusal(w, r, err, "")
 		return
 	}
 	activityGroupID, err := rs.TimetableData.ResolveSpontaneousActivity(r.Context(), req.Title, req.ActivityGroupID, createdBy)
@@ -238,10 +238,10 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	}
 	// Activity resolution can create metadata and therefore cross a Berlin day
 	// boundary. Recheck immediately before creating the activity instance.
-	window, err = spontaneousStartWorkdayWindow(rs.Now())
+	window, err = spontaneousStartWorkdayWindow(r.Context(), rs.Now())
 	if err != nil {
 		tenant.MarkRollback(r.Context())
-		common.RenderError(w, r, codedInvalid(err))
+		renderWorkdayRefusal(w, r, err, "")
 		return
 	}
 
@@ -287,8 +287,8 @@ func (rs *Resource) admitSpontaneousStart(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return nil, 0, false
 	}
-	if _, err := spontaneousStartWorkdayWindow(rs.Now()); err != nil {
-		common.RenderError(w, r, codedInvalid(err))
+	if _, err := spontaneousStartWorkdayWindow(r.Context(), rs.Now()); err != nil {
+		renderWorkdayRefusal(w, r, err, "")
 		return nil, 0, false
 	}
 	if len(req.StudentIDs) > 0 {
@@ -377,9 +377,9 @@ func serverSpontaneousActivityWindow(now time.Time) spontaneousActivityWindow {
 	}
 }
 
-func spontaneousStartWorkdayWindow(now time.Time) (spontaneousActivityWindow, error) {
+func spontaneousStartWorkdayWindow(ctx context.Context, now time.Time) (spontaneousActivityWindow, error) {
 	window := serverSpontaneousActivityWindow(now)
-	if err := validateTimetableWorkday(window.date); err != nil {
+	if err := validateTimetableWorkday(ctx, window.date); err != nil {
 		return spontaneousActivityWindow{}, err
 	}
 	return window, nil

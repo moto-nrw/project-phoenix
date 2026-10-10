@@ -119,19 +119,23 @@ const (
 
 // Operations settings.
 const (
-	KeySessionEndEnabled                     = "operations.session_end_enabled"
-	KeySessionEndTime                        = "operations.session_end_time"
-	KeySessionEndTimeoutMinutes              = "operations.session_end_timeout_minutes"
-	KeyStudentDailyCheckoutTime              = "operations.student_daily_checkout_time"
-	KeyPerStudentCheckoutEnabled             = "operations.per_student_checkout_enabled"
-	KeyPerStudentCheckoutDeltaMinutes        = "operations.per_student_checkout_delta_minutes"
-	KeyEarlyCheckoutNoteEnabled              = "operations.early_checkout_note_enabled"
-	KeyEarlyCheckoutNoteToleranceMinutes     = "operations.early_checkout_note_tolerance_minutes"
-	KeySessionCleanupEnabled                 = "operations.session_cleanup_enabled"
-	KeySessionCleanupIntervalMinutes         = "operations.session_cleanup_interval_minutes"
-	KeySessionAbandonedThresholdMin          = "operations.session_abandoned_threshold_minutes"
-	KeySessionInactivityTimeoutMin           = "operations.session_inactivity_timeout_minutes"
-	KeyOperationalOverviewScope              = "operations.operational_overview_scope"
+	KeySessionEndEnabled                 = "operations.session_end_enabled"
+	KeySessionEndTime                    = "operations.session_end_time"
+	KeySessionEndTimeoutMinutes          = "operations.session_end_timeout_minutes"
+	KeyStudentDailyCheckoutTime          = "operations.student_daily_checkout_time"
+	KeyPerStudentCheckoutEnabled         = "operations.per_student_checkout_enabled"
+	KeyPerStudentCheckoutDeltaMinutes    = "operations.per_student_checkout_delta_minutes"
+	KeyEarlyCheckoutNoteEnabled          = "operations.early_checkout_note_enabled"
+	KeyEarlyCheckoutNoteToleranceMinutes = "operations.early_checkout_note_tolerance_minutes"
+	KeySessionCleanupEnabled             = "operations.session_cleanup_enabled"
+	KeySessionCleanupIntervalMinutes     = "operations.session_cleanup_interval_minutes"
+	KeySessionAbandonedThresholdMin      = "operations.session_abandoned_threshold_minutes"
+	KeySessionInactivityTimeoutMin       = "operations.session_inactivity_timeout_minutes"
+	KeyOperationalOverviewScope          = "operations.operational_overview_scope"
+	// KeyWeekendFollowsFriday makes Saturday and Sunday care days that run
+	// on Friday's weekly plan (#3921). Operator-only; the public demo
+	// schools carry it so the demo has a school day at every hour.
+	KeyWeekendFollowsFriday                  = "operations.weekend_follows_friday"
 	KeyAttendanceEditScope                   = "operations.attendance_edit_scope"
 	KeyBlockStartScope                       = "operations.block_start_scope"
 	KeyBlockCompleteScope                    = "operations.block_complete_scope"

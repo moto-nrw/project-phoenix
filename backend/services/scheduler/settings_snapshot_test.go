@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,6 +35,13 @@ func TestSchedulerPollingSettingKeysIncludeAppointmentReminderSettings(t *testin
 
 	assert.Contains(t, schedulerPollingSettingKeys, settingCalendarAppointmentReminderEnabled)
 	assert.Contains(t, schedulerPollingSettingKeys, settingCalendarAppointmentReminderLeadHours)
+}
+
+func TestSchedulerPollingSettingKeysIncludeWeekendFollowsFriday(t *testing.T) {
+	t.Parallel()
+
+	assert.Contains(t, schedulerPollingSettingKeys, settingWeekendFollowsFriday,
+		"a bound snapshot answers only its keys; care-day jobs read this one on weekends")
 }
 
 func TestSchedulerPollingSettingKeysIncludeAutoEndSettings(t *testing.T) {
@@ -285,4 +293,25 @@ func TestGetMinuteSnapshotSlowPriorMinuteCannotOverwriteCurrent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []int64{2}, cached.tenantIDs)
 	assert.Equal(t, int32(2), calls.Load())
+}
+
+// The worker's tenant contexts carry the weekend plan (#3921): a job asking
+// for a weekend reads the school's setting through the scheduler's resolver.
+func TestWithWeekendPlanReadsTheSchoolSetting(t *testing.T) {
+	t.Parallel()
+
+	saturday := calendar.NewDate(2026, 9, 12)
+	for _, follows := range []bool{true, false} {
+		s := &Scheduler{settings: &stubSettingsResolver{boolVal: follows}}
+		weekday, err := calendar.PlanWeekday(s.withWeekendPlan(context.Background()), saturday)
+		require.NoError(t, err)
+		if follows {
+			assert.Equal(t, 5, weekday)
+		} else {
+			assert.Equal(t, 6, weekday)
+		}
+	}
+	weekday, err := calendar.PlanWeekday((&Scheduler{}).withWeekendPlan(context.Background()), saturday)
+	require.NoError(t, err)
+	assert.Equal(t, 6, weekday, "without settings the weekend stays what it was")
 }

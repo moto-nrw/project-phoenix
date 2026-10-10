@@ -1714,7 +1714,11 @@ func (a *API) currentStaffID(ctx context.Context) (int64, error) {
 
 // ServeHTTP implements the http.Handler interface for the API
 func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	a.Router.ServeHTTP(w, normalizeCalDAVMethodForRouting(r))
+	r = normalizeCalDAVMethodForRouting(r)
+	if a.Services != nil && a.Services.Settings != nil {
+		r = apiCommon.WithWeekendPlan(r, a.Services.Settings)
+	}
+	a.Router.ServeHTTP(w, r)
 }
 
 type calDAVOriginalMethodKey struct{}

@@ -7,13 +7,13 @@ import { berlinClockFromISO } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useCurrentTimestamp } from "~/lib/hooks/use-current-timestamp";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import { isWeekendDay, useDemoDayNotice } from "./demo-weekend-notice";
+import { useDemoDayNotice } from "./demo-weekend-notice";
 
 // Pro Tag einmal von selbst; danach öffnet „Warum?“ in der Zeile ihn.
 const SEEN_KEY = "moto-demo-evening-notice";
 
 // Der Schultag der Demo reicht von 7 bis 17 Uhr. Außerhalb davon verschiebt
-// die Demo den Tag an Werktagen zur aktuellen Uhrzeit (#3921).
+// die Demo den Tag zur aktuellen Uhrzeit (#3921).
 const DAY_START_HOUR = 7;
 const DAY_END_HOUR = 17;
 
@@ -24,23 +24,19 @@ export function isOutsideSchoolDay(at: Date): boolean {
 }
 
 /**
- * Ob die Demo den heutigen Tag gerade zur Uhrzeit verschiebt: an einem
- * Werktag abends oder nachts. Vor dem ersten Takt der Uhr (Server,
- * Hydrierung) gilt das nicht, damit Server und Browser gleich rendern.
- * Die Shells rücken um die Hinweiszeile nach unten, solange es gilt.
+ * Ob die Demo den heutigen Tag gerade zur Uhrzeit verschiebt: abends oder
+ * nachts, auch am Wochenende, das in der Demo nach dem Freitagsplan läuft.
+ * Vor dem ersten Takt der Uhr (Server, Hydrierung) gilt das nicht, damit
+ * Server und Browser gleich rendern. Die Shells rücken um die Hinweiszeile
+ * nach unten, solange es gilt.
  */
 export function useDemoEveningActive(): boolean {
-  const today = useBerlinToday();
   const timestamp = useCurrentTimestamp();
-  return (
-    timestamp > 0 &&
-    !isWeekendDay(today) &&
-    isOutsideSchoolDay(new Date(timestamp))
-  );
+  return timestamp > 0 && isOutsideSchoolDay(new Date(timestamp));
 }
 
 /**
- * Hinweiszeile der öffentlichen Demo abends und nachts an Werktagen (#3921),
+ * Hinweiszeile der öffentlichen Demo abends und nachts (#3921),
  * fest unter dem Demo-Streifen. Die Demo legt den Tag dann zur aktuellen
  * Uhrzeit, damit es etwas zu sehen gibt. Blöcke und Abholzeiten stehen
  * deshalb zu ungewohnten Uhrzeiten; ohne sichtbaren Hinweis sieht das wie

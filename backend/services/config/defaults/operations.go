@@ -5,6 +5,23 @@ import (
 )
 
 func init() {
+	// Operator-only: it turns Saturday and Sunday into care days for the
+	// whole school, with Friday's blocks, arrival and pickup times (#3921).
+	// It exists for the public demo schools; real schools keep it off.
+	config.Register(config.Definition{
+		Key:             config.KeyWeekendFollowsFriday,
+		Label:           "Wochenende nach dem Freitagsplan",
+		Description:     "Samstag und Sonntag gelten als Betreuungstage mit dem Plan vom Freitag: Blöcke, Ankunfts- und Abholzeiten. Für Demo-Schulen.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "system",
+		Category:        "betreuungstage",
+		SortOrder:       1,
+		AccessPolicy:    config.AccessOperatorOnly,
+	})
+
 	// --- Session End (system tab — automated background process) ---
 
 	config.Register(config.Definition{

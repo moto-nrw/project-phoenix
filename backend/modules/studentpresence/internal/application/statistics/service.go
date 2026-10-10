@@ -30,6 +30,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // MaxRangeDays caps a single report window (a school year plus a day).
@@ -260,7 +261,12 @@ func (s *service) careDays(ctx context.Context, from, to timezone.Date) (map[tim
 
 	care := map[timezone.Date]bool{}
 	for d := from; !d.After(to); d = d.AddDays(1) {
-		if wd := d.Weekday(); wd == time.Saturday || wd == time.Sunday {
+		// A weekend counts only where it follows Friday's plan (#3921).
+		careWeekday, err := calendar.IsCareWeekday(ctx, d)
+		if err != nil {
+			return nil, excluded, fmt.Errorf("statistics: resolve weekend plan: %w", err)
+		}
+		if !careWeekday {
 			continue
 		}
 		if countExclusions(&excluded, holidays[d], closing[d], vacation[d]) {

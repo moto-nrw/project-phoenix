@@ -33,10 +33,12 @@ describe("DemoEveningRow", () => {
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
   });
 
-  it("stays hidden on a weekend evening, which has its own notice", () => {
+  it("shows on a weekend evening too, which runs on Friday's plan", () => {
     setTestClock("2026-09-26T20:00:00+02:00");
     render(<DemoEveningRow inParentsApp={false} />);
-    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "Uhrzeiten heute verschoben.",
+    );
   });
 
   it("explains the moved times once per weekday evening", async () => {

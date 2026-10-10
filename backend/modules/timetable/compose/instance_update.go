@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -96,7 +97,7 @@ func (s *InstanceLifecycleService) editableInstance(ctx context.Context, instanc
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot update instance in status %q", timetable.ErrInvalidInstanceTransition, instance.Status)
 	}
-	if err := validateLegacyWeekendInstanceDate(timezone.Date(instance.Date), req.Date); err != nil {
+	if err := validateLegacyWeekendInstanceDate(ctx, timezone.Date(instance.Date), req.Date); err != nil {
 		return nil, err
 	}
 	if req.CalendarPeriodID != nil || (timezone.Date(instance.Date) != req.Date && !instance.IsSpontaneous) {
@@ -142,11 +143,20 @@ func applyPlannedEdit(instance *scheduleModel.ActivityInstance, req timetable.Up
 	return columns
 }
 
-func validateLegacyWeekendInstanceDate(existing, requested timezone.Date) error {
+// validateLegacyWeekendInstanceDate refuses moving an instance onto a
+// weekend, unless the school's weekend follows Friday's plan (#3921).
+func validateLegacyWeekendInstanceDate(ctx context.Context, existing, requested timezone.Date) error {
 	if requested.Weekday() != time.Saturday && requested.Weekday() != time.Sunday {
 		return nil
 	}
 	if existing == requested {
+		return nil
+	}
+	follows, err := calendar.WeekendFollowsFriday(ctx)
+	if err != nil {
+		return &ScheduleError{Op: "update instance: resolve weekend plan", Err: err}
+	}
+	if follows {
 		return nil
 	}
 	return timetable.ErrInstanceWeekend

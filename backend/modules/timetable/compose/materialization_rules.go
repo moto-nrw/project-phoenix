@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -11,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The per-date rules of the recurrence engine, shared by materialization and
@@ -159,6 +161,39 @@ func isWeekend(date timezone.Date) bool {
 	return date.Weekday() == time.Saturday || date.Weekday() == time.Sunday
 }
 
+// planWeekday is the ISO weekday whose schedules apply on date: Friday for a
+// weekend that follows Friday's plan (#3921), else the date's own weekday.
+func planWeekday(date timezone.Date, weekendFollowsFriday bool) int {
+	weekday := isoWeekday(date)
+	if weekendFollowsFriday && weekday > 5 {
+		return 5
+	}
+	return weekday
+}
+
+// rosterWeekday is the weekday a roster row is checked against on date. A
+// template occurrence on a weekend exists only where the weekend follows
+// Friday's plan (#3921): materialization, create, start and moves refuse it
+// otherwise. Its rosters are therefore Friday's.
+func rosterWeekday(date timezone.Date) int {
+	return planWeekday(date, true)
+}
+
+// weekendFollowsFridayIn resolves the weekend plan setting (#3921) only when
+// [from, to] holds a weekend, so a weekday-only read never touches settings.
+func weekendFollowsFridayIn(ctx context.Context, from, to timezone.Date) (bool, error) {
+	for date := from; !date.After(to); date = date.AddDays(1) {
+		if isWeekend(date) {
+			follows, err := calendar.WeekendFollowsFriday(ctx)
+			if err != nil {
+				return false, fmt.Errorf("resolve weekend plan: %w", err)
+			}
+			return follows, nil
+		}
+	}
+	return false, nil
+}
+
 // resolveWindow picks the next-Monday / following-Sunday window the scheduler
 // uses by default. If baseDate is a Monday we intentionally skip to the
 // following Monday — planning always targets the next block, never the
@@ -222,7 +257,7 @@ func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, pe
 		return false
 	}
 	if len(e.SelectedWeekdays) > 0 {
-		weekday := isoWeekday(date)
+		weekday := rosterWeekday(date)
 		for _, selected := range e.SelectedWeekdays {
 			if selected == weekday {
 				return true
@@ -313,7 +348,7 @@ func effectivePrimarySupervisor(
 // the template writer expands "shared default + deviations" into concrete
 // per-weekday rows, so nothing here needs to know about that distinction.
 func rosterWeekdayApplies(weekday *int, date timezone.Date) bool {
-	return weekday == nil || *weekday == isoWeekday(date)
+	return weekday == nil || *weekday == rosterWeekday(date)
 }
 
 // applyException returns the effective (start, end, room) for a candidate and

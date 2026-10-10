@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Exception conflicts (WP-B13): two classes of planning conflict between an
@@ -161,12 +162,24 @@ type arrivalPreload struct {
 	// is a care day at all can change within the window once the approved
 	// bookings decide it (#2414, ADR 0005).
 	bySchedule map[timezone.Date]map[int64]time.Time
+	// weekendFollowsFriday gives a weekend Friday's weekly arrival (#3921).
+	weekendFollowsFriday bool
 }
 
 func (d *conflictDetection) loadArrivalPreload(ctx context.Context, dates map[timezone.Date]map[int64]struct{}) (*arrivalPreload, error) {
 	pre := &arrivalPreload{
 		byException: map[timezone.Date]map[int64]*scheduleModels.StudentArrivalException{},
 		bySchedule:  map[timezone.Date]map[int64]time.Time{},
+	}
+	for date := range dates {
+		if isWeekend(date) {
+			follows, err := calendar.WeekendFollowsFriday(ctx)
+			if err != nil {
+				return nil, &ScheduleError{Op: "exception conflicts: resolve weekend plan", Err: err}
+			}
+			pre.weekendFollowsFriday = follows
+			break
+		}
 	}
 	if err := d.loadArrivalExceptions(ctx, pre, dates); err != nil {
 		return nil, err
@@ -200,7 +213,7 @@ func (d *conflictDetection) loadArrivalExceptions(ctx context.Context, pre *arri
 func (pre *arrivalPreload) withoutException(dates map[timezone.Date]map[int64]struct{}) map[timezone.Date]map[int64]struct{} {
 	needed := make(map[timezone.Date]map[int64]struct{})
 	for date, students := range dates {
-		if weekday := isoWeekday(date); weekday < scheduleModels.WeekdayMonday || weekday > scheduleModels.WeekdayFriday {
+		if weekday := planWeekday(date, pre.weekendFollowsFriday); weekday < scheduleModels.WeekdayMonday || weekday > scheduleModels.WeekdayFriday {
 			continue
 		}
 		for studentID := range students {
@@ -272,7 +285,7 @@ func (pre *arrivalPreload) resolveArrival(studentID int64, date timezone.Date) (
 	exception, hasException := pre.byException[date][studentID]
 	hasException = hasException && exception != nil
 	scheduled, hasSchedule := pre.bySchedule[date][studentID]
-	switch timetable.ResolveSlotSource(hasException, hasSchedule, isoWeekday(date)) {
+	switch timetable.ResolveSlotSource(hasException, hasSchedule, planWeekday(date, pre.weekendFollowsFriday)) {
 	case timetable.SlotSourceException:
 		if exception.ExpectedArrival != nil {
 			return *exception.ExpectedArrival, timetable.SlotSourceException
@@ -327,7 +340,9 @@ func (d *conflictDetection) loadTemplatePreload(ctx context.Context, affected []
 // (group, weekday) pair. With more than one schedule that weekday the warning
 // is still emitted, but original_start_time stays empty.
 func (pre *templatePreload) resolveOriginalStart(groupID int64, date timezone.Date, logger *slog.Logger) (string, bool) {
-	weekday := isoWeekday(date)
+	// An exception on a weekend replaces an occurrence only a weekend that
+	// follows Friday's plan has (#3921), so Friday's schedule is its origin.
+	weekday := rosterWeekday(date)
 	starts, ok := pre.byKey[groupWeekdayKey{GroupID: groupID, Weekday: weekday}]
 	if !ok || len(starts) == 0 {
 		logger.Warn("modified exception but no template schedule for weekday",

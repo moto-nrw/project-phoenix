@@ -222,6 +222,9 @@ type materializationWorld struct {
 	existingIdx   map[existingKey]struct{}
 	exceptionIdx  map[exceptionKey]*schedule.ActivityException
 	timeframeByID map[int64]*schedule.Timeframe
+	// weekendFollowsFriday materializes Saturday and Sunday from Friday's
+	// schedules (#3921).
+	weekendFollowsFriday bool
 }
 
 func (s *materializationService) materializeForTenantLocked(
@@ -335,6 +338,10 @@ func (s *materializationService) loadMaterializationWorld(
 	if err != nil {
 		return nil, err
 	}
+	follows, err := weekendFollowsFridayIn(ctx, from, to)
+	if err != nil {
+		return nil, &ScheduleError{Op: "materialize for tenant", Err: err}
+	}
 	return &materializationWorld{
 		from:          from,
 		to:            to,
@@ -343,6 +350,8 @@ func (s *materializationService) loadMaterializationWorld(
 		existingIdx:   buildExistingIndex(existing),
 		exceptionIdx:  buildExceptionIndex(exceptions),
 		timeframeByID: timeframeByID,
+
+		weekendFollowsFriday: follows,
 	}, nil
 }
 
@@ -524,10 +533,10 @@ func (s *materializationService) materializeTemplate(
 	roster.schedules = schedules
 
 	for date := world.from; !date.After(world.to); date = date.AddDays(1) {
-		if isWeekend(date) {
+		if isWeekend(date) && !world.weekendFollowsFriday {
 			continue
 		}
-		isoWd := isoWeekday(date)
+		isoWd := planWeekday(date, world.weekendFollowsFriday)
 		for _, sch := range schedules {
 			if sch.Weekday != isoWd {
 				continue

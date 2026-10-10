@@ -67,6 +67,9 @@ func (s *materializationService) DetectEditedInWindow(
 		if err != nil {
 			return nil, err
 		}
+		if projection.weekendFollowsFriday, err = weekendFollowsFridayIn(ctx, from, to); err != nil {
+			return nil, &ScheduleError{Op: "detect edited", Err: err}
+		}
 		edited = append(edited, projection.editedOccurrences(tmpl, planned, buildExceptionIndex(exceptions))...)
 	}
 	if includeDeletions {
@@ -133,6 +136,9 @@ type templateProjection struct {
 	staffByInstance    map[int64][]*schedule.InstanceStaff
 	studentsByInstance map[int64][]*schedule.InstanceStudent
 	logger             *slog.Logger
+	// weekendFollowsFriday replays a weekend occurrence from Friday's
+	// schedules (#3921).
+	weekendFollowsFriday bool
 }
 
 func (s *materializationService) loadTemplateProjection(
@@ -255,10 +261,10 @@ func (p *templateProjection) expectedSlotsOn(
 	exc *schedule.ActivityException,
 	date timezone.Date,
 ) []materialParams {
-	if isWeekend(date) {
+	if isWeekend(date) && !p.weekendFollowsFriday {
 		return nil
 	}
-	isoWd := isoWeekday(date)
+	isoWd := planWeekday(date, p.weekendFollowsFriday)
 	out := make([]materialParams, 0, 1)
 	for _, sch := range p.roster.schedules {
 		if sch.Weekday != isoWd {

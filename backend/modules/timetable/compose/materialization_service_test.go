@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -709,6 +710,45 @@ func TestMaterializeForTenant_SkipsLegacyWeekendSchedules(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Zero(t, result.InstancesCreated)
+}
+
+// A weekend that follows Friday's plan (#3921) materializes Friday's
+// schedules on Saturday; without the setting the weekend stays empty, and a
+// legacy Saturday schedule stays unmaterialized either way.
+func TestMaterializeForTenant_WeekendFollowsFriday(t *testing.T) {
+	t.Parallel()
+
+	saturday := timezone.NewDate(2026, time.April, 25)
+	following := func(follows bool) context.Context {
+		return calendar.WithWeekendPlan(tenant.WithTenantID(context.Background(), 300),
+			func(context.Context) (bool, error) { return follows, nil })
+	}
+	for _, tc := range []struct {
+		name    string
+		weekday int
+		follows bool
+		want    int
+	}{
+		{"Friday's schedule on a following Saturday", activities.WeekdayFriday, true, 1},
+		{"Friday's schedule without the setting", activities.WeekdayFriday, false, 0},
+		{"a legacy Saturday schedule with the setting", activities.WeekdaySaturday, true, 0},
+	} {
+		svc, _ := newMaterializationBranchServiceForSchedule(materializationFakeInstanceRepo{inserted: true}, saturday, tc.weekday)
+		result, err := svc.MaterializeForTenant(following(tc.follows), saturday, saturday, timetable.MaterializationSourceManual)
+		require.NoError(t, err, tc.name)
+		assert.Equal(t, tc.want, result.InstancesCreated, tc.name)
+	}
+}
+
+func TestMaterializeForTenant_WeekendPlanResolutionFails(t *testing.T) {
+	t.Parallel()
+
+	saturday := timezone.NewDate(2026, time.April, 25)
+	svc, _ := newMaterializationBranchServiceForSchedule(materializationFakeInstanceRepo{inserted: true}, saturday, activities.WeekdayFriday)
+	ctx := calendar.WithWeekendPlan(tenant.WithTenantID(context.Background(), 300),
+		func(context.Context) (bool, error) { return false, errors.New("settings unavailable") })
+	_, err := svc.MaterializeForTenant(ctx, saturday, saturday, timetable.MaterializationSourceManual)
+	require.ErrorContains(t, err, "settings unavailable", "a failed read is no empty weekend")
 }
 
 func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {

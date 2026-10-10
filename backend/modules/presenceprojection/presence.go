@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
@@ -141,6 +142,11 @@ func ListPartialAbsenceBlocks(ctx context.Context, db bun.IDB, tenantID, student
 	if !enrolled {
 		return rows, nil
 	}
+	// A weekend that follows Friday's plan takes Friday's enrollments (#3921).
+	planWeekday, err := calendar.PlanWeekday(ctx, date)
+	if err != nil {
+		return nil, fmt.Errorf("presence projection: resolve weekend plan: %w", err)
+	}
 	unmaterialized := []scheduleModels.PartialAbsenceBlock{}
 	err = db.NewSelect().TableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Distinct().ColumnExpr(`"activity_instance".id, "activity_instance".title, "activity_instance".start_time, "activity_instance".end_time`).
@@ -153,8 +159,8 @@ func ListPartialAbsenceBlocks(ctx context.Context, db bun.IDB, tenantID, student
 		Where(`"instance_student".id IS NULL`).Where(`"enrollment".valid_from <= "activity_instance".date`).
 		Where(`("enrollment".valid_until IS NULL OR "enrollment".valid_until > "activity_instance".date)`).
 		Where(`("enrollment".calendar_period_id IS NULL OR "enrollment".calendar_period_id = "activity_instance".calendar_period_id)`).
-		Where(`("enrollment".weekday IS NULL OR "enrollment".weekday = date_part('isodow', "activity_instance".date))`).
-		Where(`(COALESCE(jsonb_array_length("enrollment".selected_weekdays), 0) = 0 OR "enrollment".selected_weekdays @> to_jsonb(ARRAY[date_part('isodow', "activity_instance".date)::integer]))`).
+		Where(`("enrollment".weekday IS NULL OR "enrollment".weekday = ?)`, planWeekday).
+		Where(`(COALESCE(jsonb_array_length("enrollment".selected_weekdays), 0) = 0 OR "enrollment".selected_weekdays @> to_jsonb(ARRAY[?::integer]))`, planWeekday).
 		OrderExpr(`"activity_instance".start_time ASC, "activity_instance".id ASC`).Scan(ctx, &unmaterialized)
 	if err != nil {
 		return nil, fmt.Errorf("presence projection: list partial absence enrollment blocks: %w", err)
@@ -408,6 +414,9 @@ func CourseInstances(ctx context.Context, db bun.IDB, tenantID int64, from, to, 
 // enrolledOnInstanceDate keeps only the attendance rows the child's course
 // enrollment covers on that date, plus walk-ins and rows for courses the
 // child has no enrollment for at all.
+//
+// A template occurrence on a weekend exists only where the weekend follows
+// Friday's plan (#3921), so its enrollments are Friday's: LEAST(..., 5).
 const enrolledOnInstanceDate = `(
 		` + attendanceUnplanned + `
 		OR EXISTS (
@@ -420,9 +429,9 @@ const enrolledOnInstanceDate = `(
 				AND ("enrollment".calendar_period_id IS NULL
 					OR "enrollment".calendar_period_id = "activity_instance".calendar_period_id)
 				AND ("enrollment".weekday IS NULL
-					OR "enrollment".weekday = date_part('isodow', "activity_instance".date))
+					OR "enrollment".weekday = LEAST(date_part('isodow', "activity_instance".date)::integer, 5))
 				AND (COALESCE(jsonb_array_length("enrollment".selected_weekdays), 0) = 0
-					OR "enrollment".selected_weekdays @> to_jsonb(ARRAY[date_part('isodow', "activity_instance".date)::integer]))
+					OR "enrollment".selected_weekdays @> to_jsonb(ARRAY[LEAST(date_part('isodow', "activity_instance".date)::integer, 5)]))
 		)
 		OR NOT EXISTS (
 			SELECT 1 FROM activities.student_enrollments AS "enrollment"
