@@ -433,9 +433,7 @@ function SlotStat({
   return (
     <div className={`rounded-lg px-3 py-2 ${className}`}>
       <span className="block text-sm font-semibold">{value}</span>
-      <span className="block text-[11px] font-medium text-gray-500">
-        {label}
-      </span>
+      <span className="block text-sm font-medium text-gray-500">{label}</span>
     </div>
   );
 }
