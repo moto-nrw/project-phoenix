@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
@@ -114,7 +113,7 @@ func (r *offboardingTestRunner) OffboardStaff(ctx context.Context, staffID, acto
 	ctx = context.WithValue(ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actorID, Username: username})
 	_, err = workflow.Offboard(ctx, staffID)
 	if errors.Is(err, staffoffboarding.ErrInUse) {
-		return usersSvc.ErrStaffInUse
+		return services.ErrStaffInUse
 	}
 	return err
 }
@@ -649,7 +648,7 @@ func TestOffboardStaff_ActiveSupervisionBlocks(t *testing.T) {
 
 	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, usersSvc.ErrStaffInUse), "active supervision must block offboarding")
+	assert.True(t, errors.Is(err, services.ErrStaffInUse), "active supervision must block offboarding")
 
 	var deletedAt *time.Time
 	scanErr := sc.db.NewSelect().
@@ -673,7 +672,7 @@ func TestOffboardStaff_ActiveGroupHandoverBlocks(t *testing.T) {
 	)
 
 	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
-	require.ErrorIs(t, err, usersSvc.ErrStaffInUse)
+	require.ErrorIs(t, err, services.ErrStaffInUse)
 
 	_, err = sc.repos.GroupSubstitution.FindByID(sc.ctx, handover.ID)
 	require.NoError(t, err)

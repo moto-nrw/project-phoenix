@@ -1,17 +1,15 @@
 package services
 
 import (
-	"log/slog"
-
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	"github.com/moto-nrw/project-phoenix/services/users"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/uptrace/bun"
 )
 
 type RFIDTestModule struct {
 	FeedbackStudents devicescanCompose.FeedbackStudents
-	Users            users.PersonService
+	Users            *peopleCompose.PersonDirectory
 	TagAssignments   devicescanCompose.TagAssignments
 }
 
@@ -26,13 +24,12 @@ func NewRFIDTestModule(db *bun.DB) (RFIDTestModule, error) {
 	if err != nil {
 		return RFIDTestModule{}, err
 	}
-	people := users.NewPersonService(users.PersonServiceDependencies{
+	people := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
 		PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
 		StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
 		PersonRepo:       r.Membership.Person, TeacherRepo: r.Membership.Teacher,
 		StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: r.Membership.Person, Staff: r.Membership.Staff, Teachers: r.Membership.Teacher}),
 		AccountExists:  repositories.AccountExists(accounts), StudentRepo: r.Student, RFIDRepo: r.RFID,
-		DB: db, Logger: slog.Default(),
 	})
 	return RFIDTestModule{Users: people, FeedbackStudents: devicescanCompose.NewFeedbackStudents(people), TagAssignments: devicescanCompose.NewTagAssignments(people, nil)}, nil
 }

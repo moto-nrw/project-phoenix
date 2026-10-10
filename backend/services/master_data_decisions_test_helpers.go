@@ -4,6 +4,8 @@ import (
 	"errors"
 	"log/slog"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -12,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // MasterDataDecisionTestOptions builds the Care Plan Stammdaten decision over
@@ -23,7 +24,7 @@ type MasterDataDecisionTestOptions struct {
 	People      peopledirectory.StudentFieldReviewQuery
 	Students    usersModels.StudentRepository
 	Persons     usersModels.PersonRepository
-	Audit       users.StudentChangeRecorder
+	Audit       peopleCompose.StudentChangeRecorder
 	Scope       carePlanCompose.ReviewScopeResolver
 	Emitter     *parentmessaging.Emitter
 	Broadcaster realtime.Broadcaster

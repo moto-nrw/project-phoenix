@@ -13,11 +13,11 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -307,7 +307,7 @@ func NewTimetableHTTPTestPeople(db *bun.DB) (TimetablePeople, error) {
 	if err != nil {
 		return TimetablePeople{}, err
 	}
-	return NewTimetablePeople(users.NewPersonService(users.PersonServiceDependencies{
+	return NewTimetablePeople(peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
 		PersonRepo: r.Person, StudentRepo: r.Student,
 		StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{Persons: r.Person, Staff: r.Staff}),
 	})), nil

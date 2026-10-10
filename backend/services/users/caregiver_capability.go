@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
+
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -102,9 +104,9 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 	input userModels.EnableCaregiverCapabilityInput,
 ) (*userModels.CaregiverCapabilityState, error) {
 	if accountID <= 0 {
-		return nil, &UsersError{
+		return nil, &userscontract.UsersError{
 			Op:  "enable caregiver capability",
-			Err: &ValidationError{Err: fmt.Errorf("account ID is required")},
+			Err: &userscontract.ValidationError{Err: fmt.Errorf("account ID is required")},
 		}
 	}
 
@@ -131,9 +133,9 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 		}
 		if person == nil {
 			if input.FirstName == "" || input.LastName == "" {
-				return &UsersError{
+				return &userscontract.UsersError{
 					Op: "enable caregiver capability",
-					Err: &ValidationError{
+					Err: &userscontract.ValidationError{
 						Err: fmt.Errorf("first_name and last_name are required when the account has no person profile"),
 					},
 				}
@@ -190,7 +192,7 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 			return err
 		}
 		if !found {
-			return &UsersError{Op: "enable caregiver capability", Err: fmt.Errorf("user role not found")}
+			return &userscontract.UsersError{Op: "enable caregiver capability", Err: fmt.Errorf("user role not found")}
 		}
 
 		if err := s.RoleAssignments.AssignRoleToAccount(txCtx, accountID, userRoleID); err != nil {
@@ -220,9 +222,9 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 	accountID int64,
 ) (*userModels.CaregiverCapabilityState, error) {
 	if accountID <= 0 {
-		return nil, &UsersError{
+		return nil, &userscontract.UsersError{
 			Op:  "disable caregiver capability",
-			Err: &ValidationError{Err: fmt.Errorf("account ID is required")},
+			Err: &userscontract.ValidationError{Err: fmt.Errorf("account ID is required")},
 		}
 	}
 
@@ -242,10 +244,10 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 			}
 		}
 		if s.CaregiverBindingLock == nil {
-			return &UsersError{Op: "disable caregiver capability", Err: errors.New("caregiver binding lock repository is not configured")}
+			return &userscontract.UsersError{Op: "disable caregiver capability", Err: errors.New("caregiver binding lock repository is not configured")}
 		}
 		if err := s.CaregiverBindingLock.LockCaregiverCapabilityBindings(txCtx); err != nil {
-			return &UsersError{
+			return &userscontract.UsersError{
 				Op:  "disable caregiver capability",
 				Err: fmt.Errorf("lock caregiver capability bindings: %w", err),
 			}
@@ -279,7 +281,7 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 				return err
 			}
 			if !found {
-				return &UsersError{
+				return &userscontract.UsersError{
 					Op:  "disable caregiver capability",
 					Err: fmt.Errorf("%s role not found", roleName),
 				}
@@ -337,7 +339,7 @@ func (s *caregiverCapabilityService) recordCapabilityAuditEvent(
 	metadata map[string]any,
 ) error {
 	if s.AuthEventRepo == nil {
-		return &UsersError{
+		return &userscontract.UsersError{
 			Op:  "record caregiver capability audit event",
 			Err: fmt.Errorf("auth event repository is not configured"),
 		}
@@ -504,7 +506,7 @@ func (s *caregiverCapabilityService) loadAccountAndTenant(
 ) (*CaregiverAccount, int64, error) {
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
-		return nil, 0, &UsersError{Op: "caregiver capability", Err: fmt.Errorf("tenant context is required")}
+		return nil, 0, &userscontract.UsersError{Op: "caregiver capability", Err: fmt.Errorf("tenant context is required")}
 	}
 
 	account, err := s.Identity.FindCaregiverAccount(ctx, accountID)
@@ -512,7 +514,7 @@ func (s *caregiverCapabilityService) loadAccountAndTenant(
 		return nil, 0, err
 	}
 	if account == nil {
-		return nil, 0, ErrAccountNotFound
+		return nil, 0, userscontract.ErrAccountNotFound
 	}
 
 	exists, err := s.Identity.HasActiveSchoolMembership(ctx, accountID)

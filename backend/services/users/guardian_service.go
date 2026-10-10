@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/email"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -53,8 +55,8 @@ func (e emailInUseError) Is(err error) bool { return err == ErrGuardianEmailInUs
 // newEmailInUseError builds the 400 ValidationError for a duplicate guardian
 // email. email is trimmed for display so the message matches what the unique
 // pre-check compared.
-func newEmailInUseError(email string) *ValidationError {
-	return &ValidationError{Err: emailInUseError{email: strings.TrimSpace(email)}}
+func newEmailInUseError(email string) *userscontract.ValidationError {
+	return &userscontract.ValidationError{Err: emailInUseError{email: strings.TrimSpace(email)}}
 }
 
 // GuardianInvitationRecord is one invitation as the guardian list reads it
@@ -729,8 +731,8 @@ func germanGuardianValidationMessage(err error) string {
 // input (HTTP 400) with the German reason. The repositories run the same
 // Validate() but wrap it as a plain error, which renders as a 500 (#3549), so
 // write paths call this before the first repository write.
-func newGuardianValidationError(err error) *ValidationError {
-	return &ValidationError{Err: errors.New(germanGuardianValidationMessage(err))}
+func newGuardianValidationError(err error) *userscontract.ValidationError {
+	return &userscontract.ValidationError{Err: errors.New(germanGuardianValidationMessage(err))}
 }
 
 // ValidateNewGuardians checks guardian input (profile, relationship type,
@@ -756,15 +758,15 @@ func (s *GuardianService) ValidateNewGuardians(ctx context.Context, guardians []
 		if id := guardians[i].ExistingProfileID; id != nil {
 			if _, err := s.GuardianProfileRepo.FindByID(ctx, *id); err != nil {
 				//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
-				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: ausgewählte Person nicht gefunden", i+1)}
+				return &userscontract.ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: ausgewählte Person nicht gefunden", i+1)}
 			}
 			if !users.IsValidRelationshipType(guardians[i].Relationship.RelationshipType) {
 				//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
-				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: ungültiger Beziehungstyp", i+1)}
+				return &userscontract.ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: ungültiger Beziehungstyp", i+1)}
 			}
 			if guardians[i].Relationship.EmergencyPriority < 1 {
 				//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
-				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: Notfall-Priorität muss mindestens 1 sein", i+1)}
+				return &userscontract.ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: Notfall-Priorität muss mindestens 1 sein", i+1)}
 			}
 			continue
 		}
@@ -779,7 +781,7 @@ func (s *GuardianService) ValidateNewGuardians(ctx context.Context, guardians []
 		}
 		if err := probe.Validate(); err != nil {
 			//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
-			return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: %s", i+1, germanGuardianValidationMessage(err))}
+			return &userscontract.ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: %s", i+1, germanGuardianValidationMessage(err))}
 		}
 
 		// Relationship type must be one of the allowed values. Without this,
@@ -789,14 +791,14 @@ func (s *GuardianService) ValidateNewGuardians(ctx context.Context, guardians []
 		// link path, so the allowed set cannot drift across request paths.
 		if !users.IsValidRelationshipType(guardians[i].Relationship.RelationshipType) {
 			//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
-			return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: ungültiger Beziehungstyp", i+1)}
+			return &userscontract.ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: ungültiger Beziehungstyp", i+1)}
 		}
 
 		// Emergency priority must be >= 1, matching the detail-page link
 		// endpoint (StudentGuardianLinkRequest.Bind rejects < 1).
 		if guardians[i].Relationship.EmergencyPriority < 1 {
 			//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
-			return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: Notfall-Priorität muss mindestens 1 sein", i+1)}
+			return &userscontract.ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: Notfall-Priorität muss mindestens 1 sein", i+1)}
 		}
 
 		// Duplicate email: a sibling sharing a guardian email hits the
@@ -807,10 +809,10 @@ func (s *GuardianService) ValidateNewGuardians(ctx context.Context, guardians []
 			email := *probe.Email // already trimmed + lowercased by probe.Validate()
 			if _, dup := seenEmails[email]; dup {
 				//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
-				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: E-Mail-Adresse %q ist mehrfach angegeben", i+1, email)}
+				return &userscontract.ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: E-Mail-Adresse %q ist mehrfach angegeben", i+1, email)}
 			}
 			if existing, err := s.GuardianProfileRepo.FindByEmail(ctx, email); err == nil && existing != nil {
-				return &ValidationError{Err: emailInUseError{email: email, position: i + 1}}
+				return &userscontract.ValidationError{Err: emailInUseError{email: email, position: i + 1}}
 			}
 			seenEmails[email] = struct{}{}
 		}
@@ -832,7 +834,7 @@ func (s *GuardianService) ValidateNewGuardians(ctx context.Context, guardians []
 			}
 			if err := phoneProbe.Validate(); err != nil {
 				//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
-				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d, Telefonnummer %d: %s", i+1, j+1, germanGuardianValidationMessage(err))}
+				return &userscontract.ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d, Telefonnummer %d: %s", i+1, j+1, germanGuardianValidationMessage(err))}
 			}
 		}
 	}

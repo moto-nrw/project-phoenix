@@ -133,7 +133,7 @@
       "backend/modules/schoolstructure/compose/legacy_repository_runtime.go",
       "backend/modules/schoolstructure/http/api.go",
       "backend/modules/schoolstructure/internal/application/groups/ports.go",
-      "backend/services/group_route_people.go",
+      "backend/modules/peopledirectory/compose/group_route_people.go",
       "backend/workflows/gradetransition/http/grade_transitions.go"
     ],
     "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh origin/development against the local postgres-test server, per-test tenants, default package parallelism; one serve start against the migrated, unseeded local database.",

@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
@@ -78,7 +77,7 @@ type Dependencies struct {
 	// consent the flows write.
 	People PeopleDirectory
 
-	StudentAudit        usersSvc.StudentChangeRecorder
+	StudentAudit        care.StudentChangeRecorder
 	StudentConsents     care.StudentConsentService
 	StudentPhotos       func() care.StudentPhotoUnlinker
 	ParentRequestEvents usersModels.ParentRequestEventRepository
