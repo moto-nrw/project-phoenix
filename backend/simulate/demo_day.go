@@ -571,8 +571,11 @@ func (block demoBlock) updateBody(start, end int) map[string]any {
 	}
 	body := map[string]any{
 		"date": block.Date, "start_time": clockOf(start), "end_time": clockOf(end),
-		"title": block.Title, "room_id": block.RoomID,
+		"title":     block.Title,
 		"staff_ids": staffIDs, "student_ids": block.StudentIDs,
+	}
+	if block.RoomID != 0 {
+		body["room_id"] = block.RoomID
 	}
 	if block.Description != nil {
 		body["description"] = *block.Description
