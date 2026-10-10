@@ -317,7 +317,7 @@ export function InstanceBlock({
               !occupancy &&
               isActive &&
               totalStudents > 0
-                ? ` · ${instance.currentStudentsCount ?? 0} anwesend`
+                ? ` · ${instance.currentStudentsCount ?? instance.presentStudentsCount} anwesend`
                 : ""}
             </span>
           )}

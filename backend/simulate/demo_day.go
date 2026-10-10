@@ -296,6 +296,7 @@ func (day *demoDay) move(client Client, shift int, studentIDs []int64) error {
 				"instance_id", block.ID,
 				"error", err,
 			)
+			return fmt.Errorf("move demo block %d: %w", block.ID, err)
 		}
 	}
 	if err := day.loadTimes(client, studentIDs, time.Time{}); err != nil {

@@ -339,10 +339,10 @@ func (d *conflictDetection) loadTemplatePreload(ctx context.Context, affected []
 // resolveOriginalStart picks the unambiguous template start time for the
 // (group, weekday) pair. With more than one schedule that weekday the warning
 // is still emitted, but original_start_time stays empty.
-func (pre *templatePreload) resolveOriginalStart(groupID int64, date timezone.Date, logger *slog.Logger) (string, bool) {
-	// An exception on a weekend replaces an occurrence only a weekend that
-	// follows Friday's plan has (#3921), so Friday's schedule is its origin.
-	weekday := rosterWeekday(date, true)
+func (pre *templatePreload) resolveOriginalStart(groupID int64, date timezone.Date, weekendFollowsFriday bool, logger *slog.Logger) (string, bool) {
+	// An exception on a weekend replaces Friday's scheduled occurrence only
+	// when that tenant enabled Friday's plan there (#3921).
+	weekday := planWeekday(date, weekendFollowsFriday)
 	starts, ok := pre.byKey[groupWeekdayKey{GroupID: groupID, Weekday: weekday}]
 	if !ok || len(starts) == 0 {
 		logger.Warn("modified exception but no template schedule for weekday",
@@ -417,7 +417,7 @@ func (d *conflictDetection) conflictForStudent(
 		}
 		return base, true
 	case scheduleModels.ActivityExceptionModified:
-		return d.modifiedMismatch(base, pair, arrival, source, templates)
+		return d.modifiedMismatch(base, pair, arrival, source, templates, arrivals.weekendFollowsFriday)
 	}
 	// Unknown exception type: log and skip. Model validation rejects unknown
 	// types on write, so this defends against future additions.
@@ -436,6 +436,7 @@ func (d *conflictDetection) modifiedMismatch(
 	arrival time.Time,
 	source string,
 	templates *templatePreload,
+	weekendFollowsFriday bool,
 ) (timetable.ExceptionConflict, bool) {
 	if pair.exception.StartTime == nil {
 		return timetable.ExceptionConflict{}, false // room-only modify — no time mismatch possible
@@ -454,7 +455,7 @@ func (d *conflictDetection) modifiedMismatch(
 	}
 	base.Kind = timetable.ConflictKindModifiedMismatch
 	base.ModifiedStartTime = modifiedStart.Format("15:04")
-	if original, ok := templates.resolveOriginalStart(pair.exception.ActivityGroupID, pair.date(), d.logger); ok {
+	if original, ok := templates.resolveOriginalStart(pair.exception.ActivityGroupID, pair.date(), weekendFollowsFriday, d.logger); ok {
 		base.OriginalStartTime = original
 	}
 	return base, true

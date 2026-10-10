@@ -316,5 +316,19 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
       expect(screen.getByText(/43 anwesend/)).toBeInTheDocument();
       expect(screen.queryByText(/47 anwesend/)).not.toBeInTheDocument();
     });
+
+    it("keeps the legacy present count when the current count is absent", () => {
+      renderBlock(
+        makeInstance({
+          status: "active",
+          isLive: true,
+          presentStudentsCount: 3,
+          currentStudentsCount: undefined,
+        }),
+      );
+
+      expect(screen.getByText(/3 anwesend/)).toBeInTheDocument();
+      expect(screen.queryByText(/0 anwesend/)).not.toBeInTheDocument();
+    });
   });
 });

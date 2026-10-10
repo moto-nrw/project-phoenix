@@ -229,6 +229,26 @@ func TestDemoDayMovesTheEveningAndRunsIt(t *testing.T) {
 	assert.Equal(t, "completed", client.blocks[2].Status)
 }
 
+type failingDemoMoveClient struct {
+	*demoDayClient
+}
+
+func (c *failingDemoMoveClient) Put(path string, body any) ([]byte, error) {
+	return nil, fmt.Errorf("temporary timetable update failure")
+}
+
+func TestDemoDayDoesNotMoveChildrenWhenABlockMoveFails(t *testing.T) {
+	t.Parallel()
+	client := &failingDemoMoveClient{demoDayClient: newDemoDayClient(plannedBlock(1, "13:00", "14:00", 5, 11))}
+	client.arrivals[11], client.pickups[11] = "11:45", "15:30"
+	var day demoDay
+
+	_, err := day.sync(client, demoDayAt(t, "20:00"), []int64{11}, nil)
+	require.Error(t, err)
+	assert.Empty(t, client.exceptions, "child exceptions stay unchanged until every block moves")
+	assert.False(t, day.planned, "a failed move must be retried")
+}
+
 func TestDemoDayKeepsTheSchoolsOwnDay(t *testing.T) {
 	t.Parallel()
 	client := newDemoDayClient(plannedBlock(1, "13:00", "14:00", 5, 11), plannedBlock(2, "14:45", "17:00", 5, 11))
