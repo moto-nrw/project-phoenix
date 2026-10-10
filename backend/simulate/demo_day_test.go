@@ -48,7 +48,7 @@ func TestDemoDayShift(t *testing.T) {
 		want   int
 	}{
 		"evening moves now to the afternoon":         {day, 20*60 + 3, 4*60 + 45},
-		"night moves the day back":                   {day, 2 * 60, -(13*60 + 15)},
+		"night keeps the day before midnight":        {day, 2 * 60, -(7*60 + 30)},
 		"the school's own day stays":                 {day, 15 * 60, 0},
 		"the half hour before the first block stays": {day, 7 * 60, 0},
 		"the end of the last block moves":            {day, 17 * 60, 105},
@@ -227,6 +227,21 @@ func TestDemoDayMovesTheEveningAndRunsIt(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "completed", client.blocks[1].Status)
 	assert.Equal(t, "completed", client.blocks[2].Status)
+}
+
+func TestDemoDayMovesNearMidnightWithoutLeavingBlocksBehind(t *testing.T) {
+	t.Parallel()
+	client := newDemoDayClient(plannedBlock(1, "13:00", "14:00", 5, 11))
+	client.arrivals[11], client.pickups[11] = "11:45", "15:30"
+	var day demoDay
+
+	changed, err := day.sync(client, demoDayAt(t, "00:05"), []int64{11}, nil)
+	require.NoError(t, err)
+	assert.True(t, changed)
+	assert.Equal(t, [2]string{"00:00", "01:00"}, [2]string{client.blocks[0].StartTime, client.blocks[0].EndTime})
+	assert.Equal(t, "active", client.blocks[0].Status, "the moved block starts on time")
+	assert.Equal(t, "00:00", client.exceptions["/api/students/11/arrival-exceptions"]["expected_arrival"])
+	assert.Equal(t, "02:30", client.exceptions["/api/students/11/pickup-exceptions"]["pickup_time"])
 }
 
 type failingDemoMoveClient struct {

@@ -236,7 +236,8 @@ func fetchDemoBlocks(client Client, from, to string) ([]demoBlock, error) {
 
 // demoDayShift returns the minutes today's planned blocks move by, or 0
 // when they stay: while a block runs, and while the current hour lies within
-// the day the planned blocks span. Blocks that are over keep their place.
+// the day the planned blocks span. Blocks that are over keep their place. The
+// shift keeps every planned block within the current calendar day.
 func demoDayShift(blocks []demoBlock, minute int) int {
 	first, last := -1, -1
 	for _, block := range blocks {
@@ -263,7 +264,8 @@ func demoDayShift(blocks []demoBlock, minute int) int {
 	if first < 0 || (minute >= first-demoDayLead && minute < last) {
 		return 0
 	}
-	return (minute - demoDayReference) / 5 * 5
+	shift := (minute - demoDayReference) / 5 * 5
+	return max(-first, min(shift, demoDayLastMinute-last))
 }
 
 // movedWindow is a block's window after the shift; ok is false when the

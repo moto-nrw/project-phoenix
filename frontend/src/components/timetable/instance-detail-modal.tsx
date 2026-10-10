@@ -1669,6 +1669,6 @@ function Row({ icon, label, children }: RowProps) {
  */
 function childrenHere(instance: EnrichedInstance): number {
   return instance.status === "active"
-    ? (instance.currentStudentsCount ?? 0)
+    ? (instance.currentStudentsCount ?? instance.presentStudentsCount)
     : instance.presentStudentsCount;
 }
