@@ -140,6 +140,18 @@ func demoWeekday(now time.Time) bool {
 	return weekday != time.Saturday && weekday != time.Sunday
 }
 
+// hasPlannedBlocks reports whether a day has blocks of its own, not only
+// mirrored kiosk sessions: a school that runs its weekend on Friday's plan
+// (operations.weekend_follows_friday) has them on Saturday and Sunday too.
+func hasPlannedBlocks(blocks []demoBlock) bool {
+	for _, block := range blocks {
+		if !block.IsSpontaneous && block.Status != "cancelled" {
+			return true
+		}
+	}
+	return false
+}
+
 // sync brings today's plan up to date: it reads the blocks, moves the day
 // once if the current hour lies outside it, and starts and closes blocks.
 // It reports whether it changed anything the children's state depends on.
@@ -194,9 +206,19 @@ func (day *demoDay) sync(client Client, now time.Time, studentIDs []int64, activ
 }
 
 func (day *demoDay) load(client Client, now time.Time) error {
-	raw, err := client.Get(fmt.Sprintf("/api/timetable/instances?from=%s&to=%s", day.date, day.date))
+	blocks, err := fetchDemoBlocks(client, day.date, day.date)
 	if err != nil {
-		return fmt.Errorf("read demo day blocks: %w", err)
+		return err
+	}
+	day.blocks, day.loadedAt = blocks, now
+	return nil
+}
+
+// fetchDemoBlocks reads the timetable blocks from one day to another.
+func fetchDemoBlocks(client Client, from, to string) ([]demoBlock, error) {
+	raw, err := client.Get(fmt.Sprintf("/api/timetable/instances?from=%s&to=%s", from, to))
+	if err != nil {
+		return nil, fmt.Errorf("read demo day blocks: %w", err)
 	}
 	var envelope struct {
 		Data struct {
@@ -204,14 +226,12 @@ func (day *demoDay) load(client Client, now time.Time) error {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return fmt.Errorf("decode demo day blocks: %w", err)
+		return nil, fmt.Errorf("decode demo day blocks: %w", err)
 	}
-	day.blocks = envelope.Data.Instances
-	if day.blocks == nil {
-		day.blocks = []demoBlock{}
+	if envelope.Data.Instances == nil {
+		return []demoBlock{}, nil
 	}
-	day.loadedAt = now
-	return nil
+	return envelope.Data.Instances, nil
 }
 
 // demoDayShift returns the minutes today's planned blocks move by, or 0

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -116,7 +117,18 @@ func (c *demoDayClient) Get(path string) ([]byte, error) {
 	if !strings.HasPrefix(path, "/api/timetable/instances?") {
 		return nil, fmt.Errorf("unexpected GET %s", path)
 	}
-	return json.Marshal(map[string]any{"data": map[string]any{"instances": c.blocks}})
+	query, err := url.ParseQuery(strings.TrimPrefix(path, "/api/timetable/instances?"))
+	if err != nil {
+		return nil, err
+	}
+	from, to := query.Get("from"), query.Get("to")
+	blocks := []demoBlock{}
+	for _, block := range c.blocks {
+		if block.Date >= from && block.Date <= to {
+			blocks = append(blocks, block)
+		}
+	}
+	return json.Marshal(map[string]any{"data": map[string]any{"instances": blocks}})
 }
 
 func (c *demoDayClient) Put(path string, body any) ([]byte, error) {
@@ -405,4 +417,25 @@ func TestDemoTickKeepsKioskSessionsOnTheWeekend(t *testing.T) {
 	saturday = saturday.Add(5 * time.Second)
 	require.NoError(t, ticker.Tick(t.Context()))
 	assert.Empty(t, client.days.writes, "the leftovers are closed once a day")
+}
+
+func TestDemoTickRunsAWeekendThatFollowsFridaysPlan(t *testing.T) {
+	t.Parallel()
+	state := minimalLiveState("")
+	state.Accounts.Betreuer = []AccountCredentials{{StaffID: 17}}
+	state.Activities = map[string]int64{"Hausaufgaben": 23}
+	studentID := state.Students[0].ID
+	saturdayBlock := plannedBlock(1, "14:45", "17:00", 5, studentID)
+	saturdayBlock.Date = "2026-09-12"
+	client := &demoPlanClient{demoDayClient: *newDemoDayClient(saturdayBlock)}
+	client.arrivals[studentID] = "11:45"
+	saturday := time.Date(2026, 9, 12, 15, 0, 0, 0, demoBerlin)
+	ticker, err := NewDemoTicker(DemoTickOptions{
+		State: state, Client: client, Now: func() time.Time { return saturday }, PlanWeekdays: true,
+		Visits: func(context.Context) ([]DemoVisit, error) { return nil, nil },
+	})
+	require.NoError(t, err)
+	require.NoError(t, ticker.Tick(t.Context()))
+	assert.Equal(t, "active", client.blocks[0].Status, "the Saturday block from Friday's plan runs")
+	assert.Zero(t, client.device.sessionsStarted, "no kiosk session on a planned weekend")
 }

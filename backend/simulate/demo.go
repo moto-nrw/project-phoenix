@@ -48,6 +48,14 @@ type DemoTicker struct {
 	day      demoDay
 	// settled is the day whose leftover blocks of earlier days are closed.
 	settled string
+	// weekend caches whether today's Saturday or Sunday has planned blocks.
+	weekend weekendPlan
+}
+
+type weekendPlan struct {
+	date      string
+	checkedAt time.Time
+	planned   bool
 }
 
 func NewDemoTicker(options DemoTickOptions) (*DemoTicker, error) {
@@ -82,7 +90,13 @@ func (d *DemoTicker) Tick(ctx context.Context) error {
 			return err
 		}
 	}
-	planDay := d.options.PlanWeekdays && demoWeekday(now)
+	planDay := false
+	if d.options.PlanWeekdays {
+		var err error
+		if planDay, err = d.plannedDay(now); err != nil {
+			return err
+		}
+	}
 	minute := now.In(demoBerlin).Hour()*60 + now.In(demoBerlin).Minute()
 	if planDay {
 		changed, err := d.syncDay(ctx, now, latest)
@@ -284,19 +298,11 @@ func (d *DemoTicker) closeLeftovers(now time.Time) error {
 	}
 	from := local.AddDate(0, 0, -7).Format(isoDate)
 	to := local.AddDate(0, 0, -1).Format(isoDate)
-	raw, err := d.options.Client.Get(fmt.Sprintf("/api/timetable/instances?from=%s&to=%s", from, to))
+	blocks, err := fetchDemoBlocks(d.options.Client, from, to)
 	if err != nil {
-		return fmt.Errorf("read leftover demo blocks: %w", err)
+		return fmt.Errorf("leftover demo blocks: %w", err)
 	}
-	var envelope struct {
-		Data struct {
-			Instances []demoBlock `json:"instances"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return fmt.Errorf("decode leftover demo blocks: %w", err)
-	}
-	for _, block := range envelope.Data.Instances {
+	for _, block := range blocks {
 		if block.IsSpontaneous || block.Status != "active" {
 			continue
 		}
@@ -309,6 +315,27 @@ func (d *DemoTicker) closeLeftovers(now time.Time) error {
 	}
 	d.settled = today
 	return nil
+}
+
+// plannedDay reports whether today runs along the timetable: every weekday,
+// and a Saturday or Sunday that has planned blocks of its own. A weekend
+// without them keeps the open simulation with kiosk sessions. The weekend
+// answer is reread every few minutes, so a weekend materialized later still
+// switches over.
+func (d *DemoTicker) plannedDay(now time.Time) (bool, error) {
+	if demoWeekday(now) {
+		return true, nil
+	}
+	date := now.In(demoBerlin).Format(isoDate)
+	if d.weekend.date == date && now.Sub(d.weekend.checkedAt) < 5*demoDayRefresh {
+		return d.weekend.planned, nil
+	}
+	blocks, err := fetchDemoBlocks(d.options.Client, date, date)
+	if err != nil {
+		return false, err
+	}
+	d.weekend = weekendPlan{date: date, checkedAt: now, planned: hasPlannedBlocks(blocks)}
+	return d.weekend.planned, nil
 }
 
 func isRoomCapacityExceeded(err error) bool {
