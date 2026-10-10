@@ -44,15 +44,6 @@ export async function fetchClassDayClassesSchool(): Promise<ClassDayClasses> {
   };
 }
 
-/** Ob die Schule das Wochenende nach dem Freitagsplan betreut (#3921). */
-export async function fetchClassDayWeekendOpenSchool(): Promise<boolean> {
-  return (await fetchClassDayClassesSchool()).weekend_follows_friday === true;
-}
-
-export async function fetchMyClassesSchool(): Promise<string[]> {
-  return (await fetchClassDayClassesSchool()).classes;
-}
-
 export async function fetchClassDaySchool(
   schoolClass: string,
   date: string,
