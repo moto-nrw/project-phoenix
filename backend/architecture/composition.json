@@ -797,8 +797,8 @@
       "declaration": "TestCaregiverCapability_EnableCreatesOperationalProfile",
       "target": "database/repositories.NewFactory",
       "lines": [
-        305,
-        309
+        304,
+        308
       ],
       "tables": []
     },
@@ -808,7 +808,7 @@
       "declaration": "setupServiceFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        39
+        38
       ],
       "tables": []
     },
@@ -939,7 +939,7 @@
       "declaration": "careWithdrawals",
       "target": "database/repositories.NewFactory",
       "lines": [
-        66
+        65
       ],
       "tables": []
     },
@@ -949,7 +949,7 @@
       "declaration": "companionLinks",
       "target": "database/repositories.NewFactory",
       "lines": [
-        46
+        45
       ],
       "tables": []
     },
@@ -959,7 +959,7 @@
       "declaration": "newDeletionFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        87
+        86
       ],
       "tables": []
     },
@@ -969,7 +969,7 @@
       "declaration": "studentPlans",
       "target": "database/repositories.NewFactory",
       "lines": [
-        60
+        59
       ],
       "tables": []
     },
@@ -17418,12 +17418,12 @@
         },
         {
           "file": "services/people_repository_test_helpers.go",
-          "line": 24,
+          "line": 25,
           "declaration": "type PeopleRepositorySuiteFactory, PeopleRepositorySuiteParentMessaging, PeopleRepositorySuiteCareLifecycle, PeopleRepositorySuiteAuditCommand, PeopleRepositorySuiteAnnouncementAudience, PeopleRepositorySuiteGuardianProfileOption, PeopleRepositorySuiteRelationshipOption, PeopleRepositorySuitePortalMemberships, PeopleRepositorySuiteSchoolMemberships, PeopleRepositorySuiteStaffAccounts, PeopleRepositorySuiteStaffMessageIdentity, PeopleRepositorySuiteSchoolRoleClass, PeopleRepositorySuitePickupCommand, PeopleRepositorySuiteAccessCommand, PeopleRepositorySuiteRecipients, PeopleRepositorySuiteColleagues, PeopleRepositorySuitePeople, PeopleRepositorySuiteSchoolStructure, PeopleRepositorySuiteCarePlan, PeopleRepositorySuiteCompanionLinks"
         },
         {
           "file": "services/people_repository_test_helpers.go",
-          "line": 48,
+          "line": 49,
           "declaration": "NewPeopleRepositorySuiteFactory"
         }
       ]

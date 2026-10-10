@@ -821,19 +821,21 @@ func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth AuthRe
 	now := time.Now().UTC()
 	openAt := now.Add(-24 * time.Hour).Format(time.RFC3339)
 	closeAt := now.AddDate(0, 2, 0).Format(time.RFC3339)
-	serviceStart := now.AddDate(0, -10, 0).Format("2006-01-02")
-	serviceEnd := now.AddDate(1, 0, 0).Format("2006-01-02")
-	name := fmt.Sprintf("Demo Anmeldung %d/%d", now.Year(), now.Year()+1)
+	// The running school year, linked to its Zeitraum under Planung (#3924).
+	startYear := seedSchoolYearStart(todaySeedDate())
+	period, err := seedPhaseSchoolYear(rt, auth, startYear)
+	if err != nil {
+		return 0, nil, err
+	}
+	name := fmt.Sprintf("Demo Anmeldung %d/%d", startYear, startYear+1)
 	body := map[string]any{
 		"name": name,
 		"translations": seedTranslations("name", name, map[string]string{
-			"en": fmt.Sprintf("Demo enrollment %d/%d", now.Year(), now.Year()+1),
-			"ru": fmt.Sprintf("Демо-запись %d/%d", now.Year(), now.Year()+1),
-			"uk": fmt.Sprintf("Демо-запис %d/%d", now.Year(), now.Year()+1),
+			"en": fmt.Sprintf("Demo enrollment %d/%d", startYear, startYear+1),
+			"ru": fmt.Sprintf("Демо-запись %d/%d", startYear, startYear+1),
+			"uk": fmt.Sprintf("Демо-запис %d/%d", startYear, startYear+1),
 		}),
 		"kind":                         "school_year",
-		"service_start_date":           serviceStart,
-		"service_end_date":             serviceEnd,
 		"enrollment_open_at":           openAt,
 		"enrollment_close_at":          closeAt,
 		"show_status_reason_to_parent": true,
@@ -843,6 +845,7 @@ func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth AuthRe
 		"is_active":                    true,
 		"form_schema_id":               strconv.FormatInt(schemaID, 10),
 	}
+	linkPhaseToPeriod(body, period)
 	respBody, err := rt.Client.PostWithAuth(auth, "/api/enrollment/phases", body)
 	if err != nil {
 		return 0, nil, fmt.Errorf("create enrollment phase: %w", err)

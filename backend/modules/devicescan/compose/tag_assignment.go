@@ -8,13 +8,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 type TagAssignments = devicescan.TagAssignments
 
 // NewTagAssignments composes bracelet lookup and staff assignment without the scan recorder.
-func NewTagAssignments(users usersSvc.PersonService, logger *slog.Logger) devicescan.TagAssignments {
+func NewTagAssignments(users PersonDirectory, logger *slog.Logger) devicescan.TagAssignments {
 	if users == nil {
 		panic("tag assignment composition: users are required")
 	}

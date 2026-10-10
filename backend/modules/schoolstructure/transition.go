@@ -3,6 +3,7 @@ package schoolstructure
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -28,6 +29,36 @@ const (
 	LedgerActionRemoved = "removed"
 	LedgerActionCreated = "created"
 )
+
+// TransitionsLockKey is the advisory-lock key that serializes everything
+// which may not interleave with applying or reverting a grade transition, per
+// tenant. It has TWO independent holders that must agree on the exact string:
+//
+//   - The School Structure transition gate (its Postgres adapter), taken by
+//     the grade transition workflow's apply and revert before reading any
+//     class or lifecycle state, and by draft edits.
+//   - The timetable materializer (modules/timetable/compose) — taken for the
+//     whole materialization pass.
+//
+// The second holder is what closes the graduation race: the materializer
+// copies enrollments using the student status it read when the pass started,
+// so without a shared gate an apply could commit a graduation AND finish its
+// roster archive pass in between, leaving the materializer to insert an
+// upcoming roster row for a child who is now an alumnus — a row nothing would
+// ever remove. Re-reading the status before each insert does not close it
+// (the graduation can commit in the gap); only mutual exclusion does (#405
+// review).
+//
+// LOCK ORDER: holders that also take the tenant recurrence lock
+// (`template-recurrence:<tenant>`) must take THAT one first — Apply and
+// Revert included. They mutate recurrence-derived roster state
+// (instance_students), so they can collide with a re-plan that already holds
+// the recurrence gate and has deleted planned instances; taking the
+// recurrence gate first keeps the acquisition order acyclic instead of
+// deadlocking on those rows (#405 review).
+func TransitionsLockKey(tenantID int64) string {
+	return fmt.Sprintf("education.grade_transitions:%d", tenantID)
+}
 
 var (
 	ErrTransitionNotFound = errors.New("grade transition not found")

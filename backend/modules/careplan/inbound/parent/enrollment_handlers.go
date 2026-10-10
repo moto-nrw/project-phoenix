@@ -2,11 +2,9 @@ package parent
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -16,7 +14,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -108,7 +105,7 @@ func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request)
 // eligibility is still enforced on submit (GuardianSubmitEligible + audience
 // rules).
 func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Request) {
-	if rs.RequestService == nil {
+	if rs.EnrollmentForms == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent enrollment bootstrap not configured")))
 		return
 	}
@@ -173,26 +170,22 @@ func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
 		return
 	}
-	var access enrollmentAPI.EnrolleeAudienceAccess
-	if status != nil {
-		access.LinkedParents = status.HasSubmitPermission
-		access.ExistingStudents = status.HasEnrolledSubmitPermission
-	}
+	linkedParents := status != nil && status.HasSubmitPermission
+	existingStudents := status != nil && status.HasEnrolledSubmitPermission
 
-	var data *enrollmentAPI.PublicFormBootstrapData
+	var respond EnrollmentResponse
 	lateInviteToken := strings.TrimSpace(r.URL.Query().Get("late_invite"))
 	loadErr := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
-		loaded, e := rs.RequestService.LoadEnrolleeFormBootstrap(txCtx, phaseID, time.Now(), lateInviteToken, access)
-		data = loaded
+		loaded, e := rs.EnrollmentForms.LoadFormBootstrap(txCtx, phaseID, time.Now(), lateInviteToken, linkedParents, existingStudents)
+		respond = loaded
 		return e
 	})
 	if loadErr != nil {
-		enrollmentAPI.RenderPublicEnrollmentBootstrapError(w, r, loadErr)
+		rs.EnrollmentForms.RenderFormBootstrapError(w, r, loadErr)
 		return
 	}
 
-	resp := enrollmentAPI.BuildPublicEnrollmentFormBootstrapResponse(data, enrollmentAPI.PublicCaptchaConfigResponse{})
-	common.Respond(w, r, http.StatusOK, resp, "Parent enrollment form bootstrap retrieved")
+	respond(w, r)
 }
 
 // resolveEnrollmentSchool resolves the {tenantSlug} path segment to a school
@@ -259,14 +252,14 @@ func enrollmentSchoolReachable(school *EnrollmentSchool, status *parentModels.Gu
 
 // submitParentEnrollment handles a parent-authenticated submission.
 // The handler resolves the slug to a tenant via admin-tx, resolves the
-// caller's guardian submit facts for that school, then runs the
-// existing RequestService.Submit with GuardianAccountID stamped from
-// claims.ID and the originating IP captured for rate-limiting. Captcha
-// is skipped — the JWT is the trust signal.
+// caller's guardian submit facts for that school, then runs the owner's
+// submission with GuardianAccountID stamped from claims.ID and the
+// originating IP captured for rate-limiting. Captcha is skipped — the JWT
+// is the trust signal.
 //
 // Authorization (#1663): a parent does NOT need an existing tenant
 // mapping — applying to a new school is the point of the picker; the
-// phase's audience config (enforced in RequestService.Submit via
+// phase's audience config (enforced in the owner's Submit via
 // GuardianSubmitEligible) decides whether unlinked parents qualify.
 // Guardian parent-portal permissions are relationship-scoped (per child),
 // so this handler does NOT apply an account-wide denial: the absence of
@@ -279,7 +272,7 @@ func enrollmentSchoolReachable(school *EnrollmentSchool, status *parentModels.Gu
 // GuardianSubmitEligible audience flag for linked_parents phases (see
 // .claude/rules/guardian-parent-permissions.md).
 func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Request) {
-	if rs.RequestService == nil {
+	if rs.EnrollmentForms == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent submit not configured")))
 		return
 	}
@@ -301,36 +294,24 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	wireReq, err := decodeParentEnrollmentBody(r)
+	// The body reuses the public submit wire shape. The parent path has no
+	// captcha (the JWT is the trust signal) and never sends child ids; both
+	// extra fields decode inertly.
+	submit, err := rs.EnrollmentForms.DecodeSubmission(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
-	out := rs.runParentEnrollmentSubmit(r, accountID, slug, wireReq)
+	out := rs.runParentEnrollmentSubmit(r, accountID, slug, submit)
 	rs.respondParentEnrollment(w, r, out)
-}
-
-// decodeParentEnrollmentBody reuses the public submit wire shape. The parent
-// path has no captcha (the JWT is the trust signal) and never sends child ids;
-// both extra fields decode inertly. Bind() defaults nil maps/slices.
-func decodeParentEnrollmentBody(r *http.Request) (*enrollmentAPI.SubmitEnrollmentRequest, error) {
-	wireReq := &enrollmentAPI.SubmitEnrollmentRequest{}
-	if err := json.NewDecoder(r.Body).Decode(wireReq); err != nil {
-		return nil, err
-	}
-	_ = wireReq.Bind(r)
-	if wireReq.LateInviteToken == "" {
-		wireReq.LateInviteToken = strings.TrimSpace(r.URL.Query().Get("late_invite"))
-	}
-	return wireReq, nil
 }
 
 // parentSubmitOutcome captures the mutually-distinguished results of the
 // admin-tx submit closure so the post-tx mapping can pick the right response.
 type parentSubmitOutcome struct {
-	result *enrollmentAPI.SubmitResult
-	// submitErr is the RequestService.Submit failure (400/403/409 family).
+	respond EnrollmentResponse
+	// submitErr is the owner's submit failure (400/403/409 family).
 	submitErr error
 	// statusErr is a guardian-submit-status lookup failure. It is tracked
 	// separately from resolveErr because it is a server-side fault (DB or
@@ -352,7 +333,7 @@ type parentSubmitOutcome struct {
 // nil would commit those orphans while the handler responds with an error.
 // respondParentEnrollment uses the dedicated submitErr field to tell a
 // rolled-back submit apart from a genuine tenant-resolve failure.
-func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, slug string, wireReq *enrollmentAPI.SubmitEnrollmentRequest) parentSubmitOutcome {
+func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, slug string, submit EnrollmentSubmit) parentSubmitOutcome {
 	var out parentSubmitOutcome
 	out.resolveErr = tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		// By subdomain, matching resolveEnrollmentSchool and
@@ -389,7 +370,10 @@ func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, 
 			return errors.New("tenant not found")
 		}
 
-		out.result, out.submitErr = rs.submitEnrollmentForTenant(adminCtx, school.ID, accountID, status.HasSubmitPermission, wireReq, getClientIP(r))
+		// The owner binds the wire request for the resolved tenant, stamps the
+		// guardian account id and the submit eligibility, and submits under
+		// the tenant context. A parse failure returns before the submission.
+		out.respond, out.submitErr = submit(adminCtx, school.ID, accountID, status.HasSubmitPermission, getClientIP(r))
 		// Return the submit error so WithAdminTx rolls back any rows the
 		// service already inserted before failing (see the function doc).
 		// nil is returned on success. respondParentEnrollment maps the
@@ -399,33 +383,19 @@ func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, 
 	return out
 }
 
-// submitEnrollmentForTenant binds the wire request for the resolved tenant,
-// stamps the guardian account id + submit eligibility, and forwards to
-// RequestService.Submit under the tenant context. A parse failure returns
-// before the service call.
-func (rs *Resource) submitEnrollmentForTenant(adminCtx context.Context, schoolID, accountID int64, submitEligible bool, wireReq *enrollmentAPI.SubmitEnrollmentRequest, clientIP string) (*enrollmentAPI.SubmitResult, error) {
-	serviceReq, parseErr := enrollmentAPI.BuildServiceRequest(wireReq, schoolID, clientIP)
-	if parseErr != nil {
-		return nil, parseErr
-	}
-	serviceReq.GuardianAccountID = &accountID
-	serviceReq.GuardianSubmitEligible = submitEligible
-	return rs.RequestService.Submit(tenant.WithTenantID(adminCtx, schoolID), serviceReq)
-}
-
 // respondParentEnrollment maps the submit outcome to the HTTP response.
 // Priority: submit → status → resolve → success. submitErr is checked first
 // because a submit failure now rolls the admin-tx back, so WithAdminTx also
 // surfaces that same error as resolveErr; the dedicated submitErr field lets us
 // map it to its real status (e.g. 400 ambiguous, 403 not-permitted) instead of
 // the resolve 404. Per-child authorization failures
-// (ErrChildEnrollmentNotPermitted) travel through submitErr and MapSubmitError
-// renders them as 403. statusErr is checked for the same reason one step later:
+// (ErrChildEnrollmentNotPermitted) travel through submitErr and the owner's
+// error mapping renders them as 403. statusErr is checked for the same reason one step later:
 // a failed submit-status lookup is a server fault and must be a 500, not the
 // resolve path's 404. Only a genuinely unresolvable tenant reaches resolveErr.
 func (rs *Resource) respondParentEnrollment(w http.ResponseWriter, r *http.Request, out parentSubmitOutcome) {
 	if out.submitErr != nil {
-		enrollmentAPI.MapSubmitError(w, r, out.submitErr)
+		rs.EnrollmentForms.RenderSubmitError(w, r, out.submitErr)
 		return
 	}
 	if out.statusErr != nil {
@@ -437,12 +407,7 @@ func (rs *Resource) respondParentEnrollment(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	resp := enrollmentAPI.SubmitEnrollmentResponse{
-		RequestID: strconv.FormatInt(out.result.Request.ID, 10),
-		StatusURL: out.result.StatusURL,
-		Warnings:  out.result.Warnings,
-	}
-	common.Respond(w, r, http.StatusCreated, resp, "Enrollment submitted")
+	out.respond(w, r)
 }
 
 // enrollmentProfileData maps the already-authorized loader result to HTTP values.

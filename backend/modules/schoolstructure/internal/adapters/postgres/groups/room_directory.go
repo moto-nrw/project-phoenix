@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 // DirectoryRoom is the Facilities projection this package reads.
@@ -36,7 +36,7 @@ var errRoomDirectoryRequired = errors.New("education repositories: room director
 
 // attachRooms fills Group.Room for every group with a visible room. A group
 // whose room the owner cannot see keeps Room nil, as the LEFT JOIN did.
-func attachRooms(ctx context.Context, directory RoomDirectory, groups []*education.Group) error {
+func attachRooms(ctx context.Context, directory RoomDirectory, groups []*domain.Group) error {
 	if directory == nil {
 		return errRoomDirectoryRequired
 	}
@@ -63,8 +63,8 @@ func attachRooms(ctx context.Context, directory RoomDirectory, groups []*educati
 	return nil
 }
 
-func (r DirectoryRoom) groupRoom() *education.GroupRoom {
-	return &education.GroupRoom{
+func (r DirectoryRoom) groupRoom() *domain.GroupRoom {
+	return &domain.GroupRoom{
 		ID:        r.ID,
 		CreatedAt: r.CreatedAt,
 		UpdatedAt: r.UpdatedAt,
@@ -77,7 +77,7 @@ func (r DirectoryRoom) groupRoom() *education.GroupRoom {
 	}
 }
 
-func groupRoomIDs(groups []*education.Group) []int64 {
+func groupRoomIDs(groups []*domain.Group) []int64 {
 	ids := make([]int64, 0, len(groups))
 	seen := make(map[int64]struct{}, len(groups))
 	for _, group := range groups {

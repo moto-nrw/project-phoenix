@@ -24,7 +24,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
@@ -176,7 +175,7 @@ func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *activities
 		CategoryID:      category.ID,
 		CreatedBy:       &staff.ID,
 	}
-	group.SetTenantID(fixtureTenantID(tb))
+	group.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(group).
@@ -439,7 +438,7 @@ func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolCla
 
 // CreateTestEducationGroup creates a real education group (Schulklasse) in the database.
 // Note: This is different from CreateTestActivityGroup (activities.groups).
-func CreateTestEducationGroup(tb testing.TB, db *bun.DB, name string) *education.Group {
+func CreateTestEducationGroup(tb testing.TB, db *bun.DB, name string) *EducationGroup {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -448,10 +447,10 @@ func CreateTestEducationGroup(tb testing.TB, db *bun.DB, name string) *education
 	// Make name unique by appending timestamp
 	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 
-	group := &education.Group{
+	group := &EducationGroup{
 		Name: uniqueName,
 	}
-	group.SetTenantID(fixtureTenantID(tb))
+	group.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(group).
@@ -506,17 +505,17 @@ func ReserveMissingTeacherID(tb testing.TB, db *bun.DB) int64 {
 }
 
 // CreateTestGroupTeacher creates a group-teacher assignment in the database.
-func CreateTestGroupTeacher(tb testing.TB, db *bun.DB, groupID, teacherID int64) *education.GroupTeacher {
+func CreateTestGroupTeacher(tb testing.TB, db *bun.DB, groupID, teacherID int64) *EducationGroupTeacher {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	gt := &education.GroupTeacher{
+	gt := &EducationGroupTeacher{
 		GroupID:   groupID,
 		TeacherID: teacherID,
 	}
-	gt.SetTenantID(fixtureTenantID(tb))
+	gt.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(gt).
@@ -528,17 +527,17 @@ func CreateTestGroupTeacher(tb testing.TB, db *bun.DB, groupID, teacherID int64)
 }
 
 // CreateTestClassTeacher creates a staff-to-school-class assignment (#1772).
-func CreateTestClassTeacher(tb testing.TB, db *bun.DB, staffID int64, schoolClass string) *education.ClassTeacher {
+func CreateTestClassTeacher(tb testing.TB, db *bun.DB, staffID int64, schoolClass string) *EducationClassTeacher {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	ct := &education.ClassTeacher{
+	ct := &EducationClassTeacher{
 		StaffID:     staffID,
 		SchoolClass: schoolClass,
 	}
-	ct.SetTenantID(fixtureTenantID(tb))
+	ct.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(ct).
@@ -1315,14 +1314,14 @@ func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.G
 
 // CreateTestGroupSubstitution creates a teacher substitution record.
 // regularStaffID can be nil if no regular staff is being substituted.
-func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate timezone.Date) *education.GroupSubstitution {
+func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate timezone.Date) *EducationGroupSubstitution {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	substitution := &education.GroupSubstitution{
-		TargetType:        education.GroupSubstitutionTypeGroupHandover,
+	substitution := &EducationGroupSubstitution{
+		TargetType:        EducationGroupSubstitutionTypeGroupHandover,
 		GroupID:           groupID,
 		RegularStaffID:    regularStaffID,
 		SubstituteStaffID: substituteStaffID,
@@ -1331,9 +1330,9 @@ func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regul
 		Reason:            "Test substitution",
 	}
 	if regularStaffID != nil {
-		substitution.TargetType = education.GroupSubstitutionTypeLegacy
+		substitution.TargetType = EducationGroupSubstitutionTypeLegacy
 	}
-	substitution.SetTenantID(fixtureTenantID(tb))
+	substitution.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(substitution).
@@ -1620,18 +1619,18 @@ func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string 
 // ============================================================================
 
 // CreateTestGradeTransition creates a grade transition in the database.
-func CreateTestGradeTransition(tb testing.TB, db *bun.DB, academicYear string, createdBy int64) *education.GradeTransition {
+func CreateTestGradeTransition(tb testing.TB, db *bun.DB, academicYear string, createdBy int64) *EducationGradeTransition {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	transition := &education.GradeTransition{
+	transition := &EducationGradeTransition{
 		AcademicYear: academicYear,
-		Status:       education.TransitionStatusDraft,
+		Status:       EducationTransitionStatusDraft,
 		CreatedBy:    createdBy,
 	}
-	transition.SetTenantID(fixtureTenantID(tb))
+	transition.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(transition).
@@ -1642,19 +1641,33 @@ func CreateTestGradeTransition(tb testing.TB, db *bun.DB, academicYear string, c
 	return transition
 }
 
+// CreateTestGradeTransitionHistoryForTenant writes one child's history row
+// of a transition for the given school.
+func CreateTestGradeTransitionHistoryForTenant(tb testing.TB, db *bun.DB, tenantID, transitionID, studentID int64, personName, fromClass, action string) *EducationGradeTransitionHistory {
+	tb.Helper()
+
+	row := &EducationGradeTransitionHistory{
+		TenantID: tenantID, TransitionID: transitionID, StudentID: studentID,
+		PersonName: personName, FromClass: fromClass, Action: action,
+	}
+	_, err := db.NewInsert().Model(row).ModelTableExpr(`education.grade_transition_history`).Exec(Ctx(tb))
+	require.NoError(tb, err, "Failed to create test grade transition history")
+	return row
+}
+
 // CreateTestGradeTransitionMapping creates a mapping for a grade transition.
-func CreateTestGradeTransitionMapping(tb testing.TB, db *bun.DB, transitionID int64, fromClass string, toClass *string) *education.GradeTransitionMapping {
+func CreateTestGradeTransitionMapping(tb testing.TB, db *bun.DB, transitionID int64, fromClass string, toClass *string) *EducationGradeTransitionMapping {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	mapping := &education.GradeTransitionMapping{
+	mapping := &EducationGradeTransitionMapping{
 		TransitionID: transitionID,
 		FromClass:    fromClass,
 		ToClass:      toClass,
 	}
-	mapping.SetTenantID(fixtureTenantID(tb))
+	mapping.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(mapping).
@@ -1872,7 +1885,7 @@ func CreateTestOpenRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name
 }
 
 // CreateTestEducationGroupForTenant creates an education group belonging to a specific tenant.
-func CreateTestEducationGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *education.Group {
+func CreateTestEducationGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *EducationGroup {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1880,10 +1893,10 @@ func CreateTestEducationGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64
 
 	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 
-	group := &education.Group{
+	group := &EducationGroup{
 		Name: uniqueName,
 	}
-	group.SetTenantID(tenantID)
+	group.TenantID = tenantID
 
 	err := db.NewInsert().
 		Model(group).
@@ -2038,17 +2051,17 @@ func CreateTestStaffWithAccountForTenant(tb testing.TB, db *bun.DB, tenantID int
 // CreateTestClassTeacherForTenant is CreateTestClassTeacher for a caller-owned
 // tenant. The class-day surface reads these rows under RLS, so the assignment
 // must live in the same tenant as the JWT the test presents.
-func CreateTestClassTeacherForTenant(tb testing.TB, db *bun.DB, tenantID, staffID int64, schoolClass string) *education.ClassTeacher {
+func CreateTestClassTeacherForTenant(tb testing.TB, db *bun.DB, tenantID, staffID int64, schoolClass string) *EducationClassTeacher {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	ct := &education.ClassTeacher{
+	ct := &EducationClassTeacher{
 		StaffID:     staffID,
 		SchoolClass: schoolClass,
 	}
-	ct.SetTenantID(tenantID)
+	ct.TenantID = tenantID
 
 	err := db.NewInsert().
 		Model(ct).
@@ -2100,7 +2113,7 @@ func CreateTestActivityGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 		CategoryID:      category.ID,
 		CreatedBy:       &staff.ID,
 	}
-	group.SetTenantID(tenantID)
+	group.TenantID = tenantID
 
 	err := db.NewInsert().
 		Model(group).

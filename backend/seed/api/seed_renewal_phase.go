@@ -106,16 +106,16 @@ func (s parentEnrollmentSeedStep) createRenewalPhase(rt *Runtime, auth AuthRef, 
 	now := time.Now().UTC()
 	// The care year after the running one. It has to start in the future: the
 	// overview then reads every class one grade up and leaves out the top
-	// grade, which is what a real re-enrollment looks like in spring.
-	startYear := now.Year()
-	if now.Month() >= time.August {
-		startYear++
+	// grade, which is what a real re-enrollment looks like in spring. The
+	// school plans that year as its own Zeitraum, linked like the running one.
+	startYear := seedSchoolYearStart(todaySeedDate()) + 1
+	period, err := seedPhaseSchoolYear(rt, auth, startYear)
+	if err != nil {
+		return 0, err
 	}
 	body := map[string]any{
 		"name":                         fmt.Sprintf("Wiederanmeldung %d/%d", startYear, startYear+1),
 		"kind":                         "school_year",
-		"service_start_date":           fmt.Sprintf("%d-08-01", startYear),
-		"service_end_date":             fmt.Sprintf("%d-07-31", startYear+1),
 		"enrollment_open_at":           now.Add(-24 * time.Hour).Format(time.RFC3339),
 		"enrollment_close_at":          now.AddDate(0, 2, 0).Format(time.RFC3339),
 		"show_status_reason_to_parent": true,
@@ -125,6 +125,7 @@ func (s parentEnrollmentSeedStep) createRenewalPhase(rt *Runtime, auth AuthRef, 
 		"is_active":                    true,
 		"form_schema_id":               strconv.FormatInt(schemaID, 10),
 	}
+	linkPhaseToPeriod(body, period)
 	respBody, err := rt.Client.PostWithAuth(auth, "/api/enrollment/phases", body)
 	if err != nil {
 		return 0, fmt.Errorf("create renewal phase: %w", err)

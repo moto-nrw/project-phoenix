@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -166,13 +165,7 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 	targetAssignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, target.ID, "")
 	sparedAssignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, spared.ID, "")
 	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", f.actorID)
-	history := &educationModels.GradeTransitionHistory{
-		TransitionID: transition.ID, StudentID: target.ID, PersonName: "DeleteService Target",
-		FromClass: "1a", Action: educationModels.ActionPromoted,
-	}
-	history.SetTenantID(target.TenantID)
-	_, err := db.NewInsert().Model(history).ModelTableExpr(`education.grade_transition_history`).Exec(ctx)
-	require.NoError(t, err)
+	history := testpkg.CreateTestGradeTransitionHistoryForTenant(t, db, target.TenantID, transition.ID, target.ID, "DeleteService Target", "1a", testpkg.EducationTransitionActionPromoted)
 	childAccount := testpkg.CreateTestAccount(t, db, "student-delete-child@example.com")
 	messageGuardianAccount := testpkg.CreateTestAccount(t, db, "student-delete-message-guardian@example.com")
 	legacyGuardianAccount := testpkg.CreateTestParentAccount(t, db, "student-delete-legacy-guardian@example.com")
@@ -184,7 +177,7 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 		INSERT INTO users.parent_messages (tenant_id, thread_id, student_id, sender_account_id, sender_kind, sender_name, body)
 		VALUES (?, ?, ?, ?, 'guardian', 'Elternteil', 'Bitte um Rückruf') RETURNING id`,
 		target.TenantID, messageThreadID, target.ID, messageGuardianAccount.ID).Scan(ctx, &messageID))
-	_, err = db.NewRaw(`INSERT INTO users.parent_message_reads (tenant_id, thread_id, account_id) VALUES (?, ?, ?)`,
+	_, err := db.NewRaw(`INSERT INTO users.parent_message_reads (tenant_id, thread_id, account_id) VALUES (?, ?, ?)`,
 		target.TenantID, messageThreadID, f.actorID).Exec(ctx)
 	require.NoError(t, err)
 	card := testpkg.CreateTestRFIDCard(t, db, "STUDENTDELETE")
@@ -483,13 +476,7 @@ func TestStudentDeletionWorkflow_GraduatesUsePurgeNotDelete(t *testing.T) {
 	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", active.ID))
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2027-2028", f.actorID)
-	history := &educationModels.GradeTransitionHistory{
-		TransitionID: transition.ID, StudentID: alumnus.ID, PersonName: "DeleteAlumnus Target",
-		FromClass: "4a", Action: educationModels.ActionGraduated,
-	}
-	history.SetTenantID(alumnus.TenantID)
-	_, err = db.NewInsert().Model(history).ModelTableExpr(`education.grade_transition_history`).Exec(ctx)
-	require.NoError(t, err)
+	history := testpkg.CreateTestGradeTransitionHistoryForTenant(t, db, alumnus.TenantID, transition.ID, alumnus.ID, "DeleteAlumnus Target", "4a", testpkg.EducationTransitionActionGraduated)
 	result, err := workflow.PurgeGraduate(ctx, alumnus.ID)
 	require.NoError(t, err)
 	assert.Equal(t, studentdeletion.ReasonGraduatePurge, result.Reason)
@@ -607,13 +594,7 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 				userModels.StudentDocumentCategorySonstiges, fmt.Sprintf("rollback-%s-%d.pdf", phase, target.ID))
 			completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), target.ID, f.actorID, timezone.TodayDate())
 			transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", f.actorID)
-			history := &educationModels.GradeTransitionHistory{
-				TransitionID: transition.ID, StudentID: target.ID, PersonName: "Rollback Target",
-				FromClass: "1a", Action: educationModels.ActionPromoted,
-			}
-			history.SetTenantID(target.TenantID)
-			_, err := db.NewInsert().Model(history).ModelTableExpr(`education.grade_transition_history`).Exec(ctx)
-			require.NoError(t, err)
+			history := testpkg.CreateTestGradeTransitionHistoryForTenant(t, db, target.TenantID, transition.ID, target.ID, "Rollback Target", "1a", testpkg.EducationTransitionActionPromoted)
 			legacyGuardian := testpkg.CreateTestParentAccount(t, db, "rollback-legacy-guardian@example.com")
 			var legacyLinkID int64
 			require.NoError(t, db.NewRaw(`INSERT INTO users.persons_guardians (tenant_id, person_id, guardian_account_id, relationship_type)

@@ -6,9 +6,11 @@
 // for every existing caller. The messages are part of the wire contract and
 // must not change.
 //
-// The interface half (PersonService and the model-typed inputs it names) stays
-// in services/users: it exposes models/users, models/base and internal/timezone,
-// which no people-directory package may import without a new ratchet key.
+// The interface half (PersonService and the model-typed inputs it names) does
+// not move: it exposes models/users, models/base and internal/timezone, which no
+// people-directory package may import without a new ratchet key. Its consumers
+// depend on ports they own (#3771), and the interface leaves together with its
+// implementation (#3753).
 //
 // ErrPersonNotFound, ErrStudentNotFound, ErrGuardianDeletePreviewChanged,
 // ErrGuardianForceDeleteRequiresAdmin, ErrPayerRemovalRequiresFinancial and

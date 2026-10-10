@@ -3,7 +3,7 @@ package groups
 import (
 	"context"
 
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 // Person is the display projection of a staff member's person row.
@@ -23,7 +23,7 @@ type PersonQuery interface {
 // attachSubstitutionPersons resolves Staff.Person for the regular and
 // substitute staff of every row. Staff without a resolvable person keep a
 // nil Person, so the projection falls back to the bare staff reference.
-func attachSubstitutionPersons(ctx context.Context, persons PersonQuery, rows []*educationModels.GroupSubstitution) error {
+func attachSubstitutionPersons(ctx context.Context, persons PersonQuery, rows []*domain.GroupSubstitution) error {
 	if persons == nil || len(rows) == 0 {
 		return nil
 	}
@@ -48,15 +48,15 @@ func attachSubstitutionPersons(ctx context.Context, persons PersonQuery, rows []
 		if !found {
 			continue
 		}
-		member.Person = &educationModels.SubstitutionPerson{ID: value.ID, FirstName: value.FirstName, LastName: value.LastName}
+		member.Person = &domain.SubstitutionPerson{ID: value.ID, FirstName: value.FirstName, LastName: value.LastName}
 	}
 	return nil
 }
 
-func substitutionStaff(rows []*educationModels.GroupSubstitution) []*educationModels.SubstitutionStaff {
-	staff := make([]*educationModels.SubstitutionStaff, 0, 2*len(rows))
-	seen := make(map[*educationModels.SubstitutionStaff]struct{}, 2*len(rows))
-	add := func(member *educationModels.SubstitutionStaff) {
+func substitutionStaff(rows []*domain.GroupSubstitution) []*domain.SubstitutionStaff {
+	staff := make([]*domain.SubstitutionStaff, 0, 2*len(rows))
+	seen := make(map[*domain.SubstitutionStaff]struct{}, 2*len(rows))
+	add := func(member *domain.SubstitutionStaff) {
 		if member == nil {
 			return
 		}

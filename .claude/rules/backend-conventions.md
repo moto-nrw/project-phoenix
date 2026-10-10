@@ -141,8 +141,6 @@ type TenantModel struct { TenantID int64 `bun:"tenant_id,notnull"` }
 func (t *TenantModel) GetTenantID() int64 / SetTenantID(id int64)
 ```
 
-Exception: a domain package whose owner the policy forbids from importing `models/base` (`models/education` since #2742) declares its own `Model`/`TenantModel` with the identical column tags and no `GetID`-style getters; `TestModelMapsTheSharedRowColumns` pins the tags.
-
 The shared base shapes provide `GetID()`/`GetCreatedAt()`/`GetUpdatedAt()` — never redeclare them per entity. Audit models keep their honest timestamp fields (`AccessedAt`, `DeletedAt`, `OccurredAt`, or `ChangedAt`) and do not pretend to implement the conventional timestamp contract. The generic repository has no method constraint because Bun performs CRUD from mappings rather than accessors. The same goes for GORM-style `TableName()` methods: bun never calls them; table names come from struct tags and `ModelTableExpr` strings. Both patterns are CI-ratcheted to zero by `TestModelCeremonyRatchet` (`backend/test/model_ceremony_ratchet_test.go`).
 
 ### A note on `BeforeAppendModel`

@@ -2,10 +2,11 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
@@ -18,11 +19,11 @@ func newClassTeacherRepository(membership schoolmembership.Capability) ClassTeac
 	return &classTeacherRepository{membership: membership}
 }
 
-func (r *classTeacherRepository) Create(ctx context.Context, assignment *educationModels.ClassTeacher) error {
+func (r *classTeacherRepository) Create(ctx context.Context, assignment *schoolmembership.ClassAssignment) error {
 	if assignment == nil {
 		return nilEntity("ClassTeacher")
 	}
-	if err := assignment.Validate(); err != nil {
+	if err := validateClassAssignment(assignment); err != nil {
 		return err
 	}
 	created, err := r.membership.CreateClassAssignment(ctx, schoolmembership.CreateClassAssignment{StaffID: assignment.StaffID, SchoolClass: assignment.SchoolClass})
@@ -33,7 +34,7 @@ func (r *classTeacherRepository) Create(ctx context.Context, assignment *educati
 	return nil
 }
 
-func (r *classTeacherRepository) FindByID(ctx context.Context, id any) (*educationModels.ClassTeacher, error) {
+func (r *classTeacherRepository) FindByID(ctx context.Context, id any) (*schoolmembership.ClassAssignment, error) {
 	assignmentID, err := teachingAssignmentID(id)
 	if err != nil {
 		return nil, err
@@ -48,11 +49,11 @@ func (r *classTeacherRepository) FindByID(ctx context.Context, id any) (*educati
 	return classAssignmentModel(assignments[0]), nil
 }
 
-func (r *classTeacherRepository) Update(ctx context.Context, assignment *educationModels.ClassTeacher) error {
+func (r *classTeacherRepository) Update(ctx context.Context, assignment *schoolmembership.ClassAssignment) error {
 	if assignment == nil {
 		return nilEntity("ClassTeacher")
 	}
-	if err := assignment.Validate(); err != nil {
+	if err := validateClassAssignment(assignment); err != nil {
 		return err
 	}
 	updated, err := r.membership.UpdateClassAssignment(ctx, schoolmembership.UpdateClassAssignment{ID: assignment.ID, StaffID: assignment.StaffID, SchoolClass: assignment.SchoolClass})
@@ -74,7 +75,7 @@ func (r *classTeacherRepository) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (r *classTeacherRepository) List(ctx context.Context, filters map[string]any) ([]*educationModels.ClassTeacher, error) {
+func (r *classTeacherRepository) List(ctx context.Context, filters map[string]any) ([]*schoolmembership.ClassAssignment, error) {
 	filter, err := classAssignmentFilter(filters)
 	if err != nil {
 		return nil, fmt.Errorf("list class assignments: %w", err)
@@ -86,7 +87,7 @@ func (r *classTeacherRepository) List(ctx context.Context, filters map[string]an
 	return classAssignmentModels(assignments), nil
 }
 
-func (r *classTeacherRepository) FindByStaff(ctx context.Context, staffID int64) ([]*educationModels.ClassTeacher, error) {
+func (r *classTeacherRepository) FindByStaff(ctx context.Context, staffID int64) ([]*schoolmembership.ClassAssignment, error) {
 	assignments, err := r.membership.ListClassAssignments(ctx, schoolmembership.ClassAssignmentFilter{StaffIDs: []int64{staffID}})
 	if err != nil {
 		return nil, fmt.Errorf("find class assignments by staff: %w", err)
@@ -105,11 +106,11 @@ func newGroupTeacherRepository(membership schoolmembership.Capability, groups Ed
 	return &groupTeacherRepository{membership: membership, groups: groups}
 }
 
-func (r *groupTeacherRepository) Create(ctx context.Context, assignment *educationModels.GroupTeacher) error {
+func (r *groupTeacherRepository) Create(ctx context.Context, assignment *schoolmembership.GroupAssignment) error {
 	if assignment == nil {
 		return nilEntity("GroupTeacher")
 	}
-	if err := assignment.Validate(); err != nil {
+	if err := validateGroupAssignment(assignment); err != nil {
 		return err
 	}
 	created, err := r.membership.CreateGroupAssignment(ctx, schoolmembership.CreateGroupAssignment{GroupID: assignment.GroupID, TeacherID: assignment.TeacherID})
@@ -120,7 +121,7 @@ func (r *groupTeacherRepository) Create(ctx context.Context, assignment *educati
 	return nil
 }
 
-func (r *groupTeacherRepository) FindByID(ctx context.Context, id any) (*educationModels.GroupTeacher, error) {
+func (r *groupTeacherRepository) FindByID(ctx context.Context, id any) (*schoolmembership.GroupAssignment, error) {
 	assignmentID, err := teachingAssignmentID(id)
 	if err != nil {
 		return nil, err
@@ -135,11 +136,11 @@ func (r *groupTeacherRepository) FindByID(ctx context.Context, id any) (*educati
 	return groupAssignmentModel(assignments[0]), nil
 }
 
-func (r *groupTeacherRepository) Update(ctx context.Context, assignment *educationModels.GroupTeacher) error {
+func (r *groupTeacherRepository) Update(ctx context.Context, assignment *schoolmembership.GroupAssignment) error {
 	if assignment == nil {
 		return nilEntity("GroupTeacher")
 	}
-	if err := assignment.Validate(); err != nil {
+	if err := validateGroupAssignment(assignment); err != nil {
 		return err
 	}
 	updated, err := r.membership.UpdateGroupAssignment(ctx, schoolmembership.UpdateGroupAssignment{ID: assignment.ID, GroupID: assignment.GroupID, TeacherID: assignment.TeacherID})
@@ -161,7 +162,7 @@ func (r *groupTeacherRepository) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (r *groupTeacherRepository) List(ctx context.Context, filters map[string]any) ([]*educationModels.GroupTeacher, error) {
+func (r *groupTeacherRepository) List(ctx context.Context, filters map[string]any) ([]*schoolmembership.GroupAssignment, error) {
 	filter, err := groupAssignmentFilter(filters)
 	if err != nil {
 		return nil, fmt.Errorf("list group assignments: %w", err)
@@ -173,19 +174,19 @@ func (r *groupTeacherRepository) List(ctx context.Context, filters map[string]an
 	return groupAssignmentModels(assignments), nil
 }
 
-func (r *groupTeacherRepository) FindByGroup(ctx context.Context, groupID int64) ([]*educationModels.GroupTeacher, error) {
+func (r *groupTeacherRepository) FindByGroup(ctx context.Context, groupID int64) ([]*schoolmembership.GroupAssignment, error) {
 	return r.list(ctx, schoolmembership.GroupAssignmentFilter{GroupIDs: []int64{groupID}}, "find by group")
 }
 
-func (r *groupTeacherRepository) FindByTeacher(ctx context.Context, teacherID int64) ([]*educationModels.GroupTeacher, error) {
+func (r *groupTeacherRepository) FindByTeacher(ctx context.Context, teacherID int64) ([]*schoolmembership.GroupAssignment, error) {
 	return r.list(ctx, schoolmembership.GroupAssignmentFilter{TeacherIDs: []int64{teacherID}}, "find by teacher")
 }
 
-func (r *groupTeacherRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*educationModels.GroupTeacher, error) {
+func (r *groupTeacherRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*schoolmembership.GroupAssignment, error) {
 	return r.list(ctx, schoolmembership.GroupAssignmentFilter{GroupIDs: groupIDs}, "find by group IDs")
 }
 
-func (r *groupTeacherRepository) list(ctx context.Context, filter schoolmembership.GroupAssignmentFilter, operation string) ([]*educationModels.GroupTeacher, error) {
+func (r *groupTeacherRepository) list(ctx context.Context, filter schoolmembership.GroupAssignmentFilter, operation string) ([]*schoolmembership.GroupAssignment, error) {
 	assignments, err := r.membership.ListGroupAssignments(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", operation, err)
@@ -241,44 +242,62 @@ func groupAssignmentsForTenant(assignments []schoolmembership.GroupAssignment, t
 	return result
 }
 
-func classAssignmentModels(assignments []schoolmembership.ClassAssignment) []*educationModels.ClassTeacher {
-	result := make([]*educationModels.ClassTeacher, 0, len(assignments))
+func classAssignmentModels(assignments []schoolmembership.ClassAssignment) []*schoolmembership.ClassAssignment {
+	result := make([]*schoolmembership.ClassAssignment, 0, len(assignments))
 	for _, assignment := range assignments {
 		result = append(result, classAssignmentModel(assignment))
 	}
 	return result
 }
 
-func classAssignmentModel(assignment schoolmembership.ClassAssignment) *educationModels.ClassTeacher {
-	result := &educationModels.ClassTeacher{}
+func classAssignmentModel(assignment schoolmembership.ClassAssignment) *schoolmembership.ClassAssignment {
+	result := &schoolmembership.ClassAssignment{}
 	copyClassAssignment(result, assignment)
 	return result
 }
 
-func copyClassAssignment(target *educationModels.ClassTeacher, source schoolmembership.ClassAssignment) {
-	target.ID, target.TenantID = source.ID, source.TenantID
-	target.CreatedAt, target.UpdatedAt = source.CreatedAt, source.UpdatedAt
-	target.StaffID, target.SchoolClass = source.StaffID, source.SchoolClass
+func copyClassAssignment(target *schoolmembership.ClassAssignment, source schoolmembership.ClassAssignment) {
+	*target = source
 }
 
-func groupAssignmentModels(assignments []schoolmembership.GroupAssignment) []*educationModels.GroupTeacher {
-	result := make([]*educationModels.GroupTeacher, 0, len(assignments))
+func groupAssignmentModels(assignments []schoolmembership.GroupAssignment) []*schoolmembership.GroupAssignment {
+	result := make([]*schoolmembership.GroupAssignment, 0, len(assignments))
 	for _, assignment := range assignments {
 		result = append(result, groupAssignmentModel(assignment))
 	}
 	return result
 }
 
-func groupAssignmentModel(assignment schoolmembership.GroupAssignment) *educationModels.GroupTeacher {
-	result := &educationModels.GroupTeacher{}
+func groupAssignmentModel(assignment schoolmembership.GroupAssignment) *schoolmembership.GroupAssignment {
+	result := &schoolmembership.GroupAssignment{}
 	copyGroupAssignment(result, assignment)
 	return result
 }
 
-func copyGroupAssignment(target *educationModels.GroupTeacher, source schoolmembership.GroupAssignment) {
-	target.ID, target.TenantID = source.ID, source.TenantID
-	target.CreatedAt, target.UpdatedAt = source.CreatedAt, source.UpdatedAt
-	target.GroupID, target.TeacherID = source.GroupID, source.TeacherID
+func copyGroupAssignment(target *schoolmembership.GroupAssignment, source schoolmembership.GroupAssignment) {
+	*target = source
+}
+
+// validateClassAssignment requires the staff member and a non-blank class.
+func validateClassAssignment(assignment *schoolmembership.ClassAssignment) error {
+	if assignment.StaffID <= 0 {
+		return errors.New("staff ID is required")
+	}
+	if strings.TrimSpace(assignment.SchoolClass) == "" {
+		return errors.New("school class is required")
+	}
+	return nil
+}
+
+// validateGroupAssignment requires the group and the teacher.
+func validateGroupAssignment(assignment *schoolmembership.GroupAssignment) error {
+	if assignment.GroupID <= 0 {
+		return errors.New("group ID is required")
+	}
+	if assignment.TeacherID <= 0 {
+		return errors.New("teacher ID is required")
+	}
+	return nil
 }
 
 func teachingAssignmentID(id any) (int64, error) {
@@ -340,3 +359,68 @@ func groupAssignmentFilter(filters map[string]any) (schoolmembership.GroupAssign
 }
 
 func nilEntity(entity string) error { return fmt.Errorf("%s cannot be nil or zero value", entity) }
+
+// AssignSchoolClass assigns the staff member to the class as entered.
+func (r *classTeacherRepository) AssignSchoolClass(ctx context.Context, staffID int64, schoolClass string) error {
+	return r.Create(ctx, &schoolmembership.ClassAssignment{StaffID: staffID, SchoolClass: schoolClass})
+}
+
+// RenameSchoolClass rewrites the display form of one assignment.
+func (r *classTeacherRepository) RenameSchoolClass(ctx context.Context, assignmentID, staffID int64, schoolClass string) error {
+	return r.Update(ctx, &schoolmembership.ClassAssignment{ID: assignmentID, StaffID: staffID, SchoolClass: schoolClass})
+}
+
+// RemoveSchoolClass removes one assignment.
+func (r *classTeacherRepository) RemoveSchoolClass(ctx context.Context, assignmentID int64) error {
+	return r.Delete(ctx, assignmentID)
+}
+
+// SchoolClassAssignmentsOfStaff maps each assignment of the staff member to
+// its class as entered.
+func (r *classTeacherRepository) SchoolClassAssignmentsOfStaff(ctx context.Context, staffID int64) (map[int64]string, error) {
+	assignments, err := r.FindByStaff(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
+	classes := make(map[int64]string, len(assignments))
+	for _, assignment := range assignments {
+		classes[assignment.ID] = assignment.SchoolClass
+	}
+	return classes, nil
+}
+
+// AssignTeacher assigns the teacher to the group.
+func (r *groupTeacherRepository) AssignTeacher(ctx context.Context, groupID, teacherID int64) error {
+	return r.Create(ctx, &schoolmembership.GroupAssignment{GroupID: groupID, TeacherID: teacherID})
+}
+
+// RemoveTeacherAssignment removes one assignment.
+func (r *groupTeacherRepository) RemoveTeacherAssignment(ctx context.Context, assignmentID int64) error {
+	return r.Delete(ctx, assignmentID)
+}
+
+// TeacherAssignmentIDs maps each teacher of the group to its assignment.
+func (r *groupTeacherRepository) TeacherAssignmentIDs(ctx context.Context, groupID int64) (map[int64]int64, error) {
+	assignments, err := r.FindByGroup(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make(map[int64]int64, len(assignments))
+	for _, assignment := range assignments {
+		ids[assignment.TeacherID] = assignment.ID
+	}
+	return ids, nil
+}
+
+// TeacherIDsByGroup lists the teachers of each group in assignment order.
+func (r *groupTeacherRepository) TeacherIDsByGroup(ctx context.Context, groupIDs []int64) (map[int64][]int64, error) {
+	assignments, err := r.FindByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, err
+	}
+	teachers := make(map[int64][]int64, len(groupIDs))
+	for _, assignment := range assignments {
+		teachers[assignment.GroupID] = append(teachers[assignment.GroupID], assignment.TeacherID)
+	}
+	return teachers, nil
+}

@@ -57,6 +57,19 @@ type (
 	SubstitutionSuiteEndRequest                  = education.EndRequest
 )
 
+// The School Structure values the suites arrange and assert (#3556): the
+// owner's domain values through its composition, and the Workforce row of a
+// group substitution through the retained repository contract.
+type (
+	SchoolStructureSuiteGroup              = education.Group
+	SchoolStructureSuiteGroupListQuery     = education.GroupListQuery
+	SchoolStructureSuiteGroupTeacher       = schoolmembership.GroupAssignment
+	SchoolStructureSuiteClassTeacher       = schoolmembership.ClassAssignment
+	SchoolStructureSuiteStaffGroupID       = education.StaffGroupID
+	SchoolStructureSuiteSubstitutionChange = education.SubstitutionChange
+	SchoolStructureSuiteSubstitutionRow    = repositories.GroupSubstitutionRow
+)
+
 const (
 	SubstitutionSuiteTargetGroupHandover         = education.TargetGroupHandover
 	SubstitutionSuiteTargetAdditionalSupervision = education.TargetAdditionalSupervision

@@ -71,7 +71,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/careplan/inbound/parent/api.go:(*Resource).RouterWithAuthRateLimiter":                       211,
 	"modules/careplan/inbound/parent/child_write_handlers.go:(*Resource).submitSickNote":                 67,
 	"modules/careplan/inbound/parent/child_write_handlers.go:renderParentWriteError":                     162,
-	"modules/careplan/inbound/parent/enrollment_handlers.go:(*Resource).getEnrollmentBootstrap":          87,
+	"modules/careplan/inbound/parent/enrollment_handlers.go:(*Resource).getEnrollmentBootstrap":          83,
 	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*Store).ListWithdrawals":     71,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":               73,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Decide":                154,
