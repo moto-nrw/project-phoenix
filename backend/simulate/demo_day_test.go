@@ -231,41 +231,94 @@ func TestDemoDayKeepsTheSchoolsOwnDay(t *testing.T) {
 	assert.Equal(t, "active", client.blocks[1].Status)
 }
 
-func TestDemoDayPlansTheActivitiesInTwoWaves(t *testing.T) {
-	t.Parallel()
-	client := newDemoDayClient(plannedBlock(1, "19:00", "21:00", 7, 11))
-	for id := int64(11); id <= 40; id++ {
-		client.arrivals[id] = "19:00"
+func demoDayStudents(first, last int64) []int64 {
+	ids := make([]int64, 0, last-first+1)
+	for id := first; id <= last; id++ {
+		ids = append(ids, id)
 	}
-	activities := []demoActivity{
-		{name: "Basteln", id: 101, roomID: 8, staffID: 201},
-		{name: "Fußball", id: 102, roomID: 9, staffID: 202},
-		{name: "Hausaufgaben", id: 103, roomID: 7, staffID: 203},
-		{name: "Kochen", id: 104, roomID: 10, staffID: 204},
-	}
-	studentIDs := make([]int64, 0, 30)
-	for id := int64(11); id <= 40; id++ {
-		studentIDs = append(studentIDs, id)
-	}
-	var day demoDay
-	_, err := day.sync(client, demoDayAt(t, "20:02"), studentIDs, activities)
-	require.NoError(t, err)
+	return ids
+}
 
-	require.Len(t, client.created, 3, "Hausaufgaben shares its room with the running block")
+var demoDayActivities = []demoActivity{
+	{name: "Basteln", id: 101, roomID: 8, staffID: 201},
+	{name: "Fußball", id: 102, roomID: 9, staffID: 202},
+	{name: "Hausaufgaben", id: 103, roomID: 7, staffID: 203},
+	{name: "Kochen", id: 104, roomID: 10, staffID: 204},
+}
+
+func createdByTitle(client *demoDayClient) map[string]map[string]any {
 	byTitle := map[string]map[string]any{}
 	for _, body := range client.created {
 		byTitle[body["title"].(string)] = body
 	}
-	assert.Equal(t, [2]any{"19:30", "20:30"}, [2]any{byTitle["Basteln"]["start_time"], byTitle["Basteln"]["end_time"]})
-	assert.Equal(t, [2]any{"20:30", "21:30"}, [2]any{byTitle["Fußball"]["start_time"], byTitle["Fußball"]["end_time"]})
-	assert.Equal(t, "19:30", byTitle["Kochen"]["start_time"])
+	return byTitle
+}
+
+func TestDemoDayPlansTheActivitiesInTheAfternoon(t *testing.T) {
+	t.Parallel()
+	client := newDemoDayClient(plannedBlock(1, "07:30", "08:30", 6, 11), plannedBlock(2, "13:00", "17:00", 7, 11))
+	for _, id := range demoDayStudents(11, 40) {
+		client.arrivals[id] = "11:45"
+	}
+	var day demoDay
+	// In the morning the AGs are still to come, at their afternoon hour.
+	_, err := day.sync(client, demoDayAt(t, "08:00"), demoDayStudents(11, 40), demoDayActivities)
+	require.NoError(t, err)
+
+	require.Len(t, client.created, 3, "Hausaufgaben shares its room with the long block")
+	byTitle := createdByTitle(client)
+	assert.Equal(t, [2]any{"14:45", "15:45"}, [2]any{byTitle["Basteln"]["start_time"], byTitle["Basteln"]["end_time"]})
+	assert.Equal(t, [2]any{"15:45", "16:45"}, [2]any{byTitle["Fußball"]["start_time"], byTitle["Fußball"]["end_time"]})
+	assert.Equal(t, "14:45", byTitle["Kochen"]["start_time"])
 	assert.Len(t, byTitle["Basteln"]["student_ids"], demoActivityChildren)
 	assert.NotEqual(t, byTitle["Basteln"]["student_ids"], byTitle["Kochen"]["student_ids"], "one AG per child and wave")
 
 	client.created = nil
-	_, err = day.sync(client, demoDayAt(t, "20:30"), studentIDs, activities)
+	_, err = day.sync(client, demoDayAt(t, "10:30"), demoDayStudents(11, 40), demoDayActivities)
 	require.NoError(t, err)
-	assert.Empty(t, client.created, "the activities are planned once per day")
+	assert.Empty(t, client.created, "the activities are planned once")
+}
+
+func TestDemoDayPlansTheActivitiesAroundAMovedAfternoon(t *testing.T) {
+	t.Parallel()
+	client := newDemoDayClient(plannedBlock(1, "13:00", "14:00", 7, 11))
+	client.arrivals[11] = "11:45"
+	var day demoDay
+	_, err := day.sync(client, demoDayAt(t, "20:00"), []int64{11}, demoDayActivities[:1])
+	require.NoError(t, err)
+	require.Len(t, client.created, 1)
+	assert.Equal(t, "19:30", client.created[0]["start_time"], "15:15 of the moved day is 20:00")
+}
+
+func TestDemoDayRebuildsAnEndedDayForALateVisitor(t *testing.T) {
+	t.Parallel()
+	lunch := plannedBlock(1, "13:00", "14:00", 7, 11, 12)
+	lunch.Status = "completed"
+	client := newDemoDayClient(lunch)
+	client.arrivals[11], client.pickups[11] = "11:45", "15:30"
+	client.arrivals[12], client.pickups[12] = "11:45", "16:00"
+	var day demoDay
+	// The visitor saw the afternoon at 14:00; at 19:00 nothing is left.
+	day.date, day.anchor, day.anchoredAt, day.planned, day.activities = "2026-09-11", demoDayReference, -1, true, true
+	day.failed, day.home = map[int64]bool{}, map[int64]bool{11: true}
+
+	_, err := day.sync(client, demoDayAt(t, "19:00"), []int64{11, 12, 13}, demoDayActivities[:2])
+	require.NoError(t, err)
+
+	assert.Equal(t, "18:00", client.exceptions["/api/students/11/arrival-exceptions"]["expected_arrival"])
+	assert.Equal(t, "20:30", client.exceptions["/api/students/11/pickup-exceptions"]["pickup_time"])
+	assert.Equal(t, "18:15", client.exceptions["/api/students/12/arrival-exceptions"]["expected_arrival"])
+	assert.NotContains(t, client.exceptions, "/api/students/13/arrival-exceptions", "no care today")
+	byTitle := createdByTitle(client)
+	assert.Equal(t, "18:30", byTitle["Basteln"]["start_time"], "the AGs run again around the current hour")
+	assert.Equal(t, "19:30", byTitle["Fußball"]["start_time"])
+	assert.Empty(t, day.home, "the children come again")
+
+	// While the new afternoon runs, nothing is rebuilt.
+	client.created = nil
+	_, err = day.sync(client, demoDayAt(t, "19:30"), []int64{11, 12, 13}, demoDayActivities[:2])
+	require.NoError(t, err)
+	assert.Empty(t, client.created)
 }
 
 // demoPlanClient serves a planned weekday to the ticker: the device sessions,

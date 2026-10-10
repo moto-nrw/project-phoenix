@@ -42,6 +42,10 @@ const (
 	demoActivityLength = 60
 	// demoActivityChildren bounds an AG's planned children.
 	demoActivityChildren = 12
+	// demoDayAnchorPause is the least time between two rebuilds of an ended
+	// day, so a rebuild that plans nothing (shortly before midnight) does
+	// not repeat every tick.
+	demoDayAnchorPause = 60
 )
 
 // demoActivity is an AG the demo plans for today, in its room and with its
@@ -105,6 +109,12 @@ type demoDay struct {
 	planned    bool
 	activities bool
 	devices    bool
+	// anchor is the minute that stands for the afternoon reference today:
+	// 15:15 on the school's own day, the current hour on a moved one.
+	anchor int
+	// anchoredAt is when the rest of an ended day was last built anew; -1
+	// when it was not.
+	anchoredAt int
 	blocks     []demoBlock
 	loadedAt   time.Time
 	times      map[int64]demoTimes
@@ -137,7 +147,10 @@ func (day *demoDay) sync(client Client, now time.Time, studentIDs []int64, activ
 	local := now.In(demoBerlin)
 	date, minute := local.Format(isoDate), local.Hour()*60+local.Minute()
 	if day.date != date {
-		*day = demoDay{date: date, failed: map[int64]bool{}, home: map[int64]bool{}}
+		*day = demoDay{
+			date: date, anchor: demoDayReference, anchoredAt: -1,
+			failed: map[int64]bool{}, home: map[int64]bool{},
+		}
 	}
 	if day.blocks == nil || now.Sub(day.loadedAt) >= demoDayRefresh {
 		if err := day.load(client, now); err != nil {
@@ -149,6 +162,7 @@ func (day *demoDay) sync(client Client, now time.Time, studentIDs []int64, activ
 			if err := day.move(client, shift, studentIDs); err != nil {
 				return false, err
 			}
+			day.anchor = demoDayReference + shift
 			if err := day.load(client, now); err != nil {
 				return false, err
 			}
@@ -160,8 +174,13 @@ func (day *demoDay) sync(client Client, now time.Time, studentIDs []int64, activ
 			return false, err
 		}
 	}
+	if day.over(minute) && (day.anchoredAt < 0 || minute >= day.anchoredAt+demoDayAnchorPause) {
+		if err := day.reanchor(client, studentIDs, minute); err != nil {
+			return false, err
+		}
+	}
 	if !day.activities {
-		if day.planActivities(client, activities, studentIDs, minute) {
+		if day.planActivities(client, activities, studentIDs) {
 			if err := day.load(client, now); err != nil {
 				return false, err
 			}
@@ -262,7 +281,7 @@ func (day *demoDay) move(client Client, shift int, studentIDs []int64) error {
 	if err := day.loadTimes(client, studentIDs, time.Time{}); err != nil {
 		return err
 	}
-	movedPickups := map[int64]string{}
+	moved := map[int64]demoTimes{}
 	for _, studentID := range studentIDs {
 		times, ok := day.times[studentID]
 		if !ok || times.arrival < 0 {
@@ -272,9 +291,66 @@ func (day *demoDay) move(client Client, shift int, studentIDs []int64) error {
 		if arrival > demoDayLastStart {
 			continue
 		}
+		pickup := -1
+		if times.pickup >= 0 {
+			pickup = max(min(times.pickup+shift, demoDayLastMinute), arrival+1)
+		}
+		moved[studentID] = demoTimes{arrival: arrival, pickup: pickup}
+	}
+	day.writeTimes(client, studentIDs, moved)
+	return nil
+}
+
+// over reports whether today has no block with children left: none runs,
+// none is still to come.
+func (day *demoDay) over(minute int) bool {
+	for _, block := range day.blocks {
+		if block.IsSpontaneous || len(block.StudentIDs) == 0 {
+			continue
+		}
+		_, end, ok := blockMinutes(block)
+		if block.Status == "active" || (ok && block.Status == "planned" && end > minute) {
+			return false
+		}
+	}
+	return true
+}
+
+// reanchor builds the rest of a day that is over anew around the current
+// hour, for a visitor who comes back after it ended: the children come
+// again and the AGs are planned once more. The blocks that ran stay as
+// they were.
+func (day *demoDay) reanchor(client Client, studentIDs []int64, minute int) error {
+	if err := day.loadTimes(client, studentIDs, time.Time{}); err != nil {
+		return err
+	}
+	moved := map[int64]demoTimes{}
+	for i, studentID := range studentIDs {
+		if times, ok := day.times[studentID]; !ok || times.arrival < 0 {
+			continue
+		}
+		arrival := max(minute-60+(i%3)*15, 0)
+		pickup := max(min(minute+90+(i%4)*15, demoDayLastMinute), arrival+1)
+		moved[studentID] = demoTimes{arrival: arrival, pickup: pickup}
+	}
+	day.writeTimes(client, studentIDs, moved)
+	day.anchor, day.anchoredAt, day.activities = minute, minute, false
+	day.home = map[int64]bool{}
+	return nil
+}
+
+// writeTimes stores the children's arrival and pickup of today as day
+// exceptions and closes the pickup tasks they open.
+func (day *demoDay) writeTimes(client Client, studentIDs []int64, moved map[int64]demoTimes) {
+	movedPickups := map[int64]string{}
+	for _, studentID := range studentIDs {
+		times, ok := moved[studentID]
+		if !ok {
+			continue
+		}
 		path := fmt.Sprintf("/api/students/%d/arrival-exceptions", studentID)
 		if _, err := client.Post(path, map[string]any{
-			"exception_date": day.date, "expected_arrival": clockOf(arrival), "reason": demoDayReason,
+			"exception_date": day.date, "expected_arrival": clockOf(times.arrival), "reason": demoDayReason,
 		}); err != nil {
 			slog.Warn("demo day: arrival not moved",
 				"student_id", studentID,
@@ -285,11 +361,10 @@ func (day *demoDay) move(client Client, shift int, studentIDs []int64) error {
 		if times.pickup < 0 {
 			continue
 		}
-		pickup := max(min(times.pickup+shift, demoDayLastMinute), arrival+1)
 		path = fmt.Sprintf("/api/students/%d/pickup-exceptions", studentID)
-		movedPickups[studentID] = clockOf(pickup)
+		movedPickups[studentID] = clockOf(times.pickup)
 		if _, err := client.Post(path, map[string]any{
-			"exception_date": day.date, "pickup_time": clockOf(pickup), "reason": demoDayReason,
+			"exception_date": day.date, "pickup_time": clockOf(times.pickup), "reason": demoDayReason,
 		}); err != nil {
 			slog.Warn("demo day: pickup not moved",
 				"student_id", studentID,
@@ -299,7 +374,6 @@ func (day *demoDay) move(client Client, shift int, studentIDs []int64) error {
 	}
 	day.times = nil
 	day.settlePickupTasks(client, movedPickups)
-	return nil
 }
 
 // settlePickupTasks closes the tasks the moved pickups opened (#3261): a
@@ -345,13 +419,14 @@ func (day *demoDay) settlePickupTasks(client Client, moved map[int64]string) {
 func ptr(value string) *string { return &value }
 
 // planActivities plans the school's AGs for today as one-off blocks around
-// the current hour, in two waves, each with children who come today. An AG
-// that already has a block today, or whose room another block with children
-// uses at the time, is left out. It reports whether it planned any.
-func (day *demoDay) planActivities(client Client, activities []demoActivity, studentIDs []int64, minute int) bool {
+// the day's afternoon, in two waves, each with children who come today. An
+// AG that is still planned or running today, or whose room another block
+// with children uses at the time, is left out. It reports whether it
+// planned any.
+func (day *demoDay) planActivities(client Client, activities []demoActivity, studentIDs []int64) bool {
 	planned := map[int64]bool{}
 	for _, block := range day.blocks {
-		if !block.IsSpontaneous && block.ActivityGroupID != nil {
+		if !block.IsSpontaneous && block.ActivityGroupID != nil && (block.Status == "planned" || block.Status == "active") {
 			planned[*block.ActivityGroupID] = true
 		}
 	}
@@ -361,7 +436,10 @@ func (day *demoDay) planActivities(client Client, activities []demoActivity, stu
 			children = append(children, studentID)
 		}
 	}
-	base := minute / 5 * 5
+	// The AGs belong to the afternoon: around 15:15 on the school's own day,
+	// around the current hour on a moved one. In the morning they are still
+	// to come.
+	base := day.anchor / 5 * 5
 	waves := [2]int{base - demoActivityLength/2, base + demoActivityLength/2}
 	created, placed := false, 0
 	next := [2]int{}
