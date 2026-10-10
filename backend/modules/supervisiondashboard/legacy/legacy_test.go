@@ -393,9 +393,15 @@ func TestSettingsBranches(t *testing.T) {
 	_, err = s.SpontaneousActivitiesEnabled(ctx)
 	require.ErrorContains(t, err, "spontaneous activities")
 
+	var preparedKeys []string
+	mock.ResolveManyFn = func(_ context.Context, keys []string) (*configService.SettingsSnapshot, error) {
+		preparedKeys = keys
+		return &configService.SettingsSnapshot{}, nil
+	}
 	prepared, err := s.Prepare(ctx)
 	require.NoError(t, err)
 	assert.NotNil(t, prepared)
+	assert.Contains(t, preparedKeys, configModel.KeyWeekendFollowsFriday)
 	mock.ResolveManyFn = func(context.Context, []string) (*configService.SettingsSnapshot, error) {
 		return nil, errors.New("settings down")
 	}

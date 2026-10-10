@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // RosterReconciler is the Timetable owner's roster maintenance
@@ -300,7 +301,12 @@ func (s *RosterReconciler) restoreEnrollmentRows(
 ) (int, error) {
 	restored := 0
 	for _, inst := range instances {
-		if !isEnrollmentValidOn(enrollment, timezone.Date(inst.Date), calendarPeriodID(inst)) {
+		instanceDate := timezone.Date(inst.Date)
+		planWeekday, err := calendar.PlanWeekday(ctx, instanceDate)
+		if err != nil {
+			return restored, &ScheduleError{Op: "reconcile roster: resolve weekend plan", Err: err}
+		}
+		if !isEnrollmentValidOn(enrollment, instanceDate, calendarPeriodID(inst), planWeekday) {
 			continue
 		}
 		key := instanceStudentPair{instanceID: inst.ID, studentID: studentID}
@@ -540,8 +546,12 @@ func (s *RosterReconciler) reconcileOccurrenceStudents(
 ) error {
 	periodID := calendarPeriodID(inst)
 	instanceDate := timezone.Date(inst.Date)
+	planWeekday, err := calendar.PlanWeekday(ctx, instanceDate)
+	if err != nil {
+		return &ScheduleError{Op: "reconcile sourced roster: resolve weekend plan", Err: err}
+	}
 	for _, sid := range studentIDs {
-		desired := enrollmentsPlanStudentOn(pass.byStudent[sid], instanceDate, periodID)
+		desired := enrollmentsPlanStudentOn(pass.byStudent[sid], instanceDate, periodID, planWeekday)
 		key := instanceStudentPair{instanceID: inst.ID, studentID: sid}
 		row, exists := pass.existing[key]
 		var err error
@@ -551,7 +561,7 @@ func (s *RosterReconciler) reconcileOccurrenceStudents(
 			// row is gone regardless, staff removed the child from this one
 			// occurrence by hand. Only newly gained coverage may create rows
 			// (#2147 review round 11).
-			if !enrollmentsPlanStudentOn(pass.priorByStudent[sid], instanceDate, periodID) {
+			if !enrollmentsPlanStudentOn(pass.priorByStudent[sid], instanceDate, periodID, planWeekday) {
 				err = s.addOccurrenceStudent(ctx, key, instanceDate, pass)
 			}
 		case !desired && exists && instanceRowIsStillPlanned(row):
@@ -590,9 +600,9 @@ func (s *RosterReconciler) removeOccurrenceStudent(ctx context.Context, key inst
 
 // enrollmentsPlanStudentOn reports whether any of the rows plans its student
 // on the occurrence date: valid on that date and not carried by an alumnus.
-func enrollmentsPlanStudentOn(rows []*activities.StudentEnrollment, date timezone.Date, periodID int64) bool {
+func enrollmentsPlanStudentOn(rows []*activities.StudentEnrollment, date timezone.Date, periodID int64, planWeekday int) bool {
 	for _, e := range rows {
-		if isEnrollmentValidOn(e, date, periodID) && !enrollmentStudentIsAlumnus(e) {
+		if isEnrollmentValidOn(e, date, periodID, planWeekday) && !enrollmentStudentIsAlumnus(e) {
 			return true
 		}
 	}

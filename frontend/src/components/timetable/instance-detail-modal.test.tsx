@@ -521,6 +521,27 @@ describe("InstanceDetailModal", () => {
     expect(screen.queryByText(/Überbucht/)).not.toBeInTheDocument();
   });
 
+  it("keeps the legacy attendance count of a running block", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({
+          status: "active",
+          isLive: true,
+          expectedStudentsCount: 0,
+          presentStudentsCount: 3,
+          currentStudentsCount: undefined,
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Anwesend", { selector: "span.font-medium" })
+        .parentElement,
+    ).toHaveTextContent("Anwesend3 / 3");
+  });
+
   it("marks spontaneous instances in the detail header", () => {
     render(
       <InstanceDetailModal

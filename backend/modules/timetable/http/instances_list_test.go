@@ -1054,6 +1054,7 @@ func TestListInstances_OccupancyCountsChildrenStillThere(t *testing.T) {
 			continue
 		}
 		assert.Equal(t, 3, item.PresentStudentsCount, "the day's present count keeps the child who left")
+		assert.Equal(t, 2, item.CurrentStudentsCount, "the block's own count of children still there, limit or not (#3921)")
 		require.NotNil(t, item.Occupancy)
 		assert.Equal(t, 2, item.Occupancy.ParticipantLimit)
 		assert.Equal(t, 2, item.Occupancy.CurrentStudentsCount, "a child who left no longer counts against the limit")

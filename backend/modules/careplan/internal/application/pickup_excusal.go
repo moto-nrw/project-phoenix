@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -238,7 +237,11 @@ func (s *PickupAutoExcusalSyncer) baselineClock(
 		return nil, nil
 	}
 	date := calendar.Date(row.ExceptionDate)
-	if domain.ISOWeekday(date) > 5 {
+	careDay, err := calendar.IsCareWeekday(ctx, date)
+	if err != nil {
+		return nil, fmt.Errorf("auto excusal: resolve weekend plan: %w", err)
+	}
+	if !careDay {
 		return nil, nil
 	}
 	projection, err := s.weekly.Project(ctx, []int64{row.StudentID}, date, date)

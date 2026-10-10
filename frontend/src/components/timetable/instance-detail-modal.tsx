@@ -1100,8 +1100,8 @@ export function InstanceDetailModal({
                   {instance.expectedStudentsCount +
                     instance.presentStudentsCount}{" "}
                   eingetragen
-                  {instance.presentStudentsCount > 0
-                    ? ` • ${instance.presentStudentsCount} anwesend`
+                  {childrenHere(instance) > 0
+                    ? ` • ${childrenHere(instance)} anwesend`
                     : ""}
                   {/* Names the gap between the assignment list and the care
                       plan (#1747) instead of leaving a smaller number
@@ -1542,8 +1542,8 @@ interface StatsRowProps {
 function StatsRow({ instance }: StatsRowProps) {
   const showTimetableCounts = useShowTimetableCounts();
   const expected = instance.expectedStudentsCount;
-  const present = instance.presentStudentsCount;
-  const totalStudents = expected + present;
+  const present = childrenHere(instance);
+  const totalStudents = expected + instance.presentStudentsCount;
   const activeStaff = instance.staffCount - instance.absentStaffCount;
   const nfcEnabled = useNFCEnabled();
   // #3634: nur ein laufender Block hat eine Belegung, die das Tablet mit der
@@ -1661,4 +1661,14 @@ function Row({ icon, label, children }: RowProps) {
       </div>
     </div>
   );
+}
+
+/**
+ * Wer bei einem laufenden Block anwesend ist: nur, wer noch da ist (#3921).
+ * Nach dem Ende zählt, wer da war.
+ */
+function childrenHere(instance: EnrichedInstance): number {
+  return instance.status === "active"
+    ? (instance.currentStudentsCount ?? instance.presentStudentsCount)
+    : instance.presentStudentsCount;
 }

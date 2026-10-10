@@ -254,6 +254,7 @@ func (s *Scheduler) runTenantBatch(
 	runtimeEvidence := &batchRuntimeEvidence{}
 	ctx = context.WithValue(ctx, batchRuntimeEvidenceKey{}, runtimeEvidence)
 	ctx = s.withUnitOfWork(ctx)
+	ctx = s.withWeekendPlan(ctx)
 	batch := tenantBatchExecution{ctx: ctx, outcomes: make([]TenantOutcome, 0, len(tenantIDs))}
 
 	for _, tenantID := range tenantIDs {

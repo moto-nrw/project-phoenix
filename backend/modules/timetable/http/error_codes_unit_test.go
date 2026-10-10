@@ -1,6 +1,7 @@
 package timetablehttp
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -405,7 +406,7 @@ func TestWindowAndRangeCodes(t *testing.T) {
 	_, _, tooLarge := resolveMaterializationWindow(&materializeRequest{FromDate: &from, ToDate: &to}, time.Now())
 	_, _, reversed := resolveMaterializationWindow(&materializeRequest{FromDate: &to, ToDate: &from}, time.Now())
 	bulkTooLong := timetable.ValidateBulkCancelRange("2026-01-01", "2027-06-01")
-	weekend := validateTimetableWorkday(calendar.Date("2026-10-10"))
+	weekend := validateTimetableWorkday(context.Background(), calendar.Date("2026-10-10"))
 	assertCodeCases(t, []codeCase{
 		{"window too large", codedInvalid(tooLarge), http.StatusBadRequest, "timetable.window_too_large", "",
 			map[string]any{"max_days": float64(timetable.MaxMaterializationWindowDays)}},

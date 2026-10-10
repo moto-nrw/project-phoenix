@@ -25,6 +25,7 @@ const (
 	profileSettingBookingsAuthoritative = "enrollment.bookings_authoritative"
 	profileSettingDevicePIN             = "security.ogs_device_pin"
 	profileSettingStudentPhotos         = "operations.student_photos_enabled"
+	profileSettingWeekendFollowsFriday  = "operations.weekend_follows_friday"
 	profileSettingBirthdayIncludeStaff  = "operations.birthday_display_include_staff"
 	profilePresenceDetailed             = "detailed"
 	profilePresenceBinary               = "binary"
@@ -101,6 +102,11 @@ func fullOperationSettings() map[string]SeedSetting {
 		},
 		profileSettingBookingsAuthoritative: {
 			Value: json.RawMessage(`false`), ManagedBy: SettingManagedByOperator,
+		},
+		// The public demo must look like a care day at any time (#3921): on
+		// Saturday and Sunday the school runs Friday's plan.
+		profileSettingWeekendFollowsFriday: {
+			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByOperator,
 		},
 		// The birthday card shows a colleague next to the children (#3922);
 		// the seed gives one a birthday on the seed day.

@@ -72,6 +72,7 @@ func (s *operations) SessionBlocks(ctx context.Context, accountID int64, isAdmin
 			Title:         inst.Title,
 			StartTime:     inst.StartTime.Format("15:04"),
 			EndTime:       inst.EndTime.Format("15:04"),
+			IsSpontaneous: inst.IsSpontaneous,
 			IsAssigned:    hasStaff && staffAssigned(rows, staffID),
 			CanOperate:    adminActions,
 		}

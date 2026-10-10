@@ -28,7 +28,7 @@ describe("DemoWeekendNotice", () => {
     expect(screen.queryByText("Heute ist Wochenende")).not.toBeInTheDocument();
   });
 
-  it("explains the unplanned children once per weekend day", async () => {
+  it("explains the weekend on Friday's plan once per weekend day", async () => {
     setTestClock("2026-09-26T11:00:00+02:00");
     const user = userEvent.setup();
     const { unmount } = render(<DemoWeekendNotice inParentsApp={false} />);
@@ -36,7 +36,12 @@ describe("DemoWeekendNotice", () => {
     expect(
       await screen.findByText("Heute ist Wochenende", {}, { timeout: 4000 }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Ungeplant anwesend/)).toBeInTheDocument();
+    // The demo runs its weekend on Friday's plan (#3921): nobody is
+    // "Ungeplant anwesend" any more, so the notice no longer explains that.
+    expect(
+      screen.getByText("Am Wochenende gilt in der Demo der Plan vom Freitag."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Ungeplant anwesend/)).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Verstanden" }));
     unmount();
 

@@ -80,7 +80,12 @@ function roster(instanceId: string, canOperate: boolean): TimetableRoster {
 
 function block(
   id: string,
-  options: { own?: boolean; planned?: boolean; canOperate: boolean },
+  options: {
+    own?: boolean;
+    planned?: boolean;
+    canOperate: boolean;
+    spontaneous?: boolean;
+  },
 ): OpenRoomSessionView {
   return {
     activeGroupId: id,
@@ -93,6 +98,7 @@ function block(
       instanceId: id,
       startTime: "11:00",
       endTime: "11:45",
+      isSpontaneous: options.spontaneous === true,
       isUserAssigned: options.planned === true,
       canOperate: options.canOperate,
     },
@@ -208,6 +214,15 @@ describe("OpenRoomSections (#3281)", () => {
     expect(
       screen.queryByRole("button", { name: "Anwesende Kinder" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows an open end for a spontaneous running block", () => {
+    renderRoom([block("foreign", { canOperate: false, spontaneous: true })]);
+
+    expect(
+      screen.getByText("seit 11:00 Uhr · Sie sind hier nicht eingeplant."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/11:00–11:45 Uhr/)).not.toBeInTheDocument();
   });
 
   // #3634: the section header shows count against limit and names an

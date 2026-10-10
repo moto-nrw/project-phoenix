@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // fakeClassDayCaller serves a fixed class assignment.
@@ -287,4 +288,22 @@ func TestClassDayArrivalExceptionLine(t *testing.T) {
 		_, err := newDayReports(ClassDayDependencies{ClassArrivalExceptions: store}).classDayArrivalException(context.Background(), "1a", date)
 		assert.EqualError(t, err, "class day report: load class arrival exception: boom")
 	})
+}
+
+func TestClassDayPlanKeyFollowsFridayOnTheWeekend(t *testing.T) {
+	t.Parallel()
+
+	saturday := timezone.NewDate(2026, 8, 8)
+	following := func(follows bool) context.Context {
+		return calendar.WithWeekendPlan(context.Background(), func(context.Context) (bool, error) { return follows, nil })
+	}
+	key, err := classDayPlanKey(following(true), saturday)
+	require.NoError(t, err)
+	assert.Equal(t, "fri", key, "a weekend that follows Friday's plan reads Friday's day plans (#3921)")
+	key, err = classDayPlanKey(following(false), saturday)
+	require.NoError(t, err)
+	assert.Equal(t, "", key)
+	key, err = classDayPlanKey(following(true), timezone.NewDate(2026, 8, 4))
+	require.NoError(t, err)
+	assert.Equal(t, "tue", key)
 }

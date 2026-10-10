@@ -62,6 +62,30 @@ func TestTimetableOperationsPlannedCardCountsStatusDayNonBookings(t *testing.T) 
 	assert.Equal(t, 2, result.NotScheduledCount, "the status-day non-booking and the unbooked expected row")
 }
 
+func TestTimetableOperationsPlannedCardExcludesPresentNonBookings(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	inst := instanceWithTimes(370, scheduleModels.InstanceStatusPlanned, now, now.Add(time.Hour))
+	rows := []*scheduleModels.InstanceStudent{
+		{StudentID: 544, Status: scheduleModels.AttendanceStatusExpected},
+		{StudentID: 545, Status: scheduleModels.AttendanceStatusPresent},
+		{StudentID: 546, Status: scheduleModels.AttendanceStatusPresent},
+	}
+	careDay := map[int64]timetable.CareDayStatus{
+		544: timetable.CareDayScheduled,
+		545: timetable.CareDayNotScheduled,
+		546: timetable.CareDayScheduled,
+	}
+	deps := newTimetableOpsDeps()
+	candidate := plannedNowCandidate{instance: inst, staffRows: []*scheduleModels.InstanceStaff{{StaffID: 249}}, studentRows: rows}
+
+	result := deps.service.mapPlannedInstance(candidate, now, 249, careDay)
+
+	assert.Equal(t, 2, result.CurrentStudentsCount, "both children are currently there")
+	assert.Equal(t, 2, result.PlannedStudentsCount, "only the expected and scheduled present children count as planned")
+}
+
 func TestTimetableOperationHelpers(t *testing.T) {
 	t.Parallel()
 

@@ -67,6 +67,9 @@ func (s *materializationService) DetectEditedInWindow(
 		if err != nil {
 			return nil, err
 		}
+		if projection.weekendFollowsFriday, err = weekendFollowsFridayIn(ctx, from, to); err != nil {
+			return nil, &ScheduleError{Op: "detect edited", Err: err}
+		}
 		edited = append(edited, projection.editedOccurrences(tmpl, planned, buildExceptionIndex(exceptions))...)
 	}
 	if includeDeletions {
@@ -133,6 +136,9 @@ type templateProjection struct {
 	staffByInstance    map[int64][]*schedule.InstanceStaff
 	studentsByInstance map[int64][]*schedule.InstanceStudent
 	logger             *slog.Logger
+	// weekendFollowsFriday replays a weekend occurrence from Friday's
+	// schedules (#3921).
+	weekendFollowsFriday bool
 }
 
 func (s *materializationService) loadTemplateProjection(
@@ -192,6 +198,7 @@ func (p *templateProjection) editedOccurrences(
 			p.roster.careBounds,
 			instanceDate,
 			calendarPeriodID(inst),
+			planWeekday(instanceDate, p.weekendFollowsFriday),
 		)
 		changes := diffOccurrenceWithExpectedStudents(
 			inst,
@@ -201,6 +208,7 @@ func (p *templateProjection) editedOccurrences(
 			p.staffByInstance[inst.ID],
 			p.studentsByInstance[inst.ID],
 			expected,
+			p.weekendFollowsFriday,
 		)
 		// Listenart is a template-level field materialization copies verbatim
 		// onto every occurrence, so it is compared here (template vs occurrence)
@@ -255,10 +263,10 @@ func (p *templateProjection) expectedSlotsOn(
 	exc *schedule.ActivityException,
 	date timezone.Date,
 ) []materialParams {
-	if isWeekend(date) {
+	if isWeekend(date) && !p.weekendFollowsFriday {
 		return nil
 	}
-	isoWd := isoWeekday(date)
+	isoWd := planWeekday(date, p.weekendFollowsFriday)
 	out := make([]materialParams, 0, 1)
 	for _, sch := range p.roster.schedules {
 		if sch.Weekday != isoWd {
@@ -314,10 +322,11 @@ func diffOccurrenceWithExpectedStudents(
 	staffRows []*schedule.InstanceStaff,
 	studentRows []*schedule.InstanceStudent,
 	expected []materialParams,
+	weekendFollowsFriday bool,
 ) []string {
 	changes := diffOccurrenceText(inst, templateTitle)
 	changes = append(changes, diffOccurrenceSlot(inst, expected)...)
-	if staffRosterChanged(inst, supervisors, staffRows) {
+	if staffRosterChanged(inst, supervisors, staffRows, weekendFollowsFriday) {
 		changes = append(changes, timetable.EditedChangeStaff)
 	}
 	changes = append(changes, diffOccurrenceStudents(expectedStudentIDs, studentRows)...)
@@ -365,13 +374,15 @@ func staffRosterChanged(
 	inst *schedule.ActivityInstance,
 	supervisors []*activities.SupervisorPlanned,
 	staffRows []*schedule.InstanceStaff,
+	weekendFollowsFriday bool,
 ) bool {
 	periodID := calendarPeriodID(inst)
 	instanceDate := timezone.Date(inst.Date)
-	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, instanceDate, periodID)
+	planWeekday := planWeekday(instanceDate, weekendFollowsFriday)
+	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, instanceDate, periodID, planWeekday)
 	expectedStaff := make(map[int64]bool)
 	for _, sup := range supervisors {
-		if isSupervisorValidOn(sup, instanceDate, periodID) {
+		if isSupervisorValidOn(sup, instanceDate, periodID, planWeekday) {
 			expectedStaff[sup.StaffID] = hasPrimary && sup.StaffID == primaryStaffID
 		}
 	}

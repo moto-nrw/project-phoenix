@@ -272,6 +272,7 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
         status: "active",
         isLive: true,
         presentStudentsCount: present,
+        currentStudentsCount: current,
         occupancy:
           limit === null
             ? null
@@ -307,6 +308,27 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
       expect(screen.getByText(/66 anwesend/)).toBeInTheDocument();
       expect(screen.queryByText(/\/ 45/)).not.toBeInTheDocument();
       expect(screen.queryByText("Überbucht")).not.toBeInTheDocument();
+    });
+
+    // #3921: auch ohne Grenze zählt nur, wer noch da ist.
+    it("zählt ohne Grenze Kinder, die gegangen sind, nicht als anwesend", () => {
+      renderBlock(live(43, null, 47));
+      expect(screen.getByText(/43 anwesend/)).toBeInTheDocument();
+      expect(screen.queryByText(/47 anwesend/)).not.toBeInTheDocument();
+    });
+
+    it("keeps the legacy present count when the current count is absent", () => {
+      renderBlock(
+        makeInstance({
+          status: "active",
+          isLive: true,
+          presentStudentsCount: 3,
+          currentStudentsCount: undefined,
+        }),
+      );
+
+      expect(screen.getByText(/3 anwesend/)).toBeInTheDocument();
+      expect(screen.queryByText(/0 anwesend/)).not.toBeInTheDocument();
     });
   });
 });

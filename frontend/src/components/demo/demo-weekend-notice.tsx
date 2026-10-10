@@ -16,37 +16,34 @@ const SEEN_KEY = "moto-demo-weekend-notice";
 // sind, damit nie zwei Dialoge übereinander liegen.
 const SETTLE_MS = 1500;
 
-function readSeenDay(): string | null {
+function readSeenDay(key: string): string | null {
   try {
-    return globalThis.localStorage.getItem(SEEN_KEY);
+    return globalThis.localStorage.getItem(key);
   } catch {
     return null;
   }
 }
 
-function saveSeenDay(day: string) {
+function saveSeenDay(key: string, day: string) {
   try {
-    globalThis.localStorage.setItem(SEEN_KEY, day);
+    globalThis.localStorage.setItem(key, day);
   } catch {
     // Ohne Speicher erscheint der Hinweis beim nächsten Laden wieder.
   }
 }
 
-export function isWeekendDay(isoDay: string): boolean {
-  const weekday = parseISODate(isoDay).getDay();
-  return weekday === 0 || weekday === 6;
-}
-
 /**
- * Hinweis der öffentlichen Demo am Wochenende (#3894). Die Demo spielt auch
- * samstags und sonntags einen Betreuungstag, damit es etwas zu sehen gibt.
- * Geplante Zeiten gibt es aber nur von Montag bis Freitag, also zeigt die App
- * jedes anwesende Kind als „Ungeplant anwesend". Ohne Hinweis sieht das wie
- * ein Fehler aus.
+ * Öffnet einen Demo-Hinweis einmal pro Tag von selbst, sobald er gilt und kein
+ * anderer Dialog offen ist. Danach öffnet ihn nur noch der Knopf im Streifen.
  */
-export function DemoWeekendNotice({ inParentsApp }: { inParentsApp: boolean }) {
-  const today = useBerlinToday();
-  const weekend = isWeekendDay(today);
+export function useDemoDayNotice(
+  active: boolean,
+  seenKey: string,
+  today: string,
+  // false: only the strip's button opens it, e.g. while another demo notice
+  // opens by itself at the same moment.
+  autoOpen = true,
+) {
   const [open, setOpen] = useState(false);
   const [settled, setSettled] = useState(false);
   const { isModalOpen } = useModal();
@@ -57,17 +54,49 @@ export function DemoWeekendNotice({ inParentsApp }: { inParentsApp: boolean }) {
   }, []);
 
   useEffect(() => {
-    if (weekend && settled && !isModalOpen && readSeenDay() !== today) {
+    if (
+      active &&
+      autoOpen &&
+      settled &&
+      !isModalOpen &&
+      readSeenDay(seenKey) !== today
+    ) {
       setOpen(true);
     }
-  }, [weekend, settled, isModalOpen, today]);
+  }, [active, autoOpen, settled, isModalOpen, seenKey, today]);
+
+  return {
+    open,
+    show: () => {
+      if (!isModalOpen) {
+        setOpen(true);
+      }
+    },
+    close: () => {
+      saveSeenDay(seenKey, today);
+      setOpen(false);
+    },
+  };
+}
+
+export function isWeekendDay(isoDay: string): boolean {
+  const weekday = parseISODate(isoDay).getDay();
+  return weekday === 0 || weekday === 6;
+}
+
+/**
+ * Hinweis der öffentlichen Demo am Wochenende (#3894). Eine Demo-Schule
+ * betreut samstags und sonntags nach dem Plan vom Freitag
+ * (operations.weekend_follows_friday, #3921), damit es etwas zu sehen gibt.
+ * Eine echte OGS hat am Wochenende zu; ohne Hinweis sähe der volle Tag wie
+ * ein Fehler aus.
+ */
+export function DemoWeekendNotice({ inParentsApp }: { inParentsApp: boolean }) {
+  const today = useBerlinToday();
+  const weekend = isWeekendDay(today);
+  const { open, show, close } = useDemoDayNotice(weekend, SEEN_KEY, today);
 
   if (!weekend) return null;
-
-  const close = () => {
-    saveSeenDay(today);
-    setOpen(false);
-  };
 
   return (
     <>
@@ -77,11 +106,7 @@ export function DemoWeekendNotice({ inParentsApp }: { inParentsApp: boolean }) {
         size="compact"
         className="shrink-0 text-sm"
         aria-label="Hinweis zum Wochenende"
-        onClick={() => {
-          if (!isModalOpen) {
-            setOpen(true);
-          }
-        }}
+        onClick={show}
       >
         <CalendarBlankIcon aria-hidden="true" className="size-4" />
         <span className="hidden sm:inline">Wochenende</span>
@@ -98,14 +123,8 @@ export function DemoWeekendNotice({ inParentsApp }: { inParentsApp: boolean }) {
       >
         <div className="flex flex-col gap-3 text-sm text-gray-700">
           <p>Die Demo zeigt trotzdem einen normalen Betreuungstag.</p>
-          {inParentsApp ? (
-            <p>Deshalb ist Ihr Kind heute in der OGS.</p>
-          ) : (
-            <p>
-              Geplante Zeiten gibt es nur von Montag bis Freitag. Deshalb steht
-              bei den Kindern heute „Ungeplant anwesend“.
-            </p>
-          )}
+          <p>Am Wochenende gilt in der Demo der Plan vom Freitag.</p>
+          {inParentsApp ? <p>Deshalb ist Ihr Kind heute in der OGS.</p> : null}
           <p>An einem Werktag sehen Sie die Demo wie im echten Alltag.</p>
         </div>
       </Modal>

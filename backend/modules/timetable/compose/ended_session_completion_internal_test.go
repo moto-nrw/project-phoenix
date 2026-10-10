@@ -21,6 +21,7 @@ type endedSessionInstancesStub struct {
 	instances []*scheduleModels.ActivityInstance
 	completed int64
 	calls     *[]string
+	updated   []endedSessionUpdate
 }
 
 func (f *endedSessionInstancesStub) List(context.Context, *ActivityInstanceQueryOptions) ([]*scheduleModels.ActivityInstance, error) {
@@ -30,6 +31,17 @@ func (f *endedSessionInstancesStub) List(context.Context, *ActivityInstanceQuery
 func (f *endedSessionInstancesStub) CompleteActiveByActiveGroupIDs(context.Context, []int64, time.Time) (int64, error) {
 	*f.calls = append(*f.calls, "complete")
 	return f.completed, nil
+}
+
+func (f *endedSessionInstancesStub) UpdateColumns(_ context.Context, instance *scheduleModels.ActivityInstance, columns ...string) (int64, error) {
+	f.updated = append(f.updated, endedSessionUpdate{instanceID: instance.ID, endTime: instance.EndTime, columns: columns})
+	return 1, nil
+}
+
+type endedSessionUpdate struct {
+	instanceID int64
+	endTime    time.Time
+	columns    []string
 }
 
 type endedSessionParticipantsStub struct {

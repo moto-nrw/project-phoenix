@@ -9,6 +9,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
+import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { catalogText } from "~/test/error-catalog-text";
 
@@ -70,6 +71,10 @@ vi.mock("~/lib/swr", () => ({
 
 vi.mock("~/lib/hooks/use-timetable-day-hours", () => ({
   useTimetableDayHours: () => ({ dayStartHour: 9, dayEndHour: 17 }),
+}));
+
+vi.mock("~/lib/tenant-context", () => ({
+  useWeekendFollowsFriday: vi.fn(() => false),
 }));
 
 vi.mock("~/lib/timetable-api", () => ({
@@ -329,6 +334,7 @@ function urlKeys(): string[] {
 describe("VertretungView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useWeekendFollowsFriday).mockReturnValue(false);
     // Mittwoch 2026-07-15, Berlin (Sommerzeit UTC+2). Woche Mo 13. – So 19.07.
     vi.setSystemTime(new Date("2026-07-15T12:00:00Z"));
     mockSearch.value = "";
@@ -396,6 +402,32 @@ describe("VertretungView", () => {
     );
     const props = mockDayListProps.mock.calls.at(-1)?.[0];
     expect(props.instances).toEqual([]);
+  });
+
+  it("keeps weekend days and their substitutions when the weekend follows Friday", () => {
+    vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    mockSearch.value = "d=2026-07-18";
+    setupSWR({
+      weekData: {
+        from: "2026-07-13",
+        to: "2026-07-19",
+        instances: [
+          ...WEEK_INSTANCES,
+          makeInstance({ id: "44", date: "2026-07-18", title: "Samstag" }),
+        ],
+      },
+    });
+
+    render(<VertretungView />);
+
+    expect(screen.getByRole("button", { name: "Sa 18.07." })).toHaveClass(
+      "bg-gray-900",
+    );
+    expect(
+      screen.getByRole("button", { name: "So 19.07." }),
+    ).toBeInTheDocument();
+    const props = mockDayListProps.mock.calls.at(-1)?.[0];
+    expect(props.instances.map((i: EnrichedInstance) => i.id)).toEqual(["44"]);
   });
 
   it("defaults to next Monday on a weekend and disables the Heute button", () => {

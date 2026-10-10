@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
@@ -334,13 +336,25 @@ func (s *Store) ListPickupExtensionTemplateInstances(ctx context.Context, templa
 		return nil, domain.OperationStats{}, err
 	}
 	rows := make([]domain.PickupExtensionInstance, 0)
+	// Friday's blocks repeat on a weekend that follows Friday's plan (#3921),
+	// so a Friday decision covers those occurrences too.
+	weekdays := []int{weekday}
+	if weekday == 5 {
+		follows, resolveErr := calendar.WeekendFollowsFriday(ctx)
+		if resolveErr != nil {
+			return nil, domain.OperationStats{}, resolveErr
+		}
+		if follows {
+			weekdays = append(weekdays, 6, 7)
+		}
+	}
 	query := db.NewSelect().TableExpr(`schedule.activity_instances AS "instance"`).
 		ColumnExpr(`"instance".id AS id, "instance".date::text AS date, "own".id AS own_participant_id`).
 		Join(`LEFT JOIN schedule.instance_students AS "own" ON "own".tenant_id = "instance".tenant_id AND "own".instance_id = "instance".id AND "own".student_id = ?`, studentID).
 		Where(`"instance".tenant_id = ?`, tenantID).
 		Where(`"instance".activity_group_id = ?`, templateID).
 		Where(`"instance".date >= ?::date`, from).
-		Where(`date_part('isodow', "instance".date) = ?`, weekday).
+		Where(`date_part('isodow', "instance".date)::int IN (?)`, bun.List(weekdays)).
 		Where(`"instance".status <> 'cancelled'`).
 		Where(`NOT "instance".is_spontaneous`).
 		OrderExpr(`"instance".date ASC, "instance".id ASC`)

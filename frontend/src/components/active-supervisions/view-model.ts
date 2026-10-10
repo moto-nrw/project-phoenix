@@ -108,6 +108,7 @@ interface OpenRoomBlockView {
   readonly instanceId: string;
   readonly startTime: string;
   readonly endTime: string;
+  readonly isSpontaneous: boolean;
   readonly isUserAssigned: boolean;
   readonly canOperate: boolean;
 }
@@ -237,8 +238,7 @@ export function canBulkCheckinFromSupervision(
   currentOpenRoom: OpenRoomView | null,
 ): boolean {
   return (
-    currentOpenRoom === null &&
-    currentRoom?.isCurrentUserSupervising === true
+    currentOpenRoom === null && currentRoom?.isCurrentUserSupervising === true
   );
 }
 

@@ -885,7 +885,13 @@ func registerRuntimeStatsProviders(db *bun.DB, modules moduleServices) {
 // ServeHTTP routes a request through the composed graph. CalDAV extension
 // methods reach their handler under a routable stand-in method.
 func (graph *serveGraph) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	graph.router.ServeHTTP(w, normalizeCalDAVMethodForRouting(r))
+	r = normalizeCalDAVMethodForRouting(r)
+	if graph.services != nil && graph.services.Settings != nil {
+		// A weekend that follows Friday's plan reads the tenant setting only
+		// for Saturday and Sunday dates (#3921).
+		r = apiCommon.WithWeekendPlan(r, graph.services.Settings)
+	}
+	graph.router.ServeHTTP(w, r)
 }
 
 // mountRoutes builds every route resource and mounts it where it is built:

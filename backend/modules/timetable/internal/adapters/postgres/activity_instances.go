@@ -521,6 +521,9 @@ func setActivityInstanceField(query *bun.UpdateQuery, fields domain.ActivityInst
 	case "end_time":
 		return query.Set("end_time = ?", fields.EndTime)
 	case "room_id":
+		if fields.RoomID == 0 {
+			return query.Set("room_id = NULL")
+		}
 		return query.Set("room_id = ?", fields.RoomID)
 	case "required_staff":
 		return query.Set("required_staff = ?", fields.RequiredStaff)

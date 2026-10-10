@@ -44,6 +44,8 @@ func TestEndSession_ClosesPresenceAndMirroredInstance(t *testing.T) {
 	activityID := activity.ID
 	instance := testpkg.CreateTestActivityInstance(t, db, testpkg.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
 		Status: "active", ActivityGroupID: &activityID, ActiveGroupID: &groupID, IsSpontaneous: true, Title: "Mirrored kiosk session",
+		// A placeholder end the close has to replace with the real one (#3921).
+		StartHHMM: "00:00", EndHHMM: "00:01",
 	})
 	presentRow := testpkg.CreateTestInstanceStudent(t, db, instance.ID, present.ID, "present", testpkg.InstanceStudentOpts{CheckedInAt: &checkedIn})
 	expectedRow := testpkg.CreateTestInstanceStudent(t, db, instance.ID, expected.ID, "expected")
@@ -65,8 +67,10 @@ func TestEndSession_ClosesPresenceAndMirroredInstance(t *testing.T) {
 		foreignRowID = testpkg.CreateTestInstanceStudent(t, db, foreignInstance.ID, foreignStudent.ID, "expected").ID
 	})
 
+	closedFrom := wallClockMinute(time.Now())
 	endRR := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "POST", "/end", nil, testutil.WithDeviceContext(testDevice)))
 	testutil.AssertSuccessResponse(t, endRR, 200)
+	closedUntil := wallClockMinute(time.Now())
 	endData, ok := testutil.ParseJSONResponse(t, endRR.Body.Bytes())["data"].(map[string]interface{})
 	require.True(t, ok, "end response carries the session summary")
 	assert.Equal(t, float64(groupID), endData["active_group_id"])
@@ -79,6 +83,11 @@ func TestEndSession_ClosesPresenceAndMirroredInstance(t *testing.T) {
 	assert.Equal(t, false, currentData["is_active"], "the device has no running session any more")
 	require.NotNil(t, testpkg.VisitExitTime(t, db, visit.ID), "the child's visit was checked out")
 	assert.Equal(t, "completed", testpkg.InstanceStatus(t, db, instance.ID), "the mirrored instance completed with the session")
+	var endTime string
+	require.NoError(t, db.NewSelect().TableExpr("schedule.activity_instances").ColumnExpr("to_char(end_time, 'HH24:MI')").
+		Where("id = ?", instance.ID).Scan(testpkg.Ctx(t), &endTime))
+	assert.Contains(t, []string{max(closedFrom, "00:01"), max(closedUntil, "00:01")}, endTime,
+		"the spontaneous block ends when its session ended, not at the placeholder end (#3921)")
 	presentAfter := testpkg.InstanceStudentByID(t, db, presentRow.ID)
 	assert.NotNil(t, presentAfter.CheckedOutAt, "the present child's slot check-out was stamped")
 	expectedAfter := testpkg.InstanceStudentByID(t, db, expectedRow.ID)
@@ -93,4 +102,13 @@ func TestEndSession_ClosesPresenceAndMirroredInstance(t *testing.T) {
 
 	againRR := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "POST", "/end", nil, testutil.WithDeviceContext(testDevice)))
 	testutil.AssertBadRequest(t, againRR)
+}
+
+// wallClockMinute is the Berlin clock of t as HH:MM.
+func wallClockMinute(t time.Time) string {
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		panic(err)
+	}
+	return t.In(berlin).Format("15:04")
 }

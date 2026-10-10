@@ -85,6 +85,7 @@ import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { getSettingValue } from "~/lib/settings-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
@@ -115,8 +116,9 @@ import {
   getMonthRange,
   getWeekRange,
   getWeekdays,
-  nextWorkdayISO,
-  previousWorkdayISO,
+  careDayISO,
+  nextCareDayISO,
+  previousCareDayISO,
   resolveTemplateCalendarPeriodId,
   toISODate,
   type TimetableView,
@@ -226,6 +228,7 @@ function TimetablesContent() {
     hasPermission(session, "schedules:read") &&
     hasPermission(session, "users:read");
   const canManageSchedules = hasPermission(session, "schedules:manage");
+  const weekendOpen = useWeekendFollowsFriday();
   // Leseansicht (#2283): ohne users:read dürfen die tenantweiten Kinder- und
   // Personallisten nicht geladen werden (403) — Namen kommen dann pro Termin
   // über den Teilnehmer-Endpunkt ins Detail-Modal.
@@ -263,13 +266,16 @@ function TimetablesContent() {
   // anchors to Monday.
   const dayISO =
     view === "week" || view === "day"
-      ? nextWorkdayISO(requestedDayISO)
+      ? careDayISO(requestedDayISO, weekendOpen)
       : requestedDayISO;
   const selectedInstanceId = params.block;
 
   const visibleDate = useMemo(() => parseISODate(dayISO), [dayISO]);
   const todayISO = useMemo(() => berlinTodayISO(), []);
-  const todayTargetISO = useMemo(() => nextWorkdayISO(todayISO), [todayISO]);
+  const todayTargetISO = useMemo(
+    () => careDayISO(todayISO, weekendOpen),
+    [todayISO, weekendOpen],
+  );
 
   const [eventModalOpen, setEventModalOpen] = useState(false);
   // Drucken/Exportieren der angezeigten Woche (#2079).
@@ -340,20 +346,19 @@ function TimetablesContent() {
     },
     [visibleDate, updateUrlParams],
   );
-  // Tagesnavigation springt von Schultag zu Schultag: Freitag führt vorwärts
-  // auf Montag, Montag rückwärts auf Freitag. Das Wochenende hat im
-  // Betreuungsplan keine Tage, also darf es auch keinen leeren Halt geben.
+  // Tagesnavigation springt von Betreuungstag zu Betreuungstag: Freitag
+  // führt vorwärts auf Montag, Montag rückwärts auf Freitag. Das Wochenende
+  // hat im Betreuungsplan keine Tage, außer die Schule betreut es nach dem
+  // Freitagsplan (#3921).
   const goToDay = useCallback(
     (direction: 1 | -1) => {
-      const next = parseISODate(dayISO);
-      next.setDate(next.getDate() + 1);
       const target =
         direction === 1
-          ? nextWorkdayISO(toISODate(next))
-          : previousWorkdayISO(dayISO);
+          ? nextCareDayISO(dayISO, weekendOpen)
+          : previousCareDayISO(dayISO, weekendOpen);
       updateUrlParams({ d: target, block: null });
     },
-    [dayISO, updateUrlParams],
+    [dayISO, updateUrlParams, weekendOpen],
   );
   const goToToday = useCallback(
     () =>
@@ -387,9 +392,13 @@ function TimetablesContent() {
   // Monatsklick auf einen Tag: in die Woche wechseln und `d` auf den Tag setzen.
   const openWeekForDay = useCallback(
     (dateISO: string) => {
-      updateUrlParams({ view: null, d: nextWorkdayISO(dateISO), block: null });
+      updateUrlParams({
+        view: null,
+        d: careDayISO(dateISO, weekendOpen),
+        block: null,
+      });
     },
-    [updateUrlParams],
+    [updateUrlParams, weekendOpen],
   );
 
   // Beim Schließen darf `block` nicht der letzte Plan-Parameter sein: die
@@ -409,14 +418,15 @@ function TimetablesContent() {
   const monthRange = useMemo(() => getMonthRange(visibleDate), [visibleDate]);
   const monthDays = useMemo(() => getMonthDays(visibleDate), [visibleDate]);
   // Der Betreuungsplan folgt derselben Betriebswoche wie Dienstplan und
-  // Vertretung: geplant und angezeigt wird nur Mo–Fr. Die Monatsansicht
+  // Vertretung: geplant und angezeigt wird nur Mo–Fr, außer die Schule
+  // betreut das Wochenende nach dem Freitagsplan (#3921). Die Monatsansicht
   // bleibt ein vollständiger Kalender, daher behält sie ihr eigenes Fenster.
   const weekDays = useMemo(
-    () => getWeekdays(weekRange.from).slice(0, 5),
-    [weekRange.from],
+    () => getWeekdays(weekRange.from).slice(0, weekendOpen ? 7 : 5),
+    [weekRange.from, weekendOpen],
   );
   const weekDayISOs = useMemo(() => weekDays.map(toISODate), [weekDays]);
-  const workweekToISO = weekDayISOs[4]!;
+  const workweekToISO = weekDayISOs[weekDayISOs.length - 1]!;
   // Die Tagesansicht lädt genau ihren Tag — ein Wochenfenster würde Blöcke
   // holen, die sie gar nicht zeigt, und den Konfliktbanner mit fremden Tagen
   // füllen.
@@ -440,7 +450,7 @@ function TimetablesContent() {
     [periodContextDays],
   );
   const weekLabel = useMemo(
-    () => formatWeekLabel(weekRange.from, weekDays[4]!),
+    () => formatWeekLabel(weekRange.from, weekDays[weekDays.length - 1]!),
     [weekRange.from, weekDays],
   );
   const monthLabel = useMemo(
@@ -700,7 +710,7 @@ function TimetablesContent() {
       assignment.period !== null &&
       (view !== "month" ||
         assignment.date.slice(0, 7) === dayISO.slice(0, 7)) &&
-      nextWorkdayISO(assignment.date) === assignment.date,
+      careDayISO(assignment.date, weekendOpen) === assignment.date,
   )?.date;
   const planningDisabledDateISOs = useMemo(
     () =>
@@ -1284,11 +1294,13 @@ function TimetablesContent() {
           ? todayISO
           : period.startDate;
       updateUrlParams({
-        d: firstSchoolDayInPeriod(period.startDate, period.endDate, target),
+        d: weekendOpen
+          ? target
+          : firstSchoolDayInPeriod(period.startDate, period.endDate, target),
         block: null,
       });
     },
-    [todayISO, updateUrlParams],
+    [todayISO, updateUrlParams, weekendOpen],
   );
 
   const latestApplyTemplateRef = useRef<
@@ -1721,7 +1733,7 @@ function TimetablesContent() {
         }}
         defaultDate={
           quickPrefill
-            ? nextWorkdayISO(quickPrefill.date)
+            ? careDayISO(quickPrefill.date, weekendOpen)
             : (firstCoveredDateISO ?? dayISO)
         }
         closingDayRanges={closingDayRanges}

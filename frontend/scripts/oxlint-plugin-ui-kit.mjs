@@ -490,7 +490,7 @@ src/components/time-tracking/leave-requests-card.tsx|text-[10px]@538
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@366
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@479 text-[11px]@523
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@295 text-[11px]@301
-src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
+src/components/timetable/event-form/step-termin.tsx|text-[10px]@163 text-[11px]@233 text-[11px]@266 text-[11px]@343 text-[11px]@349 text-[11px]@397
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@289 text-[10px]@328 text-[10px]@335 text-[10px]@345
 src/components/timetable/instance-detail-modal.tsx|text-[10px]@294 text-[9px]@414 text-[9px]@1025 text-[11px]@1325 text-[11px]@1351 text-[11px]@1527 text-[10px]@1636 text-[11px]@1659

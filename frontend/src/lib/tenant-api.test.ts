@@ -176,6 +176,7 @@ describe("tenant-api", () => {
         // Older backends omit the early-checkout question (#3324): no note
         // field, so the dialog never guesses a window.
         earlyCheckoutNoteToleranceMinutes: null,
+        weekendFollowsFriday: false,
       });
     });
 
@@ -357,6 +358,37 @@ describe("tenant-api", () => {
       const result = await resolveTenant("nfc-school");
       expect(result?.nfcEnabled).toBe(true);
     });
+
+    it.each([
+      [true, true],
+      ["true", false],
+      [undefined, false],
+    ])(
+      "maps weekend_follows_friday=%s to weekendFollowsFriday=%s (#3921)",
+      async (raw, expected) => {
+        const backendData = {
+          status: "success",
+          data: {
+            tenant_id: 3,
+            slug: "demo",
+            name: "Demo",
+            subdomain: "demo",
+            organization_id: 12,
+            organization_name: "Org C",
+            settings: {},
+            weekend_follows_friday: raw,
+          },
+        };
+        vi.mocked(global.fetch).mockResolvedValueOnce(
+          new Response(JSON.stringify(backendData), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+        const result = await resolveTenant("demo");
+        expect(result?.weekendFollowsFriday).toBe(expected);
+      },
+    );
 
     it("passes through displayEnabled=true when the backend advertises it", async () => {
       const backendData = {

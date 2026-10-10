@@ -78,7 +78,8 @@ describe("DayFlowBlock (#2180)", () => {
 
     expect(screen.getByText("13:00–14:00")).toBeInTheDocument();
     expect(screen.getByText("Lernzeit Jahrgang 1")).toBeInTheDocument();
-    expect(screen.getByText("· OGS-Raum 1 · 0/18 Kinder")).toBeInTheDocument();
+    // Vor dem Start zählt, wer erwartet wird (#3921).
+    expect(screen.getByText("· OGS-Raum 1 · 18 Kinder")).toBeInTheDocument();
     // Die Uhr steht auf 07:00: ein Block um 13:00 beginnt in sechs Stunden.
     expect(screen.getByText("in 6 Std")).toBeInTheDocument();
   });

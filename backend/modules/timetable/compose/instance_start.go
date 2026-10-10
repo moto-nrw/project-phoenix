@@ -11,6 +11,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -39,16 +40,20 @@ func (s *InstanceLifecycleService) validateStartTime(ctx context.Context, instan
 	return nil
 }
 
-func validateSpontaneousStartWorkday(instance *scheduleModel.ActivityInstance, now time.Time) error {
+// validateSpontaneousStartWorkday refuses a spontaneous start on a weekend,
+// unless the school's weekend follows Friday's plan (#3921).
+func validateSpontaneousStartWorkday(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time) error {
 	if !instance.IsSpontaneous {
 		return nil
 	}
-	switch now.In(timezone.Berlin).Weekday() {
-	case time.Saturday, time.Sunday:
-		return timetable.ErrInstanceWeekend
-	default:
-		return nil
+	careDay, err := calendar.IsCareWeekday(ctx, timezone.DateFromTime(now))
+	if err != nil {
+		return &ScheduleError{Op: "start instance: resolve weekend plan", Err: err}
 	}
+	if !careDay {
+		return timetable.ErrInstanceWeekend
+	}
+	return nil
 }
 
 // Start implements planned → active inside the caller's tenant tx: it opens
@@ -83,7 +88,7 @@ func (s *InstanceLifecycleService) Start(ctx context.Context, instanceID, starte
 	}
 	now := s.now()
 	if timetable.SpontaneousStartWorkdayGuarded(ctx) && instance.IsSpontaneous {
-		if err := validateSpontaneousStartWorkday(instance, now); err != nil {
+		if err := validateSpontaneousStartWorkday(ctx, instance, now); err != nil {
 			return nil, err
 		}
 	}

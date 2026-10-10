@@ -214,6 +214,19 @@ describe("ClassArrivalExceptionPanel", () => {
     expect(picker).toHaveAttribute("data-saturday-disabled", "true");
   });
 
+  it("opens weekend dates when the school runs the weekend on Friday's plan (#3921)", async () => {
+    render(
+      <ClassArrivalExceptionPanel
+        schoolClass="4a"
+        classLabel="Klasse 4a"
+        weekendOpen
+      />,
+    );
+
+    const picker = await screen.findByLabelText("Datum");
+    expect(picker).toHaveAttribute("data-saturday-disabled", "false");
+  });
+
   it("presets the earliest block start and the reason for Unterrichtsausfall", async () => {
     mockGetWeek.mockResolvedValue({
       from: "2099-03-02",

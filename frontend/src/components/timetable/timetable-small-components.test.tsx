@@ -33,6 +33,7 @@ const instance: EnrichedInstance = {
   expectedStudentsCount: 2,
   notScheduledStudentsCount: 0,
   presentStudentsCount: 1,
+  currentStudentsCount: 1,
   requiredStaffCount: 1,
   assignedStaffCount: 1,
   conflictWarnings: [

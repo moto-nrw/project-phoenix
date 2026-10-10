@@ -188,6 +188,11 @@ export interface EnrichedInstance {
   expectedStudentsCount: number;
   presentStudentsCount: number;
   /**
+   * Kinder, die gerade da sind: anwesend und nicht gegangen (#3921).
+   * `presentStudentsCount` zählt die Gegangenen mit.
+   */
+  currentStudentsCount?: number;
+  /**
    * Teilnehmergrenze der Aktivität hinter dem Block und die Kinder, die noch
    * da sind; null ohne Grenze (#3634). `presentStudentsCount` taugt dafür
    * nicht: es behält auch die Kinder, die schon gegangen sind.
@@ -291,6 +296,7 @@ export interface BackendEnrichedInstance {
   cancel_reason?: string | null;
   expected_students_count: number;
   present_students_count: number;
+  current_students_count?: number;
   occupancy?: {
     participant_limit: number;
     current_students_count: number;

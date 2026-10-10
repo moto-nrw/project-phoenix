@@ -15,6 +15,7 @@ import {
 } from "~/components/ui/section-card";
 import { OccupancyBadges } from "~/components/ui/occupancy-badges";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { blockTimeRange } from "~/lib/block-children";
 import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import { ActiveSupervisionLoadingView } from "~/components/active-supervisions/states";
@@ -298,8 +299,8 @@ function OpenRoomBlock({
       }
       description={withOverbookedHint(
         section.isOwn
-          ? `${block.startTime}–${block.endTime} Uhr`
-          : `${block.startTime}–${block.endTime} Uhr · Sie sind hier nicht eingeplant.`,
+          ? `${blockTimeRange({ ...block, status: "active" })} Uhr`
+          : `${blockTimeRange({ ...block, status: "active" })} Uhr · Sie sind hier nicht eingeplant.`,
         occupancy,
         nfcEnabled,
       )}

@@ -7,6 +7,7 @@ import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
 import { useParentNewsUnread } from "~/lib/hooks/use-parent-news-unread";
 import { Header } from "~/components/dashboard/header";
 import { DemoBanner, isDemoBannerShown } from "~/components/demo/demo-banner";
+import { useDemoEveningActive } from "~/components/demo/demo-evening-notice";
 import { PortalShell } from "~/components/ui/portal-shell";
 import { listMyChildren } from "~/lib/parent-api";
 import { ParentBottomNav } from "./parent-bottom-nav";
@@ -51,15 +52,21 @@ export function ParentShell({
   // Öffentliche Demo (#3468): derselbe feste Streifen wie in der OGS-App
   // (h-12). Kopfzeile und Seitennavigation rücken um seine Höhe nach unten.
   const demoBannerShown = isDemoBannerShown(shellAuth);
+  // Abends liegt unter dem Demo-Streifen eine Hinweiszeile (h-8, #3921).
+  const eveningRow = useDemoEveningActive() && demoBannerShown;
 
   return (
-    <div className={demoBannerShown ? "pt-12" : undefined}>
+    <div
+      className={eveningRow ? "pt-20" : demoBannerShown ? "pt-12" : undefined}
+    >
       <PortalShell
         header={<Header />}
         headerClassName={
-          demoBannerShown
-            ? "sticky top-12 z-50 hidden lg:block"
-            : "sticky top-0 z-50 hidden lg:block"
+          eveningRow
+            ? "sticky top-20 z-50 hidden lg:block"
+            : demoBannerShown
+              ? "sticky top-12 z-50 hidden lg:block"
+              : "sticky top-0 z-50 hidden lg:block"
         }
         backgroundClassName="moto-dotted-background--parent"
         topLayer={
@@ -78,6 +85,7 @@ export function ParentShell({
             gates={gates}
             childCount={childCount}
             demoBannerShown={demoBannerShown}
+            eveningRow={eveningRow}
           />
         }
         bottomNav={

@@ -7,6 +7,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { blockChildrenLabel, blockTimeRange } from "~/lib/block-children";
 import { formatMinutesAhead, minutesBetween } from "~/lib/home-clock";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
@@ -132,7 +133,7 @@ export function DayFlowBlock() {
                     }`}
                   >
                     <span className="w-24 flex-shrink-0 text-sm font-medium text-gray-900 tabular-nums">
-                      {block.startTime}–{block.endTime}
+                      {blockTimeRange(block)}
                     </span>
                     {/* Eine Zeile je Block: zweizeilige Einträge lassen in
                         eine Karte dieser Höhe nur zwei ganz hinein, und zwei
@@ -147,7 +148,9 @@ export function DayFlowBlock() {
                           block.roomName,
                           block.isDuty === true
                             ? "Dienst"
-                            : `${block.presentStudentsCount}/${block.expectedStudentsCount} Kinder`,
+                            : block.status === "cancelled"
+                              ? null
+                              : blockChildrenLabel(block),
                         ]
                           .filter(Boolean)
                           .join(" · ")}

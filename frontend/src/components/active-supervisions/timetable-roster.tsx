@@ -35,6 +35,7 @@ import {
   canCompleteInstance,
   completeAvailableClock,
 } from "~/lib/timetable-lifecycle";
+import { hasOpenEnd } from "~/lib/block-children";
 import { TIMETABLE_VIEW_ONLY_NOTICE } from "~/lib/timetable-operation-access";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type {
@@ -625,7 +626,9 @@ function TimetableRosterHeader({
             </h2>
             <p className="truncate text-sm text-gray-600">
               {roster.instance.roomName ?? `Raum ${roster.instance.roomId}`} ·{" "}
-              {roster.instance.startTime}-{roster.instance.endTime}
+              {hasOpenEnd(roster.instance)
+                ? `seit ${roster.instance.startTime}`
+                : `${roster.instance.startTime}-${roster.instance.endTime}`}
             </p>
             {occupancy?.limit != null ? (
               <div className="mt-1 flex flex-wrap gap-1.5">
@@ -699,7 +702,15 @@ function TimetableRosterHeader({
           {note}
         </p>
       ) : null}
-      {showTimetableCounts ? (
+      {showTimetableCounts && roster.instance.isSpontaneous ? (
+        // Ein spontaner Block hat keine eigenen Kinder: alle sind ungeplant
+        // dazugekommen. Anwesend, Erwartet und Abwesend wären immer 0, die
+        // Kinder im Raum heißen hier wie die Liste darunter (#3921).
+        <div className="grid grid-cols-2 gap-2 p-4">
+          <RosterSummaryStat label="Teilnehmende" value={summary.unplanned} />
+          <RosterSummaryStat label="Gegangen" value={summary.departed} />
+        </div>
+      ) : showTimetableCounts ? (
         <div
           className={`grid grid-cols-2 gap-2 p-4 ${
             summary.arrivingLater > 0 ? "sm:grid-cols-6" : "sm:grid-cols-5"

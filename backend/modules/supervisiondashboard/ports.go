@@ -115,6 +115,7 @@ type SessionBlock struct {
 	Title         string
 	StartTime     string
 	EndTime       string
+	IsSpontaneous bool
 	// IsAssigned reports that the caller is planned on the block.
 	IsAssigned bool
 	// CanOperate is the Timetable owner's verdict whether the caller may act

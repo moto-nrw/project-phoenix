@@ -10,15 +10,15 @@
  * atomaren Deviations-Pfad. Es gibt keine eigene Vertretungs-Entität.
  *
  * Zusätzlich gibt es die Wochenansicht (#2030): dieselbe Fläche, nur über
- * Mo–Fr — links die nach Tagen gruppierte Störungsliste
- * (VertretungWeekList), rechts dasselbe Raster mit fünf Tagesspalten. Sie ist
- * eine reine Anzeigevariante: dieselben Daten (die Woche wird ohnehin schon
- * geladen), derselbe Editor, dieselbe Störungsdefinition. Die Tagesansicht
- * bleibt der Standard beim Öffnen der Seite.
+ * Mo–Fr, bei Betreuung am Wochenende bis Sonntag — links die nach Tagen
+ * gruppierte Störungsliste (VertretungWeekList), rechts dasselbe Raster. Sie
+ * ist eine reine Anzeigevariante: dieselben Daten (die Woche wird ohnehin
+ * schon geladen), derselbe Editor, dieselbe Störungsdefinition. Die
+ * Tagesansicht bleibt der Standard beim Öffnen der Seite.
  *
  * URL-Vokabular: höchstens `d`, `view`, `block`, `verlauf`. `d` ist der
- * angezeigte Berlin-Kalendertag (ohne `d` gilt heute; Wochenendtage werden auf
- * den folgenden Montag normalisiert, die Leiste zeigt nur Mo–Fr) und ankert in
+ * angezeigte Berlin-Kalendertag (ohne `d` gilt heute; geschlossene
+ * Wochenendtage werden auf den folgenden Montag normalisiert) und ankert in
  * der Wochenansicht die gezeigte Woche, `view=woche` schaltet auf die
  * Wochenansicht (jeder andere Wert, auch ein fehlender, ist die Tagesansicht),
  * `block` öffnet den Editor für die materialisierte Instanz mit dieser ID,
@@ -86,16 +86,17 @@ import { staffShiftService } from "~/lib/shift-api";
 import { substitutionService } from "~/lib/substitution-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { staffNamesFromOverview } from "~/components/timetable/block-staff-names";
 import { timetableService } from "~/lib/timetable-api";
 import {
   VERTRETUNG_GAPS_KEY_PREFIX,
   VERTRETUNG_WEEK_KEY_PREFIX,
+  careDayISO,
   formatWeekLabel,
   getGermanWeekdayShort,
   getWeekRange,
   getWeekdays,
-  nextWorkdayISO,
 } from "~/lib/timetable-helpers";
 import type {
   ApplyDeviationsInput,
@@ -175,6 +176,7 @@ function VertretungContent() {
   const toast = useToast();
   const tenantMutate = useTenantMutate();
   const { dayStartHour, dayEndHour } = useTimetableDayHours();
+  const weekendOpen = useWeekendFollowsFriday();
 
   // Lesen braucht `schedules:read` (die Listen-Endpunkte), jeder Save braucht
   // `schedules:manage`. Ohne canManage werden alle Editier-Kontrollen
@@ -199,14 +201,16 @@ function VertretungContent() {
   const tenantPath = useTenantAwarePath();
 
   // URL-Vokabular: d / block / verlauf — sonst nichts (Abschnitt 1).
-  // Wochenendtage (Erstaufruf am Sa/So oder ?d=-Deeplink) snappen auf den
-  // folgenden Montag — der eine Guard am Lese-Ort deckt alle Pfade ab, weil
-  // dayISO nach jedem replaceState hier re-derived wird. Ein ungültiges `d`
-  // (?d=foo oder ?d=2026-02-31) fällt auf heute zurück, statt NaN-Datumsketten
-  // bzw. einen stillen Monats-Überlauf in die Fetch-Fenster zu speisen.
+  // Wenn die Schule am Wochenende betreut, bleibt ein Wochenend-Deep-Link
+  // erhalten. Sonst snappt er wie bisher auf den folgenden Montag. Der Guard
+  // am Lese-Ort deckt alle Pfade ab, weil dayISO nach jedem replaceState hier
+  // re-derived wird. Ein ungültiges `d` (?d=foo oder ?d=2026-02-31) fällt auf
+  // heute zurück, statt NaN-Datumsketten bzw. einen stillen Monats-Überlauf
+  // in die Fetch-Fenster zu speisen.
   const rawDay = params.d;
-  const dayISO = nextWorkdayISO(
+  const dayISO = careDayISO(
     rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO(),
+    weekendOpen,
   );
   const selectedInstanceId = params.block;
   const historyOpen = params.verlauf === "1";
@@ -217,32 +221,29 @@ function VertretungContent() {
   const isWeekView = view === "woche";
 
   const today = berlinTodayISO();
-  // Ziel des Heute-Buttons: am Wochenende der nächste Montag. `today` selbst
-  // bleibt überall sonst der echte Kalendertag (isPast, Gaps-Klemmung).
-  const todayTarget = nextWorkdayISO(today);
+  // Ziel des Heute-Buttons: am Wochenende der nächste Montag, außer die
+  // Schule betreut dort nach dem Freitagsplan. `today` selbst bleibt überall
+  // sonst der echte Kalendertag (isPast, Gaps-Klemmung).
+  const todayTarget = careDayISO(today, weekendOpen);
 
-  // Woche, die `d` enthält (Fetch-Fenster bleibt Mo-So, die Leiste zeigt nur
-  // Mo-Fr). Immer über den Montag ankern, nie getWeekdays(parseISODate(d))
-  // direkt: getWeekdays validiert nicht, dass sein Argument ein Montag ist.
+  // Woche, die `d` enthält. Immer über den Montag ankern, nie
+  // getWeekdays(parseISODate(d)) direkt: getWeekdays validiert nicht, dass
+  // sein Argument ein Montag ist.
   const range = useMemo(() => getWeekRange(parseISODate(dayISO), 0), [dayISO]);
   const fromISO = toISODate(range.from);
   const toISO = toISODate(range.to);
   const weekDays = useMemo(
-    () => getWeekdays(range.from).slice(0, 5),
-    [range.from],
+    () => getWeekdays(range.from).slice(0, weekendOpen ? 7 : 5),
+    [range.from, weekendOpen],
   );
-  // Label über Mo–Fr, nicht über das Mo–So-Fetch-Fenster: die Ansicht zeigt
-  // fünf Spalten, ein bis Sonntag laufendes Label würde zwei Tage versprechen,
-  // die es nicht gibt.
+  // Das Label endet am letzten sichtbaren Betreuungstag.
   const weekLabel = useMemo(
     () =>
       formatWeekLabel(range.from, weekDays[weekDays.length - 1] ?? range.to),
     [range.from, range.to, weekDays],
   );
-  // Das Fetch-Fenster ist Mo–So, angezeigt wird nur Mo–Fr. Alles, was die
-  // Wochenansicht zeigt oder zählt, wird daher auf die Schultage begrenzt —
-  // sonst zählte ein (in einer OGS seltener) Wochenendtermin in einen Zähler,
-  // dessen Spalte es gar nicht gibt.
+  // Alles, was die Wochenansicht zeigt oder zählt, wird auf die sichtbaren
+  // Betreuungstage begrenzt.
   const weekDayISOSet = useMemo(
     () => new Set(weekDays.map(toISODate)),
     [weekDays],
@@ -257,10 +258,8 @@ function VertretungContent() {
   const loadGaps = toISO >= today;
   const gapsSwrKey = `${VERTRETUNG_GAPS_KEY_PREFIX}${gapsFromISO}-${toISO}`;
 
-  // Fenster des Dienstplan-Abgleichs: Mo–Fr, identisch zum Wochenraster des
-  // Dienstplans, damit beide Flächen denselben SWR-Cache benutzen (der Key ist
-  // bewusst wörtlich derselbe wie in use-dienstplan-data.ts). Eine vollständig
-  // vergangene Woche braucht keinen Abgleich.
+  // Fenster des Dienstplan-Abgleichs: dieselben sichtbaren Betreuungstage wie
+  // im Raster. Eine vollständig vergangene Woche braucht keinen Abgleich.
   const coverageFromISO = toISODate(weekDays[0] ?? range.from);
   const coverageToISO = toISODate(
     weekDays[weekDays.length - 1] ?? weekDays[0] ?? range.to,
@@ -906,7 +905,7 @@ function VertretungContent() {
             WeeklyCalendarGrid bringt die mobile Tagesauswahl selbst mit
             (eigener Tagesstreifen, alle übrigen Spalten unter sm verborgen),
             deshalb braucht es hier keine zweite Umschaltmechanik. In der
-            Wochenansicht bekommt es fünf Tagesspalten statt einer. */}
+            Wochenansicht bekommt es eine Spalte je Betreuungstag. */}
         <div>
           <WeeklyCalendarGrid
             // Bauart 3, Regel 3 + Teil 3: die Legende sitzt als Fussband im
