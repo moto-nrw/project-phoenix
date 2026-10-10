@@ -20,6 +20,7 @@ export const categoryLabels: Record<string, string> = {
   benachrichtigung: "E-Mails zur Anmeldung",
   benachrichtigungen: "Benachrichtigungen",
   betreuungsangebote: "Betreuungsangebote",
+  betreuungstage: "Betreuungstage",
   betreuungszeiten: "Ankunfts- und Abholzeiten",
   bewegungsdaten: "Anwesenheit und Aufbewahrung",
   checkout: "Knöpfe beim Auschecken",
