@@ -1,31 +1,31 @@
-package services
+package compose
 
 import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // StudentRoutePersons binds the person half of the student routes'
-// PersonRecords port (#2731) to the retained person service, which still
+// PersonRecords port (#2731) to the retained person directory, which still
 // decides it: the person writes with their account and RFID-card checks, the
 // student-aware bracelet assignment, the dated day-log roster and the staff
 // member behind a person. It only translates between the owner's public types
 // and the retained rows.
 type StudentRoutePersons struct {
-	persons users.PersonService
+	persons *PersonDirectory
 }
 
-// NewStudentRoutePersons binds the retained person service.
-func NewStudentRoutePersons(persons users.PersonService) StudentRoutePersons {
+// NewStudentRoutePersons binds the retained person directory.
+func NewStudentRoutePersons(persons *PersonDirectory) StudentRoutePersons {
 	return StudentRoutePersons{persons: persons}
 }
 
-// CreatePerson validates and inserts the person through the retained service.
+// CreatePerson validates and inserts the person through the retained directory.
 func (p StudentRoutePersons) CreatePerson(ctx context.Context, input peopleModule.CreatePerson) (peopleModule.Person, error) {
 	person := &userModels.Person{
 		FirstName: input.FirstName, LastName: input.LastName,
@@ -38,7 +38,7 @@ func (p StudentRoutePersons) CreatePerson(ctx context.Context, input peopleModul
 	return studentRoutePerson(person), nil
 }
 
-// UpdatePerson rewrites the person through the retained service.
+// UpdatePerson rewrites the person through the retained directory.
 func (p StudentRoutePersons) UpdatePerson(ctx context.Context, input peopleModule.UpdatePerson) (peopleModule.Person, error) {
 	person := &userModels.Person{
 		FirstName: input.FirstName, LastName: input.LastName,
@@ -52,7 +52,7 @@ func (p StudentRoutePersons) UpdatePerson(ctx context.Context, input peopleModul
 	return studentRoutePerson(person), nil
 }
 
-// DeletePerson removes the person through the retained service.
+// DeletePerson removes the person through the retained directory.
 func (p StudentRoutePersons) DeletePerson(ctx context.Context, personID int64) error {
 	return p.persons.Delete(ctx, personID)
 }
@@ -61,7 +61,7 @@ func (p StudentRoutePersons) DeletePerson(ctx context.Context, personID int64) e
 // refusals of a graduated or missing child become the owner's not-found.
 func (p StudentRoutePersons) AssignStudentTag(ctx context.Context, studentID int64, tagID string) error {
 	err := p.persons.LinkStudentToRFIDCard(ctx, studentID, tagID)
-	if errors.Is(err, users.ErrStudentGraduated) || errors.Is(err, users.ErrStudentNotFound) {
+	if errors.Is(err, userscontract.ErrStudentGraduated) || errors.Is(err, userscontract.ErrStudentNotFound) {
 		return errors.Join(peopleModule.ErrStudentNotFound, err)
 	}
 	return err
@@ -73,7 +73,7 @@ func (p StudentRoutePersons) UnassignTag(ctx context.Context, personID int64) er
 }
 
 // ListStudentsForDay returns the group children whose care covers the day.
-func (p StudentRoutePersons) ListStudentsForDay(ctx context.Context, groupIDs []int64, date, today timezone.Date) ([]peopleModule.StudentRecord, error) {
+func (p StudentRoutePersons) ListStudentsForDay(ctx context.Context, groupIDs []int64, date, today calendar.Date) ([]peopleModule.StudentRecord, error) {
 	students, err := p.persons.GetEligibleStudentsByGroupIDsOnDate(ctx, groupIDs, date, today)
 	if err != nil {
 		return nil, err

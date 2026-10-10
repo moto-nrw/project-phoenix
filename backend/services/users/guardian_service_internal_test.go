@@ -9,6 +9,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
+
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -190,7 +192,7 @@ func TestCreateGuardian_NonUniqueCreateErrorIsWrapped(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var validationErr *ValidationError
+	var validationErr *userscontract.ValidationError
 	assert.False(t, errors.As(err, &validationErr),
 		"a non-unique DB failure must not be classified as a validation (400) error")
 	assert.Contains(t, err.Error(), "failed to create guardian profile")
@@ -226,7 +228,7 @@ func TestUpdateGuardian_NonUniqueUpdateErrorIsReturned(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var validationErr *ValidationError
+	var validationErr *userscontract.ValidationError
 	assert.False(t, errors.As(err, &validationErr),
 		"a non-unique update failure must not be classified as a 400")
 }

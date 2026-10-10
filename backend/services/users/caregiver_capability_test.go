@@ -870,8 +870,7 @@ func TestCaregiverDirectory_ListAndFindActiveCaregiversIncludingLegacyTeacherRol
 		"inactive",
 	)
 
-	directory, err := usersSvc.CaregiverDirectoryFromPersonService(factory.Users)
-	require.NoError(t, err)
+	directory := factory.Users
 
 	caregivers, err := directory.ListActiveCaregivers(ctx)
 	require.NoError(t, err)
@@ -936,8 +935,7 @@ func TestCaregiverDirectory_ExcludesTenantScopedUserRole(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	directory, err := usersSvc.CaregiverDirectoryFromPersonService(factory.Users)
-	require.NoError(t, err)
+	directory := factory.Users
 
 	caregivers, err := directory.ListActiveCaregivers(ctx)
 	require.NoError(t, err)

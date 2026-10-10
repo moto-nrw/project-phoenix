@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
-	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // The adapters in this file serve the public Workforce time-tracking
@@ -121,13 +121,13 @@ func publicOptionalDate(value *timezone.Date) string {
 
 type workSessionCapability struct {
 	sessions timetracking.WorkSessionService
-	people   users.PersonService
+	people   *peopleCompose.PersonDirectory
 }
 
 // WorkSessionCapability serves workforce.WorkSessions from the retained work
 // session service; the people service resolves the staff record a schedule
 // update is written for.
-func WorkSessionCapability(sessions timetracking.WorkSessionService, people users.PersonService) workforce.WorkSessions {
+func WorkSessionCapability(sessions timetracking.WorkSessionService, people *peopleCompose.PersonDirectory) workforce.WorkSessions {
 	if sessions == nil || people == nil {
 		panic("work session capability: work session and person services are required")
 	}

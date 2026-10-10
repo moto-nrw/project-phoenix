@@ -155,8 +155,8 @@ func TestGuardianService_CreateGuardian_DuplicateEmail(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, second)
-	var validationErr *users.ValidationError
-	require.ErrorAs(t, err, &validationErr, "duplicate email must be a ValidationError → 400, not a 500")
+	_, isValidation := users.ValidationFailure(err)
+	require.True(t, isValidation, "duplicate email must be a ValidationError → 400, not a 500")
 	assert.Contains(t, err.Error(), "bereits vergeben")
 	assert.Contains(t, err.Error(), "Suche")
 }
@@ -270,8 +270,8 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 
 		// ASSERT — must be a ValidationError (→ 400), never a raw 500 from 23505.
 		require.Error(t, err)
-		var validationErr *users.ValidationError
-		require.ErrorAs(t, err, &validationErr, "duplicate email on update must be a ValidationError → 400")
+		_, isValidation := users.ValidationFailure(err)
+		require.True(t, isValidation, "duplicate email on update must be a ValidationError → 400")
 		assert.Contains(t, err.Error(), "bereits vergeben")
 	})
 
@@ -1116,8 +1116,8 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 
 		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{first, second})
 		require.Error(t, err)
-		var validationErr *users.ValidationError
-		require.ErrorAs(t, err, &validationErr)
+		_, isValidation := users.ValidationFailure(err)
+		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "mehrfach angegeben")
 	})
 
@@ -1128,8 +1128,8 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 
 		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
 		require.Error(t, err)
-		var validationErr *users.ValidationError
-		require.ErrorAs(t, err, &validationErr)
+		_, isValidation := users.ValidationFailure(err)
+		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "bereits vergeben")
 	})
 
@@ -1142,8 +1142,8 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 
 		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
 		require.Error(t, err)
-		var validationErr *users.ValidationError
-		require.ErrorAs(t, err, &validationErr)
+		_, isValidation := users.ValidationFailure(err)
+		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "ungültiger Beziehungstyp")
 	})
 
@@ -1156,8 +1156,8 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 
 		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
 		require.Error(t, err)
-		var validationErr *users.ValidationError
-		require.ErrorAs(t, err, &validationErr)
+		_, isValidation := users.ValidationFailure(err)
+		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "ausgewählte Person nicht gefunden")
 	})
 
@@ -1168,8 +1168,8 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 
 		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
 		require.Error(t, err)
-		var validationErr *users.ValidationError
-		require.ErrorAs(t, err, &validationErr)
+		_, isValidation := users.ValidationFailure(err)
+		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "ungültiger Beziehungstyp")
 	})
 
@@ -1180,8 +1180,8 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 
 		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
 		require.Error(t, err)
-		var validationErr *users.ValidationError
-		require.ErrorAs(t, err, &validationErr)
+		_, isValidation := users.ValidationFailure(err)
+		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "Notfall-Priorität")
 	})
 
@@ -1191,8 +1191,8 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 
 		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
 		require.Error(t, err)
-		var validationErr *users.ValidationError
-		require.ErrorAs(t, err, &validationErr)
+		_, isValidation := users.ValidationFailure(err)
+		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "ungültiges E-Mail-Format")
 	})
 
@@ -1206,8 +1206,8 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 
 		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
 		require.Error(t, err)
-		var validationErr *users.ValidationError
-		require.ErrorAs(t, err, &validationErr)
+		_, isValidation := users.ValidationFailure(err)
+		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "Telefonnummer")
 	})
 }
@@ -1271,8 +1271,8 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 		err := service.AddGuardiansToStudent(ctx, student.ID, []users.NewStudentGuardian{req})
 
 		require.Error(t, err)
-		var validationErr *users.ValidationError
-		require.ErrorAs(t, err, &validationErr)
+		_, isValidation := users.ValidationFailure(err)
+		require.True(t, isValidation)
 		assert.Contains(t, err.Error(), "ungültiger Beziehungstyp")
 	})
 

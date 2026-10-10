@@ -1,17 +1,18 @@
-package users
+package compose
 
 import (
 	"context"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // The contracts below are what the retained services call when they mutate an
-// audited student field. The rules behind them — which fields are tracked,
+// audited student field; they left services/users with the person and student
+// services (#3753). The rules behind them — which fields are tracked,
 // how a change reads and where it is stored — belong to the People Directory
 // owner and the Audit Platform; #3349 moved them there. The composition root
-// binds an implementation (database/repositories.NewStudentAuditFor).
+// binds an implementation (database/repositories.NewStudentAuditFor). Reading
+// the trail back is the owner's StudentAuditQuery, not part of this contract.
 
 // StudentChangeRecorder is the narrow write contract used by services that
 // mutate audited student fields.
@@ -43,9 +44,6 @@ type StudentAuditService interface {
 
 	// RecordSystemStatusChange records an automated lifecycle transition.
 	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after userModels.StudentStatus) error
-
-	// GetChangeHistory returns the student's change history, newest first.
-	GetChangeHistory(ctx context.Context, studentID int64) ([]*auditModels.StudentFieldEdit, error)
 }
 
 // StudentAuditRecorder is the name-explicit form of the contract above: it
@@ -57,7 +55,6 @@ type StudentAuditRecorder interface {
 	RecordChanges(ctx context.Context, before, after *userModels.Student, editedBy int64, editedByName string) error
 	RecordPickupPlan(ctx context.Context, studentID int64, before, after, result, reason string, editedBy int64, editedByName string) error
 	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after userModels.StudentStatus) error
-	GetChangeHistory(ctx context.Context, studentID int64) ([]*auditModels.StudentFieldEdit, error)
 }
 
 // RequestAuditActor supplies the authenticated editor, without exposing the
@@ -111,13 +108,6 @@ func (s *studentAuditActorPort) RecordSystemStatusChange(
 	before, after userModels.StudentStatus,
 ) error {
 	return s.recorder.RecordSystemStatusChange(ctx, studentID, before, after)
-}
-
-func (s *studentAuditActorPort) GetChangeHistory(
-	ctx context.Context,
-	studentID int64,
-) ([]*auditModels.StudentFieldEdit, error) {
-	return s.recorder.GetChangeHistory(ctx, studentID)
 }
 
 // actorDisplayName resolves the editor's display name from the authenticated

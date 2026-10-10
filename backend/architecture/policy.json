@@ -2571,13 +2571,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/users/userstest",
-      "owner": "test-support",
-      "role": "test-support",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "simulate",
       "owner": "dev-tools",
       "role": "cli",
@@ -9417,17 +9410,6 @@
       "target_role": "application"
     },
     {
-      "id": "communication.messages.workflow-people-application",
-      "description": "Message compatibility tests compose the existing staff directory service pending #2727.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
       "id": "inbound-operator.to.organization-tenancy",
       "description": "inbound-operator calls exactly one public capability.",
       "scopes": [
@@ -11070,17 +11052,6 @@
       "source_role": "compose",
       "target_owner": "identity-access",
       "target_role": "adapter"
-    },
-    {
-      "id": "timetable-activities.compose.people-application",
-      "description": "Timetable HTTP composition resolves established people views.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "application"
     },
     {
       "id": "timetable-activities.compose.people-domain",
@@ -15341,17 +15312,6 @@
       "target_role": "domain"
     },
     {
-      "id": "parent-portal.application.people-application",
-      "description": "Compatibility binding of the retained parent-portal coordinator to the retained request-reason policy (services/users); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "application",
-      "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
       "id": "parent-portal.application.timetable-domain",
       "description": "Compatibility binding of the retained parent-portal coordinator to the retained weekly-plan request rows and weekday numbers (models/schedule); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
       "scopes": [
@@ -15831,17 +15791,6 @@
       "target_role": "domain"
     },
     {
-      "id": "parent-portal.compose.people-directory.application",
-      "description": "Wire the guardian portal workflow (#3420): pass the student change recorder and parent-request ledger (services/users) to the flows. Compatibility binding of the retained read models the portal flows still consume; it falls together with the parent-portal.application compatibility bindings when the flows read through owner queries.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
       "id": "parent-portal.compose.care-plan.domain",
       "description": "Wire the guardian portal workflow (#3420): pass child, enrollable-phase and enrollment summaries (models/parent) to the flows. Compatibility binding of the retained read models the portal flows still consume; it falls together with the parent-portal.application compatibility bindings when the flows read through owner queries.",
       "scopes": [
@@ -16081,17 +16030,6 @@
       "source_role": "workflow-decision-test",
       "target_owner": "people-directory",
       "target_role": "domain"
-    },
-    {
-      "id": "parent-portal.decision-test.people-directory.application",
-      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "workflow-decision-test",
-      "target_owner": "people-directory",
-      "target_role": "application"
     },
     {
       "id": "parent-portal.decision-test.communication.test-support",
@@ -17606,17 +17544,6 @@
       "source_role": "compose",
       "target_owner": "student-presence",
       "target_role": "public"
-    },
-    {
-      "id": "process-device-scan.compose.people-application",
-      "description": "Compatibility binding (#2698): the people port resolves cards, students and staff through the retained people service until People Directory exposes them publicly.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "process-device-scan",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "application"
     },
     {
       "id": "process-device-scan.compose.people-domain",
@@ -20588,17 +20515,6 @@
       "target_role": "domain"
     },
     {
-      "id": "student-presence.e2e-test.people-directory-application",
-      "description": "The Student Presence behaviour suites build the person service the staff names resolve through (#3422).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "e2e-test",
-      "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
       "id": "student-presence.e2e-test.tenant-runtime-public",
       "description": "The Student Presence behaviour suites bind the tenant unit of work the commands open transactions through (#3422).",
       "scopes": [
@@ -21062,17 +20978,6 @@
       "source_role": "e2e-test",
       "target_owner": "enrollment",
       "target_role": "test-support"
-    },
-    {
-      "id": "care-plan.contracttest.people-directory.application",
-      "description": "The care-lifecycle behavior suites moved from the retired modules/careplan/legacy/carelifecycle into the Care Plan contract suite keep the fixture reach they had there (#3427, ADR 0035); no runtime package gains an import.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "e2e-test",
-      "target_owner": "people-directory",
-      "target_role": "application"
     },
     {
       "id": "settings-platform.public.domain",

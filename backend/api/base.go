@@ -1390,7 +1390,7 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 	}
 	students := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PeopleDirectory:              svc.PeopleDirectory,
-		Persons:                      services.NewStudentRoutePersons(svc.Users),
+		Persons:                      peopleCompose.NewStudentRoutePersons(svc.Users),
 		CompanionService:             svc.Students.Companions,
 		ClassListEntries:             classListEntryStudentsReader{entries: modules.membership},
 		ChildQuota:                   childQuotaStudentsReader{usages: modules.membership},
@@ -1646,7 +1646,7 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 		Users: services.NewRoomSnapshotPeople(svc.Users), Education: svc.Education,
 		ListExport: svc.ListExport,
 	}, logger.With("handler", "rooms")).Router())
-	tenant.Mount("/groups", groupsHTTP.NewResource(svc.Education, svc.Active, services.NewGroupRoutePeople(svc.Users), svc.UserContext).Router())
+	tenant.Mount("/groups", groupsHTTP.NewResource(svc.Education, svc.Active, peopleCompose.NewGroupRoutePeople(svc.Users), svc.UserContext).Router())
 	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(svc.Activities, modules.timetable, svc.Users, svc.UserContext, db).Router())
 	// Parent enrollment (PR 5+).
 	tenant.Mount("/enrollment", newEnrollmentResource(modules).Router())

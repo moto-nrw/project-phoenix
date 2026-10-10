@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -13,7 +14,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -22,6 +22,10 @@ import (
 // the acting account, the stored-file cleanup with the live refresh, and the
 // Audit Platform consent trail. They only exist once the HTTP layer is up,
 // which is why the owner takes them through a late binder.
+
+// ErrPhotoNoTenant refuses a photo route reached without a tenant context.
+// Every other outcome is the owner's (modules/peopledirectory).
+var ErrPhotoNoTenant = errors.New("no tenant context")
 
 // StudentPhotoConsentRecorder appends the trail entry a photo consent implies.
 type StudentPhotoConsentRecorder interface {
@@ -35,9 +39,9 @@ type StudentPhotoConsentRecorder interface {
 }
 
 type studentPhotoRuntime struct {
-	settings    users.PhotoSettings
+	settings    peopleCompose.PhotoSettings
 	broadcaster PhotoBroadcaster
-	unlinker    users.PhotoUnlinker
+	unlinker    peopleCompose.PhotoUnlinker
 	consents    StudentPhotoConsentRecorder
 	logger      *slog.Logger
 }
@@ -121,23 +125,23 @@ type StudentPhotoCapability interface {
 	ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string)
 }
 
-func (s studentPhotos) CommitUpload(ctx context.Context, req users.CommitUploadRequest) error {
+func (s studentPhotos) CommitUpload(ctx context.Context, req peopleCompose.CommitUploadRequest) error {
 	if tenant.FromContext(ctx) <= 0 {
-		return users.ErrPhotoNoTenant
+		return ErrPhotoNoTenant
 	}
 	return s.directory.CommitStudentPhoto(ctx, req.StudentID, req.NewStoredURL, req.ConsentAck)
 }
 
 func (s studentPhotos) CommitDelete(ctx context.Context, studentID int64) (string, error) {
 	if tenant.FromContext(ctx) <= 0 {
-		return "", users.ErrPhotoNoTenant
+		return "", ErrPhotoNoTenant
 	}
 	return s.directory.ClearStudentPhoto(ctx, studentID)
 }
 
 func (s studentPhotos) LookupForRead(ctx context.Context, studentID int64, filename string) (string, error) {
 	if tenant.FromContext(ctx) <= 0 {
-		return "", users.ErrPhotoNoTenant
+		return "", ErrPhotoNoTenant
 	}
 	return s.directory.FindStudentPhoto(ctx, studentID, filename)
 }
@@ -237,7 +241,7 @@ func NewStudentPhotos(
 	directory StudentPhotoCapability,
 	slot *peopleCompose.StudentPhotoRuntime,
 	deps StudentPhotoRuntimeDependencies,
-) users.StudentPhotoService {
+) peopleCompose.StudentPhotoService {
 	runtime := studentPhotoRuntime{
 		settings: deps.Settings, broadcaster: deps.Broadcaster,
 		unlinker: deps.Unlinker, consents: deps.Consents, logger: deps.Logger,
@@ -251,9 +255,9 @@ func NewStudentPhotos(
 // StudentPhotoRuntimeDependencies are the surfaces the photo lifecycle needs
 // from the other owners.
 type StudentPhotoRuntimeDependencies struct {
-	Settings    users.PhotoSettings
+	Settings    peopleCompose.PhotoSettings
 	Broadcaster PhotoBroadcaster
-	Unlinker    users.PhotoUnlinker
+	Unlinker    peopleCompose.PhotoUnlinker
 	Consents    StudentPhotoConsentRecorder
 	Logger      *slog.Logger
 }

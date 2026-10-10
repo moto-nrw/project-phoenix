@@ -33,7 +33,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -59,14 +58,9 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
-		StaffNames: services.NewAttendanceStaffNames(repos.Staff, userService.NewPersonService(userService.PersonServiceDependencies{
-			PersonRepo:     repos.Person,
-			RFIDRepo:       repos.RFIDCard,
-			AccountExists:  repositories.AccountExists(repos.Profile),
-			StudentRepo:    repos.Student,
-			StaffDirectory: services.NewStaffDirectory(services.StaffDirectoryDependencies{Persons: repos.Person, Staff: repos.Staff}),
-			TeacherRepo:    repos.Teacher,
-			DB:             db,
+		StaffNames: services.NewAttendanceStaffNames(repos.Staff, services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
+			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
+			RFIDCards: repos.RFIDCard, AccountExists: repositories.AccountExists(repos.Profile),
 		})),
 		DB:     db,
 		Logger: slog.Default(),
@@ -171,16 +165,10 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	})
 
 	t.Run("the child is gone from the group roster reads", func(t *testing.T) {
-		personSvc := userService.NewPersonService(userService.PersonServiceDependencies{
-			PersonRepo:     repos.Person,
-			RFIDRepo:       repos.RFIDCard,
-			AccountExists:  repositories.AccountExists(repos.Profile),
-			StudentRepo:    repos.Student,
-			StaffDirectory: services.NewStaffDirectory(services.StaffDirectoryDependencies{Persons: repos.Person, Staff: repos.Staff}),
-			TeacherRepo:    repos.Teacher,
-			DB:             db,
-		})
-		userService.WirePersonCareParticipation(personSvc, func(
+		personSvc := services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
+			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
+			RFIDCards: repos.RFIDCard, AccountExists: repositories.AccountExists(repos.Profile),
+		}).WithCareParticipation(func(
 			ctx context.Context, studentIDs []int64, on, today timezone.Date,
 		) (map[int64]bool, error) {
 			resolution, err := svc.ResolveListParticipation(ctx, studentIDs, on, today, false)

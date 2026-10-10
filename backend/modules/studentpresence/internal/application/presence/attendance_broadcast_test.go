@@ -16,7 +16,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -128,14 +127,9 @@ func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *tes
 		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
-		StaffNames: services.NewAttendanceStaffNames(repos.Staff, usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
-			PersonRepo:     repos.Person,
-			RFIDRepo:       repos.RFIDCard,
-			AccountExists:  repositories.AccountExists(repos.Profile),
-			StudentRepo:    repos.Student,
-			StaffDirectory: services.NewStaffDirectory(services.StaffDirectoryDependencies{Persons: repos.Person, Staff: repos.Staff}),
-			TeacherRepo:    repos.Teacher,
-			DB:             db,
+		StaffNames: services.NewAttendanceStaffNames(repos.Staff, services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
+			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
+			RFIDCards: repos.RFIDCard, AccountExists: repositories.AccountExists(repos.Profile),
 		})),
 		DB:          db,
 		Broadcaster: broadcaster,

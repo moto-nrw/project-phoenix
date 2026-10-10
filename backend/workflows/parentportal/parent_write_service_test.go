@@ -25,7 +25,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/services"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -68,13 +67,13 @@ func (r *pausingStudentRepository) FindByIDForUpdate(ctx context.Context, id int
 }
 
 type signalingStudentService struct {
-	usersService.StudentService
+	services.PeopleDirectorySuiteStudentService
 	attempted chan<- struct{}
 }
 
 func (s *signalingStudentService) GetByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
 	close(s.attempted)
-	return s.StudentService.GetByIDForUpdate(ctx, id)
+	return s.PeopleDirectorySuiteStudentService.GetByIDForUpdate(ctx, id)
 }
 
 func (n *recordingParentAbsenceNotifier) NotifyAbsenceReported(
@@ -445,9 +444,9 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	})
 
 	statusSvc := presenceservice.NewStatusDays(repos.StudentStatusDay, nil, nil, repos.CarePlan().LockExceptionDay)
-	studentSvc := usersService.NewStudentService(repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)), repositories.MustNewPeopleDirectory(db), repos.Student)
+	studentSvc := services.NewPeopleDirectorySuiteStudentService(repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)), repositories.MustNewPeopleDirectory(db), repos.Student)
 	staffAttempted := make(chan struct{})
-	staffStudentSvc := &signalingStudentService{StudentService: studentSvc, attempted: staffAttempted}
+	staffStudentSvc := &signalingStudentService{PeopleDirectorySuiteStudentService: studentSvc, attempted: staffAttempted}
 	date := timezone.NewDate(2026, 8, 24).AddDays(40)
 
 	ctx, cancel := context.WithTimeout(testpkg.WithPackageTenantRuntime(context.Background()), 5*time.Second)

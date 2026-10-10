@@ -22,7 +22,6 @@ import (
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -270,7 +269,7 @@ func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	audit := userService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(f.db))
+	audit := services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAudit(f.db))
 	svc := f.decisions(t, func(o *services.MasterDataDecisionTestOptions) { o.Audit = audit })
 	row := f.insert(t, userModels.DataChangeTargetStudent, "school_class", `"1a"`, `"2b"`)
 
@@ -391,7 +390,8 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	audit := userService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(f.db))
+	trail := repositories.NewStudentAudit(f.db)
+	audit := services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, trail)
 	svc := f.decisions(t, func(o *services.MasterDataDecisionTestOptions) { o.Audit = audit })
 	row := f.insert(t, userModels.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"],"wed":["pickup"]}`)
 
@@ -403,7 +403,7 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 	assert.Equal(t, []userModels.DepartureMode{userModels.DepartureBus}, student.AllowedDepartureModes[userModels.PickupDayMonday])
 	assert.Equal(t, []userModels.DepartureMode{userModels.DeparturePickup}, student.AllowedDepartureModes[userModels.PickupDayWednesday])
 
-	history, err := audit.GetChangeHistory(tenant.WithTenantID(context.Background(), f.chain.TenantID), f.chain.StudentID)
+	history, err := trail.GetChangeHistory(tenant.WithTenantID(context.Background(), f.chain.TenantID), f.chain.StudentID)
 	require.NoError(t, err)
 	require.NotEmpty(t, history)
 	var departureEditFound bool

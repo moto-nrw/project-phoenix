@@ -9,11 +9,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -21,8 +21,8 @@ import (
 type GroupsTestModule struct {
 	Education   schoolstructure.GroupManagement
 	Active      studentpresence.Presence
-	Users       users.PersonService
-	People      GroupRoutePeople
+	Users       *peopleCompose.PersonDirectory
+	People      peopleCompose.GroupRoutePeople
 	UserContext *repositories.CallerRows
 }
 
@@ -49,10 +49,10 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork, publishers ...realt
 		repositories.NewEducationRooms(tt.Room), NewEducationTeachers(tt.Teacher), repositories.NewEducationStaff(tt.Staff),
 		tt.Student, r.Substitutions, education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: publisher})
 
-	persons := users.NewPersonService(users.PersonServiceDependencies{
+	persons := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
 		PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
 		StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
-		PersonRepo:       tt.Person, StudentRepo: tt.Student, TeacherRepo: tt.Teacher, AccountExists: repositories.AccountExists(r.Profile), DB: db, Logger: slog.Default(),
+		PersonRepo:       tt.Person, StudentRepo: tt.Student, TeacherRepo: tt.Teacher, AccountExists: repositories.AccountExists(r.Profile),
 		StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: tt.Person, Staff: tt.Staff, Teachers: tt.Teacher}),
 	})
 	rooms, err := repositories.NewFacilities(db)
@@ -70,7 +70,7 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork, publishers ...realt
 		SchoolPresence: newStudentPresence(db, slog.Default()),
 	})
 
-	return GroupsTestModule{Education: groups, Active: presence, Users: persons, People: NewGroupRoutePeople(persons), UserContext: identity.UserContext}, nil
+	return GroupsTestModule{Education: groups, Active: presence, Users: persons, People: peopleCompose.NewGroupRoutePeople(persons), UserContext: identity.UserContext}, nil
 }
 
 // NewAttendanceTeacherGroups supplies assignment IDs the way the active route
