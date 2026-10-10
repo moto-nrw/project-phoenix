@@ -35,7 +35,7 @@ import { createLogger } from "~/lib/logger";
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantSafe } from "~/lib/tenant-context";
-import { DemoEveningNotice } from "./demo-evening-notice";
+import { DemoEveningRow } from "./demo-evening-notice";
 import { DemoWeekendNotice } from "./demo-weekend-notice";
 
 const logger = createLogger({ component: "DemoBanner" });
@@ -239,7 +239,7 @@ function ActiveDemoBanner() {
       {visit === undefined ? null : (
         <>
           <DemoWeekendNotice inParentsApp={inParentsApp} />
-          <DemoEveningNotice inParentsApp={inParentsApp} />
+          <DemoEveningRow inParentsApp={inParentsApp} />
         </>
       )}
       <ConfirmationModal
