@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, fireEvent, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type {
   ParentFirstStepKey,
@@ -6,8 +6,10 @@ import type {
 } from "./parent-first-steps-tours";
 import { useParentFirstStepsTour } from "./parent-first-steps-tours";
 
+let pathname = "/parents/children/1";
+
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/parents/children/1",
+  usePathname: () => pathname,
   useRouter: () => ({ push: vi.fn() }),
 }));
 
@@ -45,7 +47,58 @@ function definitionsWithChildTour(
 }
 
 describe("useParentFirstStepsTour", () => {
+  it("advances only once when a navigation click reaches the skip path", async () => {
+    pathname = "/";
+    const settings = addVisibleTarget("settings");
+    addVisibleTarget("settings-content");
+    const definitions = definitionsWithChildTour({
+      path: "/parents/settings",
+      stops: [
+        {
+          targets: "#settings",
+          title: "Mehr",
+          text: "Mehr öffnen",
+          advance: "click",
+          nav: true,
+          skipOnPath: "/parents/settings",
+        },
+        {
+          targets: "#settings",
+          title: "Einstellungen",
+          text: "Einstellungen öffnen",
+          advance: "click",
+          nav: true,
+          skipOnPath: "/parents/settings",
+        },
+        {
+          targets: "#settings-content",
+          title: "Benachrichtigungen",
+          text: "Benachrichtigungen einstellen",
+          advance: "next",
+          path: "/parents/settings",
+        },
+      ],
+    });
+    const onFinished = vi.fn();
+    const { result, rerender } = renderHook(() =>
+      useParentFirstStepsTour(definitions, onFinished),
+    );
+
+    act(() => result.current.start("childData"));
+    await waitFor(() => expect(result.current.active?.target).toBe(settings));
+
+    fireEvent.click(settings);
+    act(() => {
+      pathname = "/settings";
+      rerender();
+    });
+    await act(() => new Promise((resolve) => window.setTimeout(resolve, 300)));
+
+    expect(result.current.active?.index).toBe(1);
+  });
+
   it("returns to a visited tab step even after that tab became visible", async () => {
+    pathname = "/parents/children/1";
     addVisibleTarget("details");
     addVisibleTarget("care-tab");
     const definitions = definitionsWithChildTour({

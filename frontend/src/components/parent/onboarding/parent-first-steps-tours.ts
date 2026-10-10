@@ -399,6 +399,17 @@ function shouldSkipStop(stop: ParentTourStop, pathname: string): boolean {
   );
 }
 
+function sharesSkipPath(
+  current: ParentTourStop,
+  next: ParentTourStop,
+): boolean {
+  return Boolean(
+    (current.skipOnPath && current.skipOnPath === next.skipOnPath) ||
+    (current.skipOnPathPrefix &&
+      current.skipOnPathPrefix === next.skipOnPathPrefix),
+  );
+}
+
 function previousVisitedStop(
   visited: readonly number[],
   index: number,
@@ -490,10 +501,21 @@ export function useParentFirstStepsTour(
 
   useEffect(() => {
     if (!tour || !stop) return;
-    if (!tour.visited.includes(tour.index) && shouldSkipStop(stop, pathname)) {
+    const previousStop = definition?.stops[tour.index - 1];
+    // Der gemeinsame Pfad kann das Ergebnis der vorherigen Station sein. In
+    // diesem Fall bleibt die nächste Navigationserklärung sichtbar.
+    const followsVisitedStopOnSamePath =
+      previousStop !== undefined &&
+      tour.visited.includes(tour.index - 1) &&
+      sharesSkipPath(previousStop, stop);
+    if (
+      !tour.visited.includes(tour.index) &&
+      !followsVisitedStopOnSamePath &&
+      shouldSkipStop(stop, pathname)
+    ) {
       next();
     }
-  }, [next, pathname, stop, tour]);
+  }, [definition, next, pathname, stop, tour]);
 
   useEffect(() => {
     if (!tour || !stop) return undefined;
