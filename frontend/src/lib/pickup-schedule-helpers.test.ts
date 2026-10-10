@@ -924,6 +924,26 @@ describe("getDayData", () => {
     expect(result.isException).toBe(true);
   });
 
+  it("uses Friday's pickup schedule on an enabled weekend", () => {
+    const friday = { ...schedules[0]!, weekday: 5, pickupTime: "16:00" };
+    const saturday = new Date("2024-01-20T12:00:00Z");
+
+    const result = getDayData(
+      saturday,
+      [friday],
+      [],
+      false,
+      [],
+      false,
+      null,
+      [],
+      true,
+    );
+
+    expect(result.weekday).toBe(5);
+    expect(result.effectiveTime).toBe("16:00");
+  });
+
   describe("with mocked time (weekday)", () => {
     beforeEach(() => {
       vi.useFakeTimers();

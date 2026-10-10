@@ -108,6 +108,7 @@ import {
   berlinTodayISO,
   formatDate as formatCalendarDate,
 } from "~/lib/date-helpers";
+import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import {
   fetchStudentCareWithdrawal,
   type CareWithdrawalCompletion,
@@ -426,6 +427,7 @@ function StudentDetailPageContent() {
   // dem aktuellen Stand, etwa einer inzwischen geänderten Notiz.
   const dialogErrors = useApiFormError();
   const { data: session, status: sessionStatus } = useSession();
+  const weekendFollowsFriday = useWeekendFollowsFriday();
 
   // Switch tabs by updating the `?tab=` query param in place (preserves the
   // `from` referrer). We echo the current `usePathname` back verbatim and only
@@ -779,6 +781,9 @@ function StudentDetailPageContent() {
       student?.sick ?? false,
       pickupData.notes,
       student?.excused ?? false,
+      null,
+      pickupData.effectiveSchedules,
+      weekendFollowsFriday,
     );
 
     if (dayData.effectiveTime) {
@@ -789,7 +794,13 @@ function StudentDetailPageContent() {
       };
     }
     return {};
-  }, [pickupData, hasFullAccess, student?.sick, student?.excused]);
+  }, [
+    pickupData,
+    hasFullAccess,
+    student?.sick,
+    student?.excused,
+    weekendFollowsFriday,
+  ]);
 
   const todayArrival = useMemo<TodayArrival>(() => {
     if (!hasFullAccess || !arrivalData) return {};

@@ -544,13 +544,15 @@ export function getDayData(
   isExcusedToday = false,
   statusForDate: StudentStatusKind | null = null,
   effectiveSchedules: DatedPickupSchedule[] = [],
+  weekendFollowsFriday = false,
 ): DayData {
-  const weekday = getWeekdayFromDate(date);
+  const calendarWeekday = getWeekdayFromDate(date);
+  const weekday = calendarWeekday ?? 5;
   const dateStr = formatDateISO(date);
   const today = new Date();
 
   // Handle weekend dates explicitly - no schedule available
-  if (weekday === null) {
+  if (calendarWeekday === null && !weekendFollowsFriday) {
     return {
       date,
       weekday: 0, // Weekend indicator

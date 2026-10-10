@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
@@ -224,6 +224,28 @@ describe("CarePlanView", () => {
     ).toBe(true);
     expect(screen.getAllByText("Sa")).not.toHaveLength(0);
     expect(screen.getAllByText("So")).not.toHaveLength(0);
+  });
+
+  it("selects the current weekend day after the school setting loads", async () => {
+    setTestClock(new Date("2026-09-12T12:00:00+02:00"));
+    setSWR(
+      { data: mockDay, isLoading: false, error: null },
+      { data: mockWeek, isLoading: false, error: null },
+    );
+    const view = render(<CarePlanView studentId="1" statusDays={[]} />);
+
+    selectTab("Woche");
+    expect(screen.queryByText("Sa")).not.toBeInTheDocument();
+
+    vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    view.rerender(<CarePlanView studentId="1" statusDays={[]} />);
+
+    await waitFor(() => {
+      const saturday = screen
+        .getAllByRole("button")
+        .find((button) => button.textContent === "Sa12.09.");
+      expect(saturday).toHaveClass("bg-gray-900");
+    });
   });
 
   it.each([

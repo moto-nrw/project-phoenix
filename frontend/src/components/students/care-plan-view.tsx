@@ -108,6 +108,12 @@ function berlinWeekDays(weekOffset: number, weekendOpen: boolean): Date[] {
   return days;
 }
 
+function mobileDayIndexForToday(weekendOpen: boolean): number {
+  const weekday = parseISODate(berlinTodayISO()).getDay(); // 0=Sun … 6=Sat
+  if (weekendOpen) return (weekday + 6) % 7;
+  return weekday >= 1 && weekday <= 5 ? weekday - 1 : 0;
+}
+
 function shortDate(date: Date): string {
   const day = date.getDate().toString().padStart(2, "0");
   const month = (date.getMonth() + 1).toString().padStart(2, "0");
@@ -151,11 +157,16 @@ export function CarePlanView({
     berlinTodayISO(),
   );
   const [weekOffset, setWeekOffset] = useState(0);
-  const [mobileDayIndex, setMobileDayIndex] = useState(() => {
-    const weekday = parseISODate(berlinTodayISO()).getDay(); // 0=Sun … 6=Sat
-    if (weekendOpen) return (weekday + 6) % 7;
-    return weekday >= 1 && weekday <= 5 ? weekday - 1 : 0;
-  });
+  const [mobileDayIndex, setMobileDayIndex] = useState(() =>
+    mobileDayIndexForToday(weekendOpen),
+  );
+
+  // The tenant arrives after the first render. On a weekend, the initial
+  // closed-weekend state points at Monday; select today's newly available day
+  // once the school's Friday-plan setting is known.
+  useEffect(() => {
+    setMobileDayIndex(mobileDayIndexForToday(weekendOpen));
+  }, [weekendOpen]);
 
   // --- Day mode fetch (only when the tab is active and in day mode) ---
   const dayKey =

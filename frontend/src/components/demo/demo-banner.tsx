@@ -236,11 +236,9 @@ function ActiveDemoBanner() {
           ]}
         />
       )}
+      <DemoEveningRow inParentsApp={inParentsApp} />
       {visit === undefined ? null : (
-        <>
-          <DemoWeekendNotice inParentsApp={inParentsApp} />
-          <DemoEveningRow inParentsApp={inParentsApp} />
-        </>
+        <DemoWeekendNotice inParentsApp={inParentsApp} />
       )}
       <ConfirmationModal
         isOpen={restartAsked}
