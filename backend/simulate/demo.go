@@ -488,8 +488,8 @@ func (d *DemoTicker) sendHome(ctx context.Context, now time.Time, latest map[int
 		if visit.Web && now.Before(visit.ChangedAt.Add(demoWebGracePeriod)) {
 			continue // A web action wins over the simulation.
 		}
-		d.day.home[student.ID] = true
 		if !seen || visit.ChangedAt.In(demoBerlin).Format(isoDate) != today {
+			d.day.home[student.ID] = true
 			continue
 		}
 		sent++
@@ -501,7 +501,9 @@ func (d *DemoTicker) sendHome(ctx context.Context, now time.Time, latest map[int
 				"student_id", student.ID,
 				"error", err,
 			)
+			continue
 		}
+		d.day.home[student.ID] = true
 	}
 	return nil
 }
