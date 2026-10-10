@@ -277,6 +277,44 @@ func TestDemoDayDoesNotMoveChildrenWhenABlockMoveFails(t *testing.T) {
 	assert.False(t, day.planned, "a failed move must be retried")
 }
 
+type partiallyFailingDemoMoveClient struct {
+	*demoDayClient
+	failPath string
+}
+
+func (c *partiallyFailingDemoMoveClient) Put(path string, body any) ([]byte, error) {
+	if path == c.failPath {
+		c.failPath = ""
+		return nil, fmt.Errorf("temporary timetable update failure")
+	}
+	return c.demoDayClient.Put(path, body)
+}
+
+func TestDemoDayRetriesOnlyBlocksThatDidNotMove(t *testing.T) {
+	t.Parallel()
+	client := &partiallyFailingDemoMoveClient{
+		demoDayClient: newDemoDayClient(
+			plannedBlock(1, "14:45", "17:00", 5, 11),
+			plannedBlock(2, "15:15", "16:00", 5, 11),
+		),
+		failPath: "/api/timetable/instances/2",
+	}
+	var day demoDay
+
+	_, err := day.sync(client, demoDayAt(t, "20:00"), []int64{11}, nil)
+	require.ErrorContains(t, err, "move demo block 2")
+	assert.Equal(t, [2]string{"19:30", "21:45"}, [2]string{client.blocks[0].StartTime, client.blocks[0].EndTime})
+	assert.Equal(t, [2]string{"15:15", "16:00"}, [2]string{client.blocks[1].StartTime, client.blocks[1].EndTime})
+
+	client.writes = nil
+	_, err = day.sync(client, demoDayAt(t, "20:00"), []int64{11}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, [2]string{"19:30", "21:45"}, [2]string{client.blocks[0].StartTime, client.blocks[0].EndTime})
+	assert.Equal(t, [2]string{"20:00", "20:45"}, [2]string{client.blocks[1].StartTime, client.blocks[1].EndTime})
+	assert.NotContains(t, client.writes, "PUT /api/timetable/instances/1", "an already moved block stays at its target time")
+	assert.Contains(t, client.writes, "PUT /api/timetable/instances/2")
+}
+
 type retryDemoTimeWriteClient struct {
 	*demoDayClient
 	failureSuffix string

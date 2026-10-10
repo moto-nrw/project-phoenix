@@ -103,6 +103,11 @@ type demoTimes struct {
 	arrival, pickup int
 }
 
+// demoBlockWindow is a block's target window while moving a demo day.
+type demoBlockWindow struct {
+	start, end int
+}
+
 // demoDay is the ticker's view of one weekday of one school.
 type demoDay struct {
 	date       string
@@ -123,6 +128,13 @@ type demoDay struct {
 	// effective-time API includes successful exceptions, so recalculating the
 	// shift on retry would move those children twice.
 	pendingTimes map[int64]demoTimes
+	// pendingBlocks are the remaining target windows after a partially failed
+	// move. A retry must not apply the original shift to blocks that already
+	// reached their target window.
+	pendingBlocks map[int64]demoBlockWindow
+	// pendingShift is the original shift while a move is incomplete. The next
+	// tick can have a different calculated shift after successful block writes.
+	pendingShift int
 	// failed are blocks whose step failed today; they are not retried, so
 	// a refused start does not repeat every tick.
 	failed map[int64]bool
@@ -175,11 +187,15 @@ func (day *demoDay) sync(client Client, now time.Time, studentIDs []int64, activ
 	}
 	if !day.planned {
 		shift := demoDayShift(day.blocks, minute)
-		if day.pendingTimes != nil || shift != 0 {
+		moveShift := shift
+		if day.pendingShift != 0 {
+			moveShift = day.pendingShift
+		}
+		if day.pendingBlocks != nil || day.pendingTimes != nil || shift != 0 {
 			if err := day.move(client, shift, studentIDs); err != nil {
 				return false, err
 			}
-			day.anchor = demoDayReference + shift
+			day.anchor = demoDayReference + moveShift
 			if err := day.load(client, now); err != nil {
 				return false, err
 			}
@@ -293,57 +309,66 @@ func movedWindow(start, end, shift int) (int, int, bool) {
 // move shifts today's planned blocks and the children's arrival and pickup
 // times by shift minutes.
 func (day *demoDay) move(client Client, shift int, studentIDs []int64) error {
-	if day.pendingTimes != nil {
-		if err := day.writeTimes(client, studentIDs, day.pendingTimes); err != nil {
-			return err
+	if day.pendingBlocks == nil {
+		day.pendingShift = shift
+		day.pendingBlocks = map[int64]demoBlockWindow{}
+		for _, block := range day.blocks {
+			if block.IsSpontaneous || block.Status != "planned" {
+				continue
+			}
+			start, end, ok := blockMinutes(block)
+			if !ok {
+				continue
+			}
+			start, end, ok = movedWindow(start, end, shift)
+			if !ok {
+				continue
+			}
+			day.pendingBlocks[block.ID] = demoBlockWindow{start: start, end: end}
 		}
-		day.pendingTimes = nil
-		return nil
 	}
 	for _, block := range day.blocks {
-		if block.IsSpontaneous || block.Status != "planned" {
-			continue
-		}
-		start, end, ok := blockMinutes(block)
+		window, ok := day.pendingBlocks[block.ID]
 		if !ok {
 			continue
 		}
-		start, end, ok = movedWindow(start, end, shift)
-		if !ok {
-			continue
-		}
-		if _, err := client.Put(fmt.Sprintf("/api/timetable/instances/%d", block.ID), block.updateBody(start, end)); err != nil {
+		if _, err := client.Put(fmt.Sprintf("/api/timetable/instances/%d", block.ID), block.updateBody(window.start, window.end)); err != nil {
 			slog.Warn("demo day: block not moved",
 				"instance_id", block.ID,
 				"error", err,
 			)
 			return fmt.Errorf("move demo block %d: %w", block.ID, err)
 		}
+		delete(day.pendingBlocks, block.ID)
 	}
-	if err := day.loadTimes(client, studentIDs, time.Time{}); err != nil {
-		return err
+	if day.pendingTimes == nil {
+		if err := day.loadTimes(client, studentIDs, time.Time{}); err != nil {
+			return err
+		}
+		moved := map[int64]demoTimes{}
+		for _, studentID := range studentIDs {
+			times, ok := day.times[studentID]
+			if !ok || times.arrival < 0 {
+				continue // No care today: the child stays at home.
+			}
+			arrival := max(times.arrival+day.pendingShift, 0)
+			if arrival > demoDayLastStart {
+				continue
+			}
+			pickup := -1
+			if times.pickup >= 0 {
+				pickup = max(min(times.pickup+day.pendingShift, demoDayLastMinute), arrival+1)
+			}
+			moved[studentID] = demoTimes{arrival: arrival, pickup: pickup}
+		}
+		day.pendingTimes = moved
 	}
-	moved := map[int64]demoTimes{}
-	for _, studentID := range studentIDs {
-		times, ok := day.times[studentID]
-		if !ok || times.arrival < 0 {
-			continue // No care today: the child stays at home.
-		}
-		arrival := max(times.arrival+shift, 0)
-		if arrival > demoDayLastStart {
-			continue
-		}
-		pickup := -1
-		if times.pickup >= 0 {
-			pickup = max(min(times.pickup+shift, demoDayLastMinute), arrival+1)
-		}
-		moved[studentID] = demoTimes{arrival: arrival, pickup: pickup}
-	}
-	day.pendingTimes = moved
 	if err := day.writeTimes(client, studentIDs, day.pendingTimes); err != nil {
 		return err
 	}
 	day.pendingTimes = nil
+	day.pendingBlocks = nil
+	day.pendingShift = 0
 	return nil
 }
 
