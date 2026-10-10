@@ -812,6 +812,8 @@ function StudentDetailPageContent() {
       arrivalData.notes,
       student?.sick ?? false,
       student?.excused ?? false,
+      null,
+      weekendFollowsFriday,
     );
 
     if (dayData.isAbsent) {
@@ -830,7 +832,13 @@ function StudentDetailPageContent() {
       };
     }
     return {};
-  }, [arrivalData, hasFullAccess, student?.excused, student?.sick]);
+  }, [
+    arrivalData,
+    hasFullAccess,
+    student?.excused,
+    student?.sick,
+    weekendFollowsFriday,
+  ]);
 
   // Clamp the URL tab to the set the current access level actually exposes, so a
   // stale deep-link (e.g. ?tab=betreuungszeiten without full access) falls back

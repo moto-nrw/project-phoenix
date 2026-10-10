@@ -13,6 +13,9 @@ import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import { SWRConfig } from "swr";
 import { useSession } from "next-auth/react";
+import { getDayData as getArrivalDayData } from "~/lib/arrival-schedule-helpers";
+import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import { setTestClock } from "~/test/clock";
 
 const {
   mockSWRMutate,
@@ -449,6 +452,16 @@ vi.mock("~/lib/pickup-schedule-helpers", () => ({
   formatPickupTime: vi.fn().mockReturnValue("15:30"),
 }));
 
+vi.mock("~/lib/arrival-schedule-helpers", () => ({
+  getDayData: vi.fn().mockReturnValue({
+    effectiveTime: undefined,
+    effectiveReason: undefined,
+    isException: false,
+    isAbsent: false,
+  }),
+  formatArrivalTime: vi.fn((time: string) => time),
+}));
+
 const mockSchoolCheckinStudent = vi.fn();
 vi.mock("~/lib/student-api", () => ({
   schoolCheckinStudent: (studentId: string, action: "in" | "out") =>
@@ -630,6 +643,7 @@ describe("StudentDetailPage", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+    vi.mocked(useWeekendFollowsFriday).mockReturnValue(false);
   });
 
   describe("Loading State", () => {
@@ -763,6 +777,30 @@ describe("StudentDetailPage", () => {
   });
 
   describe("Full Access View", () => {
+    it("uses Friday's arrival plan in the header when the weekend follows Friday", async () => {
+      setTestClock("2026-09-12T12:00:00+02:00");
+      vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+
+      render(
+        <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+          <StudentDetailPage />
+        </SWRConfig>,
+      );
+
+      await waitFor(() => {
+        expect(getArrivalDayData).toHaveBeenLastCalledWith(
+          expect.any(Date),
+          [],
+          [],
+          [],
+          false,
+          false,
+          null,
+          true,
+        );
+      });
+    });
+
     it("renders student header with name", () => {
       render(<StudentDetailPage />);
 

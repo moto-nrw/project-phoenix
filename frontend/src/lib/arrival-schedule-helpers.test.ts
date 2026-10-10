@@ -40,6 +40,29 @@ describe("arrival schedule getDayData", () => {
     expect(result.effectiveReason).toBe("Klassenfahrt");
   });
 
+  it("uses Friday's arrival schedule on an enabled weekend", () => {
+    const friday = {
+      ...schedules[0]!,
+      weekday: 5,
+      expected_arrival: "08:00",
+    };
+    const saturday = new Date("2026-09-12T12:00:00+02:00");
+
+    const result = getDayData(
+      saturday,
+      [friday],
+      [],
+      [],
+      false,
+      false,
+      null,
+      true,
+    );
+
+    expect(result.weekday).toBe(5);
+    expect(result.effectiveTime).toBe("08:00");
+  });
+
   it("labels class and own arrival times without a duplicate class prefix", () => {
     expect(stripClassPrefix("Klasse 3b")).toBe("3b");
     expect(

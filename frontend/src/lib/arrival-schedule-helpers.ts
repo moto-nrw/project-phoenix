@@ -141,12 +141,14 @@ export function getDayData(
   isSickToday = false,
   isExcusedToday = false,
   statusForDate: StudentStatusKind | null = null,
+  weekendFollowsFriday = false,
 ): ArrivalDayData {
-  const weekday = getWeekdayFromDate(date);
+  const calendarWeekday = getWeekdayFromDate(date);
+  const weekday = calendarWeekday ?? 5;
   const dateStr = formatDateISO(date);
   const today = new Date();
 
-  if (weekday === null) {
+  if (calendarWeekday === null && !weekendFollowsFriday) {
     return {
       date,
       weekday: 0,
