@@ -3,6 +3,7 @@ import type { ArrivalSchedule } from "./student-arrival-api";
 import {
   arrivalScheduleSourceLabel,
   getDayData,
+  getWeekDays,
   stripClassPrefix,
 } from "./arrival-schedule-helpers";
 
@@ -73,5 +74,14 @@ describe("arrival schedule getDayData", () => {
     ).toBe("aus Klasse 3b");
     expect(arrivalScheduleSourceLabel({ source: "staff" })).toBe("eigene Zeit");
     expect(arrivalScheduleSourceLabel(undefined)).toBeNull();
+  });
+});
+
+describe("arrival schedule getWeekDays", () => {
+  it("includes Saturday and Sunday when the weekend follows Friday", () => {
+    const days = getWeekDays(0, true);
+
+    expect(days).toHaveLength(7);
+    expect(days.map((day) => day.getDay())).toEqual([1, 2, 3, 4, 5, 6, 0]);
   });
 });

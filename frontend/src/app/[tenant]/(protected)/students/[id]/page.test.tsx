@@ -405,11 +405,17 @@ vi.mock("~/components/students/care-schedule-manager", () => ({
   CareScheduleManager: ({
     studentId,
     onUpdate,
+    weekendFollowsFriday,
   }: {
     studentId: string;
     onUpdate?: () => void;
+    weekendFollowsFriday?: boolean;
   }) => (
-    <div data-testid="care-schedule-manager" data-student-id={studentId}>
+    <div
+      data-testid="care-schedule-manager"
+      data-student-id={studentId}
+      data-weekend-follows-friday={weekendFollowsFriday}
+    >
       <button
         type="button"
         data-testid="update-care-schedule"
@@ -799,6 +805,10 @@ describe("StudentDetailPage", () => {
           true,
         );
       });
+      expect(screen.getByTestId("care-schedule-manager")).toHaveAttribute(
+        "data-weekend-follows-friday",
+        "true",
+      );
     });
 
     it("renders student header with name", () => {

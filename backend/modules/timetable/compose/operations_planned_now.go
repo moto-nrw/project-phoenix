@@ -307,7 +307,7 @@ func (s *operations) plannedAttendanceCounts(inst *scheduleModels.ActivityInstan
 			if row.CheckedOutAt == nil {
 				counts.current++
 			}
-			if !row.IsUnplanned {
+			if !row.IsUnplanned && s.deps.CareDays.Expected(careDay[row.StudentID]) {
 				counts.planned++
 			}
 		case scheduleModels.AttendanceStatusAbsent:

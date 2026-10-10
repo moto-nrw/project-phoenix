@@ -591,6 +591,25 @@ func TestDemoTickerRetriesFailedLeftoverClosure(t *testing.T) {
 	assert.Equal(t, "completed", client.blocks[0].Status)
 }
 
+func TestDemoTickerClosesLeftoversFromBeforeTheRecentWindow(t *testing.T) {
+	t.Parallel()
+	block := plannedBlock(9, "14:00", "15:00", 5)
+	block.Date, block.Status = "2026-07-15", "active"
+	state := minimalLiveState("")
+	state.CreatedAt = time.Date(2026, 7, 1, 12, 0, 0, 0, demoBerlin)
+	state.Accounts.Betreuer = []AccountCredentials{{StaffID: 17}}
+	state.Activities = map[string]int64{"Hausaufgaben": 23}
+	client := newDemoDayClient(block)
+	ticker, err := NewDemoTicker(DemoTickOptions{
+		State: state, Client: client, Now: func() time.Time { return demoDayAt(t, "15:00") },
+		Visits: func(context.Context) ([]DemoVisit, error) { return nil, nil },
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, ticker.closeLeftovers(demoDayAt(t, "15:00")))
+	assert.Equal(t, "completed", client.blocks[0].Status)
+}
+
 func TestDemoTickerRetriesFailedDeviceSessionShutdown(t *testing.T) {
 	t.Parallel()
 	state := minimalLiveState("")

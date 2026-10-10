@@ -11,7 +11,11 @@ import (
 	"time"
 )
 
-const demoWebGracePeriod = 15 * time.Minute
+const (
+	demoWebGracePeriod         = 15 * time.Minute
+	demoInstanceListRangeDays  = 56
+	demoLegacyLeftoverLookback = 7
+)
 
 // DemoVisit is the latest visit of a child, read from the owning school's
 // presence capability. ChangedAt includes checkout, not just arrival.
@@ -294,35 +298,50 @@ func (d *DemoTicker) rebuild(ctx context.Context, state *SeedState, rooms []int6
 	return nil
 }
 
-// closeLeftovers closes, once a day, planned blocks of the past week that
-// still run. The daily close ends them at the end of the care day, but a
-// missed close (a restart at that minute) would keep their sessions open,
-// and a running block's activity refuses every kiosk session of the next
-// open-simulation day.
+// closeLeftovers closes, once a day, planned blocks from the demo's history
+// that still run. The daily close ends them at the end of the care day, but a
+// missed close would keep their sessions open, and a running block's activity
+// refuses every kiosk session of the next open-simulation day.
 func (d *DemoTicker) closeLeftovers(now time.Time) error {
 	local := now.In(demoBerlin)
 	today := local.Format(isoDate)
 	if d.settled == today {
 		return nil
 	}
-	from := local.AddDate(0, 0, -7).Format(isoDate)
-	to := local.AddDate(0, 0, -1).Format(isoDate)
-	blocks, err := fetchDemoBlocks(d.options.Client, from, to)
-	if err != nil {
-		return fmt.Errorf("leftover demo blocks: %w", err)
+	from := d.options.State.CreatedAt.In(demoBerlin)
+	if d.options.State.CreatedAt.IsZero() {
+		// Seed states have carried their creation time since the profile
+		// contract was introduced. Keep old local states usable while they are
+		// recreated, without turning a missing timestamp into an unbounded read.
+		from = local.AddDate(0, 0, -demoLegacyLeftoverLookback)
 	}
+	from = time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, demoBerlin)
+	yesterday := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, demoBerlin).AddDate(0, 0, -1)
 	allClosed := true
-	for _, block := range blocks {
-		if block.IsSpontaneous || block.Status != "active" {
-			continue
+	for !from.After(yesterday) {
+		to := from.AddDate(0, 0, demoInstanceListRangeDays-1)
+		if to.After(yesterday) {
+			to = yesterday
 		}
-		if err := completeBlock(d.options.Client, block.ID); err != nil {
-			allClosed = false
-			slog.Info("demo day: leftover block not closed",
-				"instance_id", block.ID,
-				"error", err,
-			)
+		// The instance endpoint limits a response to 56 days. Walk all of the
+		// demo's history so downtime never leaves an old running block behind.
+		blocks, err := fetchDemoBlocks(d.options.Client, from.Format(isoDate), to.Format(isoDate))
+		if err != nil {
+			return fmt.Errorf("leftover demo blocks: %w", err)
 		}
+		for _, block := range blocks {
+			if block.IsSpontaneous || block.Status != "active" {
+				continue
+			}
+			if err := completeBlock(d.options.Client, block.ID); err != nil {
+				allClosed = false
+				slog.Info("demo day: leftover block not closed",
+					"instance_id", block.ID,
+					"error", err,
+				)
+			}
+		}
+		from = to.AddDate(0, 0, 1)
 	}
 	if allClosed {
 		d.settled = today

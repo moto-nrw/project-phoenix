@@ -1693,6 +1693,7 @@ function StudentDetailPageContent() {
           student={student}
           studentId={studentId}
           hasWriteAccess={hasWriteAccess}
+          weekendFollowsFriday={weekendFollowsFriday}
           attendanceLogEnabled={attendanceLogEnabled}
           feedbackEnabled={feedbackEnabled}
           activeTab={activeTab}
@@ -1939,6 +1940,7 @@ interface FullAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
   hasWriteAccess: boolean;
+  weekendFollowsFriday: boolean;
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
   activeTab: StudentTabId;
@@ -1963,6 +1965,7 @@ function FullAccessView({
   student,
   studentId,
   hasWriteAccess,
+  weekendFollowsFriday,
   attendanceLogEnabled,
   feedbackEnabled,
   activeTab,
@@ -2140,6 +2143,7 @@ function FullAccessView({
         <CareScheduleManager
           studentId={studentId}
           readOnly={!hasWriteAccess}
+          weekendFollowsFriday={weekendFollowsFriday}
           onUpdate={hasWriteAccess ? onRefreshData : undefined}
           isSick={student.sick}
           isExcused={student.excused}
