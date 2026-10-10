@@ -71,7 +71,6 @@ var seedCoverageExemptions = map[string]string{
 
 	"calendar.appointment_occurrence_overrides":     "empty in prod too",
 	"calendar.appointment_reminder_push_deliveries": "empty in prod too",
-	"calendar.recurrence_rules":                     "empty in prod too",
 
 	"config.work_time_model_entries": "empty in prod too",
 	"config.work_time_models":        "empty in prod too",

@@ -1,64 +1,105 @@
 package api
 
 import (
-	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// legacyDemoStudentBirthday is the formula exactly as it stood inline in the
-// fixed seeder before it became demoStudentBirthday. A re-enrollment finds the
-// child by name AND birthday, so the extraction must not move a single date.
-func legacyDemoStudentBirthday(i int, groupKey string) string {
-	baseYear := 2019
+// legacyDemoStudentBirthYear is the birth year per group as the fixed seeder
+// set it before birthdays followed the seed day (#3922). Only day and month
+// moved; the year still fits the child's class.
+func legacyDemoStudentBirthYear(groupKey string) int {
 	switch groupKey {
-	case "sternengruppe":
-		baseYear = 2019
-	case "bärengruppe":
-		baseYear = 2018
-	case "sonnengruppe":
-		baseYear = 2018
-	case "mondgruppe":
-		baseYear = 2017
-	case "regenbogengruppe":
-		baseYear = 2017
-	case "blumengruppe":
-		baseYear = 2016
-	case "schmetterlingsgruppe":
-		baseYear = 2016
-	case "waldgruppe":
-		baseYear = 2019
-	case "meeresgruppe":
-		baseYear = 2017
-	case "wiesengruppe":
-		baseYear = 2016
+	case "bärengruppe", "sonnengruppe":
+		return 2018
+	case "mondgruppe", "regenbogengruppe", "meeresgruppe":
+		return 2017
+	case "blumengruppe", "schmetterlingsgruppe", "wiesengruppe":
+		return 2016
 	}
-	return fmt.Sprintf("%d-%02d-%02d", baseYear, (i%12)+1, (i%28)+1)
+	return 2019
 }
 
-func TestDemoStudentBirthdayMatchesTheSeededChildren(t *testing.T) {
+func TestDemoStudentBirthdayKeepsTheYearOfTheGroup(t *testing.T) {
 	t.Parallel()
 
+	seedDay := fixedSeedDate(t, "2026-10-10")
 	require.NotEmpty(t, DemoStudents)
 	for i, student := range DemoStudents {
-		assert.Equal(t, legacyDemoStudentBirthday(i, student.GroupKey), demoStudentBirthday(i, student),
-			"child %d (%s)", i, student.GroupKey)
+		birthday, err := time.Parse(seedDateLayout, demoStudentBirthday(i, student, seedDay))
+		require.NoError(t, err)
+		assert.Equal(t, legacyDemoStudentBirthYear(student.GroupKey), birthday.Year(), "child %d (%s)", i, student.GroupKey)
 	}
-	assert.Equal(t, "2019-01-01", demoStudentBirthday(0, DemoStudent{GroupKey: "unbekannt"}),
+	assert.Equal(t, 2019, mustParseYear(t, demoStudentBirthday(0, DemoStudent{GroupKey: "unbekannt"}, seedDay)),
 		"an unknown group keeps the first-grade default")
+}
+
+// The birthday card shows a Monday-to-Sunday week and pages four weeks back
+// and forth (#3777). In each of them at least two children have a birthday,
+// whatever weekday the school was seeded on, and one of them on the seed day.
+func TestDemoStudentBirthdayFillsEveryWeekAroundTheSeedDay(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []string{"2026-10-05", "2026-10-09", "2026-10-10", "2026-10-11", "2027-02-24"} {
+		seedDay := fixedSeedDate(t, value)
+		monday := seedDay.AddDays(-((int(seedDay.Weekday()) + 6) % 7))
+		perWeek := map[int]int{}
+		today := 0
+		for i, student := range DemoStudents {
+			birthday, err := time.Parse(seedDateLayout, demoStudentBirthday(i, student, seedDay))
+			require.NoError(t, err)
+			for week := -demoBirthdayWeeksBefore; week <= 8; week++ {
+				for day := 0; day < 7; day++ {
+					date := monday.AddDays(7*week + day)
+					if date.Month() == birthday.Month() && date.Day() == birthday.Day() {
+						perWeek[week]++
+					}
+				}
+			}
+			if seedDay.Month() == birthday.Month() && seedDay.Day() == birthday.Day() {
+				today++
+			}
+		}
+		for week := -demoBirthdayWeeksBefore; week <= 8; week++ {
+			assert.GreaterOrEqual(t, perWeek[week], 2, "seed day %s, week %+d", value, week)
+		}
+		assert.GreaterOrEqual(t, today, 1, "seed day %s: a child has a birthday today", value)
+	}
+}
+
+func TestDemoStudentBirthdayNeverInventsFebruary29(t *testing.T) {
+	t.Parallel()
+
+	// 2028-02-29 is the seed day; 2019 has no 29 February.
+	assert.Equal(t, "2019-02-28", demoStudentBirthday(2*demoBirthdayWeeksBefore, DemoStudent{GroupKey: "sternengruppe"}, fixedSeedDate(t, "2028-02-29")))
+}
+
+func fixedSeedDate(t *testing.T, value string) seedDate {
+	t.Helper()
+	day, err := parseSeedDate(value)
+	require.NoError(t, err)
+	return day
+}
+
+func mustParseYear(t *testing.T, value string) int {
+	t.Helper()
+	day, err := time.Parse(seedDateLayout, value)
+	require.NoError(t, err)
+	return day.Year()
 }
 
 func TestRenewalChildForResolvesTheChildBehindAParent(t *testing.T) {
 	t.Parallel()
 
-	rt := &Runtime{FixedSeeder: &FixedSeeder{studentIDByIndex: map[int]int64{0: 900, 1: 901}}}
+	rt := &Runtime{FixedSeeder: &FixedSeeder{studentIDByIndex: map[int]int64{0: 900, 1: 901}, seedDay: fixedSeedDate(t, "2026-10-10")}}
 
 	child, err := renewalChildFor(rt, ParentCredentials{Email: "p@example.test", StudentIDs: []int64{901}})
 	require.NoError(t, err)
 	assert.Equal(t, DemoStudents[1].FirstName, child.student.FirstName)
-	assert.Equal(t, demoStudentBirthday(1, DemoStudents[1]), child.birthday)
+	assert.Equal(t, demoStudentBirthday(1, DemoStudents[1], rt.FixedSeeder.seedDay), child.birthday)
 	// "Klasse 1a" enters grade 2 next year.
 	assert.Equal(t, int16(2), child.nextGrade)
 
