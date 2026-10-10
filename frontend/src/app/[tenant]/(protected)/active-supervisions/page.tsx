@@ -59,6 +59,7 @@ import { useStudentFilters } from "~/components/active-supervisions/use-student-
 import { useReopenBanner } from "~/components/active-supervisions/use-reopen-banner";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useSchulhofActions } from "~/components/active-supervisions/use-schulhof-actions";
+import { PresentChildrenPicker } from "~/components/active-supervisions/present-children-picker";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import {
   SupervisionStudentGrid,
@@ -409,6 +410,7 @@ function MeinRaumPageContent() {
 
   const spontaneousStartBanner = dashboard.webSpontaneousActivitiesEnabled ? (
     <SpontaneousActivityStart
+      canCreateExternalCaregiver={hasPermission(session, "users:create")}
       currentStaffId={currentStaffId}
       defaultRoomId={currentRoom?.room_id ?? currentOpenRoom?.roomId}
       disabled={dashboard.spontaneousStartAvailability?.available === false}
@@ -627,11 +629,15 @@ function MeinRaumPageContent() {
             clearReopenable: reopen.clearReopenable,
             attendanceWebEnabled,
             showTimetableCounts,
+            canReadPresentChildren: hasPermission(session, "users:read"),
             canExcuseRestOfDay: hasPermission(session, "users:update"),
             overviewEnabled,
             onAddSupervisor: setAddSupervisorTarget,
             onRosterGroups: rememberOpenRoomRosterGroups,
             rosterRowFilter: filters.rosterRowFilter,
+            presentPickerAutoOpenInstanceId:
+              actions.presentPickerAutoOpenInstanceId,
+            onPresentPickerAutoOpened: actions.clearPresentPickerAutoOpen,
           }}
         />
       );
@@ -657,6 +663,17 @@ function MeinRaumPageContent() {
             showTimetableCounts={showTimetableCounts}
             occupancy={supervisionOccupancy}
             onAddStudent={actions.handleAddUnplannedStudent}
+            onAddPresentStudents={
+              hasPermission(session, "users:read")
+                ? actions.handleAddPresentStudents
+                : undefined
+            }
+            presentChildrenPicker={PresentChildrenPicker}
+            presentPickerAutoOpen={
+              actions.presentPickerAutoOpenInstanceId ===
+              currentTimetableRoster.instance.id
+            }
+            onPresentPickerAutoOpened={actions.clearPresentPickerAutoOpen}
             onComplete={actions.handleCompleteTimetableInstance}
             onConfirmExpected={actions.handleConfirmExpectedStudents}
             onRosterAction={actions.handleRosterAction}
@@ -785,6 +802,10 @@ function MeinRaumPageContent() {
           {addSupervisorTarget ? (
             <AddSupervisorModal
               activeGroupId={addSupervisorTarget}
+              canCreateExternalCaregiver={hasPermission(
+                session,
+                "users:create",
+              )}
               isOpen
               onClose={() => setAddSupervisorTarget(null)}
               onAdded={mutateDashboard}

@@ -2286,6 +2286,7 @@
         "business_rejection": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "input": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "permission": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "request_too_large": "Nie udało się przetworzyć: {object}. Usuń w przeglądarce pliki cookie tej strony. Następnie zaloguj się ponownie.",
         "server": "Nie udało się przetworzyć: {object}. Spróbuj ponownie później.",
         "unavailable": "{object} jest teraz niedostępne. Spróbuj ponownie."
       },

@@ -252,7 +252,7 @@ func (s *Store) CountWorkSessions(ctx context.Context, filter domain.WorkSession
 	if err != nil {
 		return 0, stats, fmt.Errorf("workforce postgres: count work sessions: %w", err)
 	}
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 func (s *Store) OldestWorkSessionDate(ctx context.Context, before string) (string, domain.OperationStats, error) {
@@ -1035,10 +1035,10 @@ func orderBy(query *bun.SelectQuery, alias, column string, descending bool) *bun
 
 func limitOffset(query *bun.SelectQuery, limit, offset int) *bun.SelectQuery {
 	if limit > 0 {
-		query = query.Limit(limit)
+		query = query.Limit(int64(limit))
 	}
 	if offset > 0 {
-		query = query.Offset(offset)
+		query = query.Offset(int64(offset))
 	}
 	return query
 }

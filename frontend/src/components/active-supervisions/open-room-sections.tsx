@@ -15,11 +15,13 @@ import {
 } from "~/components/ui/section-card";
 import { OccupancyBadges } from "~/components/ui/occupancy-badges";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { blockTimeRange } from "~/lib/block-children";
 import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import { ActiveSupervisionLoadingView } from "~/components/active-supervisions/states";
 import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
 import { SupervisionStudentGrid } from "~/components/active-supervisions/student-grid";
+import { PresentChildrenPicker } from "~/components/active-supervisions/present-children-picker";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
@@ -42,6 +44,8 @@ export type OpenRoomBlockContext = Omit<
 > & {
   readonly attendanceWebEnabled: boolean;
   readonly showTimetableCounts: boolean;
+  /** The present-children endpoint reads the tenant-wide student directory. */
+  readonly canReadPresentChildren: boolean;
   /** Offers „Rest des Tages“ when the caller may record partial absences. */
   readonly canExcuseRestOfDay: boolean;
   /** The school-wide overview lets the caller read every running roster. */
@@ -56,6 +60,13 @@ export type OpenRoomBlockContext = Omit<
   readonly rosterRowFilter?: ComponentProps<
     typeof TimetableRosterContent
   >["rowFilter"];
+  /**
+   * A spontaneous activity the page just started opens its picker of present
+   * children once (#3824). The start runs through the page's actions, the
+   * block's roster through this section's own, so the page hands it down.
+   */
+  readonly presentPickerAutoOpenInstanceId?: string | null;
+  readonly onPresentPickerAutoOpened?: () => void;
 };
 
 type StudentGridProps = Omit<
@@ -221,11 +232,14 @@ function OpenRoomBlock({
   const {
     attendanceWebEnabled,
     showTimetableCounts,
+    canReadPresentChildren,
     canExcuseRestOfDay,
     overviewEnabled,
     onAddSupervisor,
     onRosterGroups,
     rosterRowFilter,
+    presentPickerAutoOpenInstanceId,
+    onPresentPickerAutoOpened,
     ...actionOptions
   } = context;
   const [collapsed, setCollapsed] = useState(!section.isOwn);
@@ -285,8 +299,8 @@ function OpenRoomBlock({
       }
       description={withOverbookedHint(
         section.isOwn
-          ? `${block.startTime}–${block.endTime} Uhr`
-          : `${block.startTime}–${block.endTime} Uhr · Sie sind hier nicht eingeplant.`,
+          ? `${blockTimeRange({ ...block, status: "active" })} Uhr`
+          : `${blockTimeRange({ ...block, status: "active" })} Uhr · Sie sind hier nicht eingeplant.`,
         occupancy,
         nfcEnabled,
       )}
@@ -322,6 +336,16 @@ function OpenRoomBlock({
             />
           }
           onAddStudent={actions.handleAddUnplannedStudent}
+          onAddPresentStudents={
+            canReadPresentChildren
+              ? actions.handleAddPresentStudents
+              : undefined
+          }
+          presentChildrenPicker={PresentChildrenPicker}
+          presentPickerAutoOpen={
+            presentPickerAutoOpenInstanceId === currentRoster.instance.id
+          }
+          onPresentPickerAutoOpened={onPresentPickerAutoOpened}
           onComplete={actions.handleCompleteTimetableInstance}
           onConfirmExpected={actions.handleConfirmExpectedStudents}
           onRosterAction={actions.handleRosterAction}

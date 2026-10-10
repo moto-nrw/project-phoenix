@@ -78,7 +78,7 @@ func (r *ParentRequestEventRepository) ListForStudent(
 		ModelTableExpr(`users.parent_request_events AS "parent_request_event"`).
 		Where(`"parent_request_event".student_id = ?`, studentID).
 		OrderExpr(`"parent_request_event".id DESC`).
-		Limit(limit)
+		Limit(int64(limit))
 	query = withTenantFilter(ctx, r.runtime, query, "parent_request_event")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &userModels.DatabaseError{Op: "list student parent request events", Err: translateNotFound(err)}

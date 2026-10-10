@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 )
 
 func newSettingsResource(operations configAPI.Operations, homeLayouts configAPI.HomeLayoutOperations, references func(context.Context, string, string) (bool, error)) *configAPI.SettingsResource {

@@ -121,7 +121,7 @@ func (s *UnregisteredTagScanStore) List(ctx context.Context, filter domain.Unreg
 	if limit <= 0 {
 		limit = domain.DefaultUnregisteredTagScanLimit
 	}
-	query = query.OrderExpr(`"scan".scanned_at DESC`).Limit(limit)
+	query = query.OrderExpr(`"scan".scanned_at DESC`).Limit(int64(limit))
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx)

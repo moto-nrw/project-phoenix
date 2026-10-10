@@ -81,7 +81,7 @@ func (s *arrivalScheduleService) projectedWeekRange(
 	rows := make([]*careplan.ArrivalSchedule, 0, len(studentIDs)*5)
 	for _, studentID := range uniquePickupStudents(studentIDs) {
 		for date := from; !date.After(to); date = date.AddDays(1) {
-			if row := projection.WeeklyForDate(studentID, date)[domain.ISOWeekday(date)]; row != nil {
+			if row := projection.WeeklyForDate(studentID, date)[projection.PlanWeekday(date)]; row != nil {
 				rows = append(rows, row)
 			}
 		}
@@ -537,7 +537,7 @@ func (s *arrivalScheduleService) GetStudentArrivalDataForDateRange(
 	}
 	byWeekday := make(map[int]*careplan.ArrivalSchedule, 5)
 	for date := from; !date.After(to); date = date.AddDays(1) {
-		weekday := domain.ISOWeekday(date)
+		weekday := projection.PlanWeekday(date)
 		// A range may include the same weekday twice. The latest date wins, so
 		// a booking that has ended cannot keep an earlier care-day marker alive.
 		delete(byWeekday, weekday)

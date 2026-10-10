@@ -43,6 +43,9 @@ type snapshotFixture struct {
 type snapshotSessionSettings struct{}
 
 func (snapshotSessionSettings) EnforcePlannedStart(context.Context) (bool, error) { return false, nil }
+func (snapshotSessionSettings) PlannedStartToleranceMinutes(context.Context) (int, error) {
+	return 0, nil
+}
 func (snapshotSessionSettings) RequireDeviationReason(context.Context) (bool, error) {
 	return false, nil
 }

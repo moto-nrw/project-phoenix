@@ -5,9 +5,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services/iot/staffclock"
-	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // staffClockClock is the wall clock and the Berlin calendar day the kiosk
@@ -19,7 +19,7 @@ func (staffClockClock) Day(instant time.Time) string { return timezone.DateFromT
 
 // newStaffClockService composes the staff-clock workflow over the retained
 // person and work session services (#2690), and the card owner's capability.
-func newStaffClockService(people users.PersonService, cards identityaccess.RFIDCards, sessions timetracking.WorkSessionService) *staffclock.Service {
+func newStaffClockService(people *peopleCompose.PersonDirectory, cards identityaccess.RFIDCards, sessions timetracking.WorkSessionService) *staffclock.Service {
 	return staffclock.NewService(staffclock.Dependencies{
 		Cards:     rfidCardLookup{cards},
 		Staff:     StaffClockStaffLookup(people),

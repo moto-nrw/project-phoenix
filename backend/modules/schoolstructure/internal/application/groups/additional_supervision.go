@@ -2,11 +2,11 @@ package groups
 
 import (
 	"context"
+	"errors"
 	"sort"
 
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -28,6 +28,11 @@ func (s *substitutionModule) listRunningSupervisions(
 	if err != nil {
 		return nil, err
 	}
+	if len(groups) > 0 {
+		if targets, err = s.withExternalTargets(ctx, targets); err != nil {
+			return nil, err
+		}
+	}
 	result := make([]RunningSupervision, 0, len(groups))
 	for _, group := range groups {
 		if query.ActiveGroupID > 0 && group.ID != query.ActiveGroupID {
@@ -44,6 +49,44 @@ func (s *substitutionModule) listRunningSupervisions(
 	}
 	sort.SliceStable(result, func(i, j int) bool { return result[i].ID < result[j].ID })
 	return result, nil
+}
+
+// withExternalTargets appends the external caregivers to the caregiver
+// targets: an external caregiver (#3823) can help with a running supervision,
+// while group handovers keep offering caregivers only.
+func (s *substitutionModule) withExternalTargets(ctx context.Context, caregivers []StaffRef) ([]StaffRef, error) {
+	if s.deps.ExternalCaregivers == nil {
+		return caregivers, nil
+	}
+	externals, err := s.deps.ExternalCaregivers.ListExternalCaregivers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]StaffRef, 0, len(caregivers)+len(externals))
+	result = append(result, caregivers...)
+	for _, member := range externals {
+		result = append(result, StaffRef{ID: member.StaffID, FullName: member.FullName, IsExternal: true})
+	}
+	return result, nil
+}
+
+// findAndLockSupervisionTarget resolves an additional supervisor: an active
+// caregiver or, when the directory is wired, an external caregiver.
+func (s *substitutionModule) findAndLockSupervisionTarget(ctx context.Context, staffID int64) (*domain.Caregiver, bool, error) {
+	target, err := s.findAndLockTarget(ctx, staffID)
+	if !errors.Is(err, ErrNotFound) || s.deps.ExternalCaregivers == nil {
+		return target, false, err
+	}
+	externals, err := s.deps.ExternalCaregivers.ListExternalCaregivers(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	for _, member := range externals {
+		if member.StaffID == staffID {
+			return member, true, nil
+		}
+	}
+	return nil, false, ErrNotFound
 }
 
 func (s *substitutionModule) loadRunningSupervisionState(ctx context.Context) (
@@ -105,10 +148,19 @@ func projectRunningSupervision(
 			result.Name = group.Room.Name
 		}
 	}
+	externalIDs := make(map[int64]struct{}, len(caregivers))
+	for _, caregiver := range caregivers {
+		if caregiver.IsExternal {
+			externalIDs[caregiver.ID] = struct{}{}
+		}
+	}
 	participantIDs := make(map[int64]struct{}, len(supervisors)+1)
 	for _, supervisor := range supervisors {
 		participantIDs[supervisor.StaffID] = struct{}{}
-		result.Supervisors = append(result.Supervisors, supervisorRef(supervisor))
+		_, isExternal := externalIDs[supervisor.StaffID]
+		result.Supervisors = append(result.Supervisors, StaffRef{
+			ID: supervisor.StaffID, FullName: supervisor.StaffName, IsExternal: isExternal,
+		})
 	}
 	if access.actor != nil {
 		participantIDs[access.actor.StaffID] = struct{}{}
@@ -119,10 +171,6 @@ func projectRunningSupervision(
 		}
 	}
 	return result
-}
-
-func supervisorRef(supervisor *studentpresence.StaffedSupervision) StaffRef {
-	return StaffRef{ID: supervisor.StaffID, FullName: supervisor.StaffName}
 }
 
 func actorSupervises(actor *Actor, supervisors []*studentpresence.StaffedSupervision) bool {
@@ -183,18 +231,18 @@ func (s *substitutionModule) assignAdditionalSupervisionLocked(
 	access substitutionAccess,
 	broad bool,
 	request *AdditionalSupervisionAssignment,
-) (*studentpresence.GroupSupervision, *educationModels.Caregiver, error) {
+) (*studentpresence.GroupSupervision, *domain.Caregiver, error) {
 	group, err := s.lockAssignableSupervision(ctx, caller, access, broad, request)
 	if err != nil {
 		return nil, nil, err
 	}
-	target, err := s.findAndLockTarget(ctx, request.TargetStaffID)
+	target, isExternal, err := s.findAndLockSupervisionTarget(ctx, request.TargetStaffID)
 	if err != nil {
 		return nil, nil, err
 	}
 	created := &studentpresence.GroupSupervision{
 		StaffID: target.StaffID, GroupID: group.ID, Role: additionalSupervisorRole,
-		StartDate: calendar.DateFromTime(s.deps.Now()).String(),
+		StartDate: calendar.DateFromTime(s.deps.Now()).String(), SkipPresenceStamp: isExternal,
 	}
 	if err := s.deps.ActiveSupervisorCreator.CreateGroupSupervisor(ctx, created); err != nil {
 		return nil, nil, err
@@ -240,9 +288,9 @@ func (s *substitutionModule) lockAssignableSupervision(
 	return group, nil
 }
 
-func additionalSupervisionAudit(row *studentpresence.GroupSupervision, actorID int64) educationModels.SubstitutionChange {
-	return educationModels.SubstitutionChange{
-		SubstitutionID: row.ID, TargetType: string(TargetAdditionalSupervision), Action: educationModels.SubstitutionAssigned,
+func additionalSupervisionAudit(row *studentpresence.GroupSupervision, actorID int64) domain.SubstitutionChange {
+	return domain.SubstitutionChange{
+		SubstitutionID: row.ID, TargetType: string(TargetAdditionalSupervision), Action: domain.SubstitutionAssigned,
 		GroupID: row.GroupID, TargetStaffID: row.StaffID, ActorAccountID: actorID,
 		StartDate: calendar.Date(row.StartDate),
 	}

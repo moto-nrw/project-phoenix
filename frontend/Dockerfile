@@ -28,7 +28,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 EXPOSE 3000
 
-CMD ["pnpm", "run", "dev"]
+# Keep the development server at the same limit as the deployed server. Node
+# rejects larger requests before Next.js can turn them into a useful response.
+CMD ["node", "--max-http-header-size=65536", "node_modules/next/dist/bin/next", "dev"]
 
 # Builder stage for production
 FROM base AS builder
@@ -70,4 +72,8 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+# Node rejects a request whose headers exceed 16 KB with 431 before Next.js
+# sees it. A tenant session sends its access token twice (session cookie and
+# Authorization header), and cookies of other moto hosts on the parent domain
+# add to that (#3883). The proxy in front and the backend accept more.
+CMD ["node", "--max-http-header-size=65536", "server.js"]

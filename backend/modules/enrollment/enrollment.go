@@ -69,6 +69,9 @@ type engine interface {
 	StudentCarePeriods(context.Context, int64) ([]*StudentCarePeriod, error)
 	UpdateChildActivationPlan(context.Context, int64, string, *Date) error
 	LinkCreatedStudent(context.Context, int64, int64) error
+	SetChildClassSwitch(context.Context, int64, *ClassSwitch) error
+	ChildClassSwitch(context.Context, int64) (*ClassSwitch, error)
+	DueClassSwitches(context.Context, Date) ([]DueClassSwitch, error)
 	UpdateMatchedStudent(context.Context, int64, *int64) error
 	RestoreWithdrawnChildren(context.Context, int64, []int64) ([]int64, error)
 	TransitionPhaseChildren(context.Context, int64, string, string) (int, error)

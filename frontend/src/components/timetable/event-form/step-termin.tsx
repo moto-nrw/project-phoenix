@@ -20,6 +20,7 @@ import type { EventFormState } from "./form-model";
 import type { CategoryOption, RoomOption } from "./use-event-form";
 import type { ActivityType, TimetableListKind } from "~/lib/timetable-types";
 import { PlanningTrackSelect } from "../planning-track-select";
+import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 
 const TYPE_OPTIONS: Array<{
   value: ActivityType;
@@ -110,6 +111,7 @@ export function StepTermin({
   canManagePlanningTracks = false,
 }: Readonly<StepTerminProps>) {
   const isDuty = form.type === "duty";
+  const weekendOpen = useWeekendFollowsFriday();
   return (
     <>
       <Field label="Titel" htmlFor="event_title" required>
@@ -323,7 +325,7 @@ export function StepTermin({
             value={form.date}
             error={fieldErrors.date}
             calendarLayout="popover"
-            disabledDay={isWeekendDay}
+            disabledDay={weekendOpen ? undefined : isWeekendDay}
             onChange={(nextDate) => {
               const nextWeekday = isoWeekday(nextDate);
               update("date", nextDate);
@@ -389,7 +391,7 @@ export function StepTermin({
             max={seriesStartEdit.original}
             invalid={Boolean(fieldErrors.seriesStartDate)}
             calendarLayout="popover"
-            disabledDay={isWeekendDay}
+            disabledDay={weekendOpen ? undefined : isWeekendDay}
             onChange={(next) => update("seriesStartDate", next)}
           />
           <p className="mt-1 text-[11px] leading-4 text-gray-500">

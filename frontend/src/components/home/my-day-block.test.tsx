@@ -252,6 +252,8 @@ describe("MyDayBlock (#2180)", () => {
         status: "active",
         activeGroupId: "55",
         presentStudentsCount: 12,
+        currentStudentsCount: 12,
+        plannedStudentsCount: 18,
       }),
     ];
 
@@ -266,6 +268,39 @@ describe("MyDayBlock (#2180)", () => {
     expect(
       screen.getByText("12 von 18 da", { exact: false }),
     ).toBeInTheDocument();
+  });
+
+  // #3921: ein spontaner Block hat bis zum Beenden kein Ende, und wer
+  // gegangen ist, steht getrennt.
+  it("zeigt bei einem laufenden spontanen Block kein ausgedachtes Ende", () => {
+    swr.data = [
+      block({
+        id: "10",
+        title: "Tanzen",
+        status: "active",
+        activeGroupId: "56",
+        isSpontaneous: true,
+        startTime: "15:16",
+        endTime: "16:16",
+        expectedStudentsCount: 0,
+        presentStudentsCount: 36,
+        currentStudentsCount: 9,
+        plannedStudentsCount: 0,
+      }),
+    ];
+
+    render(<MyDayBlock />);
+
+    expect(
+      screen.getByRole("link", {
+        name: "Tanzen seit 15:16: Kinderliste öffnen",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Ende offen")).toBeInTheDocument();
+    expect(
+      screen.getByText("9 da · 27 gegangen", { exact: false }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/von 0/)).not.toBeInTheDocument();
   });
 
   it("nennt einen abgesagten Block mit Grund", () => {

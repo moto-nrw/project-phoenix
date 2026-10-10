@@ -1,19 +1,17 @@
 package services
 
 import (
-	"log/slog"
-
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/services/activities"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
 
 type ActivitiesTestModule struct {
 	Activities  activities.ActivityService
 	Timetable   timetable.Capability
-	Users       users.PersonService
+	Users       *peopleCompose.PersonDirectory
 	UserContext *repositories.CallerRows
 }
 
@@ -34,10 +32,10 @@ func NewActivitiesTestModule(db *bun.DB) (ActivitiesTestModule, error) {
 	// Activities consumes the owner's timeframe reads and staff-directory reads only.
 	return ActivitiesTestModule{
 		Activities: activityService, Timetable: r.Timetable, UserContext: identity,
-		Users: users.NewPersonService(users.PersonServiceDependencies{
+		Users: peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
 			PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
 			StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
-			PersonRepo:       r.Person, TeacherRepo: r.Teacher, DB: db, Logger: slog.Default(),
+			PersonRepo:       r.Person, TeacherRepo: r.Teacher,
 			StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: r.Person, Staff: r.Staff, Teachers: r.Teacher}),
 		}),
 	}, nil

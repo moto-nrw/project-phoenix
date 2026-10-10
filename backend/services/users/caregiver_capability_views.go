@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -115,13 +117,13 @@ func caregiverCapabilityError(err error) error {
 		}
 		return caregiverBlockedError{error: blocked, chain: err, blockers: reasons}
 	}
-	if _, notAssigned := errors.AsType[*AccountNotAssignedToTenantError](err); notAssigned || errors.Is(err, ErrAccountNotFound) {
+	if _, notAssigned := errors.AsType[*AccountNotAssignedToTenantError](err); notAssigned || errors.Is(err, userscontract.ErrAccountNotFound) {
 		return caregiverAccountMissingError{error: err}
 	}
-	if invalid, ok := errors.AsType[*ValidationError](err); ok {
+	if invalid, ok := errors.AsType[*userscontract.ValidationError](err); ok {
 		return caregiverInvalidError{error: err, invalid: invalid}
 	}
-	if failure, ok := errors.AsType[*UsersError](err); ok {
+	if failure, ok := errors.AsType[*userscontract.UsersError](err); ok {
 		return caregiverFailureError{error: err, cause: failure.Err}
 	}
 	return err
@@ -145,7 +147,7 @@ func (e caregiverAccountMissingError) CaregiverAccountMissing() bool { return tr
 
 type caregiverInvalidError struct {
 	error
-	invalid *ValidationError
+	invalid *userscontract.ValidationError
 }
 
 func (e caregiverInvalidError) Unwrap() error                  { return e.error }

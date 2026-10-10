@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	jwtPkg "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -618,11 +617,11 @@ func TestCaregiverCapability_DisableWaitsForConcurrentBindings(t *testing.T) {
 	tx, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
 
-	pendingRelation := &educationModels.GroupTeacher{
+	pendingRelation := &testpkg.EducationGroupTeacher{
 		GroupID:   group.ID,
 		TeacherID: teacher.ID,
+		TenantID:  testpkg.Tenant(t),
 	}
-	pendingRelation.SetTenantID(testpkg.Tenant(t))
 
 	err = tx.NewInsert().
 		Model(pendingRelation).
@@ -871,8 +870,7 @@ func TestCaregiverDirectory_ListAndFindActiveCaregiversIncludingLegacyTeacherRol
 		"inactive",
 	)
 
-	directory, err := usersSvc.CaregiverDirectoryFromPersonService(factory.Users)
-	require.NoError(t, err)
+	directory := factory.Users
 
 	caregivers, err := directory.ListActiveCaregivers(ctx)
 	require.NoError(t, err)
@@ -937,8 +935,7 @@ func TestCaregiverDirectory_ExcludesTenantScopedUserRole(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	directory, err := usersSvc.CaregiverDirectoryFromPersonService(factory.Users)
-	require.NoError(t, err)
+	directory := factory.Users
 
 	caregivers, err := directory.ListActiveCaregivers(ctx)
 	require.NoError(t, err)

@@ -36,6 +36,7 @@ import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { blockChildrenLabel, blockEndLine } from "~/lib/block-children";
 import { berlinTodayISO, formatDate, isValidISODate } from "~/lib/date-helpers";
 import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
@@ -44,9 +45,10 @@ import { useSWRAuth } from "~/lib/swr/hooks";
 import {
   useOperationalOverviewScope,
   useTimetableEnabled,
+  useWeekendFollowsFriday,
 } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { nextWorkdayISO, previousWorkdayISO } from "~/lib/timetable-helpers";
+import { nextCareDayISO, previousCareDayISO } from "~/lib/timetable-helpers";
 import { canStartPlannedInstance } from "~/lib/timetable-lifecycle";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
@@ -115,19 +117,11 @@ function staffLine(instance: PlannedTimetableInstance): string | null {
 }
 
 // Kinderzahl so knapp wie möglich — der Tagesplan soll sich in einem Blick
-// lesen, nicht in Sätzen ("4 Kinder" statt "4 Kinder erwartet").
+// lesen, nicht in Sätzen ("4 Kinder" statt "4 Kinder erwartet"). Laufend
+// zählt, wer gerade da ist, und wer gegangen ist, steht daneben (#3921).
 function childrenShort(instance: PlannedTimetableInstance): string | null {
   if (instance.status === "cancelled") return null;
-  if (instance.status === "active") {
-    return `${instance.presentStudentsCount} von ${instance.expectedStudentsCount} da`;
-  }
-  // Nach dem Beenden gibt es keinen Erwartet-Stand mehr — zählbar ist nur
-  // noch, wer da war.
-  const count =
-    instance.status === "completed"
-      ? instance.presentStudentsCount
-      : instance.expectedStudentsCount;
-  return count === 1 ? "1 Kind" : `${count} Kinder`;
+  return blockChildrenLabel(instance);
 }
 
 // Die "Jetzt"-Linie: markiert die aktuelle Uhrzeit zwischen vergangenen und
@@ -214,7 +208,7 @@ function TagesplanRow({
           {instance.startTime}
         </span>
         <span className="block text-xs text-gray-500 tabular-nums">
-          bis {instance.endTime}
+          {blockEndLine(instance)}
         </span>
       </span>
       <span className={`min-w-0 flex-1 ${over ? "opacity-50" : ""}`}>
@@ -306,6 +300,7 @@ export function TagesplanView() {
   const router = useTenantRouter();
   const timetableEnabled = useTimetableEnabled();
   const overviewScope = useOperationalOverviewScope();
+  const weekendOpen = useWeekendFollowsFriday();
   const now = useMinuteClock();
 
   const today = berlinTodayISO();
@@ -444,7 +439,7 @@ export function TagesplanView() {
               variant="ghost"
               size="icon"
               aria-label="Vorheriger Tag"
-              onClick={() => goToDay(previousWorkdayISO(day))}
+              onClick={() => goToDay(previousCareDayISO(day, weekendOpen))}
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             </Button>
@@ -463,7 +458,7 @@ export function TagesplanView() {
               variant="ghost"
               size="icon"
               aria-label="Nächster Tag"
-              onClick={() => goToDay(nextWorkdayISO(day))}
+              onClick={() => goToDay(nextCareDayISO(day, weekendOpen))}
             >
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Button>

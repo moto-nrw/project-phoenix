@@ -50,6 +50,9 @@ func (q *ArrivalBaselineQueries) Project(ctx context.Context, ids []int64, from,
 	if err != nil {
 		return nil, err
 	}
+	if out.WeekendFollowsFriday, err = weekendFollowsFridayIn(ctx, from, to); err != nil {
+		return nil, fmt.Errorf("project arrival baselines: %w", err)
+	}
 	stored := arrivalRowsByStudent(rows)
 	out.BookingsAuthoritative = days != nil
 	for _, id := range ids {
@@ -123,6 +126,9 @@ func (q *PickupBaselineQueries) Project(ctx context.Context, ids []int64, from, 
 	if err != nil {
 		return nil, err
 	}
+	if out.WeekendFollowsFriday, err = weekendFollowsFridayIn(ctx, from, to); err != nil {
+		return nil, fmt.Errorf("project pickup baselines: %w", err)
+	}
 	out.BookingsAuthoritative = authoritative
 	out.CareDays = domain.ProjectCareDayIndex(links, offerings, from, to)
 	domain.MergePickupPlans(out, ids, manualPickupRows(rows), offering, from, to)
@@ -175,3 +181,18 @@ func uniqueBaselineIDs(ids []int64) []int64 {
 
 var _ careplan.ArrivalBaselineReader = (*ArrivalBaselineQueries)(nil)
 var _ careplan.PickupBaselineReader = (*PickupBaselineQueries)(nil)
+
+// weekendFollowsFridayIn resolves the weekend plan setting (#3921) only when
+// [from, to] holds a Saturday or a Sunday, so weekday reads stay untouched.
+func weekendFollowsFridayIn(ctx context.Context, from, to calendar.Date) (bool, error) {
+	for date := from; !date.After(to); date = date.AddDays(1) {
+		if calendar.IsWeekend(date) {
+			follows, err := calendar.WeekendFollowsFriday(ctx)
+			if err != nil {
+				return false, fmt.Errorf("resolve weekend plan: %w", err)
+			}
+			return follows, nil
+		}
+	}
+	return false, nil
+}

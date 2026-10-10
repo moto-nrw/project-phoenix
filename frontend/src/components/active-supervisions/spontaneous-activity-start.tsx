@@ -20,6 +20,12 @@ import {
   type PlannerRoomReference,
 } from "~/lib/planner-reference-api";
 import { staffService, type Staff } from "~/lib/staff-api";
+import { ExternalBadge } from "~/components/staff/external-badge";
+
+import {
+  ExternalCaregiverEntry,
+  type ExternalCaregiverResult,
+} from "./external-caregiver-entry";
 
 const logger = createLogger({ component: "SpontaneousActivityStart" });
 const EMPTY_OCCUPIED_ROOM_IDS: readonly string[] = [];
@@ -38,6 +44,7 @@ export interface SpontaneousActivityStartPayload {
 }
 
 interface SpontaneousActivityStartProps {
+  readonly canCreateExternalCaregiver?: boolean;
   readonly currentStaffId?: string;
   readonly defaultRoomId?: string;
   readonly disabled?: boolean;
@@ -91,6 +98,7 @@ function isRoomOccupied(
 }
 
 export function SpontaneousActivityStart({
+  canCreateExternalCaregiver = false,
   currentStaffId,
   defaultRoomId,
   disabled = false,
@@ -104,6 +112,9 @@ export function SpontaneousActivityStart({
   const [activities, setActivities] = useState<Activity[]>([]);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
+  // Without the staff list the name check of a new external entry cannot
+  // run, so the section stays hidden after a failed load.
+  const [staffLoaded, setStaffLoaded] = useState(false);
   const [activityInput, setActivityInput] = useState("");
   const [roomId, setRoomId] = useState("");
   const [additionalStaffIds, setAdditionalStaffIds] = useState<string[]>([]);
@@ -153,10 +164,13 @@ export function SpontaneousActivityStart({
           noteFailure("spontaneous_rooms_fetch_failed", err);
           return [] as RoomOption[];
         }),
-      staffService.getAllStaff().catch((err: unknown) => {
-        noteFailure("spontaneous_staff_fetch_failed", err);
-        return [] as Staff[];
-      }),
+      staffService
+        .getAllStaff()
+        .then((list) => ({ list, loaded: true }))
+        .catch((err: unknown) => {
+          noteFailure("spontaneous_staff_fetch_failed", err);
+          return { list: [] as Staff[], loaded: false };
+        }),
     ])
       .then(([activityData, roomData, staffData]) => {
         if (cancelled) return;
@@ -173,8 +187,9 @@ export function SpontaneousActivityStart({
           [...activityData].sort((a, b) => a.name.localeCompare(b.name, "de")),
         );
         setRooms(spontaneousRooms);
+        setStaffLoaded(staffData.loaded);
         setStaff(
-          staffData
+          staffData.list
             .filter((item) => item.id !== currentStaffId)
             .sort((a, b) => staffLabel(a).localeCompare(staffLabel(b), "de")),
         );
@@ -291,6 +306,19 @@ export function SpontaneousActivityStart({
     );
   }
 
+  function addExternalCaregiver(result: ExternalCaregiverResult) {
+    const id = result.kind === "created" ? result.staff.id : result.id;
+    if (result.kind === "created") {
+      const created = result.staff;
+      setStaff((prev) =>
+        [...prev.filter((item) => item.id !== created.id), created].sort(
+          (a, b) => staffLabel(a).localeCompare(staffLabel(b), "de"),
+        ),
+      );
+    }
+    setAdditionalStaffIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  }
+
   function resetAndClose() {
     setIsOpen(false);
     setActivityInput("");
@@ -364,7 +392,6 @@ export function SpontaneousActivityStart({
         title="Spontane Aktivität"
         size="md"
         error={formErrors.error}
-        mobilePosition="center"
         footer={
           <>
             <Button
@@ -571,28 +598,47 @@ export function SpontaneousActivityStart({
             ) : null}
           </div>
 
-          {staff.length > 0 ? (
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
+          {isLoadingRefs || !staffLoaded ? null : (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
                 <MotoConceptIcon concept="staff" size={16} />
                 Weitere Betreuer
               </div>
-              <div className="grid max-h-44 gap-2 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2">
-                {staff.map((item) => (
-                  <label
-                    key={item.id}
-                    className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm text-gray-800"
-                  >
-                    <Checkbox
-                      checked={additionalStaffIds.includes(item.id)}
-                      onChange={() => toggleStaff(item.id)}
-                    />
-                    <span className="truncate">{staffLabel(item)}</span>
-                  </label>
-                ))}
-              </div>
+              {staff.length > 0 ? (
+                <div className="grid max-h-44 gap-2 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2">
+                  {staff.map((item) => (
+                    <label
+                      key={item.id}
+                      className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm text-gray-800"
+                    >
+                      <Checkbox
+                        checked={additionalStaffIds.includes(item.id)}
+                        onChange={() => toggleStaff(item.id)}
+                      />
+                      <span className="min-w-0 truncate">
+                        {staffLabel(item)}
+                      </span>
+                      {item.isExternal ? (
+                        <ExternalBadge
+                          organization={item.externalOrganization}
+                        />
+                      ) : null}
+                    </label>
+                  ))}
+                </div>
+              ) : null}
+              {canCreateExternalCaregiver ? (
+                <ExternalCaregiverEntry
+                  existing={staff.map((item) => ({
+                    id: item.id,
+                    fullName: staffLabel(item),
+                    isExternal: item.isExternal === true,
+                  }))}
+                  onAdded={addExternalCaregiver}
+                />
+              ) : null}
             </div>
-          ) : null}
+          )}
         </form>
       </FormModal>
     </>

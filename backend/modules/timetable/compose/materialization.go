@@ -169,7 +169,7 @@ func (s *materializationService) MaterializeForTenant(
 			return s.materializeForTenantInTransaction(ctx, tenantID, from, to, source)
 		}
 		// The recurrence gate, then the grade-transition gate, in that order
-		// (see education.TenantTransitionsLockKey — recurrence first,
+		// (see schoolstructure.TransitionsLockKey — recurrence first,
 		// transitions second, everywhere). expectedStudentIDsOn decides
 		// whether to insert a roster row from the student status this pass
 		// read; a grade transition committing its graduation and its
@@ -222,6 +222,9 @@ type materializationWorld struct {
 	existingIdx   map[existingKey]struct{}
 	exceptionIdx  map[exceptionKey]*schedule.ActivityException
 	timeframeByID map[int64]*schedule.Timeframe
+	// weekendFollowsFriday materializes Saturday and Sunday from Friday's
+	// schedules (#3921).
+	weekendFollowsFriday bool
 }
 
 func (s *materializationService) materializeForTenantLocked(
@@ -335,6 +338,10 @@ func (s *materializationService) loadMaterializationWorld(
 	if err != nil {
 		return nil, err
 	}
+	follows, err := weekendFollowsFridayIn(ctx, from, to)
+	if err != nil {
+		return nil, &ScheduleError{Op: "materialize for tenant", Err: err}
+	}
 	return &materializationWorld{
 		from:          from,
 		to:            to,
@@ -343,6 +350,8 @@ func (s *materializationService) loadMaterializationWorld(
 		existingIdx:   buildExistingIndex(existing),
 		exceptionIdx:  buildExceptionIndex(exceptions),
 		timeframeByID: timeframeByID,
+
+		weekendFollowsFriday: follows,
 	}, nil
 }
 
@@ -475,10 +484,11 @@ func expectedStudentIDsOn(
 	careBounds map[int64]timezone.Date,
 	date timezone.Date,
 	periodID int64,
+	planWeekday int,
 ) []int64 {
 	seen := make(map[int64]struct{}, len(enrollments)+len(targetStudentIDs))
 	for _, enrollment := range enrollments {
-		if !isEnrollmentValidOn(enrollment, date, periodID) ||
+		if !isEnrollmentValidOn(enrollment, date, periodID, planWeekday) ||
 			enrollmentStudentIsAlumnus(enrollment) ||
 			careEndedOnDate(careBounds, enrollment.StudentID, date) {
 			continue
@@ -524,10 +534,10 @@ func (s *materializationService) materializeTemplate(
 	roster.schedules = schedules
 
 	for date := world.from; !date.After(world.to); date = date.AddDays(1) {
-		if isWeekend(date) {
+		if isWeekend(date) && !world.weekendFollowsFriday {
 			continue
 		}
-		isoWd := isoWeekday(date)
+		isoWd := planWeekday(date, world.weekendFollowsFriday)
 		for _, sch := range schedules {
 			if sch.Weekday != isoWd {
 				continue
@@ -595,12 +605,13 @@ func (s *materializationService) materializeCandidate(
 		roster.careBounds,
 		date,
 		period.ID,
+		planWeekday(date, world.weekendFollowsFriday),
 		result,
 		"materialize template: copy expected student",
 	); err != nil {
 		return err
 	}
-	return s.copySupervisors(ctx, instance.ID, roster.supervisors, date, period.ID, result)
+	return s.copySupervisors(ctx, instance.ID, roster.supervisors, date, period.ID, planWeekday(date, world.weekendFollowsFriday), result)
 }
 
 // createInstanceError names the candidate whose insert failed, so a
@@ -664,10 +675,11 @@ func (s *materializationService) copyExpectedStudents(
 	careBounds map[int64]timezone.Date,
 	date timezone.Date,
 	periodID int64,
+	planWeekday int,
 	result *timetable.MaterializationResult,
 	errorOp string,
 ) error {
-	studentIDs := expectedStudentIDsOn(enrollments, targetStudentIDs, careBounds, date, periodID)
+	studentIDs := expectedStudentIDsOn(enrollments, targetStudentIDs, careBounds, date, periodID, planWeekday)
 	for _, studentID := range studentIDs {
 		row := &schedule.InstanceStudent{
 			InstanceID: instanceID,
@@ -697,9 +709,10 @@ func (s *materializationService) copySupervisors(
 	supervisors []*activities.SupervisorPlanned,
 	date timezone.Date,
 	periodID int64,
+	planWeekday int,
 	result *timetable.MaterializationResult,
 ) error {
-	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, date, periodID)
+	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, date, periodID, planWeekday)
 
 	// `unique_instance_staff (instance_id, staff_id)` rejects the same staff
 	// on the same instance twice. Same staff on *different* instances at the
@@ -708,7 +721,7 @@ func (s *materializationService) copySupervisors(
 	// row in `supervisors_planned` does not crash the whole materialization.
 	seen := make(map[int64]struct{}, len(supervisors))
 	for _, sup := range supervisors {
-		if !isSupervisorValidOn(sup, date, periodID) {
+		if !isSupervisorValidOn(sup, date, periodID, planWeekday) {
 			continue
 		}
 		if _, dup := seen[sup.StaffID]; dup {

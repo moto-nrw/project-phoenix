@@ -18,6 +18,11 @@ import {
   useBerlinClock,
   useHomeCardRows,
 } from "~/components/home/home-card-rows";
+import {
+  blockChildrenLabel,
+  blockEndLine,
+  hasOpenEnd,
+} from "~/lib/block-children";
 import { useDayPlanHref, useDayPlanLabel } from "~/lib/hooks/use-day-plan-href";
 import { useStartOwnBlock } from "~/components/home/use-start-own-block";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -237,21 +242,13 @@ function BlockRow({
   const room =
     block.roomName ??
     (isDuty && block.roomId === "0" ? null : `Raum ${block.roomId}`);
-  // Kinderzahl so knapp wie im Tagesplan: laufend „12 von 18 da", danach
-  // nur noch, wer da war, davor, wer erwartet wird.
-  const count =
-    block.status === "completed"
-      ? block.presentStudentsCount
-      : block.expectedStudentsCount;
+  // Kinderzahl so knapp wie im Tagesplan: laufend „12 von 18 da“ und wer
+  // gegangen ist, danach nur noch, wer da war, davor, wer erwartet wird.
   const children = cancelled
     ? null
     : isDuty
       ? "Dienst"
-      : running
-        ? `${block.presentStudentsCount} von ${block.expectedStudentsCount} da`
-        : count === 1
-          ? "1 Kind"
-          : `${count} Kinder`;
+      : blockChildrenLabel(block);
   const staff = (block.staffNames ?? [])
     .map((entry) =>
       entry.isSubstitute
@@ -287,7 +284,7 @@ function BlockRow({
       >
         <Link
           href={href}
-          aria-label={`${block.title} ${block.startTime} bis ${block.endTime}: ${running ? "Kinderliste öffnen" : "im Tagesplan öffnen"}`}
+          aria-label={`${block.title} ${hasOpenEnd(block) ? `seit ${block.startTime}` : `${block.startTime} bis ${block.endTime}`}: ${running ? "Kinderliste öffnen" : "im Tagesplan öffnen"}`}
           className="flex min-w-0 flex-1 items-center gap-3"
         >
           <span className="w-14 shrink-0 sm:w-16">
@@ -295,7 +292,7 @@ function BlockRow({
               {block.startTime}
             </span>
             <span className="block text-xs text-gray-500 tabular-nums">
-              bis {block.endTime}
+              {blockEndLine(block)}
             </span>
           </span>
           <span className="min-w-0 flex-1">

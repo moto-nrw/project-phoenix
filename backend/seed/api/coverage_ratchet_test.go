@@ -71,7 +71,6 @@ var seedCoverageExemptions = map[string]string{
 
 	"calendar.appointment_occurrence_overrides":     "empty in prod too",
 	"calendar.appointment_reminder_push_deliveries": "empty in prod too",
-	"calendar.recurrence_rules":                     "empty in prod too",
 
 	"config.work_time_model_entries": "empty in prod too",
 	"config.work_time_models":        "empty in prod too",
@@ -106,7 +105,6 @@ var seedCoverageExemptions = map[string]string{
 	"schedule.timetable_conflict_acks":          "empty in prod too",
 
 	"users.class_list_entries":            "not in prod yet (migration newer than the deployed image)",
-	"users.guests":                        "empty in prod too",
 	"users.parent_announcement_responses": "empty in prod too",
 	"users.parent_request_rss_feeds":      "user-created capability credential; seeding only its hash would create an unusable subscription",
 	"users.persons_guardians":             "empty in prod too",

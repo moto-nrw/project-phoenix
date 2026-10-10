@@ -68,7 +68,17 @@ type OperationPlannedInstance struct {
 	PresentStudentsCount  int    `json:"present_students_count"`
 	// NotScheduledCount is how many assigned children are not in care here
 	// today (#1747); they are left out of ExpectedStudentsCount.
-	NotScheduledCount   int                       `json:"not_scheduled_students_count"`
+	NotScheduledCount int `json:"not_scheduled_students_count"`
+	// CurrentStudentsCount is the children still in the block: present and
+	// not checked out, walk-ins included (#3921).
+	CurrentStudentsCount int `json:"current_students_count"`
+	// PlannedStudentsCount is the block's own children of the day: still
+	// expected or arrived, without walk-ins, absences and children the care
+	// plan does not place here (#3921).
+	PlannedStudentsCount int `json:"planned_students_count"`
+	// IsSpontaneous marks a block started on the spot; its end is open until
+	// it is completed (#3921).
+	IsSpontaneous       bool                      `json:"is_spontaneous"`
 	AssignedStaffIDs    []int64                   `json:"assigned_staff_ids"`
 	IsAssigned          bool                      `json:"is_assigned"`
 	IsPrimary           bool                      `json:"is_primary"`
@@ -122,6 +132,7 @@ type OperationSessionBlock struct {
 	Title         string
 	StartTime     string
 	EndTime       string
+	IsSpontaneous bool
 	// IsAssigned reports a plan entry of the caller that is not absent.
 	IsAssigned bool
 	// CanOperate reports whether the caller may act on the block.
@@ -311,6 +322,9 @@ type OperationCommand interface {
 	Complete(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*ScheduledInstance, error)
 	Reopen(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*StartedOperation, error)
 	CheckInStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error)
+	// CheckInStudents checks several children in at once, all or nothing
+	// (#3824).
+	CheckInStudents(ctx context.Context, accountID int64, isAdmin bool, instanceID int64, studentIDs []int64) (*OperationRoster, error)
 	CheckOutStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error)
 	PatchAttendance(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64, patch AttendancePatch) (*OperationRosterRow, error)
 }

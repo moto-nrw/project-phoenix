@@ -409,6 +409,46 @@ describe("PlannedNowSection", () => {
     expect(screen.getByText("Vertretung")).toBeInTheDocument();
   });
 
+  it("shows an open end for a running spontaneous block", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            status: "active",
+            isSpontaneous: true,
+            startTime: "15:16",
+            endTime: "16:16",
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("seit 15:16")).toBeInTheDocument();
+    expect(screen.queryByText("15:16-16:16")).toBeNull();
+  });
+
+  it("keeps the legacy present count when the current count is absent", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            currentStudentsCount: undefined,
+            presentStudentsCount: 3,
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    const attendance = screen.getByText("Anwesend").parentElement;
+    expect(attendance).toHaveTextContent("3");
+  });
+
   it("sets children apart who are not in care today without hiding them", () => {
     render(
       <PlannedNowSection

@@ -4,10 +4,10 @@ import (
 	"context"
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // WorkforceAdminCapabilities bundles the public Workforce contracts the staff
@@ -32,7 +32,7 @@ type WorkforceAdminCapabilities struct {
 // when its service is not wired, so a partial composition (a focused test
 // module) still serves the routes it has services for.
 func NewWorkforceAdminCapabilities(
-	people users.PersonService,
+	people *peopleCompose.PersonDirectory,
 	staffAdmin *workforce.StaffAdmin,
 	sessions timetracking.WorkSessionService,
 	absences timetracking.StaffAbsenceService,

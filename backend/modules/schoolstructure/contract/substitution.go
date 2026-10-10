@@ -56,6 +56,9 @@ type GroupRef struct {
 type StaffRef struct {
 	ID       int64  `json:"id,string"`
 	FullName string `json:"full_name"`
+	// IsExternal marks an external caregiver without a moto account (#3823);
+	// only the additional supervision targets carry it.
+	IsExternal bool `json:"is_external,omitempty"`
 }
 
 type Period struct {

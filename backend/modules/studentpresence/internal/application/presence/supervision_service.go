@@ -53,7 +53,7 @@ func (s *service) createGroupSupervisor(ctx context.Context, supervisor *ports.G
 	// working right now — auto-open their work session so they show as
 	// "Anwesend" (issue #1439). Kiosk-driven session starts already do this
 	// in assignMultipleSupervisorsNonCritical; this covers the web app path.
-	if supervisor.StartDate == s.todayDate() {
+	if supervisor.StartDate == s.todayDate() && !supervisor.SkipPresenceStamp {
 		source := stampSourceApp
 		if s.attendancePrincipal(ctx).IsIoT {
 			source = stampSourceNFC

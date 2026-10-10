@@ -69,7 +69,7 @@ func TestListGroups(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
 
 		// ACT: List with pagination
-		query := &testpkg.EducationGroupListQuery{Limit: 100}
+		query := &testutil.SchoolStructureGroupListQuery{Limit: 100}
 		groups, err := service.ListGroups(ctx, query)
 
 		// ASSERT
@@ -176,7 +176,7 @@ func TestGroupOperations(t *testing.T) {
 
 	t.Run("create group successfully", func(t *testing.T) {
 		// ARRANGE
-		group := &testpkg.EducationGroup{
+		group := &testutil.SchoolStructureGroup{
 			Name: "New Test Group " + time.Now().Format("20060102150405"),
 		}
 
@@ -269,7 +269,7 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 
 	t.Run("updates group successfully", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "OriginalName")
+		group := testutil.SchoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "OriginalName"))
 
 		// Use a unique name to avoid conflicts with other test data
 		newName := fmt.Sprintf("UpdatedName-%d", time.Now().UnixNano())
@@ -290,7 +290,7 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 	t.Run("rejects update with duplicate name", func(t *testing.T) {
 		// ARRANGE
 		group1 := testpkg.CreateTestEducationGroup(t, db, "ExistingName")
-		group2 := testpkg.CreateTestEducationGroup(t, db, "ToBeRenamed")
+		group2 := testutil.SchoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "ToBeRenamed"))
 
 		// Use the actual unique name from group1 (fixtures add timestamps)
 		group2.Name = group1.Name // Try to rename to existing name
@@ -305,7 +305,7 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 
 	t.Run("updates group with room change", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "RoomChangeGroup")
+		group := testutil.SchoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "RoomChangeGroup"))
 		room := testpkg.CreateTestRoom(t, db, "NewRoom")
 
 		group.RoomID = &room.ID
@@ -319,7 +319,7 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 
 	t.Run("returns error for non-existent group", func(t *testing.T) {
 		// ARRANGE
-		group := &testpkg.EducationGroup{Name: "NonExistent"}
+		group := &testutil.SchoolStructureGroup{Name: "NonExistent"}
 		group.ID = 999999999
 
 		// ACT
@@ -512,7 +512,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 
 	t.Run("rejects group with invalid name", func(t *testing.T) {
 		// ARRANGE
-		group := &testpkg.EducationGroup{Name: ""} // Empty name is invalid
+		group := &testutil.SchoolStructureGroup{Name: ""} // Empty name is invalid
 
 		// ACT
 		err := service.CreateGroup(ctx, group)
@@ -525,7 +525,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 		// ARRANGE
 		nonExistentRoomID := int64(999999999)
 		uniqueName := fmt.Sprintf("GroupWithBadRoom-%d", time.Now().UnixNano())
-		group := &testpkg.EducationGroup{
+		group := &testutil.SchoolStructureGroup{
 			Name:   uniqueName,
 			RoomID: &nonExistentRoomID,
 		}
@@ -542,7 +542,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "GroupCreateRoom")
 		uniqueName := fmt.Sprintf("GroupWithRoom-%d", time.Now().UnixNano())
-		group := &testpkg.EducationGroup{
+		group := &testutil.SchoolStructureGroup{
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
@@ -560,7 +560,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 		// ARRANGE
 		existingGroup := testpkg.CreateTestEducationGroup(t, db, "DuplicateTest")
 
-		duplicateGroup := &testpkg.EducationGroup{Name: existingGroup.Name}
+		duplicateGroup := &testutil.SchoolStructureGroup{Name: existingGroup.Name}
 
 		// ACT
 		err := service.CreateGroup(ctx, duplicateGroup)
@@ -584,7 +584,7 @@ func TestEducationService_ListGroups(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "ListTestGroup")
 
 		// ACT
-		groups, err := service.ListGroups(ctx, &testpkg.EducationGroupListQuery{Limit: 10})
+		groups, err := service.ListGroups(ctx, &testutil.SchoolStructureGroupListQuery{Limit: 10})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -603,7 +603,7 @@ func TestEducationService_FindGroupWithRoom(t *testing.T) {
 	t.Run("finds group with room", func(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "FindGroupRoom")
-		group := testpkg.CreateTestEducationGroup(t, db, "FindGroupWithRoom")
+		group := testutil.SchoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "FindGroupWithRoom"))
 
 		group.RoomID = &room.ID
 		require.NoError(t, service.UpdateGroup(ctx, group))

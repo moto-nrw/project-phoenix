@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	"github.com/moto-nrw/project-phoenix/services"
 )

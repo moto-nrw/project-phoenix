@@ -30,18 +30,12 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
-	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot/compose"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
-	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
-	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
-	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
-	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -69,6 +63,7 @@ import (
 	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter"
@@ -98,8 +93,6 @@ import (
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
-	classListHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http/classlistentries"
 	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -117,10 +110,11 @@ import (
 	worktimemodelsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
 	workforceInbound "github.com/moto-nrw/project-phoenix/modules/workforce/inbound"
 	workforceShiftPlanning "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/shiftplanning"
-	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
+	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 )
 
@@ -668,72 +662,39 @@ func newFeedbackResource(module *feedbackModule.Module) *feedbackAPI.Resource {
 	})
 }
 
-// API represents the API structure
-type API struct {
-	Services           *services.Factory
-	Router             chi.Router
+// serveGraph is the composed Serve root: its router, the process-scoped pool
+// and the retained composition the embedded Worker still reads (#2749). Each
+// route resource is mounted where it is built (#2745); only the two document
+// sweeps the Worker runs outlive their mount.
+type serveGraph struct {
+	router             chi.Router
 	db                 *bun.DB
+	services           *services.Factory
 	repos              *repositories.Factory
 	tenantRuntime      apiCommon.TenantRuntime
 	metrics            *httpMetrics
 	tracer             *observability.Tracer
 	metricsBearerToken string
-	databaseLogger     *slog.Logger
 	feedback           *feedbackModule.Module
-	membership         *schoolMembershipModule.Module
-	rooms              *facilitiesModule.Module
-	securityLogging    bool
-	rateLimiting       bool
-	authRateLimit      string
+	documents          documentSweeps
+}
 
-	// API Resources
-	Auth             *authAPI.Resource
-	Rooms            *roomsHTTPAdapter.Resource
-	Students         *studentsAPI.Resource
-	Statistics       *statisticsAPI.Resource
-	Groups           *groupsHTTP.Resource
-	Guardians        *usersAPI.GuardianResource
-	Import           *importAPI.Resource
-	Activities       *timetableHTTPAdapter.Resource
-	Staff            *staffHTTP.Resource
-	StaffAdmin       *timeTrackingHTTP.StaffAdminResource
-	WorkTimeModels   *worktimemodelsAPI.Resource
-	StaffShifts      *staffshiftsAPI.Resource
-	ShiftTypes       *shifttypesAPI.Resource
-	AbsenceTypes     *absencetypesAPI.Resource
-	Feedback         *feedbackAPI.Resource
-	MealPlan         *mealplanAPI.Resource
-	Enrollment       *enrollmentAPI.Resource
-	Display          *displayHTTPAdapter.Resource
-	Schedules        *timetableHTTPAdapter.SchedulesResource
-	Settings         *configAPI.SettingsResource
-	Active           *presenceAPI.Resource
-	IoT              *iotAPI.Resource
-	SSE              *sseAPI.Resource
-	Users            *usersAPI.Resource
-	Birthdays        *birthdaysAPI.Resource
-	ClassDay         *classdayHTTP.Resource
-	ClassListEntries *classListHTTP.Resource
-	School           *schoolPortal.Resource
-	UserContext      *meAPI.Resource
-	Substitutions    *substitutionsAPI.Resource
-	GradeTransitions *gradeTransitionHTTP.GradeTransitionResource
-	TimeTracking     *timeTrackingHTTP.Resource
-	Timetable        *timetableAPI.Resource
-	Emergency        *emergencyAPI.Resource
-	Messaging        *messagingAPI.Resource
-	StaffMessaging   *staffMessagingAPI.Resource
-	Calendar         *calendarAPI.Resource
-	Announcements    *announcementAPI.Resource
-	StaffNotices     *timetableHTTPAdapter.StaffNoticeResource
-	FileStore        *filestoreAPI.Resource
-	Reminders        *remindersAPI.Resource
-	Notifications    *notificationsAPI.Resource
+// documentSweeps are the Worker's file sweeps that route resources serve.
+type documentSweeps struct {
+	staff   scheduler.StaffDocumentFileCleaner
+	student scheduler.StudentDocumentFileCleaner
+}
 
-	// Operator Dashboard (platform domain)
-	Operator *operatorAPI.Resource
-	Parent   *parentAPI.Resource
-	Platform *platformAPI.Resource
+// routeInputs is what the route composition reads. It hands back none of the
+// resources it builds.
+type routeInputs struct {
+	modules        moduleServices
+	db             *bun.DB
+	logger         *slog.Logger
+	sessionAuth    *projectJWT.TokenAuth
+	frontendURL    string
+	errorReportDSN string
+	metricsToken   string
 }
 
 type apiBuildResources struct {
@@ -753,8 +714,9 @@ func (resources *apiBuildResources) close() error {
 	return errors.Join(err, database.ClosePool(resources.pool))
 }
 
-// New creates a new API instance
-func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL, errorReportDSN string) (result *API, resultErr error) {
+// newServeGraph composes the production HTTP graph of one Serve root.
+func newServeGraph(config ServeConfig) (result *serveGraph, resultErr error) {
+	logger := config.Logger
 	metricsBearerToken, err := observability.MetricsBearerTokenFromEnv(os.Getenv)
 	if err != nil {
 		return nil, err
@@ -769,7 +731,7 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL,
 	defer func() {
 		resultErr = errors.Join(resultErr, buildResources.close())
 	}()
-	db.AddQueryHook(database.NewLockWaitQueryHook(services.ObserveUnitOfWorkLockWait))
+	db.AddQueryHook(database.NewLockWaitQueryHook(services.ObserveUnitOfWorkLockWait)) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
 	postgresUnitOfWork, err := database.NewPostgresUnitOfWork(db, services.ObserveUnitOfWorkPoolWait)
 	if err != nil {
 		return nil, err
@@ -793,16 +755,15 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL,
 	}
 
 	if viper.GetBool("db_debug") {
-		db.AddQueryHook(database.NewQueryHook(logger.With("component", "database")))
+		db.AddQueryHook(database.NewQueryHook(logger.With("component", "database"))) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
 	}
 
 	// Compose one authoritative instance of each migrated module.
-	modules, err := initializeModuleServices(db, publicAPIURL, logger, tenantRuntime)
+	modules, err := initializeModuleServices(db, config.PublicAPIURL, logger, tenantRuntime)
 	if err != nil {
 		return nil, err
 	}
 	serviceFactory := modules.services
-	repoFactory := modules.repositories
 	buildResources.tracker = serviceFactory.Tracker
 	if err := serviceFactory.SetTenantRuntime(tenantRuntime); err != nil {
 		return nil, err
@@ -811,6 +772,85 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL,
 		observability.ObserveSettingsLookup,
 		observability.RecordSettingsSideEffectFailure,
 	)
+	registerRuntimeStatsProviders(db, modules)
+
+	httpMetrics := newHTTPMetrics()
+	tracer := newRuntimeTracer(logger)
+	graph := &serveGraph{
+		router:             chi.NewRouter(),
+		db:                 db,
+		services:           serviceFactory,
+		repos:              modules.repositories,
+		tenantRuntime:      tenantRuntime,
+		metrics:            httpMetrics,
+		tracer:             tracer,
+		metricsBearerToken: metricsBearerToken,
+		feedback:           modules.feedback,
+	}
+
+	// Setup router middleware
+	graph.router.Use(requestIDs(tracer))
+	graph.router.Use(apiCommon.ProblemResponseMiddleware)
+	graph.router.Use(apiCommon.TenantRuntimeMiddleware(tenantRuntime))
+	graph.router.Use(apiCommon.AuthorizationObserverMiddleware(func(event apiCommon.AuthorizationEvent) {
+		observability.RecordAuthorizationEvent(event.Outcome, event.Reason, event.Elapsed)
+	}))
+	graph.router.Use(apiCommon.TenantRuntimeObserverMiddleware(func(observation apiCommon.TenantRuntimeObservation) {
+		recordHTTPRuntimeEvent(tracer, observation)
+	}))
+	graph.router.Use(apiCommon.TenantRequestObserverMiddleware(func(event apiCommon.TenantRequestEvent) {
+		observability.ObserveTenantRequest(
+			event.TenantID,
+			event.Scope,
+			event.Request.Method,
+			apiCommon.RoutePattern(event.Request),
+			event.Status,
+			event.Duration,
+			event.Outcome,
+		)
+	}))
+	setupBasicMiddleware(graph.router, logger, httpMetrics)
+
+	// Setup CORS, security logging, and rate limiting
+	setupCORSIfEnabled(graph.router, config.EnableCORS)
+	securityLogger := setupSecurityLogging(graph.router)
+	sessionAuth, err := newSessionTokenAuth()
+	if err != nil {
+		return nil, err
+	}
+	setupRateLimiting(graph.router, securityLogger, sessionAuth, demoLoopbackExempt())
+	// One verifier serves every route: it only parses the presented token, and
+	// each protected group still rejects through the Authenticator and its
+	// scope gate. A group mounted without it fails closed.
+	graph.router.Use(sessionAuth.Verifier())
+	// Sentry events name the session they affect (#3643).
+	graph.router.Use(apiCommon.SentrySessionContext)
+	// Core actions of the portals reach the usage analytics once their
+	// response is 2xx (#3602). After the verifier, which names the session.
+	graph.router.Use(coreActionAnalytics(serviceFactory.Tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(serviceFactory.Settings, logger)))
+
+	documents, err := mountRoutes(graph.router, routeInputs{
+		modules:        modules,
+		db:             db,
+		logger:         logger,
+		sessionAuth:    sessionAuth,
+		frontendURL:    config.FrontendURL,
+		errorReportDSN: config.SentryPyrePortalDSN,
+		metricsToken:   metricsBearerToken,
+	}, authRateLimitersFromEnv())
+	if err != nil {
+		return nil, err
+	}
+	graph.documents = documents
+
+	buildResources.released = true
+	return graph, nil
+}
+
+// registerRuntimeStatsProviders hands the pool, the live streams and the PWA
+// usage to the metrics endpoint.
+func registerRuntimeStatsProviders(db *bun.DB, modules moduleServices) {
+	serviceFactory := modules.services
 	observability.RegisterDBStatsProvider(func() observability.DBStats {
 		stats := database.SnapshotCapacity(db)
 		return observability.DBStats{
@@ -840,112 +880,122 @@ func New(enableCORS bool, publicAPIURL string, logger *slog.Logger, frontendURL,
 		}
 		return stats, nil
 	}))
-
-	// Create API instance
-	httpMetrics := newHTTPMetrics()
-	tracer := newRuntimeTracer(logger)
-	api := &API{
-		Services:           serviceFactory,
-		Router:             chi.NewRouter(),
-		db:                 db,
-		repos:              repoFactory,
-		tenantRuntime:      tenantRuntime,
-		metrics:            httpMetrics,
-		tracer:             tracer,
-		metricsBearerToken: metricsBearerToken,
-		databaseLogger:     logger.With("handler", "database"),
-		feedback:           modules.feedback,
-		membership:         modules.membership,
-		rooms:              modules.rooms,
-	}
-
-	// Setup router middleware
-	api.Router.Use(func(next http.Handler) http.Handler { return requestIDMiddleware(tracer, next) })
-	api.Router.Use(apiCommon.ProblemResponseMiddleware)
-	api.Router.Use(apiCommon.TenantRuntimeMiddleware(tenantRuntime))
-	api.Router.Use(apiCommon.AuthorizationObserverMiddleware(func(event apiCommon.AuthorizationEvent) {
-		observability.RecordAuthorizationEvent(event.Outcome, event.Reason, event.Elapsed)
-	}))
-	api.Router.Use(apiCommon.TenantRuntimeObserverMiddleware(func(observation apiCommon.TenantRuntimeObservation) {
-		recordHTTPRuntimeEvent(tracer, observation)
-	}))
-	api.Router.Use(apiCommon.TenantRequestObserverMiddleware(func(event apiCommon.TenantRequestEvent) {
-		observability.ObserveTenantRequest(
-			event.TenantID,
-			event.Scope,
-			event.Request.Method,
-			apiCommon.RoutePattern(event.Request),
-			event.Status,
-			event.Duration,
-			event.Outcome,
-		)
-	}))
-	setupBasicMiddleware(api.Router, logger, httpMetrics)
-
-	// Setup CORS, security logging, and rate limiting
-	setupCORSIfEnabled(api.Router, enableCORS)
-	securityLogger := setupSecurityLogging(api.Router)
-	sessionAuth, err := newSessionTokenAuth()
-	if err != nil {
-		return nil, err
-	}
-	setupRateLimiting(api.Router, securityLogger, sessionAuth, demoLoopbackExempt())
-	// One verifier serves every route: it only parses the presented token, and
-	// each protected group still rejects through the Authenticator and its
-	// scope gate. A group mounted without it fails closed.
-	api.Router.Use(sessionAuth.Verifier())
-	// Sentry events name the session they affect (#3643).
-	api.Router.Use(apiCommon.SentrySessionContext)
-	// Core actions of the portals reach the usage analytics once their
-	// response is 2xx (#3602). After the verifier, which names the session.
-	api.Router.Use(coreActionAnalytics(serviceFactory.Tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(serviceFactory.Settings, logger)))
-
-	requestFeedResource, err := initializeAPIResourcesWithRequestFeed(api, repoFactory, modules, db, logger, frontendURL, sessionAuth, errorReportDSN)
-	if err != nil {
-		return nil, err
-	}
-	api.WorkTimeModels = worktimemodelsHTTPAdapter.NewResource(modules.workforce, services.StaffTimeTrackingNotifier(api.Services.RealtimeHub))
-	api.MealPlan = newMealPlanResource(modules.mealPlan, newMealPlanExportRenderer())
-	api.Feedback = newFeedbackResource(modules.feedback)
-	api.Users = newUsersResource(modules.persons, api.Services.Auth.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
-		_, _, found, err := repoFactory.RFIDCard.LookupRFIDCard(ctx, tagID)
-		return found, err
-	})
-
-	// Register routes with rate limiting
-	api.securityLogging = os.Getenv("SECURITY_LOGGING_ENABLED") == "true"
-	api.rateLimiting = os.Getenv("RATE_LIMIT_ENABLED") == "true"
-	api.authRateLimit = os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE")
-	if err := api.registerRoutes(requestFeedResource); err != nil {
-		return nil, err
-	}
-
-	buildResources.released = true
-	return api, nil
 }
 
-func initializeAPIResourcesWithRequestFeed(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger, frontendURL string, sessionAuth *projectJWT.TokenAuth, errorReportDSN string) (*requestFeedHTTP.Resource, error) {
-	if err := initializeAPIResources(api, repoFactory, modules, db, logger, sessionAuth, errorReportDSN); err != nil {
-		return nil, err
+// ServeHTTP routes a request through the composed graph. CalDAV extension
+// methods reach their handler under a routable stand-in method.
+func (graph *serveGraph) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	r = normalizeCalDAVMethodForRouting(r)
+	if graph.services != nil && graph.services.Settings != nil {
+		// A weekend that follows Friday's plan reads the tenant setting only
+		// for Saturday and Sunday dates (#3921).
+		r = apiCommon.WithWeekendPlan(r, graph.services.Settings)
 	}
-	if err := mountDemoAccess(api.Router, modules.demoAccess, viper.GetString("app_env"), frontendURL, viper.GetString("tenant_domain")); err != nil {
-		return nil, err
+	graph.router.ServeHTTP(w, r)
+}
+
+// mountRoutes builds every route resource and mounts it where it is built:
+// the public and portal routes at the root, the tenant routes under /api. No
+// resource outlives its mount; the Serve graph keeps only the Worker's
+// document sweeps. It refuses to start while a writing route has no
+// core-action classification.
+func mountRoutes(root chi.Router, in routeInputs, limiters authRateLimiters) (documentSweeps, error) {
+	svc := in.modules.services
+	svc.EnableStudentPhotos(services.StudentPhotoBootstrap{
+		Unlinker:     studentsAPI.NewPhotoUnlinker(in.logger.With("component", "student-photo-unlinker"), "public"),
+		PhotoRuntime: in.modules.studentPhotoRuntime,
+		Logger:       in.logger.With("service", "student-photo"),
+	})
+	if err := mountDemoAccess(root, in.modules.demoAccess, viper.GetString("app_env"), in.frontendURL, viper.GetString("tenant_domain")); err != nil {
+		return documentSweeps{}, err
 	}
+	mountPublicRoutes(root, in.metricsToken)
+	tenant := chi.NewRouter()
+	if err := mountRequestFeed(root, tenant, in); err != nil {
+		return documentSweeps{}, err
+	}
+	if err := mountModuleRoutes(tenant, in); err != nil {
+		return documentSweeps{}, err
+	}
+	documents, err := mountRouteGroups(root, tenant, in, limiters)
+	if err != nil {
+		return documentSweeps{}, err
+	}
+	root.Mount("/api", tenant)
+	return documents, requireCoreActionClassification(root)
+}
+
+// mountRouteGroups mounts the resources of each route group. One device
+// authentication composition serves every kiosk route group, so the IoT and
+// students resources share its last-seen debouncer; one Student Presence owner
+// serves the students, attendance and kiosk routes (#3349).
+func mountRouteGroups(root, tenant chi.Router, in routeInputs, limiters authRateLimiters) (documentSweeps, error) {
+	deviceAuth := newDeviceAuthentication(in.modules)
+	presence := newStudentPresence(in.db, in.logger)
+	student, err := mountStudentRoutes(tenant, in, deviceAuth, presence)
+	if err != nil {
+		return documentSweeps{}, err
+	}
+	if err := mountPresenceRoutes(tenant, in, deviceAuth, presence); err != nil {
+		return documentSweeps{}, err
+	}
+	staff, err := mountStaffRoutes(tenant, in)
+	if err != nil {
+		return documentSweeps{}, err
+	}
+	if err := mountSchoolPortalRoutes(root, tenant, in, presence, limiters); err != nil {
+		return documentSweeps{}, err
+	}
+	mountSchoolRoutes(tenant, in)
+	mountPeopleRoutes(tenant, in)
+	mountCommunicationRoutes(tenant, in)
+	mountCalendarRoutes(root, tenant, in)
+	mountDeliveryRoutes(root, tenant, in)
+	if err := mountPortalRoutes(root, in, limiters); err != nil {
+		return documentSweeps{}, err
+	}
+	return documentSweeps{staff: staff, student: student}, nil
+}
+
+// mountRequestFeed serves the change-request feed: the public feed behind its
+// token and the staff's feed administration under /api.
+func mountRequestFeed(root, tenant chi.Router, in routeInputs) error {
 	requestFeed, err := requestFeedCompose.New(requestFeedCompose.Dependencies{
-		DB: db, FrontendURL: frontendURL, Now: time.Now,
+		DB: in.db, FrontendURL: in.frontendURL, Now: time.Now,
 		NewToken: projectJWT.NewOpaqueCapabilityToken, HashToken: projectJWT.OpaqueCapabilityFingerprint,
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return requestFeedHTTP.NewResource(requestFeed, requestFeedHTTP.Runtime{
+	resource := requestFeedHTTP.NewResource(requestFeed, requestFeedHTTP.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, requestFeedHTTP.Middleware)) {
 			apiCommon.ProtectedTenantRoutes(router, register)
 		},
 		CurrentTenantID:  func(r *http.Request) int64 { return projectJWT.ClaimsFromCtx(r.Context()).TenantID },
 		CurrentAccountID: func(r *http.Request) int64 { return int64(projectJWT.ClaimsFromCtx(r.Context()).ID) },
-		Logger:           logger.With("handler", "request-feed"),
-	}), nil
+		Logger:           in.logger.With("handler", "request-feed"),
+	})
+	root.Mount("/public/request-feed", resource.PublicRouter())
+	tenant.Mount("/students/change-requests/rss-feed", resource.TenantRouter())
+	return nil
+}
+
+// mountModuleRoutes mounts the route groups modules serve themselves.
+func mountModuleRoutes(tenant chi.Router, in routeInputs) error {
+	schoolSetup, err := newSchoolSetupRoute(schoolSetupCompose.Dependencies{
+		Settings: in.modules.services.Settings,
+	})
+	if err != nil {
+		return err
+	}
+	staffOnboarding, err := newStaffOnboardingRoute()
+	if err != nil {
+		return err
+	}
+	for _, module := range []moduleRoute{schoolSetup, staffOnboarding} {
+		tenant.Mount(module.pattern, module.router)
+	}
+	return nil
 }
 
 func newRuntimeTracer(logger *slog.Logger) *observability.Tracer {
@@ -1228,12 +1278,9 @@ func parsePositiveInt(valueStr string, defaultValue int) int {
 	return parsed
 }
 
-// initializeAPIResources initializes all API resource instances
-// initializeAPIResources composes the HTTP resources; workforce is the
-// Workforce module the staff administration reads schedules from.
-
 // requestReviewDependencies binds native owner capabilities for the staff projection.
-func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (requestreviewcompose.ProjectionDependencies, carePlanModule.CareScheduleReviewQuery, error) {
+func requestReviewDependencies(modules moduleServices, db *bun.DB) (requestreviewcompose.ProjectionDependencies, carePlanModule.CareScheduleReviewQuery, error) {
+	svc := modules.services
 	reviewStudents, err := requestreviewcompose.NewStudentDirectory(db, modules.persons, func(observation requestreviewcompose.DirectoryObservation) {
 		observability.ObserveSchoolStructureOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolStructureModule.ErrorCode(observation.Err), observation.Err)
 	})
@@ -1243,13 +1290,13 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	// The staff projection lists exactly what the decisions accept: one
 	// Identity & Access review policy serves both (#3804).
 	reviewScope := func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
-		schoolWide, groupIDs, err := api.Services.RequestReviewPolicy.Scope(ctx, projectJWT.PermissionsFromCtx(ctx))
+		schoolWide, groupIDs, err := svc.RequestReviewPolicy.Scope(ctx, projectJWT.PermissionsFromCtx(ctx))
 		return carePlanCompose.ReviewScope{SchoolWide: schoolWide, GroupIDs: groupIDs}, err
 	}
 	// Report the union of ordinary and absence-review rights, as the
 	// navigation capability does. Each native queue keeps its own scope.
 	reviewAccess, err := requestreviewcompose.NewAccess(studentsAPI.RequestReviewPrincipal, func(ctx context.Context) (string, error) {
-		return api.Services.RequestReviewPolicy.AccessLevel(ctx, projectJWT.PermissionsFromCtx(ctx))
+		return svc.RequestReviewPolicy.AccessLevel(ctx, projectJWT.PermissionsFromCtx(ctx))
 	})
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review access: %w", err)
@@ -1265,7 +1312,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		People: modules.persons,
 		Scope:  reviewScope,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
-			return api.Services.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
+			return svc.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
 		Today:  carePlanCompose.Today,
 		Blocks: repositories.NewPickupReviewBlocks(db),
@@ -1302,7 +1349,7 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("offering review queue: %w", err)
 	}
 	corrections, err := requestreviewcompose.NewCorrectionLog(db, modules.persons, func(ctx context.Context) bool {
-		return studentsAPI.RequestReviewCorrectionAccess(ctx, api.Services.UserContext.HasCurrentStaff)
+		return studentsAPI.RequestReviewCorrectionAccess(ctx, svc.UserContext.HasCurrentStaff)
 	}, func(requestreviewcompose.AuditObservation) {})
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("direct correction history: %w", err)
@@ -1311,183 +1358,123 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("master data review queue: %w", err)
 	}
-	excusedQueue, err := requestreviewcompose.NewExcusedQueue(api.Services.ExcusedRequests, carePlanCompose.Today)
+	excusedQueue, err := requestreviewcompose.NewExcusedQueue(svc.ExcusedRequests, carePlanCompose.Today)
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("excused review queue: %w", err)
 	}
 	return requestreviewcompose.ProjectionDependencies{
 		Queues:   requestreviewcompose.Queues{DirectCorrections: corrections, MasterData: masterQueue, CareSchedule: careQueue, Offering: offeringQueue, Excused: excusedQueue},
-		Students: reviewStudents, FamilyProtection: requestreviewcompose.NewFamilyProtection(api.Services.PeopleDirectory), Access: reviewAccess,
+		Students: reviewStudents, FamilyProtection: requestreviewcompose.NewFamilyProtection(svc.PeopleDirectory), Access: reviewAccess,
 	}, careReviews, nil
 }
 
-func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger, sessionAuth *projectJWT.TokenAuth, errorReportDSN string) error {
-	workforce := modules.workforce
-	// One device authentication composition serves every kiosk route group,
-	// so the IoT and students resources share its last-seen debouncer.
-	authSchools := authSchoolDirectory{schools: api.Services.Schools, memberships: api.Services.Auth.ListActiveAccountSchoolIDs}
-	deviceAuth := deviceauth.New(deviceauth.Dependencies{
-		Devices:     api.Services.IoT.Fleet(),
-		Schools:     deviceSchoolDirectory{schools: api.Services.Schools},
-		Settings:    api.Services.Settings,
+func newDeviceAuthentication(modules moduleServices) *deviceauth.Authenticators {
+	svc := modules.services
+	return deviceauth.New(deviceauth.Dependencies{
+		Devices:     svc.IoT.Fleet(),
+		Schools:     deviceSchoolDirectory{schools: svc.Schools},
+		Settings:    svc.Settings,
 		FallbackPIN: os.Getenv("OGS_DEVICE_PIN"),
 	})
-	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, authSchools, api.Services.AccountAuthentication(), services.AccountRouteTenantRuntime())
-	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapabilityViews(db)
-	api.Auth.SettingsService = api.Services.Settings
-	api.Auth.RoleGrants = services.RoleGrantPolicy{}
-	api.Auth.MFAService = api.Services.MFA
-	api.Auth.PasskeyService = api.Services.Passkey
-	api.Rooms = roomsHTTPAdapter.NewResource(api.rooms, roomsHTTPAdapter.Dependencies{
-		Facilities: api.Services.Facilities, Settings: api.Services.Settings,
-		UserContext: api.Services.UserContext, Active: api.Services.Active,
-		Users: api.Services.Users, Education: api.Services.Education,
-		ListExport: api.Services.ListExport,
-	}, logger.With("handler", "rooms"))
-	api.Services.EnableStudentPhotos(services.StudentPhotoBootstrap{
-		Unlinker:     studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public"),
-		PhotoRuntime: modules.studentPhotoRuntime,
-		Logger:       logger.With("service", "student-photo"),
-	})
+}
+
+// mountStudentRoutes serves /api/students and hands its resource back as the
+// Worker's student document sweep.
+func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module) (scheduler.StudentDocumentFileCleaner, error) {
+	svc, modules := in.modules.services, in.modules
 	// A direct school_class edit must resync Jahrgang-filtered offering-sourced
 	// Regeltermine like a grade transition does (#2147 review round 10); Care
 	// Plan's booking materialization provides the resync (#3560).
-	// One Student Presence owner for this entry point; it also serves the
-	// students resource's privacy-consent routes (#3349).
-	presence := newStudentPresence(db, logger)
-	var studentClassResyncer schoolStructureCompose.OfferingSourceResyncer = api.Services.EnrollmentCareOffering
-	reviewDependencies, careReviews, err := requestReviewDependencies(api, modules, db)
+	var studentClassResyncer schoolStructureCompose.OfferingSourceResyncer = svc.EnrollmentCareOffering
+	reviewDependencies, careReviews, err := requestReviewDependencies(modules, in.db)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	requestReview, err := requestreviewcompose.NewProjection(reviewDependencies)
 	if err != nil {
-		return fmt.Errorf("request review projection: %w", err)
+		return nil, fmt.Errorf("request review projection: %w", err)
 	}
-	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		PeopleDirectory:              api.Services.PeopleDirectory,
-		Persons:                      services.NewStudentRoutePersons(api.Services.Users),
-		CompanionService:             api.Services.Students.Companions,
-		ClassListEntries:             classListEntryStudentsReader{entries: api.membership},
-		ChildQuota:                   childQuotaStudentsReader{usages: api.membership},
-		StudentDeletion:              api.Services.StudentDeletion,
-		CareLifecycleService:         api.Services.CareLifecycle,
-		StudentAuditService:          api.Services.PeopleDirectory,
-		SchoolGroups:                 studentSchoolGroups{GroupManagement: api.Services.Education},
-		UserContextService:           api.Services.UserContext,
-		ActiveService:                api.Services.Active,
+	students := studentsAPI.NewResource(studentsAPI.ResourceConfig{
+		PeopleDirectory:              svc.PeopleDirectory,
+		Persons:                      peopleCompose.NewStudentRoutePersons(svc.Users),
+		CompanionService:             svc.Students.Companions,
+		ClassListEntries:             classListEntryStudentsReader{entries: modules.membership},
+		ChildQuota:                   childQuotaStudentsReader{usages: modules.membership},
+		StudentDeletion:              svc.StudentDeletion,
+		CareLifecycleService:         svc.CareLifecycle,
+		StudentAuditService:          svc.PeopleDirectory,
+		SchoolGroups:                 studentSchoolGroups{GroupManagement: svc.Education},
+		UserContextService:           svc.UserContext,
+		ActiveService:                svc.Active,
 		DeviceAuthenticator:          deviceAuth.Device(),
 		AuthenticatedDevice:          deviceauth.DeviceID,
-		PickupScheduleService:        api.Services.PickupSchedule,
+		PickupScheduleService:        svc.PickupSchedule,
 		WeekdayPickupNotes:           modules.repositories.CarePlan(),
-		PartialAbsenceService:        api.Services.PartialAbsence,
-		ArrivalScheduleService:       api.Services.ArrivalSchedule,
-		InstanceService:              api.Services.Instance,
-		CareDayService:               api.Services.CareDay,
-		SchoolService:                studentSchoolDirectory{schools: api.Services.Schools},
-		SettingsService:              api.Services.Settings,
-		MasterDataReviewService:      api.Services.MasterDataReview,
-		CareRequestService:           api.Services.CareRequests,
+		PartialAbsenceService:        svc.PartialAbsence,
+		ArrivalScheduleService:       svc.ArrivalSchedule,
+		InstanceService:              svc.Instance,
+		CareDayService:               svc.CareDay,
+		SchoolService:                studentSchoolDirectory{schools: svc.Schools},
+		SettingsService:              svc.Settings,
+		MasterDataReviewService:      svc.MasterDataReview,
+		CareRequestService:           svc.CareRequests,
 		CareRequestReviews:           careReviews,
-		OfferingChangeService:        api.Services.EnrollmentCareOffering,
-		PickupAdjustmentService:      api.Services.EnrollmentCareOffering,
-		ExcusedRequestService:        api.Services.ExcusedRequests,
-		ParentRequestBulkService:     api.Services.ParentRequests,
-		ParentRequestConflictService: api.Services.ParentRequests,
-		FamilyProtection:             api.Services.PeopleDirectory,
-		StudentNotes:                 api.Services.PeopleDirectory,
-		RequestReviewAccess:          api.Services.RequestReviewPolicy,
+		OfferingChangeService:        svc.EnrollmentCareOffering,
+		PickupAdjustmentService:      svc.EnrollmentCareOffering,
+		ExcusedRequestService:        svc.ExcusedRequests,
+		ParentRequestBulkService:     svc.ParentRequests,
+		ParentRequestConflictService: svc.ParentRequests,
+		FamilyProtection:             svc.PeopleDirectory,
+		StudentNotes:                 svc.PeopleDirectory,
+		RequestReviewAccess:          svc.RequestReviewPolicy,
 		RequestReview:                requestReview,
-		StudentStatusDayService:      api.Services.StudentStatusDays,
-		AbsenceOverview:              api.Services.AbsenceOverview,
-		StudentHistoryService:        api.Services.StudentHistory,
-		OGSGroupLiveService:          api.Services.OGSGroupLive,
-		ActiveEnrollments:            studentActiveEnrollments{enrollments: api.Services.Activities},
-		EnrollmentDecision:           api.Services.EnrollmentDecision,
-		OfferingPickupTimes:          api.Services.EnrollmentCareOffering,
-		EnrollmentFormSchema:         api.Services.EnrollmentFormSchema,
+		StudentStatusDayService:      svc.StudentStatusDays,
+		AbsenceOverview:              svc.AbsenceOverview,
+		StudentHistoryService:        svc.StudentHistory,
+		OGSGroupLiveService:          svc.OGSGroupLive,
+		ActiveEnrollments:            studentActiveEnrollments{enrollments: svc.Activities},
+		EnrollmentDecision:           svc.EnrollmentDecision,
+		OfferingPickupTimes:          svc.EnrollmentCareOffering,
+		EnrollmentFormSchema:         svc.EnrollmentFormSchema,
 		OfferingSourceResyncer:       studentClassResyncer,
-		LockTemplateRecurrence:       api.Services.TimetableData.RecurrenceLock.LockRecurrenceWrites,
-		Broadcaster:                  api.Services.RealtimeHub,
-		ParentEventEmitter:           api.Services.ParentEventEmitter,
-		AbsenceNotifier:              api.Services.AbsenceNotifier,
-		StudentPhotos:                api.Services.PeopleDirectory,
-		StudentConsents:              api.Services.StudentConsents,
+		LockTemplateRecurrence:       svc.TimetableData.RecurrenceLock.LockRecurrenceWrites,
+		Broadcaster:                  svc.RealtimeHub,
+		ParentEventEmitter:           svc.ParentEventEmitter,
+		AbsenceNotifier:              svc.AbsenceNotifier,
+		StudentPhotos:                svc.PeopleDirectory,
+		StudentConsents:              svc.StudentConsents,
 		PrivacyConsents:              presence,
-		StudentDocumentService:       api.Services.StudentDocuments,
+		StudentDocumentService:       svc.StudentDocuments,
 		ListExportService:            lists.NewRenderer(),
-		Logger:                       logger.With("handler", "students"),
+		Logger:                       in.logger.With("handler", "students"),
 	})
-	api.Statistics = statisticsAPI.NewResource(api.Services.Statistics, api.Services.ListExport, logger.With("handler", "statistics"))
-	api.Messaging = messagingAPI.NewResource(api.Services.Messaging)
-	api.StaffMessaging = staffMessagingAPI.NewResource(api.Services.StaffMessaging)
-	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, logger.With("handler", "calendar"))
-	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, newDeclarationReports())
-	// Tagesinformationen (#2180) are Timetable's: the owner composes the
-	// service over its own repository, the calendar periods for the week
-	// pattern and the People Directory names of the acknowledgement list
-	// (#3418).
-	api.StaffNotices = timetableHTTPAdapter.NewStaffNoticeResource(timetableCompose.NewStaffNotices(timetableCompose.StaffNoticeDependencies{
-		DB: db, Periods: repoFactory.CalendarPeriod, Names: services.StaffNoticeNames(api.Services.PeopleDirectory),
-		Logger: logger.With("service", "staffnotice"),
-	}), func(ctx context.Context) int64 { return timeTrackingIdentity(ctx).AccountID })
-	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, logger.With("handler", "filestore"))
-	api.Groups = groupsHTTP.NewResource(api.Services.Education, api.Services.Active, services.NewGroupRoutePeople(api.Services.Users), api.Services.UserContext)
-	api.Guardians = newGuardiansResource(api.Services.PeopleDirectory, api.Services.NewGuardianDirectoryRuntime(db), viper.GetString("app_env"), logger.With("handler", "guardians"))
-	api.Import = importAPI.NewResource(importAPI.Dependencies{
-		Students: api.Services.Import, Staff: api.Services.StaffImport, ClassList: api.Services.ClassListImport,
-		Files: fileformat.Decoder{}, Runtime: importCompose.HTTPRuntime(db, api.Services.PeopleDirectory, api.membership, api.Services.OpeningBalanceImport),
-	})
-	api.Activities = timetableHTTPAdapter.NewResource(api.Services.Activities, modules.timetable, api.Services.Users, api.Services.UserContext, db)
-	staffResource, staffAdmin, err := newStaffComposition(api.membership, workforce, api.Services, db, logger.With("handler", "staff"))
+	tenant.Mount("/students", students.Router())
+	return students, nil
+}
+
+// mountPresenceRoutes serves the attendance routes and the kiosk API. Both
+// move children through one open-room move over the Student Presence owner.
+func mountPresenceRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module) error {
+	svc, logger := in.modules.services, in.logger
+	openRoomMove, err := newOpenRoomMove(in.modules, svc.Active, logger)
 	if err != nil {
 		return err
 	}
-	api.Staff, api.StaffAdmin = staffResource, staffAdmin
-	api.StaffShifts = workforceShiftPlanning.NewStaffShiftsResource(workforceShiftPlanning.StaffShiftsDependencies{
-		Planning:       api.Services.StaffShifts,
-		ResolveStaffID: api.currentStaffID,
-		ActorAccountID: projectJWT.ActorAccountIDFromCtx,
-	})
-	api.ShiftTypes = workforceShiftPlanning.NewShiftTypesResource(api.Services.ShiftTypes)
-	api.AbsenceTypes = workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(workforce, logger.With("service", "active")), api.currentStaffID)
-	api.Enrollment = enrollmentAPI.NewResource(
-		api.Services.EnrollmentFormSchema,
-		api.Services.EnrollmentCareOfferingRows(),
-		enrollmentAPI.NewRequestService(api.Services.EnrollmentRequest),
-		api.Services.EnrollmentCaptcha,
-		api.Services.EnrollmentPhase,
-		enrollmentAPI.NewDecisionService(api.Services.EnrollmentDecision),
-		api.Services.EnrollmentReport,
-		enrollmentAPI.NewRolloverService(api.Services.EnrollmentRollover),
-		enrollmentAPI.NewChangeRequestService(api.Services.EnrollmentChangeRequest),
-		api.Services.EnrollmentDeletion,
-		enrollmentGuardianInvitations(api.Services.GuardianInvitation),
-		api.Services.GuardianProfileLoader,
-		enrollmentSchoolDirectory{schools: api.Services.Schools},
-		db,
-		repoFactory.Enrollment(),
-	)
-	api.Enrollment.ListExportService = api.Services.ListExport
-	api.Enrollment.PhaseExpiryService = api.Services.EnrollmentPhaseExpiry
-	// One Device Fleet owner serves every entry point: the services factory
-	// composes it and the IoT service hands it back here (#2676).
-	api.Display = displayHTTPAdapter.NewResource(api.Services.IoT.Fleet(), api.Services.Settings)
-	// Dateframes belong to the School Calendar, timeframes and recurrence
-	// rules to the Timetable owner; timeframe changes stay guarded by the
-	// recurrence gate and the Care Plan catalog's care-offering check.
-	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(modules.calendar, modules.timetable, services.TimeframeChangeGuard(
-		api.Services.TimetableData.RecurrenceLock.LockRecurrenceWrites,
-		api.Services.EnrollmentCareOffering.ValidateTimeframeChange,
-	), db)
-	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
-	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument)
-	openRoomMove, err := newOpenRoomMove(modules, api.Services.Active, logger)
+	active := presenceAPI.NewResource(services.NewPresenceOperations(svc.Active, svc.OGSGroupLive, logger.With("service", "presence-operations")), activePeople{source: services.NewAttendanceRoutePeople(svc.Users)}, teacherGroupIDs(in.modules), services.NewSchulhofProjection(svc.Schulhof), activeStaffAccess{source: services.NewAttendanceRouteStaff(svc.UserContext)}, svc.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
+	active.SupervisionDashboardService = svc.SupervisionDashboard
+	iot, err := newIoTResource(in, deviceAuth, presence, openRoomMove)
 	if err != nil {
 		return err
 	}
-	teacherGroupIDs := func(ctx context.Context, teacherID int64) ([]int64, error) {
-		groups, err := api.Services.Education.GetTeacherGroups(ctx, teacherID)
+	tenant.Mount("/active", active.Router())
+	tenant.Mount("/iot", iot.Router())
+	return nil
+}
+
+func teacherGroupIDs(modules moduleServices) func(context.Context, int64) ([]int64, error) {
+	svc := modules.services
+	return func(ctx context.Context, teacherID int64) ([]int64, error) {
+		groups, err := svc.Education.GetTeacherGroups(ctx, teacherID)
 		if err != nil {
 			return nil, err
 		}
@@ -1499,113 +1486,345 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		}
 		return ids, nil
 	}
-	api.Active = presenceAPI.NewResource(services.NewPresenceOperations(api.Services.Active, api.Services.OGSGroupLive, logger.With("service", "presence-operations")), activePeople{source: services.NewAttendanceRoutePeople(api.Services.Users)}, teacherGroupIDs, services.NewSchulhofProjection(api.Services.Schulhof), activeStaffAccess{source: services.NewAttendanceRouteStaff(api.Services.UserContext)}, api.Services.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
-	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
-	sessionEnd, err := newSessionEnd(presence, modules, api.Services, logger)
+}
+
+// newIoTResource composes the kiosk API. The device-scan workflow runs every
+// kiosk scan through one orchestrator over the public Device Fleet, Student
+// Presence, Facilities and Timetable & Activities capabilities; the retained
+// services behind its ports are compatibility bindings (#2698).
+func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module, openRoomMove openroommove.Command) (*iotAPI.Resource, error) {
+	svc, modules, logger := in.modules.services, in.modules, in.logger
+	sessionEnd, err := newSessionEnd(presence, modules, svc, logger)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	errorReports, err := iotAPI.NewErrorReportRelay(errorReportDSN)
+	errorReports, err := iotAPI.NewErrorReportRelay(in.errorReportDSN)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	// The device-scan workflow runs every kiosk scan through one
-	// orchestrator over the public Device Fleet, Student Presence,
-	// Facilities and Timetable & Activities capabilities; the retained
-	// services behind its ports are compatibility bindings (#2698).
 	deviceScan := devicescanCompose.New(devicescanCompose.Dependencies{
-		Fleet:      api.Services.IoT.Fleet(),
+		Fleet:      svc.IoT.Fleet(),
 		Presence:   presence,
-		Rooms:      api.rooms,
-		Active:     api.Services.Active,
-		Users:      api.Services.Users,
-		Activities: api.Services.Activities,
+		Rooms:      modules.rooms,
+		Active:     svc.Active,
+		Users:      svc.Users,
+		Activities: svc.Activities,
 		Rosters:    repositories.SessionRosters{Sessions: presence, Roster: modules.timetable},
-		Education:  api.Services.Education,
-		Pickups:    api.Services.PickupSchedule,
+		Education:  svc.Education,
+		Pickups:    svc.PickupSchedule,
 		// A destination chosen at the kiosk runs the phone's open-room
 		// move (#3067).
 		OpenRooms: newDeviceOpenRoomMover(openRoomMove),
-		Settings:  api.Services.Settings,
+		Settings:  svc.Settings,
 		Logger:    logger.With("service", "device-scan"),
 	})
-	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
-		Administration:   devicefleetCompose.NewAdministration(api.Services.IoT.Fleet()),
+	repoFactory := modules.repositories
+	return iotAPI.NewResource(iotAPI.ServiceDependencies{
+		Administration:   devicefleetCompose.NewAdministration(svc.IoT.Fleet()),
 		DeviceScan:       deviceScan,
 		OpenRooms:        deviceScan,
-		StaffClock:       api.Services.StaffClock,
-		Configuration:    devicescanCompose.NewConfiguration(api.Services.Settings),
-		Rooms:            devicescanCompose.NewRoomAvailability(api.Services.Facilities),
-		Directory:        devicescanCompose.NewDirectory(api.Services.Users, api.Services.Activities, logger),
-		TagAssignments:   devicescanCompose.NewTagAssignments(api.Services.Users, logger),
-		FeedbackStudents: devicescanCompose.NewFeedbackStudents(api.Services.Users),
-		FeedbackService:  api.feedback,
+		StaffClock:       svc.StaffClock,
+		Configuration:    devicescanCompose.NewConfiguration(svc.Settings),
+		Rooms:            devicescanCompose.NewRoomAvailability(svc.Facilities),
+		Directory:        devicescanCompose.NewDirectory(svc.Users, svc.Activities, logger),
+		TagAssignments:   devicescanCompose.NewTagAssignments(svc.Users, logger),
+		FeedbackStudents: devicescanCompose.NewFeedbackStudents(svc.Users),
+		FeedbackService:  modules.feedback,
 		FeedbackResponseObserver: func(status int, code string) {
 			observability.ObserveFeedbackHTTPResponse("iot", status, code)
 		},
-		SchoolName:              devicescanCompose.NewSchoolName(schoolName(api.Services.Schools)),
+		SchoolName:              devicescanCompose.NewSchoolName(schoolName(svc.Schools)),
 		ErrorReports:            errorReports,
 		SessionEnd:              sessionEnd,
-		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(api.Services.Active, devicescanCompose.NewSupervisionQuery(presence), api.Services.Users, api.Services.IoT, devicescanCompose.NewSessionMirror(repoFactory.ActivityInstance, repoFactory.InstanceStaff, api.Services.Activities, services.KioskMirrorPublisher(api.Services.RealtimeHub, logger), logger), logger),
+		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(svc.Active, devicescanCompose.NewSupervisionQuery(presence), svc.Users, svc.IoT, devicescanCompose.NewSessionMirror(repoFactory.ActivityInstance, repoFactory.InstanceStaff, svc.Activities, services.KioskMirrorPublisher(svc.RealtimeHub, logger), logger), logger),
 		Logger:                  logger.With("handler", "iot"),
 		DeviceAuthenticator:     deviceAuth.Device(),
 		DeviceOnlyAuthenticator: deviceAuth.DeviceOnly(),
+	}), nil
+}
+
+// mountStaffRoutes serves the staff administration, shift planning,
+// substitutions and time tracking, and hands the staff administration back
+// as the Worker's staff document sweep.
+func mountStaffRoutes(tenant chi.Router, in routeInputs) (scheduler.StaffDocumentFileCleaner, error) {
+	svc, workforce := in.modules.services, in.modules.workforce
+	staff, staffAdmin, err := newStaffComposition(in.modules.membership, workforce, svc, in.db, in.logger.With("handler", "staff"))
+	if err != nil {
+		return nil, err
+	}
+	staffShifts := workforceShiftPlanning.NewStaffShiftsResource(workforceShiftPlanning.StaffShiftsDependencies{
+		Planning:       svc.StaffShifts,
+		ResolveStaffID: currentStaffID(in.modules),
+		ActorAccountID: projectJWT.ActorAccountIDFromCtx,
 	})
-	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.UserContext, db, logger.With("handler", "sse"))
-	api.SSE.SetSchoolAccess(api.Services.Auth)
-	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, logger.With("handler", "birthdays"))
-	api.UserContext = meAPI.NewResource(api.Services.UserContext.Caller(), api.Services.UserContext)
-	// The school portal's class-day surface reads the class-day projection
-	// (#2701): the day report over Enrollment's day roster and the
-	// arrival-exception write seam (#2970) behind its one public capability.
-	api.ClassDay = classdayHTTP.NewResource(api.Services.ClassDayArrivalExceptions, logger.With("handler", "class-day"))
-	api.ClassListEntries = newClassListEntriesResource(api.membership, logger.With("handler", "class-list-entries"))
-	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution))
-	api.GradeTransitions = gradeTransitionHTTP.NewGradeTransitionResource(api.Services.GradeTransition)
-	api.TimeTracking = newTimeTrackingResource(api.Services, modules.calendar, db)
-	pickupExtensions, err := newPickupExtensions(modules.timetable, presence)
+	absenceTypes := workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(workforce, in.logger.With("service", "active")), currentStaffID(in.modules))
+	tenant.Mount("/staff", staff.Router())
+	tenant.Mount("/work-time-models", worktimemodelsHTTPAdapter.NewResource(workforce, services.StaffTimeTrackingNotifier(svc.RealtimeHub)).Router())
+	tenant.Mount("/staff-shifts", staffShifts.Router())
+	tenant.Mount("/shift-types", workforceShiftPlanning.NewShiftTypesResource(svc.ShiftTypes).Router())
+	tenant.Mount("/absence-types", absenceTypes.Router())
+	tenant.Mount("/substitutions", workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(svc.Substitution)).Router())
+	tenant.Mount("/time-tracking", newTimeTrackingResource(svc, in.modules.calendar, in.db).Router())
+	return staffAdmin, nil
+}
+
+// mountSchoolPortalRoutes serves the school portal ("moto schule", #2207) at
+// the root: public /school/auth/* (login and the school-scope MFA exchange)
+// plus the class-day surface. Token refresh and logout go through the shared
+// scope-preserving /auth/refresh and /auth/logout. The portal reuses the
+// timetable, colleague chat, staff notice and notification resources the
+// staff reach under /api (#2207, #2527).
+func mountSchoolPortalRoutes(root, tenant chi.Router, in routeInputs, presence *studentpresence.Module, limiters authRateLimiters) error {
+	svc := in.modules.services
+	pickupExtensions, err := newPickupExtensions(in.modules.timetable, presence)
 	if err != nil {
 		return err
 	}
-	api.Timetable = timetableAPI.NewResource(timetableAPI.Dependencies{
+	timetable := newTimetableResource(in.modules, pickupExtensions, in.logger)
+	// OGS-internal colleague chat (#2598) — staff-to-staff, deliberately a
+	// separate surface from /messages (which is parent-facing).
+	staffMessaging := staffMessagingAPI.NewResource(svc.StaffMessaging)
+	// Tagesinformationen (#2180) are Timetable's: the owner composes the
+	// service over its own repository, the calendar periods for the week
+	// pattern and the People Directory names of the acknowledgement list
+	// (#3418). All staff read them, admins write them.
+	staffNotices := timetableHTTPAdapter.NewStaffNoticeResource(timetableCompose.NewStaffNotices(timetableCompose.StaffNoticeDependencies{
+		DB: in.db, Periods: in.modules.repositories.CalendarPeriod, Names: services.StaffNoticeNames(svc.PeopleDirectory),
+		Logger: in.logger.With("service", "staffnotice"),
+	}), func(ctx context.Context) int64 { return timeTrackingIdentity(ctx).AccountID })
+	// Notification abstraction (#1624).
+	notifications := notificationsAPI.NewResource(svc.Notifications, svc.PushSubscriptions, svc.NotificationPreferences)
+	// The class-day surface reads the class-day projection (#2701): the day
+	// report over Enrollment's day roster and the arrival-exception write
+	// seam (#2970) behind its one public capability.
+	classDay := classdayHTTP.NewResource(svc.ClassDayArrivalExceptions, in.logger.With("handler", "class-day"))
+	school := schoolPortal.NewResource(schoolPortalAuth(svc.SchoolPortalAuthentication()), schoolPortalMFA(svc.SchoolPortalMFA()), schoolPasswordResets(svc.SchoolPasswordResetRuntime()), classDay, timetable, staffMessaging, staffNotices, notifications)
+	tenant.Mount("/staff-messages", staffMessaging.Router())
+	tenant.Mount("/staff-notices", staffNotices.Router())
+	tenant.Mount("/timetable", timetable.Router())
+	tenant.Mount("/notifications", notifications.Router())
+	root.Mount("/school", school.RouterWithAuthRateLimiter(limiters.authMiddleware()))
+	return nil
+}
+
+// newTimetableResource composes the timetable routes. Dateframes belong to
+// the School Calendar; the conflict detection is the one the instance
+// lifecycle uses.
+func newTimetableResource(modules moduleServices, pickupExtensions timetableModule.PickupExtensionCapability, logger *slog.Logger) *timetableAPI.Resource {
+	svc := modules.services
+	return timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriods:         modules.calendar,
 		ClosingDays:             modules.calendar,
-		CalendarPeriodUsage:     calendarPeriodUsage{usage: repoFactory.CalendarPeriodUsage()},
-		MaterializationService:  api.Services.Materialization,
-		InstanceService:         api.Services.Instance,
-		InstanceSeriesConverter: api.Services.InstanceSeriesConverter,
-		OperationsService:       api.Services.TimetableOperations,
-		People:                  services.NewTimetablePeople(api.Services.Users),
-		Templates:               api.Services.TimetableData.Templates,
-		RecurrenceLock:          api.Services.TimetableData.RecurrenceLock,
-		AttendanceCorrections:   api.Services.TimetableData.AttendanceCorrections,
-		Deviations:              api.Services.TimetableData.Deviations,
-		TimetableData:           api.Services.TimetableData.Data,
-		ConflictDetection:       api.Services.TimetableData.ConflictDetection,
-		PlanningTracks:          api.Services.PlanningTracks,
-		CareDayService:          api.Services.CareDay,
-		UserContextService:      api.Services.UserContext,
-		SettingsService:         api.Services.Settings,
-		SlotListsService:        api.Services.SlotLists,
-		OfferingSourceOptions:   services.NewTimetableOfferingSources(api.Services.EnrollmentCareOffering),
-		SupervisionSheets:       services.NewTimetableSupervisionSheets(api.Services.ClassDayArrivalExceptions),
-		PlanExportService:       api.Services.PlanExport,
+		CalendarPeriodUsage:     calendarPeriodUsage{usage: modules.repositories.CalendarPeriodUsage()},
+		MaterializationService:  svc.Materialization,
+		InstanceService:         svc.Instance,
+		InstanceSeriesConverter: svc.InstanceSeriesConverter,
+		OperationsService:       svc.TimetableOperations,
+		People:                  services.NewTimetablePeople(svc.Users),
+		Templates:               svc.TimetableData.Templates,
+		RecurrenceLock:          svc.TimetableData.RecurrenceLock,
+		AttendanceCorrections:   svc.TimetableData.AttendanceCorrections,
+		Deviations:              svc.TimetableData.Deviations,
+		TimetableData:           svc.TimetableData.Data,
+		ConflictDetection:       svc.TimetableData.ConflictDetection,
+		PlanningTracks:          svc.PlanningTracks,
+		CareDayService:          svc.CareDay,
+		UserContextService:      svc.UserContext,
+		SettingsService:         svc.Settings,
+		SlotListsService:        svc.SlotLists,
+		OfferingSourceOptions:   services.NewTimetableOfferingSources(svc.EnrollmentCareOffering),
+		SupervisionSheets:       services.NewTimetableSupervisionSheets(svc.ClassDayArrivalExceptions),
+		PlanExportService:       svc.PlanExport,
 		PickupExtensions:        pickupExtensions,
-		Staffing:                timetableStaffingAnnouncer(api.Services.Instance),
+		Staffing:                timetableStaffingAnnouncer(svc.Instance),
 		Logger:                  logger.With("handler", "timetable"),
 	})
-	// The school portal reuses the class-day and the timetable resources, so
-	// it is built after both (#2207, #2527).
-	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, api.Services.NotificationPreferences)
-	api.School = schoolPortal.NewResource(schoolPortalAuth(api.Services.SchoolPortalAuthentication()), schoolPortalMFA(api.Services.SchoolPortalMFA()), schoolPasswordResets(api.Services.SchoolPasswordResetRuntime()), api.ClassDay, api.Timetable, api.StaffMessaging, api.StaffNotices, api.Notifications)
-	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency)
-	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, reminderCompose.HTTPRuntime())
+}
 
-	// Initialize operator dashboard resources. The Device Fleet review of
-	// unregistered RFID scans answers in the operator surface's format (#3232).
+// mountSchoolRoutes serves the school's rooms, groups, activities, schedules,
+// enrollment, settings, info-point displays and data administration under
+// /api.
+func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
+	svc, modules, db, logger := in.modules.services, in.modules, in.db, in.logger
+	tenant.Mount("/rooms", roomsHTTPAdapter.NewResource(modules.rooms, roomsHTTPAdapter.Dependencies{
+		Facilities: svc.Facilities, Settings: svc.Settings,
+		UserContext: svc.UserContext, Active: svc.Active,
+		Users: services.NewRoomSnapshotPeople(svc.Users), Education: svc.Education,
+		ListExport: svc.ListExport,
+	}, logger.With("handler", "rooms")).Router())
+	tenant.Mount("/groups", groupsHTTP.NewResource(svc.Education, svc.Active, peopleCompose.NewGroupRoutePeople(svc.Users), svc.UserContext).Router())
+	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(svc.Activities, modules.timetable, svc.Users, svc.UserContext, db).Router())
+	// Parent enrollment (PR 5+).
+	tenant.Mount("/enrollment", newEnrollmentResource(modules).Router())
+	// Info-point displays (#1325). One Device Fleet owner serves every entry
+	// point: the services factory composes it and the IoT service hands it
+	// back here (#2676).
+	tenant.Mount("/display", displayHTTPAdapter.NewResource(svc.IoT.Fleet(), svc.Settings).Router())
+	// Dateframes belong to the School Calendar, timeframes and recurrence
+	// rules to the Timetable owner; timeframe changes stay guarded by the
+	// recurrence gate and the Care Plan catalog's care-offering check.
+	tenant.Mount("/schedules", timetableHTTPAdapter.NewSchedulesResource(modules.calendar, modules.timetable, services.TimeframeChangeGuard(
+		svc.TimetableData.RecurrenceLock.LockRecurrenceWrites,
+		svc.EnrollmentCareOffering.ValidateTimeframeChange,
+	), db).Router())
+	// The schema-driven settings system.
+	homeLayouts := requireHomeLayoutOperations(svc.Settings)
+	tenant.Mount("/settings", newSettingsResource(svc.TenantSettings, homeLayouts, modules.repositories.Enrollment().SchemaReferencesLegalDocument).SettingsRouter())
+	// Class-list-only entries (#2382).
+	tenant.Mount("/class-list-entries", newClassListEntriesResource(modules.membership, logger.With("handler", "class-list-entries")).Router())
+	tenant.Mount("/database", databaseStatsRouter(in))
+	// CSV/Excel import endpoints.
+	tenant.Mount("/import", importAPI.NewResource(importAPI.Dependencies{
+		Students: svc.Import, Staff: svc.StaffImport, ClassList: svc.ClassListImport,
+		Files: fileformat.Decoder{}, Runtime: importCompose.HTTPRuntime(db, svc.PeopleDirectory, modules.membership, svc.OpeningBalanceImport),
+	}).Router())
+	tenant.Mount("/admin/grade-transitions", gradeTransitionHTTP.NewGradeTransitionResource(svc.GradeTransition).Router())
+}
+
+func newEnrollmentResource(modules moduleServices) *enrollmentAPI.Resource {
+	svc := modules.services
+	resource := enrollmentAPI.NewResource(
+		svc.EnrollmentFormSchema,
+		enrollmentAPI.NewCareOfferingCatalog(services.NewEnrollmentCareOfferingValues(svc.EnrollmentCareOffering)),
+		enrollmentAPI.NewRequestService(svc.EnrollmentRequest),
+		svc.EnrollmentCaptcha,
+		svc.EnrollmentPhase,
+		enrollmentAPI.NewDecisionService(svc.EnrollmentDecision),
+		svc.EnrollmentReport,
+		enrollmentAPI.NewRolloverService(svc.EnrollmentRollover),
+		enrollmentAPI.NewChangeRequestService(svc.EnrollmentChangeRequest),
+		svc.EnrollmentDeletion,
+		enrollmentGuardianInvitations(svc.GuardianInvitation),
+		services.NewEnrollmentGuardianAutofill(svc.GuardianProfileLoader),
+		enrollmentSchoolDirectory{schools: svc.Schools},
+		modules.repositories.Enrollment(),
+	)
+	resource.ListExportService = svc.ListExport
+	resource.PhaseExpiryService = svc.EnrollmentPhaseExpiry
+	return resource
+}
+
+// mountPeopleRoutes serves the people directory, guardians, statistics,
+// birthdays, the caller's own context, the emergency snapshot, feedback and
+// the meal plan under /api.
+func mountPeopleRoutes(tenant chi.Router, in routeInputs) {
+	svc, modules, logger := in.modules.services, in.modules, in.logger
+	tenant.Mount("/statistics", statisticsAPI.NewResource(svc.Statistics, svc.ListExport, logger.With("handler", "statistics")).Router())
+	tenant.Mount("/guardians", newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(in.db), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
+	tenant.Mount("/feedback", newFeedbackResource(modules.feedback).Router())
+	tenant.Mount("/meal-plan", newMealPlanResource(modules.mealPlan, newMealPlanExportRenderer()).Router())
+	tenant.Mount("/users", newUsersResource(modules.persons, svc.Auth.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
+		_, _, found, err := modules.repositories.RFIDCard.LookupRFIDCard(ctx, tagID)
+		return found, err
+	}).Router())
+	// Birthday display and staff birthday list (#1542).
+	tenant.Mount("/birthdays", birthdaysAPI.NewResource(svc.Birthdays, svc.ListExport, svc.UserContext, logger.With("handler", "birthdays")).Router())
+	tenant.Mount("/me", meAPI.NewResource(svc.UserContext.Caller(), svc.UserContext).Router())
+	tenant.Mount("/emergency", emergencyAPI.NewResource(svc.Emergency).Router())
+}
+
+// mountCommunicationRoutes serves parent messages and announcements, staff
+// reminders, the PWA usage report and the platform announcements under /api.
+func mountCommunicationRoutes(tenant chi.Router, in routeInputs) {
+	svc := in.modules.services
+	tenant.Mount("/messages", messagingAPI.NewResource(svc.Messaging).Router())
+	tenant.Mount("/parent-announcements", announcementAPI.NewResource(svc.ParentAnnouncement, newDeclarationReports()).Router())
+	// Visual-only staff reminders (#1457).
+	tenant.Mount("/reminders", remindersAPI.NewResource(svc.Reminders, reminderCompose.HTTPRuntime()).Router())
+	// PWA standalone-usage reporting (#2189).
+	tenant.Mount("/pwa", pwaUsageRouter(svc.PWAUsage))
+	// User-facing platform announcements.
+	tenant.Mount("/platform", platformAPI.NewResource(platformAPI.ResourceConfig{
+		AnnouncementsService: svc.Announcement,
+		Runtime:              newPlatformRuntime(),
+	}).Router())
+}
+
+// mountCalendarRoutes serves the personal calendars under /api, the
+// read-only staff CalDAV and the public subscription feeds.
+func mountCalendarRoutes(root, tenant chi.Router, in routeInputs) {
+	svc := in.modules.services
+	calendar := calendarAPI.NewResource(svc.Calendar, in.logger.With("handler", "calendar"))
+	tenant.Mount("/calendar", calendar.Router())
+
+	// Public parent calendar subscription feed (no auth — the token in the URL
+	// is the capability). Calendar apps (Apple/Google/Outlook) poll this to keep
+	// the parent's Termine in sync.
+	root.Get("/public/calendar/{token}", publicCalendarFeed(in.modules))
+
+	// Read-only staff CalDAV. Authentication happens inside the protocol
+	// handler with the tenant-bound calendar app password, before a tenant is
+	// known, so these routes intentionally sit outside the JWT tenant group.
+	calDAVHandler := restoreCalDAVMethod(http.HandlerFunc(calendar.ServeCalDAV))
+	root.Handle("/.well-known/caldav", calDAVHandler)
+	root.Handle("/api/caldav", calDAVHandler)
+	root.Handle("/api/caldav/*", calDAVHandler)
+}
+
+// mountDeliveryRoutes serves the live streams and the file storage: the staff
+// routes under /api and the portal routes at the root. The portal routes sit
+// at the root because /parent is a catch-all mount; ParentMiddleware and
+// SchoolMiddleware authenticate them.
+func mountDeliveryRoutes(root, tenant chi.Router, in routeInputs) {
+	svc := in.modules.services
+	files := filestoreAPI.NewResource(svc.FileStore, in.logger.With("handler", "filestore"))
+	sse := sseAPI.NewResource(svc.RealtimeHub, svc.UserContext, in.db, in.logger.With("handler", "sse"))
+	sse.SetSchoolAccess(svc.Auth)
+	tenant.Mount("/files", files.Router())
+	// Anhänge an Elternmitteilungen (#2890). Eigener Pfad statt einer
+	// Route unter /parent-announcements: die Bytes gehören der
+	// Dateiablage, die Mitteilung steuert nur den Empfängerkreis bei.
+	tenant.Mount("/announcement-attachments", files.AnnouncementAttachmentRouter())
+	tenant.Mount("/sse", sse.Router())
+	// Parent-portal SSE stream: only whitelisted triggers (parent_message)
+	// for the tenants of the guardian's children.
+	root.Mount("/parent-sse", sse.ParentRouter())
+	// Anhänge, die Eltern zu einer Mitteilung herunterladen (#2890). Der
+	// Empfängerkreis der Mitteilung entscheidet; wer nicht dazugehört,
+	// bekommt 404.
+	root.Mount("/parent-news-attachments", files.ParentAnnouncementAttachmentRouter())
+	// School-portal SSE stream (#2208): account-addressed triggers only
+	// (Team-Chat).
+	root.Mount("/school-sse", sse.SchoolRouter())
+}
+
+// mountPortalRoutes mounts the root-level session portals: tenant auth,
+// operator dashboard (separate from the tenant API) and the cross-tenant
+// guardian portal. The auth rate limiter guards each login.
+func mountPortalRoutes(root chi.Router, in routeInputs, limiters authRateLimiters) error {
+	// RouterWithAuthRateLimiter applies the limiter only to the public login,
+	// password-reset, MFA and passkey-login routes.
+	root.Mount("/auth", newAccountResource(in).RouterWithAuthRateLimiter(limiters.authMiddleware()))
+	operator, err := newOperatorResource(in)
+	if err != nil {
+		return err
+	}
+	root.Mount("/operator", operatorRouter(operator, limiters))
+	root.Mount("/parent", newParentResource(in).RouterWithAuthRateLimiter(limiters.authMiddleware()))
+	return nil
+}
+
+// newAccountResource composes the tenant account routes. Their caregiver
+// capability is the one the operator routes provision with.
+func newAccountResource(in routeInputs) *authAPI.Resource {
+	svc := in.modules.services
+	authSchools := authSchoolDirectory{schools: svc.Schools, memberships: svc.Auth.ListActiveAccountSchoolIDs}
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, authSchools, svc.AccountAuthentication(), services.AccountRouteTenantRuntime())
+	resource.CaregiverCapabilityService = svc.CaregiverCapabilityViews(in.db)
+	resource.SettingsService = svc.Settings
+	resource.RoleGrants = services.RoleGrantPolicy{}
+	resource.MFAService = svc.MFA
+	resource.PasskeyService = svc.Passkey
+	return resource
+}
+
+// newOperatorResource composes the operator dashboard. The Device Fleet review
+// of unregistered RFID scans answers in the operator surface's format (#3232).
+func newOperatorResource(in routeInputs) (*operatorAPI.Resource, error) {
+	svc := in.modules.services
 	tagScanReview := tagScanOperatorAPI.NewResource(tagScanOperatorAPI.Config{
-		Scans:     api.Services.IoT.Fleet(),
-		Directory: tagScanSchoolDirectory{schools: api.Services.Schools},
+		Scans:     svc.IoT.Fleet(),
+		Directory: tagScanSchoolDirectory{schools: svc.Schools},
 		Surface: tagScanOperatorAPI.Surface{
 			InvalidRequest: apiCommon.OperatorInvalidRequest,
 			Internal:       apiCommon.OperatorInternal,
@@ -1616,60 +1835,61 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 			},
 		},
 	})
-	billing, err := newOperatorBilling(logger)
+	billing, err := newOperatorBilling(in.logger)
 	if err != nil {
-		return fmt.Errorf("compose operator billing: %w", err)
+		return nil, fmt.Errorf("compose operator billing: %w", err)
 	}
 	schoolSettings := settingsCompose.NewOperatorSchoolSettings(settingsCompose.OperatorDependencies{
-		Settings:       api.Services.Settings,
-		DB:             db,
-		Notify:         api.Services.SettingsChangedNotifier(),
-		OpenAttendance: api.Services.OpenAttendanceChecker(),
-		CareLifecycle:  api.Services.CareLifecycle,
+		Settings:       svc.Settings,
+		DB:             in.db,
+		Notify:         svc.SettingsChangedNotifier(),
+		OpenAttendance: svc.OpenAttendanceChecker(),
+		CareLifecycle:  svc.CareLifecycle,
 		// Mirror the tenant-side OnValueSet hook so operator writes also
 		// trigger side effects (e.g. auto-creating the Schulhof/WC rooms when
 		// the corresponding checkout toggle flips on).
-		OnValueSet: api.Services.SettingsSideEffects.Dispatch,
+		OnValueSet: svc.SettingsSideEffects.Dispatch,
 	})
-	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
+	return operatorAPI.NewResource(operatorAPI.ResourceConfig{
 		AppEnv:      viper.GetString("app_env"),
-		AuthService: api.Services.OperatorAuth,
+		AuthService: svc.OperatorAuth,
 		IsLocalSeedRequest: func(r *http.Request) bool {
 			return apiCommon.IsLocalSeedRequest(r, viper.GetString("app_env"))
 		},
-		Identity:             identityOperatorAPI.NewResource(api.Services.AccountAuthentication(), operatorAPI.IdentityResponses()),
-		PasskeyService:       api.Services.OperatorPasskey,
-		MFAService:           api.Services.OperatorMFA,
-		InvitationService:    api.Services.OperatorInvitation,
-		ProvisioningService:  api.Services.OperatorProvisioning,
-		Caregivers:           api.Services.CaregiverCapabilityViews(db),
-		AnnouncementsService: api.Services.Announcement,
+		Identity:             identityOperatorAPI.NewResource(svc.AccountAuthentication(), operatorAPI.IdentityResponses()),
+		PasskeyService:       svc.OperatorPasskey,
+		MFAService:           svc.OperatorMFA,
+		InvitationService:    svc.OperatorInvitation,
+		ProvisioningService:  svc.OperatorProvisioning,
+		Caregivers:           svc.CaregiverCapabilityViews(in.db),
+		AnnouncementsService: svc.Announcement,
 		UnregisteredTagScans: tagScanReview.Router(),
 		SchoolSettings:       schoolSettings,
-		SchoolService:        api.Services.Schools,
+		SchoolService:        svc.Schools,
 		Billing:              billing,
-		TenantMFAService:     api.Services.MFA,
-		Sessions:             identityOperatorAPI.NewSessions(sessionAuth, api.Services.OperatorAuth),
-	})
-	api.Parent = parentAPI.NewResource(parentAPI.ResourceConfig{
-		Auth:                  parentPortalLogin(api.Services.ParentPortalLogin()),
-		Resets:                parentPasswordResets(api.Services.ParentPasswordResetRuntime()),
-		Parent:                api.Services.Parent,
-		Calendar:              api.Services.Calendar,
-		Requests:              enrollmentAPI.NewRequestService(api.Services.EnrollmentRequest),
-		GuardianProfileLoader: api.Services.GuardianProfileLoader,
-		Schools:               parentSchoolDirectory{schools: api.Services.Schools},
-		Push:                  api.Services.PushSubscriptions,
-		Preferences:           api.Services.NotificationPreferences,
-		PWAUsage:              api.Services.PWAUsage,
+		TenantMFAService:     svc.MFA,
+		Sessions:             identityOperatorAPI.NewSessions(in.sessionAuth, svc.OperatorAuth),
+	}), nil
+}
+
+// newParentResource composes the cross-tenant guardian portal: public
+// /parent/auth/login and the protected /parent/* routes.
+func newParentResource(in routeInputs) *parentAPI.Resource {
+	svc := in.modules.services
+	return parentAPI.NewResource(parentAPI.ResourceConfig{
+		Auth:                  parentPortalLogin(svc.ParentPortalLogin()),
+		Resets:                parentPasswordResets(svc.ParentPasswordResetRuntime()),
+		Parent:                svc.Parent,
+		Calendar:              svc.Calendar,
+		Enrollment:            parentEnrollmentForms(enrollmentAPI.NewRequestService(svc.EnrollmentRequest)),
+		GuardianProfileLoader: svc.GuardianProfileLoader,
+		Schools:               parentSchoolDirectory{schools: svc.Schools},
+		Push:                  svc.PushSubscriptions,
+		Preferences:           svc.NotificationPreferences,
+		PWAUsage:              svc.PWAUsage,
 		Reports:               newDeclarationReports(),
-		DB:                    db,
+		DB:                    in.db,
 	})
-	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
-		AnnouncementsService: api.Services.Announcement,
-		Runtime:              newPlatformRuntime(),
-	})
-	return nil
 }
 
 func newPlatformRuntime() platformAPI.Runtime {
@@ -1708,13 +1928,11 @@ func requireHomeLayoutOperations(settings any) configAPI.HomeLayoutOperations {
 	return homeLayouts
 }
 
-func (a *API) currentStaffID(ctx context.Context) (int64, error) {
-	return a.Services.UserContext.Caller().StaffID(ctx)
-}
-
-// ServeHTTP implements the http.Handler interface for the API
-func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	a.Router.ServeHTTP(w, normalizeCalDAVMethodForRouting(r))
+// currentStaffID resolves the caller's staff ID at request time.
+func currentStaffID(modules moduleServices) func(context.Context) (int64, error) {
+	return func(ctx context.Context) (int64, error) {
+		return modules.services.UserContext.Caller().StaffID(ctx)
+	}
 }
 
 type calDAVOriginalMethodKey struct{}
@@ -1786,52 +2004,54 @@ func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, conf
 	return limiters
 }
 
-// registerRoutes builds the module routes, mounts every route and refuses to
-// start while a writing route has no core-action classification.
-func (a *API) registerRoutes(requestFeed *requestFeedHTTP.Resource) error {
-	schoolSetup, err := newSchoolSetupRoute(schoolSetupCompose.Dependencies{
-		Settings: a.Services.Settings,
-	})
-	if err != nil {
-		return err
+// authRateLimitersFromEnv builds the auth-endpoint limiters while
+// RATE_LIMIT_ENABLED is set. When it is not, the zero-value limiters carry
+// nil fields and the portals mount without them.
+func authRateLimitersFromEnv() authRateLimiters {
+	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
+		return authRateLimiters{}
 	}
-	staffOnboarding, err := newStaffOnboardingRoute()
-	if err != nil {
-		return err
-	}
-	a.registerRoutesWithRateLimiting(requestFeed, schoolSetup, staffOnboarding)
-	return requireCoreActionClassification(a.Router)
-}
-
-// registerRoutesWithRateLimiting registers all API routes with appropriate rate limiting
-func (a *API) registerRoutesWithRateLimiting(requestFeed *requestFeedHTTP.Resource, modules ...moduleRoute) {
-	// Get security logger if it exists
 	var securityLogger *customMiddleware.SecurityLogger
-	if a.securityLogging {
+	if os.Getenv("SECURITY_LOGGING_ENABLED") == "true" {
 		securityLogger = customMiddleware.NewSecurityLogger()
 	}
-
-	// Configure auth-specific rate limiting if enabled. When disabled, the
-	// zero-value limiters carry nil fields and the setters below are skipped.
-	var limiters authRateLimiters
-	if a.rateLimiting {
-		limiters = buildAuthRateLimiters(securityLogger, a.authRateLimit, demoLoopbackExempt())
-	}
-
-	a.registerPublicRoutes(requestFeed)
-	a.registerTenantRoutes(requestFeed, modules)
-	a.registerPortalRoutes(limiters)
+	return buildAuthRateLimiters(securityLogger, os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE"), demoLoopbackExempt())
 }
 
-// registerPublicRoutes registers unauthenticated root-level routes: the
+// authMiddleware is the auth limiter's middleware, nil while rate limiting is
+// disabled. Tenant, operator, parent and school login share its budget.
+func (limiters authRateLimiters) authMiddleware() func(http.Handler) http.Handler {
+	if limiters.auth == nil {
+		return nil
+	}
+	return limiters.auth.Middleware()
+}
+
+// operatorRouter applies the auth limiter to operator login for brute-force
+// protection and the dedicated limiters to e-mail confirmation and
+// invitations, then builds the operator routes.
+func operatorRouter(operator *operatorAPI.Resource, limiters authRateLimiters) chi.Router {
+	if limiters.auth != nil {
+		operator.SetAuthRateLimiter(limiters.auth.Middleware())
+	}
+	if limiters.emailConfirm != nil {
+		operator.SetEmailConfirmRateLimiter(limiters.emailConfirm.Middleware())
+	}
+	if limiters.invitation != nil {
+		operator.SetInvitationRateLimiter(limiters.invitation.Middleware())
+	}
+	return operator.Router()
+}
+
+// mountPublicRoutes registers unauthenticated root-level routes: the
 // landing/health probes, the public image/legal-document servers, and the
 // bearer-protected metrics endpoint.
-func (a *API) registerPublicRoutes(requestFeed *requestFeedHTTP.Resource) {
-	a.Router.Get("/", func(w http.ResponseWriter, r *http.Request) {
+func mountPublicRoutes(root chi.Router, metricsToken string) {
+	root.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("MOTO API - Phoenix Project"))
 	})
 
-	a.Router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+	root.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("OK"))
 	})
 
@@ -1839,231 +2059,27 @@ func (a *API) registerPublicRoutes(requestFeed *requestFeedHTTP.Resource) {
 	// This prevents unauthorized access to user avatars
 
 	// Public login image serving (no auth - displayed on the login page before authentication)
-	a.Router.Get("/public/login-image/{filename}", func(w http.ResponseWriter, r *http.Request) {
+	root.Get("/public/login-image/{filename}", func(w http.ResponseWriter, r *http.Request) {
 		filename := chi.URLParam(r, "filename")
 		apiCommon.ServeImage(w, r, "public/uploads/login-images", filename, "public, max-age=86400")
 	})
 
 	// Public enrollment legal document serving (no auth - parents read it before submitting).
-	a.Router.Get("/public/enrollment-legal-documents/{filename}", func(w http.ResponseWriter, r *http.Request) {
+	root.Get("/public/enrollment-legal-documents/{filename}", func(w http.ResponseWriter, r *http.Request) {
 		filename := chi.URLParam(r, "filename")
 		apiCommon.ServeFile(w, r, "public/uploads/enrollment-legal-documents", filename, "public, max-age=86400")
 	})
-	a.Router.Get("/public/enrollment-form-legal-documents/{filename}", func(w http.ResponseWriter, r *http.Request) {
+	root.Get("/public/enrollment-form-legal-documents/{filename}", func(w http.ResponseWriter, r *http.Request) {
 		filename := chi.URLParam(r, "filename")
 		apiCommon.ServeFile(w, r, "public/uploads/enrollment-form-legal-documents", filename, "public, max-age=86400")
 	})
 
-	// Public parent calendar subscription feed (no auth — the token in the URL
-	// is the capability). Calendar apps (Apple/Google/Outlook) poll this to keep
-	// the parent's Termine in sync.
-	a.Router.Get("/public/calendar/{token}", a.servePublicCalendarFeed)
-	if requestFeed != nil {
-		a.Router.Mount("/public/request-feed", requestFeed.PublicRouter())
-	}
-
-	// Read-only staff CalDAV. Authentication happens inside the protocol
-	// handler with the tenant-bound calendar app password, before a tenant is
-	// known, so these routes intentionally sit outside the JWT tenant group.
-	calDAVHandler := restoreCalDAVMethod(http.HandlerFunc(a.Calendar.ServeCalDAV))
-	a.Router.Handle("/.well-known/caldav", calDAVHandler)
-	a.Router.Handle("/api/caldav", calDAVHandler)
-	a.Router.Handle("/api/caldav/*", calDAVHandler)
-
-	a.Router.With(metricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", metricsHandler())
+	root.With(metricsAuthMiddleware(metricsToken)).Handle("/internal/metrics", metricsHandler())
 }
 
-// registerPortalRoutes mounts the root-level portal routers (tenant auth,
-// operator, parent) and applies the auth rate limiters when present.
-func (a *API) registerPortalRoutes(limiters authRateLimiters) {
-	// Auth routes mounted at root level to match frontend expectations
-	// RouterWithAuthRateLimiter applies the limiter only to the public login,
-	// password-reset, MFA and passkey-login routes.
-	var authRateLimiter func(http.Handler) http.Handler
-	if limiters.auth != nil {
-		authRateLimiter = limiters.auth.Middleware()
-	}
-	a.Router.Mount("/auth", a.Auth.RouterWithAuthRateLimiter(authRateLimiter))
-
-	// Mount operator dashboard routes at root level (separate from tenant API)
-	// Apply the same auth rate limiter to operator login for brute-force protection
-	if limiters.auth != nil {
-		a.Operator.SetAuthRateLimiter(limiters.auth.Middleware())
-	}
-	if limiters.emailConfirm != nil {
-		a.Operator.SetEmailConfirmRateLimiter(limiters.emailConfirm.Middleware())
-	}
-	if limiters.invitation != nil {
-		a.Operator.SetInvitationRateLimiter(limiters.invitation.Middleware())
-	}
-	a.Router.Mount("/operator", a.Operator.Router())
-
-	// Parent (cross-tenant guardian portal). Mounted at the root level
-	// like /auth and /operator. Public /parent/auth/login + protected
-	// /parent/* routes (the protected ones get added in commit 5).
-	// Reuse the shared authRateLimiter so guardian login gets the same
-	// brute-force protection as tenant and operator login.
-	var parentAuthRateLimiter func(http.Handler) http.Handler
-	if limiters.auth != nil {
-		parentAuthRateLimiter = limiters.auth.Middleware()
-	}
-	a.Router.Mount("/parent", a.Parent.RouterWithAuthRateLimiter(parentAuthRateLimiter))
-
-	// School portal ("moto schule", #2207). Mounted at the root level like
-	// /parent. Public /school/auth/* (login + school-scope MFA exchange)
-	// plus the school-scope class-day surface. Token refresh and logout go
-	// through the shared scope-preserving /auth/refresh and /auth/logout.
-	var schoolAuthRateLimiter func(http.Handler) http.Handler
-	if limiters.auth != nil {
-		schoolAuthRateLimiter = limiters.auth.Middleware()
-	}
-	a.Router.Mount("/school", a.School.RouterWithAuthRateLimiter(schoolAuthRateLimiter))
-
-	// Parent-portal SSE stream. Mounted at root (not under /parent, which is a
-	// catch-all mount) and authenticated with ParentMiddleware. Delivers only
-	// whitelisted triggers (parent_message) for the tenants of the guardian's
-	// children.
-	a.Router.Mount("/parent-sse", a.SSE.ParentRouter())
-
-	// Anhänge, die Eltern zu einer Mitteilung herunterladen (#2890). Root
-	// gemountet wie /parent-sse, weil /parent ein Catch-all-Mount ist, und mit
-	// ParentMiddleware authentifiziert. Der Empfängerkreis der Mitteilung
-	// entscheidet; wer nicht dazugehört, bekommt 404.
-	a.Router.Mount("/parent-news-attachments", a.FileStore.ParentAnnouncementAttachmentRouter())
-
-	// School-portal SSE stream (#2208): account-addressed triggers only
-	// (Team-Chat), authenticated with SchoolMiddleware. Root-mounted for the
-	// same reason as /parent-sse.
-	a.Router.Mount("/school-sse", a.SSE.SchoolRouter())
-}
-
-// registerTenantRoutes mounts all tenant API resources under the /api prefix.
-func (a *API) registerTenantRoutes(requestFeed *requestFeedHTTP.Resource, modules []moduleRoute) {
-	// Other API routes under /api prefix for organization
-	a.Router.Route("/api", func(r chi.Router) {
-		if requestFeed != nil {
-			r.Mount("/students/change-requests/rss-feed", requestFeed.TenantRouter())
-		}
-		for _, module := range modules {
-			r.Mount(module.pattern, module.router)
-		}
-		// Mount room resources
-		r.Mount("/rooms", a.Rooms.Router())
-
-		// Mount student resources
-		r.Mount("/students", a.Students.Router())
-		r.Mount("/statistics", a.Statistics.Router())
-		r.Mount("/messages", a.Messaging.Router())
-		// OGS-internal colleague chat (#2598) — staff-to-staff, deliberately a
-		// separate surface from /messages (which is parent-facing).
-		r.Mount("/staff-messages", a.StaffMessaging.Router())
-		r.Mount("/parent-announcements", a.Announcements.Router())
-		// Tagesinformationen (#2180): lesen alle Mitarbeitenden, schreiben Admins.
-		r.Mount("/staff-notices", a.StaffNotices.Router())
-		r.Mount("/files", a.FileStore.Router())
-
-		// Anhänge an Elternmitteilungen (#2890). Eigener Pfad statt einer
-		// Route unter /parent-announcements: die Bytes gehören der
-		// Dateiablage, die Mitteilung steuert nur den Empfängerkreis bei.
-		r.Mount("/announcement-attachments", a.FileStore.AnnouncementAttachmentRouter())
-
-		// Mount guardian resources
-		r.Mount("/guardians", a.Guardians.Router())
-
-		// Mount group resources
-		r.Mount("/groups", a.Groups.Router())
-
-		// Mount activities resources
-		r.Mount("/activities", a.Activities.Router())
-
-		// Mount staff resources
-		r.Mount("/staff", a.Staff.Router())
-		r.Mount("/work-time-models", a.WorkTimeModels.Router())
-		r.Mount("/staff-shifts", a.StaffShifts.Router())
-		r.Mount("/shift-types", a.ShiftTypes.Router())
-		r.Mount("/absence-types", a.AbsenceTypes.Router())
-
-		// Mount personal calendar resources
-		r.Mount("/calendar", a.Calendar.Router())
-
-		// Mount feedback resources
-		r.Mount("/feedback", a.Feedback.Router())
-
-		// Mount meal plan resources
-		r.Mount("/meal-plan", a.MealPlan.Router())
-
-		// Mount enrollment resources (parent-enrollment PR 5+)
-		r.Mount("/enrollment", a.Enrollment.Router())
-
-		// Mount info-point display resources (issue #1325)
-		r.Mount("/display", a.Display.Router())
-
-		// Mount schedule resources
-		r.Mount("/schedules", a.Schedules.Router())
-
-		// Mount settings resources (new schema-driven settings system)
-		r.Mount("/settings", a.Settings.SettingsRouter())
-
-		// Mount active resources
-		r.Mount("/active", a.Active.Router())
-
-		// Mount IoT resources
-		r.Mount("/iot", a.IoT.Router())
-
-		// Mount users resources
-		r.Mount("/users", a.Users.Router())
-
-		// Birthday display + staff birthday list (#1542)
-		r.Mount("/birthdays", a.Birthdays.Router())
-
-		// Mount user context resources
-		r.Mount("/me", a.UserContext.Router())
-
-		// Mount class-list-only entries (#2382)
-		r.Mount("/class-list-entries", a.ClassListEntries.Router())
-
-		// Mount substitutions resources
-		r.Mount("/substitutions", a.Substitutions.Router())
-
-		// Mount database resources
-		r.Mount("/database", a.databaseStatsRouter())
-
-		// Mount import resources (CSV/Excel import endpoints)
-		r.Mount("/import", a.Import.Router())
-
-		// Mount SSE resources (Server-Sent Events for real-time updates)
-		r.Mount("/sse", a.SSE.Router())
-
-		// Mount time-tracking resources
-		r.Mount("/time-tracking", a.TimeTracking.Router())
-
-		// Mount timetable resources
-		r.Mount("/timetable", a.Timetable.Router())
-
-		// Mount emergency snapshot resources
-		r.Mount("/emergency", a.Emergency.Router())
-
-		// Mount reminders resources (visual-only staff reminders, issue #1457)
-		r.Mount("/reminders", a.Reminders.Router())
-
-		// Mount notification abstraction resources (issue #1624)
-		r.Mount("/notifications", a.Notifications.Router())
-
-		// Mount PWA standalone-usage reporting (issue #2189)
-		r.Mount("/pwa", a.pwaUsageRouter())
-
-		// Mount admin resources
-		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())
-
-		// Mount platform resources (user-facing announcements)
-		r.Mount("/platform", a.Platform.Router())
-
-		// Add other resource routes here as they are implemented
-	})
-}
-
-func (a *API) databaseStatsRouter() chi.Router {
-	return newDatabaseStatsRouter(services.NewDatabaseStatsReader(a.Services.Database, a.Services.DatabaseStatsCapabilities), a.getDatabaseLogger())
+func databaseStatsRouter(in routeInputs) chi.Router {
+	svc := in.modules.services
+	return newDatabaseStatsRouter(services.NewDatabaseStatsReader(svc.Database, svc.DatabaseStatsCapabilities), in.logger.With("handler", "database"))
 }
 
 func newDatabaseStatsRouter(read services.DatabaseStatsReader, logger *slog.Logger) chi.Router {
@@ -2091,40 +2107,36 @@ func serveDatabaseStats(w http.ResponseWriter, r *http.Request, read services.Da
 	apiCommon.RespondWithJSON(w, r, http.StatusOK, stats)
 }
 
-func (a *API) getDatabaseLogger() *slog.Logger {
-	if a.databaseLogger != nil {
-		return a.databaseLogger
-	}
-	return slog.Default()
-}
-
-// servePublicCalendarFeed serves parent and staff iCalendar subscription feeds.
+// publicCalendarFeed serves parent and staff iCalendar subscription feeds.
 // There is no auth — the token in the URL is the capability.
-func (a *API) servePublicCalendarFeed(w http.ResponseWriter, r *http.Request) {
-	if a.Services.Calendar == nil {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-	token := chi.URLParam(r, "token")
-	filename, content, err := a.Services.Calendar.ParentCalendarFeedByToken(r.Context(), token)
-	if errors.Is(err, calendarService.ErrNotFound) {
-		filename, content, err = a.Services.Calendar.StaffCalendarFeedByToken(r.Context(), token)
-	}
-	if err != nil {
-		if errors.Is(err, calendarService.ErrNotFound) {
+func publicCalendarFeed(modules moduleServices) http.HandlerFunc {
+	svc := modules.services
+	return func(w http.ResponseWriter, r *http.Request) {
+		if svc.Calendar == nil {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
-		slog.Error("calendar feed failed",
-			"error", err.Error(),
-		)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
+		token := chi.URLParam(r, "token")
+		filename, content, err := svc.Calendar.ParentCalendarFeedByToken(r.Context(), token)
+		if errors.Is(err, calendarService.ErrNotFound) {
+			filename, content, err = svc.Calendar.StaffCalendarFeedByToken(r.Context(), token)
+		}
+		if err != nil {
+			if errors.Is(err, calendarService.ErrNotFound) {
+				http.Error(w, "not found", http.StatusNotFound)
+				return
+			}
+			slog.Error("calendar feed failed",
+				"error", err.Error(),
+			)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
+		w.Header().Set("Content-Disposition", "inline; filename=\""+filename+"\"")
+		w.Header().Set("Cache-Control", "private, max-age=3600")
+		_, _ = w.Write([]byte(content))
 	}
-	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
-	w.Header().Set("Content-Disposition", "inline; filename=\""+filename+"\"")
-	w.Header().Set("Cache-Control", "private, max-age=3600")
-	_, _ = w.Write([]byte(content))
 }
 
 // newMealPlanExportRenderer keeps the export adapter construction in the API

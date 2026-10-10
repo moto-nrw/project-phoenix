@@ -44,6 +44,7 @@ import {
 import type { StudentStatusDay } from "~/lib/student-status-days-api";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr/hooks";
+import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 
 import { CarePlanDayTimeline } from "./care-plan-day";
 
@@ -71,35 +72,46 @@ interface CarePlanViewProps {
   readonly active?: boolean;
 }
 
-const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr"] as const;
+const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as const;
 
-/** Step one weekday forward/back, skipping Sa/So. */
-function stepWeekday(iso: string, dir: 1 | -1): string {
+/**
+ * Step one care day forward/back: skips Sa/So unless the school runs the
+ * weekend on Friday's plan (operations.weekend_follows_friday, #3921).
+ */
+function stepWeekday(iso: string, dir: 1 | -1, weekendOpen: boolean): string {
   const d = parseISODate(iso);
-  do {
-    d.setDate(d.getDate() + dir);
-  } while (d.getDay() === 0 || d.getDay() === 6);
+  d.setDate(d.getDate() + dir);
+  if (!weekendOpen) {
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + dir);
+  }
   return toISODate(d);
 }
 
 /**
- * Mon–Fri of the week `weekOffset` weeks from the current Berlin week. Anchored
- * on the school (Berlin) calendar day, not the browser's local `new Date()`, so
- * the range sent to the DATE-based /week endpoint is correct in any timezone.
+ * The care days of the week `weekOffset` weeks from the current Berlin week.
+ * Anchored on the school (Berlin) calendar day, not the browser's local
+ * `new Date()`, so the range sent to the DATE-based /week endpoint is correct
+ * in any timezone.
  */
-function berlinWeekDays(weekOffset: number): Date[] {
+function berlinWeekDays(weekOffset: number, weekendOpen: boolean): Date[] {
   const anchor = parseISODate(berlinTodayISO());
   const dow = anchor.getDay();
   const daysToMonday = dow === 0 ? 6 : dow - 1;
   const monday = new Date(anchor);
   monday.setDate(anchor.getDate() - daysToMonday + weekOffset * 7);
   const days: Date[] = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < (weekendOpen ? 7 : 5); i++) {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
     days.push(d);
   }
   return days;
+}
+
+function mobileDayIndexForToday(weekendOpen: boolean): number {
+  const weekday = parseISODate(berlinTodayISO()).getDay(); // 0=Sun … 6=Sat
+  if (weekendOpen) return (weekday + 6) % 7;
+  return weekday >= 1 && weekday <= 5 ? weekday - 1 : 0;
 }
 
 function shortDate(date: Date): string {
@@ -139,15 +151,22 @@ export function CarePlanView({
   active = true,
 }: CarePlanViewProps) {
   const today = berlinTodayISO();
+  const weekendOpen = useWeekendFollowsFriday();
   const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [selectedDate, setSelectedDate] = useState<string>(() =>
     berlinTodayISO(),
   );
   const [weekOffset, setWeekOffset] = useState(0);
-  const [mobileDayIndex, setMobileDayIndex] = useState(() => {
-    const weekday = parseISODate(berlinTodayISO()).getDay(); // 0=Sun … 6=Sat
-    return weekday >= 1 && weekday <= 5 ? weekday - 1 : 0;
-  });
+  const [mobileDayIndex, setMobileDayIndex] = useState(() =>
+    mobileDayIndexForToday(weekendOpen),
+  );
+
+  // The tenant arrives after the first render. On a weekend, the initial
+  // closed-weekend state points at Monday; select today's newly available day
+  // once the school's Friday-plan setting is known.
+  useEffect(() => {
+    setMobileDayIndex(mobileDayIndexForToday(weekendOpen));
+  }, [weekendOpen]);
 
   // --- Day mode fetch (only when the tab is active and in day mode) ---
   const dayKey =
@@ -164,9 +183,12 @@ export function CarePlanView({
   );
 
   // --- Week mode fetch (only active in week mode) ---
-  const weekDates = useMemo(() => berlinWeekDays(weekOffset), [weekOffset]);
+  const weekDates = useMemo(
+    () => berlinWeekDays(weekOffset, weekendOpen),
+    [weekOffset, weekendOpen],
+  );
   const weekFrom = toISODate(weekDates[0]!);
-  const weekTo = toISODate(weekDates[4]!);
+  const weekTo = toISODate(weekDates[weekDates.length - 1]!);
   const weekKey =
     active && viewMode === "week"
       ? `care-plan-week-${studentId}-${weekFrom}-${weekTo}`
@@ -241,7 +263,7 @@ export function CarePlanView({
           subtitle={
             viewMode === "day"
               ? formatDate(selectedDate, true)
-              : `${shortDate(weekDates[0]!)} – ${shortDate(weekDates[4]!)}`
+              : `${shortDate(weekDates[0]!)} – ${shortDate(weekDates[weekDates.length - 1]!)}`
           }
           actions={
             <SegmentedControl
@@ -262,7 +284,9 @@ export function CarePlanView({
             <>
               <NavButton
                 ariaLabel="Vorheriger Tag"
-                onClick={() => setSelectedDate((d) => stepWeekday(d, -1))}
+                onClick={() =>
+                  setSelectedDate((d) => stepWeekday(d, -1, weekendOpen))
+                }
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Vorheriger Tag</span>
@@ -282,7 +306,9 @@ export function CarePlanView({
               )}
               <NavButton
                 ariaLabel="Nächster Tag"
-                onClick={() => setSelectedDate((d) => stepWeekday(d, 1))}
+                onClick={() =>
+                  setSelectedDate((d) => stepWeekday(d, 1, weekendOpen))
+                }
               >
                 <span className="hidden sm:inline">Nächster Tag</span>
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -379,9 +405,11 @@ function WeekBody({
 
   return (
     <>
-      {/* Desktop: 5-column grid of compact day cards */}
+      {/* Desktop: compact cards for every care day of the week */}
       <div className="hidden xl:block">
-        <div className="grid gap-3 xl:grid-cols-5">
+        <div
+          className={`grid gap-3 ${weekDates.length === 7 ? "xl:grid-cols-7" : "xl:grid-cols-5"}`}
+        >
           {weekDates.map((date, i) => {
             const iso = toISODate(date);
             const day = daysByDate.get(iso) ?? null;

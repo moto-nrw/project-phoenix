@@ -281,6 +281,8 @@ export interface BackendOwnAssignment {
   start_time: string;
   end_time: string;
   status: string;
+  /** Older backends omit this field. */
+  is_spontaneous?: boolean;
   cancelled: boolean;
   is_primary: boolean;
   is_substitute: boolean;
@@ -305,6 +307,8 @@ export interface OwnAssignment {
   /** Wall-clock "HH:MM". */
   endTime: string;
   status: string;
+  /** True for a currently open spontaneous block. */
+  isSpontaneous?: boolean;
   /** The block does not take place ("fällt aus"). */
   cancelled: boolean;
   isPrimary: boolean;
@@ -328,6 +332,7 @@ export function mapOwnAssignment(data: BackendOwnAssignment): OwnAssignment {
     startTime: data.start_time.slice(0, 5),
     endTime: data.end_time.slice(0, 5),
     status: data.status,
+    isSpontaneous: data.is_spontaneous,
     cancelled: data.cancelled,
     isPrimary: data.is_primary,
     isSubstitute: data.is_substitute,

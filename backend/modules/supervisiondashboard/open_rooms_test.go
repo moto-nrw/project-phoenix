@@ -48,7 +48,7 @@ func openRoomFakes() (*fakes, *[]SessionBlocksQuery) {
 		asked = append(asked, query)
 		return []SessionBlock{
 			{ActiveGroupID: 11, InstanceID: 511, Title: "Garten-AG", StartTime: "13:00", EndTime: "14:00", CanOperate: true},
-			{ActiveGroupID: 12, InstanceID: 512, Title: "Fußball", StartTime: "13:00", EndTime: "14:30", IsAssigned: true, CanOperate: true},
+			{ActiveGroupID: 12, InstanceID: 512, Title: "Fußball", StartTime: "13:00", EndTime: "14:30", IsSpontaneous: true, IsAssigned: true, CanOperate: true},
 			{ActiveGroupID: 21, InstanceID: 521, Title: "Tanzen", StartTime: "13:00", EndTime: "14:00"},
 			// An answer the projection did not ask for is ignored.
 			{ActiveGroupID: 13, InstanceID: 513, Title: "Schulhof", StartTime: "13:00", EndTime: "18:00", CanOperate: true},
@@ -94,7 +94,7 @@ func TestOpenRoomSessionsProjectBlocksAndCounts(t *testing.T) {
 		{ActiveGroupID: 11, Title: "Garten-AG", IsUserSupervising: true, CanAssign: true, StudentCount: 2,
 			Block: &OpenRoomBlock{InstanceID: 511, StartTime: "13:00", EndTime: "14:00", CanOperate: true}},
 		{ActiveGroupID: 12, Title: "Fußball", StudentCount: 0,
-			Block: &OpenRoomBlock{InstanceID: 512, StartTime: "13:00", EndTime: "14:30", IsUserAssigned: true, CanOperate: true}},
+			Block: &OpenRoomBlock{InstanceID: 512, StartTime: "13:00", EndTime: "14:30", IsSpontaneous: true, IsUserAssigned: true, CanOperate: true}},
 		{ActiveGroupID: 13, Independent: true, IsUserSupervising: true, CanAssign: true, StudentCount: 1},
 		{ActiveGroupID: 14, Title: "Kiosk", StudentCount: 1},
 	}, yard.Sessions, "sessions in start order, the block's title wins over the activity's")

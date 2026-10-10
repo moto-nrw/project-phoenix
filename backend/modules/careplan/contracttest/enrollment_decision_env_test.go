@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
@@ -19,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -405,7 +406,7 @@ func composeDecisions(
 		StudentEnrollment:      students,
 		Companions:             repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:       repoFactory.CarePlan().DeleteCompanionEdges,
-		StudentAudit:           usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(db)),
+		StudentAudit:           services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAudit(db)),
 		CareWithdrawal:         careWithdrawal,
 		FrontendURL:            "http://localhost:3000",
 		ParentsURL:             "http://parents.localhost:3000",
@@ -434,7 +435,7 @@ func newTestCareLifecycle(db *bun.DB, config repositories.CareLifecycleTestConfi
 		panic(err)
 	}
 	if config.Audit == nil {
-		config.Audit = usersService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(db))
+		config.Audit = services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAudit(db))
 	}
 	lifecycle, err := repos.NewCareLifecycle(config)
 	if err != nil {

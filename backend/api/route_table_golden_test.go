@@ -51,11 +51,11 @@ import (
 
 var updateGoldens = flag.Bool("update-goldens", false, "rewrite the route-table, IoT auth-matrix and IoT error-string golden files")
 
-func checkRouteTableGolden(t *testing.T, apiInstance *API) {
+func checkRouteTableGolden(t *testing.T, apiInstance *serveGraph) {
 	t.Parallel()
 
 	var routes, middlewareRoutes []string
-	walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+	walkErr := chi.Walk(apiInstance.router, func(method, route string, _ http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		routes = append(routes, method+" "+route)
 		names := make([]string, 0, len(middlewares))
 		for _, middleware := range middlewares {
@@ -110,7 +110,7 @@ func checkRouteTableGolden(t *testing.T, apiInstance *API) {
 		}
 		for _, tc := range cases {
 			rec := httptest.NewRecorder()
-			apiInstance.Router.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, nil))
+			apiInstance.router.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, nil))
 			// Ohne Token endet die Anfrage in der Auth-Kette (401), nicht im
 			// Router-Fallback (404): der Pfad ist also gebunden.
 			require.Equalf(t, http.StatusUnauthorized, rec.Code, "%s %s must be routed to the staff-notice resource", tc.method, tc.path)
@@ -141,7 +141,7 @@ func checkRouteTableGolden(t *testing.T, apiInstance *API) {
 		}
 
 		var unguarded []string
-		walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		walkErr := chi.Walk(apiInstance.router, func(method, route string, _ http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 			if safeMethods[method] {
 				return nil
 			}
@@ -204,12 +204,12 @@ func stableMiddlewareTable(table string) string {
 // ones like {id:[0-9]+}) for probe-URL substitution.
 var chiParamPattern = regexp.MustCompile(`\{[^}]+\}`)
 
-func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *API) {
+func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *serveGraph) {
 	t.Parallel()
 	const requestID = "8dc3a9ca-8ac7-4b8e-9bfa-3c17760d92c0"
 
 	var iotRoutes []string
-	walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+	walkErr := chi.Walk(apiInstance.router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		if strings.HasPrefix(route, "/api/iot/") {
 			iotRoutes = append(iotRoutes, method+" "+route)
 		}
@@ -231,7 +231,7 @@ func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *API) {
 		req := httptest.NewRequest(method, probePath, nil)
 		req.Header.Set(middleware.RequestIDHeader, requestID)
 		rec := httptest.NewRecorder()
-		apiInstance.Router.ServeHTTP(rec, req)
+		apiInstance.router.ServeHTTP(rec, req)
 
 		body := strings.TrimSpace(rec.Body.String())
 		var problem map[string]any
@@ -317,7 +317,7 @@ func TestFullProductionRouterGolden(t *testing.T) {
 	}, func(runtime *Runtime) error {
 		called = true
 		require.NotNil(t, runtime.worker)
-		api, ok := runtime.Handler().(*API)
+		api, ok := runtime.Handler().(*serveGraph)
 		require.True(t, ok)
 		if *runtimeCheckpointOutput != "" {
 			measureRuntimeCheckpoint(t, runtime)

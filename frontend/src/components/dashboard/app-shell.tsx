@@ -2,6 +2,7 @@
 
 import { PortalShell } from "~/components/ui/portal-shell";
 import { DemoBanner, useDemoBannerShown } from "~/components/demo/demo-banner";
+import { useDemoEveningActive } from "~/components/demo/demo-evening-notice";
 import { StaffPreviewBanner } from "~/components/staff-preview/staff-preview-banner";
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { Header } from "./header";
@@ -37,15 +38,19 @@ export function AppShell({ children }: AppShellProps) {
   // und „Kostenlos starten". Während einer Vorschau hat deren Streifen Vorrang.
   const demoBannerShown = useDemoBannerShown();
   const stripActive = previewActive || demoBannerShown;
+  // Abends liegt unter dem Demo-Streifen eine Hinweiszeile (h-8, #3921).
+  const eveningRow = useDemoEveningActive() && demoBannerShown;
 
   return (
-    <div className={stripActive ? "pt-12" : undefined}>
+    <div className={eveningRow ? "pt-20" : stripActive ? "pt-12" : undefined}>
       <PortalShell
         header={<Header />}
         headerClassName={
-          stripActive
-            ? "sticky top-12 z-40 hidden lg:block"
-            : "sticky top-0 z-40 hidden lg:block"
+          eveningRow
+            ? "sticky top-20 z-40 hidden lg:block"
+            : stripActive
+              ? "sticky top-12 z-40 hidden lg:block"
+              : "sticky top-0 z-40 hidden lg:block"
         }
         backgroundClassName="moto-dotted-background--full"
         // Flex-Spalte, damit `TenantPage` bis zur Unterkante wächst und

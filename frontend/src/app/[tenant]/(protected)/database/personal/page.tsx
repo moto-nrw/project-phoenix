@@ -218,6 +218,11 @@ function TeachersPageContent() {
   >(
     () => ({
       role: (teacher) => {
+        // Externe Kräfte ohne Konto (#3823) haben keine Rolle; eine eigene
+        // Gruppe trennt sie von Personal, dem nur die Rolle fehlt.
+        if (teacher.is_external) {
+          return { id: "__external__", title: "Extern", sortKey: "zzy" };
+        }
         const role = teacher.account_role?.trim();
         if (!role) {
           return { id: "__no_role__", title: "Ohne Rolle", sortKey: "zzz" };

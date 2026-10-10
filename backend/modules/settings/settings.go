@@ -58,6 +58,7 @@ const (
 	KeyTimetableEnforcePlannedEnd            = configModel.KeyTimetableEnforcePlannedEnd
 	KeyTimetableCompleteLeadMinutes          = configModel.KeyTimetableCompleteLeadMinutes
 	KeyTimetableShowExpectedChildrenCount    = configModel.KeyTimetableShowExpectedChildrenCount
+	KeyWeekendFollowsFriday                  = configModel.KeyWeekendFollowsFriday
 	KeyTrackingIndicator1                    = configModel.KeyTrackingIndicator1
 	KeyTrackingIndicator2                    = configModel.KeyTrackingIndicator2
 	KeyTrackingIndicator3                    = configModel.KeyTrackingIndicator3

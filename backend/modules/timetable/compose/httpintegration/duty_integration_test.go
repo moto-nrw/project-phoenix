@@ -54,6 +54,36 @@ func TestDutyWithoutRoomMaterializesAndIsNeverStarted(t *testing.T) {
 	assert.True(t, errors.Is(err, timetable.ErrInvalidInstanceTransition), "got %v", err)
 }
 
+func TestDutyWithoutRoomCanBeMoved(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	_, err := s.db.NewUpdate().TableExpr(`activities.groups`).
+		Set("type = ?", timetable.GroupTypeDuty).Set("planned_room_id = NULL").
+		Where("id = ?", s.tmplID).Exec(s.ctx)
+	require.NoError(t, err)
+	instance := seedInstance(t, s, false, false)
+	_, err = s.db.NewUpdate().TableExpr(`schedule.activity_instances`).
+		Set("room_id = NULL").Where("id = ?", instance.ID).Exec(s.ctx)
+	require.NoError(t, err)
+
+	updated, err := s.svc.UpdatePlanned(s.ctx, instance.ID, timetable.UpdateInstanceInput{
+		Date:            calendar.Date(instance.Date),
+		StartTime:       instance.StartTime.Add(30 * time.Minute),
+		EndTime:         instance.EndTime.Add(30 * time.Minute),
+		Title:           "Verschobene Busaufsicht",
+		RoomID:          0,
+		ActivityGroupID: &s.tmplID,
+	}, nil)
+	require.NoError(t, err)
+	assert.Zero(t, updated.RoomID)
+
+	var roomIsNull bool
+	require.NoError(t, s.db.NewRaw(`SELECT room_id IS NULL FROM schedule.activity_instances WHERE id = ?`, instance.ID).
+		Scan(s.ctx, &roomIsNull))
+	assert.True(t, roomIsNull)
+}
+
 func TestDutyAutoStartSkipsDuty(t *testing.T) {
 	t.Parallel()
 

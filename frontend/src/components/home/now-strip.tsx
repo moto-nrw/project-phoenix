@@ -12,6 +12,7 @@ import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { formatStatusDate } from "~/lib/date-helpers";
 import type { HomeBlockAccess, HomeBlockContext } from "~/lib/home-blocks";
 import { formatMinutesAhead } from "~/lib/home-clock";
+import { blockEndLine, blockTimeRange } from "~/lib/block-children";
 import {
   deriveHomeNow,
   nowActions,
@@ -237,7 +238,7 @@ function NowText({
           }
           detail={[
             block.roomName,
-            `bis ${block.endTime}`,
+            blockEndLine(block),
             next
               ? `danach ${next.startTime} ${next.title}`
               : "danach ist für heute nichts mehr geplant",
@@ -261,7 +262,7 @@ function NowText({
               )}
             </>
           }
-          detail={[`${block.startTime} bis ${block.endTime}`, block.roomName]}
+          detail={[blockTimeRange(block), block.roomName]}
         />
       );
     }

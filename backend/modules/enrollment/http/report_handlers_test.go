@@ -1,0 +1,384 @@
+package enrollmenthttp
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+)
+
+func TestParseClassRosterExportRequestAcceptsNumericPhaseID(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest("POST", "/enrollment/admin/reports/class-roster/export", strings.NewReader(`{
+		"format":"xlsx",
+		"filters":{"phase_id":42,"school_class":" 1a "}
+	}`))
+
+	format, filters, err := parseClassRosterExportRequest(req)
+
+	require.NoError(t, err)
+	assert.Equal(t, lists.FormatXLSX, format)
+	assert.Equal(t, int64(42), filters.PhaseID)
+	assert.Equal(t, "1a", filters.SchoolClass)
+}
+
+func TestParseClassRosterExportRequestRejectsMissingClass(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest("POST", "/enrollment/admin/reports/class-roster/export", strings.NewReader(`{
+		"format":"pdf",
+		"filters":{"phase_id":"42"}
+	}`))
+
+	_, _, err := parseClassRosterExportRequest(req)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "school_class is required")
+}
+
+func TestClassRosterExportRequiresConfigManageAndUsersRead(t *testing.T) {
+	t.Parallel()
+	router := (&Resource{
+		ReportService:     &fakeClassRosterReportService{},
+		ListExportService: newTestDocumentRenderer(),
+		runInTenantTxForTest: func(r *http.Request, fn func(context.Context) error) error {
+			return fn(r.Context())
+		},
+	}).Router()
+	served := testpkg.SessionVerifier(router)
+	body := `{"format":"xlsx","filters":{"phase_id":42,"school_class":"1a"}}`
+
+	configOnly := newClassRosterExportHTTPRequest(t, body, []string{permissions.ConfigManage})
+	configOnlyRecorder := httptest.NewRecorder()
+	served.ServeHTTP(configOnlyRecorder, configOnly)
+	assert.Equal(t, http.StatusForbidden, configOnlyRecorder.Code)
+
+	configAndUsersRead := newClassRosterExportHTTPRequest(t, body, []string{permissions.ConfigManage, permissions.UsersRead})
+	configAndUsersReadRecorder := httptest.NewRecorder()
+	served.ServeHTTP(configAndUsersReadRecorder, configAndUsersRead)
+	assert.Equal(t, http.StatusOK, configAndUsersReadRecorder.Code)
+}
+
+func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
+	t.Parallel()
+
+	report := &capability.ClassRosterReport{
+		Phase: capability.CareUsagePhase{ID: 42, Name: "Schuljahr 2026"},
+		Filters: capability.ClassRosterAppliedFilters{
+			PhaseID:     42,
+			SchoolClass: "1a",
+			Status:      capability.ChildStatusApproved,
+		},
+		Totals: capability.ClassRosterTotals{Students: 2, Registered: 1},
+		Rows: []capability.ClassRosterRow{
+			{
+				FirstName:         "Lina",
+				LastName:          "Muster",
+				SchoolClass:       "1a",
+				GroupName:         "Eulen",
+				Registered:        true,
+				EnrollmentSummary: "Angemeldet: Randstunde",
+				CareDays:          []string{"mon", "wed"},
+				OfferingsByDay: map[string][]string{
+					"mon": []string{"Randstunde"},
+					"wed": []string{"Ganztag"},
+				},
+				ArrivalByDay: map[string]string{"mon": "11:30"},
+				PickupByDay:  map[string]string{"mon": "14:30"},
+				DepartureByDay: map[string]string{
+					"mon": "wird abgeholt",
+					"wed": "geht alleine",
+				},
+				Guardians: []capability.ClassRosterGuardian{
+					{Name: "Eva Muster", Email: "eva@example.test", Phone: "02551 123"},
+				},
+			},
+			{
+				FirstName:         "Tom",
+				LastName:          "Ohne",
+				SchoolClass:       "1a",
+				EnrollmentSummary: "Keine Anmeldung",
+				CareDays:          []string{},
+				OfferingsByDay:    map[string][]string{},
+				ArrivalByDay:      map[string]string{},
+				PickupByDay:       map[string]string{},
+				Guardians: []capability.ClassRosterGuardian{
+					{Name: "Stamm Kontakt", Phone: "02551 456"},
+				},
+			},
+		},
+	}
+
+	doc := buildClassRosterTableDocument(report)
+
+	assert.Equal(t, "Klassenliste 1a - Schuljahr 2026", doc.Title)
+	assert.Equal(t, "2 Kinder, 1 angemeldet", doc.Subtitle)
+	assert.Equal(t, []lists.Column{
+		{ID: lists.ColumnName, Label: "Name"},
+		{ID: lists.ColumnSchoolClass, Label: "Klasse"},
+		{ID: lists.ColumnWeeklyMonday, Label: "Montag"},
+		{ID: lists.ColumnWeeklyTuesday, Label: "Dienstag"},
+		{ID: lists.ColumnWeeklyWednesday, Label: "Mittwoch"},
+		{ID: lists.ColumnWeeklyThursday, Label: "Donnerstag"},
+		{ID: lists.ColumnWeeklyFriday, Label: "Freitag"},
+		{ID: lists.ColumnGuardianContacts, Label: "Erziehungsberechtigte"},
+	}, doc.Columns)
+	require.Len(t, doc.Rows, 2)
+	assert.Empty(t, doc.Rows[0].Values[lists.ColumnEnrollmentSummary])
+	assert.Empty(t, doc.Rows[0].Values[lists.ColumnGroup])
+	assert.Empty(t, doc.Rows[0].Values[lists.ColumnCareDays])
+	// #2254: each care day carries its own Geh-/Abholregelung in the cell;
+	// the summarized "Geh-/Abholweise" column is gone.
+	assert.Empty(t, doc.Rows[0].Values[lists.ColumnDeparture])
+	assert.Equal(t, "14:30 Uhr, wird abgeholt", doc.Rows[0].Values[lists.ColumnWeeklyMonday])
+	assert.Equal(t, "Ganztag, geht alleine", doc.Rows[0].Values[lists.ColumnWeeklyWednesday])
+	assert.Equal(t, "Eva Muster (eva@example.test, 02551 123)", doc.Rows[0].Values[lists.ColumnGuardianContacts])
+	assert.Empty(t, doc.Rows[1].Values[lists.ColumnEnrollmentSummary])
+	assert.Equal(t, "—", doc.Rows[1].Values[lists.ColumnWeeklyMonday])
+	assert.Equal(t, "Stamm Kontakt (02551 456)", doc.Rows[1].Values[lists.ColumnGuardianContacts])
+}
+
+func TestClassRosterWeeklyCellPickupTimeWithOfferingFallback(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		row  capability.ClassRosterRow
+		want string
+	}{
+		{
+			name: "care with pickup time",
+			row: capability.ClassRosterRow{
+				CareDays:       []string{"mon"},
+				OfferingsByDay: map[string][]string{"mon": {"Ganztagsbetreuung"}},
+				PickupByDay:    map[string]string{"mon": "14:30"},
+			},
+			want: "14:30 Uhr",
+		},
+		{
+			name: "care without pickup time falls back to offering names",
+			row: capability.ClassRosterRow{
+				CareDays:       []string{"mon"},
+				OfferingsByDay: map[string][]string{"mon": {"Randstunde"}},
+			},
+			want: "Randstunde",
+		},
+		{
+			name: "care without pickup time joins deduped sorted offerings",
+			row: capability.ClassRosterRow{
+				CareDays:       []string{"mon"},
+				OfferingsByDay: map[string][]string{"mon": {"Randstunde", "Ganztag", " Randstunde "}},
+			},
+			want: "Ganztag; Randstunde",
+		},
+		{
+			name: "care without pickup time falls back to offering days",
+			row: capability.ClassRosterRow{
+				CareDays: []string{"mon"},
+				Offerings: []capability.CareUsageRowOffering{
+					{Name: "Betreuung bis 14:30 Uhr", Days: []string{"mon", "tue"}},
+					{Name: "Randstunde", Days: []string{"thu"}},
+				},
+			},
+			want: "Betreuung bis 14:30 Uhr",
+		},
+		{
+			name: "care without pickup time or offerings",
+			row: capability.ClassRosterRow{
+				CareDays: []string{"mon"},
+			},
+			want: "Keine Abholzeit",
+		},
+		{
+			name: "multiple offerings",
+			row: capability.ClassRosterRow{
+				CareDays:       []string{"mon"},
+				OfferingsByDay: map[string][]string{"mon": {"Ganztag", "Randstunde"}},
+				PickupByDay:    map[string]string{"mon": "16:00"},
+			},
+			want: "16:00 Uhr",
+		},
+		{
+			name: "no care ignores stale pickup time",
+			row: capability.ClassRosterRow{
+				PickupByDay: map[string]string{"mon": "14:30"},
+			},
+			want: "—",
+		},
+		{
+			name: "unconstrained weekdays keep stored pickup time",
+			row: capability.ClassRosterRow{
+				CareDays:    []string{"mon", "tue", "wed", "thu", "fri"},
+				PickupByDay: map[string]string{"mon": "14:30"},
+			},
+			want: "14:30 Uhr",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, classRosterWeeklyCell(tt.row, "mon"))
+		})
+	}
+}
+
+// TestClassRosterWeeklyCellDailyDepartureRule pins #2254: every care day
+// carries its own Geh-/Abholregelung next to the pickup time, mixed weeks are
+// assigned per day (never summarized), multiple rules on one day survive, and
+// companion details appear only on the affected days.
+func TestClassRosterWeeklyCellDailyDepartureRule(t *testing.T) {
+	t.Parallel()
+
+	mixedWeek := capability.ClassRosterRow{
+		CareDays:    []string{"mon", "fri"},
+		PickupByDay: map[string]string{"mon": "14:30", "fri": "15:00"},
+		DepartureByDay: map[string]string{
+			"mon": "wird abgeholt",
+			"fri": "geht alleine",
+		},
+	}
+	assert.Equal(t, "14:30 Uhr, wird abgeholt", classRosterWeeklyCell(mixedWeek, "mon"))
+	assert.Equal(t, "15:00 Uhr, geht alleine", classRosterWeeklyCell(mixedWeek, "fri"))
+
+	multiRule := capability.ClassRosterRow{
+		CareDays:       []string{"tue"},
+		PickupByDay:    map[string]string{"tue": "16:00"},
+		DepartureByDay: map[string]string{"tue": "fährt Bus / wird abgeholt"},
+	}
+	assert.Equal(t, "16:00 Uhr, fährt Bus / wird abgeholt", classRosterWeeklyCell(multiRule, "tue"))
+
+	companion := capability.ClassRosterRow{
+		CareDays:    []string{"mon", "tue"},
+		PickupByDay: map[string]string{"mon": "14:30", "tue": "14:30"},
+		DepartureByDay: map[string]string{
+			"mon": "mit anderem Kind (mit: Mia Schulz)",
+			"tue": "geht alleine",
+		},
+	}
+	assert.Equal(t, "14:30 Uhr, mit anderem Kind (mit: Mia Schulz)", classRosterWeeklyCell(companion, "mon"))
+	assert.Equal(t, "14:30 Uhr, geht alleine", classRosterWeeklyCell(companion, "tue"))
+
+	// A day without care stays "—" and never gains a departure text; the
+	// neutral no-pickup-time marker still carries the day's rule.
+	noCare := capability.ClassRosterRow{
+		CareDays:       []string{"mon"},
+		DepartureByDay: map[string]string{"mon": "wird abgeholt", "tue": "wird abgeholt"},
+	}
+	assert.Equal(t, "Keine Abholzeit, wird abgeholt", classRosterWeeklyCell(noCare, "mon"))
+	assert.Equal(t, "—", classRosterWeeklyCell(noCare, "tue"))
+
+	// Rows built without enrichment (no DepartureByDay) keep the plain cell.
+	unenriched := capability.ClassRosterRow{
+		CareDays:    []string{"mon"},
+		PickupByDay: map[string]string{"mon": "14:30"},
+	}
+	assert.Equal(t, "14:30 Uhr", classRosterWeeklyCell(unenriched, "mon"))
+}
+
+func newClassRosterExportHTTPRequest(t *testing.T, body string, perms []string) *http.Request {
+	t.Helper()
+	token := testutil.MintTestJWT(t, routetest.Claims{
+		ID:          100,
+		Sub:         "admin@example.test",
+		TenantID:    200,
+		Roles:       []string{"admin"},
+		Permissions: perms,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/admin/reports/class-roster/export", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	return req
+}
+
+type fakeClassRosterReportService struct {
+	capability.Reports
+}
+
+func (s *fakeClassRosterReportService) ExportClassRoster(_ context.Context, filters capability.ClassRosterFilters, _ int64, _, _ string) (*capability.ClassRosterReport, error) {
+	return &capability.ClassRosterReport{
+		Phase: capability.CareUsagePhase{ID: filters.PhaseID, Name: "Schuljahr 2026"},
+		Filters: capability.ClassRosterAppliedFilters{
+			PhaseID:     filters.PhaseID,
+			SchoolClass: filters.SchoolClass,
+			Status:      capability.ChildStatusApproved,
+		},
+		Totals: capability.ClassRosterTotals{Students: 1, Registered: 1},
+		Rows: []capability.ClassRosterRow{
+			{
+				FirstName:         "Lina",
+				LastName:          "Muster",
+				SchoolClass:       filters.SchoolClass,
+				Registered:        true,
+				EnrollmentSummary: "Angemeldet",
+				CareDays:          []string{"mon"},
+				ArrivalByDay:      map[string]string{},
+				PickupByDay:       map[string]string{},
+				DepartureByDay:    map[string]string{"mon": "wird abgeholt"},
+			},
+		},
+	}, nil
+}
+
+// #2290: the maintained Kind-Gehzeit (schedule.student_pickup_schedules,
+// incl. rolled-out Angebots-Gehzeiten) outranks the enrollment-form answer.
+func TestClassRosterWeeklyCellSchedulePickupPriority(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		row  capability.ClassRosterRow
+		want string
+	}{
+		{
+			name: "schedule pickup wins over form pickup",
+			row: capability.ClassRosterRow{
+				CareDays:            []string{"mon"},
+				SchedulePickupByDay: map[string]string{"mon": "14:30"},
+				PickupByDay:         map[string]string{"mon": "15:00"},
+			},
+			want: "14:30 Uhr",
+		},
+		{
+			name: "schedule pickup wins over offering names",
+			row: capability.ClassRosterRow{
+				CareDays:            []string{"mon"},
+				SchedulePickupByDay: map[string]string{"mon": "16:00"},
+				OfferingsByDay:      map[string][]string{"mon": {"Ganztagsbetreuung"}},
+			},
+			want: "16:00 Uhr",
+		},
+		{
+			name: "form pickup still applies without schedule row",
+			row: capability.ClassRosterRow{
+				CareDays:    []string{"mon"},
+				PickupByDay: map[string]string{"mon": "15:00"},
+			},
+			want: "15:00 Uhr",
+		},
+		{
+			name: "no care day ignores schedule pickup",
+			row: capability.ClassRosterRow{
+				SchedulePickupByDay: map[string]string{"mon": "14:30"},
+			},
+			want: "—",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, classRosterWeeklyCell(tt.row, "mon"))
+		})
+	}
+}

@@ -9,32 +9,32 @@ import (
 	"sort"
 	"time"
 
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type GroupStore interface {
-	FindByTeacher(ctx context.Context, teacherID int64) ([]*educationModels.Group, error)
-	FindByIDForUpdate(ctx context.Context, id any) (*educationModels.Group, error)
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*educationModels.Group, error)
+	FindByTeacher(ctx context.Context, teacherID int64) ([]*domain.Group, error)
+	FindByIDForUpdate(ctx context.Context, id any) (*domain.Group, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*domain.Group, error)
 	// List selects groups by the legacy map filters; the module filters by
 	// school only.
-	List(ctx context.Context, filters map[string]any) ([]*educationModels.Group, error)
+	List(ctx context.Context, filters map[string]any) ([]*domain.Group, error)
 }
 
 type GroupHandoverStore interface {
-	// Create stores a handover and reports educationModels.ErrHandoverExists
+	// Create stores a handover and reports domain.ErrHandoverExists
 	// when an equal one already exists.
-	Create(ctx context.Context, handover *educationModels.GroupSubstitution) error
+	Create(ctx context.Context, handover *domain.GroupSubstitution) error
 	Delete(ctx context.Context, id any) error
-	FindByID(ctx context.Context, id any) (*educationModels.GroupSubstitution, error)
-	FindByIDForUpdate(ctx context.Context, id any) (*educationModels.GroupSubstitution, error)
-	ListHandovers(ctx context.Context, query educationModels.HandoverQuery) ([]*educationModels.GroupSubstitution, error)
+	FindByID(ctx context.Context, id any) (*domain.GroupSubstitution, error)
+	FindByIDForUpdate(ctx context.Context, id any) (*domain.GroupSubstitution, error)
+	ListHandovers(ctx context.Context, query domain.HandoverQuery) ([]*domain.GroupSubstitution, error)
 	// ListHandoversWithRelations is ListHandovers with the group and the
 	// staff members attached.
-	ListHandoversWithRelations(ctx context.Context, query educationModels.HandoverQuery) ([]*educationModels.GroupSubstitution, error)
+	ListHandoversWithRelations(ctx context.Context, query domain.HandoverQuery) ([]*domain.GroupSubstitution, error)
 }
 
 type StaffLockStore interface {
@@ -45,8 +45,15 @@ type StaffLockStore interface {
 // CaregiverDirectory reads the active staff members who can take over a
 // group.
 type CaregiverDirectory interface {
-	FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*educationModels.Caregiver, error)
-	ListActiveCaregivers(ctx context.Context) ([]*educationModels.Caregiver, error)
+	FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*domain.Caregiver, error)
+	ListActiveCaregivers(ctx context.Context) ([]*domain.Caregiver, error)
+}
+
+// ExternalCaregiverDirectory reads the external caregivers without a moto
+// account (#3823). They may join a running supervision as an additional
+// supervisor, never take over a group.
+type ExternalCaregiverDirectory interface {
+	ListExternalCaregivers(ctx context.Context) ([]*domain.Caregiver, error)
 }
 
 type ActiveSupervisorCreator interface {
@@ -57,8 +64,11 @@ type SubstitutionDependencies struct {
 	Groups        GroupStore
 	Substitutions GroupHandoverStore
 	// Persons resolves the staff names the overview shows (#2661).
-	Persons                 PersonQuery
-	Teachers                CaregiverDirectory
+	Persons  PersonQuery
+	Teachers CaregiverDirectory
+	// ExternalCaregivers adds the external caregivers to the additional
+	// supervision targets; nil offers caregivers only.
+	ExternalCaregivers      ExternalCaregiverDirectory
 	Staff                   StaffLockStore
 	Actors                  ActorResolver
 	Audit                   SubstitutionAudit
@@ -177,13 +187,13 @@ func validateOverviewQuery(query OverviewQuery, admin bool, today calendar.Date)
 	return nil
 }
 
-func (s *substitutionModule) listOverviewRows(ctx context.Context, tenantID int64, query OverviewQuery, admin, broad bool, visibleGroupIDs []int64, today calendar.Date) ([]*educationModels.GroupSubstitution, error) {
-	selection := educationModels.HandoverQuery{TenantID: tenantID, TargetType: educationModels.GroupSubstitutionTypeGroupHandover}
+func (s *substitutionModule) listOverviewRows(ctx context.Context, tenantID int64, query OverviewQuery, admin, broad bool, visibleGroupIDs []int64, today calendar.Date) ([]*domain.GroupSubstitution, error) {
+	selection := domain.HandoverQuery{TenantID: tenantID, TargetType: domain.GroupSubstitutionTypeGroupHandover}
 	if query.GroupID > 0 {
 		selection.GroupID = query.GroupID
 	} else if !broad {
 		if len(visibleGroupIDs) == 0 {
-			return []*educationModels.GroupSubstitution{}, nil
+			return []*domain.GroupSubstitution{}, nil
 		}
 		selection.GroupIDs = visibleGroupIDs
 	}
@@ -204,11 +214,11 @@ func (s *substitutionModule) listOverviewRows(ctx context.Context, tenantID int6
 	return rows, nil
 }
 
-func (s *substitutionModule) projectOverview(ctx context.Context, tenantID int64, access substitutionAccess, rows []*educationModels.GroupSubstitution, includeTargets bool) (*OverviewResult, error) {
+func (s *substitutionModule) projectOverview(ctx context.Context, tenantID int64, access substitutionAccess, rows []*domain.GroupSubstitution, includeTargets bool) (*OverviewResult, error) {
 	result := emptyOverview()
 	result.GroupHandovers = make([]GroupHandover, 0, len(rows))
 	for _, row := range rows {
-		if row.TenantID != tenantID || row.TargetType != educationModels.GroupSubstitutionTypeGroupHandover {
+		if row.TenantID != tenantID || row.TargetType != domain.GroupSubstitutionTypeGroupHandover {
 			return nil, ErrForbidden
 		}
 		result.GroupHandovers = append(result.GroupHandovers, project(row, access.admin || contains(access.ownedGroupIDs, row.GroupID)))
@@ -246,18 +256,18 @@ func (s *substitutionModule) listAssignableGroups(ctx context.Context, tenantID 
 
 // assignableGroupRows reads the school's groups for an admin, otherwise the
 // caller's own groups.
-func (s *substitutionModule) assignableGroupRows(ctx context.Context, tenantID int64, access substitutionAccess) ([]*educationModels.Group, error) {
+func (s *substitutionModule) assignableGroupRows(ctx context.Context, tenantID int64, access substitutionAccess) ([]*domain.Group, error) {
 	if access.admin {
 		return s.deps.Groups.List(ctx, map[string]any{"tenant_id": tenantID})
 	}
 	if len(access.ownedGroupIDs) == 0 {
-		return []*educationModels.Group{}, nil
+		return []*domain.Group{}, nil
 	}
 	byID, err := s.deps.Groups.FindByIDs(ctx, access.ownedGroupIDs)
 	if err != nil {
 		return nil, err
 	}
-	rows := make([]*educationModels.Group, 0, len(byID))
+	rows := make([]*domain.Group, 0, len(byID))
 	for _, id := range access.ownedGroupIDs {
 		if row, found := byID[id]; found {
 			rows = append(rows, row)
@@ -266,7 +276,7 @@ func (s *substitutionModule) assignableGroupRows(ctx context.Context, tenantID i
 	return rows, nil
 }
 
-func canViewGroup(access substitutionAccess, rows []*educationModels.GroupSubstitution, groupID int64) bool {
+func canViewGroup(access substitutionAccess, rows []*domain.GroupSubstitution, groupID int64) bool {
 	if contains(access.ownedGroupIDs, groupID) {
 		return true
 	}
@@ -358,7 +368,7 @@ func (s *substitutionModule) authorizeScheduleCaller(ctx context.Context, caller
 	return nil
 }
 
-func (s *substitutionModule) assignLocked(ctx context.Context, caller SubstitutionCaller, access substitutionAccess, request *GroupHandoverAssignment, start, end calendar.Date) (*educationModels.GroupSubstitution, *educationModels.Group, *educationModels.Caregiver, error) {
+func (s *substitutionModule) assignLocked(ctx context.Context, caller SubstitutionCaller, access substitutionAccess, request *GroupHandoverAssignment, start, end calendar.Date) (*domain.GroupSubstitution, *domain.Group, *domain.Caregiver, error) {
 	group, err := s.lockTenantGroup(ctx, request.GroupID, caller.TenantID)
 	if err != nil {
 		return nil, nil, nil, err
@@ -373,26 +383,26 @@ func (s *substitutionModule) assignLocked(ctx context.Context, caller Substituti
 	if err := s.rejectDuplicate(ctx, caller.TenantID, request, start, end); err != nil {
 		return nil, nil, nil, err
 	}
-	created := &educationModels.GroupSubstitution{
-		TargetType: educationModels.GroupSubstitutionTypeGroupHandover,
+	created := &domain.GroupSubstitution{
+		TargetType: domain.GroupSubstitutionTypeGroupHandover,
 		GroupID:    request.GroupID, SubstituteStaffID: target.StaffID,
 		StartDate: start, EndDate: end, Reason: "Gruppenübergabe",
 	}
 	if err := s.deps.Substitutions.Create(ctx, created); err != nil {
-		if errors.Is(err, educationModels.ErrHandoverExists) {
+		if errors.Is(err, domain.ErrHandoverExists) {
 			return nil, nil, nil, ErrAlreadyAssigned
 		}
 		return nil, nil, nil, err
 	}
-	if err := s.deps.Audit.RecordSubstitutionChange(ctx, auditChange(created, caller.AccountID, educationModels.SubstitutionAssigned)); err != nil {
+	if err := s.deps.Audit.RecordSubstitutionChange(ctx, auditChange(created, caller.AccountID, domain.SubstitutionAssigned)); err != nil {
 		return nil, nil, nil, err
 	}
 	return created, group, target, nil
 }
 
 func (s *substitutionModule) rejectDuplicate(ctx context.Context, tenantID int64, request *GroupHandoverAssignment, start, end calendar.Date) error {
-	duplicates, err := s.deps.Substitutions.ListHandovers(ctx, educationModels.HandoverQuery{
-		TenantID: tenantID, TargetType: educationModels.GroupSubstitutionTypeGroupHandover,
+	duplicates, err := s.deps.Substitutions.ListHandovers(ctx, domain.HandoverQuery{
+		TenantID: tenantID, TargetType: domain.GroupSubstitutionTypeGroupHandover,
 		GroupID: request.GroupID, SubstituteStaffID: request.TargetStaffID,
 		StartsOnOrBefore: &end, EndsOnOrAfter: &start,
 	})
@@ -479,7 +489,7 @@ func (s *substitutionModule) endLocked(ctx context.Context, caller SubstitutionC
 	}
 	current, err := s.deps.Substitutions.FindByIDForUpdate(ctx, id)
 	if err != nil {
-		if educationModels.IsNotFound(err) {
+		if domain.IsRecordNotFound(err) {
 			return ErrNotRunning
 		}
 		return err
@@ -491,21 +501,21 @@ func (s *substitutionModule) endLocked(ctx context.Context, caller SubstitutionC
 	if current.EndDate.Before(today) || (!access.admin && current.StartDate.After(today)) {
 		return ErrNotRunning
 	}
-	if err := s.deps.Audit.RecordSubstitutionChange(ctx, auditChange(current, caller.AccountID, educationModels.SubstitutionEnded)); err != nil {
+	if err := s.deps.Audit.RecordSubstitutionChange(ctx, auditChange(current, caller.AccountID, domain.SubstitutionEnded)); err != nil {
 		return err
 	}
 	return s.deps.Substitutions.Delete(ctx, id)
 }
 
-func validateEndAccess(row *educationModels.GroupSubstitution, tenantID int64, access substitutionAccess) error {
-	if row.TargetType != educationModels.GroupSubstitutionTypeGroupHandover || row.TenantID != tenantID ||
+func validateEndAccess(row *domain.GroupSubstitution, tenantID int64, access substitutionAccess) error {
+	if row.TargetType != domain.GroupSubstitutionTypeGroupHandover || row.TenantID != tenantID ||
 		(!access.admin && !contains(access.ownedGroupIDs, row.GroupID)) {
 		return ErrNotFound
 	}
 	return nil
 }
 
-func (s *substitutionModule) lockTenantGroup(ctx context.Context, groupID, tenantID int64) (*educationModels.Group, error) {
+func (s *substitutionModule) lockTenantGroup(ctx context.Context, groupID, tenantID int64) (*domain.Group, error) {
 	group, err := s.deps.Groups.FindByIDForUpdate(ctx, groupID)
 	if err != nil {
 		return nil, notFoundError(err)
@@ -536,7 +546,7 @@ func (s *substitutionModule) recheckOwnership(ctx context.Context, access substi
 }
 
 func notFoundError(err error) error {
-	if educationModels.IsNotFound(err) {
+	if domain.IsRecordNotFound(err) {
 		return ErrNotFound
 	}
 	return err
@@ -583,8 +593,8 @@ func (s *substitutionModule) visibleGroupIDs(ctx context.Context, access substit
 		return nil, nil
 	}
 	ids := append([]int64(nil), access.ownedGroupIDs...)
-	rows, err := s.deps.Substitutions.ListHandovers(ctx, educationModels.HandoverQuery{
-		TenantID: tenantID, TargetType: educationModels.GroupSubstitutionTypeGroupHandover,
+	rows, err := s.deps.Substitutions.ListHandovers(ctx, domain.HandoverQuery{
+		TenantID: tenantID, TargetType: domain.GroupSubstitutionTypeGroupHandover,
 		SubstituteStaffID: access.actor.StaffID, StartsOnOrBefore: &today, EndsOnOrAfter: &today,
 	})
 	if err != nil {
@@ -604,7 +614,7 @@ func (s *substitutionModule) resolveActor(ctx context.Context, accountID int64) 
 	}
 	caregiver, err := s.deps.Teachers.FindActiveCaregiverByAccountID(ctx, accountID)
 	if err != nil {
-		if educationModels.IsNotFound(err) {
+		if domain.IsRecordNotFound(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -632,7 +642,7 @@ func (s *substitutionModule) period(admin bool, requestedStart, requestedEnd *ca
 	return *requestedStart, *requestedEnd, nil
 }
 
-func (s *substitutionModule) findTarget(ctx context.Context, staffID int64) (*educationModels.Caregiver, error) {
+func (s *substitutionModule) findTarget(ctx context.Context, staffID int64) (*domain.Caregiver, error) {
 	caregivers, err := s.deps.Teachers.ListActiveCaregivers(ctx)
 	if err != nil {
 		return nil, err
@@ -645,7 +655,7 @@ func (s *substitutionModule) findTarget(ctx context.Context, staffID int64) (*ed
 	return nil, ErrNotFound
 }
 
-func (s *substitutionModule) findAndLockTarget(ctx context.Context, staffID int64) (*educationModels.Caregiver, error) {
+func (s *substitutionModule) findAndLockTarget(ctx context.Context, staffID int64) (*domain.Caregiver, error) {
 	if err := s.deps.Staff.LockStaff(ctx, staffID); err != nil {
 		return nil, notFoundError(err)
 	}
@@ -666,7 +676,7 @@ func (s *substitutionModule) listTargets(ctx context.Context, actor *Actor) ([]S
 	return result, nil
 }
 
-func project(row *educationModels.GroupSubstitution, canEnd bool) GroupHandover {
+func project(row *domain.GroupSubstitution, canEnd bool) GroupHandover {
 	result := GroupHandover{ID: row.ID, Type: TargetGroupHandover, CanEnd: canEnd,
 		Period: Period{StartDate: row.StartDate.String(), EndDate: row.EndDate.String()},
 		Group:  GroupRef{ID: row.GroupID}, Target: StaffRef{ID: row.SubstituteStaffID}}
@@ -679,7 +689,7 @@ func project(row *educationModels.GroupSubstitution, canEnd bool) GroupHandover 
 	return result
 }
 
-func projectAssignment(row *educationModels.GroupSubstitution, group *educationModels.Group, target *educationModels.Caregiver) AssignmentResult {
+func projectAssignment(row *domain.GroupSubstitution, group *domain.Group, target *domain.Caregiver) AssignmentResult {
 	period := &Period{StartDate: row.StartDate.String(), EndDate: row.EndDate.String()}
 	return AssignmentResult{
 		ID: row.ID, Type: TargetGroupHandover, CanEnd: true,
@@ -689,9 +699,9 @@ func projectAssignment(row *educationModels.GroupSubstitution, group *educationM
 	}
 }
 
-func auditChange(row *educationModels.GroupSubstitution, actorID int64, action educationModels.SubstitutionAction) educationModels.SubstitutionChange {
+func auditChange(row *domain.GroupSubstitution, actorID int64, action domain.SubstitutionAction) domain.SubstitutionChange {
 	endDate := row.EndDate
-	return educationModels.SubstitutionChange{SubstitutionID: row.ID, TargetType: string(TargetGroupHandover), Action: action,
+	return domain.SubstitutionChange{SubstitutionID: row.ID, TargetType: string(TargetGroupHandover), Action: action,
 		GroupID: row.GroupID, TargetStaffID: row.SubstituteStaffID, ActorAccountID: actorID,
 		StartDate: row.StartDate, EndDate: &endDate}
 }

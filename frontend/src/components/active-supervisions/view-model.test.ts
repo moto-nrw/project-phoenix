@@ -38,6 +38,7 @@ const blockSession = (
     instanceId: `instance-${id}`,
     startTime: "13:00",
     endTime: "14:00",
+    isSpontaneous: false,
     isUserAssigned: options.planned === true,
     canOperate:
       options.canOperate ?? (options.own === true || options.planned === true),
@@ -297,16 +298,10 @@ describe("open room sections (#3281)", () => {
 describe("bulk attendance in active supervisions (#3834)", () => {
   it("permits it only for an own, non-open supervision", () => {
     expect(
-      canBulkCheckinFromSupervision(
-        { isCurrentUserSupervising: true },
-        null,
-      ),
+      canBulkCheckinFromSupervision({ isCurrentUserSupervising: true }, null),
     ).toBe(true);
     expect(
-      canBulkCheckinFromSupervision(
-        { isCurrentUserSupervising: false },
-        null,
-      ),
+      canBulkCheckinFromSupervision({ isCurrentUserSupervising: false }, null),
     ).toBe(false);
     expect(
       canBulkCheckinFromSupervision(

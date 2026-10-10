@@ -74,6 +74,8 @@ var schedulerPollingSettingKeys = []string{
 	settingCalendarAppointmentReminderEnabled,
 	settingCalendarAppointmentReminderLeadHours,
 	settingPresenceMode,
+	// Read for weekend dates by every job that touches care days (#3921).
+	settingWeekendFollowsFriday,
 	settingEnrollmentWaitlistEnabled,
 	settingEnrollmentAutoInviteGuardianOnApprove,
 	settingEnrollmentCareOfferingsEnabled,

@@ -820,7 +820,7 @@ func TestImportStaff_CreatesInvitationForValidRole(t *testing.T) {
 		Where("role_id = ?", role.ID).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 1, validCount, "valid staff row must create an invitation with the resolved role")
+	assert.Equal(t, 1, int(validCount), "valid staff row must create an invitation with the resolved role")
 
 	// The unknown-role row must NOT create an invitation.
 	invalidCount, err := tc.db.NewSelect().
@@ -828,7 +828,7 @@ func TestImportStaff_CreatesInvitationForValidRole(t *testing.T) {
 		Where("LOWER(email) = LOWER(?)", invalidEmail).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 0, invalidCount, "row with an unknown role must not create an invitation")
+	assert.Equal(t, int64(0), invalidCount, "row with an unknown role must not create an invitation")
 }
 
 // TestImportStaff_AcceptsRoleDisplayName verifies that the German display name
@@ -872,7 +872,7 @@ func TestImportStaff_AcceptsRoleDisplayName(t *testing.T) {
 		Where("role_id = ?", userRoleID).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 1, count, "display name 'Betreuer' must resolve to the system 'user' role")
+	assert.Equal(t, 1, int(count), "display name 'Betreuer' must resolve to the system 'user' role")
 }
 
 // TestPreviewStaffImport_ValidatesRows exercises the staff preview (dry-run)
@@ -907,7 +907,7 @@ func TestPreviewStaffImport_ValidatesRows(t *testing.T) {
 		Where("LOWER(email) LIKE ?", fmt.Sprintf("preview.%%.%d@example.com", unique)).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 0, count, "preview (dry-run) must not create invitations")
+	assert.Equal(t, int64(0), count, "preview (dry-run) must not create invitations")
 }
 
 // TestStaffImport_UploadValidation covers the shared upload-validation error
@@ -1162,7 +1162,7 @@ func TestImportStaff_FilesStammdatensatz(t *testing.T) {
 	invitations, err := tc.db.NewSelect().Table("auth.invitation_tokens").
 		Where("LOWER(email) = ''").Where("created_at > now() - interval '1 minute'").Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 0, invitations, "no invitation without an e-mail")
+	assert.Equal(t, int64(0), invitations, "no invitation without an e-mail")
 }
 
 // createOnlyBearer mints a JWT for a custom role that may file new staff

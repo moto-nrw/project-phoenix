@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -11,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The per-date rules of the recurrence engine, shared by materialization and
@@ -159,6 +161,31 @@ func isWeekend(date timezone.Date) bool {
 	return date.Weekday() == time.Saturday || date.Weekday() == time.Sunday
 }
 
+// planWeekday is the ISO weekday whose schedules apply on date: Friday for a
+// weekend that follows Friday's plan (#3921), else the date's own weekday.
+func planWeekday(date timezone.Date, weekendFollowsFriday bool) int {
+	weekday := isoWeekday(date)
+	if weekendFollowsFriday && weekday > 5 {
+		return 5
+	}
+	return weekday
+}
+
+// weekendFollowsFridayIn resolves the weekend plan setting (#3921) only when
+// [from, to] holds a weekend, so a weekday-only read never touches settings.
+func weekendFollowsFridayIn(ctx context.Context, from, to timezone.Date) (bool, error) {
+	for date := from; !date.After(to); date = date.AddDays(1) {
+		if isWeekend(date) {
+			follows, err := calendar.WeekendFollowsFriday(ctx)
+			if err != nil {
+				return false, fmt.Errorf("resolve weekend plan: %w", err)
+			}
+			return follows, nil
+		}
+	}
+	return false, nil
+}
+
 // resolveWindow picks the next-Monday / following-Sunday window the scheduler
 // uses by default. If baseDate is a Monday we intentionally skip to the
 // following Monday — planning always targets the next block, never the
@@ -203,9 +230,9 @@ func enrollmentStudentIsAlumnus(e *activities.StudentEnrollment) bool {
 //   - valid_until IS NULL OR valid_until > date  (end is exclusive; a row
 //     whose valid_until equals the instance date is NO LONGER contributing)
 //   - calendar_period_id IS NULL OR calendar_period_id == periodID
-//   - weekday IS NULL OR weekday == date's ISO weekday (#2129)
-//   - selected_weekdays IS NULL/empty OR contains date's ISO weekday
-func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, periodID int64) bool {
+//   - weekday IS NULL OR weekday == the date's effective plan weekday (#2129)
+//   - selected_weekdays IS NULL/empty OR contains that effective weekday
+func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, periodID int64, planWeekday int) bool {
 	if e == nil {
 		return false
 	}
@@ -218,13 +245,12 @@ func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, pe
 	if e.CalendarPeriodID != nil && *e.CalendarPeriodID != periodID {
 		return false
 	}
-	if !rosterWeekdayApplies(e.Weekday, date) {
+	if !rosterWeekdayApplies(e.Weekday, planWeekday) {
 		return false
 	}
 	if len(e.SelectedWeekdays) > 0 {
-		weekday := isoWeekday(date)
 		for _, selected := range e.SelectedWeekdays {
-			if selected == weekday {
+			if selected == planWeekday {
 				return true
 			}
 		}
@@ -253,7 +279,7 @@ func scheduleNotStartedOn(sch *activities.Schedule, date timezone.Date) bool {
 }
 
 // isSupervisorValidOn mirrors isEnrollmentValidOn for activities.supervisors.
-func isSupervisorValidOn(sp *activities.SupervisorPlanned, date timezone.Date, periodID int64) bool {
+func isSupervisorValidOn(sp *activities.SupervisorPlanned, date timezone.Date, periodID int64, planWeekday int) bool {
 	if sp == nil {
 		return false
 	}
@@ -266,7 +292,7 @@ func isSupervisorValidOn(sp *activities.SupervisorPlanned, date timezone.Date, p
 	if sp.CalendarPeriodID != nil && *sp.CalendarPeriodID != periodID {
 		return false
 	}
-	return rosterWeekdayApplies(sp.Weekday, date)
+	return rosterWeekdayApplies(sp.Weekday, planWeekday)
 }
 
 // effectivePrimarySupervisor resolves overlapping legacy and scoped primary
@@ -283,11 +309,12 @@ func effectivePrimarySupervisor(
 	supervisors []*activities.SupervisorPlanned,
 	date timezone.Date,
 	periodID int64,
+	planWeekday int,
 ) (int64, bool) {
 	selectedRank := -1
 	var selectedStaffID, selectedRowID int64
 	for _, supervisor := range supervisors {
-		if !isSupervisorValidOn(supervisor, date, periodID) || !supervisor.IsPrimary {
+		if !isSupervisorValidOn(supervisor, date, periodID, planWeekday) || !supervisor.IsPrimary {
 			continue
 		}
 		rank := 0
@@ -312,8 +339,8 @@ func effectivePrimarySupervisor(
 // weekday. This is the single rule behind per-weekday staff and child lists —
 // the template writer expands "shared default + deviations" into concrete
 // per-weekday rows, so nothing here needs to know about that distinction.
-func rosterWeekdayApplies(weekday *int, date timezone.Date) bool {
-	return weekday == nil || *weekday == isoWeekday(date)
+func rosterWeekdayApplies(weekday *int, planWeekday int) bool {
+	return weekday == nil || *weekday == planWeekday
 }
 
 // applyException returns the effective (start, end, room) for a candidate and

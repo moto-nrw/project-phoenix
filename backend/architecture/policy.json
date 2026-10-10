@@ -183,10 +183,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-enrollment",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-feedback",
       "kind": "inbound"
     },
@@ -839,11 +835,11 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/enrollment",
-      "owner": "inbound-enrollment",
+      "path": "modules/enrollment/http",
+      "owner": "enrollment",
       "role": "http",
       "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
+      "external_test_role": "workflow-integration-test"
     },
     {
       "path": "modules/feedback/http",
@@ -1457,13 +1453,6 @@
     {
       "path": "models/delivery",
       "owner": "delivery-platform",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/education",
-      "owner": "school-structure",
       "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -2578,13 +2567,6 @@
       "path": "services/users",
       "owner": "people-directory",
       "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "services/users/userstest",
-      "owner": "test-support",
-      "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -4660,13 +4642,6 @@
     }
   ],
   "legacy_composition": [
-    {
-      "package": "api",
-      "symbols": [
-        "API",
-        "New"
-      ]
-    },
     {
       "package": "database/repositories",
       "symbols": [
@@ -7065,17 +7040,6 @@
       "target_role": "public"
     },
     {
-      "id": "group-live-view.adapter.people-directory-application",
-      "description": "The live-group compatibility adapter reads group members, person names, and care participation from the retained people services (#2702).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
-      "source_role": "adapter",
-      "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
       "id": "group-live-view.adapter.legacy-shared-domain",
       "description": "The live-group compatibility adapter translates calendar dates, Berlin wall clocks, and German collation for the retained signatures (#2702).",
       "scopes": [
@@ -7161,17 +7125,6 @@
       "source_owner": "enrollment",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "enrollment.inbound-test.test-support",
-      "description": "Enrollment HTTP adapter tests compose the Enrollment owner through its test support.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-enrollment",
-      "source_role": "adapter-test",
-      "target_owner": "enrollment",
-      "target_role": "test-support"
     },
     {
       "id": "session-end.port.student-presence",
@@ -8952,15 +8905,202 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-enrollment.to.enrollment",
-      "description": "inbound-enrollment calls exactly one public capability.",
+      "id": "enrollment.http.public",
+      "description": "The enrollment routes drive the Enrollment owner through its public capability (#2734).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-enrollment",
+      "source_owner": "enrollment",
       "source_role": "http",
       "target_owner": "enrollment",
       "target_role": "public"
+    },
+    {
+      "id": "enrollment.http.inbound-common",
+      "description": "The enrollment routes reuse the shared HTTP runtime of api/common: the tenant route group, the permission gates, request parsing, response rendering and the shared error codes, like the other owners' HTTP adapters (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "enrollment.http.identity-adapter",
+      "description": "The enrollment routes read the authenticated claims from the session token adapter (ADR 0031, #2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "enrollment.http.security-contract",
+      "description": "The enrollment routes gate on the permission registry (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "enrollment.http.tenant-runtime",
+      "description": "The enrollment routes run their steps in the tenant and administrative transactions of the tenant runtime and read the request tenant (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.http.legacy-shared",
+      "description": "The enrollment reports order school classes with the shared collation helper, like the other owners' HTTP adapters (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "enrollment.http.document-rendering-lists",
+      "description": "The phase, student and care-usage exports fill and render the Document Rendering list contract (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "contract"
+    },
+    {
+      "id": "enrollment.http.people-directory-contract",
+      "description": "The change-request routes render the companion refusals of the People Directory departure contract (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
+    {
+      "id": "root-composition.to.enrollment-http",
+      "description": "The root API composition mounts the enrollment routes of the Enrollment owner and binds the parents portal's form flow to them (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "enrollment",
+      "target_role": "http"
+    },
+    {
+      "id": "enrollment.http-integration-test.subject",
+      "description": "The enrollment route suites drive the routes they test (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "http"
+    },
+    {
+      "id": "enrollment.http-integration-test.test-support",
+      "description": "The enrollment route suites compose the owner's phases, form schemas, decisions and notifications through its test support (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "test-support"
+    },
+    {
+      "id": "enrollment.http-integration-test.identity-adapter",
+      "description": "The enrollment route suites mint the claims the routes read from the session token adapter (ADR 0031, #2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "enrollment.http-integration-test.identity-access-compose",
+      "description": "The enrollment decision suites compose the real Identity & Access capability (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "compose"
+    },
+    {
+      "id": "enrollment.http-integration-test.legacy-composition",
+      "description": "The enrollment route suites compose the retained repositories the owner's flows still read through (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "enrollment.http-integration-test.domain",
+      "description": "The enrollment route suites seed and read the owner's enrollment rows (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "enrollment.http-integration-test.settings-domain",
+      "description": "The enrollment route suites set the tenant settings the flows resolve (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "enrollment.http-integration-test.organization-domain",
+      "description": "The enrollment route suites record the outbox mails and read the schools the flows brand them with (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "enrollment.http-integration-test.people-domain",
+      "description": "The enrollment route suites seed and read the students and guardians the decisions write (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
     },
     {
       "id": "inbound-feedback.to.feedback",
@@ -9128,17 +9268,6 @@
       "target_role": "public"
     },
     {
-      "id": "communication.messages.compose-people-application",
-      "description": "Communication composition adapts the existing staff directory service pending #2727.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
       "id": "communication.messages.adapter-orm",
       "description": "The retained message implementation joins the ambient tenant transaction pending #2727.",
       "scopes": [
@@ -9190,17 +9319,6 @@
       "source_owner": "communication",
       "source_role": "adapter",
       "target_owner": "communication",
-      "target_role": "application"
-    },
-    {
-      "id": "communication.messages.adapter-people-application",
-      "description": "The retained message implementation uses the existing staff directory service pending #2727.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "adapter",
-      "target_owner": "people-directory",
       "target_role": "application"
     },
     {
@@ -9289,17 +9407,6 @@
       "source_owner": "communication",
       "source_role": "workflow-integration-test",
       "target_owner": "communication",
-      "target_role": "application"
-    },
-    {
-      "id": "communication.messages.workflow-people-application",
-      "description": "Message compatibility tests compose the existing staff directory service pending #2727.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_owner": "people-directory",
       "target_role": "application"
     },
     {
@@ -10947,17 +11054,6 @@
       "target_role": "adapter"
     },
     {
-      "id": "timetable-activities.compose.people-application",
-      "description": "Timetable HTTP composition resolves established people views.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
       "id": "timetable-activities.compose.people-domain",
       "description": "Timetable compatibility composition maps retained people rows.",
       "scopes": [
@@ -11481,17 +11577,6 @@
       "source_owner": "facilities",
       "source_role": "compose",
       "target_owner": "document-rendering",
-      "target_role": "application"
-    },
-    {
-      "id": "facilities.compose.people-application",
-      "description": "Room snapshot composition resolves student and person records.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "people-directory",
       "target_role": "application"
     },
     {
@@ -12866,17 +12951,6 @@
       "target_role": "domain"
     },
     {
-      "id": "delivery-cutover.009",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "application",
-      "target_owner": "school-structure",
-      "target_role": "domain"
-    },
-    {
       "id": "delivery-cutover.013",
       "description": "Allows one dependency introduced by the Delivery package cutover.",
       "scopes": [
@@ -12940,17 +13014,6 @@
       "source_owner": "delivery-platform",
       "source_role": "workflow-integration-test",
       "target_owner": "people-directory",
-      "target_role": "domain"
-    },
-    {
-      "id": "delivery-cutover.023",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_owner": "school-structure",
       "target_role": "domain"
     },
     {
@@ -14942,17 +15005,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
     },
     {
-      "id": "workforce.adapter.school-structure-domain",
-      "description": "The Workforce compatibility adapter serves the retained models/education group substitution contract while its consumers migrate (#2688).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter",
-      "target_owner": "school-structure",
-      "target_role": "domain"
-    },
-    {
       "id": "workforce.adapter.people-domain",
       "description": "The Workforce compatibility adapter attaches the retained staff relation and caregiver blocker views.",
       "scopes": [
@@ -15258,17 +15310,6 @@
       "source_role": "application",
       "target_owner": "people-directory",
       "target_role": "domain"
-    },
-    {
-      "id": "parent-portal.application.people-application",
-      "description": "Compatibility binding of the retained parent-portal coordinator to the retained request-reason policy (services/users); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "application",
-      "target_owner": "people-directory",
-      "target_role": "application"
     },
     {
       "id": "parent-portal.application.timetable-domain",
@@ -15750,17 +15791,6 @@
       "target_role": "domain"
     },
     {
-      "id": "parent-portal.compose.people-directory.application",
-      "description": "Wire the guardian portal workflow (#3420): pass the student change recorder and parent-request ledger (services/users) to the flows. Compatibility binding of the retained read models the portal flows still consume; it falls together with the parent-portal.application compatibility bindings when the flows read through owner queries.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
       "id": "parent-portal.compose.care-plan.domain",
       "description": "Wire the guardian portal workflow (#3420): pass child, enrollable-phase and enrollment summaries (models/parent) to the flows. Compatibility binding of the retained read models the portal flows still consume; it falls together with the parent-portal.application compatibility bindings when the flows read through owner queries.",
       "scopes": [
@@ -16000,17 +16030,6 @@
       "source_role": "workflow-decision-test",
       "target_owner": "people-directory",
       "target_role": "domain"
-    },
-    {
-      "id": "parent-portal.decision-test.people-directory.application",
-      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "workflow-decision-test",
-      "target_owner": "people-directory",
-      "target_role": "application"
     },
     {
       "id": "parent-portal.decision-test.communication.test-support",
@@ -17527,17 +17546,6 @@
       "target_role": "public"
     },
     {
-      "id": "process-device-scan.compose.people-application",
-      "description": "Compatibility binding (#2698): the people port resolves cards, students and staff through the retained people service until People Directory exposes them publicly.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "process-device-scan",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
       "id": "process-device-scan.compose.people-domain",
       "description": "Compatibility binding (#2698): the people port normalizes tags and reads the retained person and student rows.",
       "scopes": [
@@ -18205,17 +18213,6 @@
       "source_role": "module-internal-test",
       "target_owner": "identity-access",
       "target_role": "public"
-    },
-    {
-      "id": "inbound-enrollment.adapter-test.identity-access-compose",
-      "description": "Enrollment decision router tests compose the real Identity & Access capability.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-enrollment",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "compose"
     },
     {
       "id": "legacy-composition.to.identity-access-compose",
@@ -20518,17 +20515,6 @@
       "target_role": "domain"
     },
     {
-      "id": "student-presence.e2e-test.people-directory-application",
-      "description": "The Student Presence behaviour suites build the person service the staff names resolve through (#3422).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "e2e-test",
-      "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
       "id": "student-presence.e2e-test.tenant-runtime-public",
       "description": "The Student Presence behaviour suites bind the tenant unit of work the commands open transactions through (#3422).",
       "scopes": [
@@ -20992,17 +20978,6 @@
       "source_role": "e2e-test",
       "target_owner": "enrollment",
       "target_role": "test-support"
-    },
-    {
-      "id": "care-plan.contracttest.people-directory.application",
-      "description": "The care-lifecycle behavior suites moved from the retired modules/careplan/legacy/carelifecycle into the Care Plan contract suite keep the fixture reach they had there (#3427, ADR 0035); no runtime package gains an import.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "e2e-test",
-      "target_owner": "people-directory",
-      "target_role": "application"
     },
     {
       "id": "settings-platform.public.domain",

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"time"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"

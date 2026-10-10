@@ -2286,6 +2286,7 @@
         "business_rejection": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "input": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
         "permission": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+        "request_too_large": "{object} konnte nicht bearbeitet werden. Bitte löschen Sie im Browser die Cookies dieser Seite. Melden Sie sich danach neu an.",
         "server": "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
         "unavailable": "{object} ist gerade nicht erreichbar. Bitte versuchen Sie es erneut."
       },

@@ -56,17 +56,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        310
-      ],
-      "tables": []
-    },
-    {
-      "scope": "production",
-      "file": "api/server.go",
-      "declaration": "newRuntime",
-      "target": "api.New",
-      "lines": [
-        133
+        304
       ],
       "tables": []
     },
@@ -376,6 +366,18 @@
     {
       "scope": "test",
       "file": "database/repositories/staff_membership_adapters_test.go",
+      "declaration": "TestStaffMembershipAdapter_ExpiredGuestIsNotExternal",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        413
+      ],
+      "tables": [
+        "users.guests"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/staff_membership_adapters_test.go",
       "declaration": "TestStaffMembershipAdapter_IDLookupsKeepLegacyDeletedSemantics",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -389,7 +391,7 @@
       "declaration": "TestStaffMembershipAdapter_ListRejectsUnknownFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        413
+        434
       ],
       "tables": []
     },
@@ -441,7 +443,7 @@
       "declaration": "TestTeacherMembershipAdapter_ActiveCaregiversSortInGermanDictionaryOrder",
       "target": "database/repositories.NewFactory",
       "lines": [
-        434
+        455
       ],
       "tables": []
     },
@@ -785,8 +787,8 @@
       "declaration": "TestCaregiverCapability_EnableCreatesOperationalProfile",
       "target": "database/repositories.NewFactory",
       "lines": [
-        305,
-        309
+        304,
+        308
       ],
       "tables": []
     },
@@ -796,7 +798,7 @@
       "declaration": "setupServiceFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        39
+        38
       ],
       "tables": []
     },
@@ -844,22 +846,12 @@
       "declaration": "TestPersonService_LinkStudentToRFIDCard",
       "target": "database/repositories.NewFactory",
       "lines": [
-        721
+        618
       ],
       "tables": [
         "users.persons",
         "users.student_school_memberships"
       ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/person_directory_service_test.go",
-      "declaration": "setupPersonService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        29
-      ],
-      "tables": []
     },
     {
       "scope": "test",
@@ -877,7 +869,7 @@
       "declaration": "newPayrollScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        70
+        71
       ],
       "tables": []
     },
@@ -897,7 +889,7 @@
       "declaration": "newOffboardingScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        67
+        66
       ],
       "tables": []
     },
@@ -927,7 +919,7 @@
       "declaration": "careWithdrawals",
       "target": "database/repositories.NewFactory",
       "lines": [
-        66
+        65
       ],
       "tables": []
     },
@@ -937,7 +929,7 @@
       "declaration": "companionLinks",
       "target": "database/repositories.NewFactory",
       "lines": [
-        46
+        45
       ],
       "tables": []
     },
@@ -947,7 +939,7 @@
       "declaration": "newDeletionFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        87
+        86
       ],
       "tables": []
     },
@@ -957,7 +949,7 @@
       "declaration": "studentPlans",
       "target": "database/repositories.NewFactory",
       "lines": [
-        60
+        59
       ],
       "tables": []
     },
@@ -17251,28 +17243,18 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 163,
+          "line": 157,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 513,
+          "line": 507,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 676,
-          "declaration": "type API"
-        },
-        {
-          "file": "api/base.go",
-          "line": 927,
-          "declaration": "initializeAPIResourcesWithRequestFeed"
-        },
-        {
-          "file": "api/base.go",
-          "line": 1324,
-          "declaration": "initializeAPIResources"
+          "line": 673,
+          "declaration": "type serveGraph"
         }
       ]
     },
@@ -17281,7 +17263,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 310,
+          "line": 304,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -17291,23 +17273,23 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 164,
+          "line": 158,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 382,
+          "line": 376,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 427,
+          "line": 421,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 673,
-          "declaration": "type API"
+          "line": 672,
+          "declaration": "type serveGraph"
         },
         {
           "file": "api/session_end.go",
@@ -17316,12 +17298,12 @@
         },
         {
           "file": "api/staff_composition.go",
-          "line": 112,
+          "line": 113,
           "declaration": "newStaffComposition"
         },
         {
           "file": "api/staff_composition.go",
-          "line": 129,
+          "line": 130,
           "declaration": "newExportTransferModule"
         },
         {
@@ -17406,12 +17388,12 @@
         },
         {
           "file": "services/people_repository_test_helpers.go",
-          "line": 24,
+          "line": 25,
           "declaration": "type PeopleRepositorySuiteFactory, PeopleRepositorySuiteParentMessaging, PeopleRepositorySuiteCareLifecycle, PeopleRepositorySuiteAuditCommand, PeopleRepositorySuiteAnnouncementAudience, PeopleRepositorySuiteGuardianProfileOption, PeopleRepositorySuiteRelationshipOption, PeopleRepositorySuitePortalMemberships, PeopleRepositorySuiteSchoolMemberships, PeopleRepositorySuiteStaffAccounts, PeopleRepositorySuiteStaffMessageIdentity, PeopleRepositorySuiteSchoolRoleClass, PeopleRepositorySuitePickupCommand, PeopleRepositorySuiteAccessCommand, PeopleRepositorySuiteRecipients, PeopleRepositorySuiteColleagues, PeopleRepositorySuitePeople, PeopleRepositorySuiteSchoolStructure, PeopleRepositorySuiteCarePlan, PeopleRepositorySuiteCompanionLinks"
         },
         {
           "file": "services/people_repository_test_helpers.go",
-          "line": 48,
+          "line": 49,
           "declaration": "NewPeopleRepositorySuiteFactory"
         }
       ]

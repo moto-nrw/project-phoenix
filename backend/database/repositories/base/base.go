@@ -328,7 +328,7 @@ func (r *Repository[T]) CountWithOptions(ctx context.Context, options *modelBase
 		}
 	}
 
-	return count, nil
+	return int(count), nil
 }
 
 // OldestBefore returns the minimum value of dateColumn among matching rows,

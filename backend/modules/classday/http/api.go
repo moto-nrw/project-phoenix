@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Resource wires the class-day endpoints.
@@ -75,6 +76,10 @@ type ClassesResponse struct {
 	// class_day:arrival_exception_write AND the school opened moto schule
 	// for it (#2970); the class view shows its action only then.
 	CanWriteArrivalException bool `json:"can_write_arrival_exception"`
+	// WeekendFollowsFriday is true when the school runs Saturday and Sunday
+	// on Friday's plan (operations.weekend_follows_friday, #3921). The class
+	// views then load the weekend like a school day instead of skipping it.
+	WeekendFollowsFriday bool `json:"weekend_follows_friday"`
 }
 
 // getMyClasses returns the school classes assigned to the caller.
@@ -91,6 +96,11 @@ func (rs *Resource) getMyClasses(w http.ResponseWriter, r *http.Request) {
 	// Without the write seam the flag stays false instead of failing the
 	// list: the classes are the answer, the flag is an extra.
 	resp.CanWriteArrivalException, err = rs.canWriteArrivalException(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	resp.WeekendFollowsFriday, err = calendar.WeekendFollowsFriday(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

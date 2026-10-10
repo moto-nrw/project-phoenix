@@ -406,6 +406,27 @@ func TestGuestMembershipAdapter_FindsByStaffAndActiveWindow(t *testing.T) {
 	assert.True(t, testpkg.IsNotFoundError(err))
 }
 
+func TestStaffMembershipAdapter_ExpiredGuestIsNotExternal(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	ctx := testpkg.Ctx(t)
+	guest := testpkg.CreateTestGuest(t, db, "Tanz")
+
+	_, err := db.NewUpdate().
+		TableExpr("users.guests").
+		Set("end_date = ?", testpkg.TodayDate().AddDays(-1)).
+		Where("id = ?", guest.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	staff, err := factory.Staff.FindByIDs(ctx, []int64{guest.StaffID})
+	require.NoError(t, err)
+	require.Contains(t, staff, guest.StaffID)
+	assert.False(t, staff[guest.StaffID].IsGuest)
+}
+
 func TestStaffMembershipAdapter_ListRejectsUnknownFilters(t *testing.T) {
 	t.Parallel()
 

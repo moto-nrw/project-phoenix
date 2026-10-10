@@ -41,7 +41,7 @@ func (r *Store) CountPhaseRequests(ctx context.Context, id int64) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to count phase requests: %w", err)
 	}
-	return count, nil
+	return int(count), nil
 }
 func (r *Store) DeletePhaseRequests(ctx context.Context, id int64) (int, error) {
 	tenantID, err := r.tenantID(ctx)

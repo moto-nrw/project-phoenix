@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -283,14 +285,14 @@ func TestCaregiverCapabilityErrorClassification(t *testing.T) {
 	})
 
 	t.Run("unknown account is missing", func(t *testing.T) {
-		source := fmt.Errorf("get caregiver capability: %w", ErrAccountNotFound)
+		source := fmt.Errorf("get caregiver capability: %w", userscontract.ErrAccountNotFound)
 		err := caregiverCapabilityError(source)
 
 		missing, ok := errors.AsType[caregiverMissingBehaviour](err)
 		require.True(t, ok)
 		assert.True(t, missing.CaregiverAccountMissing())
 		assert.Equal(t, source.Error(), err.Error())
-		assert.ErrorIs(t, err, ErrAccountNotFound)
+		assert.ErrorIs(t, err, userscontract.ErrAccountNotFound)
 		assertNoOtherCaregiverBehaviour(t, err, "missing")
 	})
 
@@ -309,8 +311,8 @@ func TestCaregiverCapabilityErrorClassification(t *testing.T) {
 	})
 
 	t.Run("wrapped validation error is invalid", func(t *testing.T) {
-		validation := &ValidationError{Err: errors.New("first_name is required")}
-		source := &UsersError{Op: "enable caregiver capability", Err: validation}
+		validation := &userscontract.ValidationError{Err: errors.New("first_name is required")}
+		source := &userscontract.UsersError{Op: "enable caregiver capability", Err: validation}
 		err := caregiverCapabilityError(source)
 
 		invalid, ok := errors.AsType[caregiverInvalidBehaviour](err)
@@ -324,7 +326,7 @@ func TestCaregiverCapabilityErrorClassification(t *testing.T) {
 
 	t.Run("other users error is a failure with its cause", func(t *testing.T) {
 		cause := errors.New("audit write failed")
-		source := &UsersError{Op: "enable caregiver capability", Err: cause}
+		source := &userscontract.UsersError{Op: "enable caregiver capability", Err: cause}
 		err := caregiverCapabilityError(source)
 
 		failure, ok := errors.AsType[caregiverFailureBehaviour](err)
@@ -346,7 +348,7 @@ func TestCaregiverCapabilityErrorClassification(t *testing.T) {
 	t.Run("views classify service failures", func(t *testing.T) {
 		views := CaregiverCapabilityViews{service: &stubCaregiverCapabilityService{
 			GetFn: func(context.Context, int64) (*userModels.CaregiverCapabilityState, error) {
-				return nil, ErrAccountNotFound
+				return nil, userscontract.ErrAccountNotFound
 			},
 		}}
 

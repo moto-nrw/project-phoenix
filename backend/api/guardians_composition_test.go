@@ -163,7 +163,7 @@ func setupGuardiansCompositionRoute(t *testing.T, appEnvs ...string) *guardianCo
 				Where(`"guardian_profile".email = ?`, email).
 				Count(ctx)
 			require.NoError(t, err)
-			return count
+			return int(count)
 		},
 		accessLogs: func(resourceType string) int {
 			count, err := db.NewSelect().
@@ -172,7 +172,7 @@ func setupGuardiansCompositionRoute(t *testing.T, appEnvs ...string) *guardianCo
 				Where(`"log".resource_type = ?`, resourceType).
 				Count(ctx)
 			require.NoError(t, err)
-			return count
+			return int(count)
 		},
 		financialChanges: func(guardianID int64) []financialChangeRow {
 			var rows []struct {

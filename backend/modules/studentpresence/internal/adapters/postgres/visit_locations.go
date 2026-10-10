@@ -53,7 +53,7 @@ func (s *Store) CountOpenVisitsInGroup(ctx context.Context, id int64) (int, port
 	started := time.Now()
 	count, err := db.NewSelect().TableExpr("active.visits AS v").Where("v.tenant_id = ?", tenantID).
 		Where("v.active_group_id = ?", id).Where("v.exit_time IS NULL").Count(ctx)
-	return count, ports.Stats{Queries: 1, Rows: 1, StatementDuration: time.Since(started)}, err
+	return int(count), ports.Stats{Queries: 1, Rows: 1, StatementDuration: time.Since(started)}, err
 }
 
 func (s *Store) CountOpenVisitsInRoom(ctx context.Context, id int64) (int, ports.Stats, error) {
@@ -66,7 +66,7 @@ func (s *Store) CountOpenVisitsInRoom(ctx context.Context, id int64) (int, ports
 		Join("JOIN active.groups AS g ON g.id = v.active_group_id AND g.tenant_id = v.tenant_id").
 		Where("v.tenant_id = ?", tenantID).Where("g.room_id = ?", id).
 		Where("g.end_time IS NULL").Where("v.exit_time IS NULL").Count(ctx)
-	return count, ports.Stats{Queries: 1, Rows: 1, StatementDuration: time.Since(started)}, err
+	return int(count), ports.Stats{Queries: 1, Rows: 1, StatementDuration: time.Since(started)}, err
 }
 
 func (s *Store) ListOpenVisitRooms(ctx context.Context, roomID int64) ([]ports.OpenVisitRoom, ports.Stats, error) {

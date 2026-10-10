@@ -106,7 +106,7 @@
     "sources": [
       "backend/modules/peopledirectory/inbound/students/routes.go",
       "backend/modules/peopledirectory/inbound/students/student_record.go",
-      "backend/services/student_route_persons.go",
+      "backend/modules/peopledirectory/compose/student_route_persons.go",
       "backend/services/student_http_test_helpers.go",
       "backend/api/testdata/route_table.golden",
       "backend/test/query_budgets.go"

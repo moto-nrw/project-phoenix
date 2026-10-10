@@ -1,6 +1,7 @@
 package students
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func TestDailyDepartureModes(t *testing.T) {
@@ -130,4 +132,32 @@ func TestDailyDepartureMatchesFilterSupportsMultipleModes(t *testing.T) {
 		Modes:      []dep.DepartureMode{dep.DepartureAccompanied},
 		Configured: true,
 	}, "other"))
+}
+
+// A weekend that follows Friday's plan (#3921) reads the departure plan and
+// the companions of the Friday before; a weekday never reads the setting.
+func TestDeparturePlanDateFollowsFriday(t *testing.T) {
+	t.Parallel()
+
+	friday := timezone.NewDate(2026, time.June, 5)
+	calls := 0
+	following := func(follows bool) context.Context {
+		return calendar.WithWeekendPlan(context.Background(), func(context.Context) (bool, error) {
+			calls++
+			return follows, nil
+		})
+	}
+	for _, day := range []timezone.Date{friday.AddDays(1), friday.AddDays(2)} {
+		got, err := departurePlanDate(following(true), day)
+		assert.NoError(t, err)
+		assert.Equal(t, friday, got)
+		got, err = departurePlanDate(following(false), day)
+		assert.NoError(t, err)
+		assert.Equal(t, day, got)
+	}
+	calls = 0
+	got, err := departurePlanDate(following(true), friday)
+	assert.NoError(t, err)
+	assert.Equal(t, friday, got)
+	assert.Zero(t, calls)
 }

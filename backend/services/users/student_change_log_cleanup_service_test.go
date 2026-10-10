@@ -9,8 +9,8 @@ import (
 	repoFactory "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +48,7 @@ func countFieldEdits(tb testing.TB, db *bun.DB, studentID int64) int {
 		Where(`student_id = ?`, studentID).
 		Count(ctx)
 	require.NoError(tb, err)
-	return count
+	return int(count)
 }
 
 func countChangeLogDeletions(tb testing.TB, db *bun.DB, studentID int64) int {
@@ -62,7 +62,7 @@ func countChangeLogDeletions(tb testing.TB, db *bun.DB, studentID int64) int {
 		Where(`deletion_type = ?`, audit.DeletionTypeStudentChangeLogRetention).
 		Count(ctx)
 	require.NoError(tb, err)
-	return count
+	return int(count)
 }
 
 func changeLogSettings(retentionDays int) *configtest.Mock {
@@ -90,7 +90,7 @@ func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 	insertFieldEdit(t, db, student.ID, daysAgo(10))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := usersSvc.NewStudentChangeLogCleanupService(
+	svc := services.NewStudentChangeLogCleanup(
 		repos.StudentFieldEdit,
 		repos.DataDeletion,
 		changeLogSettings(90),
@@ -120,7 +120,7 @@ func TestStudentChangeLogCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	insertFieldEdit(t, db, student.ID, daysAgo(30))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := usersSvc.NewStudentChangeLogCleanupService(
+	svc := services.NewStudentChangeLogCleanup(
 		repos.StudentFieldEdit,
 		repos.DataDeletion,
 		changeLogSettings(90),

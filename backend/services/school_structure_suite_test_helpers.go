@@ -57,6 +57,19 @@ type (
 	SubstitutionSuiteEndRequest                  = education.EndRequest
 )
 
+// The School Structure values the suites arrange and assert (#3556): the
+// owner's domain values through its composition, and the Workforce row of a
+// group substitution through the retained repository contract.
+type (
+	SchoolStructureSuiteGroup              = education.Group
+	SchoolStructureSuiteGroupListQuery     = education.GroupListQuery
+	SchoolStructureSuiteGroupTeacher       = schoolmembership.GroupAssignment
+	SchoolStructureSuiteClassTeacher       = schoolmembership.ClassAssignment
+	SchoolStructureSuiteStaffGroupID       = education.StaffGroupID
+	SchoolStructureSuiteSubstitutionChange = education.SubstitutionChange
+	SchoolStructureSuiteSubstitutionRow    = repositories.GroupSubstitutionRow
+)
+
 const (
 	SubstitutionSuiteTargetGroupHandover         = education.TargetGroupHandover
 	SubstitutionSuiteTargetAdditionalSupervision = education.TargetAdditionalSupervision
@@ -112,6 +125,9 @@ func NewSubstitutionSuiteModule(repos *PeopleRepositorySuiteFactory, db *bun.DB,
 	}
 	if deps.Staff == nil {
 		deps.Staff = repositories.NewEducationStaff(repos.Staff)
+	}
+	if deps.ExternalCaregivers == nil {
+		deps.ExternalCaregivers = repositories.NewEducationExternalCaregivers(repos.Staff, repos.Guest)
 	}
 	if deps.Audit == nil {
 		deps.Audit = repositories.NewEducationSubstitutionAudit(repos.SubstitutionChange)

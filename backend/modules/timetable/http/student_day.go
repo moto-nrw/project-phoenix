@@ -218,7 +218,13 @@ func (rs *Resource) buildStudentDays(ctx context.Context, studentID int64, from,
 	dayCount := inclusiveDayCount(from, to)
 	days := make([]StudentDayResponse, 0, dayCount)
 	for d := from; !d.After(to); d = d.AddDays(1) {
-		day := buildStudentDayFromPreload(pre, studentID, d)
+		// The weekly slot of a weekend that follows Friday's plan is
+		// Friday's (#3921); the setting is read for weekend days only.
+		planWeekday, err := calendar.PlanWeekday(ctx, d)
+		if err != nil {
+			return nil, err
+		}
+		day := buildStudentDayFromPreload(pre, studentID, d, planWeekday)
 		days = append(days, day)
 	}
 	return days, nil
@@ -226,7 +232,7 @@ func (rs *Resource) buildStudentDays(ctx context.Context, studentID int64, from,
 
 // buildStudentDayFromPreload assembles a single day's response from the
 // already-preloaded data. No DB calls.
-func buildStudentDayFromPreload(pre *timetable.StudentWeek, studentID int64, date calendar.Date) StudentDayResponse {
+func buildStudentDayFromPreload(pre *timetable.StudentWeek, studentID int64, date calendar.Date, planWeekday int) StudentDayResponse {
 	k := dateKey(date)
 
 	enrolledRows := pre.EnrolledByDate[k]
@@ -250,9 +256,9 @@ func buildStudentDayFromPreload(pre *timetable.StudentWeek, studentID int64, dat
 		StudentID: studentID,
 		Date:      date.String(),
 		Weekday:   isoWeekday(date),
-		Arrival:   resolveArrivalSlotFromPreload(pre, date),
+		Arrival:   resolveArrivalSlotFromPreload(pre, date, planWeekday),
 		Instances: instances,
-		Pickup:    resolvePickupSlotFromPreload(pre, date),
+		Pickup:    resolvePickupSlotFromPreload(pre, date, planWeekday),
 	}
 }
 
@@ -284,9 +290,9 @@ func appendUnplannedInstances(
 // resolveArrivalSlotFromPreload applies the shared exception-over-schedule rule
 // (ResolveSlotSource) against already-loaded data. An exception on the date
 // wins even when its time is nil (absence signal).
-func resolveArrivalSlotFromPreload(pre *timetable.StudentWeek, date calendar.Date) SlotResponse {
+func resolveArrivalSlotFromPreload(pre *timetable.StudentWeek, date calendar.Date, planWeekday int) SlotResponse {
 	times := pre.ArrivalByDate[dateKey(date)]
-	switch timetable.ResolveSlotSource(times.Exception != nil, times.HasSchedule, isoWeekday(date)) {
+	switch timetable.ResolveSlotSource(times.Exception != nil, times.HasSchedule, planWeekday) {
 	case SlotSourceException:
 		return mapExceptionSlot(times.Exception)
 	case SlotSourceSchedule:
@@ -297,9 +303,9 @@ func resolveArrivalSlotFromPreload(pre *timetable.StudentWeek, date calendar.Dat
 }
 
 // resolvePickupSlotFromPreload mirrors resolveArrivalSlotFromPreload.
-func resolvePickupSlotFromPreload(pre *timetable.StudentWeek, date calendar.Date) SlotResponse {
+func resolvePickupSlotFromPreload(pre *timetable.StudentWeek, date calendar.Date, planWeekday int) SlotResponse {
 	times := pre.PickupByDate[dateKey(date)]
-	switch timetable.ResolveSlotSource(times.Exception != nil, times.HasSchedule, isoWeekday(date)) {
+	switch timetable.ResolveSlotSource(times.Exception != nil, times.HasSchedule, planWeekday) {
 	case SlotSourceException:
 		return mapExceptionSlot(times.Exception)
 	case SlotSourceSchedule:

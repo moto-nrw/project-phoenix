@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -271,10 +272,10 @@ func TestParsePositiveInt_DifferentDefaults(t *testing.T) {
 	}
 }
 
-func checkCaregiverWiring(t *testing.T, api *API) {
+func checkCaregiverWiring(t *testing.T, graph *serveGraph) {
 	t.Parallel()
 
-	composition := setupCaregiverCompositionModule(api)
+	composition := setupCaregiverCompositionModule(t, graph)
 
 	require.True(t, composition.authWired)
 	require.True(t, composition.operatorWired)
@@ -287,11 +288,20 @@ type caregiverComposition struct {
 	sharedCapability bool
 }
 
-func setupCaregiverCompositionModule(api *API) *caregiverComposition {
+// setupCaregiverCompositionModule composes the account and operator routes
+// over the golden graph with the builders the Serve root mounts them with.
+func setupCaregiverCompositionModule(t *testing.T, graph *serveGraph) *caregiverComposition {
+	t.Helper()
+	sessionAuth, err := newSessionTokenAuth()
+	require.NoError(t, err)
+	in := routeInputs{modules: moduleServices{services: graph.services}, db: graph.db, logger: slog.Default(), sessionAuth: sessionAuth}
+	auth := newAccountResource(in)
+	operator, err := newOperatorResource(in)
+	require.NoError(t, err)
 	return &caregiverComposition{
-		authWired:        api.Auth != nil,
-		operatorWired:    api.Operator != nil,
-		sharedCapability: api.Auth.CaregiverCapabilityService == any(api.Services.CaregiverCapabilityViews(api.db)),
+		authWired:        auth != nil,
+		operatorWired:    operator != nil,
+		sharedCapability: auth.CaregiverCapabilityService == any(graph.services.CaregiverCapabilityViews(graph.db)),
 	}
 }
 
@@ -310,15 +320,17 @@ func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	return &settingsCallbackRoute{router: newSettingsResource(module.TenantSettings, homeLayouts, repos.Enrollment().SchemaReferencesLegalDocument).SettingsRouter(), hub: module.RealtimeHub}
 }
 
-func setupOperatorInvitationRoute(golden *API) chi.Router {
-	// Re-register a copy of the full golden with rate limiting enabled.
-	// The shared golden's router and flags remain unchanged.
-	api := *golden
-	api.Router = chi.NewRouter()
-	api.rateLimiting = true
-	api.authRateLimit = "5"
-	api.registerRoutesWithRateLimiting(nil)
-	return api.Router
+func setupOperatorInvitationRoute(t *testing.T, graph *serveGraph) chi.Router {
+	t.Helper()
+	// Mount the operator routes of the golden graph again, with rate limiting
+	// enabled. The golden graph's router remains unchanged.
+	sessionAuth, err := newSessionTokenAuth()
+	require.NoError(t, err)
+	operator, err := newOperatorResource(routeInputs{modules: moduleServices{services: graph.services}, db: graph.db, logger: slog.Default(), sessionAuth: sessionAuth})
+	require.NoError(t, err)
+	router := chi.NewRouter()
+	router.Mount("/operator", operatorRouter(operator, buildAuthRateLimiters(nil, "5", demoLoopbackExempt())))
+	return router
 }
 
 func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
@@ -342,9 +354,9 @@ func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, rr.Code)
 }
 
-func checkOperatorInvitationMount(t *testing.T, api *API) {
+func checkOperatorInvitationMount(t *testing.T, graph *serveGraph) {
 	t.Parallel()
-	router := setupOperatorInvitationRoute(api)
+	router := setupOperatorInvitationRoute(t, graph)
 
 	req := httptest.NewRequest(http.MethodPost, "/operator/auth/invitations/validate", nil)
 	rr := httptest.NewRecorder()
@@ -646,7 +658,7 @@ func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
 }
 
 // TestOnValueSetCallback_WCEnabled tests that the OnValueSet callback
-// registered in initializeAPIResources triggers WC infrastructure creation
+// the Serve root registers triggers WC infrastructure creation
 // when checkout.wc_enabled is set to true.
 func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 	t.Parallel()
@@ -944,13 +956,23 @@ type settingsCallbackRoute struct {
 // Timetable owner's conflict detection and staffing capability (#3550): the
 // conflict probes, the staff pool and the shift-coverage probe answer 500
 // when it is unwired, and the calendar list silently drops its warnings.
-func checkTimetableConflictWiring(t *testing.T, api *API) {
+func checkTimetableConflictWiring(t *testing.T, graph *serveGraph) {
 	t.Parallel()
 
-	require.NotNil(t, api.Timetable)
-	require.NotNil(t, api.Timetable.ConflictDetection, "api/timetable must hold the owner's conflict detection")
-	assert.Same(t, api.Services.TimetableData.ConflictDetection, api.Timetable.ConflictDetection,
+	timetable := newTimetableResource(moduleServices{services: graph.services, repositories: graph.repos}, nil, slog.Default())
+	require.NotNil(t, timetable)
+	require.NotNil(t, timetable.ConflictDetection, "api/timetable must hold the owner's conflict detection")
+	assert.Same(t, graph.services.TimetableData.ConflictDetection, timetable.ConflictDetection,
 		"the routes and the instance lifecycle share one composed capability")
+
+	// The mounted routes reach it too: an unwired conflict probe answers 500.
+	db := testpkg.SetupTestDB(t)
+	_, staff := testpkg.CreateTestTeacherWithAccount(t, db, "Conflict", "Probe")
+	token := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
+	probe := checkpointRequest(graph, checkpointScenario{
+		Method: http.MethodGet, Path: "/api/timetable/exception-conflicts?date=2099-01-05", Authenticated: true,
+	}, token)
+	require.Equal(t, http.StatusOK, probe.Code, probe.Body.String())
 }
 
 // The demo exempts its demo process (a loopback peer) from the auth limiters;

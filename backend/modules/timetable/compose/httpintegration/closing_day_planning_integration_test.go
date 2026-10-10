@@ -57,7 +57,7 @@ func countCancelledExceptions(t *testing.T, db *bun.DB, s *scenarioSetup, date c
 		Where("tenant_id = ?", s.tenantID).
 		Count(s.ctx)
 	require.NoError(t, err)
-	return count
+	return int(count)
 }
 
 func TestMaterializeForTenant_SkipsHolidaysAndClosingDays(t *testing.T) {

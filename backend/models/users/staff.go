@@ -52,6 +52,10 @@ type Staff struct {
 	// shown at all and this flag lets an individual step out of it.
 	BirthdayDisplayOptOut bool       `bun:"birthday_display_opt_out,notnull" json:"birthday_display_opt_out"`
 	DeletedAt             *time.Time `bun:"deleted_at,soft_delete,nullzero" json:"-"`
+	// IsGuest marks an external caregiver without a moto account (#3823).
+	// School Membership derives it from the guest profile; time tracking and
+	// the duty roster skip these people.
+	IsGuest bool `bun:"-" json:"-"`
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`

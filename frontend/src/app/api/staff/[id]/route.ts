@@ -21,7 +21,7 @@ const logger = createLogger({ component: "StaffDetailRoute" });
  * Type definition for staff member response from backend
  */
 interface BackendStaffResponse {
-  id: number;
+  id: WireID;
   // Decimal string since #2222 — see the note on the mapping below.
   person_id: WireID;
   staff_notes?: string;
@@ -35,6 +35,8 @@ interface BackendStaffResponse {
   was_present_today?: boolean;
   work_status?: string;
   absence_type?: string;
+  is_external?: boolean;
+  external_organization?: string;
   person?: {
     id: number;
     first_name: string;
@@ -109,7 +111,7 @@ export const GET = createGetHandler(
 
       // Map the response data to match the Teacher interface from teacher-api.ts
       return {
-        id: String(staff.id), // This should be the staff ID since that's what we use for the API
+        id: toIdString(staff.id), // This should be the staff ID since that's what we use for the API
         name: staff.person
           ? `${staff.person.first_name} ${staff.person.last_name}`
           : "",
@@ -133,7 +135,7 @@ export const GET = createGetHandler(
             ? undefined
             : toIdString(staff.person.account_id),
         // Include both IDs for debugging
-        staff_id: String(staff.id),
+        staff_id: toIdString(staff.id),
         teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
         // Ob ein Betreuungsprofil (users.teachers) existiert — steuert u. a.,
         // ob das Position-Feld im Edit-Formular angeboten wird (für
@@ -148,6 +150,8 @@ export const GET = createGetHandler(
         was_present_today: staff.was_present_today ?? false,
         work_status: staff.work_status ?? null,
         absence_type: staff.absence_type ?? null,
+        is_external: staff.is_external ?? false,
+        external_organization: staff.external_organization ?? null,
         // Include person object if available
         person: staff.person,
       };
@@ -180,6 +184,8 @@ interface TeacherResponse {
   account_id?: string;
   staff_id?: string;
   teacher_id?: string;
+  is_external?: boolean;
+  external_organization?: string | null;
   person?: {
     id: number;
     first_name: string;
@@ -215,7 +221,7 @@ function normalizeStaffBody(body: StaffUpdateRequest): StaffUpdateRequest {
 /** Map backend staff response to frontend TeacherResponse */
 function mapStaffResponse(response: BackendStaffResponse): TeacherResponse {
   return {
-    id: String(response.id),
+    id: toIdString(response.id),
     name: response.person
       ? `${response.person.first_name} ${response.person.last_name}`
       : "",
@@ -234,6 +240,8 @@ function mapStaffResponse(response: BackendStaffResponse): TeacherResponse {
         ? undefined
         : toIdString(response.person.account_id),
     person_id: toIdString(response.person_id),
+    is_external: response.is_external ?? false,
+    external_organization: response.external_organization ?? null,
     person: response.person,
   };
 }

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -20,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -119,7 +120,7 @@ type careScheduleRequestService struct {
 	userContext       CareRequestStaff
 	emitter           *parentmessaging.Emitter
 	broadcaster       realtime.Broadcaster
-	studentAudit      usersService.StudentChangeRecorder
+	studentAudit      peopleCompose.StudentChangeRecorder
 	logger            *slog.Logger
 	reviewPolicy      RequestReviewPolicy
 	// shareVisibility answers who the parent explicitly shared a request
@@ -170,7 +171,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	reviewPolicy RequestReviewPolicy,
 	events usersModels.ParentRequestEventRepository,
 	logger *slog.Logger,
-	studentAudit usersService.StudentChangeRecorder,
+	studentAudit peopleCompose.StudentChangeRecorder,
 	options ...CareRequestOption,
 ) carerequests.Service {
 	if reviewPolicy == nil {
@@ -244,7 +245,7 @@ func newCareScheduleRequestService(
 	reviewPolicy RequestReviewPolicy,
 	events *parentRequestLedger,
 	logger *slog.Logger,
-	studentAudit usersService.StudentChangeRecorder,
+	studentAudit peopleCompose.StudentChangeRecorder,
 ) *careScheduleRequestService {
 	if requestRecords == nil {
 		panic("care schedule request records are required")

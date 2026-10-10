@@ -1091,6 +1091,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		w.Header().Set("Content-Type", "application/json")
 		authorization := r.Header.Get("Authorization")
 		manualAuth := authorization == "Bearer manual-admin-token"
+		if !manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+			return
+		}
 
 		if r.Method == seedHTTPMethodPut && ((manualAuth && strings.HasPrefix(r.URL.Path, "/api/settings/values/")) || strings.Contains(r.URL.Path, "/operator/schools/2/settings/values/")) {
 			var body struct {
@@ -1376,6 +1380,19 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			pickupRequestIDs = append(pickupRequestIDs, idCounter)
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"id": fmt.Sprintf("%d", idCounter)},
+			})
+			return
+		}
+		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/api/students/") &&
+			strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/students/"), "0123456789") == "" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"school_class": "Klasse 1a", "group_id": "7"},
+			})
+			return
+		}
+		if r.Method == seedHTTPMethodPut && strings.HasSuffix(r.URL.Path, "/meal-participation") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"effective_from": "2026-10-12"},
 			})
 			return
 		}

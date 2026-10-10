@@ -535,7 +535,11 @@ func (rs *Resource) selectExportResponses(r *http.Request, req studentExportRequ
 		return exportSelection{}, errResp
 	}
 
-	responses = applyExportFilters(responses, req.Filters, req.Preset, planningDate)
+	departure, err := departurePlanDate(r.Context(), planningDate)
+	if err != nil {
+		return exportSelection{}, common.ErrorInternalServerWrap("resolve weekend plan failed", err)
+	}
+	responses = applyExportFilters(responses, req.Filters, req.Preset, departure)
 	// The cap is applied to the rows that actually land in the document, after
 	// every requested filter has run — so a narrow list still exports at a large
 	// school and only a genuinely oversized result is refused.

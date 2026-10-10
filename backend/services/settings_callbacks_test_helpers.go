@@ -8,7 +8,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -19,7 +18,7 @@ type SettingsCallbacksTestModule struct {
 	RealtimeHub    *realtime.Hub
 }
 
-func NewSettingsCallbacksTestModule(db *bun.DB, unit tenant.UnitOfWork, unlinker users.PhotoUnlinker) (SettingsCallbacksTestModule, error) {
+func NewSettingsCallbacksTestModule(db *bun.DB, unit tenant.UnitOfWork, unlinker peopleCompose.PhotoUnlinker) (SettingsCallbacksTestModule, error) {
 	module, err := NewOperatorSettingsTestModule(db, unit)
 	if err != nil {
 		return SettingsCallbacksTestModule{}, err

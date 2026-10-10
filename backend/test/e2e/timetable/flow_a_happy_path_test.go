@@ -217,7 +217,7 @@ func countInstanceStaff(t *testing.T, s *scenario, instanceID int64) int {
 		Where(`"instance_staff".tenant_id = ?`, s.primaryTenant).
 		Count(s.tenantCtx())
 	require.NoError(t, err, "count instance_staff for %d", instanceID)
-	return n
+	return int(n)
 }
 
 // checkInStudent creates a visit through the real active service, mirroring

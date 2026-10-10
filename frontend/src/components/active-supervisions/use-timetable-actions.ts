@@ -27,6 +27,10 @@ import { useLatest } from "~/lib/hooks/use-latest";
 import { isTimetableOperationForbidden } from "~/lib/timetable-operation-access";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import {
+  clearOwnAttendanceMutation,
+  markOwnAttendanceMutation,
+} from "~/lib/sse-optimistic-mutations";
+import {
   RestOfDayNotSavedError,
   moveNoticeFromRoster,
   runOwnAttendanceMutation,
@@ -49,6 +53,18 @@ function noStaffProfileError(): ApiError {
   return new ApiError("no staff profile for spontaneous start", 403, {
     code: "timetable.no_staff_profile",
   });
+}
+
+// Staff IDs are PostgreSQL int64 values. Keep them as canonical decimal
+// strings while building the request: Number() would silently change an ID
+// past 2^53 before the API can validate it.
+function normalizePositiveStaffID(value: string): string | null {
+  try {
+    const id = BigInt(value);
+    return id > 0n ? id.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 interface TimetableActionsOptions {
@@ -116,6 +132,14 @@ export interface TimetableActions {
     rows: TimetableRosterRow[],
   ) => Promise<void>;
   readonly handleAddUnplannedStudent: (studentId: string) => Promise<boolean>;
+  /** Trägt mehrere anwesende Kinder gesammelt in den Block ein (#3824). */
+  readonly handleAddPresentStudents: (studentIds: string[]) => Promise<boolean>;
+  /**
+   * Block, dessen Auswahl „Anwesende Kinder hinzufügen“ sich einmal von selbst
+   * öffnet: eine gerade gestartete spontane Aktivität hat noch keine Kinder.
+   */
+  readonly presentPickerAutoOpenInstanceId: string | null;
+  readonly clearPresentPickerAutoOpen: () => void;
 }
 
 /**
@@ -171,6 +195,12 @@ export function useTimetableActions(
     readonly students: Student[];
   } | null>(null);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [presentPickerAutoOpenInstanceId, setPresentPickerAutoOpenInstanceId] =
+    useState<string | null>(null);
+  const clearPresentPickerAutoOpen = useCallback(
+    () => setPresentPickerAutoOpenInstanceId(null),
+    [],
+  );
   // Info notice after a check-in auto-moved the child out of another running
   // session (#2386). Cleared by the next roster action.
   const [moveNotice, setMoveNotice] = useState<string | null>(null);
@@ -338,9 +368,14 @@ export function useTimetableActions(
   const handleStartSpontaneousActivity = useCallback(
     async (payload: SpontaneousActivityStartPayload) => {
       const staffIds = currentStaffId
-        ? Array.from(new Set([currentStaffId, ...payload.additionalStaffIds]))
-            .map(Number)
-            .filter((id) => Number.isSafeInteger(id) && id > 0)
+        ? Array.from(
+            new Set(
+              [currentStaffId, ...payload.additionalStaffIds].flatMap((id) => {
+                const normalized = normalizePositiveStaffID(id);
+                return normalized === null ? [] : [normalized];
+              }),
+            ),
+          )
         : [];
       if (staffIds.length === 0) {
         logger.warn("spontaneous timetable start without staff profile");
@@ -360,6 +395,7 @@ export function useTimetableActions(
             : undefined,
           staff_ids: staffIds,
         });
+        setPresentPickerAutoOpenInstanceId(result.instanceId);
         router.push(
           adoptSession(result.activeGroupId, result.instanceId, payload.roomId),
         );
@@ -719,6 +755,51 @@ export function useTimetableActions(
     ],
   );
 
+  const handleAddPresentStudents = useCallback(
+    async (studentIds: string[]) => {
+      if (!activeTimetableInstanceId || studentIds.length === 0) return false;
+      const instanceId = activeTimetableInstanceId;
+      setMoveNotice(null);
+      clearAddStudentError();
+      for (const studentId of studentIds) {
+        markOwnAttendanceMutation("student_checkin", studentId);
+      }
+      try {
+        setIsAddingStudent(true);
+        const rosterResult = await timetableOperationsApi.checkInMany(
+          instanceId,
+          studentIds,
+        );
+        if (activeTimetableInstanceIdRef.current !== instanceId) return false;
+        await mutateRoster(rosterResult, { revalidate: false });
+        return true;
+      } catch (err) {
+        for (const studentId of studentIds) {
+          clearOwnAttendanceMutation("student_checkin", studentId);
+        }
+        if (activeTimetableInstanceIdRef.current !== instanceId) return false;
+        logger.error("failed to add present timetable students", {
+          student_count: studentIds.length,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        reloadAfterDenial(err);
+        // Im Dialog; der Knopf zum Hinzufügen steht direkt darunter.
+        void showAddStudentError(err, { object: "die Kinder" });
+        return false;
+      } finally {
+        setIsAddingStudent(false);
+      }
+    },
+    [
+      activeTimetableInstanceId,
+      activeTimetableInstanceIdRef,
+      clearAddStudentError,
+      mutateRoster,
+      reloadAfterDenial,
+      showAddStudentError,
+    ],
+  );
+
   useLayoutEffect(() => {
     retryRef.current = {
       startPlanned: (instance) => void handleStartPlannedInstance(instance),
@@ -756,5 +837,8 @@ export function useTimetableActions(
     handleReopenTimetableInstance,
     handleConfirmExpectedStudents,
     handleAddUnplannedStudent,
+    handleAddPresentStudents,
+    presentPickerAutoOpenInstanceId,
+    clearPresentPickerAutoOpen,
   };
 }

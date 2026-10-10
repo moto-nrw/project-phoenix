@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // studentStatusDayCancelled is the class-day-only marker for a pickup
@@ -72,19 +73,28 @@ func newClassDayFacts() classDayFacts {
 	}
 }
 
-// classDayWeekdayKey maps a calendar date onto the report day keys
-// ("mon".."fri"). Weekend dates return "".
-func classDayWeekdayKey(date timezone.Date) string {
-	switch date.Weekday() {
-	case time.Monday:
+// classDayPlanKey is the day key ("mon".."fri") whose plans apply on date:
+// Friday's for a weekend that follows Friday's plan (#3921), else the date's
+// own; "" for a weekend that does not.
+func classDayPlanKey(ctx context.Context, date timezone.Date) (string, error) {
+	weekday, err := calendar.PlanWeekday(ctx, date)
+	if err != nil {
+		return "", fmt.Errorf("class day report: resolve weekend plan: %w", err)
+	}
+	return classDayKeyOf(weekday), nil
+}
+
+func classDayKeyOf(isoWeekday int) string {
+	switch isoWeekday {
+	case 1:
 		return "mon"
-	case time.Tuesday:
+	case 2:
 		return "tue"
-	case time.Wednesday:
+	case 3:
 		return "wed"
-	case time.Thursday:
+	case 4:
 		return "thu"
-	case time.Friday:
+	case 5:
 		return "fri"
 	default:
 		return ""
@@ -112,7 +122,10 @@ func (s *dayReports) classDay(ctx context.Context, schoolClass string, date time
 	if err != nil {
 		return nil, err
 	}
-	weekday := classDayWeekdayKey(date)
+	weekday, err := classDayPlanKey(ctx, date)
+	if err != nil {
+		return nil, err
+	}
 	facts := newClassDayFacts()
 	if weekday != "" {
 		// Weekends render "Kein Schultag": the status, departure and schedule
@@ -121,7 +134,7 @@ func (s *dayReports) classDay(ctx context.Context, schoolClass string, date time
 			return nil, err
 		}
 	}
-	report := buildClassDayReport(schoolClass, date, strings.Join(roster.PhaseNames, ", "), roster.Rows, facts)
+	report := buildClassDayReportFor(schoolClass, date, weekday, strings.Join(roster.PhaseNames, ", "), roster.Rows, facts)
 	report.EnrollmentKnown = len(roster.PhaseNames) > 0
 	if weekday != "" {
 		if report.ClassArrivalException, err = s.classDayArrivalException(ctx, schoolClass, date); err != nil {

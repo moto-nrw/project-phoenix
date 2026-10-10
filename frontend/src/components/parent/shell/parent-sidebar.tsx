@@ -36,9 +36,12 @@ export function ParentSidebar({
   gates,
   childCount,
   demoBannerShown = false,
+  eveningRow = false,
 }: ParentNavCounts & {
   /** The demo banner (#3468) sits above the header; the sidebar moves with it. */
   readonly demoBannerShown?: boolean;
+  /** Hinweiszeile der Demo unter dem Streifen (#3921), weitere 32 px. */
+  readonly eveningRow?: boolean;
 }) {
   const t = useTranslations("parentNav");
   const pathname = usePathname();
@@ -109,9 +112,11 @@ export function ParentSidebar({
       <aside className="hidden min-h-screen w-64 shrink-0 border-r border-gray-200/70 bg-white/95 lg:block">
         <div
           className={`sticky flex flex-col ${
-            demoBannerShown
-              ? "top-[105px] h-[calc(100vh-105px)]"
-              : "top-[57px] h-[calc(100vh-57px)]"
+            eveningRow
+              ? "top-[137px] h-[calc(100vh-137px)]"
+              : demoBannerShown
+                ? "top-[105px] h-[calc(100vh-105px)]"
+                : "top-[57px] h-[calc(100vh-57px)]"
           }`}
         >
           <nav

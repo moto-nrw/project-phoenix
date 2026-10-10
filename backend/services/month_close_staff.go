@@ -23,9 +23,12 @@ func (q monthCloseStaffQuery) ListStaffIDs(ctx context.Context) ([]int64, error)
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]int64, len(rows))
-	for i, row := range rows {
-		ids[i] = row.ID
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		// External caregivers (#3823) record no working time to close.
+		if !row.IsGuest {
+			ids = append(ids, row.ID)
+		}
 	}
 	return ids, nil
 }

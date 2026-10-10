@@ -892,12 +892,12 @@ func TestProjectionWireShape(t *testing.T) {
 		`"open_rooms":[{"room_id":"31","name":"Schulhof","is_user_supervising":true,"active_group_ids":["11","14"],"has_occupying_session":true,"student_count":1,` +
 		`"students":[{"student_id":"2","student_name":"Max Hof","school_class":"","group_name":"","active_group_id":"14","check_in_time":"2026-08-19T06:00:00Z","sick":false,"excused":false,"independent":true}],` +
 		`"sessions":[{"active_group_id":"11","title":"Malen","independent":false,"is_user_supervising":true,"can_assign":true,"student_count":0,"participant_limit":45,` +
-		`"block":{"instance_id":"5","start_time":"14:00","end_time":"15:00","is_user_assigned":true,"can_operate":true}},` +
+		`"block":{"instance_id":"5","start_time":"14:00","end_time":"15:00","is_spontaneous":false,"is_user_assigned":true,"can_operate":true}},` +
 		`{"active_group_id":"14","title":"","independent":true,"is_user_supervising":false,"can_assign":false,"student_count":1,"block":null}]}],` +
 		`"capabilities":{"web_spontaneous_activities_enabled":true},` +
 		`"active_sessions":[{"active_group_id":11,"instance_id":5,"title":"Malen","start_time":"14:00","end_time":"15:00"}],` +
 		`"planned_now":[{"id":5,"title":"Malen","date":"2026-08-19","start_time":"14:00","end_time":"15:00","room_id":21,"status":"planned","is_overdue":false,"minutes_until_start":0,` +
-		`"expected_students_count":0,"present_students_count":0,"not_scheduled_students_count":0,"assigned_staff_ids":[7],"is_assigned":false,"is_primary":false,"is_substitute":false,"is_absent":false,` +
+		`"expected_students_count":0,"present_students_count":0,"not_scheduled_students_count":0,"current_students_count":0,"planned_students_count":0,"is_spontaneous":false,"assigned_staff_ids":[7],"is_assigned":false,"is_primary":false,"is_substitute":false,"is_absent":false,` +
 		`"roster_preview":[{"student_id":1,"student_name":"Erika Muster","school_class":"","group_name":"","planned":false,"is_unplanned":false,"currently_present":false,"status":"expected","pickup_time":"08:00","care_day_status":"scheduled"}],` +
 		`"pickup_times_loaded":true,"warnings":[],"can_start":false,"start_available_at":"13:45","start_expires_at":"15:00"}],` +
 		`"visits":[{"student_id":"1","student_name":"Erika Muster","school_class":"4a","group_name":"Bären","active_group_id":"11","check_in_time":"2026-08-19T06:00:00Z","actual_arrival_time":"08:00","sick":false,"excused":false,"photo_url":"/api/students/1/photo/p.jpg"}],` +

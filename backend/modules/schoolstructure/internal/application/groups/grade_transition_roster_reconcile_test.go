@@ -24,7 +24,7 @@ func rosterRowCounter(t *testing.T, ctx context.Context, db *bun.DB, studentID i
 			Where("student_id = ?", studentID).
 			Count(ctx)
 		require.NoError(t, err)
-		return n
+		return int(n)
 	}
 }
 

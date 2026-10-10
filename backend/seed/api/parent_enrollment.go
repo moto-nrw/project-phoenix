@@ -98,6 +98,9 @@ func (s parentRequestsSeedStep) Run(ctx context.Context, rt *Runtime) error {
 		if err := step.seedDecidedPickupChange(rt, adminAuth, parentAuths[parents[0].Email], parents[0]); err != nil {
 			return err
 		}
+		if err := step.seedRejectedPickupChange(rt, adminAuth, parentAuths[parents[0].Email], parents[0]); err != nil {
+			return err
+		}
 		if err := step.seedPendingLaterPickupChange(rt, adminAuth, parents, parentAuths); err != nil {
 			return err
 		}
@@ -268,7 +271,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 	if err != nil {
 		return state, err
 	}
-	phaseID, err := s.createEnrollmentPhase(rt, adminAuth, schemaID)
+	phaseID, phaseBody, err := s.createEnrollmentPhase(rt, adminAuth, schemaID)
 	if err != nil {
 		return state, err
 	}
@@ -301,6 +304,9 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		return state, err
 	}
 	state.Offerings = offerings
+	if err := s.seedVisitorChildEnrollment(rt, adminAuth, phaseID, phaseBody, offerings, parents, parentAuths); err != nil {
+		return state, err
+	}
 
 	type enrollmentSubmission struct {
 		source string
@@ -711,8 +717,10 @@ func seedOfferingPlanningTemplate(rt *Runtime, offeringID int64) error {
 		"target_group_type": "angebot", "source_care_offering_ids": []int64{offeringID},
 		"weekdays": []int{1, 2, 3, 4, 5}, "start_time": "12:00", "end_time": "13:00",
 		"room_id": roomID, "category_id": categoryID, "week_pattern": 0,
-		"staff_ids": staffIDs[:1], "primary_staff_id": staffIDs[0],
-		"materialize_from": today.String(), "materialize_to": today.AddDays(6).String(),
+		// The visitor's caregiver eats with the children too (#3922).
+		"staff_ids": withVisitorStaff(rt.FixedSeeder, staffIDs[:1]), "primary_staff_id": staffIDs[0],
+		// Two weeks, like the visitor's other blocks.
+		"materialize_from": today.String(), "materialize_to": today.AddDays(13).String(),
 	})
 	if err != nil {
 		return fmt.Errorf("create offering planning template: %w", err)
@@ -807,40 +815,46 @@ func (s parentEnrollmentSeedStep) createEnrollmentSchema(rt *Runtime, auth AuthR
 	return id, nil
 }
 
-func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth AuthRef, schemaID int64) (int64, error) {
+// createEnrollmentPhase returns the body it created the phase with, so a
+// later PUT can send the same values with one field changed.
+func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth AuthRef, schemaID int64) (int64, map[string]any, error) {
 	now := time.Now().UTC()
 	openAt := now.Add(-24 * time.Hour).Format(time.RFC3339)
 	closeAt := now.AddDate(0, 2, 0).Format(time.RFC3339)
-	serviceStart := now.AddDate(0, -10, 0).Format("2006-01-02")
-	serviceEnd := now.AddDate(1, 0, 0).Format("2006-01-02")
-	name := fmt.Sprintf("Demo Anmeldung %d/%d", now.Year(), now.Year()+1)
+	// The running school year, linked to its Zeitraum under Planung (#3924).
+	startYear := seedSchoolYearStart(todaySeedDate())
+	period, err := seedPhaseSchoolYear(rt, auth, startYear)
+	if err != nil {
+		return 0, nil, err
+	}
+	name := fmt.Sprintf("Demo Anmeldung %d/%d", startYear, startYear+1)
 	body := map[string]any{
 		"name": name,
 		"translations": seedTranslations("name", name, map[string]string{
-			"en": fmt.Sprintf("Demo enrollment %d/%d", now.Year(), now.Year()+1),
-			"ru": fmt.Sprintf("Демо-запись %d/%d", now.Year(), now.Year()+1),
-			"uk": fmt.Sprintf("Демо-запис %d/%d", now.Year(), now.Year()+1),
+			"en": fmt.Sprintf("Demo enrollment %d/%d", startYear, startYear+1),
+			"ru": fmt.Sprintf("Демо-запись %d/%d", startYear, startYear+1),
+			"uk": fmt.Sprintf("Демо-запис %d/%d", startYear, startYear+1),
 		}),
 		"kind":                         "school_year",
-		"service_start_date":           serviceStart,
-		"service_end_date":             serviceEnd,
 		"enrollment_open_at":           openAt,
 		"enrollment_close_at":          closeAt,
 		"show_status_reason_to_parent": true,
 		"care_overflow_mode":           "waitlist",
 		"care_offering_selection_mode": "at_least_one",
+		"audience":                     "open",
 		"is_active":                    true,
 		"form_schema_id":               strconv.FormatInt(schemaID, 10),
 	}
+	linkPhaseToPeriod(body, period)
 	respBody, err := rt.Client.PostWithAuth(auth, "/api/enrollment/phases", body)
 	if err != nil {
-		return 0, fmt.Errorf("create enrollment phase: %w", err)
+		return 0, nil, fmt.Errorf("create enrollment phase: %w", err)
 	}
 	id, err := parseEnvelopeStringID(respBody)
 	if err != nil {
-		return 0, fmt.Errorf("parse enrollment phase response: %w", err)
+		return 0, nil, fmt.Errorf("parse enrollment phase response: %w", err)
 	}
-	return id, nil
+	return id, body, nil
 }
 
 type seedCareOffering struct {
@@ -1192,18 +1206,44 @@ func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAut
 func (s parentEnrollmentSeedStep) seedDecidedPickupChange(
 	rt *Runtime, adminAuth, parentAuth AuthRef, parent ParentCredentials,
 ) error {
+	return seedPickupChangeDecision(rt, adminAuth, parentAuth, parent, seedPickupDecision{
+		date: seedWeekdayOnOrAfter(todaySeedDate().AddDays(7)), parentReason: "Zahnarzttermin am Nachmittag",
+		approve: true, schoolReason: "Passt, wir melden das Kind für den Nachmittag ab.",
+	})
+}
+
+// seedRejectedPickupChange files a third pickup change for the demo parent
+// and rejects it, so the parent sees a request in each state: open,
+// confirmed and rejected (#3923). The day is the one of the group's outing
+// in the families' calendar, which is the reason the school gives.
+func (s parentEnrollmentSeedStep) seedRejectedPickupChange(
+	rt *Runtime, adminAuth, parentAuth AuthRef, parent ParentCredentials,
+) error {
+	return seedPickupChangeDecision(rt, adminAuth, parentAuth, parent, seedPickupDecision{
+		date: seedOutingDate(todaySeedDate()), parentReason: "Besuch bei den Großeltern",
+		approve:      false,
+		schoolReason: "An diesem Tag ist die Gruppe bis 15 Uhr im Zoo. Bitte holen Sie Ihr Kind danach ab.",
+	})
+}
+
+type seedPickupDecision struct {
+	date         seedDate
+	parentReason string
+	approve      bool
+	schoolReason string
+}
+
+// seedPickupChangeDecision files a one-day pickup change as the parent and
+// decides it as the OGS.
+func seedPickupChangeDecision(rt *Runtime, adminAuth, parentAuth AuthRef, parent ParentCredentials, decision seedPickupDecision) error {
 	if len(parent.StudentIDs) == 0 {
 		return nil
 	}
 	studentID := parent.StudentIDs[0]
-	date := todaySeedDate().AddDays(7)
-	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
-		date = date.AddDays(1)
-	}
 	raw, err := rt.Client.PostWithAuth(parentAuth, fmt.Sprintf("/parent/me/children/%d/care-exception", studentID), map[string]any{
-		"date":        date.String(),
+		"date":        decision.date.String(),
 		"pickup_time": "14:30",
-		"reason":      "Zahnarzttermin am Nachmittag",
+		"reason":      decision.parentReason,
 	})
 	if err != nil {
 		return fmt.Errorf("create decided demo pickup request: %w", err)
@@ -1217,15 +1257,23 @@ func (s parentEnrollmentSeedStep) seedDecidedPickupChange(
 		return err
 	}
 	_, err = rt.Client.PostWithAuth(adminAuth, fmt.Sprintf("/api/students/care-schedule-change-requests/%d/decide", requestID), map[string]any{
-		"approve":          true,
-		"reason":           "Passt, wir melden das Kind für den Nachmittag ab.",
+		"approve":          decision.approve,
+		"reason":           decision.schoolReason,
 		"impact_token":     impactToken,
 		"expected_version": expectedVersion,
 	})
 	if err != nil {
-		return fmt.Errorf("approve decided demo pickup request: %w", err)
+		return fmt.Errorf("decide demo pickup request (approve %t): %w", decision.approve, err)
 	}
 	return nil
+}
+
+// seedWeekdayOnOrAfter moves a date off the weekend.
+func seedWeekdayOnOrAfter(date seedDate) seedDate {
+	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		date = date.AddDays(1)
+	}
+	return date
 }
 
 // loadSeedCareRequestDecisionTokens reads the impact token and row version

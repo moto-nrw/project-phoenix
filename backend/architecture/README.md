@@ -144,7 +144,8 @@ name the shared HTTP runtime, the token adapter, the permission registry, the
 tenant runtime and, for the group routes, their own group service and rows
 and the People Directory's public types. The group routes read the children
 and persons of a group through their `GroupPeople` port, which
-`services.NewGroupRoutePeople` binds over the retained person service.
+`compose.NewGroupRoutePeople` (`modules/peopledirectory/compose`, #3753) binds
+over the retained person directory.
 `services/education` names no foreign model, no ORM and no tenant runtime:
 its writes run on the `Runtime` port `schoolStructureCompose.LegacyRepositoryRuntime`
 binds, the rooms, teachers, staff, caregivers, handovers and both audit
@@ -160,6 +161,42 @@ to the legacy composition (`database/repositories/education_repositories.go`).
 Timetable owner's `education.class_arrival_times`. The suites compose through
 `api/testutil` and name the rows through `test`; the two policy rules that
 only those suites used are deleted.
+
+#3556 deleted `models/education`; 239 -> 236. Its values moved to
+`modules/schoolstructure/internal/domain` without an ORM mapping: the
+retained group store maps `education.groups` through a private row, and the
+not-found and store-failure shapes are `domain.RecordNotFound` and
+`domain.StoreError`. The legacy composition names the values through
+`modules/schoolstructure/compose` aliases (`Group`, `GroupSubstitution`,
+`HandoverQuery` and the other port values), which drops
+`database/repositories -> models/education` (#2743). Values another owner's
+table carries go to that owner. The teacher assignments are School
+Membership's `GroupAssignment` and `ClassAssignment` alone: the group
+service's ports name no assignment type but take and return identifiers and
+class strings (`AssignTeacher`, `TeacherAssignmentIDs`,
+`SchoolClassAssignmentsOfStaff`, ...), which the retained teacher assignment
+repositories implement over that owner's contract. The Workforce adapter in
+`modules/workforce/legacy` serves its own `GroupSubstitution` row, and the
+legacy root's `groupSubstitutions` decorator attaches School Structure's
+group and School Membership's staff to the reads with relations and serves
+the deletion guard's `FindGroupHandovers`, which shrinks the Workforce
+legacy budget (15,926 -> 15,903 LOC). The notification recipients read
+supervising staff as their own `StaffGroupPair` through
+`ListGroupSupervisors`, which the retained group repository serves. The
+root passes the same repositories as before: `services/factory.go` is
+unchanged. The grade transition lock
+key is `schoolstructure.TransitionsLockKey`. `test` maps the rows its
+fixtures write itself (`test/school_structure_rows.go`), which drops
+`test -> models/education` (#2748); the People Directory suites write the
+transition history through `CreateTestGradeTransitionHistoryForTenant`, which drops
+the external-test `services/users -> models/education` (#2728). The rules
+`delivery-cutover.009`, `delivery-cutover.023` and
+`workforce.adapter.school-structure-domain` allowed only those imports and
+are deleted with the package entry. #2742 already deleted the legacy
+`education.class_arrival_times` repository; the arrival fixtures in `test`
+now write and read the table through the Timetable owner's
+`ClassArrivals` contract, which the suites compose, so only
+`timetable-activities` touches it.
 
 #3349 settles the one table two owners reached for: `users.privacy_consents`
 stays with `student-presence`. The recorded window bounds how long presence
@@ -302,6 +339,42 @@ reads were already native (#3182) and still go through `modules/requestreview`.
 No rule was added: five resolved `services/users` keys and the two rules only
 the deleted coordinator and its tests used are gone.
 
+#3753 (slice 4 of #2728) moved the person and student services out of
+`services/users`, which keeps only the caregiver and guardian clusters. The
+person service is the concrete `PersonDirectory` in
+`modules/peopledirectory/compose`, the one People Directory package that may
+name `models/users` and `userscontract` in production. It has no interface:
+every consumer keeps the port it owns (#3771), and the root passes the
+concrete type. Its staff half stays the embedded `StaffDirectory` port bound
+by `services.NewStaffDirectory`; the staff write inputs (`CreateStaffInput`,
+`TeacherAction`) moved with that port, so the open owner question for the two
+staff writes stays open. The student-route and group-route adapters moved
+beside it. The change-history retention sweep is a People Directory compose
+service over three ports (`StudentChangeLogStore`,
+`StudentChangeLogDeletionLog`, `StudentChangeLogRetention`) that
+`services.NewStudentChangeLogCleanup` binds. The photo, audit-actor and
+student-directory contracts and the student directory service moved there as
+well; the audit contract no longer carries `GetChangeHistory`, which needs
+`models/audit` and which only suites called (they read the trail through the
+repository seam), and `ErrPhotoNoTenant` moved to its one producer in
+`services`. The error aliases are gone: callers name
+`userscontract` directly, `ErrPersonNotFound` and `ErrStudentNotFound` moved
+into `userscontract` with their instances, and the three staff write refusals
+moved into `services` beside the staff directory, because the root may not
+import `userscontract`. The Care Plan participation resolver now arrives at
+construction, late-bound, instead of through a setter, so the composition
+surface stays at 591. The test scopes decided where the suites live: no
+People Directory test package may import `models/users`, so the behavior
+suites stay in `services/users` and reach the directory through the services
+factory, and the module suites outside build it with
+`services.NewTestPersonDirectory` and name the compose contracts through the
+`PeopleDirectorySuite*` entries in `services/people_directory_test_helpers.go`.
+Moving those suites out of `services/users` would add keys in every scope the
+policy offers (`models/users`, `models/audit`, `internal/timezone` and more),
+so they stay there, as the staff suites did in #3752. Eight rules that only allowed imports of
+the moved services and the `services/users/userstest` package are removed;
+ten baseline keys fall (206 → 196), none is added.
+
 #3356 cuts the six owner edges `api/students` held besides its carrier's
 shared plumbing. The HTTP role may not import these owners' public packages,
 and PR mode refuses a new rule between points that already exist, so five of
@@ -361,7 +434,7 @@ goldens are byte-identical.
   with their account and RFID-card checks, the student-aware bracelet
   assignment, the dated day-log roster, the staff member behind a person) is
   the `PersonRecords` port, bound over that service by
-  `services.NewStudentRoutePersons`. The group teachers the detail lists are
+  `compose.NewStudentRoutePersons` (`modules/peopledirectory/compose`, #3753). The group teachers the detail lists are
   plain `GroupTeacher` values. The companion sentinels and the companion link
   helpers moved to the `departure` contract; `models/users` aliases them, so
   every `errors.Is` keeps matching.
@@ -380,6 +453,98 @@ goldens are byte-identical.
   lines. No allowlist entry was added.
 - The named File Storage adapter exception stays (see below), re-anchored and
   now tracked by #2706.
+
+#2745 deleted the API aggregate: `api.API` and `api.New` have no declaration
+or reference left (`architecture/callers/api-aggregate-2745.json`, generated by
+`scripts/backend-api-aggregate-callers`), and the `api` entry left
+`legacy_composition`. `newServeGraph` composes the Serve root in `New`'s
+place; `mountRoutes` and its route-group functions build each resource and
+mount its routers at once, the tenant routes on the `/api` sub-router and the
+public and portal routers at the root. The package-private `serveGraph` keeps
+the router, the pool, the tenant runtime, the observability handles and the
+retained factories the embedded Worker still reads (#2749), plus the two
+document sweeps the Worker took from the aggregate's resource fields. The
+root named `api/absence-types`, `api/shift-types`, `api/staff-shifts`,
+`api/substitutions` and `api/work-time-models` only as field types, so their
+five #2750 keys fell (206 -> 201); the composition surface dropped from 591 to
+490 field/setter targets. The route builders read the composed module set, so
+the typed references to `services.Factory` stay at the base's eight
+declarations and those to `repositories.Factory` drop from five to three. The
+route table and every scope, auth and error golden are unchanged; the
+middleware table changes only in its first entry, where the router-wide
+request-ID middleware now carries its own name (`api.requestIDs`) instead of
+the deleted constructor's.
+
+#2734 closed the carrier of `api/enrollment`: its 26 remaining keys, the
+root's `api -> api/enrollment` key (#2750) and three parent-portal keys of
+#3421 (the production and internal-test import of `api/enrollment`, and the
+internal-test `models/enrollment` import that only its stub needed) are gone
+(239 -> 209). No route path, status code, error body, middleware chain or
+authorization check changed; the route and middleware goldens are
+byte-identical, and the composition surface stays at 591.
+
+- The routes moved file for file to `modules/enrollment/http` (package
+  `enrollmenthttp`), classified `enrollment`/`http`. PR mode rejects an owner
+  change of an existing path and a new permission on the existing
+  `inbound-enrollment`/`http` point, so the `inbound-enrollment` owner is
+  deleted with its package entry, like #2731's and #2732's carriers. The new
+  point's target dependencies are the ones the other owners' HTTP adapters
+  hold: `api/common`, the session token adapter (ADR 0031), the permission
+  registry, the tenant runtime, the collation helper of `legacy-shared`, the
+  Document Rendering list contract, People Directory's `departure` contract
+  for the companion refusals, and the owner's own public capability.
+- Enrollment's adapter-test point already exists (the Turnstile adapter
+  holds it), so no rule may be added for it. The internal suites therefore
+  name no retained model, no `api/common` and no token adapter: claims come
+  from `api/testutil/routetest`, the permission gates are pinned through the
+  real `Router()` with signed sessions instead of hand-mounted
+  `RequiresPermission` copies, error codes are asserted as their wire
+  literals, and two database suites that composed the owner through its test
+  support moved to the external package. The external suites are integration
+  suites (they open the test database and compose the owner, the retained
+  repositories and Identity & Access), so the package's external test role is
+  `workflow-integration-test`, the classification `staffmessages` and the
+  timetable route suites already carry; their rules are anchored on that new
+  point. Those rules are standing permissions without an issue, as the other
+  owners' integration suites hold them, and they include the suites' reach to
+  the retained repository factory and to the retained `models/enrollment`,
+  `models/users`, `models/config` and `models/platform` rows they seed and
+  read. That reach is test debt the ratchet no longer counts: the four
+  external-test keys fell because the suites changed classification, not
+  because their imports went away.
+- `bun` and `database/sql` left the package: the handlers open their tenant
+  and administrative transactions through `tenant.WithinTenant` and
+  `tenant.WithinAdmin`, a bare `Resource` from a unit test still runs
+  `runInTenantTx` on the request context, and the form-schema lookups rely on
+  the owner's `ErrFormSchemaNotFound`, which already wraps the no-rows case.
+- `models/enrollment` left the package. A request and a care offering are the
+  routes' own decoded values over Enrollment's public `Request` and
+  `CareOffering`; the catalog administration reaches Care Plan through the new
+  `enrollmentCompose.CareOfferingValues` (bound by the free function
+  `services.NewEnrollmentCareOfferingValues`), which serves the same row
+  translation as `CareOfferingRows` in the public values. The status, consent
+  and phase constants come from the public package.
+- The autofill profile is Enrollment's consumer-owned `GuardianAutofillReader`
+  in its public package; `services.NewEnrollmentGuardianAutofill` binds it to
+  the retained People Directory loader, so neither the routes nor the root
+  name the loader's rows. Both bindings are free functions, so
+  `services.Factory` gains no method and no reference.
+- The parents portal no longer imports the enrollment routes. Its own
+  `EnrollmentForms` port carries the form load and the submission in the
+  owner's wire shape, validation and error mapping; the root binds it to
+  `enrollmenthttp.ParentForms`. The portal keeps its school, guardian and
+  hidden-school gates and its transactions; the stamping of the guardian
+  account and the submit eligibility moved with the decoding and is pinned by
+  the `ParentForms` suite.
+- The move put the handlers under the module ratchets (Rule 16): `Router`
+  is split into mount steps, the submit error mapping became a rule table,
+  seven more functions were split into named steps and five files fell below
+  800 lines. No allowlist entry was added; the parent portal's
+  `getEnrollmentBootstrap` entry fell from 87 to 83.
+- `architecture/callers/enrollment-routes-2734.json`, generated by
+  `scripts/backend-enrollment-route-callers`, records that `api/enrollment`
+  has no importer or source file left and that the four route helpers once
+  exported for the parents portal have no declaration or reference.
 
 #2727 closed the carrier of `database/repositories/users`: its 14 remaining
 keys are gone (402 -> 388), the package keeps its owner, role and tables, and
@@ -1021,7 +1186,8 @@ in the repository shape the HTTP layer classifies. The staff and teacher
 lookups and the two staff writes of the person service leave as the
 `users.StaffDirectory` port (`services/users/staff_directory_port.go`), bound
 by `services.NewStaffDirectory` and embedded in the person service, so the
-callers keep the verbatim repository results the IoT flows depend on.
+callers keep the verbatim repository results the IoT flows depend on. #3753
+moved that port with the person service to `modules/peopledirectory/compose`.
 
 The retained Workforce time-tracking services
 (`modules/workforce/legacy/timetracking`, #3213) are classified
@@ -2860,6 +3026,9 @@ analyzer fixtures; CI always supplies the real base commit.
 The guard reads Go declarations directly from that Git object and the working
 tree. It rejects new named or embedded fields on `services.Factory`,
 `database/repositories.Factory`, and `api.API`, including local type aliases.
+#2745 deleted `api.API`; the guard keeps its name so the aggregate cannot
+return, and `api.TestServeGraphFieldsAreShrinkOnly` keeps the field set of
+its replacement, the package-private `serveGraph`, shrink-only.
 There is no accepted field/setter manifest and no approve, regenerate,
 rebaseline, or wildcard option. Deletion spends the removed declaration's
 budget permanently once it reaches the base branch.
@@ -2896,7 +3065,8 @@ migration. It is pinned to evidence commit
   discoverable `TestMain` roots and one smoke test per root;
 - every Cobra command path and scheduler job ID;
 - every typed legacy-composition reference reported by this evaluator;
-- every call to `api.New`, the evidence-only `api.NewServer`, the current
+- every call to the evidence-only `api.New` (deleted by #2745) and
+  `api.NewServer`, the current
   `api.WithRuntime`, `repositories.NewFactory`,
   `services.NewFactory`, the evidence-only `scheduler.NewScheduler`, the current
   `scheduler.NewWorker`, and `SetupAPITest` under the

@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // The compositions the retained People Directory repository suites
@@ -107,6 +108,13 @@ func NewPeopleRepositorySuiteRelationships(db *bun.DB) usersModels.StudentGuardi
 // the composition root binds it.
 func NewPeopleRepositorySuiteGuardianProfiles(db *bun.DB) usersModels.GuardianProfileRepository {
 	return repositories.NewGuardianProfileRepository(db)
+}
+
+// NewEnrollmentGuardianAutofillSuite is the enrollment form's autofill
+// reader as the composition root binds it, over the retained guardian profile
+// store of db (#2734).
+func NewEnrollmentGuardianAutofillSuite(db *bun.DB) EnrollmentGuardianAutofill {
+	return EnrollmentGuardianAutofill{loader: users.NewGuardianProfileLoader(repositories.NewGuardianProfileRepository(db), db, nil)}
 }
 
 // NewPeopleRepositorySuiteRecipients is the parent-message recipient lookup

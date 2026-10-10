@@ -9,28 +9,16 @@
 package users_test
 
 import (
-	"log/slog"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// setupPersonService creates a PersonService with real database connection
-func setupPersonService(t *testing.T, db *bun.DB) users.PersonService {
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
-	require.NoError(t, err, "Failed to create service factory")
-	return serviceFactory.Users
-}
 
 // =============================================================================
 // Get Tests
@@ -41,7 +29,7 @@ func TestPersonService_Get(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns person when found", func(t *testing.T) {
@@ -102,7 +90,7 @@ func TestPersonService_GetByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns multiple persons when found", func(t *testing.T) {
@@ -152,7 +140,7 @@ func TestPersonService_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates person successfully", func(t *testing.T) {
@@ -210,7 +198,7 @@ func TestPersonService_Create(t *testing.T) {
 		err := service.Create(ctx, person)
 
 		// ASSERT
-		require.ErrorIs(t, err, users.ErrAccountNotFound)
+		require.EqualError(t, err, "users.create person: account not found")
 	})
 }
 
@@ -223,7 +211,7 @@ func TestPersonService_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates person successfully", func(t *testing.T) {
@@ -272,7 +260,7 @@ func TestPersonService_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes person successfully", func(t *testing.T) {
@@ -306,38 +294,6 @@ func TestPersonService_Delete(t *testing.T) {
 // List Tests
 // =============================================================================
 
-func TestPersonService_List(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns persons list", func(t *testing.T) {
-		// ARRANGE
-		testpkg.CreateTestPerson(t, db, "List1", "Test")
-		testpkg.CreateTestPerson(t, db, "List2", "Test")
-
-		// ACT
-		result, err := service.List(ctx, nil)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, result)
-		// Should contain our created persons (plus any seed data)
-	})
-
-	t.Run("returns list with nil options", func(t *testing.T) {
-		// ACT
-		result, err := service.List(ctx, nil)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-	})
-}
-
 // =============================================================================
 // FindByTagID Tests
 // =============================================================================
@@ -347,7 +303,7 @@ func TestPersonService_FindByTagID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds person by tag ID", func(t *testing.T) {
@@ -388,7 +344,7 @@ func TestPersonService_FindByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds person by account ID", func(t *testing.T) {
@@ -422,65 +378,6 @@ func TestPersonService_FindByAccountID(t *testing.T) {
 // FindByName Tests
 // =============================================================================
 
-func TestPersonService_FindByName(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds persons by first name", func(t *testing.T) {
-		// ARRANGE
-		uniqueFirst := "UniqueFirstName123"
-		testpkg.CreateTestPerson(t, db, uniqueFirst, "TestLast")
-
-		// ACT
-		result, err := service.FindByName(ctx, uniqueFirst, "")
-
-		// ASSERT
-		require.NoError(t, err)
-		// Note: FindByName uses ILIKE prefix matching, so results may vary
-		assert.NotNil(t, result)
-	})
-
-	t.Run("finds persons by last name", func(t *testing.T) {
-		// ARRANGE
-		uniqueLast := "UniqueLastName456"
-		testpkg.CreateTestPerson(t, db, "TestFirst", uniqueLast)
-
-		// ACT
-		result, err := service.FindByName(ctx, "", uniqueLast)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-	})
-
-	t.Run("finds persons by both names", func(t *testing.T) {
-		// ARRANGE
-		uniqueFirst := "BothFirst789"
-		uniqueLast := "BothLast789"
-		testpkg.CreateTestPerson(t, db, uniqueFirst, uniqueLast)
-
-		// ACT
-		result, err := service.FindByName(ctx, uniqueFirst, uniqueLast)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-	})
-
-	t.Run("returns empty slice when no matches found", func(t *testing.T) {
-		// ACT - FindByName uses ILIKE prefix matching, non-existent names return empty
-		result, err := service.FindByName(ctx, "ZZZZNOEXIST99999XYZ", "ZZZZNOEXIST99999ABC")
-
-		// ASSERT - call succeeds with empty result (filters are now applied via #557)
-		require.NoError(t, err)
-		assert.Empty(t, result)
-	})
-}
-
 // =============================================================================
 // LinkToAccount Tests
 // =============================================================================
@@ -490,7 +387,7 @@ func TestPersonService_LinkToAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("links person to account successfully", func(t *testing.T) {
@@ -545,7 +442,7 @@ func TestPersonService_UnlinkFromAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("unlinks person from account successfully", func(t *testing.T) {
@@ -593,7 +490,7 @@ func TestPersonService_LinkToRFIDCard(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("links person to RFID card successfully", func(t *testing.T) {
@@ -667,7 +564,7 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("assigns the tag to an enrolled student", func(t *testing.T) {
@@ -701,13 +598,13 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 		err = service.LinkStudentToRFIDCard(ctx, student.ID, rfidCard.ID)
 
 		// ASSERT
-		require.ErrorIs(t, err, users.ErrStudentGraduated)
+		require.EqualError(t, err, "users.link to RFID card: student has graduated")
 		holders, err := db.NewSelect().
 			TableExpr(`users.persons`).
 			Where("tag_id = ?", rfidCard.ID).
 			Count(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, 0, holders, "the bracelet must stay free after a refused assignment")
+		assert.Equal(t, int64(0), holders, "the bracelet must stay free after a refused assignment")
 	})
 
 	t.Run("reports a student that no longer exists as not found", func(t *testing.T) {
@@ -725,7 +622,7 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 		err := service.LinkStudentToRFIDCard(ctx, student.ID, rfidCard.ID)
 
 		// ASSERT
-		require.ErrorIs(t, err, users.ErrStudentNotFound)
+		require.EqualError(t, err, "users.link to RFID card: student not found")
 	})
 }
 
@@ -738,7 +635,7 @@ func TestPersonService_UnlinkFromRFIDCard(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("unlinks person from RFID card successfully", func(t *testing.T) {
@@ -789,7 +686,7 @@ func TestPersonService_GetStudentsWithGroupsByTeacher(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns students with group info for valid teacher", func(t *testing.T) {
@@ -831,7 +728,7 @@ func TestPersonService_GetAllStudentsWithGroups(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all students including those without groups", func(t *testing.T) {
@@ -853,7 +750,7 @@ func TestPersonService_GetAllStudentsWithGroups(t *testing.T) {
 		// Both students should be in results
 		ids := make(map[int64]bool)
 		for _, r := range result {
-			ids[r.Student.ID] = true
+			ids[r.ID] = true
 		}
 		assert.True(t, ids[studentWithGroup.ID], "student with group should be present")
 		assert.True(t, ids[studentNoGroup.ID], "student without group should be present")
@@ -868,25 +765,6 @@ func TestPersonService_GetAllStudentsWithGroups(t *testing.T) {
 // Error Type Tests
 // =============================================================================
 
-func TestUsersErrorTypes(t *testing.T) {
-	t.Parallel()
-
-	t.Run("error constants are defined", func(t *testing.T) {
-		errors := []error{
-			users.ErrPersonNotFound,
-			users.ErrAccountNotFound,
-			users.ErrRFIDCardNotFound,
-			users.ErrAccountAlreadyLinked,
-			users.ErrTeacherNotFound,
-		}
-
-		for _, err := range errors {
-			assert.NotNil(t, err, "Expected error to be defined")
-			assert.NotEmpty(t, err.Error(), "Expected error to have message")
-		}
-	})
-}
-
 // ======== Additional Tests for Higher Coverage ========
 
 func TestPersonService_LinkToRFIDCard_PersonNotFound(t *testing.T) {
@@ -894,7 +772,7 @@ func TestPersonService_LinkToRFIDCard_PersonNotFound(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent person", func(t *testing.T) {
@@ -911,7 +789,7 @@ func TestPersonService_LinkToRFIDCard_RFIDNotFound(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent RFID card", func(t *testing.T) {
@@ -935,7 +813,7 @@ func TestPersonService_Get_NotFound(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent person", func(t *testing.T) {
@@ -953,7 +831,7 @@ func TestPersonService_Update_NotFound(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nonexistent person", func(t *testing.T) {
@@ -977,7 +855,7 @@ func TestPersonService_Create_ValidationError(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for invalid person", func(t *testing.T) {
@@ -1006,7 +884,7 @@ func TestPersonService_Create_WithRFIDCard(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates person with RFID card link", func(t *testing.T) {
@@ -1055,7 +933,7 @@ func TestPersonService_Update_WithChangedAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates person with new valid account", func(t *testing.T) {
@@ -1117,7 +995,7 @@ func TestPersonService_Update_WithChangedRFID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates person with new valid RFID card", func(t *testing.T) {
@@ -1187,7 +1065,7 @@ func TestPersonService_LinkToAccount_SamePersonRelink(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("allows re-linking same person to same account", func(t *testing.T) {
@@ -1207,35 +1085,12 @@ func TestPersonService_LinkToAccount_SamePersonRelink(t *testing.T) {
 	})
 }
 
-func TestPersonService_List_WithPagination(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns persons with query options", func(t *testing.T) {
-		// ARRANGE - create some persons
-		testpkg.CreateTestPerson(t, db, "ListPag1", "Test")
-		testpkg.CreateTestPerson(t, db, "ListPag2", "Test")
-
-		// ACT - list with options (even though filter conversion not fully implemented)
-		options := &base.QueryOptions{}
-		result, err := service.List(ctx, options)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, result)
-	})
-}
-
 func TestPersonService_Delete_WithRelations(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes person with RFID card", func(t *testing.T) {
@@ -1267,7 +1122,7 @@ func TestPersonService_Get_WithIntID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	t.Run("accepts int ID and converts to int64", func(t *testing.T) {
@@ -1287,40 +1142,6 @@ func TestPersonService_Get_WithIntID(t *testing.T) {
 // =============================================================================
 // Error Type Tests
 // =============================================================================
-
-func TestUsersError_Unwrap(t *testing.T) {
-	t.Parallel()
-
-	t.Run("unwraps the underlying error", func(t *testing.T) {
-		// ARRANGE
-		innerErr := users.ErrPersonNotFound
-		err := &users.UsersError{
-			Op:  "Get",
-			Err: innerErr,
-		}
-
-		// ACT
-		unwrapped := err.Unwrap()
-
-		// ASSERT
-		assert.Equal(t, innerErr, unwrapped)
-	})
-
-	t.Run("error message contains operation", func(t *testing.T) {
-		// ARRANGE
-		err := &users.UsersError{
-			Op:  "TestOperation",
-			Err: users.ErrTeacherNotFound,
-		}
-
-		// ACT
-		msg := err.Error()
-
-		// ASSERT
-		assert.Contains(t, msg, "TestOperation")
-		assert.Contains(t, msg, "teacher")
-	})
-}
 
 // =============================================================================
 // CreateStaffWithTeacher — adopting an existing staff record
@@ -1345,19 +1166,19 @@ func TestPersonService_CreateStaffWithTeacher_AdoptsLiveCaregiverProfile(t *test
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	// ARRANGE — a person whose staff record already has a caregiver profile.
 	existing := testpkg.CreateTestTeacher(t, db, "Uebernommen", "Betreuung")
 
 	// ACT — the details request does not ask for a caregiver profile.
-	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, users.CreateStaffInput{
+	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, services.StaffDirectoryCreateInput(services.StaffCreateInput{
 		PersonID:         existing.Staff.PersonID,
 		StaffNotes:       "Notiz",
 		IsTeacher:        false,
 		ActorPermissions: []string{permissions.UsersCreate, permissions.StaffManage},
-	})
+	}))
 
 	// ASSERT
 	require.NoError(t, err)
@@ -1375,7 +1196,7 @@ func TestPersonService_CreateStaffWithTeacher_AdoptsLiveCaregiverProfile(t *test
 		Where(`deleted_at IS NULL`).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, count)
+	assert.Equal(t, 1, int(count))
 }
 
 // =============================================================================
@@ -1396,7 +1217,7 @@ func TestPersonService_CreateStaffWithTeacher_RefusesAdoptionWithoutUpdatePermis
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	// ARRANGE — a staff member who is already in the directory.
@@ -1411,15 +1232,15 @@ func TestPersonService_CreateStaffWithTeacher_RefusesAdoptionWithoutUpdatePermis
 	require.NoError(t, before.Close())
 
 	// ACT — a caller that may only create.
-	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, users.CreateStaffInput{
+	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, services.StaffDirectoryCreateInput(services.StaffCreateInput{
 		PersonID:         existing.PersonID,
 		StaffNotes:       "Fremde Notiz",
 		IsTeacher:        false,
 		ActorPermissions: []string{permissions.UsersCreate},
-	})
+	}))
 
 	// ASSERT — refused, and nothing written.
-	require.ErrorIs(t, err, users.ErrStaffAdoptionNotPermitted)
+	require.ErrorIs(t, err, services.ErrStaffAdoptionNotPermitted)
 	assert.Nil(t, staff)
 	assert.Nil(t, teacher)
 	assert.False(t, teacherCreationFailed)
@@ -1439,7 +1260,7 @@ func TestPersonService_CreateStaffWithTeacher_RefusesAdoptionWithoutUpdatePermis
 		Where(`deleted_at IS NULL`).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, count)
+	assert.Equal(t, 1, int(count))
 }
 
 // A Lehrkraft account (#1772) is provisioned with a staff record and
@@ -1451,7 +1272,7 @@ func TestPersonService_CreateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	// ARRANGE — staff with an account that holds the Lehrkraft system role.
@@ -1459,15 +1280,15 @@ func TestPersonService_CreateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, testpkg.Tenant(t))
 
 	// ACT — the request asks for a caregiver profile anyway.
-	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, users.CreateStaffInput{
+	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, services.StaffDirectoryCreateInput(services.StaffCreateInput{
 		PersonID:         staffRecord.PersonID,
 		IsTeacher:        true,
 		Specialization:   "Betreuung",
 		ActorPermissions: []string{permissions.UsersCreate, permissions.StaffManage},
-	})
+	}))
 
 	// ASSERT — refused before anything is written.
-	require.ErrorIs(t, err, users.ErrStaffLehrkraftCaregiverProfile)
+	require.ErrorIs(t, err, services.ErrStaffLehrkraftCaregiverProfile)
 	assert.Nil(t, staff)
 	assert.Nil(t, teacher)
 	assert.False(t, teacherCreationFailed)
@@ -1477,7 +1298,7 @@ func TestPersonService_CreateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 		Where(`staff_id = ?`, staffRecord.ID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, count, "no caregiver profile may exist for a Lehrkraft account")
+	assert.Equal(t, int64(0), count, "no caregiver profile may exist for a Lehrkraft account")
 }
 
 // The edit form must not be the way around the same rule.
@@ -1486,7 +1307,7 @@ func TestPersonService_UpdateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	// ARRANGE
@@ -1497,16 +1318,16 @@ func TestPersonService_UpdateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 	teacher, action, err := service.UpdateStaffWithTeacher(ctx, staffRecord, true, "Betreuung", "", "")
 
 	// ASSERT
-	require.ErrorIs(t, err, users.ErrStaffLehrkraftCaregiverProfile)
+	require.ErrorIs(t, err, services.ErrStaffLehrkraftCaregiverProfile)
 	assert.Nil(t, teacher)
-	assert.Equal(t, users.TeacherActionNone, action)
+	assert.Equal(t, services.StaffTeacherActionNone, services.StaffTeacherActionFor(action))
 
 	count, err := db.NewSelect().
 		TableExpr(`users.teachers`).
 		Where(`staff_id = ?`, staffRecord.ID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, count)
+	assert.Equal(t, int64(0), count)
 }
 
 // A staff member without an account cannot be a Lehrkraft, so the guard must
@@ -1516,19 +1337,19 @@ func TestPersonService_CreateStaffWithTeacher_CreatesCaregiverProfileWithoutAcco
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupPersonService(t, db)
+	service := setupServiceFactory(t, db).Users
 	ctx := testpkg.Ctx(t)
 
 	// ARRANGE — a person with no account and no staff record yet.
 	person := testpkg.CreateTestPerson(t, db, "Ohne", "Konto")
 
 	// ACT
-	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, users.CreateStaffInput{
+	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, services.StaffDirectoryCreateInput(services.StaffCreateInput{
 		PersonID:         person.ID,
 		IsTeacher:        true,
 		Specialization:   "Betreuung",
 		ActorPermissions: []string{permissions.UsersCreate},
-	})
+	}))
 
 	// ASSERT
 	require.NoError(t, err)

@@ -5,11 +5,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -17,7 +17,7 @@ import (
 type TimetableScenarioTestModule struct {
 	TimetableTestModule
 	Active           studentpresence.Presence
-	Users            users.PersonService
+	Users            *peopleCompose.PersonDirectory
 	UserContext      *repositories.CallerRows
 	Settings         config.SettingsService
 	TimetableCleanup timetable.TimetableCleanup

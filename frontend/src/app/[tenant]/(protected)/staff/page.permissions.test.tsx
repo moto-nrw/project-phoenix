@@ -255,6 +255,73 @@ describe("/staff — Berechtigungs-Split", () => {
     expect(routerPush).toHaveBeenCalledWith("/staff/42?tab=konto");
   });
 
+  it("zeigt ohne Akten-Recht die Karten als Anzeige und nennt den Grund (#3926)", () => {
+    const staff = [
+      {
+        id: "42",
+        name: "Anzeige Test",
+        firstName: "Anzeige",
+        lastName: "Test",
+        hasRfid: false,
+        isTeacher: false,
+        isSupervising: false,
+        supervisions: [],
+      },
+    ];
+    staffListRequest.data = staff;
+    getAllStaff.mockResolvedValue(staff);
+    mockSession(["users:read"]);
+
+    render(<StaffPage />);
+
+    expect(
+      screen.getByText(/Personalakten sind für Ihr Konto nicht freigegeben/),
+    ).toBeInTheDocument();
+    // Keine gesperrte Schaltfläche, sondern eine Fläche ohne Klick.
+    expect(screen.getByText("Anzeige Test")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Anzeige Test/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Anzeige Test"));
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["staff:stammdaten"],
+    ["staff:manage"],
+    ["staff:documents"],
+    ["staff:financial"],
+    ["staff_documents:health"],
+  ])(
+    "zeigt mit %s klickbare Karten und keinen Hinweis (#3926)",
+    (permission) => {
+      const staff = [
+        {
+          id: "42",
+          name: "Recht Test",
+          firstName: "Recht",
+          lastName: "Test",
+          hasRfid: false,
+          isTeacher: false,
+          isSupervising: false,
+          supervisions: [],
+        },
+      ];
+      staffListRequest.data = staff;
+      getAllStaff.mockResolvedValue(staff);
+      mockSession(["users:read", permission]);
+
+      render(<StaffPage />);
+
+      expect(screen.getByRole("button", { name: /Recht Test/ })).toBeEnabled();
+      expect(
+        screen.queryByText(
+          /Personalakten sind für Ihr Konto nicht freigegeben/,
+        ),
+      ).not.toBeInTheDocument();
+    },
+  );
+
   it("behält mit time_tracking:manage die Zeitkonten statt der Dokumentenansicht", () => {
     documentDirectoryRequest.data = [
       {

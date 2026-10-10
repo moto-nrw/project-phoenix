@@ -114,6 +114,8 @@ type carePlans struct {
 	pickupByStudentDate     map[int64]map[calendar.Date]*careplan.PickupSchedule
 	hasPlan                 map[int64]map[calendar.Date]bool
 	bookingsAuthoritative   bool
+	// weekendFollowsFriday reads Saturday and Sunday from Friday (#3921).
+	weekendFollowsFriday bool
 
 	arrivalExceptions map[int64]map[calendar.Date]*careplan.ArrivalException
 	pickupExceptions  map[int64]map[calendar.Date]*careplan.PickupException
@@ -123,6 +125,11 @@ func (s *careDayService) loadCarePlans(
 	ctx context.Context, studentIDs []int64, from, to calendar.Date,
 ) (*carePlans, error) {
 	plans := newCarePlans()
+	follows, err := weekendFollowsFridayIn(ctx, from, to)
+	if err != nil {
+		return nil, &careplan.ScheduleError{Op: opResolveCareDay, Err: err}
+	}
+	plans.weekendFollowsFriday = follows
 	if err := s.loadArrivalPlans(ctx, plans, studentIDs, from, to); err != nil {
 		return nil, err
 	}
@@ -288,7 +295,17 @@ func (p *carePlans) hasArrivalSchedule(studentID int64, date calendar.Date) bool
 	if p.arrivalByStudentDate[studentID][date] != nil {
 		return true
 	}
-	return p.arrivalByStudentWeekday[studentID][domain.ISOWeekday(date)] != nil
+	return p.arrivalByStudentWeekday[studentID][p.planWeekday(date)] != nil
+}
+
+// planWeekday is the weekday whose weekly row applies on date: Friday for a
+// weekend that follows Friday's plan (#3921).
+func (p *carePlans) planWeekday(date calendar.Date) int {
+	weekday := domain.ISOWeekday(date)
+	if p.weekendFollowsFriday && weekday > 5 {
+		return 5
+	}
+	return weekday
 }
 
 // effectiveArrival mirrors the exception-beats-schedule merge of
@@ -307,13 +324,14 @@ func (p *carePlans) effectiveArrival(studentID int64, date calendar.Date) *carep
 		}
 		return result
 	}
-	// Weekends carry no weekly rows; only an exception can put a child there.
-	if weekday > 5 {
+	// Weekends carry no weekly rows; only an exception can put a child
+	// there, unless the weekend follows Friday's plan (#3921).
+	if weekday > 5 && !p.weekendFollowsFriday {
 		return result
 	}
 	sched := p.arrivalByStudentDate[studentID][date]
 	if sched == nil {
-		sched = p.arrivalByStudentWeekday[studentID][weekday]
+		sched = p.arrivalByStudentWeekday[studentID][p.planWeekday(date)]
 	}
 	// A care day whose class carries no time has no arrival time. Copying the
 	// zero value here would render as 00:00 everywhere (#2414).
@@ -334,7 +352,7 @@ func (p *carePlans) effectivePickup(studentID int64, date calendar.Date) *carepl
 		result.PickupTime = exc.PickupTime
 		return result
 	}
-	if weekday > 5 {
+	if weekday > 5 && !p.weekendFollowsFriday {
 		return result
 	}
 	if sched, ok := p.pickupByStudentDate[studentID][date]; ok && sched != nil {

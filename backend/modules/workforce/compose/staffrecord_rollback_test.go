@@ -115,7 +115,7 @@ func TestWorkforceRecordWritesRollbackAndRetry(t *testing.T) {
 	for _, table := range tables[:len(tables)-1] {
 		count, err := db.NewSelect().Table(table).Where("tenant_id = ?", testpkg.Tenant(t)).Count(ctx)
 		require.NoError(t, err)
-		require.Equal(t, 1, count, "retry must leave exactly one intended row in "+table)
+		require.Equal(t, 1, int(count), "retry must leave exactly one intended row in "+table)
 	}
 	run([]writeStep{
 		{"document-soft-delete", func(ctx context.Context) error {

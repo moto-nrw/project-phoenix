@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -339,7 +338,10 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 		"title":             "Freispiel",
 		"room_id":           roomID,
 		"activity_group_id": int64(71),
-		"staff_ids":         []int64{321},
+		// This is above JavaScript's safe integer limit. The operation accepts
+		// the decimal string so a selected external caregiver reaches the
+		// intended staff record.
+		"staff_ids": []string{"9007199254740993"},
 	})
 
 	require.Equal(t, http.StatusCreated, rr.Code)
@@ -347,7 +349,7 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 	assert.Equal(t, roomID, service.lastSpontaneousInput.RoomID)
 	require.NotNil(t, service.lastSpontaneousInput.ActivityGroupID)
 	assert.Equal(t, int64(71), *service.lastSpontaneousInput.ActivityGroupID)
-	assert.Equal(t, []int64{321, 320}, service.lastSpontaneousInput.StaffIDs)
+	assert.Equal(t, []int64{9007199254740993, 320}, service.lastSpontaneousInput.StaffIDs)
 	assert.Equal(t, calendar.NewDate(2026, 5, 11), service.lastSpontaneousInput.Date)
 	assert.Equal(t, "14:00", service.lastSpontaneousInput.StartTime.Format("15:04"))
 	assert.Equal(t, "15:00", service.lastSpontaneousInput.EndTime.Format("15:04"))
@@ -384,7 +386,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 	}
 	res := NewResource(Dependencies{
 		InstanceService:   instanceSvc,
-		OperationsService: newRealSpontaneousOpsService(t, instanceSvc, userstest.StaffAccount(224, 324), settings),
+		OperationsService: newRealSpontaneousOpsService(t, instanceSvc, testpkg.StaffAccountPeople{PersonID: 224, StaffID: 324}, settings),
 		TimetableData:     operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		People:            staffAccountPeople(224, 324),
 		SettingsService:   settings,
@@ -938,6 +940,7 @@ type fakeOperationsService struct {
 	lastInstanceID       int64
 	lastActiveGroupID    int64
 	lastStudentID        int64
+	lastStudentIDs       []int64
 	lastPatch            timetable.AttendancePatch
 	lastSpontaneousInput *timetable.SpontaneousStart
 }
@@ -1137,7 +1140,7 @@ func (testOperationLifecycle) Reopen(context.Context, int64, int64, bool) (*time
 // newRealSpontaneousOpsService wires the Timetable owner's real operational
 // day so the handler exercises the real CreateAndStartSpontaneous (Create +
 // Start + MarkRollback), not a fake.
-func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLifecycleCapability, personSvc *userstest.PersonServiceMock, settings *fakeOperationSettingsService) timetable.OperationCapability {
+func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLifecycleCapability, personSvc timetableCompose.OperationPeople, settings *fakeOperationSettingsService) timetable.OperationCapability {
 	t.Helper()
 	operations, err := timetableCompose.NewOperations(timetableCompose.OperationDependencies{
 		Instances:            stubOpInstances{},
@@ -1286,6 +1289,14 @@ func (s *fakeOperationsService) CheckInStudent(_ context.Context, accountID int6
 	return s.roster, s.err
 }
 
+func (s *fakeOperationsService) CheckInStudents(_ context.Context, accountID int64, isAdmin bool, instanceID int64, studentIDs []int64) (*timetable.OperationRoster, error) {
+	s.lastAccountID = accountID
+	s.lastIsAdmin = isAdmin
+	s.lastInstanceID = instanceID
+	s.lastStudentIDs = studentIDs
+	return s.roster, s.err
+}
+
 func (s *fakeOperationsService) CheckOutStudent(_ context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*timetable.OperationRoster, error) {
 	s.lastAccountID = accountID
 	s.lastIsAdmin = isAdmin
@@ -1355,7 +1366,7 @@ func executeOperationRequest(tb testing.TB, router chi.Router, method, path stri
 func TestSpontaneousStartWorkdayWindow_RejectsWeekend(t *testing.T) {
 	t.Parallel()
 
-	_, err := spontaneousStartWorkdayWindow(time.Date(2026, time.May, 9, 14, 0, 0, 0, calendar.Berlin))
+	_, err := spontaneousStartWorkdayWindow(context.Background(), time.Date(2026, time.May, 9, 14, 0, 0, 0, calendar.Berlin))
 	require.ErrorIs(t, err, errTimetableWeekend)
 }
 
@@ -1419,4 +1430,24 @@ func TestOperationsCheckInRoomCapacityWire(t *testing.T) {
 	assert.Equal(t, "Turnhalle", details["room_name"])
 	assert.Equal(t, float64(30), details["max_capacity"])
 	assert.Equal(t, float64(1), details["incoming_students"])
+}
+
+// A school whose weekend follows Friday's plan (#3921) plans and starts on
+// Saturday; a failed read of the setting is no weekend refusal.
+func TestValidateTimetableWorkday_WeekendFollowsFriday(t *testing.T) {
+	t.Parallel()
+
+	saturday := calendar.Date("2026-05-09")
+	following := func(follows bool, err error) context.Context {
+		return calendar.WithWeekendPlan(context.Background(), func(context.Context) (bool, error) { return follows, err })
+	}
+	require.NoError(t, validateTimetableWorkday(following(true, nil), saturday))
+	require.ErrorIs(t, validateTimetableWorkday(following(false, nil), saturday), errTimetableWeekend)
+	boom := errors.New("settings unavailable")
+	err := validateTimetableWorkday(following(true, boom), saturday)
+	require.ErrorIs(t, err, boom)
+	require.NotErrorIs(t, err, errTimetableWeekend)
+
+	_, err = spontaneousStartWorkdayWindow(following(true, nil), time.Date(2026, time.May, 9, 14, 0, 0, 0, calendar.Berlin))
+	require.NoError(t, err)
 }

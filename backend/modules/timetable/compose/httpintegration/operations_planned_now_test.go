@@ -526,3 +526,40 @@ func TestTimetableOperationsActiveSessions(t *testing.T) {
 	assert.Equal(t, "12:45", sessions[0].StartTime)
 	assert.Equal(t, "13:45", sessions[0].EndTime)
 }
+
+// "X von Y da" reads the children still there of the block's own children
+// (#3921): a child who left is no longer there, and a walk-in is there but
+// was never planned. Present keeps its old meaning for the other readers.
+func TestTimetableOperationsPlannedNowCountsChildrenStillThere(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 11, 14, 0, 0, 0, time.UTC)
+	assignedID := int64(213)
+	instanceID := int64(341)
+	deps := newTimetableOpsDeps()
+	deps.personService.accountPerson = &usersModels.Person{}
+	deps.personService.accountPerson.ID = 412
+	deps.personService.staffByPersonID[412] = &usersModels.Staff{}
+	deps.personService.staffByPersonID[412].ID = assignedID
+	inst := instanceWithTimes(instanceID, scheduleModels.InstanceStatusPlanned, now.Add(-time.Hour), now.Add(time.Hour))
+	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{inst}
+	deps.staffRepo.byInstance[instanceID] = []*scheduleModels.InstanceStaff{{StaffID: assignedID}}
+	checkedIn := now.Add(-50 * time.Minute)
+	left := now.Add(-10 * time.Minute)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{
+		{StudentID: 530, Status: scheduleModels.AttendanceStatusExpected},
+		{StudentID: 531, Status: scheduleModels.AttendanceStatusPresent, CheckedInAt: &checkedIn},
+		{StudentID: 532, Status: scheduleModels.AttendanceStatusPresent, CheckedInAt: &checkedIn, CheckedOutAt: &left},
+		{StudentID: 533, Status: scheduleModels.AttendanceStatusPresent, CheckedInAt: &checkedIn, IsUnplanned: true},
+		{StudentID: 534, Status: scheduleModels.AttendanceStatusAbsent},
+	}
+
+	result, err := deps.service.PlannedNow(context.Background(), 612, false, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{})
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, 2, result[0].CurrentStudentsCount, "the planned child and the walk-in are still there")
+	assert.Equal(t, 3, result[0].PlannedStudentsCount, "expected and arrived planned children, no walk-in, no absence")
+	assert.Equal(t, 3, result[0].PresentStudentsCount, "present keeps everyone who came")
+	assert.Equal(t, 1, result[0].ExpectedStudentsCount)
+	assert.False(t, result[0].IsSpontaneous)
+}

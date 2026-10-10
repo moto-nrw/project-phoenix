@@ -177,6 +177,32 @@ func TestFixedSeeder_SeedStaff_MissingPerson(t *testing.T) {
 	assert.Contains(t, err.Error(), "person not found")
 }
 
+// The real POST /api/staff sends the staff id as a quoted decimal string.
+func TestFixedSeeder_SeedStaff_StringStaffID(t *testing.T) {
+	t.Parallel()
+
+	created := int64(0)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		require.Equal(t, "/api/staff", r.URL.Path)
+		created++
+		_, _ = fmt.Fprintf(w, `{"status":"success","data":{"id":"%d","teacher_id":%d}}`, 9007199254740993+created, created)
+	})
+	defer srv.Close()
+
+	client := newTestClient(srv.URL, false)
+	client.token = "test-token"
+	fs := NewFixedSeeder(client, false, "")
+	for _, staff := range DemoStaff {
+		key := fmt.Sprintf("%s %s", staff.FirstName, staff.LastName)
+		fs.personIDs[key] = int64(len(fs.personIDs) + 1)
+	}
+
+	require.NoError(t, fs.seedStaff(context.TODO(), &FixedResult{}))
+	first := fmt.Sprintf("%s %s", DemoStaff[0].FirstName, DemoStaff[0].LastName)
+	assert.Equal(t, int64(9007199254740994), fs.staffIDs[first])
+}
+
 func TestFixedSeeder_SeedGroups(t *testing.T) {
 	t.Parallel()
 
@@ -892,8 +918,8 @@ func TestFixedSeeder_SeedPickupSchedules(t *testing.T) {
 	result := &FixedResult{}
 	err := fs.seedPickupSchedules(context.TODO(), result)
 	require.NoError(t, err)
-	// Every other student (odd indices) gets a schedule: 100/2 = 50
-	assert.Equal(t, 50, result.PickupScheduleCount)
+	// Every student but each tenth one gets a Gehzeit (#3922): 100 - 10 = 90
+	assert.Equal(t, 90, result.PickupScheduleCount)
 }
 
 func TestFixedSeeder_SeedPickupSchedules_EmptyStudents(t *testing.T) {

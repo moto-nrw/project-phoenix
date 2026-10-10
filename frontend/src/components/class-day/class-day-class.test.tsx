@@ -148,6 +148,30 @@ describe("ClassDayClass", () => {
     },
   );
 
+  it("loads the weekend like a school day when it follows Friday's plan (#3921)", async () => {
+    setTestClock(new Date("2026-09-05T12:00:00+02:00"));
+    const fetchClassDay = vi.fn(() => Promise.resolve(report()));
+
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={fetchClassDay}
+        fetchClasses={() =>
+          Promise.resolve({
+            classes: ["4a"],
+            can_write_arrival_exception: false,
+            weekend_follows_friday: true,
+          })
+        }
+      />,
+    );
+
+    await waitFor(() =>
+      expect(fetchClassDay).toHaveBeenCalledWith("4a", "2026-09-05"),
+    );
+    expect(screen.queryByText("Kein Schultag")).not.toBeInTheDocument();
+  });
+
   it("shows the class-wide exception line even without write access", async () => {
     render(
       <ClassDayClass

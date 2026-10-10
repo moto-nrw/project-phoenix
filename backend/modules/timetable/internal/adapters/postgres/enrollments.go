@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	enrollmentprovenance "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -44,7 +46,11 @@ func (s *Store) ListStudentEnrollments(ctx context.Context, filter domain.Studen
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []studentEnrollmentRow{}
-	query := filterStudentEnrollments(studentEnrollmentSelect(db, &rows, tenantID), filter)
+	weekday, err := activeOnPlanWeekday(ctx, filter.ActiveOn)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	query := filterStudentEnrollments(studentEnrollmentSelect(db, &rows, tenantID), filter, weekday)
 	stats, err := scanAll(ctx, query, "list student enrollments")
 	if err != nil {
 		return nil, stats, err
@@ -57,7 +63,21 @@ func (s *Store) ListStudentEnrollments(ctx context.Context, filter domain.Studen
 	return result, stats, nil
 }
 
-func filterStudentEnrollments(query *bun.SelectQuery, filter domain.StudentEnrollmentFilter) *bun.SelectQuery {
+// activeOnPlanWeekday is the weekday whose weekday-scoped enrollments count
+// on filter.ActiveOn: Friday for a weekend that follows Friday's plan (#3921).
+// Zero without ActiveOn.
+func activeOnPlanWeekday(ctx context.Context, activeOn *string) (int, error) {
+	if activeOn == nil {
+		return 0, nil
+	}
+	date, err := calendar.ParseDate(*activeOn)
+	if err != nil {
+		return 0, fmt.Errorf("list student enrollments: active-on date: %w", err)
+	}
+	return calendar.PlanWeekday(ctx, date)
+}
+
+func filterStudentEnrollments(query *bun.SelectQuery, filter domain.StudentEnrollmentFilter, activeOnWeekday int) *bun.SelectQuery {
 	if len(filter.StudentIDs) > 0 {
 		query = query.Where(`"student_enrollment".student_id IN (?)`, bun.List(filter.StudentIDs))
 	}
@@ -65,7 +85,7 @@ func filterStudentEnrollments(query *bun.SelectQuery, filter domain.StudentEnrol
 		query = query.Where(`"student_enrollment".activity_group_id IN (?)`, bun.List(filter.ActivityGroupIDs))
 	}
 	if filter.ActiveOn != nil {
-		query = activeStudentEnrollmentQuery(query, *filter.ActiveOn)
+		query = activeStudentEnrollmentQuery(query, *filter.ActiveOn, activeOnWeekday)
 	}
 	if filter.OrderByGroupName {
 		query = query.Join(`LEFT JOIN activities.groups AS "activity_group" ON "activity_group".tenant_id = "student_enrollment".tenant_id AND "activity_group".id = "student_enrollment".activity_group_id`).OrderExpr(`"student_enrollment".student_id ASC, "activity_group".name ASC`)
@@ -73,15 +93,15 @@ func filterStudentEnrollments(query *bun.SelectQuery, filter domain.StudentEnrol
 		query = query.OrderExpr(`"student_enrollment".valid_from DESC`)
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit).Offset(filter.Offset)
+		query = query.Limit(int64(filter.Limit)).Offset(int64(filter.Offset))
 	}
 	return query
 }
 
-func activeStudentEnrollmentQuery(query *bun.SelectQuery, onDate string) *bun.SelectQuery {
+func activeStudentEnrollmentQuery(query *bun.SelectQuery, onDate string, weekday int) *bun.SelectQuery {
 	return query.Where(`"student_enrollment".valid_from <= ?`, onDate).
 		Where(`("student_enrollment".valid_until IS NULL OR "student_enrollment".valid_until > ?)`, onDate).
-		Where(`("student_enrollment".weekday IS NULL OR "student_enrollment".weekday = EXTRACT(ISODOW FROM CAST(? AS DATE))::INT)`, onDate)
+		Where(`("student_enrollment".weekday IS NULL OR "student_enrollment".weekday = ?)`, weekday)
 }
 
 func (s *Store) CreateStudentEnrollment(ctx context.Context, fields domain.StudentEnrollmentFields) (domain.StudentEnrollment, domain.OperationStats, error) {

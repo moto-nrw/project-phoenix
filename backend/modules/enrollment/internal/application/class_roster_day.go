@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
@@ -48,10 +47,15 @@ func (s *Reports) ClassRosterDay(ctx context.Context, schoolClass string, date c
 	if err != nil {
 		return nil, err
 	}
+	// A weekend that follows Friday's plan reads Friday's day plans (#3921).
+	planWeekday, err := calendar.PlanWeekday(ctx, date)
+	if err != nil {
+		return nil, fmt.Errorf("class day report: resolve weekend plan: %w", err)
+	}
 	out := &enrollment.ClassRosterDay{
 		PhaseNames: make([]string, 0, len(phases)),
 		Rows:       rows,
-		Students:   classDayStudents(students, classDayWeekdayKey(date)),
+		Students:   classDayStudents(students, classDayKeyOf(planWeekday)),
 	}
 	for _, phase := range phases {
 		out.PhaseNames = append(out.PhaseNames, phase.name)
@@ -246,19 +250,19 @@ func appendMissingStrings(base []string, add []string) []string {
 	return base
 }
 
-// classDayWeekdayKey maps a calendar date onto the report day keys ("mon"
-// .."fri"). Weekend dates return "".
-func classDayWeekdayKey(date calendar.Date) string {
-	switch date.Weekday() {
-	case time.Monday:
+// classDayKeyOf maps an ISO weekday onto the report day keys ("mon"
+// .."fri"). Weekend weekdays return "".
+func classDayKeyOf(isoWeekday int) string {
+	switch isoWeekday {
+	case 1:
 		return "mon"
-	case time.Tuesday:
+	case 2:
 		return "tue"
-	case time.Wednesday:
+	case 3:
 		return "wed"
-	case time.Thursday:
+	case 4:
 		return "thu"
-	case time.Friday:
+	case 5:
 		return "fri"
 	default:
 		return ""

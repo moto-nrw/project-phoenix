@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -64,7 +63,7 @@ type Dependencies struct {
 	// session and attendance transitions.
 	Active studentpresence.Presence
 	// Users is the retained people service the cards resolve through.
-	Users usersSvc.PersonService
+	Users PersonDirectory
 	// Activities is the retained activity catalog the special rooms
 	// provision from.
 	Activities activitiesSvc.ActivityService

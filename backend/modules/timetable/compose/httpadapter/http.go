@@ -8,9 +8,9 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	users "github.com/moto-nrw/project-phoenix/models/users"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
 
@@ -23,18 +23,26 @@ type CallerContext interface {
 	CurrentPersonName(ctx context.Context) (firstName, lastName string, err error)
 }
 
+// SupervisorDirectory is the People Directory read port of the supervisor
+// routes: teachers by specialization and the staff behind them.
+type SupervisorDirectory interface {
+	GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*users.Teacher, error)
+	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*users.Staff, error)
+	ListStaffWithPerson(ctx context.Context) ([]*users.Staff, error)
+}
+
 // Resource defines the activities API resource
 type Resource struct {
 	ActivityService activitiesSvc.ActivityService
 	// Timeframes serves the time-span reads from the Timetable owner.
 	Timeframes         timetableModule.TimeframeQuery
-	UserService        usersSvc.PersonService
+	UserService        SupervisorDirectory
 	UserContextService CallerContext
 	db                 *bun.DB
 }
 
 // NewResource creates a new activities resource
-func NewResource(activityService activitiesSvc.ActivityService, timeframes timetableModule.TimeframeQuery, userService usersSvc.PersonService, userContextService CallerContext, db *bun.DB) *Resource {
+func NewResource(activityService activitiesSvc.ActivityService, timeframes timetableModule.TimeframeQuery, userService SupervisorDirectory, userContextService CallerContext, db *bun.DB) *Resource {
 	return &Resource{
 		ActivityService:    activityService,
 		Timeframes:         timeframes,

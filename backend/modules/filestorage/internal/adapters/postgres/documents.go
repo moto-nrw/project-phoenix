@@ -312,7 +312,7 @@ func (s *DocumentStore[R]) CountByOwner(ctx context.Context, ownerID int64) (int
 	if err != nil {
 		return 0, stats, fmt.Errorf("file storage postgres: count %s: %w", s.table.name, err)
 	}
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 // TotalStoredBytes sums every document whose bytes still occupy the storage

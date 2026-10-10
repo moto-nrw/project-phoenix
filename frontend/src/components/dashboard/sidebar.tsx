@@ -30,6 +30,7 @@ import { useOptionalSupervision } from "~/lib/supervision-context";
 import type { SupervisedRoom } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { isDemoBannerShown } from "~/components/demo/demo-banner";
+import { useDemoEveningActive } from "~/components/demo/demo-evening-notice";
 import {
   hasEffectiveAdminScope,
   hasPermission,
@@ -544,10 +545,17 @@ function asideClasses(collapsed: boolean, className: string): string {
 // dieselbe Höhe mitwandern, sonst schiebt sich die Kopfzeile beim Scrollen
 // über ihre obersten Einträge. Der Streifen der öffentlichen Demo (#3467)
 // hat dieselbe Höhe.
-function stickyClasses(collapsed: boolean, stripActive: boolean): string {
-  const offset = stripActive
-    ? "top-[105px] h-[calc(100vh-105px)]"
-    : "top-[57px] h-[calc(100vh-57px)]";
+// Abends kommt unter dem Demo-Streifen eine Hinweiszeile dazu (h-8, #3921).
+function stickyClasses(
+  collapsed: boolean,
+  stripActive: boolean,
+  eveningRow = false,
+): string {
+  const offset = eveningRow
+    ? "top-[137px] h-[calc(100vh-137px)]"
+    : stripActive
+      ? "top-[105px] h-[calc(100vh-105px)]"
+      : "top-[57px] h-[calc(100vh-57px)]";
   return `sticky ${offset} flex flex-col ${
     collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
   } ${SIDEBAR_WIDTH_TRANSITION}`;
@@ -583,6 +591,7 @@ function SidebarContent({
   const { data: session } = useSession();
   const { mode, isPreview } = useShellAuth();
   const demoBannerShown = isDemoBannerShown({ mode, isPreview });
+  const eveningRow = useDemoEveningActive() && demoBannerShown;
   const changeRequestAccess = useChangeRequestAccess();
   // Compare every active state against clean tenant-internal paths. The helper
   // only strips in path-routing mode, avoiding slug/route collisions on tenant
@@ -1452,6 +1461,7 @@ function SidebarContent({
           className={stickyClasses(
             collapsed,
             isPreview === true || demoBannerShown,
+            eveningRow,
           )}
         >
           <nav
@@ -1883,6 +1893,7 @@ function SidebarContent({
         className={stickyClasses(
           collapsed,
           isPreview === true || demoBannerShown,
+          eveningRow,
         )}
       >
         {/* Main navigation, scrollable.

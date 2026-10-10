@@ -58,6 +58,7 @@ export const nodeLogicTestFiles = [
   "src/lib/auth-utils.test.ts",
   "src/lib/backend-proxy-response.server.test.ts",
   "src/lib/birthdays-api.server.test.ts",
+  "src/lib/block-children.test.ts",
   "src/lib/calendar-period-helpers.test.ts",
   "src/lib/care-offering-availability.test.ts",
   "src/lib/category-api.test.ts",
@@ -163,6 +164,7 @@ export const nodeLogicTestFiles = [
   "src/lib/utils/date-helpers.test.ts",
   "src/server/auth/route-handler-coverage.test.ts",
   "src/server/auth/route-handler.test.ts",
+  "src/server/node-header-limit.test.ts",
   "src/styles/moto-token-drift.test.ts",
   "src/test/phosphor-imports-plugin.test.ts",
 ];
