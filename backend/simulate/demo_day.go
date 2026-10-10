@@ -444,9 +444,15 @@ func ptr(value string) *string { return &value }
 // with children uses at the time, is left out. It reports whether it
 // planned any.
 func (day *demoDay) planActivities(client Client, activities []demoActivity, studentIDs []int64) bool {
-	planned := map[int64]bool{}
+	// An AG counts as planned when a block of that activity, or a block of
+	// the same name from the school's own timetable, is still to come or runs.
+	planned, titled := map[int64]bool{}, map[string]bool{}
 	for _, block := range day.blocks {
-		if !block.IsSpontaneous && block.ActivityGroupID != nil && (block.Status == "planned" || block.Status == "active") {
+		if block.IsSpontaneous || (block.Status != "planned" && block.Status != "active") {
+			continue
+		}
+		titled[block.Title] = true
+		if block.ActivityGroupID != nil {
 			planned[*block.ActivityGroupID] = true
 		}
 	}
@@ -464,7 +470,7 @@ func (day *demoDay) planActivities(client Client, activities []demoActivity, stu
 	created, placed := false, 0
 	next := [2]int{}
 	for _, activity := range activities {
-		if planned[activity.id] {
+		if planned[activity.id] || titled[activity.name] {
 			continue
 		}
 		// The waves alternate over the AGs that get a block, so a skipped AG

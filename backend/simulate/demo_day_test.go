@@ -291,6 +291,19 @@ func TestDemoDayPlansTheActivitiesInTheAfternoon(t *testing.T) {
 	assert.Empty(t, client.created, "the activities are planned once")
 }
 
+func TestDemoDaySkipsActivitiesTheTimetableAlreadyHas(t *testing.T) {
+	t.Parallel()
+	own := plannedBlock(1, "14:00", "15:00", 8, 11)
+	own.Title = "Basteln"
+	client := newDemoDayClient(plannedBlock(2, "07:30", "08:30", 6, 11), own)
+	client.arrivals[11] = "11:45"
+	var day demoDay
+	_, err := day.sync(client, demoDayAt(t, "10:00"), []int64{11}, demoDayActivities[:2])
+	require.NoError(t, err)
+	require.Len(t, client.created, 1, "Basteln is in the school's own timetable today")
+	assert.Equal(t, "Fußball", client.created[0]["title"])
+}
+
 func TestDemoDayPlansTheActivitiesAroundAMovedAfternoon(t *testing.T) {
 	t.Parallel()
 	client := newDemoDayClient(plannedBlock(1, "13:00", "14:00", 7, 11))
