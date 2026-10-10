@@ -25,7 +25,7 @@ that.
 
 ## Dashboards (#3604)
 
-`scripts/posthog-dashboards.mjs` creates and updates the five dashboards; how
+`scripts/posthog-dashboards.mjs` creates and updates the dashboards; how
 to add one is in `.claude/rules/usage-analytics.md`. The script needs a
 personal API key in `POSTHOG_PERSONAL_API_KEY`, kept in the local
 environment only (for example `~/.config/project-phoenix/local.env`), scoped
@@ -39,6 +39,11 @@ to the project with `query:read`, `insight:read`, `insight:write`,
 | Seiten (meistbesucht, kaum genutzt) | `moto-app.de` | <https://eu.posthog.com/project/140838/dashboard/972370> |
 | Reibung (Dead und Rage Clicks, Heatmaps) | `moto-app.de` and `demo`, separate tables | <https://eu.posthog.com/project/140838/dashboard/972371> |
 | Aktive Schulen | `moto-app.de` | <https://eu.posthog.com/project/140838/dashboard/972372> |
+| Funktionen in Schulen (Reichweite, je Schule, nach Rolle, pro Woche) | `moto-app.de` | <https://eu.posthog.com/project/140838/dashboard/1003811> |
+| Demo-Verhalten (letzte Seite, Sitzungstiefe, Funktionen, Aktionen) | `demo` | <https://eu.posthog.com/project/140838/dashboard/1003812> |
+
+The feature areas (Funktionsbereiche) are `FEATURES` in the script; the test
+fails for a route template without an area, so a new page needs one.
 
 The demo funnel starts with the link request (`demo_link_requested` from the
 backend). The click on „Demo starten" before it happens on the website,
