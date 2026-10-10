@@ -10,7 +10,7 @@ import (
 // GuardianProfileResponse is the autofill payload for the parent enrollment
 // form: the guardian's account info plus their linked students, so the form
 // can prefill guardian fields and offer one-click child reuse. Shared by the
-// public tenant route (api/enrollment) and the parents-portal route
+// public tenant route (modules/enrollment/http) and the parents-portal route
 // (api/parent), which must emit the identical wire shape for the same
 // EnrollmentForm component.
 type GuardianProfileResponse struct {

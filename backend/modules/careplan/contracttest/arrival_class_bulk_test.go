@@ -64,7 +64,7 @@ func TestBulkUpsertBySchoolClassWritesTheClassTimetable(t *testing.T) {
 	assert.Equal(t, 2, result.StudentsAffected)
 
 	t.Run("the class carries the time exactly once", func(t *testing.T) {
-		rows := testpkg.ClassArrivalTimesOf(t, db, "7c")
+		rows := testpkg.ClassArrivalTimesOf(t, timetableClassArrivals(t, db), "7c")
 		require.Len(t, rows, 1)
 		assert.Equal(t, "11:45", rows[0].ArrivalTimes["mon"])
 	})

@@ -5,9 +5,8 @@ import (
 	"errors"
 	"sort"
 
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -73,7 +72,7 @@ func (s *substitutionModule) withExternalTargets(ctx context.Context, caregivers
 
 // findAndLockSupervisionTarget resolves an additional supervisor: an active
 // caregiver or, when the directory is wired, an external caregiver.
-func (s *substitutionModule) findAndLockSupervisionTarget(ctx context.Context, staffID int64) (*educationModels.Caregiver, bool, error) {
+func (s *substitutionModule) findAndLockSupervisionTarget(ctx context.Context, staffID int64) (*domain.Caregiver, bool, error) {
 	target, err := s.findAndLockTarget(ctx, staffID)
 	if !errors.Is(err, ErrNotFound) || s.deps.ExternalCaregivers == nil {
 		return target, false, err
@@ -232,7 +231,7 @@ func (s *substitutionModule) assignAdditionalSupervisionLocked(
 	access substitutionAccess,
 	broad bool,
 	request *AdditionalSupervisionAssignment,
-) (*studentpresence.GroupSupervision, *educationModels.Caregiver, error) {
+) (*studentpresence.GroupSupervision, *domain.Caregiver, error) {
 	group, err := s.lockAssignableSupervision(ctx, caller, access, broad, request)
 	if err != nil {
 		return nil, nil, err
@@ -289,9 +288,9 @@ func (s *substitutionModule) lockAssignableSupervision(
 	return group, nil
 }
 
-func additionalSupervisionAudit(row *studentpresence.GroupSupervision, actorID int64) educationModels.SubstitutionChange {
-	return educationModels.SubstitutionChange{
-		SubstitutionID: row.ID, TargetType: string(TargetAdditionalSupervision), Action: educationModels.SubstitutionAssigned,
+func additionalSupervisionAudit(row *studentpresence.GroupSupervision, actorID int64) domain.SubstitutionChange {
+	return domain.SubstitutionChange{
+		SubstitutionID: row.ID, TargetType: string(TargetAdditionalSupervision), Action: domain.SubstitutionAssigned,
 		GroupID: row.GroupID, TargetStaffID: row.StaffID, ActorAccountID: actorID,
 		StartDate: calendar.Date(row.StartDate),
 	}

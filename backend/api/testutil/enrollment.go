@@ -15,6 +15,12 @@ func NewEnrollmentOwner() services.EnrollmentBookingFixture {
 	return services.NewEnrollmentBookingFixture()
 }
 
+// NewEnrollmentGuardianAutofill is the enrollment form's autofill reader as
+// the root binds it over the retained guardian profile store (#2734).
+func NewEnrollmentGuardianAutofill(db *bun.DB) services.EnrollmentGuardianAutofill {
+	return services.NewEnrollmentGuardianAutofillSuite(db)
+}
+
 // NewApprovedOfferingProjection wires the same owner projection used by the
 // server while keeping composition out of individual API test packages.
 func NewApprovedOfferingProjection(db *bun.DB, selections services.ApprovedSelectionTestReader) (*services.ApprovedOfferingTestProjection, error) {

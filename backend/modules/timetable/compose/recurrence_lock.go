@@ -17,7 +17,7 @@ import (
 // (timetable.RecurrenceWriteLock). The gate takes transaction-scoped
 // advisory locks on the caller's transaction over DB. GradeTransitionLockKey
 // is School Structure's grade-transition gate key
-// (education.TenantTransitionsLockKey), which this gate takes second.
+// (schoolstructure.TransitionsLockKey), which this gate takes second.
 type RecurrenceLockDependencies struct {
 	DB                     *bun.DB
 	GradeTransitionLockKey func(tenantID int64) string

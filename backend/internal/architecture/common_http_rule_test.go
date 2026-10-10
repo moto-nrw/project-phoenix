@@ -30,7 +30,7 @@ func TestCommonHTTPEpochGrantsOnlyTheNamedContracts(t *testing.T) {
 	for _, rule := range []Rule{
 		{ID: "common.application", Description: "test", SourceOwner: "inbound-common", SourceRole: "http", TargetOwner: "security-runtime", TargetRole: "application", Scopes: []string{"production"}},
 		{ID: "common.orm", Description: "test", SourceOwner: "inbound-common", SourceRole: "http", TargetClass: "orm-sql", Scopes: []string{"production"}},
-		{ID: "other.http", Description: "test", SourceOwner: "inbound-enrollment", SourceRole: "http", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{"production"}},
+		{ID: "other.http", Description: "test", SourceOwner: "inbound-mealplan", SourceRole: "http", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{"production"}},
 		{ID: "common.models", Description: "test", SourceOwner: "inbound-common", SourceRole: "http", TargetOwner: "people-directory", TargetRole: "domain", Scopes: []string{"production"}},
 	} {
 		candidate := repositoryPolicy(t)

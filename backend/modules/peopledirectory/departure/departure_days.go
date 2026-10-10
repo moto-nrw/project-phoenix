@@ -34,7 +34,7 @@ var validDepartureModes = map[DepartureMode]bool{
 // chat/diff and other parent-facing surfaces ("Fährt Bus" / "Wird abgeholt" /
 // "Geht alleine"). It is the single source of truth for this wording so the
 // parent messaging diff and any other consumer cannot drift. (Staff CSV exports
-// use their own mid-sentence lowercase phrasing in api/enrollment, which is a
+// use their own mid-sentence lowercase phrasing in modules/enrollment/http, which is a
 // deliberately different register.)
 func (m DepartureMode) GermanLabel() string {
 	switch m {

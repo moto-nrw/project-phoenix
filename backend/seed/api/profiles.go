@@ -26,6 +26,7 @@ const (
 	profileSettingDevicePIN             = "security.ogs_device_pin"
 	profileSettingStudentPhotos         = "operations.student_photos_enabled"
 	profileSettingWeekendFollowsFriday  = "operations.weekend_follows_friday"
+	profileSettingBirthdayIncludeStaff  = "operations.birthday_display_include_staff"
 	profilePresenceDetailed             = "detailed"
 	profilePresenceBinary               = "binary"
 	profileGroupModeFixed               = "fixed_groups"
@@ -107,6 +108,9 @@ func fullOperationSettings() map[string]SeedSetting {
 		profileSettingWeekendFollowsFriday: {
 			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByOperator,
 		},
+		// The birthday card shows a colleague next to the children (#3922);
+		// the seed gives one a birthday on the seed day.
+		profileSettingBirthdayIncludeStaff: {Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant},
 	}
 }
 

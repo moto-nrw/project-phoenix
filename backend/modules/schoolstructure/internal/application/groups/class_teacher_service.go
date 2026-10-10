@@ -2,11 +2,13 @@ package groups
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 // requireStaff resolves the staff existence check shared by both class
@@ -31,16 +33,40 @@ func (s *service) GetStaffSchoolClasses(ctx context.Context, staffID int64) ([]s
 		return nil, err
 	}
 
-	assignments, err := s.classTeacherRepo.FindByStaff(ctx, staffID)
+	assignments, err := s.staffClassAssignments(ctx, "GetStaffSchoolClasses", staffID)
 	if err != nil {
-		return nil, &EducationError{Op: "GetStaffSchoolClasses", Err: err}
+		return nil, err
 	}
+	return classesInClassOrder(assignments), nil
+}
 
-	classes := make([]string, 0, len(assignments))
-	for _, assignment := range assignments {
-		classes = append(classes, assignment.SchoolClass)
+// staffClassAssignments reads the staff member's class assignments, each
+// assignment ID with its class as entered.
+func (s *service) staffClassAssignments(ctx context.Context, op string, staffID int64) (map[int64]string, error) {
+	assignments, err := s.classTeacherRepo.SchoolClassAssignmentsOfStaff(ctx, staffID)
+	if err != nil {
+		return nil, &EducationError{Op: op, Err: err}
 	}
-	return classes, nil
+	return assignments, nil
+}
+
+// classesInClassOrder lists the classes in class order: case- and
+// space-insensitive, ties in assignment order, as the store lists them.
+func classesInClassOrder(assignments map[int64]string) []string {
+	ids := slices.Collect(maps.Keys(assignments))
+	sort.Slice(ids, func(i, j int) bool {
+		a := strings.ToLower(strings.TrimSpace(assignments[ids[i]]))
+		b := strings.ToLower(strings.TrimSpace(assignments[ids[j]]))
+		if a != b {
+			return a < b
+		}
+		return ids[i] < ids[j]
+	})
+	classes := make([]string, 0, len(ids))
+	for _, id := range ids {
+		classes = append(classes, assignments[id])
+	}
+	return classes
 }
 
 // SetStaffSchoolClasses replaces the staff member's class assignments with
@@ -67,26 +93,25 @@ func (s *service) SetStaffSchoolClasses(ctx context.Context, staffID int64, clas
 		return &EducationError{Op: op, Err: err}
 	}
 
-	current, err := s.classTeacherRepo.FindByStaff(ctx, staffID)
+	current, err := s.staffClassAssignments(ctx, op, staffID)
 	if err != nil {
-		return &EducationError{Op: op, Err: err}
+		return err
 	}
 
-	// Snapshot the display strings BEFORE the diff loop: the in-place update
-	// below mutates the same rows `current` points at, and the audit must
+	// Snapshot the display strings BEFORE the diff loop: the audit must
 	// record what stood in the DB when the request arrived — a case-only
 	// rename would otherwise compare the new value against itself and skip
 	// the trail.
 	oldClasses := make([]string, 0, len(current))
-	for _, assignment := range current {
-		oldClasses = append(oldClasses, assignment.SchoolClass)
+	for _, schoolClass := range current {
+		oldClasses = append(oldClasses, schoolClass)
 	}
 
-	currentByKey, err := s.reconcileSchoolClasses(ctx, current, wanted)
+	currentKeys, err := s.reconcileSchoolClasses(ctx, staffID, current, wanted)
 	if err != nil {
 		return &EducationError{Op: op, Err: err}
 	}
-	if err := s.addSchoolClasses(ctx, staffID, currentByKey, wanted); err != nil {
+	if err := s.addSchoolClasses(ctx, staffID, currentKeys, wanted); err != nil {
 		return &EducationError{Op: op, Err: err}
 	}
 
@@ -125,7 +150,7 @@ func (s *service) auditSchoolClassChange(
 		return nil
 	}
 
-	return s.masterDataAudit.RecordSchoolClassChange(ctx, education.SchoolClassChange{
+	return s.masterDataAudit.RecordSchoolClassChange(ctx, domain.SchoolClassChange{
 		StaffID:   staffID,
 		ChangedBy: changedBy,
 		OldValue:  oldValue,
@@ -158,37 +183,34 @@ func dedupeSchoolClasses(classes []string) (map[string]string, error) {
 	return wanted, nil
 }
 
-func (s *service) reconcileSchoolClasses(ctx context.Context, current []*education.ClassTeacher, wanted map[string]string) (map[string]*education.ClassTeacher, error) {
-	currentByKey := make(map[string]*education.ClassTeacher, len(current))
-	for _, assignment := range current {
-		currentByKey[schoolclass.Normalize(assignment.SchoolClass)] = assignment
-	}
-
-	for key, assignment := range currentByKey {
+func (s *service) reconcileSchoolClasses(ctx context.Context, staffID int64, current map[int64]string, wanted map[string]string) (map[string]struct{}, error) {
+	currentKeys := make(map[string]struct{}, len(current))
+	for assignmentID, schoolClass := range current {
+		key := schoolclass.Normalize(schoolClass)
+		currentKeys[key] = struct{}{}
 		display, keep := wanted[key]
 		if !keep {
-			if err := s.classTeacherRepo.Delete(ctx, assignment.ID); err != nil {
+			if err := s.classTeacherRepo.RemoveSchoolClass(ctx, assignmentID); err != nil {
 				return nil, err
 			}
 			continue
 		}
-		if assignment.SchoolClass != display {
-			assignment.SchoolClass = display
-			if err := s.classTeacherRepo.Update(ctx, assignment); err != nil {
+		if schoolClass != display {
+			if err := s.classTeacherRepo.RenameSchoolClass(ctx, assignmentID, staffID, display); err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	return currentByKey, nil
+	return currentKeys, nil
 }
-func (s *service) addSchoolClasses(ctx context.Context, staffID int64, currentByKey map[string]*education.ClassTeacher, wanted map[string]string) error {
+
+func (s *service) addSchoolClasses(ctx context.Context, staffID int64, currentKeys map[string]struct{}, wanted map[string]string) error {
 	for key, display := range wanted {
-		if _, exists := currentByKey[key]; exists {
+		if _, exists := currentKeys[key]; exists {
 			continue
 		}
-		assignment := &education.ClassTeacher{StaffID: staffID, SchoolClass: display}
-		if err := s.classTeacherRepo.Create(ctx, assignment); err != nil {
+		if err := s.classTeacherRepo.AssignSchoolClass(ctx, staffID, display); err != nil {
 			return err
 		}
 	}

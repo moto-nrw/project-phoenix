@@ -169,7 +169,7 @@ func (s *materializationService) MaterializeForTenant(
 			return s.materializeForTenantInTransaction(ctx, tenantID, from, to, source)
 		}
 		// The recurrence gate, then the grade-transition gate, in that order
-		// (see education.TenantTransitionsLockKey — recurrence first,
+		// (see schoolstructure.TransitionsLockKey — recurrence first,
 		// transitions second, everywhere). expectedStudentIDsOn decides
 		// whether to insert a roster row from the student status this pass
 		// read; a grade transition committing its graduation and its

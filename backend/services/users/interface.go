@@ -8,11 +8,10 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// StudentWithGroup represents a student with their group information
-type StudentWithGroup struct {
-	Student   *userModels.Student `json:"student"`
-	GroupName string              `json:"group_name"`
-}
+// StudentWithGroup represents a student with their group information. It is
+// the repository row itself, so a consumer can name the result in its own
+// port without importing this package (#3771).
+type StudentWithGroup = userModels.StudentWithGroupInfo
 
 // PersonService defines the operations available in the person service layer
 type PersonService interface {

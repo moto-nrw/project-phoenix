@@ -75,14 +75,15 @@ import (
 // the roster maintenance after them, roughly halving the timetable tree.
 // Slice S3 (#3553) moved the deviation, substitution and sick-report writes,
 // the attendance correction and the attendance mirror. #3554 deleted the
-// legacy SQL test providers (timetablesqltest).
+// legacy SQL test providers (timetablesqltest). #3556 moved the group
+// substitution relations out of the workforce tree.
 // Re-measure the same way when a number needs to move — downwards.
 const moduleLegacyBudgetCheck = "legacy LOC budget"
 
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 19627
+const moduleLegacyBudgetTotal = 19568
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
@@ -98,16 +99,17 @@ var moduleLegacyBudgets = map[string]int{
 	// No ticket today. Two lines under the first seed: #3427 removed the
 	// carelifecycle import PR #3408 (#3350) had added to legacy.go, and #3501
 	// replaced the user-context service with a local CallerContext port.
-	"modules/grouplive/legacy": 580,
+	"modules/grouplive/legacy": 548,
 	// #3226 (auth/jwt + repositories move). The usercontext read side (#2725)
 	// dissolved into the Identity & Access caller context with #3501; its
 	// request memo slot stayed in the session adapter (legacy/jwt).
-	"modules/identityaccess/legacy": 1363,
+	"modules/identityaccess/legacy": 1359,
 	// No ticket today.
 	"modules/supervisiondashboard/legacy": 711,
 	// No ticket today — and the largest tree of the twelve.
-	// No ticket today — grew from 15,402 LOC at creation to this.
-	"modules/workforce/legacy": 15926,
+	// No ticket today — grew from 15,402 LOC at creation to this. #3556 moved
+	// the group substitution relations to the legacy root's binding.
+	"modules/workforce/legacy": 15903,
 	// No ticket today.
 }
 

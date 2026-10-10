@@ -33,7 +33,7 @@ func TestGroupSubstitutionRepository_Create(t *testing.T) {
 		startDate := calendar.TodayDate()
 		endDate := startDate.AddDays(7)
 
-		sub := &testpkg.EducationGroupSubstitution{
+		sub := &testutil.SchoolStructureSubstitutionRow{
 			TargetType:        testpkg.EducationGroupSubstitutionTypeGroupHandover,
 			GroupID:           group.ID,
 			SubstituteStaffID: substitute.ID,
@@ -174,10 +174,12 @@ func TestGroupSubstitutionRepository_Update(t *testing.T) {
 
 		startDate := calendar.TodayDate()
 		endDate := startDate.AddDays(7)
-		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
+		stored := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
+		sub, err := repo.FindByID(ctx, stored.ID)
+		require.NoError(t, err)
 
 		sub.Reason = "Updated reason"
-		err := repo.Update(ctx, sub)
+		err = repo.Update(ctx, sub)
 		require.NoError(t, err)
 
 		found, err := repo.FindByID(ctx, sub.ID)
@@ -315,7 +317,7 @@ func TestGroupSubstitutionRepository_Create_Validation(t *testing.T) {
 		substitute := testpkg.CreateTestStaff(t, db, "ValidationSub", "Staff")
 
 		today := calendar.TodayDate()
-		sub := &testpkg.EducationGroupSubstitution{
+		sub := &testutil.SchoolStructureSubstitutionRow{
 			TargetType:        testpkg.EducationGroupSubstitutionTypeGroupHandover,
 			GroupID:           group.ID,
 			SubstituteStaffID: substitute.ID,
@@ -398,7 +400,7 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 		startDate := today
 		endDate := today.AddDays(7)
 
-		sub := &testpkg.EducationGroupSubstitution{
+		sub := &testutil.SchoolStructureSubstitutionRow{
 			TargetType:        testpkg.EducationGroupSubstitutionTypeGroupHandover,
 			GroupID:           group.ID,
 			SubstituteStaffID: substitute.ID,

@@ -41,6 +41,7 @@ type FixedSeeder struct {
 	staffCredentials []StaffCredentials // created staff credentials for summary
 	accountScope     string             // slug all account emails and usernames carry; empty for the local seed
 	visitor          visitorName        // prospect of the public demo shown as one caregiver and one parent
+	seedDay          seedDate           // the day the seed started; birthdays are relative to it
 }
 
 // FixedResult contains counts of created entities
@@ -89,6 +90,7 @@ func NewFixedSeeder(client *Client, verbose bool, staffPassword string) *FixedSe
 		accountIDs:       make(map[string]int64),
 		guardianIDs:      make(map[string]int64),
 		staffCredentials: make([]StaffCredentials, 0),
+		seedDay:          todaySeedDate(),
 	}
 }
 
@@ -609,7 +611,7 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 			return fmt.Errorf("group not found for group key %s", student.GroupKey)
 		}
 
-		birthday := demoStudentBirthday(i, student)
+		birthday := demoStudentBirthday(i, student, s.seedDay)
 
 		body := map[string]any{
 			"first_name":   student.FirstName,
@@ -942,9 +944,12 @@ func (s *FixedSeeder) seedGuardianPayments(_ context.Context, result *FixedResul
 	return nil
 }
 
-// seedPickupSchedules creates weekly pickup schedules for students with "Wird abgeholt" status.
-// Uses a varied but deterministic pattern: different pickup times per weekday to simulate
-// realistic family schedules (e.g. earlier on Tuesdays due to extracurricular activities).
+// seedPickupSchedules creates the weekly Gehzeiten. Children with "Wird abgeholt"
+// status get a varied but deterministic pickup pattern: different times per weekday
+// to simulate realistic family schedules (e.g. earlier on Tuesdays due to
+// extracurricular activities). Children who go home alone get the time they leave,
+// except every tenth child, so "Gehzeit: –" stays the exception (#3922). One
+// pickup pattern runs until 17:00, so the pickup tile has entries late in the day.
 func (s *FixedSeeder) seedPickupSchedules(_ context.Context, result *FixedResult) error {
 	// Pickup time patterns (varies by student index for realistic diversity)
 	// Weekdays: 1=Montag, 2=Dienstag, 3=Mittwoch, 4=Donnerstag, 5=Freitag
@@ -955,13 +960,13 @@ func (s *FixedSeeder) seedPickupSchedules(_ context.Context, result *FixedResult
 	}
 
 	schedulePatterns := [][]weekdaySchedule{
-		// Pattern 0: Standard full-week pickup at 15:30
+		// Pattern 0: Late pickup, parents work long hours
 		{
-			{weekday: 1, pickupTime: "15:30"},
-			{weekday: 2, pickupTime: "15:30"},
-			{weekday: 3, pickupTime: "15:30"},
-			{weekday: 4, pickupTime: "15:30"},
-			{weekday: 5, pickupTime: "15:00", notes: "Freitag früher"},
+			{weekday: 1, pickupTime: "17:00", notes: "Eltern arbeiten länger"},
+			{weekday: 2, pickupTime: "17:00"},
+			{weekday: 3, pickupTime: "17:00"},
+			{weekday: 4, pickupTime: "17:00"},
+			{weekday: 5, pickupTime: "16:00", notes: "Freitag früher"},
 		},
 		// Pattern 1: Early Tuesday (Musikunterricht), standard otherwise
 		{
@@ -995,9 +1000,35 @@ func (s *FixedSeeder) seedPickupSchedules(_ context.Context, result *FixedResult
 		},
 	}
 
+	// Going home alone: the time the child leaves.
+	alonePatterns := [][]weekdaySchedule{
+		{
+			{weekday: 1, pickupTime: "15:00"},
+			{weekday: 2, pickupTime: "15:00"},
+			{weekday: 3, pickupTime: "15:00"},
+			{weekday: 4, pickupTime: "15:00"},
+			{weekday: 5, pickupTime: "14:30"},
+		},
+		{
+			{weekday: 1, pickupTime: "16:00"},
+			{weekday: 2, pickupTime: "16:00"},
+			{weekday: 3, pickupTime: "14:30", notes: "Schwimmen"},
+			{weekday: 4, pickupTime: "16:00"},
+			{weekday: 5, pickupTime: "15:00"},
+		},
+		{
+			{weekday: 1, pickupTime: "16:30"},
+			{weekday: 2, pickupTime: "16:30"},
+			{weekday: 3, pickupTime: "16:30"},
+			{weekday: 4, pickupTime: "16:30"},
+			{weekday: 5, pickupTime: "15:30"},
+		},
+	}
+
 	for i, student := range DemoStudents {
-		// Only seed schedules for students being picked up (every other student)
-		if i%2 == 0 {
+		// Odd children are picked up, even ones go home alone (seedStudents);
+		// every tenth child has no Gehzeit.
+		if i%10 == 0 {
 			continue
 		}
 
@@ -1007,6 +1038,9 @@ func (s *FixedSeeder) seedPickupSchedules(_ context.Context, result *FixedResult
 		}
 
 		pattern := schedulePatterns[i%len(schedulePatterns)]
+		if i%2 == 0 {
+			pattern = alonePatterns[(i/2)%len(alonePatterns)]
+		}
 
 		// Build schedules array
 		schedules := make([]map[string]any, 0, len(pattern))

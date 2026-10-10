@@ -4,14 +4,14 @@ package groups
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 // Service defines operations for managing educational groups and their relationships
 type Service interface {
 	// Group operations
-	CreateGroup(ctx context.Context, group *education.Group) error
-	UpdateGroup(ctx context.Context, group *education.Group) error
+	CreateGroup(ctx context.Context, group *domain.Group) error
+	UpdateGroup(ctx context.Context, group *domain.Group) error
 	DeleteGroup(ctx context.Context, id int64) error
 
 	// Group-Teacher operations
@@ -19,7 +19,7 @@ type Service interface {
 	UpdateGroupTeachers(ctx context.Context, groupID int64, teacherIDs []int64) error
 	GetGroupTeachers(ctx context.Context, groupID int64) ([]*Teacher, error)
 	GetTeachersForGroups(ctx context.Context, groupIDs []int64) (map[int64][]*Teacher, error)
-	GetTeacherGroups(ctx context.Context, teacherID int64) ([]*education.Group, error)
+	GetTeacherGroups(ctx context.Context, teacherID int64) ([]*domain.Group, error)
 
 	// Class-Teacher operations (#1772): staff-to-school-class assignments
 	// that scope the Lehrkraft day view. Classes are free-text strings

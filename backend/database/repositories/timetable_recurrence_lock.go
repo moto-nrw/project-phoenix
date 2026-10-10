@@ -6,8 +6,8 @@ import (
 	"github.com/uptrace/bun"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
@@ -22,7 +22,7 @@ func NewTimetableRecurrenceLock(db *bun.DB) (timetable.RecurrenceWriteLock, erro
 	}
 	return timetableCompose.NewRecurrenceWriteLock(timetableCompose.RecurrenceLockDependencies{
 		DB:                     db,
-		GradeTransitionLockKey: educationModels.TenantTransitionsLockKey,
+		GradeTransitionLockKey: schoolstructure.TransitionsLockKey,
 	})
 }
 

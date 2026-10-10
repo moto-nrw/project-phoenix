@@ -3,8 +3,8 @@ package compose
 import (
 	"context"
 
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 type DirectoryRoom = groups.DirectoryRoom
@@ -15,7 +15,7 @@ type GroupRoomLookup = groups.RoomDirectory
 type GroupRepositoryDependencies struct {
 	Rooms               func() GroupRoomLookup
 	TeachingAssignments func(context.Context, []int64, []int64) ([]TeacherGroupID, error)
-	SupervisingStaff    func(context.Context, GroupMembershipPairs) ([]educationModels.StaffGroupID, error)
+	SupervisingStaff    func(context.Context, GroupMembershipPairs) ([]domain.StaffGroupID, error)
 }
 
 // NewGroupRepository serves retained consumer-owned record ports from the

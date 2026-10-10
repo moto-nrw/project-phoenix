@@ -20,7 +20,7 @@ func TestClassTeacherRepository_Create(t *testing.T) {
 	t.Run("creates class assignment", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTCreate", "Staff")
 
-		ct := &testpkg.EducationClassTeacher{
+		ct := &testutil.SchoolStructureClassTeacher{
 			StaffID:     staff.ID,
 			SchoolClass: "1a",
 		}
@@ -36,7 +36,7 @@ func TestClassTeacherRepository_Create(t *testing.T) {
 
 		testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
 
-		dupe := &testpkg.EducationClassTeacher{
+		dupe := &testutil.SchoolStructureClassTeacher{
 			StaffID:     staff.ID,
 			SchoolClass: " 1A ",
 		}

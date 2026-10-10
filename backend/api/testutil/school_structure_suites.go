@@ -51,6 +51,26 @@ type (
 	SubstitutionSuiteEndRequest                  = services.SubstitutionSuiteEndRequest
 )
 
+// The School Structure values the suites arrange and assert (#3556).
+type (
+	SchoolStructureGroup              = services.SchoolStructureSuiteGroup
+	SchoolStructureGroupListQuery     = services.SchoolStructureSuiteGroupListQuery
+	SchoolStructureGroupTeacher       = services.SchoolStructureSuiteGroupTeacher
+	SchoolStructureClassTeacher       = services.SchoolStructureSuiteClassTeacher
+	SchoolStructureStaffGroupID       = services.SchoolStructureSuiteStaffGroupID
+	SchoolStructureSubstitutionChange = services.SchoolStructureSuiteSubstitutionChange
+	SchoolStructureSubstitutionRow    = services.SchoolStructureSuiteSubstitutionRow
+)
+
+// SchoolStructureGroupOf is the group a fixture row stores, as the owner's
+// group reads return it.
+func SchoolStructureGroupOf(row *testpkg.EducationGroup) *SchoolStructureGroup {
+	return &SchoolStructureGroup{
+		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		Name: row.Name, RoomID: row.RoomID,
+	}
+}
+
 const (
 	SubstitutionSuiteTargetGroupHandover         = services.SubstitutionSuiteTargetGroupHandover
 	SubstitutionSuiteTargetAdditionalSupervision = services.SubstitutionSuiteTargetAdditionalSupervision
