@@ -1264,7 +1264,7 @@ function MobileDayButton({
         {day.date.getDate()}
       </span>
       <span
-        className={`mt-1 block truncate text-[10px] font-semibold ${
+        className={`mt-1 block truncate text-sm font-semibold ${
           isSelected ? "text-gray-500" : "text-gray-400"
         }`}
       >
@@ -1424,7 +1424,7 @@ function AbsencePlaceholder({
         <MotoConceptIcon concept={concept} size={18} />
       </span>
       <div className="min-w-0">
-        <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+        <div className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
           Status
         </div>
         <div className="text-sm leading-5 font-semibold text-gray-900">
@@ -1513,7 +1513,7 @@ function CareBoundaryRow({
           {boundary.icon}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+          <div className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
             {boundary.label}
           </div>
           {/* Flex-wrapped rather than inline: the badge is taller than the 20px
@@ -1523,7 +1523,7 @@ function CareBoundaryRow({
             <span className="min-w-0 break-words">{boundary.value}</span>
             {boundary.marker ? (
               <span
-                className="max-w-full shrink-0 truncate rounded-full bg-white px-1.5 py-0.5 text-[11px] font-semibold text-gray-500 shadow-sm"
+                className="max-w-full shrink-0 truncate rounded-full bg-white px-1.5 py-0.5 text-sm font-semibold text-gray-500 shadow-sm"
                 title={boundary.marker}
               >
                 {boundary.marker}
@@ -1553,7 +1553,7 @@ function CareAppointmentSection({
           key={appointment.key}
           className="rounded-lg border border-gray-100 bg-white px-3 py-2.5 shadow-sm"
         >
-          <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+          <div className="text-sm font-semibold text-gray-500">
             {appointment.timeRange}
           </div>
           <div className="text-sm font-semibold text-gray-900">
