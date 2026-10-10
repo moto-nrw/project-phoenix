@@ -38,7 +38,7 @@ func (p *ArrivalBaselineProjection) ForDate(studentID int64, date calendar.Date)
 	if p == nil {
 		return nil
 	}
-	row := p.WeeklyByStudentDate[studentID][date][planWeekday(date, p.WeekendFollowsFriday)]
+	row := p.WeeklyByStudentDate[studentID][date][p.PlanWeekday(date)]
 	return classExceptionRow(row, p.ClassExceptionsByStudentDate[studentID][date])
 }
 
@@ -48,7 +48,13 @@ func (p *ArrivalBaselineProjection) DerivedForDate(studentID int64, date calenda
 	if p == nil {
 		return nil
 	}
-	return p.DerivedByStudentDate[studentID][date][planWeekday(date, p.WeekendFollowsFriday)]
+	return p.DerivedByStudentDate[studentID][date][p.PlanWeekday(date)]
+}
+
+// PlanWeekday returns the weekly row key applicable on date. Weekend
+// projections that follow Friday keep their rows under Friday's key.
+func (p *ArrivalBaselineProjection) PlanWeekday(date calendar.Date) int {
+	return planWeekday(date, p != nil && p.WeekendFollowsFriday)
 }
 
 // HasPlan reports whether any recurring arrival weekday exists on the date.

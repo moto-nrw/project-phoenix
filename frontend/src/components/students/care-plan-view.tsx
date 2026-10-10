@@ -72,7 +72,7 @@ interface CarePlanViewProps {
   readonly active?: boolean;
 }
 
-const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr"] as const;
+const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as const;
 
 /**
  * Step one care day forward/back: skips Sa/So unless the school runs the
@@ -88,18 +88,19 @@ function stepWeekday(iso: string, dir: 1 | -1, weekendOpen: boolean): string {
 }
 
 /**
- * Mon–Fri of the week `weekOffset` weeks from the current Berlin week. Anchored
- * on the school (Berlin) calendar day, not the browser's local `new Date()`, so
- * the range sent to the DATE-based /week endpoint is correct in any timezone.
+ * The care days of the week `weekOffset` weeks from the current Berlin week.
+ * Anchored on the school (Berlin) calendar day, not the browser's local
+ * `new Date()`, so the range sent to the DATE-based /week endpoint is correct
+ * in any timezone.
  */
-function berlinWeekDays(weekOffset: number): Date[] {
+function berlinWeekDays(weekOffset: number, weekendOpen: boolean): Date[] {
   const anchor = parseISODate(berlinTodayISO());
   const dow = anchor.getDay();
   const daysToMonday = dow === 0 ? 6 : dow - 1;
   const monday = new Date(anchor);
   monday.setDate(anchor.getDate() - daysToMonday + weekOffset * 7);
   const days: Date[] = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < (weekendOpen ? 7 : 5); i++) {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
     days.push(d);
@@ -152,6 +153,7 @@ export function CarePlanView({
   const [weekOffset, setWeekOffset] = useState(0);
   const [mobileDayIndex, setMobileDayIndex] = useState(() => {
     const weekday = parseISODate(berlinTodayISO()).getDay(); // 0=Sun … 6=Sat
+    if (weekendOpen) return (weekday + 6) % 7;
     return weekday >= 1 && weekday <= 5 ? weekday - 1 : 0;
   });
 
@@ -170,9 +172,12 @@ export function CarePlanView({
   );
 
   // --- Week mode fetch (only active in week mode) ---
-  const weekDates = useMemo(() => berlinWeekDays(weekOffset), [weekOffset]);
+  const weekDates = useMemo(
+    () => berlinWeekDays(weekOffset, weekendOpen),
+    [weekOffset, weekendOpen],
+  );
   const weekFrom = toISODate(weekDates[0]!);
-  const weekTo = toISODate(weekDates[4]!);
+  const weekTo = toISODate(weekDates[weekDates.length - 1]!);
   const weekKey =
     active && viewMode === "week"
       ? `care-plan-week-${studentId}-${weekFrom}-${weekTo}`
@@ -247,7 +252,7 @@ export function CarePlanView({
           subtitle={
             viewMode === "day"
               ? formatDate(selectedDate, true)
-              : `${shortDate(weekDates[0]!)} – ${shortDate(weekDates[4]!)}`
+              : `${shortDate(weekDates[0]!)} – ${shortDate(weekDates[weekDates.length - 1]!)}`
           }
           actions={
             <SegmentedControl
@@ -389,9 +394,11 @@ function WeekBody({
 
   return (
     <>
-      {/* Desktop: 5-column grid of compact day cards */}
+      {/* Desktop: compact cards for every care day of the week */}
       <div className="hidden xl:block">
-        <div className="grid gap-3 xl:grid-cols-5">
+        <div
+          className={`grid gap-3 ${weekDates.length === 7 ? "xl:grid-cols-7" : "xl:grid-cols-5"}`}
+        >
           {weekDates.map((date, i) => {
             const iso = toISODate(date);
             const day = daysByDate.get(iso) ?? null;

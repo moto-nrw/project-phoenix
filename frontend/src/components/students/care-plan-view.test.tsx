@@ -69,6 +69,7 @@ const selectTab = (name: string) => {
 describe("CarePlanView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useWeekendFollowsFriday).mockReturnValue(false);
     setSWR({ data: mockDay, isLoading: false, error: null });
   });
 
@@ -190,6 +191,39 @@ describe("CarePlanView", () => {
     expect(last?.[0]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(last?.[1]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(String(last?.[0]) < String(last?.[1])).toBe(true);
+  });
+
+  it("includes Saturday and Sunday in the week view when the weekend follows Friday", () => {
+    vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    setTestClock(new Date("2026-09-09T12:00:00+02:00"));
+    setSWR(
+      { data: mockDay, isLoading: false, error: null },
+      { data: mockWeek, isLoading: false, error: null },
+    );
+    const onVisibleDateRangeChange = vi.fn();
+    render(
+      <CarePlanView
+        studentId="1"
+        statusDays={[]}
+        onVisibleDateRangeChange={onVisibleDateRangeChange}
+      />,
+    );
+
+    selectTab("Woche");
+
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-09-07",
+      "2026-09-13",
+    );
+    expect(
+      vi
+        .mocked(useSWRAuth)
+        .mock.calls.some(
+          ([key]) => key === "care-plan-week-1-2026-09-07-2026-09-13",
+        ),
+    ).toBe(true);
+    expect(screen.getAllByText("Sa")).not.toHaveLength(0);
+    expect(screen.getAllByText("So")).not.toHaveLength(0);
   });
 
   it.each([
