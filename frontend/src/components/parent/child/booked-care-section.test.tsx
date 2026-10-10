@@ -133,6 +133,12 @@ describe("BookedCareSection", () => {
     expect(
       screen.getByRole("heading", { name: "Gebuchte Betreuung" }),
     ).toHaveClass("text-xl", "min-h-9", "items-center", "sm:min-h-10");
+    expect(
+      screen
+        .getByRole("heading", { name: "Dein OGS Wochenplan" })
+        .closest("section")
+        ?.querySelector('[data-parent-tour="child-care-times"]'),
+    ).toBeInTheDocument();
     expect(screen.getByText("Mo, Di, Mi, Do, Fr")).toBeInTheDocument();
   });
 

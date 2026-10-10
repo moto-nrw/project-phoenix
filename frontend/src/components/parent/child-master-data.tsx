@@ -781,7 +781,10 @@ function DepartureSection({
           {t("departureReadOnlyAccompanied")}
         </p>
       )}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div
+        data-parent-tour="child-departure"
+        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+      >
         {DEPARTURE_DAYS.map((day) => (
           <fieldset
             key={day}

@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { NotificationPreferencesSection } from "~/components/settings/notification-preferences-section";
@@ -20,12 +21,25 @@ import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import { ParentSection } from "~/components/parent/shell/parent-section";
 import { SamsungChromeInstructions } from "~/components/tenant/pwa-install-hint";
+import { ButtonLink } from "~/components/ui/button";
+import { buildHelpHref, HELP_TOPICS } from "~/lib/help-topics";
 import { isStandaloneApp } from "~/lib/push-api";
 import { isSamsungInternet } from "~/lib/pwa-install-prompt";
 
 export default function ParentSettingsPage() {
   const t = useTranslations("parentSettings");
+  const pathname = usePathname();
   const [pageUrl, setPageUrl] = useState<URL | null>(null);
+  const installHelpHref = buildHelpHref(
+    {
+      role: "parent",
+      nfcEnabled: false,
+      presenceMode: "detailed",
+      groupMode: "fixed_groups",
+      returnTo: pathname,
+    },
+    HELP_TOPICS.parentInstallApp,
+  );
 
   useEffect(() => {
     if (isSamsungInternet(window.navigator) && !isStandaloneApp()) {
@@ -51,16 +65,24 @@ export default function ParentSettingsPage() {
         }
       />
 
-      {pageUrl && (
+      <div data-parent-tour-install-app>
         <ParentSection
           title={t("appInstallTitle")}
-          description={t("appInstallDescription")}
+          description={t("appInstallGenericDescription")}
           concept="devices"
         >
-          <SamsungChromeInstructions pageUrl={pageUrl} />
+          {pageUrl ? (
+            <SamsungChromeInstructions pageUrl={pageUrl} />
+          ) : (
+            <ButtonLink href={installHelpHref} variant="surface" size="md">
+              {t("appInstallGuide")}
+            </ButtonLink>
+          )}
         </ParentSection>
-      )}
-      <NotificationPreferencesSection portal="parent" />
+      </div>
+      <div data-parent-tour="notification-topics">
+        <NotificationPreferencesSection portal="parent" />
+      </div>
       <PushNotificationSection portal="parent" />
     </ParentPage>
   );

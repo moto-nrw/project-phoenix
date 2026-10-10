@@ -256,9 +256,11 @@ export function ParentStartPage() {
           gleicher Breite; innerhalb eines Abschnitts liegen die Kinderkarten
           weiter in einem auto-fit-Raster. */}
       <div className="space-y-5">
-        <StartTodoSection />
+        <div data-parent-tour="start-todo">
+          <StartTodoSection />
+        </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4" data-parent-tour="start-child">
           <LoadErrorAlert error={loadError} />
 
           {loading ? (

@@ -79,6 +79,117 @@
     "openCount": "{count} të hapura",
     "noticeCount": "{count} njoftime"
   },
+  "parentFirstSteps": {
+    "title": "Hapat e parë",
+    "shortTitle": "Hapat e parë",
+    "open": "Hap hapat e parë. Kanë mbetur {count}.",
+    "collapse": "Mbyll hapat e parë",
+    "progress": "{finished} nga {total} të përfunduar",
+    "progressLabel": "Përparimi: {finished} nga {total} hapa të përfunduar",
+    "actions": {
+      "show": "Fillo udhëzimin",
+      "showAgain": "Shfaq përsëri",
+      "guide": "Hap udhëzuesin",
+      "messagesGuide": "Udhëzuesi i mesazheve",
+      "newsGuide": "Udhëzuesi i letrave për prindërit",
+      "next": "Tjetër",
+      "back": "Prapa",
+      "done": "U krye",
+      "endTour": "Përfundo udhëzimin"
+    },
+    "steps": {
+      "start": {
+        "title": "Njihuni me faqen kryesore",
+        "description": "Shihni çfarë është e rëndësishme sot dhe cilat detyra janë ende të hapura."
+      },
+      "childData": {
+        "title": "Ndrysho të dhënat e fëmijës tim",
+        "description": "Këtu gjeni të dhënat, oraret e kujdesit, rrugën për në shtëpi dhe kujdestarët."
+      },
+      "messagesNews": {
+        "title": "Gjej mesazhet dhe letrat për prindërit",
+        "description": "Lexoni mesazhet dhe gjeni letrat nga kujdesi pas shkollës."
+      },
+      "messages": {
+        "title": "Gjej mesazhet",
+        "description": "Këtu lexoni dhe shkruani mesazhe për kujdesin pas shkollës."
+      },
+      "installApp": {
+        "title": "Shto moto në telefon",
+        "description": "Shtoni moto në ekranin kryesor dhe hapeni si aplikacion."
+      },
+      "notifications": {
+        "title": "Aktivizo njoftimet",
+        "description": "Zgjidhni për çfarë mund t'ju njoftojë moto në këtë pajisje."
+      }
+    },
+    "tour": {
+      "progress": "Hapi {current} nga {total}",
+      "chooseMarked": "Prekni zonën e shënuar.",
+      "targetMissing": "Kjo zonë nuk duket tani. Mund të vazhdoni udhëzimin.",
+      "common": {
+        "moreTitle": "Gjej zonën",
+        "more": "Hapni zonën e shënuar. Në telefon e gjeni te Më shumë.",
+        "settingsNavigation": "Hapni cilësimet."
+      },
+      "start": {
+        "navigation": "Prekni Faqja kryesore.",
+        "todoTitle": "Detyrat e hapura",
+        "todo": "Këtu shihni detyrat që duhen përfunduar.",
+        "childTitle": "Fëmija juaj",
+        "child": "Prej këtu shkoni drejtpërdrejt te veprimet më të rëndësishme për fëmijën."
+      },
+      "childData": {
+        "navigation": "Hapni zonën e fëmijës tuaj.",
+        "chooseTitle": "Zgjidh fëmijën",
+        "choose": "Zgjidhni fëmijën, të dhënat e të cilit dëshironi të shihni.",
+        "tabTitle": "Hap të dhënat",
+        "tab": "Prekni Të dhënat.",
+        "detailsTitle": "Kontrollo të dhënat",
+        "details": "Këtu shihni të dhënat e ruajtura. Mund të ndryshoni drejtpërdrejt të dhënat e lejueshme.",
+        "careTabTitle": "Hap kujdesin",
+        "careTab": "Prekni Kujdesi.",
+        "careTimesTitle": "Oraret e kujdesit",
+        "careTimes": "Këtu shihni planin javor. Për ta ndryshuar, prekni “Kërko ndryshime”.",
+        "departureTitle": "Rruga për në shtëpi",
+        "departure": "Këtu shihni si shkon fëmija në shtëpi çdo ditë.",
+        "contactsTabTitle": "Hap kontaktet",
+        "contactsTab": "Prekni Kontaktet.",
+        "guardiansTitle": "Kujdestarët dhe kontaktet",
+        "guardians": "Këtu shihni kujdestarët, personat që marrin fëmijën dhe hyrjet në aplikacion."
+      },
+      "messagesNews": {
+        "messagesNavigation": "Hapni Mesazhet.",
+        "messagesTitle": "Mesazhet",
+        "messages": "Këtu lexoni mesazhet nga kujdesi dhe mund të përgjigjeni.",
+        "newsNavigation": "Hapni Letrat për prindërit.",
+        "newsTitle": "Letrat për prindërit",
+        "news": "Këtu gjeni letra dhe informacione të rëndësishme nga kujdesi."
+      },
+      "installApp": {
+        "guideTitle": "Shto moto në telefon",
+        "guide": "Këtu gjeni udhëzimin e duhur për telefonin tuaj."
+      },
+      "notifications": {
+        "topicsTitle": "Zgjidh temat",
+        "topics": "Zgjidhni temat për të cilat dëshironi njoftime.",
+        "deviceTitle": "Aktivizo këtë pajisje",
+        "device": "Aktivizoni njoftimet për këtë pajisje.",
+        "deviceUnavailable": "Njoftimet nuk mund të aktivizohen tani në këtë pajisje."
+      }
+    },
+    "complete": {
+      "title": "U krye",
+      "body": "I keni parë të gjithë hapat e parë.",
+      "action": "Përfundo hapat e parë"
+    },
+    "dismiss": {
+      "action": "Fshih hapat e parë",
+      "title": "Të fshihen hapat e parë?",
+      "body": "Udhëzuesit mbeten te Ndihma.",
+      "confirm": "Fshih"
+    }
+  },
   "parentMealPlan": {
     "kicker": "Ushqimi në kujdesin pas shkollës",
     "title": "Dreka",
@@ -397,7 +508,9 @@
     "languageTitle": "Gjuha",
     "languageDescription": "Zgjidhni gjuhën në të cilën shfaqet moto.",
     "appInstallTitle": "Instaloni moto si aplikacion",
-    "appInstallDescription": "Mos e instaloni moto përmes Samsung Internet. Hapeni moto në Chrome."
+    "appInstallDescription": "Mos e instaloni moto përmes Samsung Internet. Hapeni moto në Chrome.",
+    "appInstallGenericDescription": "Shtoni moto në ekranin kryesor të telefonit dhe hapeni si aplikacion.",
+    "appInstallGuide": "Hap udhëzuesin"
   },
   "pwaInstallHint": {
     "title": "Përdorni moto si aplikacion",

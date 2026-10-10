@@ -12,6 +12,7 @@ import { PortalShell } from "~/components/ui/portal-shell";
 import { listMyChildren } from "~/lib/parent-api";
 import { ParentBottomNav } from "./parent-bottom-nav";
 import { ParentSidebar } from "./parent-sidebar";
+import { ParentFirstSteps } from "~/components/parent/onboarding/parent-first-steps";
 import { useShellAuth } from "~/lib/shell-auth-context";
 
 /**
@@ -98,6 +99,13 @@ export function ParentShell({
       >
         {children}
       </PortalShell>
+      {authenticated && shellAuth.user?.id && linkedChildren ? (
+        <ParentFirstSteps
+          accountId={shellAuth.user.id}
+          childCount={childCount}
+          newsEnabled={newsEnabled}
+        />
+      ) : null}
     </div>
   );
 }

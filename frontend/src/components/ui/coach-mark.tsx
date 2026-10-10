@@ -48,6 +48,8 @@ interface CoachMarkProps {
   readonly onNext?: () => void;
   readonly nextLabel?: string;
   readonly onBack?: () => void;
+  readonly backLabel?: string;
+  readonly closeLabel?: string;
   readonly onClose: () => void;
 }
 
@@ -195,6 +197,8 @@ export function CoachMark({
   onNext,
   nextLabel = "Weiter",
   onBack,
+  backLabel = "Zurück",
+  closeLabel = "Tour beenden",
   onClose,
 }: CoachMarkProps) {
   const [box, setBox] = useState<Box | null>(() => measure(target, endBefore));
@@ -377,7 +381,7 @@ export function CoachMark({
             size="compact"
             onClick={onClose}
           >
-            Tour beenden
+            {closeLabel}
           </Button>
           <div className="flex gap-2">
             {onBack && (
@@ -387,7 +391,7 @@ export function CoachMark({
                 size="compact"
                 onClick={onBack}
               >
-                Zurück
+                {backLabel}
               </Button>
             )}
             {onNext && (

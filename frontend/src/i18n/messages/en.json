@@ -79,6 +79,117 @@
     "openCount": "{count} open",
     "noticeCount": "{count} notices"
   },
+  "parentFirstSteps": {
+    "title": "Getting started",
+    "shortTitle": "Getting started",
+    "open": "Open getting started. {count} remaining.",
+    "collapse": "Collapse getting started",
+    "progress": "{finished} of {total} complete",
+    "progressLabel": "Progress: {finished} of {total} steps complete",
+    "actions": {
+      "show": "Start tour",
+      "showAgain": "Show again",
+      "guide": "Open guide",
+      "messagesGuide": "Messages guide",
+      "newsGuide": "Parent letters guide",
+      "next": "Next",
+      "back": "Back",
+      "done": "Done",
+      "endTour": "End tour"
+    },
+    "steps": {
+      "start": {
+        "title": "Explore the home page",
+        "description": "See what is important today and which tasks are still open."
+      },
+      "childData": {
+        "title": "Change my child's details",
+        "description": "Find your child's details, care times, routes home and guardians."
+      },
+      "messagesNews": {
+        "title": "Find messages and parent letters",
+        "description": "Read messages and find parent letters from the care team."
+      },
+      "messages": {
+        "title": "Find messages",
+        "description": "Read and write messages to the care team."
+      },
+      "installApp": {
+        "title": "Add moto to my phone",
+        "description": "Add moto to your home screen so you can open it like an app."
+      },
+      "notifications": {
+        "title": "Turn on notifications",
+        "description": "Choose what moto may notify you about on this device."
+      }
+    },
+    "tour": {
+      "progress": "Step {current} of {total}",
+      "chooseMarked": "Tap the highlighted area.",
+      "targetMissing": "This area is not visible right now. You can continue the tour.",
+      "common": {
+        "moreTitle": "Find the section",
+        "more": "Open the highlighted section. On a phone, you can find it under More.",
+        "settingsNavigation": "Open Settings."
+      },
+      "start": {
+        "navigation": "Tap Home.",
+        "todoTitle": "Open tasks",
+        "todo": "See the tasks that still need to be completed here.",
+        "childTitle": "Your child",
+        "child": "Go directly to the most important actions for your child from here."
+      },
+      "childData": {
+        "navigation": "Open the section for your child.",
+        "chooseTitle": "Choose a child",
+        "choose": "Choose the child whose details you want to view.",
+        "tabTitle": "Open details",
+        "tab": "Tap Details.",
+        "detailsTitle": "Check details",
+        "details": "See the saved details here. You can edit information that may be changed.",
+        "careTabTitle": "Open care",
+        "careTab": "Tap Care.",
+        "careTimesTitle": "Care times",
+        "careTimes": "See the weekly plan here. Select “Request changes” to change it.",
+        "departureTitle": "Route home",
+        "departure": "See how your child goes home on each day.",
+        "contactsTabTitle": "Open contacts",
+        "contactsTab": "Tap Contacts.",
+        "guardiansTitle": "Guardians and contacts",
+        "guardians": "See guardians, authorised pickup people and app access here."
+      },
+      "messagesNews": {
+        "messagesNavigation": "Open Messages.",
+        "messagesTitle": "Messages",
+        "messages": "Read messages from the care team and reply here.",
+        "newsNavigation": "Open Parent letters.",
+        "newsTitle": "Parent letters",
+        "news": "Find parent letters and important information from the care team here."
+      },
+      "installApp": {
+        "guideTitle": "Add moto to your phone",
+        "guide": "Find the right instructions for your phone here."
+      },
+      "notifications": {
+        "topicsTitle": "Choose topics",
+        "topics": "Choose which topics you want to receive notifications about.",
+        "deviceTitle": "Turn on this device",
+        "device": "Turn on notifications for this device.",
+        "deviceUnavailable": "You cannot turn on notifications on this device right now."
+      }
+    },
+    "complete": {
+      "title": "All done",
+      "body": "You have explored all the first steps.",
+      "action": "Complete getting started"
+    },
+    "dismiss": {
+      "action": "Hide getting started",
+      "title": "Hide getting started?",
+      "body": "You can still find the guides in Help.",
+      "confirm": "Hide"
+    }
+  },
   "parentMealPlan": {
     "kicker": "Meals at after-school care",
     "title": "Lunch",
@@ -397,7 +508,9 @@
     "languageTitle": "Language",
     "languageDescription": "Choose the language in which moto is displayed.",
     "appInstallTitle": "Install moto as an app",
-    "appInstallDescription": "Do not install moto through Samsung Internet. Open moto in Chrome instead."
+    "appInstallDescription": "Do not install moto through Samsung Internet. Open moto in Chrome instead.",
+    "appInstallGenericDescription": "Add moto to your phone's home screen so you can open it like an app.",
+    "appInstallGuide": "Open guide"
   },
   "pwaInstallHint": {
     "title": "Use moto as an app",

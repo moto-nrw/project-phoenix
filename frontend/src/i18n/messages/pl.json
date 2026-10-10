@@ -79,6 +79,117 @@
     "openCount": "Otwarte: {count}",
     "noticeCount": "Informacje: {count}"
   },
+  "parentFirstSteps": {
+    "title": "Pierwsze kroki",
+    "shortTitle": "Pierwsze kroki",
+    "open": "Otwórz pierwsze kroki. Pozostało: {count}.",
+    "collapse": "Zwiń pierwsze kroki",
+    "progress": "Ukończono {finished} z {total}",
+    "progressLabel": "Postęp: ukończono {finished} z {total} kroków",
+    "actions": {
+      "show": "Rozpocznij przewodnik",
+      "showAgain": "Pokaż ponownie",
+      "guide": "Otwórz instrukcję",
+      "messagesGuide": "Instrukcja wiadomości",
+      "newsGuide": "Instrukcja listów do rodziców",
+      "next": "Dalej",
+      "back": "Wstecz",
+      "done": "Gotowe",
+      "endTour": "Zakończ przewodnik"
+    },
+    "steps": {
+      "start": {
+        "title": "Poznaj stronę główną",
+        "description": "Zobacz, co jest dziś ważne i jakie zadania są jeszcze otwarte."
+      },
+      "childData": {
+        "title": "Zmień dane mojego dziecka",
+        "description": "Tutaj znajdziesz dane dziecka, godziny opieki, drogi do domu i opiekunów."
+      },
+      "messagesNews": {
+        "title": "Znajdź wiadomości i listy do rodziców",
+        "description": "Czytaj wiadomości i znajdź listy od opieki."
+      },
+      "messages": {
+        "title": "Znajdź wiadomości",
+        "description": "Tutaj możesz czytać i pisać wiadomości do opieki."
+      },
+      "installApp": {
+        "title": "Dodaj moto do telefonu",
+        "description": "Dodaj moto do ekranu głównego i otwieraj je jak aplikację."
+      },
+      "notifications": {
+        "title": "Włącz powiadomienia",
+        "description": "Wybierz, o czym moto może powiadamiać Cię na tym urządzeniu."
+      }
+    },
+    "tour": {
+      "progress": "Krok {current} z {total}",
+      "chooseMarked": "Dotknij zaznaczonego obszaru.",
+      "targetMissing": "Ten obszar nie jest teraz widoczny. Możesz kontynuować przewodnik.",
+      "common": {
+        "moreTitle": "Znajdź obszar",
+        "more": "Otwórz zaznaczony obszar. Na telefonie znajdziesz go w sekcji Więcej.",
+        "settingsNavigation": "Otwórz Ustawienia."
+      },
+      "start": {
+        "navigation": "Dotknij Start.",
+        "todoTitle": "Otwarte zadania",
+        "todo": "Tutaj widzisz zadania, które trzeba jeszcze wykonać.",
+        "childTitle": "Twoje dziecko",
+        "child": "Stąd przejdziesz bezpośrednio do najważniejszych działań dotyczących dziecka."
+      },
+      "childData": {
+        "navigation": "Otwórz obszar swojego dziecka.",
+        "chooseTitle": "Wybierz dziecko",
+        "choose": "Wybierz dziecko, którego dane chcesz zobaczyć.",
+        "tabTitle": "Otwórz dane",
+        "tab": "Dotknij Dane.",
+        "detailsTitle": "Sprawdź dane",
+        "details": "Tutaj widzisz zapisane dane. Informacje, które można zmienić, edytujesz bezpośrednio.",
+        "careTabTitle": "Otwórz opiekę",
+        "careTab": "Dotknij Opieka.",
+        "careTimesTitle": "Godziny opieki",
+        "careTimes": "Tutaj widzisz plan tygodnia. Aby go zmienić, wybierz „Poproś o zmiany”.",
+        "departureTitle": "Droga do domu",
+        "departure": "Tutaj widzisz, jak dziecko wraca do domu każdego dnia.",
+        "contactsTabTitle": "Otwórz kontakty",
+        "contactsTab": "Dotknij Kontakty.",
+        "guardiansTitle": "Opiekunowie i kontakty",
+        "guardians": "Tutaj widzisz opiekunów, osoby odbierające i dostępy do aplikacji."
+      },
+      "messagesNews": {
+        "messagesNavigation": "Otwórz Wiadomości.",
+        "messagesTitle": "Wiadomości",
+        "messages": "Tutaj czytasz wiadomości od opieki i możesz odpowiadać.",
+        "newsNavigation": "Otwórz Listy do rodziców.",
+        "newsTitle": "Listy do rodziców",
+        "news": "Tutaj znajdziesz listy i ważne informacje od opieki."
+      },
+      "installApp": {
+        "guideTitle": "Dodaj moto do telefonu",
+        "guide": "Tutaj znajdziesz odpowiednią instrukcję dla swojego telefonu."
+      },
+      "notifications": {
+        "topicsTitle": "Wybierz tematy",
+        "topics": "Wybierz tematy, o których chcesz otrzymywać powiadomienia.",
+        "deviceTitle": "Włącz to urządzenie",
+        "device": "Włącz powiadomienia na tym urządzeniu.",
+        "deviceUnavailable": "Na tym urządzeniu nie można teraz włączyć powiadomień."
+      }
+    },
+    "complete": {
+      "title": "Gotowe",
+      "body": "Poznałeś wszystkie pierwsze kroki.",
+      "action": "Zakończ pierwsze kroki"
+    },
+    "dismiss": {
+      "action": "Ukryj pierwsze kroki",
+      "title": "Ukryć pierwsze kroki?",
+      "body": "Instrukcje nadal znajdziesz w Pomocy.",
+      "confirm": "Ukryj"
+    }
+  },
   "parentMealPlan": {
     "kicker": "Posiłki w OGS",
     "title": "Obiad",
@@ -397,7 +508,9 @@
     "languageTitle": "Język",
     "languageDescription": "Proszę wybrać język, w którym wyświetla się moto.",
     "appInstallTitle": "Zainstaluj moto jako aplikację",
-    "appInstallDescription": "Proszę nie instalować moto przez Samsung Internet. Proszę otworzyć moto w Chrome."
+    "appInstallDescription": "Proszę nie instalować moto przez Samsung Internet. Proszę otworzyć moto w Chrome.",
+    "appInstallGenericDescription": "Dodaj moto do ekranu głównego telefonu i otwieraj je jak aplikację.",
+    "appInstallGuide": "Otwórz instrukcję"
   },
   "pwaInstallHint": {
     "title": "moto jako aplikacja",

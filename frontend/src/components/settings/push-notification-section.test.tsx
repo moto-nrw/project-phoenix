@@ -212,6 +212,26 @@ describe("PushNotificationSection", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("marks unavailable parent notifications for the first-steps tour", async () => {
+    pushApi.syncExistingPushSubscription.mockRejectedValue(
+      new Error("web push is not configured"),
+    );
+    pushApi.isPushConfigurationMissing.mockReturnValue(true);
+
+    const { container } = renderWithToast(
+      <PushNotificationSection portal="parent" />,
+    );
+
+    await waitFor(() =>
+      expect(pushApi.syncExistingPushSubscription).toHaveBeenCalled(),
+    );
+    expect(
+      container.querySelector(
+        '[data-parent-tour="notification-device-unavailable"]',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("hides the iOS guide when VAPID is not configured", async () => {
     pushApi.needsIOSInstall.mockReturnValue(true);
     pushApi.verifyPushConfiguration.mockRejectedValue(

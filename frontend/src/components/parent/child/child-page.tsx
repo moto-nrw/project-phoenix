@@ -463,6 +463,7 @@ function ChildAreaTabs({
       <div className="pb-1">
         <TabsList
           aria-label={t("areas.label")}
+          data-parent-tour="child-area-tabs"
           className="flex h-auto w-full gap-1 rounded-xl bg-gray-100 p-1"
         >
           <AreaTab
@@ -470,18 +471,21 @@ function ChildAreaTabs({
             label={t("areas.care.title")}
             shortLabel={t("areas.care.shortTitle")}
             icon={CalendarDotsIcon}
+            tourId="child-care-tab"
           />
           <AreaTab
             value="angaben"
             label={t("areas.data.title")}
             shortLabel={t("areas.data.shortTitle")}
             icon={IdentificationCardIcon}
+            tourId="child-data-tab"
           />
           <AreaTab
             value="kontakte"
             label={t("areas.contacts.title")}
             shortLabel={t("areas.contacts.shortTitle")}
             icon={UsersThreeIcon}
+            tourId="child-contacts-tab"
           />
         </TabsList>
       </div>
@@ -489,6 +493,7 @@ function ChildAreaTabs({
       <TabsContent
         forceMount
         value="betreuung"
+        data-parent-tour="child-care"
         className="mt-0 space-y-5 data-[state=inactive]:hidden"
       >
         {(sickDays.length > 0 || excusedRequests.length > 0) && (
@@ -524,6 +529,7 @@ function ChildAreaTabs({
       <TabsContent
         forceMount
         value="angaben"
+        data-parent-tour="child-data"
         className="mt-0 space-y-5 data-[state=inactive]:hidden"
       >
         <ChildMasterDataView
@@ -538,6 +544,7 @@ function ChildAreaTabs({
       <TabsContent
         forceMount
         value="kontakte"
+        data-parent-tour="child-contacts"
         className="mt-0 data-[state=inactive]:hidden"
       >
         <GuardiansPanel
@@ -557,16 +564,19 @@ function AreaTab({
   label,
   shortLabel,
   icon: Icon,
+  tourId,
 }: Readonly<{
   value: ChildArea;
   label: string;
   shortLabel: string;
   icon: PhosphorIcon;
+  tourId?: string;
 }>) {
   return (
     <TabsTrigger
       value={value}
       aria-label={label}
+      data-parent-tour={tourId}
       className="min-h-16 min-w-0 flex-1 flex-col gap-1 rounded-lg px-1.5 py-2 text-base text-gray-600 shadow-none hover:bg-white/60 hover:text-gray-900 data-[state=active]:bg-white data-[state=active]:font-semibold data-[state=active]:text-gray-900 data-[state=active]:shadow-sm sm:min-h-12 sm:flex-row sm:gap-2 sm:px-4"
     >
       <Icon

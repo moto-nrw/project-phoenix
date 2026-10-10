@@ -242,6 +242,21 @@ describe("ChildPage", () => {
     expect(
       screen.getByRole("tab", { name: "Betreuung & Wochenplan" }),
     ).toHaveAttribute("aria-selected", "true");
+    expect(
+      screen.getByRole("tab", { name: "Betreuung & Wochenplan" }),
+    ).toHaveAttribute("data-parent-tour", "child-care-tab");
+    expect(
+      screen.getByRole("tab", { name: "Angaben zum Kind" }),
+    ).toHaveAttribute("data-parent-tour", "child-data-tab");
+    expect(
+      screen.getByRole("tab", { name: "Kontakte & Abholung" }),
+    ).toHaveAttribute("data-parent-tour", "child-contacts-tab");
+    expect(
+      document.querySelector('[data-parent-tour="child-care"]'),
+    ).toBeInTheDocument();
+    expect(
+      document.querySelector('[data-parent-tour="child-contacts"]'),
+    ).toBeInTheDocument();
     for (const [name, visibleLabel] of [
       ["Betreuung & Wochenplan", "Betreuung"],
       ["Angaben zum Kind", "Angaben"],

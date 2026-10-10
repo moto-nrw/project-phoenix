@@ -555,7 +555,7 @@ describe("getParentHelpTopicForPath", () => {
     );
     const visible = new Set(parentTopics.map((topic) => topic.id));
 
-    expect(parentTopics).toHaveLength(21);
+    expect(parentTopics).toHaveLength(22);
     expect(
       parentTopics.every(
         (topic) =>
