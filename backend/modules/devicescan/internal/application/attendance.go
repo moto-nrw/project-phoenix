@@ -190,6 +190,8 @@ func classifyPresenceFailure(err error) error {
 	switch {
 	case errors.Is(err, ports.ErrStudentNotInCare):
 		return devicescan.NotFoundWithCode(devicescan.MessagePersonNotStudent, devicescan.CodePersonNotStudent)
+	case errors.Is(err, ports.ErrNoActiveSession):
+		return devicescan.NotFoundWithCode(devicescan.MessageNoActiveSession, devicescan.CodeNoActiveSession)
 	case errors.Is(err, ports.ErrConflict):
 		return devicescan.Conflict(err.Error())
 	case errors.Is(err, ports.ErrNotFound):

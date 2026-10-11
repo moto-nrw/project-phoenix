@@ -15,11 +15,11 @@ import (
 
 type lifecycleStoreStub struct {
 	LifecycleStore
-	group                                       LifecycleSession
-	startErr, touchErr, countErr, supervisorErr error
-	conflict                                    devicescan.ConflictInfoResponse
-	conflictErr                                 error
-	starts, touches                             int
+	group                                                   LifecycleSession
+	startErr, timeoutErr, touchErr, countErr, supervisorErr error
+	conflict                                                devicescan.ConflictInfoResponse
+	conflictErr                                             error
+	starts, touches                                         int
 }
 
 func (s *lifecycleStoreStub) Start(context.Context, int64, devicescan.StartSessionCommand) (LifecycleSession, error) {
@@ -39,6 +39,9 @@ func (s *lifecycleStoreStub) CountStudents(context.Context, int64) (int, error) 
 func (s *lifecycleStoreStub) Touch(context.Context, int64) error                { s.touches++; return s.touchErr }
 func (s *lifecycleStoreStub) Conflict(context.Context, int64, int64) (devicescan.ConflictInfoResponse, error) {
 	return s.conflict, s.conflictErr
+}
+func (s *lifecycleStoreStub) Timeout(context.Context, int64) (devicescan.SessionTimeoutResponse, error) {
+	return devicescan.SessionTimeoutResponse{}, s.timeoutErr
 }
 
 type lifecyclePeopleStub struct {
@@ -150,4 +153,16 @@ func TestSessionStartWithoutDeviceOrSupervisorsDoesNotWrite(t *testing.T) {
 	_, err = service.StartSession(t.Context(), devicescan.StartSessionCommand{ActivityID: 4, SupervisorIDs: []int64{1}})
 	assert.ErrorIs(t, err, devicescan.ErrDeviceUnauthorized)
 	assert.Zero(t, store.starts)
+}
+
+func TestTimeoutSessionCodesMissingSession(t *testing.T) {
+	t.Parallel()
+
+	_, err := lifecycleForTest(&lifecycleStoreStub{timeoutErr: ports.ErrNoActiveSession}, &lifecyclePeopleStub{}).TimeoutSession(t.Context())
+
+	failure, ok := devicescan.IsFailure(err)
+	require.True(t, ok)
+	assert.Equal(t, devicescan.FailureNotFound, failure.Kind)
+	assert.Equal(t, devicescan.CodeNoActiveSession, failure.Code)
+	assert.Equal(t, devicescan.MessageNoActiveSession, failure.Message)
 }

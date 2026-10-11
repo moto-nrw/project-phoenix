@@ -95,6 +95,8 @@ func checkIoTErrorCodes(t *testing.T, api *serveGraph) {
 				http.StatusNotFound, "iot.no_attendance_record_today", "student has no attendance record for today"},
 			{"end without session", http.MethodPost, "/api/iot/session/end", nil,
 				http.StatusBadRequest, "iot.no_session_to_end", "no active session to end"},
+			{"timeout without session", http.MethodPost, "/api/iot/session/timeout", nil,
+				http.StatusNotFound, "iot.no_active_session", "no active session - please start an activity first"},
 			{"start without room", http.MethodPost, "/api/iot/session/start", map[string]any{"activity_id": activity.ID, "supervisor_ids": []int64{staff.ID}},
 				http.StatusBadRequest, "iot.no_room_available", "no room available for this activity"},
 			{"unknown staff", http.MethodDelete, "/api/iot/staff/999999999/rfid", nil,
