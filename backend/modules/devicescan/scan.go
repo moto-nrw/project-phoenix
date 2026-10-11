@@ -43,6 +43,25 @@ const (
 	MessageStudentAlreadyActive    = "student already has an active visit"
 )
 
+// Registered codes of the kiosk refusals (error-registry.json). The kiosk
+// branches on them instead of the wire strings above (#3939).
+const (
+	CodeRFIDTagUnassigned            = "iot.rfid_tag_unassigned"
+	CodeRFIDTagNotStudentOrStaff     = "iot.rfid_tag_not_student_or_staff"
+	CodePersonNotStudent             = "iot.person_not_student"
+	CodeStudentRFIDRequiredForPickup = "iot.pickup_student_rfid_required"
+	CodeNoActiveSession              = "iot.no_active_session"
+	CodeNoSessionToEnd               = "iot.no_session_to_end"
+	CodeNoGroupsInRoom               = "iot.no_active_groups_in_room"
+	CodeNoRoomAvailable              = "iot.no_room_available"
+	CodeNoAttendanceRecord           = "iot.no_attendance_record_today"
+	CodeSchulhofNotConfigured        = "iot.schulhof_not_configured"
+	CodeWCNotConfigured              = "iot.wc_not_configured"
+	CodeWCNeedsStaff                 = "iot.wc_needs_staff"
+	CodeStaffNotFound                = "iot.staff_not_found"
+	CodeStaffRFIDTagUnassigned       = "iot.staff_rfid_tag_unassigned"
+)
+
 // Scan actions the kiosk renders.
 const (
 	ScanActionCheckedIn               = "checked_in"
@@ -108,6 +127,11 @@ func InvalidRequest(message string) *Failure {
 	return &Failure{Kind: FailureInvalidRequest, Message: message}
 }
 
+// InvalidRequestWithCode classifies a 400 that carries a stable code.
+func InvalidRequestWithCode(message, code string) *Failure {
+	return &Failure{Kind: FailureInvalidRequest, Message: message, Code: code}
+}
+
 // Conflict classifies a refusal the kiosk renders as 409.
 func Conflict(message string) *Failure { return &Failure{Kind: FailureConflict, Message: message} }
 
@@ -115,6 +139,12 @@ func Conflict(message string) *Failure { return &Failure{Kind: FailureConflict, 
 // cause stays in the log.
 func Internal(message string, cause error) *Failure {
 	return &Failure{Kind: FailureInternal, Message: message, Cause: cause}
+}
+
+// InternalWithCode classifies a server fault that carries a stable code,
+// such as a missing system activity the school has to set up.
+func InternalWithCode(message, code string) *Failure {
+	return &Failure{Kind: FailureInternal, Message: message, Code: code}
 }
 
 // ErrDeviceUnauthorized reports a request without an authenticated device.

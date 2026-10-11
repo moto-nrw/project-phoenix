@@ -132,6 +132,10 @@ func TestWireFormat_ClassifiedFailures(t *testing.T) {
 		{"conflict", devicescan.Conflict("active: op: session conflict detected"), 409, `{"status":"error","error":"active: op: session conflict detected"}`},
 		{"internal with hidden cause", devicescan.Internal(devicescan.MessageInternalServerError, errors.New("rfid lookup exploded")), 500, `{"status":"error","error":"Internal server error"}`},
 		{"internal pinned text", devicescan.Internal(devicescan.MessageCreateVisitFailed, nil), 500, `{"status":"error","error":"failed to create visit record"}`},
+		{"unassigned card", devicescan.NotFoundWithCode(devicescan.MessageRFIDTagUnassigned, devicescan.CodeRFIDTagUnassigned), 404, `{"status":"error","error":"RFID tag not assigned to any person","code":"iot.rfid_tag_unassigned"}`},
+		{"schulhof not configured", devicescan.InternalWithCode(devicescan.MessageSchulhofNotConfigured, devicescan.CodeSchulhofNotConfigured), 500, `{"status":"error","error":"schulhof activity not configured","code":"iot.schulhof_not_configured"}`},
+		{"wc not configured", devicescan.InternalWithCode(devicescan.MessageWCNotConfigured, devicescan.CodeWCNotConfigured), 500, `{"status":"error","error":"WC activity not configured","code":"iot.wc_not_configured"}`},
+		{"wc needs staff", devicescan.InternalWithCode(devicescan.MessageWCNeedsStaff, devicescan.CodeWCNeedsStaff), 500, `{"status":"error","error":"WC activity auto-create requires staff context","code":"iot.wc_needs_staff"}`},
 		{"unknown error", errors.New("something unexpected"), 500, `{"status":"error","error":"something unexpected"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

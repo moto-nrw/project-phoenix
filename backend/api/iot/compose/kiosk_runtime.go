@@ -99,6 +99,11 @@ func renderConflictOnField(w http.ResponseWriter, r *http.Request, err error, co
 }
 
 func renderDataFailure(w http.ResponseWriter, r *http.Request, status int, err error, clientMessage string) {
+	// A classified kiosk refusal with a registered code keeps it (#3939).
+	if failure, ok := devicescan.IsFailure(err); ok && failure.Code != "" {
+		renderKioskFailure(w, r, status, failure.Code, err, nil, clientMessage)
+		return
+	}
 	switch status {
 	case http.StatusUnauthorized:
 		if render.Render(w, r, device.ErrDeviceUnauthorized(err)) != nil {
@@ -158,6 +163,6 @@ func renderKioskFailure(w http.ResponseWriter, r *http.Request, status int, code
 		}
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, code))
 	default:
-		common.RenderError(w, r, common.ErrorInternalServerWrap(clientMessage, err))
+		common.RenderError(w, r, common.ErrorInternalServerWrapWithCode(clientMessage, err, code))
 	}
 }

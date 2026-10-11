@@ -76,7 +76,7 @@ func (s *Service) openRoomStudent(ctx context.Context, device *ports.Device, tag
 	}
 	student := s.lookupStudent(ctx, person.ID)
 	if student == nil {
-		return nil, nil, devicescan.NotFound(devicescan.MessagePersonNotStudent)
+		return nil, nil, devicescan.NotFoundWithCode(devicescan.MessagePersonNotStudent, devicescan.CodePersonNotStudent)
 	}
 	// Binary-mode tenants track attendance only: there is no room a child
 	// could stay in, so the destination choice does not exist for them.

@@ -67,14 +67,14 @@ func (s *Service) findAttendanceStudent(ctx context.Context, device *ports.Devic
 			return nil, nil, devicescan.Internal(devicescan.MessageInternalServerError, err)
 		}
 		s.recordUnregisteredScan(ctx, device, tag)
-		return nil, nil, devicescan.NotFound(devicescan.MessageRFIDTagNotFound)
+		return nil, nil, devicescan.NotFoundWithCode(devicescan.MessageRFIDTagNotFound, devicescan.CodeRFIDTagNotFound)
 	}
 	if person == nil || !person.HasTag {
-		return nil, nil, devicescan.NotFound(devicescan.MessageRFIDTagUnassigned)
+		return nil, nil, devicescan.NotFoundWithCode(devicescan.MessageRFIDTagUnassigned, devicescan.CodeRFIDTagUnassigned)
 	}
 	student, err := s.people.FindStudentByPerson(ctx, person.ID)
 	if err != nil || student == nil || student.Alumnus {
-		return nil, nil, devicescan.NotFound(devicescan.MessagePersonNotStudent)
+		return nil, nil, devicescan.NotFoundWithCode(devicescan.MessagePersonNotStudent, devicescan.CodePersonNotStudent)
 	}
 	return student, person, nil
 }
@@ -114,17 +114,17 @@ func (s *Service) confirmDailyCheckout(ctx context.Context, device *ports.Device
 	}
 	if err != nil || person == nil {
 		s.recordUnregisteredScan(ctx, device, tag)
-		return nil, devicescan.NotFound(devicescan.MessageRFIDTagNotFound)
+		return nil, devicescan.NotFoundWithCode(devicescan.MessageRFIDTagNotFound, devicescan.CodeRFIDTagNotFound)
 	}
 	student, err := s.people.FindStudentByPerson(ctx, person.ID)
 	if err != nil || student == nil || student.Alumnus {
-		return nil, devicescan.NotFound(devicescan.MessagePersonNotStudent)
+		return nil, devicescan.NotFoundWithCode(devicescan.MessagePersonNotStudent, devicescan.CodePersonNotStudent)
 	}
 
 	action, err := s.attendance.ConfirmDailyCheckout(ctx, student.ID, device.ID, destination)
 	if err != nil {
 		if errors.Is(err, ports.ErrNoAttendanceRecord) {
-			return nil, devicescan.NotFound(err.Error())
+			return nil, devicescan.NotFoundWithCode(err.Error(), devicescan.CodeNoAttendanceRecord)
 		}
 		return nil, classifyPresenceFailure(err)
 	}
@@ -152,14 +152,14 @@ func (s *Service) toggleAttendance(ctx context.Context, device *ports.Device, ta
 			return nil, devicescan.Internal(devicescan.MessageInternalServerError, err)
 		}
 		s.recordUnregisteredScan(ctx, device, tag)
-		return nil, devicescan.NotFound(devicescan.MessageRFIDTagNotFound)
+		return nil, devicescan.NotFoundWithCode(devicescan.MessageRFIDTagNotFound, devicescan.CodeRFIDTagNotFound)
 	}
 	if person == nil || !person.HasTag {
-		return nil, devicescan.NotFound(devicescan.MessageRFIDTagUnassigned)
+		return nil, devicescan.NotFoundWithCode(devicescan.MessageRFIDTagUnassigned, devicescan.CodeRFIDTagUnassigned)
 	}
 	student, err := s.people.FindStudentByPerson(ctx, person.ID)
 	if err != nil || student == nil || student.Alumnus {
-		return nil, devicescan.NotFound(devicescan.MessagePersonNotStudent)
+		return nil, devicescan.NotFoundWithCode(devicescan.MessagePersonNotStudent, devicescan.CodePersonNotStudent)
 	}
 
 	action, err := s.attendance.Toggle(ctx, student.ID, deviceAttributed, device.ID, false)
@@ -189,11 +189,15 @@ func (s *Service) toggleAttendance(ctx context.Context, device *ports.Device, ta
 func classifyPresenceFailure(err error) error {
 	switch {
 	case errors.Is(err, ports.ErrStudentNotInCare):
-		return devicescan.NotFound(devicescan.MessagePersonNotStudent)
+		return devicescan.NotFoundWithCode(devicescan.MessagePersonNotStudent, devicescan.CodePersonNotStudent)
+	case errors.Is(err, ports.ErrNoActiveSession):
+		return devicescan.NotFoundWithCode(devicescan.MessageNoActiveSession, devicescan.CodeNoActiveSession)
 	case errors.Is(err, ports.ErrConflict):
 		return devicescan.Conflict(err.Error())
 	case errors.Is(err, ports.ErrNotFound):
 		return devicescan.NotFound(err.Error())
+	case errors.Is(err, ports.ErrNoRoomAvailable):
+		return devicescan.InvalidRequestWithCode(err.Error(), devicescan.CodeNoRoomAvailable)
 	case errors.Is(err, ports.ErrInvalid):
 		return devicescan.InvalidRequest(err.Error())
 	default:

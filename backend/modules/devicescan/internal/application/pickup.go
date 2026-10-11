@@ -81,7 +81,7 @@ func (s *Service) resolvePickupPerson(ctx context.Context, device *ports.Device,
 	}
 	if person == nil || !person.HasTag {
 		s.logger.WarnContext(ctx, "RFID tag not assigned to any person during pickup query", slog.String("rfid", tag))
-		return nil, devicescan.NotFound(devicescan.MessageRFIDTagUnassigned)
+		return nil, devicescan.NotFoundWithCode(devicescan.MessageRFIDTagUnassigned, devicescan.CodeRFIDTagUnassigned)
 	}
 	return person, nil
 }
@@ -109,9 +109,9 @@ func (s *Service) resolvePickupStudent(ctx context.Context, person *ports.Person
 		return nil, devicescan.Internal(err.Error(), err)
 	}
 	if staff != nil {
-		return nil, devicescan.InvalidRequest(devicescan.MessageStudentRFIDRequiredForPickup)
+		return nil, devicescan.InvalidRequestWithCode(devicescan.MessageStudentRFIDRequiredForPickup, devicescan.CodeStudentRFIDRequiredForPickup)
 	}
-	return nil, devicescan.NotFound(devicescan.MessageRFIDTagNotStudentOrStaff)
+	return nil, devicescan.NotFoundWithCode(devicescan.MessageRFIDTagNotStudentOrStaff, devicescan.CodeRFIDTagNotStudentOrStaff)
 }
 
 // selectPickupNote prefers the day-specific notes over the recurring

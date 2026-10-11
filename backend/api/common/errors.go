@@ -256,6 +256,19 @@ func ErrorInternalServerWrap(clientMsg string, cause error) render.Renderer {
 	}
 }
 
+// ErrorInternalServerWrapWithCode is ErrorInternalServerWrap with a stable
+// code, for a server fault the client can name, such as a system activity the
+// school has not set up (#3939).
+func ErrorInternalServerWrapWithCode(clientMsg string, cause error, code string) render.Renderer {
+	return &ErrResponse{
+		Err:            fmt.Errorf("%s: %w", clientMsg, cause),
+		HTTPStatusCode: http.StatusInternalServerError,
+		Status:         "error",
+		ErrorText:      clientMsg,
+		Code:           code,
+	}
+}
+
 // ErrorInternalServerRenderer binds stable client text for declarative error
 // rules while preserving each matched error as the logged cause.
 func ErrorInternalServerRenderer(clientMsg string) func(error) render.Renderer {

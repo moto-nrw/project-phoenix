@@ -61,7 +61,7 @@ func (s *Service) openFreeplayNextToBlocks(ctx context.Context, room facilities.
 	activity, err := s.schulhofActivity(ctx)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to find Schulhof activity", slog.String("error", err.Error()))
-		return nil, devicescan.Internal(devicescan.MessageSchulhofNotConfigured, nil)
+		return nil, devicescan.InternalWithCode(devicescan.MessageSchulhofNotConfigured, devicescan.CodeSchulhofNotConfigured)
 	}
 	session, err := s.sessions.EnsureRoomSession(ctx, ports.NewSession{ActivityID: activity.ID, RoomID: room.ID})
 	if err != nil {

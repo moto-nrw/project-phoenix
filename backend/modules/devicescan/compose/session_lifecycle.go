@@ -173,7 +173,11 @@ func (s lifecycleStore) Touch(ctx context.Context, sessionID int64) error {
 func (s lifecycleStore) Timeout(ctx context.Context, deviceID int64) (devicescan.SessionTimeoutResponse, error) {
 	result, err := s.active.ProcessSessionTimeout(ctx, deviceID)
 	if err != nil {
-		return devicescan.SessionTimeoutResponse{}, classifyPresence(err)
+		classified := classifyPresence(err)
+		if errors.Is(err, studentpresence.ErrNoActiveSession) {
+			classified = mapError(classified, ports.ErrNoActiveSession)
+		}
+		return devicescan.SessionTimeoutResponse{}, classified
 	}
 	return devicescan.SessionTimeoutResponse{SessionID: result.SessionID, ActivityID: result.ActivityID, StudentsCheckedOut: result.StudentsCheckedOut, TimeoutAt: result.TimeoutAt}, nil
 }

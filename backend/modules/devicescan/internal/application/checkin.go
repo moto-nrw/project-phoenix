@@ -207,7 +207,7 @@ func (s *Service) classifyRecordFailure(ctx context.Context, studentID int64, se
 		s.logger.InfoContext(ctx, "check-in rejected: student not in care",
 			slog.Int64("student_id", studentID),
 		)
-		return devicescan.NotFound(devicescan.MessagePersonNotStudent)
+		return devicescan.NotFoundWithCode(devicescan.MessagePersonNotStudent, devicescan.CodePersonNotStudent)
 	}
 	s.logger.ErrorContext(ctx, "failed to create visit",
 		slog.Int64("student_id", studentID),
@@ -488,25 +488,24 @@ func (s *Service) createSpecialRoomSession(ctx context.Context, room facilities.
 		activity, err = s.schulhofActivity(ctx)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "failed to find Schulhof activity", slog.String("error", err.Error()))
-			return nil, devicescan.Internal(devicescan.MessageSchulhofNotConfigured, nil)
+			return nil, devicescan.InternalWithCode(devicescan.MessageSchulhofNotConfigured, devicescan.CodeSchulhofNotConfigured)
 		}
 	case facilities.IsToiletRoomName(room.Name):
 		s.logger.InfoContext(ctx, "auto-creating WC active group", slog.Int64("room_id", room.ID))
 		activity, err = s.wcActivity(ctx)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "failed to find WC activity", slog.String("error", err.Error()))
-			message := devicescan.MessageWCNotConfigured
 			if strings.Contains(err.Error(), "staff context") {
-				message = devicescan.MessageWCNeedsStaff
+				return nil, devicescan.InternalWithCode(devicescan.MessageWCNeedsStaff, devicescan.CodeWCNeedsStaff)
 			}
-			return nil, devicescan.Internal(message, nil)
+			return nil, devicescan.InternalWithCode(devicescan.MessageWCNotConfigured, devicescan.CodeWCNotConfigured)
 		}
 	default:
 		s.logger.WarnContext(ctx, "no active groups found in room",
 			slog.Int64("room_id", room.ID),
 			slog.String("room_name", room.Name),
 		)
-		return nil, devicescan.NotFound(devicescan.MessageNoGroupsInRoom)
+		return nil, devicescan.NotFoundWithCode(devicescan.MessageNoGroupsInRoom, devicescan.CodeNoGroupsInRoom)
 	}
 
 	session, err := s.sessions.Start(ctx, ports.NewSession{ActivityID: activity.ID, RoomID: room.ID})
