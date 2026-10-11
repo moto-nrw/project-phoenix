@@ -104,7 +104,7 @@ func renderFailure(w http.ResponseWriter, r *http.Request, runtime Runtime, logg
 		if cause == nil {
 			cause = errors.New(failure.Message)
 		}
-		runtime.Failure(w, r, http.StatusInternalServerError, "", cause, nil, failure.Message)
+		runtime.Failure(w, r, http.StatusInternalServerError, failure.Code, cause, nil, failure.Message)
 	}
 }
 

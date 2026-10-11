@@ -278,19 +278,39 @@ const (
 	CodeImportModeForbidden                              = "import.mode_forbidden"
 	CodeIotActivityCapacityExceeded                      = "iot.activity_capacity_exceeded"
 	CodeIotDeviationReasonRequired                       = "iot.deviation_reason_required"
+	CodeIotDeviceApiKeyFormatInvalid                     = "iot.device_api_key_format_invalid"
+	CodeIotDeviceApiKeyInvalid                           = "iot.device_api_key_invalid"
+	CodeIotDeviceApiKeyRequired                          = "iot.device_api_key_required"
 	CodeIotDeviceIdTaken                                 = "iot.device_id_taken"
+	CodeIotDeviceInactive                                = "iot.device_inactive"
+	CodeIotDevicePinInvalid                              = "iot.device_pin_invalid"
+	CodeIotDevicePinRequired                             = "iot.device_pin_required"
 	CodeIotInvalidRfidTag                                = "iot.invalid_rfid_tag"
 	CodeIotInvalidStaffClockRequest                      = "iot.invalid_staff_clock_request"
 	CodeIotInvalidStaffClockState                        = "iot.invalid_staff_clock_state"
+	CodeIotNoActiveGroupsInRoom                          = "iot.no_active_groups_in_room"
+	CodeIotNoActiveSession                               = "iot.no_active_session"
+	CodeIotNoAttendanceRecordToday                       = "iot.no_attendance_record_today"
+	CodeIotNoRoomAvailable                               = "iot.no_room_available"
+	CodeIotNoSessionToEnd                                = "iot.no_session_to_end"
 	CodeIotOpenRoomBinaryMode                            = "iot.open_room_binary_mode"
+	CodeIotPersonNotStudent                              = "iot.person_not_student"
+	CodeIotPickupStudentRfidRequired                     = "iot.pickup_student_rfid_required"
 	CodeIotPlannedStartNotReached                        = "iot.planned_start_not_reached"
 	CodeIotRfidTagInactive                               = "iot.rfid_tag_inactive"
 	CodeIotRfidTagNotFound                               = "iot.rfid_tag_not_found"
 	CodeIotRfidTagNotStaff                               = "iot.rfid_tag_not_staff"
+	CodeIotRfidTagNotStudentOrStaff                      = "iot.rfid_tag_not_student_or_staff"
+	CodeIotRfidTagUnassigned                             = "iot.rfid_tag_unassigned"
 	CodeIotRoomCapacityExceeded                          = "iot.room_capacity_exceeded"
 	CodeIotRoomNotFound                                  = "iot.room_not_found"
+	CodeIotSchulhofNotConfigured                         = "iot.schulhof_not_configured"
+	CodeIotStaffNotFound                                 = "iot.staff_not_found"
+	CodeIotStaffRfidTagUnassigned                        = "iot.staff_rfid_tag_unassigned"
 	CodeIotStudentAlreadyActive                          = "iot.student_already_active"
 	CodeIotStudentNotPresent                             = "iot.student_not_present"
+	CodeIotWcNeedsStaff                                  = "iot.wc_needs_staff"
+	CodeIotWcNotConfigured                               = "iot.wc_not_configured"
 	CodeMealsInvalidDishes                               = "meals.invalid_dishes"
 	CodeMealsInvalidMealDate                             = "meals.invalid_meal_date"
 	CodeMealsInvalidParticipation                        = "meals.invalid_participation"
@@ -919,19 +939,39 @@ var errorClassByCode = map[string]string{
 	"import.mode_forbidden":                                "permission",
 	"iot.activity_capacity_exceeded":                       "business_rejection",
 	"iot.deviation_reason_required":                        "input",
+	"iot.device_api_key_format_invalid":                    "permission",
+	"iot.device_api_key_invalid":                           "permission",
+	"iot.device_api_key_required":                          "permission",
 	"iot.device_id_taken":                                  "business_rejection",
+	"iot.device_inactive":                                  "permission",
+	"iot.device_pin_invalid":                               "permission",
+	"iot.device_pin_required":                              "permission",
 	"iot.invalid_rfid_tag":                                 "input",
 	"iot.invalid_staff_clock_request":                      "input",
 	"iot.invalid_staff_clock_state":                        "business_rejection",
+	"iot.no_active_groups_in_room":                         "input",
+	"iot.no_active_session":                                "input",
+	"iot.no_attendance_record_today":                       "input",
+	"iot.no_room_available":                                "input",
+	"iot.no_session_to_end":                                "input",
 	"iot.open_room_binary_mode":                            "business_rejection",
+	"iot.person_not_student":                               "input",
+	"iot.pickup_student_rfid_required":                     "input",
 	"iot.planned_start_not_reached":                        "business_rejection",
 	"iot.rfid_tag_inactive":                                "business_rejection",
 	"iot.rfid_tag_not_found":                               "business_rejection",
 	"iot.rfid_tag_not_staff":                               "business_rejection",
+	"iot.rfid_tag_not_student_or_staff":                    "input",
+	"iot.rfid_tag_unassigned":                              "input",
 	"iot.room_capacity_exceeded":                           "business_rejection",
 	"iot.room_not_found":                                   "business_rejection",
+	"iot.schulhof_not_configured":                          "server",
+	"iot.staff_not_found":                                  "input",
+	"iot.staff_rfid_tag_unassigned":                        "input",
 	"iot.student_already_active":                           "business_rejection",
 	"iot.student_not_present":                              "business_rejection",
+	"iot.wc_needs_staff":                                   "server",
+	"iot.wc_not_configured":                                "server",
 	"meals.invalid_dishes":                                 "input",
 	"meals.invalid_meal_date":                              "input",
 	"meals.invalid_participation":                          "input",

@@ -206,7 +206,7 @@ func (s *sessionLifecycle) SessionToEnd(ctx context.Context) (devicescan.Session
 		return devicescan.SessionToEnd{}, classifyPresenceFailure(err)
 	}
 	if group == nil {
-		return devicescan.SessionToEnd{}, devicescan.InvalidRequest("no active session to end")
+		return devicescan.SessionToEnd{}, devicescan.InvalidRequestWithCode("no active session to end", devicescan.CodeNoSessionToEnd)
 	}
 	return devicescan.SessionToEnd{ID: group.ID, ActivityID: group.ActivityID, DeviceID: device.ID, StartTime: group.StartTime}, nil
 }

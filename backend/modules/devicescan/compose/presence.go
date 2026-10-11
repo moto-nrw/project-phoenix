@@ -21,7 +21,8 @@ func classifyPresence(err error) error {
 		return mapError(err, ports.ErrConflict)
 	}
 	if errors.Is(err, studentpresence.ErrNoRoomAvailable) {
-		return mapError(err, ports.ErrInvalid)
+		// Still ErrInvalid (400), narrowed so the kiosk gets its own code.
+		return mapError(mapError(err, ports.ErrNoRoomAvailable), ports.ErrInvalid)
 	}
 	activeErr, ok := err.(*studentpresence.OperationError) //nolint:errorlint // the historic mapping classified the outer wrapper only
 	if !ok {
@@ -44,8 +45,7 @@ func classifyPresence(err error) error {
 	case errors.Is(inner, studentpresence.ErrGroupAlreadyEnded), errors.Is(inner, studentpresence.ErrVisitAlreadyEnded),
 		errors.Is(inner, studentpresence.ErrSupervisionAlreadyEnded), errors.Is(inner, studentpresence.ErrCombinedGroupAlreadyEnded),
 		errors.Is(inner, studentpresence.ErrInvalidTimeRange), errors.Is(inner, studentpresence.ErrCannotDeleteActiveGroup),
-		errors.Is(inner, studentpresence.ErrInvalidData), errors.Is(inner, studentpresence.ErrInvalidActivitySession),
-		errors.Is(inner, studentpresence.ErrNoRoomAvailable):
+		errors.Is(inner, studentpresence.ErrInvalidData), errors.Is(inner, studentpresence.ErrInvalidActivitySession):
 		return mapError(err, ports.ErrInvalid)
 	}
 	return err

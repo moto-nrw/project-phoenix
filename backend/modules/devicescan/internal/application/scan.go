@@ -85,7 +85,7 @@ func (s *Service) resolvePerson(ctx context.Context, device *ports.Device, tag s
 	}
 	if person == nil || !person.HasTag {
 		s.logger.WarnContext(ctx, "RFID tag not assigned to any person", slog.String("rfid", tag))
-		return nil, devicescan.NotFound(devicescan.MessageRFIDTagUnassigned)
+		return nil, devicescan.NotFoundWithCode(devicescan.MessageRFIDTagUnassigned, devicescan.CodeRFIDTagUnassigned)
 	}
 	s.logger.DebugContext(ctx, "RFID tag belongs to person",
 		slog.String("rfid", tag),
@@ -126,13 +126,13 @@ func (s *Service) scanStaff(ctx context.Context, device *ports.Device, person *p
 			slog.Int64("person_id", person.ID),
 			slog.String("error", err.Error()),
 		)
-		return nil, devicescan.NotFound(devicescan.MessageRFIDTagNotStudentOrStaff)
+		return nil, devicescan.NotFoundWithCode(devicescan.MessageRFIDTagNotStudentOrStaff, devicescan.CodeRFIDTagNotStudentOrStaff)
 	}
 	if staff == nil {
 		s.logger.WarnContext(ctx, "person is neither student nor staff",
 			slog.Int64("person_id", person.ID),
 		)
-		return nil, devicescan.NotFound(devicescan.MessageRFIDTagNotStudentOrStaff)
+		return nil, devicescan.NotFoundWithCode(devicescan.MessageRFIDTagNotStudentOrStaff, devicescan.CodeRFIDTagNotStudentOrStaff)
 	}
 
 	s.logger.InfoContext(ctx, "found staff, attempting supervisor authentication",
@@ -166,7 +166,7 @@ func (s *Service) addSupervisor(ctx context.Context, device *ports.Device, staff
 			slog.String("device_id", device.DeviceID),
 			slog.Int64("device_db_id", device.ID),
 		)
-		return nil, devicescan.NotFound(devicescan.MessageNoActiveSession)
+		return nil, devicescan.NotFoundWithCode(devicescan.MessageNoActiveSession, devicescan.CodeNoActiveSession)
 	}
 	s.logger.InfoContext(ctx, "processing supervisor authentication",
 		slog.String("device_id", device.DeviceID),
@@ -239,7 +239,7 @@ func (s *Service) scanBinary(ctx context.Context, device *ports.Device, student 
 				slog.Int64("student_id", student.ID),
 				slog.Int64("device_id", device.ID),
 			)
-			return nil, devicescan.NotFound(devicescan.MessagePersonNotStudent)
+			return nil, devicescan.NotFoundWithCode(devicescan.MessagePersonNotStudent, devicescan.CodePersonNotStudent)
 		}
 		s.logger.ErrorContext(ctx, "binary mode attendance toggle failed",
 			slog.Int64("student_id", student.ID),
