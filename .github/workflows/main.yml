@@ -29,9 +29,9 @@ env:
   GOTOOLCHAIN: local
 
 jobs:
-  # Draft PRs run no CI. lint/test skip implicitly via `needs: detect-changes`;
-  # env-sync-check and ci-gate carry the same guard explicitly. The full suite
-  # runs on the ready_for_review event.
+  # Draft PRs run no CI. Every job except ci-gate skips implicitly via
+  # `needs: detect-changes`; ci-gate carries the same guard explicitly. The full
+  # suite runs on the ready_for_review event.
   detect-changes:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     permissions:
@@ -62,8 +62,17 @@ jobs:
       # pushes and release pull requests run the full suites.
       changed-scope: ${{ github.event_name != 'push' && steps.scope.outputs.release != 'true' }}
       base-ref: ${{ github.base_ref }}
+      # The script suites, the env sync and the error-code registry check only
+      # files their own filter lists. Docs-only pull requests skip all three.
+      run-ci-scripts: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.ci == 'true' }}
+      run-env-check: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.env == 'true' }}
+      run-error-codes: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.error-codes == 'true' }}
+      ci-files-changed: ${{ steps.filter.outputs.ci == 'true' }}
     steps:
+      # Pull requests need no checkout: paths-filter reads their changed files
+      # through the GitHub API. Pushes compare against the previous commit.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: github.event_name == 'push'
         with:
           fetch-depth: 0
       # development has no push run, so the release pull request carries the
@@ -177,6 +186,7 @@ jobs:
               - 'scripts/release-backup*'
               - 'scripts/demo-environment.test.mjs'
               - 'scripts/report-sentry-deploy*'
+              - 'scripts/posthog-dashboards*'
               - 'scripts/create-demo-env.py'
               - 'scripts/test-support/release-docker.mjs'
               - 'scripts/deploy-remote.sh'
@@ -187,12 +197,43 @@ jobs:
               - 'environments/**'
               - '.env.example'
               - 'package.json'
+            env:
+              - 'environments/**'
+              - '.env.example'
+              - 'docker-compose*.yml'
+              - 'devbox.json'
+              - 'devbox.lock'
+              - 'package.json'
+              - 'frontend/package.json'
+              - 'frontend/src/**'
+              - 'backend/cmd/**'
+              - '.github/workflows/**'
+              - 'scripts/env-check.sh'
+              - 'scripts/check-runtime-env.py'
+            error-codes:
+              - 'error-registry.json'
+              - 'scripts/generate-error-codes*'
+              - 'backend/api/common/error_codes.generated.go'
+              - 'frontend/src/lib/error-codes.generated.ts'
+              - '.github/workflows/lint.yml'
+
+  ci-scripts:
+    name: CI and release script suites
+    needs: detect-changes
+    if: needs.detect-changes.outputs.run-ci-scripts == 'true'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Verify pre-push failure and selection behavior
         run: node --test scripts/pre-push.test.mjs scripts/check-release-architecture.test.mjs scripts/check-migration-evidence.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/posthog-dashboards.test.mjs
 
       - name: Verify complete release restore with PostgreSQL
-        if: steps.filter.outputs.ci == 'true'
+        if: needs.detect-changes.outputs.ci-files-changed == 'true'
         run: node --test scripts/release-backup.integration.test.mjs
 
   lint:
@@ -204,6 +245,7 @@ jobs:
       run-backend: ${{ needs.detect-changes.outputs.run-backend-lint == 'true' }}
       full-backend: ${{ needs.detect-changes.outputs.full-backend-lint == 'true' }}
       run-frontend: ${{ needs.detect-changes.outputs.run-frontend-lint == 'true' }}
+      run-error-codes: ${{ needs.detect-changes.outputs.run-error-codes == 'true' }}
 
   backend-architecture-ratchet:
     name: Backend architecture ratchet
@@ -326,7 +368,8 @@ jobs:
 
   # Verify all environments have matching env var keys (no secrets needed)
   env-sync-check:
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: detect-changes
+    if: needs.detect-changes.outputs.run-env-check == 'true'
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -380,7 +423,7 @@ jobs:
     if: >-
       always()
       && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-    needs: [detect-changes, lint, test, backend-architecture-ratchet, env-sync-check]
+    needs: [detect-changes, ci-scripts, lint, test, backend-architecture-ratchet, env-sync-check]
     runs-on: ubuntu-latest
     steps:
       - name: Reject skipped mandatory checks
@@ -391,17 +434,24 @@ jobs:
           BACKEND_TEST_REQUIRED: ${{ needs.detect-changes.outputs.run-backend }}
           FRONTEND_TEST_REQUIRED: ${{ needs.detect-changes.outputs.run-frontend }}
           SEED_SMOKE_REQUIRED: ${{ needs.detect-changes.outputs.run-seed-smoke }}
+          CI_SCRIPTS_REQUIRED: ${{ needs.detect-changes.outputs.run-ci-scripts }}
+          ENV_CHECK_REQUIRED: ${{ needs.detect-changes.outputs.run-env-check }}
+          ERROR_CODES_REQUIRED: ${{ needs.detect-changes.outputs.run-error-codes }}
+          CI_SCRIPTS_RESULT: ${{ needs.ci-scripts.result }}
+          ENV_CHECK_RESULT: ${{ needs.env-sync-check.result }}
           ARCHITECTURE_RESULT: ${{ needs.backend-architecture-ratchet.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           TEST_RESULT: ${{ needs.test.result }}
         run: |
           if [[ "$ARCHITECTURE_REQUIRED" == true && "$ARCHITECTURE_RESULT" == skipped ]] ||
-             [[ ( "$BACKEND_LINT_REQUIRED" == true || "$FRONTEND_LINT_REQUIRED" == true ) && "$LINT_RESULT" == skipped ]] ||
-             [[ ( "$BACKEND_TEST_REQUIRED" == true || "$FRONTEND_TEST_REQUIRED" == true || "$SEED_SMOKE_REQUIRED" == true ) && "$TEST_RESULT" == skipped ]]; then
-            echo "A mandatory check was skipped (architecture=$ARCHITECTURE_RESULT, lint=$LINT_RESULT, test=$TEST_RESULT)"
+             [[ ( "$BACKEND_LINT_REQUIRED" == true || "$FRONTEND_LINT_REQUIRED" == true || "$ERROR_CODES_REQUIRED" == true ) && "$LINT_RESULT" == skipped ]] ||
+             [[ ( "$BACKEND_TEST_REQUIRED" == true || "$FRONTEND_TEST_REQUIRED" == true || "$SEED_SMOKE_REQUIRED" == true ) && "$TEST_RESULT" == skipped ]] ||
+             [[ "$CI_SCRIPTS_REQUIRED" == true && "$CI_SCRIPTS_RESULT" == skipped ]] ||
+             [[ "$ENV_CHECK_REQUIRED" == true && "$ENV_CHECK_RESULT" == skipped ]]; then
+            echo "A mandatory check was skipped (architecture=$ARCHITECTURE_RESULT, lint=$LINT_RESULT, test=$TEST_RESULT, ci-scripts=$CI_SCRIPTS_RESULT, env=$ENV_CHECK_RESULT)"
             exit 1
           fi
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: lint, test, backend-architecture-ratchet
+          allowed-skips: lint, test, backend-architecture-ratchet, ci-scripts, env-sync-check

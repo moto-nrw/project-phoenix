@@ -12,6 +12,9 @@ on:
       run-frontend:
         type: boolean
         default: true
+      run-error-codes:
+        type: boolean
+        default: true
 
 defaults:
   run:
@@ -22,7 +25,8 @@ env:
 
 jobs:
   error-code-registry:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    if: ${{ inputs.run-error-codes }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
