@@ -16,6 +16,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
@@ -31,7 +32,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
-	emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, repos.ParentMessage,
+	emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, services.NewParentMessageRepository(db),
 		parentSettingsStub{boolDefault: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:       repos.CarePlan(),
@@ -49,9 +50,9 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 		},
 		Broadcaster:       testpkg.NewRecordingBroadcaster(),
 		MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo:       repos.ParentMessage,
+		MessageRepo:       services.NewParentMessageRepository(db),
 		MessageReadRepo:   repos.ParentMessageRead,
-		Conversations:     communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
+		Conversations:     communicationtest.NewParentConversationCore(repos.ParentMessageThread, services.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Emitter:           emitter,
 		Logger:            slog.Default(),
 	})
@@ -95,7 +96,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 	// Capture the EMITTER's broadcaster (distinct from the service's own): the
 	// guardian fan-out rides BroadcastChildUpdateToGuardians on the emitter.
 	emitterBC := testpkg.NewRecordingBroadcaster()
-	emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, repos.ParentMessage,
+	emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, services.NewParentMessageRepository(db),
 		parentSettingsStub{boolDefault: true}, emitterBC, slog.Default())
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:       repos.CarePlan(),
@@ -113,9 +114,9 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 		},
 		Broadcaster:       testpkg.NewRecordingBroadcaster(),
 		MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo:       repos.ParentMessage,
+		MessageRepo:       services.NewParentMessageRepository(db),
 		MessageReadRepo:   repos.ParentMessageRead,
-		Conversations:     communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
+		Conversations:     communicationtest.NewParentConversationCore(repos.ParentMessageThread, services.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Emitter:           emitter,
 		Logger:            slog.Default(),
 	})
@@ -156,7 +157,7 @@ func loadThreadPills(t *testing.T, db *bun.DB, repos *repositories.Factory, c te
 			return ferr
 		}
 		threadID = th.ID
-		ms, merr := repos.ParentMessage.ListByThread(txCtx, th.ID, 100)
+		ms, merr := services.NewParentMessageRepository(db).ListByThread(txCtx, th.ID, 100)
 		msgs = ms
 		return merr
 	})

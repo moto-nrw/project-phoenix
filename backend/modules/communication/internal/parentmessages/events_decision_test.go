@@ -16,6 +16,7 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -93,7 +94,7 @@ func TestEmitChildEvent_PushesDecisionToSubmittingGuardian(t *testing.T) {
 	require.NoError(t, err)
 
 	notifier := &capturingNotifier{}
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
+	emitter := newMockEmitter(t, db, repos.ParentMessageThread, services.NewParentMessageRepository(db),
 		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
 		WithDecisionNotifications(notifier, decisionPreferences{optedIn: true})
 
@@ -137,7 +138,7 @@ func TestRequestDecisionEnqueueAndPillBothCheckChildAccess(t *testing.T) {
 
 	threadRepo := &revokedBeforePush{ParentMessageThreadRepository: repos.ParentMessageThread}
 	notifier := &capturingNotifier{}
-	emitter := newMockEmitter(t, db, threadRepo, repos.ParentMessage,
+	emitter := newMockEmitter(t, db, threadRepo, services.NewParentMessageRepository(db),
 		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
 		WithDecisionNotifications(notifier, decisionPreferences{optedIn: true})
 
@@ -162,7 +163,7 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 		notifier := &capturingNotifier{}
-		emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
+		emitter := newMockEmitter(t, db, repos.ParentMessageThread, services.NewParentMessageRepository(db),
 			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
 			WithDecisionNotifications(notifier, decisionPreferences{optedIn: false})
 
@@ -180,7 +181,7 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 		notifier := &capturingNotifier{}
-		emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
+		emitter := newMockEmitter(t, db, repos.ParentMessageThread, services.NewParentMessageRepository(db),
 			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
 			WithDecisionNotifications(notifier, decisionPreferences{optedIn: true})
 
@@ -196,7 +197,7 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 	t.Run("an emitter without notification wiring stays a no-op", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-		emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
+		emitter := newMockEmitter(t, db, repos.ParentMessageThread, services.NewParentMessageRepository(db),
 			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 		emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, staffDecision(chain.AccountID, 304))
@@ -216,7 +217,7 @@ func TestRequestDecisionEnqueueFailuresAbortTheUnitOfWork(t *testing.T) {
 		t.Helper()
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-		emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
+		emitter := newMockEmitter(t, db, repos.ParentMessageThread, services.NewParentMessageRepository(db),
 			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default()).
 			WithDecisionNotifications(notifier, prefs)
 

@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -65,7 +66,7 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 		CreatedBy: staff.ID,
 	}
 	session.SetTenantID(tenantID)
-	require.NoError(t, repos.WorkSession.Create(ctx, session))
+	require.NoError(t, workforceLegacy.NewWorkSessionRepository(owners.Workforce).Create(ctx, session))
 
 	// Reported sick day on Monday June 15, 2026 → credits 480.
 	absence := &timerecords.StaffAbsence{
@@ -80,8 +81,8 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	require.NoError(t, repos.StaffAbsence.Create(ctx, absence))
 
 	svc := timetracking.NewWorkTimeMonthService(
-		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(db)),
-		services.NewWorkScheduleTargets(repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(repos.WorkTimeModel), services.NewTimeTrackingShifts(owners.Workforce),
+		workforceLegacy.NewWorkSessionRepository(owners.Workforce), workforceLegacy.NewWorkSessionBreakRepository(owners.Workforce), repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(db)),
+		services.NewWorkScheduleTargets(services.NewStaffWorkScheduleRepository(owners.Workforce)), services.NewWorkTimeTargetModels(services.NewWorkTimeModelRepository(owners.Workforce)), services.NewTimeTrackingShifts(owners.Workforce),
 		wtmIntSettings{accountStart: "2026-06-01"}, nil,
 	)
 
@@ -111,7 +112,7 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 		CreatedBy: staff.ID,
 	}
 	lateSession.SetTenantID(tenantID)
-	require.NoError(t, repos.WorkSession.Create(ctx, lateSession))
+	require.NoError(t, workforceLegacy.NewWorkSessionRepository(owners.Workforce).Create(ctx, lateSession))
 
 	julyAfter, err := svc.GetMonthSummary(ctx, staff.ID, 2026, 7)
 	require.NoError(t, err)

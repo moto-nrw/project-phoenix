@@ -113,7 +113,6 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		InstanceStudent:       newTimetableInstanceStudentRepository(db, bookings, newStudentPresence(db)),
 		ActiveGroup:           sessions,
 		GroupSupervisor:       sessions,
-		Room:                  facilitiesAdapter.New(),
 		ClassArrivalException: timetableCompose.NewClassArrivalExceptionRepository(db),
 		SubmissionRateLimit:   enrollmentCompose.New(),
 	}
@@ -133,6 +132,8 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
+	room := facilitiesAdapter.New()
+	room.Bind(rooms)
 	adapters := newTimetableRepositories(db, bookings, newStudentPresence(db), persons, groups, rooms, calendar, membership, workTime)
 	repos.ActivityCategory, repos.ActivityGroup = adapters.ActivityCategory, adapters.ActivityGroup
 	repos.ActivitySchedule, repos.ActivitySupervisor = adapters.ActivitySchedule, adapters.ActivitySupervisor
@@ -141,6 +142,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	repos.ActivityException, repos.ActivityInstance = adapters.ActivityException, adapters.ActivityInstance
 	repos.InstanceIdempotency, repos.InstanceStaff = adapters.InstanceIdempotency, adapters.InstanceStaff
 	result := timetableTestRepositories(repos)
+	result.Room = room
 	result.Timetable = bookings
 	// The Dienstplan rows belong to Workforce (#2689); suites that still
 	// speak the retained rows reach them through the legacy row adapters
@@ -166,7 +168,6 @@ func timetableTestRepositories(r *Factory) TimetableTestRepositories {
 		StudentArrivalNote: r.StudentArrivalNote, StudentPickupSchedule: r.StudentPickupSchedule,
 		StudentPickupException: r.StudentPickupException, StudentPickupNote: r.StudentPickupNote,
 		StudentStatusDay: r.StudentStatusDay, CarePlan: r.carePlan,
-		Room:                  r.Room,
 		ClassArrivalException: r.ClassArrivalException,
 		enrollment:            r.SubmissionRateLimit, schoolCalendar: r.SchoolCalendar(), calendarPeriodUsage: r.CalendarPeriodUsage(),
 	}

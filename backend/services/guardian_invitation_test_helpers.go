@@ -9,6 +9,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -52,6 +53,10 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	if err != nil {
 		return nil, err
 	}
+	organizations, err := repositories.NewOrganizationTenancy(db)
+	if err != nil {
+		return nil, err
+	}
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db})
 	audits = audits.WithRoutedWrites(audit)
 	signer, err := configuredTokenAuth()
@@ -79,11 +84,11 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 		return nil, err
 	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepositoriesOf(repos, repos.School, audits.AuthEvent), codec: codec, audit: audit, logger: logger,
+		repos: sessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db)), codec: codec, audit: audit, logger: logger,
 		lifecycle: &lifecycleWiring{
 			audit: audit, caregivers: caregivers,
 			guardianMail: &guardianInvitationWiring{
-				schools:     repos.School,
+				schools:     organizations,
 				outbox:      func() platformModels.OutboxResultEnqueuer { return outbox },
 				enrollments: claims,
 				parentsURL:  "http://localhost:3000", fallbackExpiry: expiry, logger: logger,

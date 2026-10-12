@@ -18,6 +18,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -249,7 +250,7 @@ func TestMarkUnread_KeepsParentReadReceipt(t *testing.T) {
 
 	receipts := func() (bool, bool) {
 		t.Helper()
-		messages, err := repos.ParentMessage.ListByThread(guardianCtx, threadID, 0)
+		messages, err := services.NewParentMessageRepository(f.db).ListByThread(guardianCtx, threadID, 0)
 		require.NoError(t, err)
 		messaging.DecorateReadReceipts(guardianCtx, repos.ParentMessageRead, nil, threadID, f.chain.AccountID, messages)
 		var guardianMessage *usersModels.ParentMessage
@@ -321,7 +322,7 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 
 	repos := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db))
 	disabled := messaging.NewService(messaging.Config{
-		ThreadRepo: repos.ParentMessageThread, MessageRepo: repos.ParentMessage, ReadRepo: repos.ParentMessageRead,
+		ThreadRepo: repos.ParentMessageThread, MessageRepo: services.NewParentMessageRepository(f.db), ReadRepo: repos.ParentMessageRead,
 		Persons:     newPersons(repos, f.db),
 		Settings:    stubSettings{messagingEnabled: false},
 		Broadcaster: f.bc, DB: f.db, Logger: slog.Default(),

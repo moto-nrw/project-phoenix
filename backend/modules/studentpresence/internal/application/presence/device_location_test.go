@@ -28,7 +28,8 @@ func TestDeviceLocation_UpdatedOnSessionStart(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := buildDeviceLocationService(t, db)
-	deviceRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
+	deviceRepo, err := repositories.NewDeviceRepository(db)
+	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("session start updates device room_id", func(t *testing.T) {

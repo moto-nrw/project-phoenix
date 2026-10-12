@@ -42,6 +42,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		owners.membership,
 		owners.calendar,
 		owners.timetable,
+		owners.appointments,
 		nil,
 		nil,
 		nil,

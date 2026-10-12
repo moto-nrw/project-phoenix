@@ -44,6 +44,10 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
+	organizations, err := repositories.NewOrganizationTenancy(db)
+	if err != nil {
+		return GuardianTestModule{}, err
+	}
 	g := NewGuardianTestRepositories(db, command)
 	people, photoRuntime, err := repositories.NewPeopleDirectoryWithPhotos(db)
 	if err != nil {
@@ -65,7 +69,7 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 		from = email.NewEmail("moto", "no-reply@moto.local")
 	}
 	mailer := email.NewMockMailer()
-	mailIdentity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: r.School}, func(ctx context.Context, tenantID int64) (string, error) {
+	mailIdentity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
 		return auth.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, slog.Default())
 	guardian := users.NewGuardianService(users.GuardianServiceDependencies{

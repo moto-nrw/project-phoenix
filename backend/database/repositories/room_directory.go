@@ -6,7 +6,6 @@ import (
 
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/uptrace/bun"
@@ -37,22 +36,9 @@ func (f *Factory) bindDefaultFacilities(db *bun.DB) {
 		panic(fmt.Sprintf("repository factory: compose facilities: %v", err))
 	}
 	f.roomBinders = f.roomBinders[:0]
-	f.registerFacilitiesRoomBinder()
 	f.registerActiveRoomBinders()
 	f.registerRemainingRoomBinders()
 	f.bindRoomDirectories(rooms)
-}
-
-func (f *Factory) registerFacilitiesRoomBinder() {
-	if repo, ok := f.Room.(*facilitiesRepositoryAdapter.Repository); ok {
-		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
-			capability, ok := rooms.(facilitiesModule.Capability)
-			if !ok {
-				panic("repository factory: Facilities query does not support room commands")
-			}
-			repo.Bind(capability)
-		})
-	}
 }
 
 func (f *Factory) registerActiveRoomBinders() {

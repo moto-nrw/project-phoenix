@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -31,6 +32,7 @@ type ownerCapabilities struct {
 	// production root does.
 	bindCalendarAdministration func(schoolCalendarCompose.AdministrationRuntime)
 	timetable                  timetable.Capability
+	appointments               appointments.Capability
 	workforce                  workforceModule.Capability
 }
 
@@ -41,7 +43,7 @@ func NewFactoryForTests(repos *repositories.Factory, db *bun.DB, logger *slog.Lo
 	if err != nil {
 		return nil, err
 	}
-	return owners.factory(newFactory(repos, db, logger, currentTestFactoryConfig(), tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...))
+	return owners.factory(newFactory(repos, db, logger, currentTestFactoryConfig(), tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, owners.appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...))
 }
 
 func NewFactoryForTestsWithConfig(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cfg FactoryConfig, clocks ...func() time.Time) (*Factory, error) {
@@ -49,7 +51,7 @@ func NewFactoryForTestsWithConfig(repos *repositories.Factory, db *bun.DB, logge
 	if err != nil {
 		return nil, err
 	}
-	return owners.factory(newFactory(repos, db, logger, cfg, tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...))
+	return owners.factory(newFactory(repos, db, logger, cfg, tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, owners.appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...))
 }
 
 func currentTestFactoryConfig() FactoryConfig {
@@ -106,9 +108,13 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
+	appointmentCapability, err := repositories.NewAppointments(db)
+	if err != nil {
+		return ownerCapabilities{}, err
+	}
 	return ownerCapabilities{
 		organizations: organizations, persons: persons, groups: groups, rooms: rooms,
-		membership: membership, calendar: calendar, timetable: timetableCapability, workforce: workTime,
+		membership: membership, calendar: calendar, timetable: timetableCapability, appointments: appointmentCapability, workforce: workTime,
 		bindCalendarAdministration: func(runtime schoolCalendarCompose.AdministrationRuntime) { calendarAdministration = runtime },
 	}, nil
 }

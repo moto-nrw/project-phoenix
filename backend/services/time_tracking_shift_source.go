@@ -1,4 +1,4 @@
-package repositories
+package services
 
 import (
 	"context"
@@ -7,10 +7,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
-// TimeTrackingShift is the planned-window projection consumed by time tracking.
+// timeTrackingShiftRow is the planned-window projection consumed by time tracking.
 // StartTime and EndTime are wall clocks anchored at 0001-01-01 UTC, the
 // normalized shape the retained repositories handed their callers.
-type TimeTrackingShift struct {
+type timeTrackingShiftRow struct {
 	StaffID      int64
 	Date         string
 	StartTime    time.Time
@@ -19,19 +19,19 @@ type TimeTrackingShift struct {
 	Cancelled    bool
 }
 
-// TimeTrackingShifts reads planned shifts for the time-tracking services
+// timeTrackingShiftSource reads planned shifts for the time-tracking services
 // through the public Workforce capability (#3418); it performs no persistence
 // of its own.
-type TimeTrackingShifts struct{ shifts workforce.ShiftQuery }
+type timeTrackingShiftSource struct{ shifts workforce.ShiftQuery }
 
-func NewTimeTrackingShifts(shifts workforce.ShiftQuery) *TimeTrackingShifts {
+func newTimeTrackingShiftSource(shifts workforce.ShiftQuery) *timeTrackingShiftSource {
 	if shifts == nil {
 		panic("time tracking shifts: Workforce shift query is required")
 	}
-	return &TimeTrackingShifts{shifts: shifts}
+	return &timeTrackingShiftSource{shifts: shifts}
 }
 
-func (r *TimeTrackingShifts) ForStaffOnDate(ctx context.Context, staffIDs []int64, date string) ([]*TimeTrackingShift, error) {
+func (r *timeTrackingShiftSource) ForStaffOnDate(ctx context.Context, staffIDs []int64, date string) ([]*timeTrackingShiftRow, error) {
 	if len(staffIDs) == 0 {
 		return nil, nil
 	}
@@ -41,22 +41,22 @@ func (r *TimeTrackingShifts) ForStaffOnDate(ctx context.Context, staffIDs []int6
 	})
 }
 
-func (r *TimeTrackingShifts) ForStaffInRange(ctx context.Context, staffID int64, from, to string) ([]*TimeTrackingShift, error) {
+func (r *timeTrackingShiftSource) ForStaffInRange(ctx context.Context, staffID int64, from, to string) ([]*timeTrackingShiftRow, error) {
 	return r.list(ctx, workforce.StaffShiftFilter{
 		StaffID: staffID, From: from, To: to,
 		Order: timeTrackingShiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStartTime),
 	})
 }
 
-func (r *TimeTrackingShifts) InRange(ctx context.Context, from, to string) ([]*TimeTrackingShift, error) {
+func (r *timeTrackingShiftSource) InRange(ctx context.Context, from, to string) ([]*timeTrackingShiftRow, error) {
 	return r.list(ctx, workforce.StaffShiftFilter{
 		From: from, To: to,
 		Order: timeTrackingShiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStaffID, workforce.StaffShiftOrderStartTime),
 	})
 }
 
-func (r *TimeTrackingShifts) ByStaffInRange(ctx context.Context, staffIDs []int64, from, to string) (map[int64][]*TimeTrackingShift, error) {
-	result := make(map[int64][]*TimeTrackingShift, len(staffIDs))
+func (r *timeTrackingShiftSource) ByStaffInRange(ctx context.Context, staffIDs []int64, from, to string) (map[int64][]*timeTrackingShiftRow, error) {
+	result := make(map[int64][]*timeTrackingShiftRow, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return result, nil
 	}
@@ -73,14 +73,14 @@ func (r *TimeTrackingShifts) ByStaffInRange(ctx context.Context, staffIDs []int6
 	return result, nil
 }
 
-func (r *TimeTrackingShifts) list(ctx context.Context, filter workforce.StaffShiftFilter) ([]*TimeTrackingShift, error) {
+func (r *timeTrackingShiftSource) list(ctx context.Context, filter workforce.StaffShiftFilter) ([]*timeTrackingShiftRow, error) {
 	rows, err := r.shifts.ListStaffShifts(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*TimeTrackingShift, 0, len(rows))
+	result := make([]*timeTrackingShiftRow, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, &TimeTrackingShift{
+		result = append(result, &timeTrackingShiftRow{
 			StaffID: row.StaffID, Date: row.Date,
 			StartTime: timeTrackingWallClock(row.StartTime), EndTime: timeTrackingWallClock(row.EndTime),
 			BreakMinutes: row.BreakMinutes, Cancelled: row.Cancelled,

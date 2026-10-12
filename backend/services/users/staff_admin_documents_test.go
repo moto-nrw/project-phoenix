@@ -12,6 +12,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -25,12 +26,13 @@ import (
 // a Stammdaten audit row; sensitive downloads write a data-access log row.
 
 type staffDocumentScenario struct {
-	db      *bun.DB
-	repos   *repositories.Factory
-	svc     workforce.StaffDocuments
-	ctx     context.Context
-	staffID int64
-	account int64
+	db       *bun.DB
+	repos    *repositories.Factory
+	workTime workforce.Capability
+	svc      workforce.StaffDocuments
+	ctx      context.Context
+	staffID  int64
+	account  int64
 }
 
 func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
@@ -38,7 +40,8 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	owners := repositories.NewUnobservedTimetableDependencies(db)
+	repos := repositories.NewFactory(db, owners)
 	admin, err := services.NewStaffAdmin(services.StaffAdminDependencies{
 		DB: db, Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
 		MasterDataAudit: services.NewTestAuditPersistence(db, nil).StaffMasterDataChange, PersonnelNumber: services.NewTestAuditPersistence(db, nil).PersonnelNumberChange, DataAccessLog: services.NewTestAuditPersistence(db, nil).DataAccessLog,
@@ -50,12 +53,13 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("dokumente-%d@example.test", suffix))
 
 	return &staffDocumentScenario{
-		db:      db,
-		repos:   repos,
-		svc:     admin,
-		ctx:     testpkg.Ctx(t),
-		staffID: staff.ID,
-		account: account.ID,
+		db:       db,
+		repos:    repos,
+		workTime: owners.Workforce,
+		svc:      admin,
+		ctx:      testpkg.Ctx(t),
+		staffID:  staff.ID,
+		account:  account.ID,
 	}
 }
 
@@ -301,7 +305,7 @@ func TestStaffDocumentService_RetentionSchedule(t *testing.T) {
 	assert.Empty(t, vertrag.RetainUntil)
 
 	end := timezone.NewDate(2027, 7, 31)
-	require.NoError(t, s.repos.StaffMasterData.Create(s.ctx, &userModels.StaffMasterData{
+	require.NoError(t, workforceLegacy.NewStaffMasterDataRepository(s.workTime).Create(s.ctx, &userModels.StaffMasterData{
 		StaffID:         s.staffID,
 		ContractEndDate: &end,
 	}))

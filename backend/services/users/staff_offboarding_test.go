@@ -41,13 +41,14 @@ type offboardingIdentity interface {
 }
 
 type offboardingScenario struct {
-	db      *bun.DB
-	repos   *repositories.Factory
-	rows    repositories.TimetableTestRepositories
-	authSvc offboardingIdentity
-	svc     *offboardingTestRunner
-	deps    offboardingcompose.Dependencies
-	ctx     context.Context
+	db       *bun.DB
+	repos    *repositories.Factory
+	workTime workforce.Capability
+	rows     repositories.TimetableTestRepositories
+	authSvc  offboardingIdentity
+	svc      *offboardingTestRunner
+	deps     offboardingcompose.Dependencies
+	ctx      context.Context
 }
 
 func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScenario {
@@ -87,13 +88,14 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	svc := &offboardingTestRunner{deps: deps}
 
 	return &offboardingScenario{
-		db:      db,
-		repos:   repos,
-		rows:    rows,
-		authSvc: authService,
-		svc:     svc,
-		deps:    deps,
-		ctx:     testpkg.Ctx(t),
+		db:       db,
+		repos:    repos,
+		workTime: owners.Workforce,
+		rows:     rows,
+		authSvc:  authService,
+		svc:      svc,
+		deps:     deps,
+		ctx:      testpkg.Ctx(t),
 	}
 }
 
@@ -1184,7 +1186,7 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 		RotationLength:     1,
 		RotationAnchorDate: configModel.NewCalendarDate(2026, time.January, 5),
 	}
-	require.NoError(t, sc.repos.WorkTimeModel.Create(sc.ctx, model, []*configModel.WorkTimeModelEntry{
+	require.NoError(t, services.NewWorkTimeModelRepository(sc.workTime).Create(sc.ctx, model, []*configModel.WorkTimeModelEntry{
 		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 300},
 	}))
 	_, err := sc.db.ExecContext(context.Background(),
@@ -1207,7 +1209,7 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 		Scan(context.Background(), &workTimeModelID))
 	assert.Nil(t, workTimeModelID, "work_time_model_id must be cleared on offboarding")
 
-	require.NoError(t, sc.repos.WorkTimeModel.Delete(sc.ctx, model.ID),
+	require.NoError(t, services.NewWorkTimeModelRepository(sc.workTime).Delete(sc.ctx, model.ID),
 		"work-time-model deletion must succeed once the offboarded staff no longer references it")
 }
 

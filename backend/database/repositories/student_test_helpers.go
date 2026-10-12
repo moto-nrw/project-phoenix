@@ -54,17 +54,12 @@ func NewStudentTestRepositories(db *bun.DB) (StudentTestRepositories, error) {
 	if err != nil {
 		return StudentTestRepositories{}, err
 	}
-	appointments, err := NewAppointments(db)
-	if err != nil {
-		return StudentTestRepositories{}, err
-	}
 	r := &Factory{db: db,
 		ParentRequestEvent: usersRepo.NewParentRequestEventRepository(peopleRuntime(db)),
 		FamilyProtection:   usersRepo.NewFamilyProtectionEventRepository(peopleRuntime(db)),
 	}
 	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)
-	r.BindAppointments(appointments)
 	return StudentTestRepositories{
 		CarePlan:                   care,
 		ParentRequestShare:         usersRepo.NewParentRequestShareEventRepository(peopleRuntime(db)),

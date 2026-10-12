@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,11 +53,12 @@ func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 	// Another person on the same block — must never leak into Anna's list.
 	testpkg.CreateTestInstanceStaff(t, db, lernzeit.ID, other.ID, testpkg.InstanceStaffOpts{})
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	owners := repositories.NewUnobservedTimetableDependencies(db)
+	repos := repositories.NewFactory(db, owners)
 	service := planning.NewStaffAssignmentService(planning.StaffAssignmentDependencies{
 		InstanceStaffRepo:    repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 		ActivityInstanceRepo: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
-		RoomRepo:             repos.Room,
+		RoomRepo:             services.NewRoomRepository(owners.Rooms),
 		ActivityGroupRepo:    repositories.NewTimetableGroupReads(repos.ActivityGroup),
 	}, nil)
 	ctx := testpkg.TenantContext(tenantID)

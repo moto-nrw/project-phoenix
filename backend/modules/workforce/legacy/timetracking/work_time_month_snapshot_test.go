@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -31,6 +32,7 @@ type snapshotFixture struct {
 	session   *timerecords.WorkSession
 	schedule  *testpkg.StaffWorkScheduleFixture
 	repos     *repositories.Factory
+	workforce workforce.Capability
 	db        *testpkg.DB
 	ctx       context.Context
 	monthSvc  timetracking.WorkTimeMonthService
@@ -56,8 +58,8 @@ func (snapshotSessionSettings) TimeTrackingRetentionDays(context.Context) (int, 
 // closed month, wired exactly as services/factory.go does.
 func (f *snapshotFixture) newAdminSessionService() timetracking.WorkSessionService {
 	return timetracking.NewWorkSessionService(
-		f.repos.WorkSession, f.repos.WorkSessionBreak, services.NewWorkSessionAudit(services.NewTestAuditPersistence(f.db, nil).WorkSessionEdit), f.repos.StaffAbsence,
-		f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff, repositories.MustNewStaffEmployment(f.db)), services.NewWorkSessionSchedules(f.repos.StaffWorkSchedule), services.NewWorkSessionTimeModels(f.repos.WorkTimeModel),
+		workforceLegacy.NewWorkSessionRepository(f.workforce), workforceLegacy.NewWorkSessionBreakRepository(f.workforce), services.NewWorkSessionAudit(services.NewTestAuditPersistence(f.db, nil).WorkSessionEdit), f.repos.StaffAbsence,
+		f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff, repositories.MustNewStaffEmployment(f.db)), services.NewWorkSessionSchedules(services.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkSessionTimeModels(services.NewWorkTimeModelRepository(f.workforce)),
 		snapshotSessionSettings{}, nil, f.db, services.RenderTimeTrackingPDF,
 		services.RenderTimeTrackingWorkbook,
 	)
@@ -110,28 +112,28 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 		CreatedBy: staff.ID,
 	}
 	session.SetTenantID(tenantID)
-	require.NoError(t, repos.WorkSession.Create(ctx, session))
+	require.NoError(t, workforceLegacy.NewWorkSessionRepository(owners.Workforce).Create(ctx, session))
 
 	settings := wtmIntSettings{accountStart: "2025-01-01"}
 	monthSvc := timetracking.NewWorkTimeMonthService(
-		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(db)),
-		services.NewWorkScheduleTargets(repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(repos.WorkTimeModel), services.NewTimeTrackingShifts(owners.Workforce),
+		workforceLegacy.NewWorkSessionRepository(owners.Workforce), workforceLegacy.NewWorkSessionBreakRepository(owners.Workforce), repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(db)),
+		services.NewWorkScheduleTargets(services.NewStaffWorkScheduleRepository(owners.Workforce)), services.NewWorkTimeTargetModels(services.NewWorkTimeModelRepository(owners.Workforce)), services.NewTimeTrackingShifts(owners.Workforce),
 		settings, nil,
-		timetracking.WithMonthSnapshots(services.MonthSnapshotCapability(repos.StaffMonthSnapshot)),
-		timetracking.WithMonthAdjustments(repos.StaffBalanceAdjust),
+		timetracking.WithMonthSnapshots(services.MonthSnapshotCapability(owners.Workforce)),
+		timetracking.WithMonthAdjustments(workforceLegacy.NewStaffBalanceAdjustmentRepository(owners.Workforce)),
 	)
 
 	closeSvc := timetracking.NewStaffMonthCloseService(
-		services.MonthSnapshotCapability(repos.StaffMonthSnapshot), monthSvc, services.MonthCloseStaff(repos.Staff), settings, nil,
+		services.MonthSnapshotCapability(owners.Workforce), monthSvc, services.MonthCloseStaff(repos.Staff), settings, nil,
 	)
 	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(
-		repos.StaffBalanceAdjust, monthSvc, settings, nil,
-		timetracking.WithAdjustmentSnapshots(services.MonthSnapshotCapability(repos.StaffMonthSnapshot)),
+		workforceLegacy.NewStaffBalanceAdjustmentRepository(owners.Workforce), monthSvc, settings, nil,
+		timetracking.WithAdjustmentSnapshots(services.MonthSnapshotCapability(owners.Workforce)),
 	)
 
 	return &snapshotFixture{
 		tenantID: tenantID, staff: staff.ID, admin: admin.ID,
-		session: session, schedule: schedule, repos: repos, db: db, ctx: ctx,
+		session: session, schedule: schedule, repos: repos, workforce: owners.Workforce, db: db, ctx: ctx,
 		monthSvc: monthSvc, closeSvc: closeSvc, adjustSvc: adjustSvc,
 	}
 }

@@ -44,10 +44,6 @@ func NewWorkforceTestRepositories(db *bun.DB, clocks ...func() time.Time) (Workf
 	if err != nil {
 		return WorkforceTestRepositories{}, err
 	}
-	people, err := NewPeopleDirectory(db)
-	if err != nil {
-		return WorkforceTestRepositories{}, err
-	}
 	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return WorkforceTestRepositories{}, err
@@ -60,23 +56,18 @@ func NewWorkforceTestRepositories(db *bun.DB, clocks ...func() time.Time) (Workf
 	if err != nil {
 		return WorkforceTestRepositories{}, err
 	}
-	r := &Factory{db: db,
-		StaffAbsenceType:   workTime,
-		StaffVacationQuota: workforceLegacy.NewStaffVacationQuotaRepository(workTime), StaffVacationOpening: workforceLegacy.NewStaffVacationOpeningRepository(workTime),
-		StaffBalanceAdjust: workforceLegacy.NewStaffBalanceAdjustmentRepository(workTime), StaffMonthSnapshot: workTime,
-		StaffAbsenceAudit: workforceLegacy.NewStaffAbsenceAuditRepository(workTime),
-		StaffMasterData:   workforceLegacy.NewStaffMasterDataRepository(workTime), StaffQualification: workforceLegacy.NewStaffQualificationRepository(workTime),
-		StaffFinancialData: workforceLegacy.NewStaffFinancialDataRepository(workTime),
-	}
-	r.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
-	r.BindPeopleDirectory(people)
 	return WorkforceTestRepositories{WorkSessionTestRepositories: sessions,
 		Membership:                      membership,
 		StaffDocument:                   staffDocumentMembershipRepository{StaffDocumentRepository: workforceLegacy.NewStaffDocumentRepository(workTime), membership: func() schoolmembership.Capability { return membership }},
 		StaffAbsenceType:                workTime,
 		StaffAbsenceTypeAllowance:       workforce.NewStaffAbsenceTypeAllowanceRepository(db),
 		StaffAbsenceTypeAllowanceChange: workforce.NewStaffAbsenceTypeAllowanceChangeRepository(db),
-		StaffVacationQuota:              r.StaffVacationQuota, StaffVacationOpening: r.StaffVacationOpening, StaffBalanceAdjust: r.StaffBalanceAdjust, StaffMonthSnapshot: r.StaffMonthSnapshot,
-		StaffAbsenceAudit: r.StaffAbsenceAudit,
-		StaffMasterData:   r.StaffMasterData, StaffQualification: r.StaffQualification, StaffFinancialData: r.StaffFinancialData}, nil
+		StaffVacationQuota:              workforceLegacy.NewStaffVacationQuotaRepository(workTime),
+		StaffVacationOpening:            workforceLegacy.NewStaffVacationOpeningRepository(workTime),
+		StaffBalanceAdjust:              workforceLegacy.NewStaffBalanceAdjustmentRepository(workTime),
+		StaffMonthSnapshot:              workTime,
+		StaffAbsenceAudit:               workforceLegacy.NewStaffAbsenceAuditRepository(workTime),
+		StaffMasterData:                 workforceLegacy.NewStaffMasterDataRepository(workTime),
+		StaffQualification:              workforceLegacy.NewStaffQualificationRepository(workTime),
+		StaffFinancialData:              workforceLegacy.NewStaffFinancialDataRepository(workTime)}, nil
 }

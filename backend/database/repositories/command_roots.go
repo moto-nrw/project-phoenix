@@ -86,3 +86,11 @@ func NewTimeTrackingCleanupRepositories(db *bun.DB) TimeTrackingCleanupRepositor
 		Session: workforceLegacy.NewWorkSessionRepository(workTime), Absence: workforceLegacy.NewStaffAbsenceRepository(workTime),
 	}
 }
+
+func mustNewOrganizationTenancy(db *bun.DB) organizationtenancy.Capability {
+	capability, err := NewOrganizationTenancy(db)
+	if err != nil {
+		panic(fmt.Sprintf("repository factory: organization tenancy: %v", err))
+	}
+	return capability
+}

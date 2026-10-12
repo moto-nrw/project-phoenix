@@ -8,14 +8,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFactoryDeletesRoomThroughDefaultOwner(t *testing.T) {
+func TestDefaultFacilitiesDeletesRoomWithoutGuard(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 	room := testpkg.CreateTestRoom(t, db, "Löschbarer Raum")
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	rooms, err := repositories.NewFacilities(db)
+	require.NoError(t, err)
 
-	require.NoError(t, factory.Room.Delete(testpkg.Ctx(t), room.ID))
-	_, err := factory.Room.FindByID(testpkg.Ctx(t), room.ID)
+	require.NoError(t, rooms.DeleteRoom(testpkg.Ctx(t), room.ID))
+	_, err = rooms.FindRoom(testpkg.Ctx(t), room.ID)
 	require.Error(t, err)
 }

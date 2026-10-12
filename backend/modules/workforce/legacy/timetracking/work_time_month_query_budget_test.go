@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,8 +27,8 @@ func TestFutureCompTimeCommitmentQueryBudget(t *testing.T) {
 
 	testpkg.CreateTestStaffWorkScheduleForTenant(t, db, tenantID, staff.ID, timetracking.DayMonday, 480, scheduleValidFrom)
 	service := timetracking.NewWorkTimeMonthService(
-		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(db)),
-		services.NewWorkScheduleTargets(repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(repos.WorkTimeModel), services.NewTimeTrackingShifts(owners.Workforce),
+		workforceLegacy.NewWorkSessionRepository(owners.Workforce), workforceLegacy.NewWorkSessionBreakRepository(owners.Workforce), repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(db)),
+		services.NewWorkScheduleTargets(services.NewStaffWorkScheduleRepository(owners.Workforce)), services.NewWorkTimeTargetModels(services.NewWorkTimeModelRepository(owners.Workforce)), services.NewTimeTrackingShifts(owners.Workforce),
 		wtmIntSettings{accountStart: "2020-01-01"}, nil,
 	)
 	first := timezone.TodayDate().AddDays(14)

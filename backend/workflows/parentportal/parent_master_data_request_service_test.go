@@ -15,6 +15,7 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -280,7 +281,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	settings := parentSettingsStub{boolDefault: true}
 	emitter := communicationtest.NewParentEventEmitter(
-		db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, repos.ParentMessage,
+		db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, services.NewParentMessageRepository(db),
 		settings, nil, slog.Default(),
 	)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
@@ -317,7 +318,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 			return gErr
 		}
 		for _, row := range rows {
-			pill, fErr := repos.ParentMessage.FindEventByRef(txCtx, thread.ID, "request_created", "users.student_data_change_requests", row.ID)
+			pill, fErr := services.NewParentMessageRepository(db).FindEventByRef(txCtx, thread.ID, "request_created", "users.student_data_change_requests", row.ID)
 			if fErr != nil {
 				return fErr
 			}

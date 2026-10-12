@@ -6,38 +6,24 @@ import (
 	"time"
 
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	"github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
-	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -58,7 +44,6 @@ type Factory struct {
 	schoolStructureBound     bool
 	schoolMembershipBound    bool
 	facilitiesBound          bool
-	appointmentsBound        bool
 	// roomBinders hand a room owner to the raw repositories that used to
 	// join facilities.rooms; kept so BindFacilities reaches them after the
 	// projections wrapped the factory fields (#2665).
@@ -67,7 +52,6 @@ type Factory struct {
 	// schoolCalendar is the bound capability behind the calendar period,
 	// closing day and dateframe adapters (#2666).
 	schoolCalendar schoolcalendar.Calendar
-	appointments   appointments.Capability
 	carePlan       careplan.Capability
 
 	// students is the bound People Directory (#2662).
@@ -97,19 +81,11 @@ type Factory struct {
 
 	CaregiverBindingLock userModels.CaregiverBindingLocker
 
-	// Staff Stammdaten (#1423)
-	StaffMasterData    userModels.StaffMasterDataRepository
-	StaffQualification userModels.StaffQualificationRepository
-	StaffFinancialData userModels.StaffFinancialDataRepository
-
 	// Guardian payment data (#2608)
 	GuardianFinancialData userModels.GuardianFinancialDataRepository
 
 	// Staff documents (#1424)
 	StaffDocument userModels.StaffDocumentRepository
-
-	// Facilities domain
-	Room facilityModels.RoomRepository
 
 	// Education domain
 	Group        EducationGroupRepository
@@ -152,42 +128,11 @@ type Factory struct {
 	CrossTenant           CrossTenantQuery
 	StudentStatusDay      *StudentStatusDayRepository
 	ExcusedAbsenceRequest *ExcusedAbsenceRequestRepository
-	WorkSession           timerecords.WorkSessionRepository
-	WorkSessionBreak      timerecords.WorkSessionBreakRepository
 	StaffAbsence          timerecords.StaffAbsenceRepository
-	StaffAbsenceAudit     timerecords.StaffAbsenceAuditRepository
-	StaffAbsenceType      workforceCapability.AbsenceTypeQuery
-	StaffVacationQuota    timerecords.StaffVacationQuotaRepository
-	StaffVacationOpening  timerecords.StaffVacationOpeningRepository
-	StaffBalanceAdjust    timerecords.StaffBalanceAdjustmentRepository
-	StaffMonthSnapshot    workforceCapability.MonthSnapshots
 
 	SessionStartLock interface {
 		LockSessionStart(context.Context, int64) error
 	}
-
-	// IoT domain
-	Device             iotModels.DeviceRepository
-	PushSubscription   deliveryModels.PushSubscriptionRepository
-	PWAStandaloneUsage *pwausage.PWAStandaloneUsageRepository
-
-	// Config domain
-	StaffWorkSchedule configModels.StaffWorkScheduleRepository
-	WorkTimeModel     configModels.WorkTimeModelRepository
-
-	// UnregisteredTagScan is served by Device Fleet (#2676).
-	UnregisteredTagScan auditModels.UnregisteredTagScanRepository
-
-	// Platform domain (operator dashboard)
-	// The operator invitation and e-mail change links are owned by Identity
-	// & Access (#2722); the operator audit ledger is built by the Audit
-	// composition (ADR 0049).
-	// School is the Organisation & Tenancy capability that owns
-	// platform.schools (#3253); BindOrganizationTenancy replaces the
-	// unobserved default with the serving root's module.
-	School organizationtenancy.Capability
-	// The operator MFA and passkey records are owned by Identity & Access
-	// (#2723, #2724).
 
 	// Enrollment domain (parent-enrollment PR 5+)
 	SubmissionRateLimit *enrollmentCapability.Module
@@ -202,22 +147,13 @@ type Factory struct {
 
 	// Parent-OGS messaging (tenant-scoped two-way conversation per child)
 	ParentMessageThread userModels.ParentMessageThreadRepository
-	ParentMessage       userModels.ParentMessageRepository
 	ParentMessageRead   userModels.ParentMessageReadRepository
 
 	// OGS-internal colleague chat (#2598)
-	StaffMessageThread userModels.StaffMessageThreadRepository
-	StaffMessage       userModels.StaffMessageRepository
-	StaffMessageRead   userModels.StaffMessageReadRepository
-
-	// Calendar domain
-	CalendarStaffFeedTombstone schoolcalendar.FeedHistory
+	StaffMessageRead userModels.StaffMessageReadRepository
 
 	// Parent announcements (tenant-authored broadcast news to guardians)
 	ParentAnnouncement userModels.ParentAnnouncementRepository
-
-	// Staff notices (Tagesinformationen: interne Hinweise der Leitung, #2180)
-	StaffNotice userModels.StaffNoticeRepository
 }
 
 // BindOrganizationTenancy replaces school-owning and school-enriched legacy
@@ -230,7 +166,6 @@ func (f *Factory) BindOrganizationTenancy(capability organizationtenancy.Capabil
 		return
 	}
 	f.organizationTenancyBound = true
-	f.School = capability
 	if f.ParentChild != nil {
 		f.ParentChild = schoolChildRepository{ChildRepository: f.ParentChild, schools: capability}
 	}
@@ -256,14 +191,6 @@ func NewOrganizationTenancy(db *bun.DB) (organizationtenancy.Capability, error) 
 		DB:      db,
 		Observe: func(organizationCompose.Observation) {},
 	})
-}
-
-func mustNewOrganizationTenancy(db *bun.DB) organizationtenancy.Capability {
-	capability, err := NewOrganizationTenancy(db)
-	if err != nil {
-		panic(fmt.Sprintf("repository factory: organization tenancy: %v", err))
-	}
-	return capability
 }
 
 // BindPeopleDirectory replaces the legacy adapters that used to join
@@ -371,10 +298,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	enrollmentModule := enrollmentCompose.New()
 	parentAnnouncement := NewParentAnnouncementRepository(db, enrollmentModule, now)
 	parentRuntime := parentRepo.RuntimeFunc(carePlanCompose.TenantAmbientDatabase(db))
-	appointmentsModule, err := NewAppointments(db)
-	if err != nil {
-		panic(fmt.Sprintf("repository factory: compose appointments: %v", err))
-	}
 	// The account facts other owners read belong to Identity & Access
 	// (#2720): the account lookups the People Directory and Care Plan
 	// repositories need are bound at construction.
@@ -416,12 +339,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// each owner takes its own table lock through its public capability.
 		CaregiverBindingLock: users.NewCaregiverBindingLocker(NewCaregiverBindingOwners(timetableDependencies, presenceCapability)),
 
-		// Staff Stammdaten (#1423) belong to Workforce (#2690): the retained
-		// contracts are served by the adapters over the one facade.
-		StaffMasterData:    workforceLegacy.NewStaffMasterDataRepository(timetableDependencies.Workforce),
-		StaffQualification: workforceLegacy.NewStaffQualificationRepository(timetableDependencies.Workforce),
-		StaffFinancialData: workforceLegacy.NewStaffFinancialDataRepository(timetableDependencies.Workforce),
-
 		// Guardian payment data (#2608)
 		GuardianFinancialData: users.NewGuardianFinancialDataRepository(peopleRuntime(db)),
 
@@ -429,9 +346,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// bindStaffMembershipDecorators, it needs the membership owner.
 
 		// School file storage trail (#2596)
-
-		// Facilities repositories
-		Room: facilitiesRepositoryAdapter.New(),
 
 		// Education repositories
 		Group:                 groupRepo,
@@ -469,36 +383,11 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		CrossTenant:           &visitorProjection{visits: presenceCapability},
 		StudentStatusDay:      nil, // bound to Care Plan below
 		ExcusedAbsenceRequest: nil, // bound to Care Plan below
-		// Work sessions, breaks, balances and vacation rows belong to
-		// Workforce (#2690); the facade carries its own clock.
-		WorkSession:          workforceLegacy.NewWorkSessionRepository(timetableDependencies.Workforce),
-		WorkSessionBreak:     workforceLegacy.NewWorkSessionBreakRepository(timetableDependencies.Workforce),
-		StaffAbsence:         workforceLegacy.NewStaffAbsenceRepository(timetableDependencies.Workforce),
-		StaffAbsenceAudit:    workforceLegacy.NewStaffAbsenceAuditRepository(timetableDependencies.Workforce),
-		StaffAbsenceType:     timetableDependencies.Workforce,
-		StaffVacationQuota:   workforceLegacy.NewStaffVacationQuotaRepository(timetableDependencies.Workforce),
-		StaffVacationOpening: workforceLegacy.NewStaffVacationOpeningRepository(timetableDependencies.Workforce),
-		StaffBalanceAdjust:   workforceLegacy.NewStaffBalanceAdjustmentRepository(timetableDependencies.Workforce),
-		StaffMonthSnapshot:   timetableDependencies.Workforce,
+		// Staff absences belong to Workforce (#2690); the person and staff
+		// projections wrap the adapter below.
+		StaffAbsence: workforceLegacy.NewStaffAbsenceRepository(timetableDependencies.Workforce),
 
 		SessionStartLock: presenceCapability,
-
-		// IoT repositories
-		Device:             devicefleetRepositoryAdapter.NewDeviceRepository(deviceFleet),
-		PushSubscription:   deliveryCompose.NewPushSubscriptionRepository(db),
-		PWAStandaloneUsage: pwausage.NewPWAStandaloneUsageRepository(db),
-
-		// Config repositories
-		StaffWorkSchedule: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(timetableDependencies.Workforce),
-		WorkTimeModel:     workforceRepositoryAdapter.NewWorkTimeModelRepository(timetableDependencies.Workforce),
-
-		// Device Fleet serves the unregistered tag scans (#2676).
-		UnregisteredTagScan: NewUnregisteredTagScanRepository(deviceFleet),
-
-		// Platform repositories. Operators and their refresh sessions are
-		// served by the public Identity & Access capability the service root
-		// binds (#3252).
-		School: mustNewOrganizationTenancy(db),
 
 		// Enrollment repositories
 		SubmissionRateLimit: enrollmentModule,
@@ -513,24 +402,16 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 
 		// Parent-OGS messaging (tenant-scoped two-way conversation per child)
 		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, users.NewMessageableGuardianRepository(peopleRuntime(db), identity.FindActiveSchoolMemberships)),
-		ParentMessage:       parentStore.NewParentMessageRepository(db),
 		// ParentMessageRead and StaffMessageRead are bound by
 		// bindStaffMembershipDecorators, they need the membership owner.
 
-		StaffMessageThread: staffStore.NewStaffMessageThreadRepository(db),
-		StaffMessage:       staffStore.NewStaffMessageRepository(db),
-
-		// Calendar repositories
-		CalendarStaffFeedTombstone: schoolCalendarCompose.NewFeedHistory(db),
-		ParentAnnouncement:         parentAnnouncement,
-		StaffNotice:                timetableCompose.NewStaffNoticeRepository(db),
+		ParentAnnouncement: parentAnnouncement,
 	}
 	// Care withdrawal completions belong to Care Plan (#3221); the adapter
 	// follows the factory's current Care Plan binding.
 	factory.CareWithdrawal = newCareWithdrawalCompletionRepository(
 		func() careplan.Capability { return factory.carePlan },
 	)
-	factory.appointments = appointmentsModule
 	studentRepo.(interface {
 		BindTeacherGroupIDs(func(context.Context, int64) ([]int64, error))
 	}).BindTeacherGroupIDs(func(ctx context.Context, teacherID int64) ([]int64, error) {
@@ -570,7 +451,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		},
 		lazyStaffLookup{get: func() schoolmembership.Capability { return factory.schoolMembership }},
 	)
-	factory.bindAppointments(appointmentsModule)
 	// Bind student ports while their repositories are still raw. The staff
 	// projections below wrap some of the same repositories.
 	factory.bindDefaultPeopleDirectory(db)

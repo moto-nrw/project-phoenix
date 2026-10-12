@@ -116,17 +116,21 @@ func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *tes
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
+	devices, err := repositories.NewDeviceRepository(db)
+	require.NoError(t, err)
+	rooms, err := repositories.NewFacilities(db)
+	require.NoError(t, err)
 	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		GroupRepo:          sessionGroups(repos.ActiveGroup),
 		SupervisorRepo:     sessionSupervisors(repos.ActiveGroup),
 		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
-		RoomRepo:           services.NewAttendanceRooms(repos.Room),
+		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
 		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
 		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
-		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
+		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
 		StaffNames: services.NewAttendanceStaffNames(repos.Staff, services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
 			RFIDCards: repos.RFIDCard, AccountExists: repositories.AccountExists(repos.Profile),

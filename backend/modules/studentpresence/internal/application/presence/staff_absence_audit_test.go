@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,8 @@ func TestStaffAbsenceAuditRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	owners := repositories.NewUnobservedTimetableDependencies(db)
+	repos := repositories.NewFactory(db, owners)
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Audit", "Actor")
 	ctx := testpkg.TenantContext(staff.TenantID)
 	today := timezone.TodayDate()
@@ -40,7 +42,7 @@ func TestStaffAbsenceAuditRepository_Create(t *testing.T) {
 		Note:       "approved",
 	}
 
-	err := repos.StaffAbsenceAudit.Create(ctx, audit)
+	err := workforceLegacy.NewStaffAbsenceAuditRepository(owners.Workforce).Create(ctx, audit)
 
 	require.NoError(t, err)
 	assert.NotZero(t, audit.ID)

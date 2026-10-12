@@ -32,7 +32,6 @@ func TestNewFactory(t *testing.T) {
 
 	// Verify facilities repositories are initialized
 	t.Run("facilities repositories", func(t *testing.T) {
-		assert.NotNil(t, factory.Room)
 	})
 
 	// Verify education repositories are initialized
@@ -73,11 +72,6 @@ func TestNewFactory(t *testing.T) {
 
 	// Verify feedback repositories are initialized
 	t.Run("feedback repositories", func(t *testing.T) {
-	})
-
-	// Verify IoT repositories are initialized
-	t.Run("iot repositories", func(t *testing.T) {
-		assert.NotNil(t, factory.Device)
 	})
 
 	t.Run("enrollment repositories", func(t *testing.T) {

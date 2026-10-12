@@ -4,6 +4,7 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
+	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -21,6 +22,16 @@ func NewSchoolCalendarWithAdministration(db *bun.DB, administration func() schoo
 		DB:             db,
 		Observe:        func(schoolCalendarCompose.Observation) {},
 		Administration: administration,
+	})
+}
+
+// NewAppointments composes the unobserved appointment owner for test graphs.
+// Production roots compose the module themselves (api/base.go) and hand it
+// to the service graph.
+func NewAppointments(db *bun.DB) (appointments.Capability, error) {
+	return appointmentsCompose.New(appointmentsCompose.Dependencies{
+		DB:      db,
+		Observe: func(appointmentsCompose.Observation) {},
 	})
 }
 

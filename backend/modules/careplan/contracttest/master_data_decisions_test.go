@@ -530,7 +530,7 @@ func (f masterDataFixture) requestStatusPill(t *testing.T, guardianAccountID int
 		if err != nil || thread == nil {
 			return err
 		}
-		msgs, err := f.repos.ParentMessage.ListByThread(ctx, thread.ID, 50)
+		msgs, err := services.NewParentMessageRepository(f.db).ListByThread(ctx, thread.ID, 50)
 		if err != nil {
 			return err
 		}
@@ -549,7 +549,7 @@ func (f masterDataFixture) requestStatusPill(t *testing.T, guardianAccountID int
 func (f masterDataFixture) decisionsWithEmitter(t *testing.T, shares careplanCompose.ShareVisibility) *careplanCompose.MasterDataDecisions {
 	t.Helper()
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	emitter := communicationtest.NewParentEventEmitter(f.db, testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, f.repos.ParentMessage,
+	emitter := communicationtest.NewParentEventEmitter(f.db, testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, services.NewParentMessageRepository(f.db),
 		messagingOnSettings{}, broadcaster, slog.Default())
 	return f.decisions(t, func(o *services.MasterDataDecisionTestOptions) {
 		o.Emitter, o.Broadcaster, o.Shares = emitter, broadcaster, shares

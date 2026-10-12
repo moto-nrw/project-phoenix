@@ -45,6 +45,10 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repos.ActiveGroup)
+	devices, err := repositories.NewDeviceRepository(db)
+	require.NoError(t, err)
+	rooms, err := repositories.NewFacilities(db)
+	require.NoError(t, err)
 	svc := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader:    services.AttendancePrincipal,
 		GroupRepo:          sessionGroups,
@@ -52,11 +56,11 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 		SchoolPresence:     presence,
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
-		RoomRepo:           services.NewAttendanceRooms(repos.Room),
+		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
 		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
 		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
-		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
+		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
 		StaffNames: services.NewAttendanceStaffNames(repos.Staff, services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
 			RFIDCards: repos.RFIDCard, AccountExists: repositories.AccountExists(repos.Profile),

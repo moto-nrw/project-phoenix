@@ -139,6 +139,10 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 	if err != nil {
 		panic(err)
 	}
+	rooms, err := repositories.NewFacilities(s.db)
+	if err != nil {
+		panic(err)
+	}
 	deps := compose.InstanceLifecycleDependencies{
 		StartConflicts:      lifecycleStartConflicts(s),
 		SubstituteConflicts: s.factory.TimetableData.Deviations,
@@ -150,7 +154,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		ExceptionRepo:       s.repos.ActivityException,
 		ActiveGroupRepo:     s.repos.ActiveGroup,
 		SupervisorRepo:      s.repos.GroupSupervisor,
-		Rooms:               repositories.TimetableOwnerRows{Rooms: s.repos.Room}.LifecycleRooms(),
+		Rooms:               repositories.TimetableOwnerRows{Rooms: services.NewRoomRepository(rooms)}.LifecycleRooms(),
 		ActivityGroupRepo:   s.repos.ActivityGroup,
 		StaffRepo:           s.repos.Staff,
 		StudentRepo:         s.repos.Student,

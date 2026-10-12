@@ -199,7 +199,7 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings testutil.EnrollmentDe
 	settings.stringValues[enrollmentKeys.LegalEmailContactText] = "E-Mail Text"
 	settings.stringValues[enrollmentKeys.LegalPhotoText] = "Foto Text"
 
-	schools := factorySchools{repos: repoFactory}
+	schools := newFactorySchools(t, db)
 	offerings := testutil.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan())
 	intake := testutil.NewEnrollmentIntake(testutil.EnrollmentIntakeSources{
 		Bookings:         testutil.NewEnrollmentCareBookingCommands(carePlanTest.NewOfferingBookings()),
@@ -456,7 +456,7 @@ func changeRequestApplierForTest(t *testing.T, env *decisionTestEnv) enrollmentT
 // over the env's intake repositories and decision flow.
 func newChangeRequestServiceWithDecisionForTest(t *testing.T, env *decisionTestEnv) enrollmentTest.ChangeRequests {
 	t.Helper()
-	schools := factorySchools{repos: env.repos}
+	schools := newFactorySchools(t, env.db)
 	offerings := testutil.NewEnrollmentCareOfferingRecords(env.repos.CarePlan())
 	return testutil.NewEnrollmentChangeRequests(testutil.EnrollmentChangeRequestSources{
 		Bookings:            testutil.NewEnrollmentCareBookingCommands(carePlanTest.NewOfferingBookings()),
@@ -482,12 +482,19 @@ func newChangeRequestServiceWithDecisionForTest(t *testing.T, env *decisionTestE
 	})
 }
 
-// factorySchools reads the seeded schools through the repository factory's
-// Organisation & Tenancy capability, the owner the serving root binds.
-type factorySchools struct{ repos *repositories.Factory }
+// factorySchools reads the seeded schools through an Organisation & Tenancy
+// capability, the owner the serving root binds.
+type factorySchools struct{ schools services.SchoolCapability }
+
+func newFactorySchools(t *testing.T, db *bun.DB) factorySchools {
+	t.Helper()
+	organizations, err := repositories.NewOrganizationTenancy(db)
+	require.NoError(t, err)
+	return factorySchools{schools: organizations}
+}
 
 func (s factorySchools) FindSchool(ctx context.Context, id int64) (*enrollmentTest.School, error) {
-	school, err := s.repos.School.FindSchool(ctx, id)
+	school, err := s.schools.FindSchool(ctx, id)
 	if err != nil {
 		return nil, err
 	}

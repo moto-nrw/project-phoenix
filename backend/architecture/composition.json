@@ -195,16 +195,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/room_deletion_test.go",
-      "declaration": "TestFactoryDeletesRoomThroughDefaultOwner",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        16
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/room_directory_test.go",
       "declaration": "TestFactoryResolvesRoomsThroughTheOwner",
       "target": "database/repositories.NewFactory",
@@ -696,7 +686,7 @@
       "declaration": "newStammdatenStaffConfig",
       "target": "database/repositories.NewFactory",
       "lines": [
-        29
+        30
       ],
       "tables": []
     },
@@ -706,7 +696,7 @@
       "declaration": "newStammdatenStudentConfig",
       "target": "database/repositories.NewFactory",
       "lines": [
-        232
+        233
       ],
       "tables": []
     },
@@ -859,7 +849,7 @@
       "declaration": "newStaffDocumentScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        41
+        44
       ],
       "tables": []
     },
@@ -889,7 +879,7 @@
       "declaration": "newOffboardingScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        66
+        67
       ],
       "tables": []
     },
@@ -17328,32 +17318,32 @@
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 47,
+          "line": 48,
           "declaration": "type AuthTestModule"
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 316,
+          "line": 321,
           "declaration": "IdentityAccessForTests"
         },
         {
           "file": "services/factory.go",
-          "line": 455,
+          "line": 462,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 505,
+          "line": 511,
           "declaration": "newFactory"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 39,
+          "line": 41,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "services/factory_test_helpers.go",
-          "line": 47,
+          "line": 49,
           "declaration": "NewFactoryForTestsWithConfig"
         },
         {

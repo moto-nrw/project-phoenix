@@ -714,18 +714,19 @@ func (resources *apiBuildResources) close() error {
 	return errors.Join(err, database.ClosePool(resources.pool))
 }
 
-// newServeGraph composes the production HTTP graph of one Serve root.
-func newServeGraph(config ServeConfig) (result *serveGraph, resultErr error) {
+// newServeGraph composes the production HTTP graph of one Serve root and the
+// Worker's retained reads over the same owner modules.
+func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, resultErr error) {
 	logger := config.Logger
 	metricsBearerToken, err := observability.MetricsBearerTokenFromEnv(os.Getenv)
 	if err != nil {
-		return nil, err
+		return nil, workerReads{}, err
 	}
 
 	// Get database connection as phoenix_auth (least-privilege for serve)
 	db, err := database.DBConnForServe()
 	if err != nil {
-		return nil, err
+		return nil, workerReads{}, err
 	}
 	buildResources := apiBuildResources{pool: db}
 	defer func() {
@@ -734,7 +735,7 @@ func newServeGraph(config ServeConfig) (result *serveGraph, resultErr error) {
 	db.AddQueryHook(database.NewLockWaitQueryHook(services.ObserveUnitOfWorkLockWait)) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
 	postgresUnitOfWork, err := database.NewPostgresUnitOfWork(db, services.ObserveUnitOfWorkPoolWait)
 	if err != nil {
-		return nil, err
+		return nil, workerReads{}, err
 	}
 	tenantRuntime, err := services.BindTenantRuntime(
 		postgresUnitOfWork.WithinTenant,
@@ -743,7 +744,7 @@ func newServeGraph(config ServeConfig) (result *serveGraph, resultErr error) {
 		database.IsRetryableTransactionError,
 	)
 	if err != nil {
-		return nil, err
+		return nil, workerReads{}, err
 	}
 
 	// Fail fast on a partially migrated schema: the student repository selects
@@ -751,7 +752,7 @@ func newServeGraph(config ServeConfig) (result *serveGraph, resultErr error) {
 	// information_schema probes, #2059), so the server must only start against
 	// a fully migrated database.
 	if err := usersRepo.VerifyStudentSchema(context.Background(), db); err != nil {
-		return nil, err
+		return nil, workerReads{}, err
 	}
 
 	if viper.GetBool("db_debug") {
@@ -761,12 +762,12 @@ func newServeGraph(config ServeConfig) (result *serveGraph, resultErr error) {
 	// Compose one authoritative instance of each migrated module.
 	modules, err := initializeModuleServices(db, config.PublicAPIURL, logger, tenantRuntime)
 	if err != nil {
-		return nil, err
+		return nil, workerReads{}, err
 	}
 	serviceFactory := modules.services
 	buildResources.tracker = serviceFactory.Tracker
 	if err := serviceFactory.SetTenantRuntime(tenantRuntime); err != nil {
-		return nil, err
+		return nil, workerReads{}, err
 	}
 	serviceFactory.SetSettingsObservers(
 		observability.ObserveSettingsLookup,
@@ -816,7 +817,7 @@ func newServeGraph(config ServeConfig) (result *serveGraph, resultErr error) {
 	securityLogger := setupSecurityLogging(graph.router)
 	sessionAuth, err := newSessionTokenAuth()
 	if err != nil {
-		return nil, err
+		return nil, workerReads{}, err
 	}
 	setupRateLimiting(graph.router, securityLogger, sessionAuth, demoLoopbackExempt())
 	// One verifier serves every route: it only parses the presented token, and
@@ -839,12 +840,12 @@ func newServeGraph(config ServeConfig) (result *serveGraph, resultErr error) {
 		metricsToken:   metricsBearerToken,
 	}, authRateLimitersFromEnv())
 	if err != nil {
-		return nil, err
+		return nil, workerReads{}, err
 	}
 	graph.documents = documents
 
 	buildResources.released = true
-	return graph, nil
+	return graph, newWorkerReads(modules), nil
 }
 
 // registerRuntimeStatsProviders hands the pool, the live streams and the PWA

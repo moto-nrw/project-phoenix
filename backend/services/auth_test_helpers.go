@@ -14,6 +14,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -179,6 +180,10 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	if err != nil {
 		return AuthTestModule{}, err
 	}
+	organizations, err := repositories.NewOrganizationTenancy(db)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
 	// The auth events append through the command; the operator second factor
 	// appends to the operator ledger (#3331), so the module needs it bound.
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db})
@@ -221,10 +226,10 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	// The delivery module is composed after the identity module, so the
 	// guardian mail reads its outbox at call time, as the factory does.
 	var deliveryModule DeliveryTestModule
-	identity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: r.School}, func(ctx context.Context, tenantID int64) (string, error) {
+	identity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
 		return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, logger)
-	sessionRepos := sessionRepositoriesOf(r, r.School, audits.AuthEvent)
+	sessionRepos := sessionRepositoriesOf(r, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db))
 	if settingsOverrides.staffCreateErr != nil {
 		sessionRepos.lifecycle.staff = failingStaffDirectory{StaffRepository: r.Staff, err: settingsOverrides.staffCreateErr}
 	}
@@ -266,7 +271,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 			settings: settings.Settings, audit: command,
 			caregivers: caregiverProfiles{persons: owners.persons, membership: owners.membership},
 			guardianMail: &guardianInvitationWiring{
-				settings: settings.Settings, schools: r.School,
+				settings: settings.Settings, schools: organizations,
 				outbox:      func() platformModels.OutboxResultEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
 				enrollments: r.ParentEnrollmentRequest, parentsURL: parentsURL,
 				fallbackExpiry: time.Duration(inviteHours) * time.Hour, logger: logger,
@@ -305,7 +310,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		OperatorMFA: identityAccess, OperatorPasskeys: identityAccess,
 		Repos: r, TokenAuth: tokenAuth,
 		Invitation: invitation, GuardianInvitation: guardian,
-		Schools: r.School, Settings: settings.Settings,
+		Schools: organizations, Settings: settings.Settings,
 	}, nil
 }
 
@@ -333,9 +338,13 @@ func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestC
 	if err != nil {
 		return nil, err
 	}
+	organizations, err := repositories.NewOrganizationTenancy(db)
+	if err != nil {
+		return nil, err
+	}
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db})
 	module, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepositoriesOf(repos, repos.School, audits.AuthEvent), codec: codec, settings: cfg.Settings,
+		repos: sessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db)), codec: codec, settings: cfg.Settings,
 		audit: cfg.Audit, logger: logger,
 		mfa: &mfaWiring{
 			operatorAuditLog: newOperatorAuditLog(audits.OperatorAuditLog), settings: cfg.Settings,

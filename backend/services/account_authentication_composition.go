@@ -81,7 +81,7 @@ type sessionRepositories struct {
 	lifecycle         lifecycleRepositories
 }
 
-func sessionRepositoriesOf(repos *repositories.Factory, organizations organizationtenancy.Query, authEvents auditModels.AuthEventRepository) sessionRepositories {
+func sessionRepositoriesOf(repos *repositories.Factory, organizations organizationtenancy.Query, authEvents auditModels.AuthEventRepository, pushSubscriptions deliveryModels.PushSubscriptionRepository) sessionRepositories {
 	if repos == nil {
 		return sessionRepositories{}
 	}
@@ -91,7 +91,7 @@ func sessionRepositoriesOf(repos *repositories.Factory, organizations organizati
 	}
 	return sessionRepositories{
 		schools: schoolDirectory{schools: organizations},
-		persons: repos.Person, authEvents: authEvents, pushSubscriptions: repos.PushSubscription,
+		persons: repos.Person, authEvents: authEvents, pushSubscriptions: pushSubscriptions,
 		lifecycle: lifecycle,
 	}
 }

@@ -26,6 +26,8 @@ func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 	require.NoError(t, err)
 	identity, err := repositories.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
+	organizations, err := repositories.NewOrganizationTenancy(db)
+	require.NoError(t, err)
 	staff, err := repositories.NewStaffMessagingTestRepositories(db)
 	require.NoError(t, err)
 
@@ -151,7 +153,7 @@ func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 			if err != nil {
 				return 0, err
 			}
-			schools, err := factory.School.ListSchoolsByID(txCtx, ids)
+			schools, err := organizations.ListSchoolsByID(txCtx, ids)
 			return len(schools), err
 		})
 	}

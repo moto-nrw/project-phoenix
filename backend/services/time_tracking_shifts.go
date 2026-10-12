@@ -3,20 +3,19 @@ package services
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 )
 
 type TimeTrackingShifts struct {
-	source *repositories.TimeTrackingShifts
+	source *timeTrackingShiftSource
 }
 
 // NewTimeTrackingShifts serves the time-tracking planned-shift port from the
 // public Workforce shift query (#3418).
 func NewTimeTrackingShifts(shifts workforce.ShiftQuery) *TimeTrackingShifts {
-	return &TimeTrackingShifts{source: repositories.NewTimeTrackingShifts(shifts)}
+	return &TimeTrackingShifts{source: newTimeTrackingShiftSource(shifts)}
 }
 
 func (r *TimeTrackingShifts) FindByStaffIDsAndDate(ctx context.Context, ids []int64, date timezone.Date) ([]*timetracking.TimeTrackingShift, error) {
@@ -42,7 +41,7 @@ func (r *TimeTrackingShifts) FindByStaffIDsAndDateRange(ctx context.Context, ids
 	}
 	return result, err
 }
-func trackingShifts(rows []*repositories.TimeTrackingShift) []*timetracking.TimeTrackingShift {
+func trackingShifts(rows []*timeTrackingShiftRow) []*timetracking.TimeTrackingShift {
 	if rows == nil {
 		return nil
 	}

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -103,8 +104,12 @@ func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db *bun.DB, b
 	if len(broadcasters) > 0 {
 		broadcaster = broadcasters[0]
 	}
+	rooms, err := repositories.NewFacilities(db)
+	if err != nil {
+		panic(fmt.Sprintf("education suite: compose facilities: %v", err))
+	}
 	service := education.NewService(repos.Group, repos.GroupTeacher, repos.ClassTeacher,
-		repositories.NewEducationRooms(repos.Room), NewEducationTeachers(repos.Teacher),
+		repositories.NewEducationRooms(NewRoomRepository(rooms)), NewEducationTeachers(repos.Teacher),
 		repositories.NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
 		education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: broadcaster, Audit: repositories.NewEducationClassAssignmentAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).StaffMasterDataChange)})
 

@@ -12,6 +12,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -27,13 +28,14 @@ import (
 // taken over and an admin who books it. No quota row is created on purpose —
 // the takeover must fall back to the registry default of 30/0.
 type vacationOpeningFixture struct {
-	tenantID int64
-	db       *testpkg.DB
-	repos    *repositories.Factory
-	ctx      context.Context
-	staff    int64
-	admin    int64
-	svc      timetracking.StaffAbsenceService
+	tenantID  int64
+	db        *testpkg.DB
+	repos     *repositories.Factory
+	workforce workforce.Capability
+	ctx       context.Context
+	staff     int64
+	admin     int64
+	svc       timetracking.StaffAbsenceService
 	// cutoff is the Stichtag every test books against; year is derived from
 	// it, exactly as the service does.
 	cutoff timezone.Date
@@ -48,7 +50,8 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Urlaub", "Uebernahme")
 	admin := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Urlaub", "Leitung")
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	owners := repositories.NewUnobservedTimetableDependencies(db)
+	repos := repositories.NewFactory(db, owners)
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {
@@ -63,23 +66,24 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	})
 
 	svc := timetracking.NewStaffAbsenceService(
-		repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota,
-		repos.StaffAbsenceAudit, wtmIntSettings{}, nil,
+		repos.StaffAbsence, workforceLegacy.NewWorkSessionRepository(owners.Workforce), workforceLegacy.NewStaffVacationQuotaRepository(owners.Workforce),
+		workforceLegacy.NewStaffAbsenceAuditRepository(owners.Workforce), wtmIntSettings{}, nil,
 		timetracking.WithAbsenceToday(func() timezone.Date { return timezone.NewDate(2026, 8, 24) }),
 		// Wired exactly like services/factory.go does.
-		timetracking.WithVacationOpenings(repos.StaffVacationOpening),
+		timetracking.WithVacationOpenings(workforceLegacy.NewStaffVacationOpeningRepository(owners.Workforce)),
 		timetracking.WithAbsenceDeletionAudit(services.NewTimeTrackingDeletionAudit(services.NewTestAuditPersistence(db, nil).TimeTrackingDeletion)),
 	)
 
 	return &vacationOpeningFixture{
-		tenantID: tenantID,
-		db:       db,
-		repos:    repos,
-		ctx:      ctx,
-		staff:    staff.ID,
-		admin:    admin.ID,
-		svc:      svc,
-		cutoff:   openingCutoffDate(t),
+		tenantID:  tenantID,
+		db:        db,
+		repos:     repos,
+		workforce: owners.Workforce,
+		ctx:       ctx,
+		staff:     staff.ID,
+		admin:     admin.ID,
+		svc:       svc,
+		cutoff:    openingCutoffDate(t),
 	}
 }
 
@@ -431,7 +435,7 @@ func TestVacationOpeningRepository_BatchAndListReads(t *testing.T) {
 	t.Parallel()
 
 	f := newVacationOpeningFixture(t)
-	repo := f.repos.StaffVacationOpening
+	repo := workforceLegacy.NewStaffVacationOpeningRepository(f.workforce)
 
 	_, err := f.svc.SetVacationOpening(f.ctx, f.staff, f.admin, timetracking.SetVacationOpeningRequest{
 		EffectiveDate: f.cutoff,

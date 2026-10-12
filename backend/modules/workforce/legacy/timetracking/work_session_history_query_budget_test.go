@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,11 +25,11 @@ func TestWorkSessionHistoryQueryBudget(t *testing.T) {
 				Status: workforce.WorkSessionStatusPresent, Source: workforce.WorkSessionSourceApp,
 				CheckInTime: checkIn, CheckOutTime: &checkOut, CreatedBy: f.staff}
 			session.SetTenantID(f.tenantID)
-			require.NoError(t, f.repos.WorkSession.Create(f.ctx, session))
+			require.NoError(t, workforceLegacy.NewWorkSessionRepository(f.workforce).Create(f.ctx, session))
 			ended := checkIn.Add(30 * time.Minute)
 			brk := &timerecords.WorkSessionBreak{SessionID: session.ID, StartedAt: checkIn, EndedAt: &ended, DurationMinutes: 30}
 			brk.SetTenantID(f.tenantID)
-			require.NoError(t, f.repos.WorkSessionBreak.Create(f.ctx, brk))
+			require.NoError(t, workforceLegacy.NewWorkSessionBreakRepository(f.workforce).Create(f.ctx, brk))
 		}
 	}
 	add(0, 2)

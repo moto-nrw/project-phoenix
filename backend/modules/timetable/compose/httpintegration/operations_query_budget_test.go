@@ -10,6 +10,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -70,7 +71,8 @@ func TestTimetableOperationsPlannedNowQueryBudget(t *testing.T) {
 // retained repositories; the caller is the given staff member.
 func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staff *usersModels.Staff, now time.Time) timetable.OperationCapability {
 	t.Helper()
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	owners := repositories.NewUnobservedTimetableDependencies(db)
+	repos := repositories.NewFactory(db, owners)
 	stand := newTimetableOpsDeps()
 	stand.personService.accountPerson = staff.Person
 	stand.personService.staffByPersonID[staff.PersonID] = staff
@@ -87,7 +89,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staff *usersModels.
 		Templates:       repos.ActivityGroup,
 		Students:        repos.Student,
 		EducationGroups: repos.Group,
-		Rooms:           repos.Room,
+		Rooms:           services.NewRoomRepository(owners.Rooms),
 	}
 	templates, err := rows.OperationTemplates()
 	require.NoError(t, err)

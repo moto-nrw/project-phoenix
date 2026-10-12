@@ -5,9 +5,11 @@ import (
 	"fmt"
 
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/jobruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -134,12 +136,26 @@ func schedulerDayInstances(graph *serveGraph) scheduler.DayInstanceReader {
 	}
 }
 
-// schedulerExistingRooms binds the overdue tick's room check.
-func schedulerExistingRooms(graph *serveGraph) scheduler.ExistingRoomReader {
-	rooms := graph.repos.Room
-	if rooms == nil {
-		return nil
+// workerReads are the Worker's retained room and work-session reads. They
+// are built over the owner modules where the graph is composed and handed to
+// the Worker, not kept on the graph (#2743).
+type workerReads struct {
+	existingRooms scheduler.ExistingRoomReader
+	workSessions  interface {
+		GetTodayPresenceMap(context.Context) (map[int64]string, error)
 	}
+}
+
+func newWorkerReads(modules moduleServices) workerReads {
+	return workerReads{
+		existingRooms: schedulerExistingRooms(modules.rooms),
+		workSessions:  workforceLegacy.NewWorkSessionRepository(modules.workforce),
+	}
+}
+
+// schedulerExistingRooms binds the overdue tick's room check.
+func schedulerExistingRooms(capability facilitiesModule.Capability) scheduler.ExistingRoomReader {
+	rooms := services.NewRoomRepository(capability)
 	return func(ctx context.Context, roomIDs []int64) ([]int64, error) {
 		found, err := rooms.FindByIDs(ctx, roomIDs)
 		if err != nil {

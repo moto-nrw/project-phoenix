@@ -49,7 +49,7 @@ func NewEnrollmentTestRepositories(db *bun.DB) (EnrollmentTestRepositories, erro
 	r.bindCarePlanAdapters(care)
 	r.BindOrganizationTenancy(organizations)
 	return EnrollmentTestRepositories{TimetableTestRepositories: tt,
-		School:          r.School,
+		School:          organizations,
 		StudentGuardian: NewStudentGuardianRepository(db), GuardianProfile: NewGuardianProfileRepository(db), GuardianPhoneNumber: usersRepo.NewGuardianPhoneNumberRepository(peopleRuntime(db)),
 		Membership: members.Membership}, nil
 }

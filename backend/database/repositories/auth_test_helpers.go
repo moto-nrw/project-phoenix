@@ -3,7 +3,6 @@ package repositories
 import (
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/uptrace/bun"
 )
@@ -27,7 +26,6 @@ func NewAuthTestRepositories(db *bun.DB) (*Factory, error) {
 		RFIDCard: newIdentityAccess(db, nil), Student: NewStudentRepository(db),
 		GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: NewStudentGuardianRepository(db),
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(parentRepo.RuntimeFunc(carePlanCompose.TenantAmbientDatabase(db)), enrollmentCompose.New(), identityAccountDirectory{accounts: newIdentityAccess(db, nil)}),
-		PushSubscription:        deliveryCompose.NewPushSubscriptionRepository(db),
 	}
 	r.BindOrganizationTenancy(organizations)
 	return r, nil

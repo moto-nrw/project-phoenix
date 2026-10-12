@@ -130,7 +130,7 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 
 	config.Logger.Info("initializing API server")
 
-	graph, err := newServeGraph(config)
+	graph, reads, err := newServeGraph(config)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 	if config.Process == ServeAPIOnly {
 		config.Logger.Info("embedded worker disabled; a standalone worker runs the jobs")
 	} else {
-		worker, err = newWorker(graph, config.Logger)
+		worker, err = newWorker(graph, reads, config.Logger)
 		if err != nil {
 			return nil, errors.Join(err, runtime.closeResources())
 		}
@@ -195,7 +195,7 @@ func resolveListenAddr(port string) string {
 }
 
 // newWorker assembles the embedded Worker root from one typed dependency value.
-func newWorker(graph *serveGraph, logger *slog.Logger) (*scheduler.Scheduler, error) {
+func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*scheduler.Scheduler, error) {
 	if graph == nil || graph.services == nil || graph.repos == nil {
 		return nil, fmt.Errorf("worker serve graph is required")
 	}
@@ -223,7 +223,7 @@ func newWorker(graph *serveGraph, logger *slog.Logger) (*scheduler.Scheduler, er
 	deps.Settings = settings
 	deps.Lease = lease
 	addWorkerServiceDependencies(&deps, graph)
-	addWorkerRepositoryDependencies(&deps, graph)
+	addWorkerRepositoryDependencies(&deps, graph, reads)
 	return scheduler.NewWorker(deps)
 }
 
@@ -302,10 +302,10 @@ func staffMessageCleanup(service communication.StaffMessagingRuntime) scheduler.
 	}
 }
 
-func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, graph *serveGraph) {
+func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, graph *serveGraph, reads workerReads) {
 	deps.BookingConsistency = schedulerBookingConsistency(graph)
 	deps.InstanceRepo = schedulerDayInstances(graph)
-	deps.InstanceRoomRepo = schedulerExistingRooms(graph)
+	deps.InstanceRoomRepo = reads.existingRooms
 	deps.InstanceStudentRepo = graph.repos.InstanceStudent
 	deps.StudentStatusDayRepo = graph.repos.StudentStatusDay
 	deps.OverdueBroadcaster = graph.services.RealtimeHub
@@ -316,7 +316,7 @@ func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, graph *
 		Preferences:  graph.services.NotificationPreferences,
 		Staff:        graph.repos.Staff,
 		Accounts:     graph.services.Auth,
-		WorkSessions: graph.repos.WorkSession,
+		WorkSessions: reads.workSessions,
 	}
 }
 

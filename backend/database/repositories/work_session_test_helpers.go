@@ -44,15 +44,13 @@ func NewWorkSessionTestRepositories(db *bun.DB, clocks ...func() time.Time) (Wor
 	if err != nil {
 		return WorkSessionTestRepositories{}, err
 	}
-	r := &Factory{db: db,
-		WorkSession:       workforceLegacy.NewWorkSessionRepository(workTime),
-		WorkSessionBreak:  workforceLegacy.NewWorkSessionBreakRepository(workTime),
-		StaffAbsence:      workforceLegacy.NewStaffAbsenceRepository(workTime),
-		StaffWorkSchedule: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(workTime),
-		WorkTimeModel:     workforceRepositoryAdapter.NewWorkTimeModelRepository(workTime),
-	}
+	r := &Factory{db: db, StaffAbsence: workforceLegacy.NewStaffAbsenceRepository(workTime)}
 	r.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	r.BindPeopleDirectory(people)
-	return WorkSessionTestRepositories{TimetableTestRepositories: tt, WorkSession: r.WorkSession, WorkSessionBreak: r.WorkSessionBreak,
-		StaffAbsence: r.StaffAbsence, StaffWorkSchedule: r.StaffWorkSchedule, WorkTimeModel: r.WorkTimeModel}, nil
+	return WorkSessionTestRepositories{TimetableTestRepositories: tt,
+		WorkSession:       workforceLegacy.NewWorkSessionRepository(workTime),
+		WorkSessionBreak:  workforceLegacy.NewWorkSessionBreakRepository(workTime),
+		StaffAbsence:      r.StaffAbsence,
+		StaffWorkSchedule: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(workTime),
+		WorkTimeModel:     workforceRepositoryAdapter.NewWorkTimeModelRepository(workTime)}, nil
 }

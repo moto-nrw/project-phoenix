@@ -70,6 +70,8 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
+	devices, err := repositories.NewDeviceRepository(db)
+	require.NoError(t, err)
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repoFactory.ActiveGroup)
 	sessionService := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		SchoolPresence: presence,
@@ -77,7 +79,7 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 		SupervisorRepo: sessionSupervisors,
 		DeviceRepo: cleanupTestDevices{
 			findDeviceID: func(ctx context.Context) (int64, error) {
-				device, err := repoFactory.Device.FindByDeviceID(ctx, "WEB-MANUAL-001")
+				device, err := devices.FindByDeviceID(ctx, "WEB-MANUAL-001")
 				if err != nil {
 					return 0, err
 				}
@@ -86,7 +88,7 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 				}
 				return device.ID, nil
 			},
-			updateRoomID: repoFactory.Device.UpdateRoomID,
+			updateRoomID: devices.UpdateRoomID,
 		},
 		TimetableBridgeCompleter: repoFactory.ActivityInstance,
 		DB:                       db,

@@ -13,6 +13,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -40,9 +41,9 @@ func (f *overviewFixture) newWorkSessionService() timetracking.WorkSessionServic
 	// nil settings: the F9 deviation checks are opt-in and irrelevant for
 	// reading export rows.
 	return timetracking.NewWorkSessionService(
-		f.repos.WorkSession, f.repos.WorkSessionBreak, services.NewWorkSessionAudit(services.NewTestAuditPersistence(f.db, nil).WorkSessionEdit),
+		workforceLegacy.NewWorkSessionRepository(f.workforce), workforceLegacy.NewWorkSessionBreakRepository(f.workforce), services.NewWorkSessionAudit(services.NewTestAuditPersistence(f.db, nil).WorkSessionEdit),
 		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff, repositories.MustNewStaffEmployment(f.db)),
-		services.NewWorkSessionSchedules(f.repos.StaffWorkSchedule), services.NewWorkSessionTimeModels(f.repos.WorkTimeModel),
+		services.NewWorkSessionSchedules(services.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkSessionTimeModels(services.NewWorkTimeModelRepository(f.workforce)),
 		nil,
 		nil,
 		f.db,
@@ -99,7 +100,7 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 			DecidedAt:     time.Now(),
 		}
 		adjustment.SetTenantID(f.tenantID)
-		require.NoError(t, f.repos.StaffBalanceAdjust.Create(f.ctx, adjustment))
+		require.NoError(t, workforceLegacy.NewStaffBalanceAdjustmentRepository(f.workforce).Create(f.ctx, adjustment))
 	}
 
 	rows, err := f.svc.GetMonthExportRows(f.ctx, f.today.Year(), int(f.today.Month()))
@@ -161,13 +162,13 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 		accountStart: timezone.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
 	}
 	monthSvc := timetracking.NewWorkTimeMonthService(
-		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(f.db)),
-		services.NewWorkScheduleTargets(f.repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(f.repos.WorkTimeModel), services.NewTimeTrackingShifts(f.workforce),
+		workforceLegacy.NewWorkSessionRepository(f.workforce), workforceLegacy.NewWorkSessionBreakRepository(f.workforce), f.repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(f.db)),
+		services.NewWorkScheduleTargets(services.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkTimeTargetModels(services.NewWorkTimeModelRepository(f.workforce)), services.NewTimeTrackingShifts(f.workforce),
 		settings, nil,
-		timetracking.WithMonthAdjustments(f.repos.StaffBalanceAdjust),
-		timetracking.WithMonthSnapshots(services.MonthSnapshotCapability(f.repos.StaffMonthSnapshot)),
+		timetracking.WithMonthAdjustments(workforceLegacy.NewStaffBalanceAdjustmentRepository(f.workforce)),
+		timetracking.WithMonthSnapshots(services.MonthSnapshotCapability(f.workforce)),
 	)
-	closeSvc := timetracking.NewStaffMonthCloseService(services.MonthSnapshotCapability(f.repos.StaffMonthSnapshot), monthSvc, services.MonthCloseStaff(f.repos.Staff), settings, nil)
+	closeSvc := timetracking.NewStaffMonthCloseService(services.MonthSnapshotCapability(f.workforce), monthSvc, services.MonthCloseStaff(f.repos.Staff), settings, nil)
 	svc := f.newOverviewService(settings)
 
 	closeResult, err := closeSvc.CloseMonth(f.ctx, staffID, closedMonth.Year(), int(closedMonth.Month()), "Abschluss")

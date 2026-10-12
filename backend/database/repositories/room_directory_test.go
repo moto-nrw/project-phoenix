@@ -44,6 +44,8 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	devices, err := repositories.NewDeviceRepository(db)
+	require.NoError(t, err)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "Room Activity")
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
@@ -51,7 +53,7 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	educationGroup := testpkg.CreateTestEducationGroup(t, db, "Igel")
 	device := testpkg.CreateTestDevice(t, db, "room-device")
 	ctx := testpkg.Ctx(t)
-	_, err := db.NewUpdate().TableExpr("education.groups").Set("room_id = ?", room.ID).Where("id = ?", educationGroup.ID).Exec(ctx)
+	_, err = db.NewUpdate().TableExpr("education.groups").Set("room_id = ?", room.ID).Where("id = ?", educationGroup.ID).Exec(ctx)
 	require.NoError(t, err)
 	_, err = db.NewUpdate().TableExpr("iot.devices").Set("room_id = ?", room.ID).Where("id = ?", device.ID).Exec(ctx)
 	require.NoError(t, err)
@@ -70,7 +72,7 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 		assert.Equal(t, room.Name, withRoom.Room.Name)
 		assert.Equal(t, room.Building, withRoom.Room.Building)
 
-		found, err := factory.Device.FindByID(ctx, device.ID)
+		found, err := devices.FindByID(ctx, device.ID)
 		require.NoError(t, err)
 		require.NotNil(t, found.RoomName, "device carries its room name")
 		assert.Equal(t, room.Name, *found.RoomName)

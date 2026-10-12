@@ -53,15 +53,8 @@ func (f *Factory) bindStaffProjections(membership staffLookup, workTime workforc
 	if f.ActivitySupervisor != nil {
 		f.ActivitySupervisor = staffSupervisorPlannedRepository{SupervisorPlannedRepository: f.ActivitySupervisor, membership: membership}
 	}
-	// The two repositories below keep their own method signatures — those
-	// speak calendar dates and query options, which this package must not
-	// import — and take the owner lookups as injected functions instead. The
-	// group substitution adapter receives its staff resolver at construction.
-
-	if setter, ok := f.Room.(supervisorPersonsResolverSetter); ok {
-		setter.SetSupervisorPersonsResolver(supervisorPersonsResolver(membership))
-	}
-
+	// The group substitution adapter receives its staff resolver at
+	// construction.
 }
 
 // staffByID resolves the staff members for ids through the owner query,
