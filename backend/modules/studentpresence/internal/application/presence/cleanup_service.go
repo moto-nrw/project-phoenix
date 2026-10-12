@@ -2,6 +2,7 @@ package presence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,13 +18,16 @@ type AttendanceCleanup interface {
 }
 
 type PresenceRetention interface {
-	ListAcceptedRetentionSettings(context.Context) ([]studentpresence.StudentRetentionSetting, error)
 	AttendanceCleanup
-	ListVisitRetentionCounts(context.Context) ([]studentpresence.VisitRetentionCount, error)
-	CountExpiredVisits(context.Context) (int64, error)
-	OldestExpiredVisitDate(context.Context) (*time.Time, error)
-	ListExpiredVisitMonths(context.Context) ([]studentpresence.VisitMonthCount, error)
+	studentpresence.VisitRetentionQuery
 	DeleteCompletedVisitsBefore(context.Context, int64, time.Time) (int64, error)
+}
+
+// VisitRetentionSettings supplies the tenant's visit retention window for
+// children without an accepted consent: gdpr.privacy_consent_retention_days,
+// tenant override or registry default (#3835).
+type VisitRetentionSettings interface {
+	VisitRetentionDays(context.Context) (int, error)
 }
 
 // cleanupService implements the CleanupService interface
@@ -31,6 +35,7 @@ type cleanupService struct {
 	presence         PresenceRetention
 	supervisorRepo   ports.GroupSupervisorRepository
 	dataDeletionRepo DeletionAudit
+	settings         VisitRetentionSettings
 	txHandler        *tenant.TransactionRunner
 	batchSize        int
 	today            func() timezone.Date
@@ -48,12 +53,14 @@ func NewCleanupService(
 	presence PresenceRetention,
 	supervisorRepo ports.GroupSupervisorRepository,
 	dataDeletionRepo DeletionAudit,
+	settings VisitRetentionSettings,
 	today ...func() timezone.Date,
 ) CleanupService {
 	service := &cleanupService{
 		presence:         presence,
 		supervisorRepo:   supervisorRepo,
 		dataDeletionRepo: dataDeletionRepo,
+		settings:         settings,
 		txHandler:        tenant.NewTransactionRunner(),
 		batchSize:        100, // Process 100 students at a time
 	}
@@ -63,7 +70,25 @@ func NewCleanupService(
 	return service
 }
 
-// CleanupExpiredVisits runs the cleanup process for all students
+// defaultRetentionDays resolves the window for children without an accepted
+// consent. A missing or unusable value stops the run: guessing a window could
+// delete too much or keep data forever.
+func (s *cleanupService) defaultRetentionDays(ctx context.Context) (int, error) {
+	if s.settings == nil {
+		return 0, errors.New("visit retention settings are not configured")
+	}
+	days, err := s.settings.VisitRetentionDays(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("resolve visit retention days: %w", err)
+	}
+	if days < 1 {
+		return 0, fmt.Errorf("invalid visit retention days: %d", days)
+	}
+	return days, nil
+}
+
+// CleanupExpiredVisits deletes the completed visits of every student whose
+// retention window has passed, with one audit row per student.
 func (s *cleanupService) CleanupExpiredVisits(ctx context.Context) (*CleanupResult, error) {
 	result := &CleanupResult{
 		StartedAt: time.Now(),
@@ -71,12 +96,19 @@ func (s *cleanupService) CleanupExpiredVisits(ctx context.Context) (*CleanupResu
 		Success:   true,
 	}
 
-	// Get all students with privacy consents
-	students, err := s.presence.ListAcceptedRetentionSettings(ctx)
+	defaultDays, err := s.defaultRetentionDays(ctx)
 	if err != nil {
 		result.Success = false
 		result.CompletedAt = time.Now()
-		return result, fmt.Errorf("failed to get students with retention settings: %w", err)
+		return result, err
+	}
+
+	// Every student with expired visits, with or without a consent
+	students, err := s.presence.ListVisitRetentionCounts(ctx, defaultDays)
+	if err != nil {
+		result.Success = false
+		result.CompletedAt = time.Now()
+		return result, fmt.Errorf("failed to get students with expired visits: %w", err)
 	}
 
 	// Process students in batches
@@ -105,26 +137,30 @@ func (s *cleanupService) CleanupExpiredVisits(ctx context.Context) (*CleanupResu
 
 // GetRetentionStatistics gets statistics about data that will be deleted
 func (s *cleanupService) GetRetentionStatistics(ctx context.Context) (*RetentionStats, error) {
+	defaultDays, err := s.defaultRetentionDays(ctx)
+	if err != nil {
+		return nil, err
+	}
 	stats := &RetentionStats{
 		ExpiredVisitsByMonth: make(map[string]int64),
 	}
 
 	// Get total expired visits count
-	count, err := s.presence.CountExpiredVisits(ctx)
+	count, err := s.presence.CountExpiredVisits(ctx, defaultDays)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count expired visits: %w", err)
 	}
 	stats.TotalExpiredVisits = count
 
 	// Get per-student statistics
-	studentStats, err := s.presence.ListVisitRetentionCounts(ctx)
+	studentStats, err := s.presence.ListVisitRetentionCounts(ctx, defaultDays)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get visit retention stats: %w", err)
 	}
 	stats.StudentsAffected = len(studentStats)
 
 	// Get oldest expired visit
-	oldest, err := s.presence.OldestExpiredVisitDate(ctx)
+	oldest, err := s.presence.OldestExpiredVisitDate(ctx, defaultDays)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find oldest expired visit: %w", err)
 	}
@@ -132,7 +168,7 @@ func (s *cleanupService) GetRetentionStatistics(ctx context.Context) (*Retention
 		stats.OldestExpiredVisit = oldest
 
 		// Get monthly breakdown
-		monthly, err := s.presence.ListExpiredVisitMonths(ctx)
+		monthly, err := s.presence.ListExpiredVisitMonths(ctx, defaultDays)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get monthly expired visits: %w", err)
 		}
@@ -146,12 +182,16 @@ func (s *cleanupService) GetRetentionStatistics(ctx context.Context) (*Retention
 
 // PreviewCleanup shows what would be deleted without actually deleting
 func (s *cleanupService) PreviewCleanup(ctx context.Context) (*CleanupPreview, error) {
+	defaultDays, err := s.defaultRetentionDays(ctx)
+	if err != nil {
+		return nil, err
+	}
 	preview := &CleanupPreview{
 		StudentVisitCounts: make(map[int64]int),
 	}
 
 	// Get per-student statistics
-	studentStats, err := s.presence.ListVisitRetentionCounts(ctx)
+	studentStats, err := s.presence.ListVisitRetentionCounts(ctx, defaultDays)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get visit retention stats: %w", err)
 	}
@@ -168,7 +208,7 @@ func (s *cleanupService) PreviewCleanup(ctx context.Context) (*CleanupPreview, e
 	preview.TotalVisits = total
 
 	// Get oldest visit that would be deleted
-	oldest, err := s.presence.OldestExpiredVisitDate(ctx)
+	oldest, err := s.presence.OldestExpiredVisitDate(ctx, defaultDays)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find oldest expired visit: %w", err)
 	}
@@ -185,7 +225,7 @@ type batchResult struct {
 	errors    []CleanupError
 }
 
-func (s *cleanupService) processBatch(ctx context.Context, students []studentpresence.StudentRetentionSetting) batchResult {
+func (s *cleanupService) processBatch(ctx context.Context, students []studentpresence.VisitRetentionCount) batchResult {
 	result := batchResult{
 		errors: make([]CleanupError, 0),
 	}
@@ -212,12 +252,12 @@ func (s *cleanupService) processBatch(ctx context.Context, students []studentpre
 // Phase 3 deviation: RunInTx retained because processStudent runs from the scheduler's forEachTenant loop,
 // which already injects tenant context per-iteration. Handler-level WithTenantTx is not applicable
 // because there is no HTTP handler or JWT involved in scheduled batch cleanup.
-func (s *cleanupService) processStudent(ctx context.Context, student studentpresence.StudentRetentionSetting) (int64, error) {
+func (s *cleanupService) processStudent(ctx context.Context, student studentpresence.VisitRetentionCount) (int64, error) {
 	var deletedCount int64
 
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context) error {
 		// Delete expired visits
-		count, err := s.presence.DeleteCompletedVisitsBefore(ctx, student.StudentID, time.Now().AddDate(0, 0, -student.DataRetentionDays))
+		count, err := s.presence.DeleteCompletedVisitsBefore(ctx, student.StudentID, time.Now().AddDate(0, 0, -student.RetentionDays))
 		if err != nil {
 			return err
 		}
@@ -229,8 +269,8 @@ func (s *cleanupService) processStudent(ctx context.Context, student studentpres
 				TenantID: tenant.FromContext(ctx), StudentID: &student.StudentID,
 				DeletionType: "visit_retention", RecordsDeleted: int(deletedCount),
 				DeletedBy: "system", DeletedAt: time.Now(),
-				DeletionReason: fmt.Sprintf("Automated retention policy: %d days", student.DataRetentionDays),
-				Metadata:       map[string]interface{}{"retention_days": student.DataRetentionDays, "batch_cleanup": true},
+				DeletionReason: fmt.Sprintf("Automated retention policy: %d days", student.RetentionDays),
+				Metadata:       map[string]interface{}{"retention_days": student.RetentionDays, "batch_cleanup": true},
 			}
 
 			if err := s.dataDeletionRepo.Create(ctx, deletion); err != nil {

@@ -146,11 +146,12 @@ func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools org
 	}, presenceservice.WithPresenceTenantRuntime(runtime), presenceservice.WithPresenceSettings(PresenceSettings(settings)))
 }
 
-func NewRetentionCleanupService(db *bun.DB, logger *slog.Logger, command AuditCommand) studentpresence.PresenceCleanup {
+func NewRetentionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) studentpresence.PresenceCleanup {
 	repos := repositories.NewRetentionCleanupRepositories(db, command)
 	_, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
 	return presenceservice.NewPresenceCleanup(
 		newStudentPresence(db, logger), supervisors, NewDeletionAudit(repos.Deletion),
+		PresenceSettings(NewCleanupSettingsService(db, runtime, schools, logger)),
 	)
 }
 

@@ -1844,6 +1844,7 @@ func newFactory(
 		newStudentPresence(db, logger),
 		sessionSupervisors,
 		NewDeletionAudit(repos.DataDeletion),
+		PresenceSettings(settingsService),
 		today,
 	)
 	unregisteredTagScanService, err := auditService.NewUnregisteredTagScanService(

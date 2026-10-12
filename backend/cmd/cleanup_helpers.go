@@ -288,7 +288,7 @@ func newCleanupContextWithCleanupService() (*cleanupContext, error) {
 }
 
 func buildRetentionCleanupService(ctx *cleanupContext) studentpresence.PresenceCleanup {
-	return services.NewRetentionCleanupService(ctx.DB, slog.Default().With("service", "retention-cleanup-cli"), ctx.Audit)
+	return services.NewRetentionCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, slog.Default().With("service", "retention-cleanup-cli"), ctx.Audit)
 
 }
 

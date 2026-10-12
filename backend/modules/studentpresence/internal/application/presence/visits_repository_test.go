@@ -808,7 +808,7 @@ func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 		require.NoError(t, err)
 
 		// Get stats
-		stats, err := repo.ListVisitRetentionCounts(ctx)
+		stats, err := repo.ListVisitRetentionCounts(ctx, 31)
 		require.NoError(t, err)
 
 		// Should have stats for our student
@@ -862,7 +862,7 @@ func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 		require.NoError(t, err)
 
 		// Count expired visits
-		count, err := repo.CountExpiredVisits(ctx)
+		count, err := repo.CountExpiredVisits(ctx, 31)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, count, int64(1))
 	})
@@ -1329,7 +1329,7 @@ func TestVisitRepository_OldestExpiredVisitDate(t *testing.T) {
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Run("returns nil when no visit is expired", func(t *testing.T) {
-		oldest, err := repo.OldestExpiredVisitDate(ctx)
+		oldest, err := repo.OldestExpiredVisitDate(ctx, 30)
 		require.NoError(t, err)
 		assert.Nil(t, oldest)
 	})
@@ -1349,7 +1349,7 @@ func TestVisitRepository_OldestExpiredVisitDate(t *testing.T) {
 	createCompletedVisitForTenant(t, db, otherTenantID, otherStudent.ID, otherGroup.ID, time.Now().Add(-365*24*time.Hour))
 
 	t.Run("returns the tenant's oldest expired visit", func(t *testing.T) {
-		oldest, err := repo.OldestExpiredVisitDate(ctx)
+		oldest, err := repo.OldestExpiredVisitDate(ctx, 30)
 		require.NoError(t, err)
 		require.NotNil(t, oldest)
 		assert.WithinDuration(t, oldestCreatedAt, *oldest, time.Second)
@@ -1371,7 +1371,7 @@ func TestVisitRepository_ExpiredVisitMonthlyCounts(t *testing.T) {
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Run("empty map when no visit is expired", func(t *testing.T) {
-		counts, err := repo.ListExpiredVisitMonths(ctx)
+		counts, err := repo.ListExpiredVisitMonths(ctx, 30)
 		require.NoError(t, err)
 		assert.Empty(t, counts)
 	})
@@ -1395,7 +1395,7 @@ func TestVisitRepository_ExpiredVisitMonthlyCounts(t *testing.T) {
 	createCompletedVisitForTenant(t, db, otherTenantID, otherStudent.ID, otherGroup.ID, newer)
 
 	t.Run("groups the tenant's expired visits by month", func(t *testing.T) {
-		counts, err := repo.ListExpiredVisitMonths(ctx)
+		counts, err := repo.ListExpiredVisitMonths(ctx, 30)
 		require.NoError(t, err)
 		require.Len(t, counts, 2)
 

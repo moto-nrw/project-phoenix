@@ -5,31 +5,37 @@ import (
 	"time"
 )
 
+// VisitRetentionCount is one student's expired visits and the retention
+// window that expired them.
 type VisitRetentionCount struct {
-	StudentID int64
-	Count     int
+	StudentID     int64
+	Count         int
+	RetentionDays int
 }
 type VisitMonthCount struct {
 	Month string
 	Count int64
 }
 
+// VisitRetentionQuery reads completed visits past their retention window: the
+// shortest accepted consent window of the child, otherwise defaultDays, the
+// tenant's gdpr.privacy_consent_retention_days (#3835).
 type VisitRetentionQuery interface {
-	ListVisitRetentionCounts(context.Context) ([]VisitRetentionCount, error)
-	CountExpiredVisits(context.Context) (int64, error)
-	OldestExpiredVisitDate(context.Context) (*time.Time, error)
-	ListExpiredVisitMonths(context.Context) ([]VisitMonthCount, error)
+	ListVisitRetentionCounts(ctx context.Context, defaultDays int) ([]VisitRetentionCount, error)
+	CountExpiredVisits(ctx context.Context, defaultDays int) (int64, error)
+	OldestExpiredVisitDate(ctx context.Context, defaultDays int) (*time.Time, error)
+	ListExpiredVisitMonths(ctx context.Context, defaultDays int) ([]VisitMonthCount, error)
 }
 
-func (m *Module) ListVisitRetentionCounts(ctx context.Context) ([]VisitRetentionCount, error) {
-	return m.engine.ListVisitRetentionCounts(ctx)
+func (m *Module) ListVisitRetentionCounts(ctx context.Context, defaultDays int) ([]VisitRetentionCount, error) {
+	return m.engine.ListVisitRetentionCounts(ctx, defaultDays)
 }
-func (m *Module) CountExpiredVisits(ctx context.Context) (int64, error) {
-	return m.engine.CountExpiredVisits(ctx)
+func (m *Module) CountExpiredVisits(ctx context.Context, defaultDays int) (int64, error) {
+	return m.engine.CountExpiredVisits(ctx, defaultDays)
 }
-func (m *Module) OldestExpiredVisitDate(ctx context.Context) (*time.Time, error) {
-	return m.engine.OldestExpiredVisitDate(ctx)
+func (m *Module) OldestExpiredVisitDate(ctx context.Context, defaultDays int) (*time.Time, error) {
+	return m.engine.OldestExpiredVisitDate(ctx, defaultDays)
 }
-func (m *Module) ListExpiredVisitMonths(ctx context.Context) ([]VisitMonthCount, error) {
-	return m.engine.ListExpiredVisitMonths(ctx)
+func (m *Module) ListExpiredVisitMonths(ctx context.Context, defaultDays int) ([]VisitMonthCount, error) {
+	return m.engine.ListExpiredVisitMonths(ctx, defaultDays)
 }

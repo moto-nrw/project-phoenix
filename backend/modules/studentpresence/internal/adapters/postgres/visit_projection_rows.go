@@ -35,8 +35,9 @@ type openVisitRoomRow struct {
 }
 
 type visitRetentionCountRow struct {
-	StudentID int64 `bun:"student_id"`
-	Count     int   `bun:"visit_count"`
+	StudentID     int64 `bun:"student_id"`
+	Count         int   `bun:"visit_count"`
+	RetentionDays int   `bun:"retention_days"`
 }
 
 type visitMonthCountRow struct {
