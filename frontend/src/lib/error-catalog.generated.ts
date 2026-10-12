@@ -303,6 +303,8 @@ export const ERROR_CATALOG = {
         "Ihr Konto hat keinen Zugang zu dieser Schule. Bitte melden Sie sich neu an.",
       "import.file_columns_missing":
         "In der Datei fehlen Spalten: {columns}. Bitte nutzen Sie die Vorlage.",
+      "import.iserv_columns_missing":
+        "In der iServ-Datei fehlen Spalten: {columns}. Lassen Sie diese Spalten in der iServ-Benutzerverwaltung anzeigen und exportieren Sie die Datei neu.",
       "import.file_missing": "Bitte wählen Sie eine Datei aus.",
       "import.file_no_rows":
         "Die Datei enthält keine Datenzeilen. Vielleicht haben Sie die leere Vorlage hochgeladen.",

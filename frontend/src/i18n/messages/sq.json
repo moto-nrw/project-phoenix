@@ -2347,6 +2347,7 @@
       },
       "import": {
         "file_columns_missing": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "iserv_columns_missing": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "file_missing": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "file_no_rows": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "file_row_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

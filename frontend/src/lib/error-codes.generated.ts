@@ -273,6 +273,7 @@ export const ERROR_CODES = [
   "import.file_type_invalid",
   "import.file_unreadable",
   "import.import_batch_failed",
+  "import.iserv_columns_missing",
   "import.mode_forbidden",
   "iot.activity_capacity_exceeded",
   "iot.deviation_reason_required",
@@ -939,6 +940,7 @@ export const ERROR_CODE_CLASSES: Record<ErrorCode, ErrorClass> = {
   "import.file_type_invalid": "input",
   "import.file_unreadable": "input",
   "import.import_batch_failed": "server",
+  "import.iserv_columns_missing": "input",
   "import.mode_forbidden": "permission",
   "iot.activity_capacity_exceeded": "business_rejection",
   "iot.deviation_reason_required": "input",
@@ -1600,6 +1602,7 @@ export const ERROR_CODE_PARAMETERS: Record<ErrorCode, readonly string[]> = {
   "import.file_type_invalid": [],
   "import.file_unreadable": [],
   "import.import_batch_failed": [],
+  "import.iserv_columns_missing": ["columns"],
   "import.mode_forbidden": [],
   "iot.activity_capacity_exceeded": [
     "activity_id",

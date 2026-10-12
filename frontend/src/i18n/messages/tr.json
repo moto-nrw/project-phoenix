@@ -2347,6 +2347,7 @@
       },
       "import": {
         "file_columns_missing": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "iserv_columns_missing": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "file_missing": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "file_no_rows": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "file_row_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

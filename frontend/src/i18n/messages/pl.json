@@ -2347,6 +2347,7 @@
       },
       "import": {
         "file_columns_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "iserv_columns_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "file_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "file_no_rows": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "file_row_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

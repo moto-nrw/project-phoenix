@@ -135,7 +135,7 @@ func (c *StudentImportConfig) PreloadReferenceData(ctx context.Context) error {
 // import; without it the owner refuses the second row at write time with a
 // generic error instead of naming the card (#2708). The map is keyed by the
 // zero-based slice index, and the message shows the 1-based file row
-// including the header line, matching the engine's own row numbering.
+// including the header line.
 func (c *StudentImportConfig) ValidateBatch(_ context.Context, rows []importModels.StudentImportRow) map[int][]importModels.ValidationError {
 	result := make(map[int][]importModels.ValidationError)
 	seen := make(map[string]int, len(rows))
@@ -148,7 +148,7 @@ func (c *StudentImportConfig) ValidateBatch(_ context.Context, rows []importMode
 		if firstRow, duplicate := seen[key]; duplicate {
 			result[i] = append(result[i], importModels.ValidationError{
 				Field:       "tag_id",
-				Message:     fmt.Sprintf("RFID-Karte '%s' ist in der Datei mehrfach vergeben (bereits in Zeile %d).", tag, firstRow+2),
+				Message:     fmt.Sprintf("RFID-Karte '%s' ist in der Datei mehrfach vergeben (bereits in Zeile %d).", tag, fileRow(rows[firstRow], firstRow)),
 				Code:        "duplicate_in_file",
 				Severity:    importModels.ErrorSeverityError,
 				ActualValue: tag,
@@ -158,6 +158,15 @@ func (c *StudentImportConfig) ValidateBatch(_ context.Context, rows []importMode
 		seen[key] = i
 	}
 	return result
+}
+
+// fileRow is the row's line in the uploaded file: the decoder's SourceRow,
+// or the engine's numbering (index + 2) for rows built without a file.
+func fileRow(row importModels.StudentImportRow, index int) int {
+	if row.SourceRow > 0 {
+		return row.SourceRow
+	}
+	return index + 2
 }
 
 // Validate validates a single row of student import data

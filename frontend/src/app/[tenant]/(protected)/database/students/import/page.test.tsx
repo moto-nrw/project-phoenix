@@ -1687,6 +1687,63 @@ describe("StudentImportPage", () => {
       expect(sentChoice(2)).toEqual(["Schüler(innen)", ""]);
     });
 
+    it("skips rows with errors instead of blocking the import", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              TotalRows: 3,
+              CreatedCount: 2,
+              UpdatedCount: 0,
+              ErrorCount: 1,
+              Errors: [
+                {
+                  RowNumber: 3,
+                  Data: {
+                    first_name: "Ole",
+                    last_name: "Ohne",
+                    school_class: "",
+                    group_name: "",
+                    birthday: "",
+                    guardians: [],
+                    privacy_accepted: false,
+                    data_retention_days: 30,
+                    bus_permission: false,
+                    source_row: 5,
+                  },
+                  Errors: [
+                    {
+                      field: "school_class",
+                      message: "Klasse ist erforderlich",
+                      code: "required",
+                      severity: "error",
+                    },
+                  ],
+                  Timestamp: "",
+                },
+              ],
+              iserv: {
+                user_types: [
+                  { value: "Schüler(innen)", count: 3, selected: true },
+                ],
+                deactivated_count: 0,
+              },
+            },
+          }),
+      });
+
+      render(<StudentImportPage />);
+      fireEvent.click(screen.getByTestId("file-select-trigger"));
+
+      expect(
+        await screen.findByRole("button", { name: "2 Kinder importieren" }),
+      ).toBeEnabled();
+      expect(screen.getByTestId("alert-warning")).toHaveTextContent(
+        "1 Zeile hat einen Fehler. Dieses Kind wird nicht importiert. Legen Sie es danach einzeln an.",
+      );
+    });
+
     it("asks for a choice when no user type is chosen", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
         iservPreview([], 0),

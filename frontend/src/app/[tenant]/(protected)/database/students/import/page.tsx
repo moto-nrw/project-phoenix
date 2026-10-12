@@ -82,6 +82,8 @@ interface ImportRowResult {
     privacy_accepted: boolean;
     data_retention_days: number;
     bus_permission: boolean;
+    /** Zeile in der hochgeladenen Datei (#1446). */
+    source_row?: number;
   };
   Errors: ImportError[];
   Timestamp: string;
@@ -125,6 +127,13 @@ function childCountLabel(count: number): string {
   return count === 1 ? "1 Kind" : `${count} Kinder`;
 }
 
+/** Hinweis über der Vorschau, wenn ein iServ-Import Zeilen überspringt. */
+function skippedRowsNotice(count: number): string {
+  return count === 1
+    ? "1 Zeile hat einen Fehler. Dieses Kind wird nicht importiert. Legen Sie es danach einzeln an."
+    : `${count} Zeilen haben Fehler. Diese Kinder werden nicht importiert. Legen Sie sie danach einzeln an.`;
+}
+
 /** Blocking and warning messages in red; plain hints stay gray. */
 function splitMessages(errors: ImportError[]): {
   errors: string[];
@@ -138,7 +147,7 @@ function splitMessages(errors: ImportError[]): {
 
 function toDisplayStudent(row: ImportRowResult): DisplayStudent {
   return {
-    row: row.RowNumber,
+    row: row.Data.source_row ?? row.RowNumber,
     status: row.Errors.some(
       (error) =>
         error.code === "already_exists" || error.code === "will_update",
@@ -307,7 +316,7 @@ export default function StudentImportPage() {
             };
 
             displayData.push({
-              row: row.RowNumber,
+              row: row.Data.source_row ?? row.RowNumber,
               status: getRowStatus(),
               ...splitMessages(row.Errors),
               first_name: row.Data.first_name,
@@ -536,6 +545,9 @@ export default function StudentImportPage() {
     existing: (importResult?.UpdatedCount ?? 0) + alreadyExists,
     errors: (importResult?.ErrorCount ?? 0) - alreadyExists,
   };
+  // Eine iServ-Datei kann die Schule nicht schnell selbst korrigieren. Zeilen
+  // mit Fehlern werden darum übersprungen, statt den Import zu sperren.
+  const skipsErrorRows = iservSummary !== null && !importInterrupted;
   const importable =
     mode === "update"
       ? (importResult?.UpdatedCount ?? 0)
@@ -727,6 +739,9 @@ export default function StudentImportPage() {
           {quotaNotice && (
             <Alert type={quotaNotice.type} message={quotaNotice.message} />
           )}
+          {skipsErrorRows && stats.errors > 0 && (
+            <Alert type="warning" message={skippedRowsNotice(stats.errors)} />
+          )}
 
           {/* Statistics */}
           <StatsCards
@@ -789,7 +804,7 @@ export default function StudentImportPage() {
                 isImporting ||
                 isLoading ||
                 (!importInterrupted &&
-                  (stats.errors > 0 ||
+                  ((stats.errors > 0 && !skipsErrorRows) ||
                     importable === 0 ||
                     quotaNotice?.type === "error"))
               }

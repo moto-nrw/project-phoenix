@@ -3040,6 +3040,7 @@ function createStudentTopic(): HelpTopic {
       "Ein Auge neben einer Angabe heißt: Eltern sehen sie.",
       "In der Vorlage erklärt das Blatt `Hinweise` jede Spalte.",
       "`Nur bestehende aktualisieren` und `Beides` brauchen Sie erst, wenn Sie Angaben nachträglich ändern. Leere Zellen ändern nie etwas.",
+      "Im neuen Schuljahr laden Sie den iServ-Export wieder hoch und wählen `Beides`. moto erkennt Kinder mit neuer Klasse am Geburtstag. Ohne Geburtstag in iServ legt moto das Kind neu an.",
       "Hat Ihre Schule ein Kinderkontingent, steht es oben in `Kinderdaten`. Zum Beispiel `Kinderkontingent: 48 von 50 belegt`. Es zählen aktive Kinder und Kinder, deren Betreuung später beginnt. Das Info-Symbol daneben erklärt es auch.",
     ],
     differences: [
@@ -3052,6 +3053,8 @@ function createStudentTopic(): HelpTopic {
       "Der grüne Knopf ist grau? Dann hat die Vorschau noch Fehler. Beheben Sie sie in der Datei und laden Sie erneut hoch.",
       "Über der Vorschau steht rot, der Import würde mehr Kinder hinzufügen, als im Kinderkontingent frei sind? Dann startet der Import gar nicht. Nehmen Sie Kinder aus der Datei heraus oder melden Sie sich beim moto-Team. Kinder, die der Import nur aktualisiert, zählen dabei nicht.",
       "moto erkennt eine Zeile an Vorname, Nachname und Klasse. Bei einem Klassenwechsel an der Spalte `RFID-Karte` oder am Geburtstag.",
+      "moto meldet, in der iServ-Datei fehlen Spalten? Lassen Sie die genannten Spalten in der iServ-Benutzerverwaltung anzeigen. Exportieren Sie dann neu.",
+      "Bei einer Datei aus iServ überspringt moto Zeilen mit Fehlern, zum Beispiel Kinder ohne Klasse. Diese Kinder stehen nach dem Import in der Vorschau. Legen Sie sie danach einzeln an.",
       "moto meldet, das Kinderkontingent ist voll? Dann ist die Kontingentzahl erreicht. Wie viel belegt ist, steht oben in `Kinderdaten`. Ihre Eingaben bleiben im Fenster. Für weitere Kinder melden Sie sich beim moto-Team.",
     ],
     related: [

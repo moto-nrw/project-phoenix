@@ -28,6 +28,17 @@ func (e *FileMissingColumnsError) Error() string {
 	return "fehlende erforderliche Spalten: " + strings.Join(e.Columns, ", ")
 }
 
+// IServColumnsMissingError lists the IServ columns an IServ user export lacks.
+// IServ exports only the columns its user list shows, so the school has to
+// show them there and export again (#1446).
+type IServColumnsMissingError struct {
+	Columns []string
+}
+
+func (e *IServColumnsMissingError) Error() string {
+	return "IServ-Export ohne Spalten: " + strings.Join(e.Columns, ", ")
+}
+
 // FileNoDataRowsError reports a file with a header but no data rows, usually
 // the unchanged template. Kind is "CSV" or "Excel".
 type FileNoDataRowsError struct {

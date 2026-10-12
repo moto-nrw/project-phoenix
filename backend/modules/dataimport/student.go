@@ -67,6 +67,12 @@ type StudentImportRow struct {
 
 	// Resolved IDs (populated during validation, not in CSV)
 	GroupID *int64 `json:"-"`
+
+	// SourceRow is the row's line in the uploaded file (1-based, header
+	// included), set by the file decoder. The import engine numbers rows by
+	// their position, which drifts from the file when title rows, blank rows
+	// or IServ user types are left out (#1446). 0 when unknown.
+	SourceRow int `json:"source_row,omitempty"`
 }
 
 // PickupScheduleImportData represents a weekly pickup schedule entry from CSV

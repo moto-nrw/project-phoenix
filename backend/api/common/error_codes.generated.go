@@ -275,6 +275,7 @@ const (
 	CodeImportFileTypeInvalid                            = "import.file_type_invalid"
 	CodeImportFileUnreadable                             = "import.file_unreadable"
 	CodeImportImportBatchFailed                          = "import.import_batch_failed"
+	CodeImportIservColumnsMissing                        = "import.iserv_columns_missing"
 	CodeImportModeForbidden                              = "import.mode_forbidden"
 	CodeIotActivityCapacityExceeded                      = "iot.activity_capacity_exceeded"
 	CodeIotDeviationReasonRequired                       = "iot.deviation_reason_required"
@@ -936,6 +937,7 @@ var errorClassByCode = map[string]string{
 	"import.file_type_invalid":                             "input",
 	"import.file_unreadable":                               "input",
 	"import.import_batch_failed":                           "server",
+	"import.iserv_columns_missing":                         "input",
 	"import.mode_forbidden":                                "permission",
 	"iot.activity_capacity_exceeded":                       "business_rejection",
 	"iot.deviation_reason_required":                        "input",

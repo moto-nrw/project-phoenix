@@ -18,6 +18,7 @@ const (
 	codeImportFileUnreadable     = "import.file_unreadable"
 	codeImportFileNoRows         = "import.file_no_rows"
 	codeImportFileColumnsMissing = "import.file_columns_missing"
+	codeImportIServColumns       = "import.iserv_columns_missing"
 	codeImportFileRowInvalid     = "import.file_row_invalid"
 	codeImportModeForbidden      = "import.mode_forbidden"
 )
@@ -37,6 +38,12 @@ func decodeFailure(err error) Failure {
 	if errors.As(err, &missing) {
 		failure := uploadFailure(codeImportFileColumnsMissing, cause)
 		failure.Details = map[string]any{"columns": strings.Join(missing.Columns, ", ")}
+		return failure
+	}
+	var iserv *importModels.IServColumnsMissingError
+	if errors.As(err, &iserv) {
+		failure := uploadFailure(codeImportIServColumns, cause)
+		failure.Details = map[string]any{"columns": strings.Join(iserv.Columns, ", ")}
 		return failure
 	}
 	var row *importModels.FileRowError

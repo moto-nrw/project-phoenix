@@ -2347,6 +2347,7 @@
       },
       "import": {
         "file_columns_missing": "In der Datei fehlen Spalten: {columns}. Bitte nutzen Sie die Vorlage.",
+        "iserv_columns_missing": "In der iServ-Datei fehlen Spalten: {columns}. Lassen Sie diese Spalten in der iServ-Benutzerverwaltung anzeigen und exportieren Sie die Datei neu.",
         "file_missing": "Bitte wählen Sie eine Datei aus.",
         "file_no_rows": "Die Datei enthält keine Datenzeilen. Vielleicht haben Sie die leere Vorlage hochgeladen.",
         "file_row_invalid": "Zeile {row} der Datei enthält einen ungültigen Wert. Bitte prüfen Sie diese Zeile.",

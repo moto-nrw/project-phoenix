@@ -52,7 +52,10 @@ func parseStudentSheet(sheet studentSheet, opts importModels.StudentFileOptions)
 	headerIdx := findHeaderRow(sheet.rows)
 	header := sheet.rows[headerIdx]
 	mapping := headerMapping(header)
-	filter := newIServFilter(mapping, opts)
+	filter, err := newIServFilter(mapping, opts)
+	if err != nil {
+		return importModels.StudentFile{}, mapping, err
+	}
 
 	var rows []importModels.StudentImportRow
 	for i := headerIdx + 1; i < len(sheet.rows); i++ {
@@ -72,6 +75,7 @@ func parseStudentSheet(sheet studentSheet, opts importModels.StudentFileOptions)
 		if err != nil {
 			return importModels.StudentFile{}, mapping, rowError(rowNum, err)
 		}
+		row.SourceRow = rowNum
 		rows = append(rows, row)
 	}
 

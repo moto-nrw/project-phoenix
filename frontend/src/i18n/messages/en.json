@@ -2347,6 +2347,7 @@
       },
       "import": {
         "file_columns_missing": "{object} could not be saved. Please check your entries.",
+        "iserv_columns_missing": "{object} could not be saved. Please check your entries.",
         "file_missing": "{object} could not be saved. Please check your entries.",
         "file_no_rows": "{object} could not be saved. Please check your entries.",
         "file_row_invalid": "{object} could not be saved. Please check your entries.",

@@ -127,3 +127,83 @@ func TestImportStudents_IServExport(t *testing.T) {
 	rr = testutil.ExecuteRequest(router, newIServRequest(t, "/students/preview", export, "Schüler(innen)", claims))
 	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 }
+
+// TestImportStudents_IServExportWithoutUserTypeColumn verifies that an IServ
+// export whose "Benutzertyp" column was hidden is refused with the code that
+// tells the school which column to show, instead of importing staff as
+// children (#1446).
+func TestImportStudents_IServExportWithoutUserTypeColumn(t *testing.T) {
+	t.Parallel()
+	tc := setupImportRoute(t)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "IServ", "Spalten")
+	router := tc.resource.Router()
+
+	export := "Account;Vorname;Nachname;Interne ID;Klasse/Information\nmia.k;Mia;Kind;1;1a\n"
+	rr := testutil.ExecuteRequest(router, newIServRequest(t, "/students/preview", export, "", adminBearer(t, account.ID)))
+	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+	var body struct {
+		Code    string         `json:"code"`
+		Details map[string]any `json:"details"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, "import.iserv_columns_missing", body.Code)
+	assert.Equal(t, "Benutzertyp", body.Details["columns"])
+}
+
+// TestImportStudents_IServExportNextSchoolYear verifies the yearly re-import
+// of an IServ export (#1446): in upsert mode a child who moved up a class is
+// updated through the birthday, not created twice, and a pupil without a
+// class is skipped while the others are imported.
+func TestImportStudents_IServExportNextSchoolYear(t *testing.T) {
+	t.Parallel()
+	tc := setupImportRoute(t)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "IServ", "Folgejahr")
+	claims := adminBearer(t, account.ID)
+	router := tc.resource.Router()
+
+	unique := time.Now().UnixNano()
+	header := "Account;Vorname;Nachname;Status;Benutzertyp;Klasse/Information;Geburtsdatum\n"
+	first := fmt.Sprintf(header+
+		"a%[1]d;Mia;Jahr%[1]d;aktiviert;Schüler;1a;15.08.2019\n"+
+		"b%[1]d;Ole;Ohne%[1]d;aktiviert;Schüler;;01.02.2020\n", unique)
+	rr := testutil.ExecuteRequest(router, newIServRequest(t, "/students/import", first, iservChoice(t, "Schüler"), claims))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"CreatedCount":1`, "the pupil with a class is imported")
+	assert.Contains(t, rr.Body.String(), `"ErrorCount":1`, "the pupil without a class is skipped")
+	assert.Contains(t, rr.Body.String(), `"source_row":3`, "the skipped row names its file row")
+
+	next := fmt.Sprintf(header+"a%[1]d;Mia;Jahr%[1]d;aktiviert;Schüler;2a;15.08.2019\n", unique)
+	rr = testutil.ExecuteRequest(router, newIServUpsertRequest(t, next, claims))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"UpdatedCount":1`)
+	assert.Contains(t, rr.Body.String(), `"CreatedCount":0`)
+
+	var classes []string
+	err := tc.db.NewSelect().TableExpr("users.student_profiles AS students").
+		ColumnExpr("membership.school_class").
+		Join("JOIN users.student_school_memberships AS membership ON membership.student_profile_id = students.id AND membership.tenant_id = students.tenant_id AND membership.deleted_at IS NULL").
+		Join("JOIN users.persons AS p ON p.id = students.person_id").
+		Where("p.last_name = ?", fmt.Sprintf("Jahr%d", unique)).
+		Scan(context.Background(), &classes)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2a"}, classes, "one child, now in 2a")
+}
+
+func newIServUpsertRequest(t *testing.T, content string, opts ...testutil.RequestOption) *http.Request {
+	t.Helper()
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	require.NoError(t, writer.WriteField("mode", "upsert"))
+	require.NoError(t, writer.WriteField("iserv_user_types", iservChoice(t, "Schüler")))
+	fw, err := writer.CreateFormFile("file", "Benutzer.csv")
+	require.NoError(t, err)
+	_, err = fw.Write([]byte(content))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	req := httptest.NewRequest(http.MethodPost, "/students/import", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	for _, opt := range opts {
+		opt(req)
+	}
+	return req
+}

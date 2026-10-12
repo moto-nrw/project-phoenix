@@ -51,6 +51,8 @@ func TestIServExport_XLSXTitleRowAndPupilPreselection(t *testing.T) {
 
 	require.Len(t, file.Rows, 2, "only the active pupils are imported")
 	assert.Equal(t, "Mia", file.Rows[0].FirstName)
+	assert.Equal(t, 3, file.Rows[0].SourceRow, "title row and header come first")
+	assert.Equal(t, 4, file.Rows[1].SourceRow)
 	assert.Equal(t, "Beispiel", file.Rows[0].LastName)
 	assert.Equal(t, "1a", file.Rows[0].SchoolClass, "Klasse/Information is the class")
 	assert.Equal(t, "15.08.2019", file.Rows[0].Birthday, "Geburtsdatum is the birthday")
@@ -150,4 +152,35 @@ func TestStudentFile_HeaderSearchStaysBounded(t *testing.T) {
 	rows, err := NewCSVParser().ParseStudents(strings.NewReader(lines))
 	require.NoError(t, err)
 	assert.Empty(t, rows[0].FirstName)
+}
+
+func TestIServExport_MissingColumnsNameWhatToShowInIServ(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		header  string
+		missing []string
+	}{
+		{"user type hidden", "Account;Vorname;Nachname;Interne ID;Klasse/Information", []string{"Benutzertyp"}},
+		{"class hidden", "Account;Vorname;Nachname;Benutzertyp", []string{"Klasse/Information"}},
+		{"both hidden", "Account;Vorname;Nachname;Erstellt von", []string{"Benutzertyp", "Klasse/Information"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := NewCSVParser().ParseStudentFile(strings.NewReader(tc.header+"\nmia.k;Mia;Kind;x;1a\n"), importModels.StudentFileOptions{})
+			var missing *importModels.IServColumnsMissingError
+			require.ErrorAs(t, err, &missing)
+			assert.Equal(t, tc.missing, missing.Columns)
+		})
+	}
+
+	t.Run("an Account column alone is no IServ export", func(t *testing.T) {
+		t.Parallel()
+		file, err := NewCSVParser().ParseStudentFile(strings.NewReader("Account,Vorname,Nachname,Klasse\nx,Mia,Kind,1a\n"), importModels.StudentFileOptions{})
+		require.NoError(t, err)
+		assert.Nil(t, file.IServ)
+		require.Len(t, file.Rows, 1)
+	})
 }

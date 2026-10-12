@@ -9,11 +9,12 @@ import (
 )
 
 // IServ user export (#1446). The IServ user list exports the columns it
-// shows, so the file is recognized by its "Benutzertyp" column, not by a
-// fixed layout. Its "Klasse/Information" and "Geburtsdatum" columns reach the
+// shows, so the file is recognized by its column names, not by a fixed
+// layout. Its "Klasse/Information" and "Geburtsdatum" columns reach the
 // student fields through columnAliases; the other IServ columns (Account,
 // E-Mail-Adresse, Gruppen, …) have no student field and are ignored.
 const (
+	iservAccountColumn  = "account"
 	iservUserTypeColumn = "benutzertyp"
 	iservStatusColumn   = "status"
 	iservDeactivated    = "deaktiviert"
@@ -33,10 +34,49 @@ type iservFilter struct {
 	deactivated int
 }
 
-// newIServFilter returns nil when the header is no IServ user export.
-func newIServFilter(mapping map[string]int, opts importModels.StudentFileOptions) *iservFilter {
-	if _, ok := mapping[iservUserTypeColumn]; !ok {
-		return nil
+// iservAccountMarkers are columns that, next to "Account", only an IServ
+// user export carries. Together they recognize an export whose
+// "Benutzertyp" column was hidden in IServ.
+var iservAccountMarkers = []string{"interne id", "import-id", "erstellt von", "erstellt am"}
+
+// iservRequiredColumns are the columns an IServ export needs, keyed by the
+// normalized key and named as IServ shows them.
+var iservRequiredColumns = []struct{ key, label string }{
+	{iservUserTypeColumn, "Benutzertyp"},
+	{"klasse", "Klasse/Information"},
+}
+
+func isIServExport(mapping map[string]int) bool {
+	if _, ok := mapping[iservUserTypeColumn]; ok {
+		return true
+	}
+	if _, ok := mapping[iservAccountColumn]; !ok {
+		return false
+	}
+	for _, marker := range iservAccountMarkers {
+		if _, ok := mapping[marker]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// newIServFilter returns nil when the header is no IServ user export, and an
+// error naming the columns to show in IServ when the export lacks one: without
+// "Benutzertyp" staff would become children, without "Klasse/Information"
+// every row would fail.
+func newIServFilter(mapping map[string]int, opts importModels.StudentFileOptions) (*iservFilter, error) {
+	if !isIServExport(mapping) {
+		return nil, nil
+	}
+	var missing []string
+	for _, column := range iservRequiredColumns {
+		if _, ok := mapping[column.key]; !ok {
+			missing = append(missing, column.label)
+		}
+	}
+	if len(missing) > 0 {
+		return nil, &importModels.IServColumnsMissingError{Columns: missing}
 	}
 	filter := &iservFilter{counts: make(map[string]int)}
 	if opts.IServUserTypes != nil {
@@ -45,7 +85,7 @@ func newIServFilter(mapping map[string]int, opts importModels.StudentFileOptions
 			filter.chosen[strings.TrimSpace(value)] = true
 		}
 	}
-	return filter
+	return filter, nil
 }
 
 // keep counts the row and reports whether it is imported. Deactivated

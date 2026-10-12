@@ -1105,6 +1105,14 @@
       "legacy": "import.file_columns_missing"
     },
     {
+      "code": "import.iserv_columns_missing",
+      "class": "input",
+      "parameters": [
+        "columns"
+      ],
+      "legacy": "import.iserv_columns_missing"
+    },
+    {
       "code": "import.file_missing",
       "class": "input",
       "parameters": [],
