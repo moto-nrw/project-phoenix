@@ -220,6 +220,14 @@ type TransferReader interface {
 	GroupHandovers(ctx context.Context, groupID int64, date Date) ([]Transfer, error)
 }
 
+// SnapshotResolver resolves several settings of the request tenant in one
+// read. The retained adapter prefetches one request snapshot of type S when
+// its settings source also offers this read. S is a type parameter because
+// this public package does not import the Settings Platform's snapshot type.
+type SnapshotResolver[S any] interface {
+	ResolveMany(ctx context.Context, keys []string) (S, error)
+}
+
 // Settings reads the tenant settings the projection depends on.
 type Settings interface {
 	// Prepare prefetches the request's settings snapshot and returns the

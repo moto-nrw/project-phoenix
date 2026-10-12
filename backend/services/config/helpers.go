@@ -26,10 +26,7 @@ type stringResolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
-// SnapshotResolver resolves several settings of the request tenant in one
-// read. The Resolve*OrDefault helpers and consumers that prefetch a request
-// snapshot check for it.
-type SnapshotResolver interface {
+type snapshotResolver interface {
 	ResolveMany(ctx context.Context, keys []string) (*SettingsSnapshot, error)
 }
 
@@ -48,7 +45,7 @@ func ResolveBoolOrDefault(ctx context.Context, svc boolResolver, key string, fal
 	if svc == nil {
 		return fallback
 	}
-	if batch, ok := any(svc).(SnapshotResolver); ok {
+	if batch, ok := any(svc).(snapshotResolver); ok {
 		snapshot, err := batch.ResolveMany(ctx, []string{key})
 		if err != nil {
 			logSettingsFallback(logger, "settings snapshot failed, using fallback", key, err)
@@ -102,7 +99,7 @@ func ResolveIntOrDefault(ctx context.Context, svc intResolver, key string, fallb
 	if svc == nil {
 		return fallback
 	}
-	if batch, ok := any(svc).(SnapshotResolver); ok {
+	if batch, ok := any(svc).(snapshotResolver); ok {
 		snapshot, err := batch.ResolveMany(ctx, []string{key})
 		if err != nil {
 			logSettingsFallback(logger, "settings snapshot failed, using fallback", key, err)
@@ -158,7 +155,7 @@ func ResolveStringOrDefault(ctx context.Context, svc stringResolver, key, fallba
 	if svc == nil {
 		return fallback
 	}
-	if batch, ok := any(svc).(SnapshotResolver); ok {
+	if batch, ok := any(svc).(snapshotResolver); ok {
 		snapshot, err := batch.ResolveMany(ctx, []string{key})
 		if err != nil {
 			logSettingsFallback(logger, "settings snapshot failed, using fallback", key, err)

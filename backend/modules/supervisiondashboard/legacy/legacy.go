@@ -626,7 +626,7 @@ func wallClock(at *time.Time) *string {
 type settings struct{ settings supervisiondashboard.Resolver }
 
 func (s settings) Prepare(ctx context.Context) (context.Context, error) {
-	batch, ok := s.settings.(configService.SnapshotResolver)
+	batch, ok := s.settings.(supervisiondashboard.SnapshotResolver[*configService.SettingsSnapshot])
 	if !ok {
 		return ctx, nil
 	}

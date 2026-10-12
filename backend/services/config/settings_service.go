@@ -48,8 +48,8 @@ type settingsService struct {
 }
 
 // Consumers that prefetch a request snapshot rely on the settings service
-// answering SnapshotResolver.
-var _ SnapshotResolver = (*settingsService)(nil)
+// answering the batch reads.
+var _ BatchSettingsService = (*settingsService)(nil)
 
 // SettingsLookupObserver records bounded per-key lookup evidence. cache is
 // one of snapshot, hit, miss, or bypass; outcome is ok or error.

@@ -490,7 +490,7 @@ func (t transfers) GroupHandovers(ctx context.Context, groupID int64, date group
 type settings struct{ settings configService.SettingsService }
 
 func (s settings) Prepare(ctx context.Context) (context.Context, error) {
-	batch, ok := s.settings.(configService.BatchSettingsService)
+	batch, ok := s.settings.(grouplive.SnapshotResolver[*configService.SettingsSnapshot])
 	if !ok {
 		return ctx, nil
 	}

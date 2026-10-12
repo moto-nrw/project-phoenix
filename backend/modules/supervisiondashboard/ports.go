@@ -224,11 +224,18 @@ type Planning interface {
 }
 
 // Resolver resolves one setting of the request tenant. The retained adapter
-// builds Settings and the caller's overview decision over it; it prefetches
-// one snapshot per request when the value also resolves many keys at once.
+// builds Settings and the caller's overview decision over it.
 type Resolver interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 	ResolveString(ctx context.Context, key string) (string, error)
+}
+
+// SnapshotResolver resolves several settings of the request tenant in one
+// read. The retained adapter prefetches one request snapshot of type S when
+// its settings source also offers this read. S is a type parameter because
+// this public package does not import the Settings Platform's snapshot type.
+type SnapshotResolver[S any] interface {
+	ResolveMany(ctx context.Context, keys []string) (S, error)
 }
 
 // Settings reads the tenant settings the projection depends on.

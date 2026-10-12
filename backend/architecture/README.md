@@ -3310,9 +3310,10 @@ returned carries `models/config` types no contract may expose.
 rule either: no consumer read the schema. Every consumer that took the full
 settings service declares a narrow port; the supervision dashboard's is
 `supervisiondashboard.Resolver` in its public ports, so the legacy tree stays
-within its LOC budget, and its snapshot prefetch checks for the one-method
-`services/config.SnapshotResolver`, which the settings service is compiled to
-satisfy, instead of the full batch service. Each test package keeps a local
+within its LOC budget. Its snapshot prefetch checks for the module's own
+generic `SnapshotResolver[S]` port instead of the full batch service, and
+`grouplive/legacy` does the same with its own port; the settings service is
+compiled to satisfy the batch reads. Each test package keeps a local
 func-field `settingsDouble` with only the resolvers its ports need; the
 dashboard's internal test names the snapshot as `modules/settings.Snapshot`.
 `configtest` is deleted with its package entry. Both `configtest` keys fall,
