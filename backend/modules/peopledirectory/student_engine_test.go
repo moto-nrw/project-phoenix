@@ -130,6 +130,12 @@ func (e *recordingEngine) LockStudent(_ context.Context, id int64) error {
 	return nil
 }
 
+func (e *recordingEngine) SetStudentExternalID(_ context.Context, id int64, _ string) error {
+	e.calls++
+	e.student = studentCall{ids: []int64{id}}
+	return nil
+}
+
 func (e *recordingEngine) CountStudentGuardianLinks(_ context.Context, studentID, _ int64) (int, error) {
 	e.calls++
 	e.student = studentCall{ids: []int64{studentID}}

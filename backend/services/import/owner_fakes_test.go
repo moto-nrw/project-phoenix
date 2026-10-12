@@ -171,6 +171,14 @@ func (f *fakeStudents) ApplyEnrollmentProfile(context.Context, int64, ports.Enro
 	panic("not modelled")
 }
 
+func (f *fakeStudents) ListStudentDirectory(context.Context, ports.StudentDirectoryFilter) ([]ports.StudentRecord, error) {
+	return nil, nil
+}
+
+func (f *fakeStudents) SetStudentExternalID(context.Context, int64, string) error {
+	panic("not modelled")
+}
+
 type fakeClassList struct {
 	mu      sync.Mutex
 	nextID  int64

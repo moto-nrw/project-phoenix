@@ -40,6 +40,12 @@ var studentOwnerStorageNewColumns = []string{
 	"student_profile_id", "membership_id", "deleted_at",
 }
 
+// studentStorageLaterColumns are columns later migrations added to the
+// expanded tables; they have no users.students source column.
+var studentStorageLaterColumns = map[string][]string{
+	"users.student_profiles": {"external_id"}, // 1.15.443 (#1446)
+}
+
 func TestStudentOwnerStorageExpandColumnMapping(t *testing.T) {
 	t.Parallel()
 	db := setupIsolatedStudentStorageBeforeCutover(t)
@@ -68,6 +74,9 @@ func TestStudentOwnerStorageExpandColumnMapping(t *testing.T) {
 			var columns []string
 			require.NoError(t, db.NewRaw(`SELECT column_name FROM information_schema.columns
 				WHERE table_schema = ? AND table_name = ? ORDER BY ordinal_position`, schema, table).Scan(t.Context(), &columns))
+			columns = slices.DeleteFunc(columns, func(column string) bool {
+				return slices.Contains(studentStorageLaterColumns[tc.target], column)
+			})
 			require.ElementsMatch(t, tc.columns, columns)
 			// Every moved field keeps the SQL type, nullability and default of its
 			// users.students source column.

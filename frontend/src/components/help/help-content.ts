@@ -3024,6 +3024,7 @@ function createStudentTopic(): HelpTopic {
         steps: [
           "Öffnen Sie in iServ die Benutzerverwaltung.",
           "Lassen Sie dort die Spalten `Benutzertyp`, `Klasse/Information` und `Geburtsdatum` anzeigen.",
+          "Lassen Sie nur die Kinder der OGS anzeigen, zum Beispiel über die OGS-Gruppe. moto übernimmt alle Kinder aus der Datei.",
           "Wählen Sie in iServ `Exportieren`.",
           "Öffnen Sie in moto `Kinderdaten` und wählen Sie oben `Importieren`.",
           "Ziehen Sie die Datei aus iServ unter `Schritt 3: Datei hochladen` in das Feld.",
@@ -3040,7 +3041,7 @@ function createStudentTopic(): HelpTopic {
       "Ein Auge neben einer Angabe heißt: Eltern sehen sie.",
       "In der Vorlage erklärt das Blatt `Hinweise` jede Spalte.",
       "`Nur bestehende aktualisieren` und `Beides` brauchen Sie erst, wenn Sie Angaben nachträglich ändern. Leere Zellen ändern nie etwas.",
-      "Im neuen Schuljahr laden Sie den iServ-Export wieder hoch und wählen `Beides`. moto erkennt Kinder mit neuer Klasse am Geburtstag. Ohne Geburtstag in iServ legt moto das Kind neu an.",
+      "Im neuen Schuljahr laden Sie den iServ-Export wieder hoch und wählen `Beides`. moto erkennt jedes Kind an seiner iServ-Kennung, auch mit neuer Klasse.",
       "Hat Ihre Schule ein Kinderkontingent, steht es oben in `Kinderdaten`. Zum Beispiel `Kinderkontingent: 48 von 50 belegt`. Es zählen aktive Kinder und Kinder, deren Betreuung später beginnt. Das Info-Symbol daneben erklärt es auch.",
     ],
     differences: [

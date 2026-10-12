@@ -32,6 +32,8 @@ type (
 	EnrollmentStudent        = peopledirectory.EnrollmentStudent
 	CreatedEnrollmentStudent = peopledirectory.CreatedEnrollmentStudent
 	EnrollmentProfilePatch   = peopledirectory.EnrollmentProfilePatch
+	StudentRecord            = peopledirectory.StudentRecord
+	StudentDirectoryFilter   = peopledirectory.StudentDirectoryFilter
 	Guardian                 = peopledirectory.Guardian
 	GuardianInput            = peopledirectory.GuardianInput
 	GuardianPhone            = peopledirectory.GuardianPhone
@@ -46,10 +48,15 @@ type (
 // StudentStatusAlumnus marks a graduated child in the directory.
 const StudentStatusAlumnus = peopledirectory.StudentStatusAlumnus
 
+// StudentCareStatusAll reads both sides of the care interval.
+const StudentCareStatusAll = peopledirectory.StudentCareStatusAll
+
 var (
 	ErrPersonNotFound   = peopledirectory.ErrPersonNotFound
 	ErrStudentNotFound  = peopledirectory.ErrStudentNotFound
 	ErrGuardianNotFound = peopledirectory.ErrGuardianNotFound
+	// ErrStudentExternalIDTaken: another active child holds the key.
+	ErrStudentExternalIDTaken = peopledirectory.ErrStudentExternalIDTaken
 )
 
 // PersonDirectory is the People Directory person slice the import consumes.
@@ -71,6 +78,8 @@ type StudentDirectory interface {
 	CreateEnrollmentStudent(context.Context, EnrollmentStudent) (CreatedEnrollmentStudent, error)
 	RenewEnrollmentStudent(context.Context, int64, EnrollmentStudent) error
 	ApplyEnrollmentProfile(context.Context, int64, EnrollmentProfilePatch) error
+	ListStudentDirectory(context.Context, StudentDirectoryFilter) ([]StudentRecord, error)
+	SetStudentExternalID(context.Context, int64, string) error
 }
 
 // GuardianDirectory is the People Directory guardian slice: profiles, phone

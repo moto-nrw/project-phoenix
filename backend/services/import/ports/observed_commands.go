@@ -50,6 +50,11 @@ func (o observedStudentDirectory) RenewEnrollmentStudent(ctx context.Context, id
 	return o.StudentDirectory.RenewEnrollmentStudent(ctx, id, input)
 }
 
+func (o observedStudentDirectory) SetStudentExternalID(ctx context.Context, id int64, key string) (err error) {
+	defer observeCommand(ctx, "people-directory", "set_student_external_id", time.Now(), &err)
+	return o.StudentDirectory.SetStudentExternalID(ctx, id, key)
+}
+
 func (o observedStudentDirectory) ApplyEnrollmentProfile(ctx context.Context, id int64, input EnrollmentProfilePatch) (err error) {
 	defer observeCommand(ctx, "people-directory", "apply_enrollment_profile", time.Now(), &err)
 	return o.StudentDirectory.ApplyEnrollmentProfile(ctx, id, input)

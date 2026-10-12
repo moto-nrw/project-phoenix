@@ -11,6 +11,9 @@ import (
 var (
 	ErrStudentNotFound = enrollment.ErrStudentNotFound
 	ErrInvalidStudent  = errors.New("invalid student")
+	// ErrStudentExternalIDTaken reports a key another active child already
+	// holds (#1446).
+	ErrStudentExternalIDTaken = errors.New("external id belongs to another student")
 )
 
 type InvalidStudentError struct{ Reason string }
@@ -97,6 +100,10 @@ type StudentCommand interface {
 	// every care-day writer. ErrStudentNotFound when the tenant has no such
 	// row.
 	LockStudent(context.Context, int64) error
+	// SetStudentExternalID stores the key another system, such as IServ,
+	// knows the child by (#1446). One key names at most one child of a
+	// school; ListStudentDirectory finds the child by it.
+	SetStudentExternalID(context.Context, int64, string) error
 }
 
 // StudentStatusFlagCapability is the narrow owner capability for the legacy
@@ -120,6 +127,7 @@ type studentEngine interface {
 	ListEnrolledStudents(context.Context) ([]Student, error)
 	ListSchoolClasses(context.Context) ([]string, error)
 	LockStudent(context.Context, int64) error
+	SetStudentExternalID(context.Context, int64, string) error
 }
 
 func (m *Module) ListStudentsByID(ctx context.Context, ids []int64) ([]Student, error) {

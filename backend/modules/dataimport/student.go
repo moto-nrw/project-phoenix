@@ -73,6 +73,11 @@ type StudentImportRow struct {
 	// their position, which drifts from the file when title rows, blank rows
 	// or IServ user types are left out (#1446). 0 when unknown.
 	SourceRow int `json:"source_row,omitempty"`
+
+	// ExternalID is the key another system knows the child by, such as
+	// "iserv:<Interne ID>". The import stores it on the child and finds the
+	// child by it first on the next import (#1446). Empty for the template.
+	ExternalID string `json:"external_id,omitempty"`
 }
 
 // PickupScheduleImportData represents a weekly pickup schedule entry from CSV

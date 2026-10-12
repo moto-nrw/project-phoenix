@@ -53,6 +53,7 @@ func TestIServExport_XLSXTitleRowAndPupilPreselection(t *testing.T) {
 	assert.Equal(t, "Mia", file.Rows[0].FirstName)
 	assert.Equal(t, 3, file.Rows[0].SourceRow, "title row and header come first")
 	assert.Equal(t, 4, file.Rows[1].SourceRow)
+	assert.Equal(t, "iserv:0000-uuid", file.Rows[0].ExternalID, "the Interne ID is the key")
 	assert.Equal(t, "Beispiel", file.Rows[0].LastName)
 	assert.Equal(t, "1a", file.Rows[0].SchoolClass, "Klasse/Information is the class")
 	assert.Equal(t, "15.08.2019", file.Rows[0].Birthday, "Geburtsdatum is the birthday")
@@ -122,6 +123,7 @@ func TestIServExport_CSVSemicolonWindows1252(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, file.Rows, 1)
 	assert.Equal(t, "Jörg", file.Rows[0].FirstName)
+	assert.Empty(t, file.Rows[0].ExternalID, "no Interne ID and no Account, no key")
 	assert.Equal(t, "Müller", file.Rows[0].LastName)
 	assert.Equal(t, "3a", file.Rows[0].SchoolClass)
 	assert.Equal(t, "01.02.2018", file.Rows[0].Birthday)
@@ -136,6 +138,7 @@ func TestStudentFile_TemplateIsNoIServExport(t *testing.T) {
 	t.Parallel()
 
 	csv := "\uFEFFVorname,Nachname,Klasse\nMax,Mustermann,1A\n"
+	// The template never carries a key.
 	file, err := NewCSVParser().ParseStudentFile(strings.NewReader(csv), importModels.StudentFileOptions{})
 	require.NoError(t, err)
 	assert.Nil(t, file.IServ)
@@ -183,4 +186,14 @@ func TestIServExport_MissingColumnsNameWhatToShowInIServ(t *testing.T) {
 		assert.Nil(t, file.IServ)
 		require.Len(t, file.Rows, 1)
 	})
+}
+
+func TestIServExport_AccountIsTheKeyWithoutInternalID(t *testing.T) {
+	t.Parallel()
+
+	export := "Account;Vorname;Nachname;Benutzertyp;Klasse/Information\nMia.Kind;Mia;Kind;Schüler;1a\n"
+	file, err := NewCSVParser().ParseStudentFile(strings.NewReader(export), importModels.StudentFileOptions{})
+	require.NoError(t, err)
+	require.Len(t, file.Rows, 1)
+	assert.Equal(t, "iserv-account:mia.kind", file.Rows[0].ExternalID)
 }

@@ -14,10 +14,11 @@ import (
 // student fields through columnAliases; the other IServ columns (Account,
 // E-Mail-Adresse, Gruppen, …) have no student field and are ignored.
 const (
-	iservAccountColumn  = "account"
-	iservUserTypeColumn = "benutzertyp"
-	iservStatusColumn   = "status"
-	iservDeactivated    = "deaktiviert"
+	iservAccountColumn    = "account"
+	iservInternalIDColumn = "interne id"
+	iservUserTypeColumn   = "benutzertyp"
+	iservStatusColumn     = "status"
+	iservDeactivated      = "deaktiviert"
 )
 
 // iservPupilType matches the user type names IServ suggests for pupils
@@ -37,7 +38,7 @@ type iservFilter struct {
 // iservAccountMarkers are columns that, next to "Account", only an IServ
 // user export carries. Together they recognize an export whose
 // "Benutzertyp" column was hidden in IServ.
-var iservAccountMarkers = []string{"interne id", "import-id", "erstellt von", "erstellt am"}
+var iservAccountMarkers = []string{iservInternalIDColumn, "import-id", "erstellt von", "erstellt am"}
 
 // iservRequiredColumns are the columns an IServ export needs, keyed by the
 // normalized key and named as IServ shows them.
@@ -101,6 +102,22 @@ func (f *iservFilter) keep(mapper *ColumnMapper) bool {
 	userType := mapper.GetRawCol(iservUserTypeColumn)
 	f.counts[userType]++
 	return f.selected(userType)
+}
+
+// externalID is the key moto stores for an IServ user: the "Interne ID",
+// which IServ never changes, or the account name when that column is hidden.
+// The prefix keeps keys of other systems apart.
+func (f *iservFilter) externalID(mapper *ColumnMapper) string {
+	if f == nil {
+		return ""
+	}
+	if id := mapper.GetRawCol(iservInternalIDColumn); id != "" {
+		return "iserv:" + id
+	}
+	if account := mapper.GetRawCol(iservAccountColumn); account != "" {
+		return "iserv-account:" + strings.ToLower(account)
+	}
+	return ""
 }
 
 func (f *iservFilter) selected(userType string) bool {

@@ -207,3 +207,59 @@ func newIServUpsertRequest(t *testing.T, content string, opts ...testutil.Reques
 	}
 	return req
 }
+
+// TestImportStudents_IServExportKeyFindsChildWithoutBirthday verifies the
+// stored IServ key (#1446): a child without a birthday who moved up a class
+// is found again by its "Interne ID", a create-mode re-upload reports it as
+// existing, and a later template import of the same child keeps the key.
+func TestImportStudents_IServExportKeyFindsChildWithoutBirthday(t *testing.T) {
+	t.Parallel()
+	tc := setupImportRoute(t)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "IServ", "Kennung")
+	claims := adminBearer(t, account.ID)
+	router := tc.resource.Router()
+
+	unique := time.Now().UnixNano()
+	lastName := fmt.Sprintf("Schluessel%d", unique)
+	key := fmt.Sprintf("uuid-%d", unique)
+	export := func(class string) string {
+		return fmt.Sprintf("Account;Interne ID;Vorname;Nachname;Benutzertyp;Klasse/Information\nben.s;%s;Ben;%s;Schüler;%s\n", key, lastName, class)
+	}
+
+	rr := testutil.ExecuteRequest(router, newIServRequest(t, "/students/import", export("1a"), iservChoice(t, "Schüler"), claims))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"CreatedCount":1`)
+
+	// Create mode again: the key finds the child, nothing is created twice.
+	rr = testutil.ExecuteRequest(router, newIServRequest(t, "/students/preview", export("1a"), iservChoice(t, "Schüler"), claims))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "already_exists")
+
+	// Next school year, new class, still no birthday.
+	rr = testutil.ExecuteRequest(router, newIServUpsertRequest(t, export("2a"), claims))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"UpdatedCount":1`)
+	assert.Contains(t, rr.Body.String(), `"CreatedCount":0`)
+
+	// A template import of the same child rewrites its record; the key stays.
+	template := fmt.Sprintf("Vorname,Nachname,Klasse,Ort\nBen,%s,2a,Köln\n", lastName)
+	rr = testutil.ExecuteRequest(router, newMultipartRequestWithMode(t, "/students/import", "k.csv", template, "upsert", claims))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"UpdatedCount":1`)
+
+	var stored []struct {
+		SchoolClass string  `bun:"school_class"`
+		ExternalID  *string `bun:"external_id"`
+	}
+	err := tc.db.NewSelect().TableExpr("users.student_profiles AS students").
+		ColumnExpr("membership.school_class, students.external_id").
+		Join("JOIN users.student_school_memberships AS membership ON membership.student_profile_id = students.id AND membership.tenant_id = students.tenant_id AND membership.deleted_at IS NULL").
+		Join("JOIN users.persons AS p ON p.id = students.person_id").
+		Where("p.last_name = ?", lastName).
+		Scan(context.Background(), &stored)
+	require.NoError(t, err)
+	require.Len(t, stored, 1, "one child, never two")
+	assert.Equal(t, "2a", stored[0].SchoolClass)
+	require.NotNil(t, stored[0].ExternalID)
+	assert.Equal(t, "iserv:"+key, *stored[0].ExternalID)
+}

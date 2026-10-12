@@ -59,7 +59,7 @@ export function IServUserTypes({
     <SectionCard
       title="Welche iServ-Benutzer sind Kinder?"
       icon={Users}
-      description="Die Datei kommt aus iServ. Wählen Sie, wer als Kind importiert wird."
+      description="Die Datei kommt aus iServ. Alle gewählten Benutzer werden OGS-Kinder in moto."
     >
       <div className="grid gap-2 sm:grid-cols-2">
         {summary.user_types.map((userType) => (

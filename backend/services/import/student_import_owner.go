@@ -28,6 +28,9 @@ const privacyConsentPolicyVersion = "1.0"
 // (survives a class change), first + last name + class, and first + last name
 // + birthday (the class-change case without a card).
 func (c *StudentImportConfig) FindExisting(ctx context.Context, row importModels.StudentImportRow) (*int64, error) {
+	if id, err := c.findStudentByExternalID(ctx, row.ExternalID); err != nil || id != nil {
+		return id, err
+	}
 	if row.TagID != "" {
 		id, err := c.findStudentByTag(ctx, row.TagID)
 		if err != nil || id != nil {
@@ -175,6 +178,9 @@ func (c *StudentImportConfig) createAllEntities(ctx context.Context, row importM
 	}
 	studentID, err := c.createStudentFromRow(ctx, person.ID, row)
 	if err != nil {
+		return 0, err
+	}
+	if err := c.storeExternalID(ctx, studentID, row.ExternalID); err != nil {
 		return 0, err
 	}
 	if err := c.createGuardianRelationships(ctx, studentID, row.Guardians); err != nil {
@@ -594,6 +600,9 @@ func (c *StudentImportConfig) updateAllEntities(ctx context.Context, studentID i
 		return err
 	}
 	if err := c.updateStudentFromRow(ctx, record, row); err != nil {
+		return err
+	}
+	if err := c.storeExternalID(ctx, record.ID, row.ExternalID); err != nil {
 		return err
 	}
 	if err := c.mergeGuardianRelationships(ctx, record.ID, row.Guardians); err != nil {

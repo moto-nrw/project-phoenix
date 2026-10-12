@@ -218,6 +218,9 @@ func applyStudentDirectoryFilter(query *bun.SelectQuery, filter Filter) *bun.Sel
 	if len(filter.IDs) > 0 {
 		query = query.Where(`"student".id IN (?)`, bun.List(filter.IDs))
 	}
+	if len(filter.ExternalIDs) > 0 {
+		query = query.Where(`"student".external_id IN (?)`, bun.List(filter.ExternalIDs))
+	}
 	return query
 }
 

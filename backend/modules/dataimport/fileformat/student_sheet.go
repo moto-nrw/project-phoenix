@@ -76,6 +76,7 @@ func parseStudentSheet(sheet studentSheet, opts importModels.StudentFileOptions)
 			return importModels.StudentFile{}, mapping, rowError(rowNum, err)
 		}
 		row.SourceRow = rowNum
+		row.ExternalID = filter.externalID(mapper)
 		rows = append(rows, row)
 	}
 

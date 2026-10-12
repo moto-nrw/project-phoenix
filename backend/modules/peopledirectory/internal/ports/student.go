@@ -19,6 +19,12 @@ type StudentStore interface {
 	// lifecycle status; found is false when the tenant has no such row.
 	LockLifecycle(ctx context.Context, id int64) (status string, found bool, stats domain.OperationStats, err error)
 	ReadEnrollment(context.Context, int64, string) (domain.EnrollmentRecord, domain.OperationStats, error)
+	// FindExternalIDHolder returns the child that holds a key another system
+	// knows it by, with its lifecycle status.
+	FindExternalIDHolder(context.Context, string) (domain.ExternalIDHolder, bool, domain.OperationStats, error)
+	// SetExternalID stores that key, nil clears it; false means the tenant
+	// has no such row.
+	SetExternalID(context.Context, int64, *string) (bool, domain.OperationStats, error)
 	LockEnrollmentClassWrites(context.Context) (domain.OperationStats, error)
 	// InsertRecord writes a new child and returns the stored row.
 	InsertRecord(context.Context, domain.StudentRecord) (domain.StudentRecord, domain.OperationStats, error)

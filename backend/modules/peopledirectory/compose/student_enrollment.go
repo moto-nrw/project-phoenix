@@ -44,3 +44,7 @@ func enrollmentInput(input peopledirectory.EnrollmentStudent) domain.EnrollmentS
 	}
 	return result
 }
+
+func (e engine) SetStudentExternalID(ctx context.Context, id int64, key string) error {
+	return mapError(e.students.SetExternalID(ctx, id, key))
+}

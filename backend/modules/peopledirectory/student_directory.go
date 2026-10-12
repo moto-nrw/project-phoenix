@@ -96,6 +96,9 @@ type StudentRosterEntry struct {
 type StudentDirectoryFilter struct {
 	// IDs restricts the page to these children; empty means no restriction.
 	IDs []int64
+	// ExternalIDs restricts the page to the children another system, such
+	// as IServ, knows by one of these keys (#1446).
+	ExternalIDs []string
 	// SchoolClasses matches any of them, trimmed and case-insensitively.
 	SchoolClasses []string
 	// GradeLevels matches the first run of digits in the free-text class
@@ -229,10 +232,19 @@ func (m *Module) LockStudentPhotoFeature(ctx context.Context) error {
 	return m.engine.LockStudentPhotoFeature(ctx)
 }
 
+func trimAll(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		result = append(result, strings.TrimSpace(value))
+	}
+	return result
+}
+
 func normalizeStudentDirectoryFilter(filter StudentDirectoryFilter) (StudentDirectoryFilter, error) {
 	filter.IDs = uniquePositive(filter.IDs)
 	filter.KeepAlumni = uniquePositive(filter.KeepAlumni)
 	filter.SchoolClasses = uniqueClasses(filter.SchoolClasses)
+	filter.ExternalIDs = uniqueClasses(trimAll(filter.ExternalIDs))
 	if filter.Page < 0 || filter.PageSize < 0 {
 		return filter, invalidStudent("page and page size must not be negative")
 	}

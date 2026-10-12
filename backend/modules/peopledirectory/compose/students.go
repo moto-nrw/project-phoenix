@@ -122,7 +122,7 @@ func toDomainStudentDirectoryFilter(filter peopledirectory.StudentDirectoryFilte
 		levels = append(levels, strconv.Itoa(level))
 	}
 	return domain.StudentDirectoryFilter{
-		IDs: filter.IDs, SchoolClasses: filter.SchoolClasses, GradeLevels: levels,
+		IDs: filter.IDs, ExternalIDs: filter.ExternalIDs, SchoolClasses: filter.SchoolClasses, GradeLevels: levels,
 		KeepAlumni: filter.KeepAlumni,
 		CareStatus: filter.CareStatus, CareStatusOn: filter.CareStatusOn,
 		Page: filter.Page, PageSize: filter.PageSize,

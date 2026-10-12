@@ -7,10 +7,18 @@ import (
 
 var (
 	ErrStudentNotFound = errors.New("student not found")
+	// ErrStudentExternalIDTaken reports a key another active child holds.
+	ErrStudentExternalIDTaken = errors.New("external id belongs to another student")
 	// ErrStudentLockBusy reports a NOWAIT row lock that another transaction
 	// holds. Callers retry instead of waiting head-on against that writer.
 	ErrStudentLockBusy = errors.New("student row is locked by another transaction")
 )
+
+// ExternalIDHolder is the child that holds a key another system knows it by.
+type ExternalIDHolder struct {
+	ID     int64
+	Status string
+}
 
 // EnrollmentProfilePatch distinguishes unchanged fields from an explicit NULL.
 type EnrollmentProfilePatch struct {

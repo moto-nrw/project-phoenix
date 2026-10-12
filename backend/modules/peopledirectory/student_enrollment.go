@@ -87,3 +87,14 @@ func normalizeEnrollmentStudent(input *EnrollmentStudent) error {
 
 	return nil
 }
+
+// SetStudentExternalID stores the key another system knows the child by.
+func (m *Module) SetStudentExternalID(ctx context.Context, id int64, key string) error {
+	if id <= 0 {
+		return &InvalidStudentError{Reason: "student ID is required"}
+	}
+	if strings.TrimSpace(key) == "" {
+		return &InvalidStudentError{Reason: "external id is required"}
+	}
+	return m.engine.SetStudentExternalID(ctx, id, key)
+}

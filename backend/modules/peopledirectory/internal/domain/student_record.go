@@ -88,6 +88,9 @@ type StudentDirectoryFilter struct {
 	// IDs restricts the page to these children. Empty means no restriction;
 	// a caller that pre-filtered to nothing must not call at all.
 	IDs []int64
+	// ExternalIDs restricts the page to the children another system knows by
+	// one of these keys.
+	ExternalIDs []string
 	// SchoolClasses matches the class name of any of them, trimmed and
 	// case-insensitively — a school may pick several classes at once.
 	SchoolClasses []string

@@ -30,6 +30,7 @@ type OperationStats struct {
 
 type Filter struct {
 	IDs           []int64
+	ExternalIDs   []string
 	SchoolClasses []string
 	GradeLevels   []string
 	KeepAlumni    []int64
@@ -59,7 +60,7 @@ const studentSource = `(SELECT p.id, p.tenant_id, p.person_id, p.created_at,
 	GREATEST(p.updated_at, m.updated_at, c.updated_at) AS updated_at,
 	p.address_street, p.address_city, p.address_postal_code, p.extra_info,
 	p.photo_path, p.photo_consent_given_at, p.photo_consent_given_by,
-	p.agb_accepted_at, p.data_processing_accepted_at, p.email_contact_accepted_at,
+	p.agb_accepted_at, p.data_processing_accepted_at, p.email_contact_accepted_at, p.external_id,
 	m.id AS membership_id, m.school_class, m.group_id, m.status, m.enrolled_from, m.enrolled_until,
 	c.supervisor_notes, c.health_info, c.pickup_status, c.departure_days,
 	c.allowed_departure_modes, c.departure_companion_note, c.pickup_days, c.bus_days,
