@@ -51,6 +51,26 @@ type (
 	SubstitutionSuiteEndRequest                  = services.SubstitutionSuiteEndRequest
 )
 
+// The School Structure values the suites arrange and assert (#3556).
+type (
+	SchoolStructureGroup              = services.SchoolStructureSuiteGroup
+	SchoolStructureGroupListQuery     = services.SchoolStructureSuiteGroupListQuery
+	SchoolStructureGroupTeacher       = services.SchoolStructureSuiteGroupTeacher
+	SchoolStructureClassTeacher       = services.SchoolStructureSuiteClassTeacher
+	SchoolStructureStaffGroupID       = services.SchoolStructureSuiteStaffGroupID
+	SchoolStructureSubstitutionChange = services.SchoolStructureSuiteSubstitutionChange
+	SchoolStructureSubstitutionRow    = services.SchoolStructureSuiteSubstitutionRow
+)
+
+// SchoolStructureGroupOf is the group a fixture row stores, as the owner's
+// group reads return it.
+func SchoolStructureGroupOf(row *testpkg.EducationGroup) *SchoolStructureGroup {
+	return &SchoolStructureGroup{
+		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		Name: row.Name, RoomID: row.RoomID,
+	}
+}
+
 const (
 	SubstitutionSuiteTargetGroupHandover         = services.SubstitutionSuiteTargetGroupHandover
 	SubstitutionSuiteTargetAdditionalSupervision = services.SubstitutionSuiteTargetAdditionalSupervision
@@ -76,7 +96,10 @@ var (
 )
 
 // NewEducationSuiteService composes the group service over the repositories.
-func NewEducationSuiteService(repos *services.PeopleRepositorySuiteFactory, db *bun.DB) services.EducationSuiteService {
+func NewEducationSuiteService(repos *services.PeopleRepositorySuiteFactory, db *bun.DB, broadcasters ...*testpkg.RecordingBroadcaster) services.EducationSuiteService {
+	if len(broadcasters) > 0 {
+		return services.NewEducationSuiteService(repos, db, broadcasters[0])
+	}
 	return services.NewEducationSuiteService(repos, db)
 }
 
@@ -99,10 +122,4 @@ type GradeTransitionSuiteOwners = services.GradeTransitionSuiteOwners
 // NewGradeTransitionSuiteOwners composes those owners on the given clock.
 func NewGradeTransitionSuiteOwners(db *bun.DB, clock func() time.Time) (GradeTransitionSuiteOwners, error) {
 	return services.NewGradeTransitionSuiteOwners(db, clock)
-}
-
-// SetEducationSuiteBroadcaster swaps the group service's broadcaster for the
-// recording one and reports whether the service accepts one.
-func SetEducationSuiteBroadcaster(service EducationSuiteService, broadcaster *testpkg.RecordingBroadcaster) bool {
-	return services.SetEducationSuiteBroadcaster(service, broadcaster)
 }

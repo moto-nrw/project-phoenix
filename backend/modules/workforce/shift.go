@@ -747,12 +747,13 @@ type StaffAssignment struct {
 	Title      string
 	// GroupName is the activity/Betreuungsgruppe name, nil for a spontaneous
 	// instance with no template.
-	GroupName *string
-	RoomName  string
-	Date      string
-	StartTime string
-	EndTime   string
-	Status    string
+	GroupName     *string
+	RoomName      string
+	Date          string
+	StartTime     string
+	EndTime       string
+	Status        string
+	IsSpontaneous bool
 	// Cancelled mirrors Status == cancelled: the block does not take place.
 	Cancelled bool
 	IsPrimary bool

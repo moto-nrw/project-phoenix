@@ -53,6 +53,9 @@ type DeadlineWorkerSummary struct {
 	// AutoApproveChildQuotaHeld counts renewals the automatic approval
 	// skipped because they would exceed the Kinderkontingent (#3570).
 	AutoApproveChildQuotaHeld int
+	// ClassSwitchesApplied counts the children moved into the class their
+	// renewal planned for the new school year (#3917).
+	ClassSwitchesApplied int
 }
 
 // CreatePhaseFromSourceRequest is the admin-facing input for the
@@ -159,7 +162,9 @@ type Rollovers interface {
 	// renewal rows: auto_renewed → submitted (admin still approves
 	// through the existing flow), pending_renewal → withdrawn.
 	// pending_admin_review rows are intentionally left alone — admin
-	// must decide each one through the review queue.
+	// must decide each one through the review queue. It then applies the
+	// class switches approved renewals planned for a school year that has
+	// started (#3917).
 	//
 	// Idempotent: re-running after all rows have transitioned is a
 	// no-op. Per-phase failures are logged but do not abort the

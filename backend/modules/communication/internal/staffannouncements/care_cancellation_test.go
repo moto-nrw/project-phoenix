@@ -10,7 +10,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -20,11 +19,11 @@ import (
 
 // noticeSettings keeps the dispatch switch on so the push router does not
 // short-circuit. The notice itself has no school settings since #3731.
-func noticeSettings() *configtest.Mock {
+func noticeSettings() *settingsDouble {
 	values := map[string]bool{
 		configModel.KeyNotificationsDispatchEnabled: true,
 	}
-	return &configtest.Mock{
+	return &settingsDouble{
 		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 			return values[key], nil
 		},
@@ -34,7 +33,7 @@ func noticeSettings() *configtest.Mock {
 	}
 }
 
-func buildNoticeService(t *testing.T, settings *configtest.Mock) (announcement.Service, *bun.DB, *repositories.Factory) {
+func buildNoticeService(t *testing.T, settings *settingsDouble) (announcement.Service, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))

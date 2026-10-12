@@ -16,8 +16,8 @@
 package shiftplansync
 
 import (
+	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services/education"
 )
 
 // SickCascade is the #1843 cascade. Workforce declares the port its absence

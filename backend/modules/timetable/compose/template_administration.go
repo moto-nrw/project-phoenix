@@ -12,6 +12,7 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // TemplateAdministrationDependencies wires timetable.TemplateAdministration:
@@ -165,7 +166,11 @@ func (s *TemplateService) templateAssignmentsOn(
 			Err: errors.New("required roster repository is nil"),
 		}
 	}
-	studentIDs, err := s.templateStudentsOn(ctx, templateID, date, periodID)
+	planWeekday, err := calendar.PlanWeekday(ctx, date)
+	if err != nil {
+		return timetable.TemplateAssignments{}, &ScheduleError{Op: "derive template assignments: resolve weekend plan", Err: err}
+	}
+	studentIDs, err := s.templateStudentsOn(ctx, templateID, date, periodID, planWeekday)
 	if err != nil {
 		return timetable.TemplateAssignments{}, err
 	}
@@ -176,7 +181,7 @@ func (s *TemplateService) templateAssignmentsOn(
 	staffIDs := make([]int64, 0, len(supervisors))
 	seenStaff := make(map[int64]struct{}, len(supervisors))
 	for _, supervisor := range supervisors {
-		if !isSupervisorValidOn(supervisor, date, periodID) {
+		if !isSupervisorValidOn(supervisor, date, periodID, planWeekday) {
 			continue
 		}
 		staffIDs = appendUnseen(staffIDs, seenStaff, supervisor.StaffID)
@@ -186,7 +191,7 @@ func (s *TemplateService) templateAssignmentsOn(
 
 // templateStudentsOn returns the enrolled, non-graduated children valid on
 // the date followed by the template's dynamic target students.
-func (s *TemplateService) templateStudentsOn(ctx context.Context, templateID int64, date timezone.Date, periodID int64) ([]int64, error) {
+func (s *TemplateService) templateStudentsOn(ctx context.Context, templateID int64, date timezone.Date, periodID int64, planWeekday int) ([]int64, error) {
 	enrollments, err := s.deps.StudentEnrollmentRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "derive template assignments: load enrollments", Err: err}
@@ -194,7 +199,7 @@ func (s *TemplateService) templateStudentsOn(ctx context.Context, templateID int
 	studentIDs := make([]int64, 0, len(enrollments))
 	seenStudents := make(map[int64]struct{}, len(enrollments))
 	for _, enrollment := range enrollments {
-		if !isEnrollmentValidOn(enrollment, date, periodID) || enrollmentStudentIsAlumnus(enrollment) {
+		if !isEnrollmentValidOn(enrollment, date, periodID, planWeekday) || enrollmentStudentIsAlumnus(enrollment) {
 			continue
 		}
 		studentIDs = appendUnseen(studentIDs, seenStudents, enrollment.StudentID)

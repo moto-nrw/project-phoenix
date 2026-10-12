@@ -16,6 +16,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,16 +29,12 @@ import (
 )
 
 // setupRecordingRouter mounts the production router with a recording
-// broadcaster on the education service, through the duck-typed
-// SetBroadcaster wiring services/factory.go uses.
+// broadcaster supplied at construction, just like the production composition.
 func setupRecordingRouter(t *testing.T) (*testContext, chi.Router, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
-	tc, router := setupProtectedRouter(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
-
-	require.True(t, testutil.SetEducationSuiteBroadcaster(tc.resource.EducationService, broadcaster),
-		"education service must accept a broadcaster")
+	tc, router := setupProtectedRouter(t, broadcaster)
 
 	return tc, router, broadcaster
 }
@@ -178,7 +176,7 @@ func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 
 	groupCount, err := tc.resource.EducationService.CountGroups(
 		testpkg.Ctx(t),
-		&testpkg.EducationGroupListQuery{Name: groupName},
+		&contract.GroupListQuery{Name: groupName},
 	)
 	require.NoError(t, err)
 	assert.Zero(t, groupCount, "the new group must roll back with its partial teacher set")

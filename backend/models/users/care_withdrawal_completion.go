@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 const (
@@ -32,7 +32,7 @@ type CareWithdrawalCompletion struct {
 	base.Model `bun:"schema:users,table:care_withdrawal_completions"`
 	base.TenantModel
 	StudentID               *int64                   `bun:"student_id" json:"student_id,omitempty"`
-	FirstBookinglessDay     timezone.Date            `bun:"first_bookingless_day,type:date,notnull" json:"first_bookingless_day"`
+	FirstBookinglessDay     calendar.Date            `bun:"first_bookingless_day,type:date,notnull" json:"first_bookingless_day"`
 	Trigger                 string                   `bun:"trigger,notnull" json:"trigger"`
 	SourceAdjustmentID      *int64                   `bun:"source_adjustment_id" json:"source_adjustment_id,omitempty"`
 	SourceRequestChildID    *int64                   `bun:"source_request_child_id" json:"source_request_child_id,omitempty"`
@@ -51,7 +51,7 @@ type CareWithdrawalCompletion struct {
 	SchoolClass string `bun:"school_class,scanonly" json:"school_class,omitempty"`
 }
 
-func (c CareWithdrawalCompletion) UrgencyOn(reference timezone.Date) string {
+func (c CareWithdrawalCompletion) UrgencyOn(reference calendar.Date) string {
 	if c.FirstBookinglessDay.After(reference) {
 		return CareWithdrawalUrgencyPlanned
 	}
@@ -87,11 +87,11 @@ type CareWithdrawalCompletionRepository interface {
 	ListResolved(ctx context.Context, filter CareWithdrawalCompletionFilter) ([]*CareWithdrawalCompletion, int, error)
 	// ListParticipationBoundaries takes the caller's tenant student rows
 	// (FindByIDs) so the enrolment end needs no second directory read (#3221).
-	ListParticipationBoundaries(ctx context.Context, students map[int64]*Student, includeBookingBoundaries bool) (map[int64]timezone.Date, error)
+	ListParticipationBoundaries(ctx context.Context, students map[int64]*Student, includeBookingBoundaries bool) (map[int64]calendar.Date, error)
 	ListPendingStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]bool, error)
 	MarkResolved(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error)
 	MarkDeleted(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error)
-	MarkObsoleteForRebooking(ctx context.Context, studentID int64, careStartsOn timezone.Date, at time.Time) (bool, error)
+	MarkObsoleteForRebooking(ctx context.Context, studentID int64, careStartsOn calendar.Date, at time.Time) (bool, error)
 	MarkPendingObsoleteForWeeklyPlans(ctx context.Context, at time.Time) (int, error)
 	ReopenAfterCancelledExit(ctx context.Context, completionID, studentID int64, at time.Time) (bool, error)
 }

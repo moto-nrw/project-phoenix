@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { BellSimpleRingingIcon, CaretRightIcon } from "@phosphor-icons/react";
@@ -12,6 +12,7 @@ import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { EmptyState } from "~/components/ui/empty-state";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Button } from "~/components/ui/button";
@@ -54,6 +55,29 @@ import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { staffOverviewService } from "~/lib/staff-overview-api";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
 import { StaffCardsSkeleton } from "./page-skeleton";
+
+/**
+ * Die Personenkarte: eine Kachel, wenn sie weiterführt, sonst eine reine
+ * Anzeige. Ohne Ziel trägt sie weder Schaltfläche noch Zeiger, Hover-Anhebung
+ * oder Ausgrauen; vorher sah eine gesperrte Karte klickbar aus und reagierte
+ * nicht (#3926).
+ */
+function StaffCardSurface({
+  onClick,
+  ariaLabel,
+  children,
+}: Readonly<{
+  onClick?: () => void;
+  ariaLabel: string;
+  children: ReactNode;
+}>) {
+  if (!onClick) return <SectionCard>{children}</SectionCard>;
+  return (
+    <TileCard onClick={onClick} ariaLabel={ariaLabel}>
+      {children}
+    </TileCard>
+  );
+}
 
 function DocumentDirectory({
   entries,
@@ -190,6 +214,14 @@ function StaffPageContent() {
     !userIsAdmin &&
     !canListStaff &&
     !canManageTimeTracking;
+  // Die Personenkarte führt nur dann weiter, wenn dort auch etwas
+  // freigeschaltet ist: das Profil mit Unterlagen oder Stammdaten, oder der
+  // Personal-Datensatz (Reiter „Konto", staff:manage, #2906). Seit #3115 ist
+  // die Personalakte die einzige Objektansicht; das Pane der Datenverwaltung
+  // gibt es nicht mehr.
+  const profileTabAvailable =
+    userIsAdmin || canAccessDocuments || canEditStammdaten;
+  const canNavigateToStaff = profileTabAvailable || canManageStaffRecords;
 
   // State variables for filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -235,7 +267,10 @@ function StaffPageContent() {
     canListStaff ? "staff-list" : null,
     async () => {
       const staffData = await staffService.getAllStaff({});
-      return sortStaff(staffData);
+      // Externe Kräfte ohne Konto (#3823) stempeln nicht: hier stünden sie
+      // nur als „Abwesend“ in Status und Zählung. Geführt werden sie unter
+      // Datenverwaltung › Personal.
+      return sortStaff(staffData.filter((member) => !member.isExternal));
     },
     {
       keepPreviousData: true,
@@ -915,6 +950,19 @@ function StaffPageContent() {
             />
           )}
 
+          {/* Ohne Recht auf die Personalakte sind die Karten reine Anzeige. Der
+              Grund steht einmal über der Liste statt auf jeder Karte (#3926). */}
+          {view === "status" &&
+            !canNavigateToStaff &&
+            !staffError &&
+            filteredStaff.length > 0 && (
+              <Alert
+                type="info"
+                announce="off"
+                message="Die Karten zeigen nur, wo jemand gerade ist. Personalakten sind für Ihr Konto nicht freigegeben. Fragen Sie bei Bedarf Ihre Leitung."
+              />
+            )}
+
           {/* Staff Grid */}
           {view === "status" &&
             (statusEmptyState ? (
@@ -931,16 +979,6 @@ function StaffPageContent() {
                     const pendingRequestCount =
                       pendingByStaff.get(Number(staffMember.id)) ?? 0;
 
-                    // Die Karte führt nur dann weiter, wenn dort auch etwas
-                    // freigeschaltet ist: das Profil mit Unterlagen oder
-                    // Stammdaten, oder der Personal-Datensatz (Reiter
-                    // „Konto", staff:manage, #2906). Seit #3115 ist die
-                    // Personalakte die einzige Objektansicht; das Pane der
-                    // Datenverwaltung gibt es nicht mehr.
-                    const profileTabAvailable =
-                      userIsAdmin || canAccessDocuments || canEditStammdaten;
-                    const canNavigateToStaff =
-                      profileTabAvailable || canManageStaffRecords;
                     const navigateToStaff = () => {
                       if (!profileTabAvailable) {
                         router.push(`/staff/${staffMember.id}?tab=konto`);
@@ -952,21 +990,16 @@ function StaffPageContent() {
                     };
 
                     return (
-                      <TileCard
+                      <StaffCardSurface
                         key={staffMember.id}
                         onClick={
                           canNavigateToStaff ? navigateToStaff : undefined
                         }
-                        disabled={!canNavigateToStaff}
-                        ariaLabel={
-                          canNavigateToStaff
-                            ? `${staffMember.firstName} ${staffMember.lastName} - ${
-                                userIsAdmin
-                                  ? "Details öffnen"
-                                  : "Personalunterlagen öffnen"
-                              }`
-                            : undefined
-                        }
+                        ariaLabel={`${staffMember.firstName} ${staffMember.lastName} - ${
+                          userIsAdmin
+                            ? "Details öffnen"
+                            : "Personalunterlagen öffnen"
+                        }`}
                       >
                         <div className="relative">
                           <div className="relative flex min-h-[104px] flex-col">
@@ -1050,7 +1083,7 @@ function StaffPageContent() {
                             </div>
                           </div>
                         </div>
-                      </TileCard>
+                      </StaffCardSurface>
                     );
                   })}
                 </CollectionGrid>

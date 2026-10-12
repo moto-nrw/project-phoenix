@@ -153,6 +153,9 @@ type Runtime struct {
 	Person         func(context.Context, int64) (Person, error)
 	PersonNotFound func(error) bool
 	Persons        func(context.Context, []int64) ([]Person, error)
+	// CreatePerson adds a People Directory entry without an account and
+	// returns it; the external caregiver flow (#3823) builds on it.
+	CreatePerson func(ctx context.Context, firstName, lastName string) (Person, error)
 
 	// The presence and account enrichments below are non-critical: an error
 	// is logged and the field stays empty.
@@ -199,7 +202,7 @@ func NewResource(membership schoolmembership.Capability, runtime Runtime) *Resou
 		runtime.ServeAvatar == nil || runtime.WriteFailure == nil || runtime.SchoolClassFailure == nil ||
 		runtime.Permissions == nil || runtime.HasPermission == nil ||
 		runtime.CurrentAccountID == nil || runtime.CurrentUsername == nil ||
-		runtime.Person == nil || runtime.PersonNotFound == nil || runtime.Persons == nil ||
+		runtime.Person == nil || runtime.PersonNotFound == nil || runtime.Persons == nil || runtime.CreatePerson == nil ||
 		runtime.PresentStaffIDs == nil || runtime.WorkStatusMap == nil || runtime.AbsenceMap == nil ||
 		runtime.AbsenceLabelMap == nil || runtime.AccountRoles == nil || runtime.AccountEmails == nil ||
 		runtime.AccountAvatars == nil || runtime.AccountHasRole == nil ||
@@ -251,6 +254,9 @@ func (rs *Resource) Register(r chi.Router, withTx Middleware) {
 	r.With(usersRead, withTx).Get("/by-role", rs.getStaffByRole)
 
 	r.With(rs.runtime.Permission(permissions.UsersCreate), withTx).Post("/", rs.createStaff)
+	// Every caregiver holds users:create, so whoever starts or runs a
+	// supervision can record the external person who helps with it (#3823).
+	r.With(rs.runtime.Permission(permissions.UsersCreate), withTx).Post("/externals", rs.createExternalStaff)
 	r.With(rs.runtime.Permission(permissions.StaffManage), withTx).Put("/{id}", rs.updateStaff)
 	r.With(rs.runtime.Permission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStaff)
 }

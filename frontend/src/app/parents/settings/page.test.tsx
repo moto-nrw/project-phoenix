@@ -12,6 +12,10 @@ function renderWithToast(
   return render(ui, { wrapper: ToastProvider, ...options });
 }
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/settings",
+}));
+
 // The two cards fetch on mount; this page only has to place them, so the
 // network is stubbed out rather than exercised (they have their own tests).
 vi.mock("~/lib/notification-preferences-api", () => ({
@@ -65,5 +69,27 @@ describe("ParentSettingsPage", () => {
         name: "Benachrichtigungen auf diesem Gerät",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("offers app installation separately from notifications", async () => {
+    renderWithToast(<ParentSettingsPage />);
+
+    const heading = await screen.findByRole("heading", {
+      name: "moto als App hinzufügen",
+    });
+    expect(
+      screen.getByText(
+        "Fügen Sie moto zum Startbildschirm Ihres Handys hinzu. Dann öffnen Sie moto wie eine App.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Anleitung öffnen" }),
+    ).toHaveAttribute(
+      "href",
+      expect.stringContaining("/help/moto-als-app-fuer-eltern"),
+    );
+    expect(document.querySelector("[data-parent-tour-install-app]")).toBe(
+      heading.closest("[data-parent-tour-install-app]"),
+    );
   });
 });

@@ -216,14 +216,15 @@ func (s *OperatorAuthentication) newRefreshSession(operatorID int64, familyID st
 // name and the single operator role marks the platform scope.
 func (s *OperatorAuthentication) mintTokenPair(operator domain.Operator, session domain.OperatorSession) (string, string, error) {
 	access := domain.SessionClaims{
-		AccountID:   operator.ID,
-		Email:       domain.OperatorSubject(operator.ID),
-		Username:    operator.Email,
-		FirstName:   operator.DisplayName,
-		Roles:       []string{domain.OperatorRoleName},
-		Permissions: []string{},
-		Scope:       domain.OperatorScope,
-		FamilyID:    session.FamilyID,
+		AccountID:    operator.ID,
+		Email:        domain.OperatorSubject(operator.ID),
+		Username:     operator.Email,
+		FirstName:    operator.DisplayName,
+		Roles:        []string{domain.OperatorRoleName},
+		RoleIsSystem: []bool{true},
+		Permissions:  []string{},
+		Scope:        domain.OperatorScope,
+		FamilyID:     session.FamilyID,
 	}
 	refresh := domain.RefreshClaims{AccountID: operator.ID, Token: session.Token, Scope: domain.OperatorScope, ExpiresAt: session.Expiry.Unix()}
 	accessToken, refreshToken, err := s.codec.IssueTokenPair(access, refresh)

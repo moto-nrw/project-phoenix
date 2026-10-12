@@ -54,11 +54,11 @@ var queryBudgets = map[string]queryBudget{
 	// modules/careplan/inbound/parent — GET /me/children/{studentId}/courses resolves the catalog,
 	// capacity and pending-request queue through this bounded service scenario.
 	"api.parent.child_courses": {max: 14},
-	// api/enrollment — GET /phases/{id}/responses: phase plus four batched
+	// modules/enrollment/http — GET /phases/{id}/responses: phase plus four batched
 	// response sources inside the tenant transaction. The matching test proves
 	// the total stays flat from three to eight children.
 	"api.enrollment.phase_responses.list": {max: 9},
-	// api/enrollment — GET /admin/requests: the caller's read state of every
+	// modules/enrollment/http — GET /admin/requests: the caller's read state of every
 	// listed enrollment in one batched statement (#3778).
 	"api.enrollment.admin_requests.read_state": {max: 1, exact: true},
 	// api/students — #2059: schema capabilities are fixed at startup.

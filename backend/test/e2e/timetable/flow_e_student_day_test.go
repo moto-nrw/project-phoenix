@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -73,7 +72,7 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 
 	// --- Visits: B attends X (enrolled); B also attends Y (NOT enrolled) ---
 	// studentA we don't touch — she stays `expected`.
-	ctx := testutil.WithDeviceActor(s.tenantCtx(), testpkg.EnsureWebManualDevice(t, s.db), staff)
+	ctx := testutil.WithDeviceActor(s.tenantCtx(), testpkg.EnsureWebManualDevice(t, s.db), staff.ID)
 
 	// First visit: B into X (enrolled) → flips instance_students to present.
 	v1 := &studentpresence.Visit{
@@ -117,12 +116,12 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 		switch inst.ID {
 		case instX.ID:
 			byID[inst.ID] = true
-			assert.Equal(t, scheduleModel.AttendanceStatusPresent, inst.Attendance.Status,
+			assert.Equal(t, testpkg.ScheduleAttendanceStatusPresent, inst.Attendance.Status,
 				"B on X: present via enrollment check-in")
 			assert.False(t, inst.Attendance.IsUnplanned, "X was enrolled, so not unplanned")
 		case instY.ID:
 			byID[inst.ID] = true
-			assert.Equal(t, scheduleModel.AttendanceStatusPresent, inst.Attendance.Status,
+			assert.Equal(t, testpkg.ScheduleAttendanceStatusPresent, inst.Attendance.Status,
 				"B on Y: present via unplanned visit")
 			assert.True(t, inst.Attendance.IsUnplanned, "Y was NOT enrolled → unplanned")
 		}

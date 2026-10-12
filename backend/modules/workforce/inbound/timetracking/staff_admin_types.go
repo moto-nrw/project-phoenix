@@ -55,6 +55,10 @@ type scheduleUpdateRequest struct {
 	RotationAnchorDate string                 `json:"rotation_anchor_date,omitempty"`
 	Entries            []ScheduleEntryRequest `json:"entries"`
 	SaveAsTemplateName string                 `json:"save_as_template,omitempty"`
+	// ValidFrom is the day the new schedule starts (YYYY-MM-DD), empty for
+	// today. A day before today is accepted for a staff member's first
+	// schedule only (#3892).
+	ValidFrom string `json:"valid_from,omitempty"`
 }
 
 // toServiceInput maps the api request DTO to the service-layer input struct,
@@ -76,5 +80,6 @@ func (req scheduleUpdateRequest) toServiceInput() workforce.ScheduleUpdateInput 
 		RotationAnchorDate: req.RotationAnchorDate,
 		Entries:            entries,
 		SaveAsTemplateName: req.SaveAsTemplateName,
+		ValidFrom:          req.ValidFrom,
 	}
 }

@@ -92,7 +92,7 @@ func setupGuardiansCompositionRoute(t *testing.T, appEnvs ...string) *guardianCo
 		appEnv = appEnvs[0]
 	}
 	db, svc := testutil.SetupGuardianModule(t)
-	resource := newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(db), db, appEnv, slog.Default())
+	resource := newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(db), appEnv, slog.Default())
 
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
@@ -163,7 +163,7 @@ func setupGuardiansCompositionRoute(t *testing.T, appEnvs ...string) *guardianCo
 				Where(`"guardian_profile".email = ?`, email).
 				Count(ctx)
 			require.NoError(t, err)
-			return count
+			return int(count)
 		},
 		accessLogs: func(resourceType string) int {
 			count, err := db.NewSelect().
@@ -172,7 +172,7 @@ func setupGuardiansCompositionRoute(t *testing.T, appEnvs ...string) *guardianCo
 				Where(`"log".resource_type = ?`, resourceType).
 				Count(ctx)
 			require.NoError(t, err)
-			return count
+			return int(count)
 		},
 		financialChanges: func(guardianID int64) []financialChangeRow {
 			var rows []struct {

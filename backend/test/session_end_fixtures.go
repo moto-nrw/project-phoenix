@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -39,7 +38,7 @@ func InstanceStatus(tb testing.TB, db *bun.DB, instanceID int64) string {
 
 // InstanceStudentByID reloads one participant with its attendance. A
 // participant without an attendance row reads as expected attendance.
-func InstanceStudentByID(tb testing.TB, db *bun.DB, id int64) *schedule.InstanceStudent {
+func InstanceStudentByID(tb testing.TB, db *bun.DB, id int64) *InstanceStudent {
 	tb.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

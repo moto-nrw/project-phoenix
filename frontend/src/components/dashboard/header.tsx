@@ -21,12 +21,15 @@ import {
 } from "~/lib/tenant-context";
 import { normalizeTenantPathname } from "~/lib/tenant-path";
 import { matchesPathPrefix } from "~/lib/section-navigation";
+import type { OgsGroupSection } from "~/lib/ogs-group-sections";
 import {
   getHelpTopicForPath,
   getParentHelpTopicForPath,
   getSchoolHelpTopicForPath,
 } from "~/lib/help-topics";
 import { ContextHelpLink } from "~/components/help/context-help-link";
+import { getAccountRoleLabel } from "~/lib/auth-helpers";
+import { isDemoBuild } from "~/lib/demo-access";
 
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
@@ -117,6 +120,7 @@ export function Header() {
     referrerPage,
     activeSupervisionName,
     ogsGroupName,
+    ogsGroupSection,
     pageTitle: customPageTitle,
     helpTopic,
   } = breadcrumb;
@@ -225,7 +229,9 @@ export function Header() {
 
   // Derive user info from ShellAuth context
   const userName = user?.name ?? "Benutzer";
-  const userEmail = user?.email ?? "";
+  // Die Konten der öffentlichen Demo tragen technische Adressen
+  // (sabine.schneider@demo-…); die gehören nicht vor den Besucher (#3891).
+  const userEmail = isDemoBuild() ? "" : (user?.email ?? "");
   const userRoles = user?.roles ?? [];
   const userRole =
     mode === "operator"
@@ -234,9 +240,7 @@ export function Header() {
         ? tParentNav("role")
         : mode === "school"
           ? "Lehrkraft"
-          : userRoles.includes("admin")
-            ? "Admin"
-            : "Betreuer";
+          : getAccountRoleLabel(userRoles, user?.roleIsSystem);
 
   // Beim Scrollen bekommt die Kopfzeile nur noch einen Schatten (Hysterese
   // gegen Flackern). Die Höhe bleibt fest: der frühere Scroll-Zustand von
@@ -255,7 +259,7 @@ export function Header() {
   // Get page type information
   const pageTypeInfo = getPageTypeInfo(pathname);
   const referrer = referrerPage ?? "/students/search";
-  const breadcrumbLabel = getBreadcrumbLabel(referrer);
+  const breadcrumbLabel = getBreadcrumbLabel(referrer, ogsGroupSection);
   const historyType = getHistoryType(pathname);
   // Nur im Mitarbeiter-Portal: die Kataloge beschreiben dessen Seitenleiste.
   // Das Elternportal teilt sich Pfade wie /messages und bekäme sonst eine
@@ -364,6 +368,7 @@ export function Header() {
                 breadcrumbLabel={breadcrumbLabel}
                 historyType={historyType}
                 ogsGroupName={ogsGroupName}
+                ogsGroupSection={ogsGroupSection}
                 activeSupervisionName={activeSupervisionName}
               />
               {contextualHelpTopic ? (
@@ -500,6 +505,7 @@ interface HeaderBreadcrumbProps {
   readonly breadcrumbLabel: string;
   readonly historyType: string;
   readonly ogsGroupName?: string;
+  readonly ogsGroupSection?: OgsGroupSection;
   readonly activeSupervisionName?: string;
 }
 
@@ -516,6 +522,7 @@ function HeaderBreadcrumb({
   breadcrumbLabel,
   historyType,
   ogsGroupName,
+  ogsGroupSection,
   activeSupervisionName,
 }: HeaderBreadcrumbProps) {
   // Gruppierte Navigationsbereiche: Datenverwaltung, Planung, Eltern
@@ -525,7 +532,9 @@ function HeaderBreadcrumb({
 
   // OGS Groups page
   if (pathname === "/ogs-groups") {
-    return <OgsGroupsBreadcrumb groupName={ogsGroupName} />;
+    return (
+      <OgsGroupsBreadcrumb groupName={ogsGroupName} section={ogsGroupSection} />
+    );
   }
 
   // Active Supervisions page
@@ -607,7 +616,7 @@ function HeaderBreadcrumb({
   // Student detail page (2 or 3 levels depending on context)
   if (pageTypeInfo.isStudentDetailPage) {
     // When navigating from an accordion section, show the sub-section name
-    // e.g. "Meine Gruppe > 1a > Mia Fischer" instead of "Meine Gruppe > Mia Fischer"
+    // e.g. "Meine Gruppen > 1a > Mia Fischer" instead of "Meine Gruppen > Mia Fischer"
     const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentDetailBreadcrumb

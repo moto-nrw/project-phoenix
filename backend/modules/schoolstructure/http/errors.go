@@ -2,7 +2,7 @@ package schoolstructurehttp
 
 import (
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/services/education"
+	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 )
 
 // errorRules map education-service sentinels to HTTP responses.
@@ -13,7 +13,7 @@ import (
 // The 500 fallback keeps the wrapped error so server logs still capture the
 // operation context. Same pattern as api/rooms/errors.go.
 var errorRules = []common.ErrorRule{
-	{Target: education.ErrGroupNotFound, Render: common.ErrorNotFound},
+	{Target: education.ErrEducationGroupNotFound, Render: common.ErrorNotFound},
 	{Target: education.ErrDuplicateGroup, Render: common.ErrorConflict},
 	{Target: education.ErrRoomNotFound, Render: common.ErrorInvalidRequest},
 	{Target: education.ErrTeacherNotFound, Render: common.ErrorInvalidRequest},

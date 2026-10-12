@@ -162,11 +162,6 @@ func requirePlatformScope(next http.Handler) http.Handler {
 	})
 }
 
-// Router returns a configured router for auth endpoints, unthrottled.
-func (rs *Resource) Router() chi.Router {
-	return rs.RouterWithAuthRateLimiter(nil)
-}
-
 // RouterWithAuthRateLimiter returns the auth router with the given rate
 // limiter middleware on the public login, password-reset, MFA and
 // passkey-login routes; nil mounts them unthrottled.

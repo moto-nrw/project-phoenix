@@ -21,8 +21,8 @@ type PersonDirectoryCapability interface {
 }
 
 // PersonDirectory adapts the owner's person writes to the retained model-typed
-// contract (services/users.PersonWriter, satisfied structurally so this seam
-// does not depend on it).
+// contract (PersonWriter in modules/peopledirectory/compose, satisfied
+// structurally).
 type PersonDirectory struct{ directory PersonDirectoryCapability }
 
 func NewPersonDirectory(directory PersonDirectoryCapability) *PersonDirectory {

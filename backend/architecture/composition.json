@@ -56,17 +56,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        311
-      ],
-      "tables": []
-    },
-    {
-      "scope": "production",
-      "file": "api/server.go",
-      "declaration": "newRuntime",
-      "target": "api.New",
-      "lines": [
-        133
+        304
       ],
       "tables": []
     },
@@ -157,7 +147,7 @@
       "declaration": "setupTestCleanupContextWithServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        68
+        69
       ],
       "tables": []
     },
@@ -232,7 +222,7 @@
       "declaration": "TestCalendarPeriodAdapter_CreateIfAbsentIsRaceFreePerTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        128
+        129
       ],
       "tables": []
     },
@@ -242,7 +232,7 @@
       "declaration": "TestCalendarPeriodAdapter_KeepsTheLegacyContracts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        27
+        28
       ],
       "tables": []
     },
@@ -252,7 +242,7 @@
       "declaration": "TestCalendarPeriodAdapter_OverlapFindersKeepTheDateSemantics",
       "target": "database/repositories.NewFactory",
       "lines": [
-        187
+        188
       ],
       "tables": []
     },
@@ -262,7 +252,7 @@
       "declaration": "TestCalendarPeriodAdapter_UsageCountsComeFromThePlanningTables",
       "target": "database/repositories.NewFactory",
       "lines": [
-        237
+        239
       ],
       "tables": [
         "activities.groups"
@@ -274,7 +264,7 @@
       "declaration": "TestCalendarPeriodAdapter_UsageCountsReturnDatabaseError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        266
+        268
       ],
       "tables": []
     },
@@ -284,7 +274,7 @@
       "declaration": "TestCapacityOccurrencesReadPeriodsThroughTheCalendarOwner",
       "target": "database/repositories.NewFactory",
       "lines": [
-        408
+        410
       ],
       "tables": []
     },
@@ -294,7 +284,7 @@
       "declaration": "TestClosingDayAdapter_KeepsTheLegacyContracts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        311
+        313
       ],
       "tables": []
     },
@@ -304,7 +294,7 @@
       "declaration": "TestDateframeAdapter_KeepsTheLegacyLookups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        373
+        375
       ],
       "tables": []
     },
@@ -376,6 +366,18 @@
     {
       "scope": "test",
       "file": "database/repositories/staff_membership_adapters_test.go",
+      "declaration": "TestStaffMembershipAdapter_ExpiredGuestIsNotExternal",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        413
+      ],
+      "tables": [
+        "users.guests"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/staff_membership_adapters_test.go",
       "declaration": "TestStaffMembershipAdapter_IDLookupsKeepLegacyDeletedSemantics",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -389,7 +391,7 @@
       "declaration": "TestStaffMembershipAdapter_ListRejectsUnknownFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        413
+        434
       ],
       "tables": []
     },
@@ -441,7 +443,7 @@
       "declaration": "TestTeacherMembershipAdapter_ActiveCaregiversSortInGermanDictionaryOrder",
       "target": "database/repositories.NewFactory",
       "lines": [
-        434
+        455
       ],
       "tables": []
     },
@@ -761,213 +763,11 @@
     },
     {
       "scope": "test",
-      "file": "services/users/birthday_repository_test.go",
-      "declaration": "TestBirthdayRepositoriesRejectAnEmptyDaySet",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        97
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/birthday_repository_test.go",
-      "declaration": "TestStudentBirthdaysExcludeEndedCare",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        49
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/caregiver_capability_test.go",
-      "declaration": "TestCaregiverCapability_EnableCreatesOperationalProfile",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        305,
-        309
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/caregiver_capability_test.go",
-      "declaration": "setupServiceFactory",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        39
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/guardian_service_test.go",
-      "declaration": "TestGetStudentGuardians_AccountHolderPendingUpgradeApproval",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        2360
-      ],
-      "tables": [
-        "auth.guardian_invitations",
-        "users.guardian_profiles",
-        "users.student_guardian_relationships",
-        "users.student_profiles"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/guardian_service_test.go",
-      "declaration": "TestGuardianService_ContactWritersShareProfileLock",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        2319
-      ],
-      "tables": [
-        "users.guardian_phone_numbers",
-        "users.guardian_profiles"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/guardian_service_test.go",
-      "declaration": "setupGuardianService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        41
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/person_directory_service_test.go",
-      "declaration": "TestPersonService_LinkStudentToRFIDCard",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        721
-      ],
-      "tables": [
-        "users.persons",
-        "users.student_school_memberships"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/person_directory_service_test.go",
-      "declaration": "setupPersonService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        29
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/staff_admin_documents_test.go",
-      "declaration": "newStaffDocumentScenario",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        41
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/staff_admin_payroll_test.go",
-      "declaration": "newPayrollScenario",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        70
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/staff_admin_stammdaten_test.go",
-      "declaration": "newStammdatenScenario",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        35
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/staff_offboarding_test.go",
-      "declaration": "newOffboardingScenario",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        67
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_change_log_cleanup_service_test.go",
-      "declaration": "TestStudentChangeLogCleanup_DeletesOldEdits",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        92
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_change_log_cleanup_service_test.go",
-      "declaration": "TestStudentChangeLogCleanup_NoOpWhenNothingExpired",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        122
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_deletion_workflow_test.go",
-      "declaration": "careWithdrawals",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        66
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_deletion_workflow_test.go",
-      "declaration": "companionLinks",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        46
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_deletion_workflow_test.go",
-      "declaration": "newDeletionFixture",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        87
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_deletion_workflow_test.go",
-      "declaration": "studentPlans",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        60
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "test/isolation_test.go",
       "declaration": "TestTenantIsolation_ActivityCategoryVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        408
+        407
       ],
       "tables": []
     },
@@ -977,7 +777,7 @@
       "declaration": "TestTenantIsolation_TimeframeVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        205
+        204
       ],
       "tables": []
     },
@@ -17251,28 +17051,18 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 164,
+          "line": 157,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 514,
+          "line": 507,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 677,
-          "declaration": "type API"
-        },
-        {
-          "file": "api/base.go",
-          "line": 928,
-          "declaration": "initializeAPIResourcesWithRequestFeed"
-        },
-        {
-          "file": "api/base.go",
-          "line": 1325,
-          "declaration": "initializeAPIResources"
+          "line": 673,
+          "declaration": "type serveGraph"
         }
       ]
     },
@@ -17281,7 +17071,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 311,
+          "line": 304,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -17291,23 +17081,23 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 165,
+          "line": 158,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 383,
+          "line": 376,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 428,
+          "line": 421,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 674,
-          "declaration": "type API"
+          "line": 672,
+          "declaration": "type serveGraph"
         },
         {
           "file": "api/session_end.go",
@@ -17316,12 +17106,12 @@
         },
         {
           "file": "api/staff_composition.go",
-          "line": 112,
+          "line": 113,
           "declaration": "newStaffComposition"
         },
         {
           "file": "api/staff_composition.go",
-          "line": 129,
+          "line": 130,
           "declaration": "newExportTransferModule"
         },
         {
@@ -17376,12 +17166,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 456,
+          "line": 452,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 506,
+          "line": 502,
           "declaration": "newFactory"
         },
         {
@@ -17406,12 +17196,12 @@
         },
         {
           "file": "services/people_repository_test_helpers.go",
-          "line": 24,
+          "line": 25,
           "declaration": "type PeopleRepositorySuiteFactory, PeopleRepositorySuiteParentMessaging, PeopleRepositorySuiteCareLifecycle, PeopleRepositorySuiteAuditCommand, PeopleRepositorySuiteAnnouncementAudience, PeopleRepositorySuiteGuardianProfileOption, PeopleRepositorySuiteRelationshipOption, PeopleRepositorySuitePortalMemberships, PeopleRepositorySuiteSchoolMemberships, PeopleRepositorySuiteStaffAccounts, PeopleRepositorySuiteStaffMessageIdentity, PeopleRepositorySuiteSchoolRoleClass, PeopleRepositorySuitePickupCommand, PeopleRepositorySuiteAccessCommand, PeopleRepositorySuiteRecipients, PeopleRepositorySuiteColleagues, PeopleRepositorySuitePeople, PeopleRepositorySuiteSchoolStructure, PeopleRepositorySuiteCarePlan, PeopleRepositorySuiteCompanionLinks"
         },
         {
           "file": "services/people_repository_test_helpers.go",
-          "line": 48,
+          "line": 49,
           "declaration": "NewPeopleRepositorySuiteFactory"
         }
       ]

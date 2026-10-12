@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -76,13 +75,13 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	instance := fetchOneInstance(t, s, tmpl.group.ID, target)
 
 	// --- Step 2: insert cancelled exception --------------------------------
-	cancelledExc := &scheduleModel.ActivityException{
+	cancelledExc := &testpkg.ActivityException{
 		ActivityGroupID: tmpl.group.ID,
-		ExceptionDate:   scheduleModel.Date(target),
-		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
+		ExceptionDate:   testpkg.ScheduleDate(target),
+		ExceptionType:   testpkg.ScheduleExceptionCancelled,
 		Reason:          testpkg.StrPtr("Heizung kaputt"),
 	}
-	cancelledExc.SetTenantID(s.primaryTenant)
+	cancelledExc.TenantID = s.primaryTenant
 	_, err := s.db.NewInsert().
 		Model(cancelledExc).
 		ModelTableExpr(`schedule.activity_exceptions`).
@@ -156,21 +155,21 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 
 	// --- Step 5: swap in a modified exception ------------------------------
 	_, err = s.db.NewDelete().
-		Model((*scheduleModel.ActivityException)(nil)).
+		Model((*testpkg.ActivityException)(nil)).
 		ModelTableExpr(`schedule.activity_exceptions`).
 		Where("id = ?", cancelledExc.ID).
 		Exec(s.tenantCtx())
 	require.NoError(t, err, "delete cancelled exception")
 
 	modifiedStart := parseHHMM(t, "12:30")
-	modifiedExc := &scheduleModel.ActivityException{
+	modifiedExc := &testpkg.ActivityException{
 		ActivityGroupID: tmpl.group.ID,
-		ExceptionDate:   scheduleModel.Date(target),
-		ExceptionType:   scheduleModel.ActivityExceptionModified,
+		ExceptionDate:   testpkg.ScheduleDate(target),
+		ExceptionType:   testpkg.ScheduleExceptionModified,
 		StartTime:       &modifiedStart,
 		Reason:          testpkg.StrPtr("Fruehschluss"),
 	}
-	modifiedExc.SetTenantID(s.primaryTenant)
+	modifiedExc.TenantID = s.primaryTenant
 	_, err = s.db.NewInsert().
 		Model(modifiedExc).
 		ModelTableExpr(`schedule.activity_exceptions`).

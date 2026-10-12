@@ -324,7 +324,7 @@ func TestDeclaration_EndedActivityEnrollmentKeepsHistoryAndRevocation(t *testing
 		ActivityGroupID: group.ID,
 		ValidFrom:       testpkg.ActivityDate(calendar.TodayDate().AddDays(-1)),
 	}
-	enrollment.SetTenantID(chain.TenantID)
+	enrollment.TenantID = chain.TenantID
 	_, err := db.NewInsert().
 		Model(enrollment).
 		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).

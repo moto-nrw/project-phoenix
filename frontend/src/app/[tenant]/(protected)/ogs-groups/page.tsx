@@ -20,6 +20,11 @@ import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
+  LAST_GROUP_SECTION_STORAGE_KEY,
+  OGS_GROUP_SECTION_LABELS,
+  ogsGroupSectionOf,
+} from "~/lib/ogs-group-sections";
+import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
@@ -330,6 +335,15 @@ function buildGroupTabItems(groups: readonly OGSGroup[]) {
   return groups.map(toItem);
 }
 
+function persistGroupSelection(group: OGSGroup): void {
+  localStorage.setItem("sidebar-last-group", group.id);
+  localStorage.setItem("sidebar-last-group-name", group.name);
+  localStorage.setItem(
+    LAST_GROUP_SECTION_STORAGE_KEY,
+    ogsGroupSectionOf(group.isPersonal),
+  );
+}
+
 function OGSGroupPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
@@ -549,7 +563,14 @@ function OGSGroupPageContent() {
       }
       setSelectedGroupId(dataGroupId);
       if (dataGroupId) {
-        localStorage.setItem("sidebar-last-group", dataGroupId);
+        const resolvedGroup = ogsGroups.find(
+          (group) => group.id === dataGroupId,
+        );
+        if (resolvedGroup) {
+          persistGroupSelection(resolvedGroup);
+        } else {
+          localStorage.setItem("sidebar-last-group", dataGroupId);
+        }
       }
     }
 
@@ -584,13 +605,16 @@ function OGSGroupPageContent() {
       const savedGroup = savedGroupId
         ? allGroups.find((g) => g.id === savedGroupId)
         : undefined;
-      if (savedGroup && savedGroup.id !== selectedGroupId) {
-        switchToGroup(savedGroup.id);
+      if (savedGroup) {
+        persistGroupSelection(savedGroup);
+        if (savedGroup.id !== selectedGroupId) {
+          switchToGroup(savedGroup.id);
+        }
       } else if (!savedGroup) {
         // Nothing saved or saved group no longer exists — persist first group
         const firstGroup = allGroups[0];
         if (firstGroup) {
-          localStorage.setItem("sidebar-last-group", firstGroup.id);
+          persistGroupSelection(firstGroup);
         }
       }
       // When savedGroup.id === selectedGroupId, do nothing — already in sync
@@ -637,10 +661,14 @@ function OGSGroupPageContent() {
       : EMPTY_GROUP_TRANSFERS,
   );
 
-  // Set breadcrumb data
+  // Breadcrumb: der Bereich der Seitenleiste, unter dem die Gruppe steht,
+  // dann ihr Name (#3890). Der Seitentitel ist der Bereich, damit auch die
+  // schmale Kopfzeile ihn nennt.
+  const groupSection = ogsGroupSectionOf(currentGroup?.isPersonal);
   useSetBreadcrumb({
     ogsGroupName: currentGroup?.name,
-    pageTitle: "Meine Gruppe",
+    ogsGroupSection: groupSection,
+    pageTitle: OGS_GROUP_SECTION_LABELS[groupSection],
   });
 
   // Tracking indicators come straight from the aggregated live response; they
@@ -1022,7 +1050,7 @@ function OGSGroupPageContent() {
   if (!showSkeleton && !hasAccess) {
     return (
       <TenantPage
-        title="Meine Gruppen"
+        title={OGS_GROUP_SECTION_LABELS.personal}
         empty={{
           icon: <MotoConceptIcon concept="groups" size={48} />,
           title: "Keine OGS-Gruppe zugeordnet",
@@ -1264,26 +1292,25 @@ function OGSGroupPageContent() {
     );
   };
 
+  // Statuszeile aus den bereits geladenen Gruppendaten. Der Gruppenname
+  // steht im Titel und wiederholt sich hier nicht.
+  let groupStats: string | null = "Keine Gruppe zugeordnet";
+  if (currentGroup) {
+    groupStats =
+      currentGroup.student_count === undefined
+        ? null
+        : `${currentGroup.present_count ?? 0} von ${currentGroup.student_count} da`;
+  }
+
   return (
     <>
-      {/* Kopfkarte wie auf jeder Tenant-Seite. Der Titel bleibt konstant;
-          Gruppe und Anwesenheit stehen in der Statuszeile darunter, in den
-          Aktionen der An- und Abmelde-Modus, der Vertretungshinweis und das
-          Kebab-Menü. */}
+      {/* Kopfkarte wie auf jeder Tenant-Seite. Der Titel ist der Name der
+          geöffneten Gruppe (#3890), die Anwesenheit steht in der Statuszeile
+          darunter, in den Aktionen der An- und Abmelde-Modus, der
+          Vertretungshinweis und das Kebab-Menü. */}
       <TenantPage
-        title="Meine Gruppen"
-        stats={
-          // Statuszeile aus den bereits geladenen Gruppendaten:
-          // Gruppenname und Anwesenheit.
-          [
-            currentGroup?.name,
-            currentGroup?.student_count !== undefined
-              ? `${currentGroup.present_count ?? 0} von ${currentGroup.student_count} da`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(" · ") || "Keine Gruppe zugeordnet"
-        }
+        title={currentGroup?.name ?? OGS_GROUP_SECTION_LABELS[groupSection]}
+        stats={groupStats}
         statsLoading={showSkeleton}
         actions={
           <>
@@ -1344,8 +1371,7 @@ function OGSGroupPageContent() {
                 onChange: (tabId) => {
                   const group = allGroups.find((g) => g.id === tabId);
                   if (group) {
-                    localStorage.setItem("sidebar-last-group", tabId);
-                    localStorage.setItem("sidebar-last-group-name", group.name);
+                    persistGroupSelection(group);
                     switchToGroup(tabId);
                   }
                 },
@@ -1353,7 +1379,8 @@ function OGSGroupPageContent() {
                 // fünften Gruppe stehen die weiteren gebündelt hinter einem
                 // Reiter mit Menü, der den Namen der offenen Gruppe zeigt.
                 items: buildGroupTabItems(allGroups),
-                label: "Meine Gruppen",
+                // Die Reiter tragen eigene und weitere Gruppen (#3890).
+                label: "Gruppen",
               }
             : undefined
         }

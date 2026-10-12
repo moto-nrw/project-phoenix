@@ -9,6 +9,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/observability"
 )
 
+// requestIDs is the router-wide form of requestIDMiddleware.
+func requestIDs(tracer *observability.Tracer) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler { return requestIDMiddleware(tracer, next) }
+}
+
 // requestIDMiddleware installs the shared CorrelationID while preserving
 // Chi's context contract for the existing logging stack.
 func requestIDMiddleware(tracer *observability.Tracer, next http.Handler) http.Handler {

@@ -48,7 +48,7 @@ func assignmentsToCapability(assignments []*StaffAssignment) []workforce.StaffAs
 			InstanceID: assignment.InstanceID, Title: assignment.Title, GroupName: assignment.GroupName,
 			RoomName: assignment.RoomName, Date: assignment.Date.String(),
 			StartTime: clockString(assignment.StartTime), EndTime: clockString(assignment.EndTime),
-			Status: assignment.Status, Cancelled: assignment.Cancelled, IsPrimary: assignment.IsPrimary,
+			Status: assignment.Status, IsSpontaneous: assignment.IsSpontaneous, Cancelled: assignment.Cancelled, IsPrimary: assignment.IsPrimary,
 			IsSubstitute: assignment.IsSubstitute, IsAbsent: assignment.IsAbsent,
 			AbsenceReason: assignment.AbsenceReason, CancelReason: assignment.CancelReason,
 			UnderstaffedAck: assignment.UnderstaffedAck,

@@ -255,3 +255,47 @@ func TestDataDeletionRepository_List(t *testing.T) {
 		}
 	})
 }
+
+func TestTenantIsolation_DataDeletionVisibility(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repo := NewDataDeletionRepository(NewRuntime(db, auditTestTenantID))
+	tenantA, ctxA := testpkg.Tenant(t), testpkg.Ctx(t)
+	scopeB := testpkg.NewTenantScope(t, db)
+	tenantB, ctxB := scopeB.TenantID, scopeB.Context()
+
+	// Data deletions require students (which require persons).
+	sA := testpkg.CreateTestStudentForTenant(t, db, tenantA, "AuditA", "Student", "3a")
+	sB := testpkg.CreateTestStudentForTenant(t, db, tenantB, "AuditB", "Student", "3a")
+
+	ddA := testpkg.CreateTestDataDeletionForTenant(t, db, tenantA, sA.ID)
+	ddB := testpkg.CreateTestDataDeletionForTenant(t, db, tenantB, sB.ID)
+
+	// --- Tenant A ---
+	deletions, err := repo.List(ctxA, nil)
+	require.NoError(t, err)
+
+	for _, d := range deletions {
+		assert.Equal(t, tenantA, d.TenantID,
+			"cross-tenant leak: tenant B data deletion visible to tenant A (List)")
+	}
+
+	// DataDeletionRepository uses base.Repository — FindByID returns error on not-found
+	_, err = repo.FindByID(ctxA, ddB.ID)
+	assert.Error(t, err,
+		"cross-tenant FindByID should fail: tenant A must not see tenant B data deletion %d", ddB.ID)
+
+	// --- Tenant B ---
+	deletions, err = repo.List(ctxB, nil)
+	require.NoError(t, err)
+
+	for _, d := range deletions {
+		assert.Equal(t, tenantB, d.TenantID,
+			"cross-tenant leak: tenant A data deletion visible to tenant B (List)")
+	}
+
+	_, err = repo.FindByID(ctxB, ddA.ID)
+	assert.Error(t, err,
+		"cross-tenant FindByID should fail: tenant B must not see tenant A data deletion %d", ddA.ID)
+}

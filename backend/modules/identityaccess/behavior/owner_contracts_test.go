@@ -117,7 +117,7 @@ func countPushSubscriptions(t *testing.T, db *bun.DB, accountID int64, portal, e
 	}
 	count, err := query.Count(context.Background())
 	require.NoError(t, err)
-	return count
+	return int(count)
 }
 
 // Tenant setting keys and values the flows resolve.

@@ -3,8 +3,9 @@ name: Produkt-Screenshots
 # Produkt-Screenshots bei jedem Release (#3759, ADR 0042): Stack starten, Profil
 # `marketing` seeden, alle Shots aus frontend/scripts/product-screenshots/
 # shots.yaml fotografieren und rahmen, die Ausgabe als Artefakt anhängen
-# (7 Tage) und nach Google Drive hochladen: ein Ordner `v<version> (<datum>)`
-# und "Aktuell" mit stabilen Datei-IDs.
+# (7 Tage) und als `product-screenshots-<version>.zip` an das GitHub-Release
+# vX.Y.Z hängen. Der Drive-Upload (publish.pw.ts) ist abgehängt, bis es ein
+# geteiltes Google-Konto gibt.
 #
 # Auslöser:
 #   - release-please.yml ruft den Workflow nach jedem neuen Release auf
@@ -14,18 +15,14 @@ name: Produkt-Screenshots
 #   - workflow_dispatch: von Hand, etwa nach einer Korrektur der Shot-Liste.
 #     Fotografiert den Stand, von dem aus der Lauf startet: main für den
 #     aktuellen Stand, der Tag vX.Y.Z für genau dieses Release. Ohne Version
-#     gilt das neueste Release mit einem Tag vX.Y.Z. Andere Branches erreichen
-#     die Environment nicht und laden nichts hoch.
+#     gilt das neueste Release mit einem Tag vX.Y.Z. Läufe von anderen
+#     Branches hängen nichts an.
 #   - pull_request: Änderungen an Pipeline oder Workflow fotografieren einmal
-#     zur Probe, ohne Upload.
+#     zur Probe, ohne Release-Anhang.
 #
-# Capture und Upload sind getrennte Jobs. Der Capture-Job sieht keine
-# Zugangsdaten; der Upload-Job läuft nur nach einem erfolgreichen Capture. Ein
-# kaputter Shot bricht die Pipeline vor jeder Ausgabe ab, Drive bleibt dann
-# unverändert. Die Drive-Zugangsdaten liegen in der GitHub-Environment
-# `product-screenshots` und kommen aus scripts/product-screenshots-drive-wizard.sh.
-# Bricht der Upload selbst ab, gleicht ein erneuter Lauf derselben Version die
-# Ordner an.
+# Capture und Anhängen sind getrennte Jobs; nur der zweite darf ins Repo
+# schreiben und läuft nur nach einem erfolgreichen Capture. Ein kaputter Shot
+# bricht die Pipeline vor jeder Ausgabe ab, das Release bleibt dann unverändert.
 #
 # Grenze: an Wochenenden (Berliner Zeit) bricht der Lauf ab, siehe den Schritt
 # "Require a Berlin weekday". Ein Release vom Wochenende am nächsten Werktag
@@ -184,7 +181,7 @@ jobs:
             echo "::error::${tag} ist keine Version wie 1.4.0 oder v1.4.0."
             exit 1
           fi
-          echo "Version ${version}, Upload: ${publish}"
+          echo "Version ${version}, Release-Anhang: ${publish}"
           {
             echo "version=${version}"
             echo "publish=${publish}"
@@ -330,50 +327,30 @@ jobs:
           kill "$(cat "${RUNNER_TEMP}/frontend.pid")" 2>/dev/null || true
           kill "$(cat "${RUNNER_TEMP}/server.pid")" 2>/dev/null || true
 
-  upload:
-    name: Nach Google Drive hochladen
+  release-asset:
+    name: Ans GitHub-Release hängen
     needs: capture
-    if: needs.capture.outputs.publish == 'true'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    timeout-minutes: 60
-    environment: product-screenshots
-    # Zwei Läufe dürfen "Aktuell" nicht gleichzeitig angleichen.
-    concurrency:
-      group: product-screenshots-upload
-      cancel-in-progress: false
+    # Nur main und Tags vX.Y.Z, wie zuvor die Drive-Environment.
+    if: >-
+      needs.capture.outputs.publish == 'true' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
-      contents: read
+      contents: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Enable corepack
-        run: corepack enable
-
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
-        with:
-          node-version: "24"
-          cache: "pnpm"
-          cache-dependency-path: frontend/pnpm-lock.yaml
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile --ignore-scripts
-
       - name: Download screenshots
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: product-screenshots-${{ needs.capture.outputs.version }}
           path: ${{ runner.temp }}/product-screenshots
 
-      - name: Publish to Google Drive
-        working-directory: frontend
+      # --clobber ersetzt das ZIP, wenn dasselbe Release erneut läuft.
+      - name: Attach to release
         env:
-          SHOT_OUT: ${{ runner.temp }}/product-screenshots
-          SHOT_VERSION: ${{ needs.capture.outputs.version }}
-          DRIVE_CLIENT_ID: ${{ secrets.DRIVE_CLIENT_ID }}
-          DRIVE_CLIENT_SECRET: ${{ secrets.DRIVE_CLIENT_SECRET }}
-          DRIVE_REFRESH_TOKEN: ${{ secrets.DRIVE_REFRESH_TOKEN }}
-          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
-        run: pnpm run publish:screenshots
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.capture.outputs.version }}
+        run: |
+          zip_file="${RUNNER_TEMP}/product-screenshots-${VERSION}.zip"
+          (cd "${RUNNER_TEMP}/product-screenshots" && zip -qr "${zip_file}" .)
+          gh release upload "v${VERSION}" "${zip_file}" --clobber --repo "${GITHUB_REPOSITORY}"

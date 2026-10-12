@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
+	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/uptrace/bun"
 )
@@ -70,9 +70,9 @@ func (f *Factory) registerActiveRoomBinders() {
 }
 
 func (f *Factory) registerRemainingRoomBinders() {
-	if repo, ok := f.Group.(*educationRepo.GroupRepository); ok {
+	if repo, ok := f.Group.(*educationGroupRepository); ok {
 		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
-			repo.BindRoomDirectory(educationRoomDirectory{rooms})
+			repo.rooms.rooms = rooms
 		})
 	}
 }
@@ -126,6 +126,9 @@ func (d *activeRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([
 type educationRoomDirectory struct{ rooms facilitiesModule.Query }
 
 func (d educationRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]educationRepo.DirectoryRoom, error) {
+	if d.rooms == nil {
+		return nil, fmt.Errorf("education repositories: room directory is not bound")
+	}
 	rooms, err := d.rooms.ListRoomsByID(ctx, ids)
 	if err != nil {
 		return nil, err

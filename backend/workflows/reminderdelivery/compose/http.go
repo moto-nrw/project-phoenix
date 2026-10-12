@@ -8,14 +8,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	remindersHTTP "github.com/moto-nrw/project-phoenix/api/reminders"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/uptrace/bun"
 )
 
 // HTTPRuntime preserves tenant transactions, permission checks, and responses.
-func HTTPRuntime(db *bun.DB) remindersHTTP.Runtime {
+func HTTPRuntime() remindersHTTP.Runtime {
 	return remindersHTTP.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, remindersHTTP.Middleware)) {
-			common.ProtectedTenantGroup(router, db, register)
+			common.ProtectedTenantRoutes(router, register)
 		},
 		ReadPermission: common.RequiresPermission(permissions.UsersRead),
 		EffectiveAdmin: common.HasEffectiveAdminScope,

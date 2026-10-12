@@ -187,8 +187,9 @@ finish() {
 
 # Richtet den Drive-Upload der Produkt-Screenshots ein (#3759, #3763):
 # OAuth-Client in Google Cloud, Refresh-Token, Zielordner in Drive und die
-# Secrets der GitHub-Environment `product-screenshots`, die
-# .github/workflows/product-screenshots.yml im Upload-Job liest.
+# Secrets der GitHub-Environment `product-screenshots`. Derzeit liest kein
+# Workflow diese Secrets: der Drive-Upload ist abgehängt, bis es ein geteiltes
+# Google-Konto gibt (ADR 0042, Update 2026-10-07).
 #
 #   scripts/product-screenshots-drive-wizard.sh
 #
@@ -280,7 +281,8 @@ command -v gh >/dev/null || { warn "gh fehlt: devbox shell starten"; exit 1; }
 gh auth status >/dev/null 2>&1 || { warn "gh ist nicht angemeldet: gh auth login"; exit 1; }
 REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
 say "Repository: $REPO"
-step "Melde dich im Browser mit dem Google-Konto an, dem der Drive-Ordner gehören soll"
+open_url "https://accounts.google.com/"
+step "Im Browser mit dem Google-Konto anmelden, dem der Drive-Ordner gehören soll"
 step "(am besten ein Team-Konto, nicht ein persönliches)."
 note "Werte merkt sich der Wizard in $ENV_FILE."
 pause "Weiter mit Enter"

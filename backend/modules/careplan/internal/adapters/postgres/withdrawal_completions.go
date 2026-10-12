@@ -214,9 +214,9 @@ func (s *Store) ListWithdrawals(ctx context.Context, state string, filter domain
 			ColumnExpr(`"student".school_class AS school_class`).
 			OrderExpr(`"care_withdrawal_completion".first_bookingless_day ASC, "care_withdrawal_completion".id ASC`)
 		if filter.PageSize > 0 {
-			query = query.Limit(filter.PageSize)
+			query = query.Limit(int64(filter.PageSize))
 			if filter.Page > 1 {
-				query = query.Offset((filter.Page - 1) * filter.PageSize)
+				query = query.Offset(int64((filter.Page - 1) * filter.PageSize))
 			}
 		}
 	} else {
@@ -225,8 +225,8 @@ func (s *Store) ListWithdrawals(ctx context.Context, state string, filter domain
 			ColumnExpr(`COALESCE("student".last_name, '') AS last_name`).
 			ColumnExpr(`COALESCE("student".school_class, '') AS school_class`).
 			OrderExpr(`"care_withdrawal_completion".resolved_at DESC, "care_withdrawal_completion".id DESC`).
-			Limit(filter.PageSize).
-			Offset((filter.Page - 1) * filter.PageSize)
+			Limit(int64(filter.PageSize)).
+			Offset(int64((filter.Page - 1) * filter.PageSize))
 	}
 	stats.Queries++
 	started = time.Now()
@@ -240,7 +240,7 @@ func (s *Store) ListWithdrawals(ctx context.Context, state string, filter domain
 	for _, row := range rows {
 		values = append(values, withdrawalCompletionToDomain(row))
 	}
-	return values, total, stats, nil
+	return values, int(total), stats, nil
 }
 
 func (s *Store) ListPendingWithdrawalsByStudent(ctx context.Context, studentIDs []int64) (map[int64]domain.WithdrawalCompletion, domain.OperationStats, error) {

@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -33,20 +32,20 @@ var instanceStudentAttendanceColumns = []string{
 }
 
 func executionStatus(status string) bool {
-	return status == schedule.InstanceStatusActive || status == schedule.InstanceStatusCompleted
+	return status == ScheduleInstanceStatusActive || status == ScheduleInstanceStatusCompleted
 }
 
 // InsertActivityInstanceRow stores a composed instance DTO: the plan row, and
 // for an active or completed block its session. row.ID, CreatedAt and
 // UpdatedAt are filled in; the DTO keeps the status the caller asked for.
-func InsertActivityInstanceRow(tb testing.TB, ctx context.Context, db bun.IDB, row *schedule.ActivityInstance) {
+func InsertActivityInstanceRow(tb testing.TB, ctx context.Context, db bun.IDB, row *ActivityInstance) {
 	tb.Helper()
 	status := row.Status
 	if status == "" {
-		status = schedule.InstanceStatusPlanned
+		status = ScheduleInstanceStatusPlanned
 	}
 	if executionStatus(status) {
-		row.Status = schedule.InstanceStatusPlanned
+		row.Status = ScheduleInstanceStatusPlanned
 	}
 	_, err := db.NewInsert().Model(row).ModelTableExpr(`schedule.activity_instances`).
 		ExcludeColumn(activityExecutionColumns...).Exec(ctx)
@@ -85,13 +84,13 @@ func SetActivityInstanceLifecycle(tb testing.TB, ctx context.Context, db bun.IDB
 // UpsertActivitySession writes every execution field of a composed instance
 // DTO into its session. The block must exist and row.Status must be active
 // or completed.
-func UpsertActivitySession(tb testing.TB, ctx context.Context, db bun.IDB, row *schedule.ActivityInstance) {
+func UpsertActivitySession(tb testing.TB, ctx context.Context, db bun.IDB, row *ActivityInstance) {
 	tb.Helper()
 	require.True(tb, executionStatus(row.Status), "a session is active or completed, got %q", row.Status)
 	upsertActivitySession(tb, ctx, db, row)
 }
 
-func upsertActivitySession(tb testing.TB, ctx context.Context, db bun.IDB, row *schedule.ActivityInstance) {
+func upsertActivitySession(tb testing.TB, ctx context.Context, db bun.IDB, row *ActivityInstance) {
 	tb.Helper()
 	var snapshot any
 	if len(row.CompletionSnapshot) > 0 {
@@ -111,7 +110,7 @@ func upsertActivitySession(tb testing.TB, ctx context.Context, db bun.IDB, row *
 
 // ActivityInstanceByID reads one composed instance DTO: the plan and, when
 // the block runs or ran, its session.
-func ActivityInstanceByID(tb testing.TB, ctx context.Context, db bun.IDB, id int64) *schedule.ActivityInstance {
+func ActivityInstanceByID(tb testing.TB, ctx context.Context, db bun.IDB, id int64) *ActivityInstance {
 	tb.Helper()
 	rows := ActivityInstancesWhere(tb, ctx, db, `"activity_instance".id = ?`, id)
 	require.Len(tb, rows, 1, "activity instance %d", id)
@@ -121,9 +120,9 @@ func ActivityInstanceByID(tb testing.TB, ctx context.Context, db bun.IDB, id int
 // ActivityInstancesWhere reads the composed instance DTOs matching a
 // condition on the plan row (alias "activity_instance") or its session
 // (alias "session"), ordered by ID.
-func ActivityInstancesWhere(tb testing.TB, ctx context.Context, db bun.IDB, condition string, args ...any) []*schedule.ActivityInstance {
+func ActivityInstancesWhere(tb testing.TB, ctx context.Context, db bun.IDB, condition string, args ...any) []*ActivityInstance {
 	tb.Helper()
-	var rows []*schedule.ActivityInstance
+	var rows []*ActivityInstance
 	require.NoError(tb, db.NewSelect().Model(&rows).ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Join(`LEFT JOIN active.activity_sessions AS session
 			ON session.tenant_id = "activity_instance".tenant_id AND session.schedule_instance_id = "activity_instance".id`).
@@ -144,10 +143,10 @@ func ActivityInstancesWhere(tb testing.TB, ctx context.Context, db bun.IDB, cond
 // InsertInstanceStudentRow stores a composed participant DTO: the plan row,
 // and an attendance row unless the attendance is still the expected default.
 // row.ID, CreatedAt and UpdatedAt are filled in.
-func InsertInstanceStudentRow(tb testing.TB, ctx context.Context, db bun.IDB, row *schedule.InstanceStudent) {
+func InsertInstanceStudentRow(tb testing.TB, ctx context.Context, db bun.IDB, row *InstanceStudent) {
 	tb.Helper()
 	if row.Status == "" {
-		row.Status = schedule.AttendanceStatusExpected
+		row.Status = ScheduleAttendanceStatusExpected
 	}
 	_, err := db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_students`).
 		ExcludeColumn(instanceStudentAttendanceColumns...).Exec(ctx)
@@ -157,19 +156,19 @@ func InsertInstanceStudentRow(tb testing.TB, ctx context.Context, db bun.IDB, ro
 	}
 }
 
-func expectedAttendance(row *schedule.InstanceStudent) bool {
-	return row.Status == schedule.AttendanceStatusExpected && row.Substatus == nil && row.Note == nil &&
+func expectedAttendance(row *InstanceStudent) bool {
+	return row.Status == ScheduleAttendanceStatusExpected && row.Substatus == nil && row.Note == nil &&
 		row.CheckedInAt == nil && row.CheckedOutAt == nil && !row.IsUnplanned && !row.NotScheduled &&
 		row.ManualStatusAt == nil && row.StudentStatusDayID == nil && row.PickupExceptionID == nil
 }
 
 // UpsertSessionAttendance writes every attendance field of a composed
 // participant DTO into its attendance row. The participant must exist.
-func UpsertSessionAttendance(tb testing.TB, ctx context.Context, db bun.IDB, row *schedule.InstanceStudent) {
+func UpsertSessionAttendance(tb testing.TB, ctx context.Context, db bun.IDB, row *InstanceStudent) {
 	tb.Helper()
 	status := row.Status
 	if status == "" {
-		status = schedule.AttendanceStatusExpected
+		status = ScheduleAttendanceStatusExpected
 	}
 	_, err := db.ExecContext(ctx, `INSERT INTO active.activity_session_attendance
 		(tenant_id, instance_student_id, status, substatus, note, checked_in_at, checked_out_at, is_unplanned,
@@ -198,7 +197,7 @@ func UpdateSessionAttendance(tb testing.TB, ctx context.Context, db bun.IDB, par
 	UpsertSessionAttendance(tb, ctx, db, row)
 }
 
-func applyAttendanceValue(tb testing.TB, row *schedule.InstanceStudent, column string, value any) {
+func applyAttendanceValue(tb testing.TB, row *InstanceStudent, column string, value any) {
 	tb.Helper()
 	switch column {
 	case "status":
@@ -240,7 +239,7 @@ func optional[T any](value any) *T {
 
 // InstanceStudentByIDContext reloads one participant with its attendance. A
 // participant without an attendance row reads as expected attendance.
-func InstanceStudentByIDContext(tb testing.TB, ctx context.Context, db bun.IDB, id int64) *schedule.InstanceStudent {
+func InstanceStudentByIDContext(tb testing.TB, ctx context.Context, db bun.IDB, id int64) *InstanceStudent {
 	tb.Helper()
 	rows := InstanceStudentsWhere(tb, ctx, db, `"instance_student".id = ?`, id)
 	require.Len(tb, rows, 1, "instance student %d", id)
@@ -250,9 +249,9 @@ func InstanceStudentByIDContext(tb testing.TB, ctx context.Context, db bun.IDB, 
 // InstanceStudentsWhere reads the composed participant DTOs matching a
 // condition on the plan row (alias "instance_student") or its attendance
 // (alias "attendance"), ordered by ID.
-func InstanceStudentsWhere(tb testing.TB, ctx context.Context, db bun.IDB, condition string, args ...any) []*schedule.InstanceStudent {
+func InstanceStudentsWhere(tb testing.TB, ctx context.Context, db bun.IDB, condition string, args ...any) []*InstanceStudent {
 	tb.Helper()
-	var rows []*schedule.InstanceStudent
+	var rows []*InstanceStudent
 	require.NoError(tb, db.NewSelect().Model(&rows).ModelTableExpr(`schedule.instance_students AS "instance_student"`).
 		Join(`LEFT JOIN active.activity_session_attendance AS attendance
 			ON attendance.tenant_id = "instance_student".tenant_id AND attendance.instance_student_id = "instance_student".id`).

@@ -159,6 +159,135 @@ function heatmapLink(projectId, deployment, pathExpression) {
   return `concat(${sqlString(`${POSTHOG_HOST}/project/${projectId}/heatmaps/new?pageURL=`)}, encodeURLComponent(${url}), '&dataURL=', encodeURLComponent(${url}))`;
 }
 
+// --- feature areas -----------------------------------------------------------
+
+/**
+ * Feature areas (Funktionsbereiche): which pages and which events belong to
+ * one thing a school does with moto. A page ending in `/**` covers itself and
+ * every page below it. The first matching area wins; the test makes sure
+ * every route template of analytics-routes.ts lands in exactly one area or in
+ * NO_FEATURE_PAGES, so a new page needs a decision here.
+ */
+export const FEATURES = Object.freeze([
+  { name: 'Ein- und Auschecken', events: ['student_checked_in', 'student_checked_out'] },
+  { name: 'Startseite', pages: { ogs: ['/home', '/dashboard'], parents: ['/'], school: ['/'] } },
+  {
+    name: 'Kinder und Kindakte',
+    pages: { ogs: ['/students/**'], parents: ['/children/**'], school: ['/klasse'] },
+    events: ['student_note_created', 'photo_consent_changed'],
+  },
+  { name: 'Gruppen', pages: { ogs: ['/ogs-groups'] }, events: ['group_created', 'group_updated'] },
+  {
+    name: 'Aufsichten und Räume',
+    pages: { ogs: ['/active-supervisions', '/rooms/**', '/activities'], school: ['/aufsichten'] },
+    events: ['supervision_started', 'supervision_completed', 'supervision_attendance_recorded'],
+  },
+  {
+    name: 'Abwesenheiten',
+    pages: { ogs: ['/absences'] },
+    events: ['absence_reported', 'absence_request_submitted', 'arrival_exception_changed'],
+  },
+  {
+    name: 'Elternanfragen',
+    pages: { ogs: ['/anfragen', '/admin/change-requests', '/admin/guardian-approvals'] },
+    events: ['pickup_change_requested', 'pickup_change_decided', 'offering_change_requested', 'offering_change_decided', 'master_data_change_submitted'],
+  },
+  {
+    name: 'Nachrichten und Elternbriefe',
+    pages: {
+      ogs: ['/messages/**', '/team-chat/**', '/parent-announcements/**'],
+      parents: ['/messages/**', '/news/**'],
+      school: ['/nachrichten/**'],
+    },
+    events: [
+      'parent_message_sent', 'staff_message_sent', 'parent_message_marked_unread', 'parent_messages_marked_all_read',
+      'parent_message_count_scope_changed', 'parent_declaration_submitted', 'staff_notice_acknowledged',
+    ],
+  },
+  {
+    name: 'Tagesplan und Tagesinfos',
+    pages: { ogs: ['/tagesplan', '/tagesinformationen', '/day-log', '/betreuungsplan', '/planung', '/timetables'], school: ['/tagesinformationen'] },
+  },
+  { name: 'Kalender und Speiseplan', pages: { ogs: ['/calendar', '/calendar-periods', '/meal-plan'], parents: ['/calendar', '/meal-plan'] } },
+  {
+    name: 'Personal und Dienstplan',
+    pages: { ogs: ['/staff/**', '/dienstplan', '/mein-dienstplan', '/payroll', '/invitations'] },
+    events: ['staff_invited', 'user_invited'],
+  },
+  { name: 'Zeiterfassung', pages: { ogs: ['/time-tracking'] } },
+  { name: 'Vertretung', pages: { ogs: ['/substitutions', '/vertretung', '/vertretungsplan'] }, events: ['substitution_assigned', 'substitution_ended'] },
+  {
+    name: 'Anmeldung neuer Kinder',
+    pages: {
+      ogs: ['/admin/enrollments/**', '/enrollment-form', '/enrollment-phases/**', '/care-offerings', '/anmeldung/**'],
+      parents: ['/anmeldung/**'],
+    },
+    events: ['enrollment_submitted'],
+  },
+  { name: 'Stammdaten und Export', pages: { ogs: ['/database/**', '/eltern/bankverbindungen'] }, events: ['data_exported'] },
+  { name: 'Einstellungen', pages: { ogs: ['/settings', '/profile'], parents: ['/settings'], school: ['/einstellungen'] }, events: ['settings_changed'] },
+  { name: 'Weitere Werkzeuge', pages: { ogs: ['/lists', '/reminders', '/emergency', '/info-displays', '/dateien', '/statistics'] } },
+]);
+
+/** Login, invitation, and demo entry pages: getting in, not using a feature. */
+export const NO_FEATURE_PAGES = Object.freeze({
+  ogs: ['/', '/demo', '/display', '/invite', '/reset-password'],
+  parents: ['/login', '/invite', '/reset-password', '/demo', '/accept-guardian-invite/:token'],
+  school: ['/login', '/invite', '/reset-password'],
+});
+
+/** Events that are no feature use: sessions, devices, and the demo funnel. */
+const NO_FEATURE_EVENTS = ['login_success', 'login_failed', 'tenant_switched', 'guardian_invite_accepted', 'pwa_installed', 'pwa_install_prompt_shown', 'page_viewed'];
+
+/** Area unmatched pages and events fall into; growing means FEATURES lacks an entry. */
+const OTHER_FEATURE = 'Sonstiges';
+
+/** Demo roles a visitor picks; transient pages before the pick carry none. */
+const DEMO_ROLES = ['caregiver', 'lead', 'parent', 'all'];
+
+const matchesPage = (pattern, template) => pattern.endsWith('/**')
+  ? template === pattern.slice(0, -3) || template.startsWith(pattern.slice(0, -2))
+  : template === pattern;
+
+const matchesPages = (pages, surface, template) => (pages?.[surface] ?? []).some((pattern) => matchesPage(pattern, template));
+
+/** The feature area of a page, `null` for NO_FEATURE_PAGES, OTHER_FEATURE if unmapped. */
+export function featureOfPage(surface, template) {
+  if (matchesPages(NO_FEATURE_PAGES, surface, template)) return null;
+  return FEATURES.find((feature) => matchesPages(feature.pages, surface, template))?.name ?? OTHER_FEATURE;
+}
+
+function pagesCondition(pages) {
+  const bySurface = Object.entries(pages).map(([surface, patterns]) => {
+    const exact = patterns.map((pattern) => pattern.replace(/\/\*\*$/, ''));
+    const prefixes = patterns.filter((pattern) => pattern.endsWith('/**')).map((pattern) => pattern.slice(0, -2));
+    const path = [`properties.$pathname in ${sqlList(exact)}`, ...prefixes.map((prefix) => `startsWith(properties.$pathname, ${sqlString(prefix)})`)];
+    return `(properties.surface = ${sqlString(surface)} and (${path.join(' or ')}))`;
+  });
+  return `event = '$pageview' and (${bySurface.join(' or ')})`;
+}
+
+/**
+ * HogQL expression: the feature area of an event, '' for anything that is no
+ * feature use (other `$` events, logins, the demo funnel's own events).
+ */
+export function featureExpression() {
+  const branches = [[pagesCondition(NO_FEATURE_PAGES), "''"]];
+  for (const feature of FEATURES) {
+    const conditions = [];
+    if (feature.pages) conditions.push(pagesCondition(feature.pages));
+    if (feature.events) conditions.push(`event in ${sqlList(feature.events)}`);
+    branches.push([conditions.map((condition) => `(${condition})`).join(' or '), sqlString(feature.name)]);
+  }
+  branches.push([
+    `event = '$pageview' or not (startsWith(event, '$') or startsWith(event, 'demo_') or event in ${sqlList(NO_FEATURE_EVENTS)})`,
+    sqlString(OTHER_FEATURE),
+  ]);
+  return `multiIf(${branches.map(([condition, value]) => `${condition}, ${value}`).join(', ')}, '')`;
+}
+
+const quoted = (name) => `\`${name}\``;
+
 // --- definitions -------------------------------------------------------------
 
 const portalCondition = `properties.surface in ${sqlList(PORTALS)}`;
@@ -184,9 +313,10 @@ order by \`Dead Clicks\` + \`Rage Clicks\` desc
 limit 50`);
 }
 
-/** The five dashboards (#3604). `projectId` feeds the heatmap links. */
+/** The dashboards of #3604 plus feature areas and demo behaviour. `projectId` feeds the heatmap links. */
 export function dashboards({ projectId, routes = readRouteTemplates(), browserEvents = readBrowserEvents() }) {
   const coreAction = `not startsWith(event, '$') and event not in ${sqlList(browserEvents)}`;
+  const feature = featureExpression();
   const routeRows = routes.map(([surface, template]) => `(${sqlString(surface)}, ${sqlString(template)})`).join(', ');
 
   return [
@@ -430,7 +560,255 @@ order by Woche desc`),
         },
       ],
     },
+    {
+      name: 'Nutzungsanalyse: Funktionen in Schulen',
+      description: 'Welche Funktionsbereiche echte Schulen nutzen (deployment = moto-app.de): Seitenaufrufe und Aktionen, einschließlich Ein- und Auschecken am Kiosk. Die Zuordnung steht in FEATURES in scripts/posthog-dashboards.mjs. Das Elternportal kennt keine Schule und erscheint nur in der Tabelle nach Rolle.',
+      insights: [
+        {
+          name: 'Funktionen: Reichweite in Schulen (30 Tage)',
+          description: 'Je Funktionsbereich: wie viele Schulen ihn genutzt haben und welcher Anteil der aktiven Schulen das ist. Aktionen sind erfolgreiche Schreibvorgänge und Kiosk-Buchungen.',
+          ...hogql('production', (where) => `
+select
+  Funktion,
+  uniq(Schule) as Schulen,
+  round(100 * uniq(Schule) / greatest(any(t.Aktiv), 1)) as ${quoted('Anteil aktiver Schulen in Prozent')},
+  countIf(event = '$pageview') as Seitenaufrufe,
+  countIf(event != '$pageview') as Aktionen,
+  uniqIf(Sitzung, event = '$pageview') as Sitzungen
+from (${schoolFeatureEvents(where, 30)}) as e
+cross join (
+  select uniq(toString(properties.school_id)) as Aktiv
+  from events
+  where ${where}
+    and isNotNull(properties.school_id)
+    and timestamp > now() - interval 30 day
+) as t
+where Funktion != ''
+group by Funktion
+order by Schulen desc, Seitenaufrufe + Aktionen desc`),
+        },
+        {
+          name: 'Funktionen: je Schule (30 Tage)',
+          description: 'Eine Zeile je Schule (Schul-ID), eine Spalte je Funktionsbereich: Seitenaufrufe plus Aktionen. Zeigt, welche Schule was nutzt und was sie auslässt.',
+          ...hogql('production', (where) => `
+select
+  Schule as ${quoted('Schule (ID)')},
+  count() as Gesamt,
+  ${FEATURES.map((f) => `countIf(Funktion = ${sqlString(f.name)}) as ${quoted(f.name)}`).join(',\n  ')}
+from (${schoolFeatureEvents(where, 30)})
+where Funktion != ''
+group by Schule
+order by Gesamt desc`),
+        },
+        {
+          name: 'Funktionen: nach Rolle und Oberfläche (30 Tage)',
+          description: 'Wer welchen Funktionsbereich nutzt, einschließlich Elternportal. Ohne Oberfläche sind Ereignisse vom Kiosk und aus dem Backend.',
+          ...hogql('production', (where) => `
+select
+  Funktion,
+  ${quoted('Oberfläche')},
+  Rolle,
+  countIf(event = '$pageview') as Seitenaufrufe,
+  countIf(event != '$pageview') as Aktionen,
+  uniq(Schule) as Schulen
+from (
+  select
+    ${feature} as Funktion,
+    coalesce(properties.surface, 'ohne (Kiosk, Backend)') as ${quoted('Oberfläche')},
+    coalesce(properties.role, '-') as Rolle,
+    toString(properties.school_id) as Schule,
+    event
+  from events
+  where ${where}
+    and timestamp > now() - interval 30 day
+)
+where Funktion != ''
+group by Funktion, ${quoted('Oberfläche')}, Rolle
+order by Seitenaufrufe + Aktionen desc
+limit 100`),
+        },
+        {
+          name: 'Funktionen: Schulen pro Woche',
+          description: 'Wie viele Schulen jeden Funktionsbereich in einer Woche genutzt haben, letzte 12 Wochen. Zeigt, ob eine Funktion sich ausbreitet oder einschläft.',
+          ...hogql('production', (where) => `
+select
+  toStartOfWeek(timestamp, 1) as Woche,
+  uniq(Schule) as ${quoted('Aktive Schulen')},
+  ${FEATURES.map((f) => `uniqIf(Schule, Funktion = ${sqlString(f.name)}) as ${quoted(f.name)}`).join(',\n  ')}
+from (
+  select ${feature} as Funktion, toString(properties.school_id) as Schule, timestamp
+  from events
+  where ${where}
+    and isNotNull(properties.school_id)
+    and timestamp > now() - interval 12 week
+)
+where Funktion != ''
+group by Woche
+order by Woche desc`),
+        },
+      ],
+    },
+    {
+      name: 'Nutzungsanalyse: Demo-Verhalten',
+      description: 'Was Besucher in der öffentlichen Demo ansehen und ausprobieren und wo sie aufhören. Nur deployment = demo, nur Seiten nach der Rollenwahl. Eine Sitzung endet auch beim Neuladen oder in einem neuen Tab (kein Cookie), „aufgehört“ heißt deshalb: letzte Seite einer Sitzung.',
+      insights: [
+        {
+          name: 'Demo-Verhalten: letzte Seite vor dem Aufhören',
+          description: 'Letzte 30 Tage. Auf welcher Seite Demo-Sitzungen enden, wie viele Seiten und Sekunden die Sitzung bis dahin hatte.',
+          ...hogql('demo', (where) => `
+select
+  Funktion,
+  Seite,
+  count() as ${quoted('Sitzungen endeten hier')},
+  round(100 * count() / sum(count()) over (), 1) as ${quoted('Anteil in Prozent')},
+  round(median(Seiten)) as ${quoted('Median Seiten bis dahin')},
+  round(median(Dauer)) as ${quoted('Median Dauer (s)')}
+from (
+  select
+    Sitzung,
+    argMax(Funktion, timestamp) as Funktion,
+    argMax(Seite, timestamp) as Seite,
+    count() as Seiten,
+    dateDiff('second', min(timestamp), max(timestamp)) as Dauer
+  from (${demoPages(where)})
+  group by Sitzung
+)
+group by Funktion, Seite
+order by ${quoted('Sitzungen endeten hier')} desc
+limit 30`),
+        },
+        {
+          name: 'Demo-Verhalten: Sitzungstiefe',
+          description: 'Letzte 30 Tage. Wie weit Besucher kommen: Sitzungen nach Zahl der Seiten, mit Dauer und Zahl der angesehenen Funktionsbereiche.',
+          ...hogql('demo', (where) => `
+select
+  multiIf(Seiten = 1, '1 Seite', Seiten <= 3, '2-3 Seiten', Seiten <= 6, '4-6 Seiten', Seiten <= 10, '7-10 Seiten', Seiten <= 20, '11-20 Seiten', 'über 20 Seiten') as ${quoted('Tiefe')},
+  count() as Sitzungen,
+  round(100 * count() / sum(count()) over (), 1) as ${quoted('Anteil in Prozent')},
+  round(median(Dauer)) as ${quoted('Median Dauer (s)')},
+  round(avg(Funktionen), 1) as ${quoted('Funktionsbereiche (Mittel)')}
+from (
+  select
+    Sitzung,
+    count() as Seiten,
+    dateDiff('second', min(timestamp), max(timestamp)) as Dauer,
+    uniqIf(Funktion, Funktion != '') as Funktionen
+  from (${demoPages(where)})
+  group by Sitzung
+)
+group by ${quoted('Tiefe')}
+order by min(Seiten)`),
+        },
+        {
+          name: 'Demo-Verhalten: angesehene Funktionen nach Rolle',
+          description: 'Letzte 30 Tage. Welcher Anteil der Sitzungen einer Demo-Rolle einen Funktionsbereich geöffnet hat.',
+          ...hogql('demo', (where) => `
+select
+  f.Rolle as Rolle,
+  f.Funktion as Funktion,
+  f.Sitzungen as Sitzungen,
+  round(100 * f.Sitzungen / greatest(r.Gesamt, 1)) as ${quoted('Anteil der Sitzungen in Prozent')},
+  f.Aufrufe as Seitenaufrufe
+from (
+  select Rolle, Funktion, uniq(Sitzung) as Sitzungen, count() as Aufrufe
+  from (${demoPages(where)})
+  where Funktion != ''
+  group by Rolle, Funktion
+) as f
+join (
+  select Rolle, uniq(Sitzung) as Gesamt
+  from (${demoPages(where)})
+  group by Rolle
+) as r on f.Rolle = r.Rolle
+order by Rolle, Sitzungen desc`),
+        },
+        {
+          name: 'Demo-Verhalten: ausprobierte Aktionen',
+          description: 'Letzte 30 Tage. Was Besucher selbst gespeichert oder abgeschickt haben. Nur Aktionen mit Browser-Sitzung: die Daten, die beim Bereitstellen der Demo-Schule entstehen, zählen nicht.',
+          ...hogql('demo', (where) => `
+select
+  Funktion,
+  event as Aktion,
+  count() as Anzahl,
+  uniq(Sitzung) as Sitzungen
+from (
+  select ${feature} as Funktion, event, properties.$session_id as Sitzung
+  from events
+  where ${where}
+    and event != '$pageview'
+    and isNotNull(properties.$session_id)
+    and timestamp > now() - interval 30 day
+)
+where Funktion != ''
+group by Funktion, Aktion
+order by Anzahl desc`),
+        },
+        {
+          name: 'Demo-Verhalten: Funktionen vor „Kostenlos starten“',
+          description: 'Letzte 30 Tage. Welcher Anteil der Sitzungen mit und ohne Klick auf „Kostenlos starten“ einen Funktionsbereich gesehen hat. Ein großer Abstand deutet auf eine Funktion, die überzeugt. Wenige Klicks bedeuten große Zufallsschwankung.',
+          ...hogql('demo', (where) => `
+select
+  Funktion,
+  countIf(Gestartet = 1) as ${quoted('Sitzungen mit Klick')},
+  round(100 * countIf(Gestartet = 1) / greatest(max(MitKlick), 1)) as ${quoted('Anteil mit Klick in Prozent')},
+  round(100 * countIf(Gestartet = 0) / greatest(max(OhneKlick), 1)) as ${quoted('Anteil ohne Klick in Prozent')}
+from (
+  select Sitzung, Gestartet, arrayJoin(Funktionen) as Funktion, MitKlick, OhneKlick
+  from (
+    select
+      Sitzung,
+      Gestartet,
+      Funktionen,
+      sum(Gestartet) over () as MitKlick,
+      count() over () - sum(Gestartet) over () as OhneKlick
+    from (
+      select
+        properties.$session_id as Sitzung,
+        max(event = 'demo_start_clicked') as Gestartet,
+        groupUniqArrayIf(${feature}, event = '$pageview' and coalesce(properties.demo_role, properties.role) in ${sqlList(DEMO_ROLES)}) as Funktionen
+      from events
+      where ${where}
+        and isNotNull(properties.$session_id)
+        and timestamp > now() - interval 30 day
+      group by Sitzung
+    )
+    where length(Funktionen) > 0
+  )
+)
+where Funktion != ''
+group by Funktion
+order by ${quoted('Anteil mit Klick in Prozent')} desc, ${quoted('Anteil ohne Klick in Prozent')} desc`),
+        },
+      ],
+    },
   ];
+}
+
+/** Production events of schools with their feature area (school_id set: no parents portal). */
+function schoolFeatureEvents(where, days) {
+  return `
+  select ${featureExpression()} as Funktion, toString(properties.school_id) as Schule, event, properties.$session_id as Sitzung
+  from events
+  where ${where}
+    and isNotNull(properties.school_id)
+    and timestamp > now() - interval ${days} day`;
+}
+
+/** Demo page views after the role pick, with their feature area. */
+function demoPages(where) {
+  return `
+  select
+    properties.$session_id as Sitzung,
+    ${featureExpression()} as Funktion,
+    properties.$pathname as Seite,
+    coalesce(properties.demo_role, properties.role) as Rolle,
+    timestamp
+  from events
+  where ${where}
+    and event = '$pageview'
+    and coalesce(properties.demo_role, properties.role) in ${sqlList(DEMO_ROLES)}
+    and isNotNull(properties.$session_id)
+    and timestamp > now() - interval 30 day`;
 }
 
 // --- sync --------------------------------------------------------------------

@@ -66,7 +66,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Projection happens last, after every filter, sort and pagination step has
 	// run on the full responses — the two views differ on the wire only (#2097).
 	if params.slimView {
-		common.RespondPaginated(w, r, http.StatusOK, slimStudentResponses(responses, plan.planningDate), pagination, "Students retrieved successfully")
+		common.RespondPaginated(w, r, http.StatusOK, slimStudentResponses(responses, plan.departureDate), pagination, "Students retrieved successfully")
 		return
 	}
 	common.RespondPaginated(w, r, http.StatusOK, responses, pagination, "Students retrieved successfully")
@@ -78,6 +78,9 @@ type studentListPlan struct {
 	params       *studentListParams
 	planningDate timezone.Date
 	isToday      bool
+	// departureDate is the day whose departure plan and companions apply:
+	// the Friday before a weekend that follows Friday's plan (#3921).
+	departureDate timezone.Date
 }
 
 // parseStudentListPlan reads the list request. The planning date is resolved
@@ -106,7 +109,11 @@ func (rs *Resource) parseStudentListPlan(r *http.Request) (studentListPlan, rend
 	}
 	params.careStatusOn = planningDate
 	params.careStatusToday = timezone.DateFromTime(now)
-	return studentListPlan{params: params, planningDate: planningDate, isToday: isToday}, nil
+	departure, err := departurePlanDate(r.Context(), planningDate)
+	if err != nil {
+		return studentListPlan{}, common.ErrorInternalServerWrap("resolve weekend plan failed", err)
+	}
+	return studentListPlan{params: params, planningDate: planningDate, isToday: isToday, departureDate: departure}, nil
 }
 
 // studentListPage is the list before its response-derived filters: every
@@ -162,7 +169,7 @@ func (rs *Resource) finishStudentListPage(ctx context.Context, page studentListP
 	// Applied here, before in-memory pagination, so server-side counts and
 	// page boundaries reflect the filtered set (no client-side full-page
 	// fetch needed).
-	responses = applyAdministrativeFilters(responses, params.bus, params.photoConsent, params.pickupStatus, plan.planningDate)
+	responses = applyAdministrativeFilters(responses, params.bus, params.photoConsent, params.pickupStatus, plan.departureDate)
 
 	// Apply in-memory pagination if response-derived filters were used.
 	if params.hasInMemoryFilters() {
@@ -181,7 +188,7 @@ func (rs *Resource) finishStudentListPage(ctx context.Context, page studentListP
 	// grouping is per weekday, so a list rendered for another planning date must
 	// resolve the links of that date. Fatal by design (see enrichWithCompanions)
 	// — an empty grouping would be presented as a real departure arrangement.
-	if err := rs.enrichWithCompanions(ctx, responses, params, plan.planningDate.BerlinMidnight()); err != nil {
+	if err := rs.enrichWithCompanions(ctx, responses, params, plan.departureDate.BerlinMidnight()); err != nil {
 		return nil, 0, err
 	}
 	return responses, totalCount, nil

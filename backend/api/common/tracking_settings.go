@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
 // TrackingIndicatorLabels reads the enabled labels from one settings snapshot.

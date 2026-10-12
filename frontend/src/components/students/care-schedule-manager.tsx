@@ -50,7 +50,6 @@ import {
 } from "~/lib/student-arrival-api";
 import {
   type ArrivalDayData,
-  WEEKDAYS,
   formatDateISO,
   formatShortDate,
   getDayData as getArrivalDayData,
@@ -158,6 +157,7 @@ async function applyWeeklyPickupAdjustment(
 interface CareScheduleManagerProps {
   readonly studentId: string;
   readonly readOnly?: boolean;
+  readonly weekendFollowsFriday?: boolean;
   readonly onUpdate?: () => void;
   readonly isSick?: boolean;
   readonly isExcused?: boolean;
@@ -222,6 +222,12 @@ function getStatusLabel(status: StudentStatusKind): string {
   return "Entschuldigt";
 }
 
+const shortWeekdayLabels = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+
+function shortWeekdayLabel(date: Date): string {
+  return shortWeekdayLabels[date.getDay()] ?? "Tag";
+}
+
 function formatStatusDayDate(date: string): string {
   return statusDayDateFormatter.format(new Date(`${date}T00:00:00`));
 }
@@ -254,6 +260,7 @@ function getAbsenceStatus(
 export function CareScheduleManager({
   studentId,
   readOnly = false,
+  weekendFollowsFriday = false,
   onUpdate,
   isSick = false,
   isExcused = false,
@@ -297,9 +304,16 @@ export function CareScheduleManager({
     null,
   );
 
-  const weekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
+  const weekDays = useMemo(
+    () => getWeekDays(weekOffset, weekendFollowsFriday),
+    [weekOffset, weekendFollowsFriday],
+  );
   const weekRange = useMemo(
-    () => formatWeekRange(weekDays[0] ?? new Date(), weekDays[4] ?? new Date()),
+    () =>
+      formatWeekRange(
+        weekDays[0] ?? new Date(),
+        weekDays[weekDays.length - 1] ?? new Date(),
+      ),
     [weekDays],
   );
   // The edit state needs the care-days source and write access; without either
@@ -309,7 +323,7 @@ export function CareScheduleManager({
 
   function showWeek(offset: number): void {
     setWeekOffset(offset);
-    const visibleDays = getWeekDays(offset);
+    const visibleDays = getWeekDays(offset, weekendFollowsFriday);
     const firstDay = visibleDays[0];
     const lastDay = visibleDays[visibleDays.length - 1];
     if (!firstDay || !lastDay) return;
@@ -347,6 +361,7 @@ export function CareScheduleManager({
           isSick,
           isExcused,
           statusForDate,
+          weekendFollowsFriday,
         );
         const pickup = getPickupDayData(
           date,
@@ -357,6 +372,7 @@ export function CareScheduleManager({
           isExcused,
           statusForDate,
           pickupData.effectiveSchedules,
+          weekendFollowsFriday,
         );
         return {
           date,
@@ -381,6 +397,7 @@ export function CareScheduleManager({
       pickupData.effectiveSchedules,
       isSick,
       isExcused,
+      weekendFollowsFriday,
     ],
   );
   const selectedMobileDay = useMemo(() => {
@@ -666,8 +683,16 @@ export function CareScheduleManager({
       isSick,
       isExcused,
       statusByDate.get(dateKey) ?? null,
+      weekendFollowsFriday,
     );
-  }, [editingDayDate, arrivalData, isSick, isExcused, statusByDate]);
+  }, [
+    editingDayDate,
+    arrivalData,
+    isSick,
+    isExcused,
+    statusByDate,
+    weekendFollowsFriday,
+  ]);
 
   const currentEditingPickupDay = useMemo(() => {
     if (!editingDayDate) return null;
@@ -681,8 +706,16 @@ export function CareScheduleManager({
       isExcused,
       statusByDate.get(dateKey) ?? null,
       pickupData.effectiveSchedules,
+      weekendFollowsFriday,
     );
-  }, [editingDayDate, pickupData, isSick, isExcused, statusByDate]);
+  }, [
+    editingDayDate,
+    pickupData,
+    isSick,
+    isExcused,
+    statusByDate,
+    weekendFollowsFriday,
+  ]);
 
   /**
    * Write the exception for one day. "Regulär" means the day has no override,
@@ -1006,7 +1039,13 @@ export function CareScheduleManager({
               />
             </div>
             <div className="hidden @4xl:block">
-              <div className="grid grid-cols-5 gap-3">
+              <div
+                className={
+                  days.length > 5
+                    ? "grid grid-cols-7 gap-3"
+                    : "grid grid-cols-5 gap-3"
+                }
+              >
                 {days.map((day) => (
                   <CareDayCard
                     key={formatDateISO(day.date)}
@@ -1130,7 +1169,13 @@ function MobileCareWeek({
         </WeekIconButton>
       </div>
 
-      <div className="grid grid-cols-5 gap-1.5">
+      <div
+        className={
+          days.length > 5
+            ? "grid grid-cols-7 gap-1.5"
+            : "grid grid-cols-5 gap-1.5"
+        }
+      >
         {days.map((day) => (
           <MobileDayButton
             key={formatDateISO(day.date)}
@@ -1189,7 +1234,6 @@ function MobileDayButton({
   readonly isSelected: boolean;
   readonly onClick: () => void;
 }) {
-  const weekdayInfo = WEEKDAYS[day.weekday - 1];
   const statusLabel = day.status
     ? day.status === "class_trip"
       ? "Klasse"
@@ -1206,7 +1250,7 @@ function MobileDayButton({
       }`}
     >
       <span className="block truncate text-xs font-semibold">
-        {weekdayInfo?.shortLabel ?? "Tag"}
+        {shortWeekdayLabel(day.date)}
       </span>
       <span
         className={`mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold ${
@@ -1220,7 +1264,7 @@ function MobileDayButton({
         {day.date.getDate()}
       </span>
       <span
-        className={`mt-1 block truncate text-[10px] font-semibold ${
+        className={`mt-1 block truncate text-sm font-semibold ${
           isSelected ? "text-gray-500" : "text-gray-400"
         }`}
       >
@@ -1247,7 +1291,6 @@ function CareDayCard({
   readonly canDeleteStatusDay?: (day: StudentStatusDay) => boolean;
   readonly isMobileDetail?: boolean;
 }) {
-  const weekdayInfo = WEEKDAYS[day.weekday - 1];
   const hasStatus = day.status !== null;
   const hasException = day.arrival.isException || day.pickup.isException;
   // A guardian-sourced exception means a parent changed this day's pickup or
@@ -1273,7 +1316,7 @@ function CareDayCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-gray-900">
-              {weekdayInfo?.shortLabel ?? "Tag"}
+              {shortWeekdayLabel(day.date)}
             </span>
             {day.isToday ? (
               <span className="text-xs font-semibold text-gray-500">Heute</span>
@@ -1381,7 +1424,7 @@ function AbsencePlaceholder({
         <MotoConceptIcon concept={concept} size={18} />
       </span>
       <div className="min-w-0">
-        <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+        <div className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
           Status
         </div>
         <div className="text-sm leading-5 font-semibold text-gray-900">
@@ -1470,7 +1513,7 @@ function CareBoundaryRow({
           {boundary.icon}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+          <div className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
             {boundary.label}
           </div>
           {/* Flex-wrapped rather than inline: the badge is taller than the 20px
@@ -1480,7 +1523,7 @@ function CareBoundaryRow({
             <span className="min-w-0 break-words">{boundary.value}</span>
             {boundary.marker ? (
               <span
-                className="max-w-full shrink-0 truncate rounded-full bg-white px-1.5 py-0.5 text-[11px] font-semibold text-gray-500 shadow-sm"
+                className="max-w-full shrink-0 truncate rounded-full bg-white px-1.5 py-0.5 text-sm font-semibold text-gray-500 shadow-sm"
                 title={boundary.marker}
               >
                 {boundary.marker}
@@ -1510,7 +1553,7 @@ function CareAppointmentSection({
           key={appointment.key}
           className="rounded-lg border border-gray-100 bg-white px-3 py-2.5 shadow-sm"
         >
-          <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+          <div className="text-sm font-semibold text-gray-500">
             {appointment.timeRange}
           </div>
           <div className="text-sm font-semibold text-gray-900">

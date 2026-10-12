@@ -41,7 +41,7 @@ func (rs *SchedulesResource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Protected routes that require authentication and permissions
-	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 
 		// Current dateframe endpoint - requires schedules:read permission
 		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).Get("/current-dateframe", rs.getCurrentDateframe)

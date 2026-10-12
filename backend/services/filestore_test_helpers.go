@@ -5,7 +5,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	documentCompose "github.com/moto-nrw/project-phoenix/modules/documentrendering/compose"
 	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
@@ -66,7 +65,6 @@ func NewFileStoreTestModule(db *bun.DB, unit tenant.UnitOfWork, objects UploadsB
 		People:        persons,
 		Settings:      fileStorageSettings{service: settings.Settings},
 		Events:        fileStorageEvents{repo: repositories.NewFileEventTestRepository(db, command)},
-		FileCleanups:  documentCompose.NewFileCleanupStore(db),
 		HasPermission: securityruntime.HasPermission,
 		Announcements: announcements,
 		Observe:       func(filestorageCompose.Observation) {},

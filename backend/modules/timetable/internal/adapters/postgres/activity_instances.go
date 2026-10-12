@@ -117,7 +117,7 @@ func filterActivityInstances(query *bun.SelectQuery, filter domain.ActivityInsta
 		query = query.OrderExpr(`"activity_instance".date ASC, "activity_instance".start_time ASC`)
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit).Offset(filter.Offset)
+		query = query.Limit(int64(filter.Limit)).Offset(int64(filter.Offset))
 	}
 	return query
 }
@@ -521,6 +521,9 @@ func setActivityInstanceField(query *bun.UpdateQuery, fields domain.ActivityInst
 	case "end_time":
 		return query.Set("end_time = ?", fields.EndTime)
 	case "room_id":
+		if fields.RoomID == 0 {
+			return query.Set("room_id = NULL")
+		}
 		return query.Set("room_id = ?", fields.RoomID)
 	case "required_staff":
 		return query.Set("required_staff = ?", fields.RequiredStaff)

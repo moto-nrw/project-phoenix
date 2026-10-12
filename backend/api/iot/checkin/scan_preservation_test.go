@@ -44,7 +44,7 @@ func TestScanPreservesEveryNamedTableAcrossTenants(t *testing.T) {
 		require.NoError(t, db.NewRaw("INSERT INTO active.combined_groups (tenant_id, start_time) VALUES (?, ?) RETURNING id", testpkg.Tenant(t), at).Scan(context.Background(), &combinedID))
 		_, err := db.NewRaw("INSERT INTO active.group_mappings (tenant_id, active_group_id, active_combined_group_id) VALUES (?, ?, ?)", testpkg.Tenant(t), source.ID, combinedID).Exec(context.Background())
 		require.NoError(t, err)
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", nil, testutil.WithDeviceContext(device), testutil.WithStaffContext(staff))
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", nil, testutil.WithDeviceContext(device), testutil.WithStaffContext(staff.ID, staff.TenantID))
 		return fixture{testpkg.Tenant(t), student.ID, visit.ID, targetRoom.ID, card.ID, req.Context()}
 	}
 	own := create(t, "OWN-SCAN")

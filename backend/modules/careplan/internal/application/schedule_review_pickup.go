@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type reviewPickupPayload struct {
@@ -85,23 +86,38 @@ func (s *ScheduleReviews) pickupDiff(ctx context.Context, row *careplan.CareSche
 		}
 	}
 	if old == "" {
-		facts, readErr := s.plan(ctx, student, date, false)
-		if readErr != nil {
-			return nil, readErr
+		if old, err = s.weeklyPickup(ctx, student, date); err != nil {
+			return nil, err
 		}
-		times, readErr := facts.pickupWeek(date)
-		if readErr != nil {
-			return nil, readErr
-		}
-		old = times[int(date.Weekday())]
 	}
 	return []careplan.CareRequestDiffEntry{{Label: date.Format("02.01.2006") + " · Abholzeit", Old: old, New: clock.Format("15:04"), CareKind: "pickup"}}, nil
 }
 
+// weeklyPickup is the weekly pickup time that applies on date: Friday's on a
+// weekend that follows Friday's plan (#3921).
+func (s *ScheduleReviews) weeklyPickup(ctx context.Context, student ports.ReviewStudent, date careplan.Date) (string, error) {
+	facts, err := s.plan(ctx, student, date, false)
+	if err != nil {
+		return "", err
+	}
+	times, err := facts.pickupWeek(date)
+	if err != nil {
+		return "", err
+	}
+	weekday, err := calendar.PlanWeekday(ctx, calendar.Date(date))
+	if err != nil {
+		return "", err
+	}
+	return times[weekday], nil
+}
+
 func (s *ScheduleReviews) pickupBlocks(ctx context.Context, student ports.ReviewStudent, date careplan.Date, clock time.Time) ([]careplan.CareReviewBlock, error) {
 	result := []careplan.CareReviewBlock{}
-	weekday := int(date.Weekday())
-	if weekday < 1 || weekday > 5 {
+	weekday, err := calendar.PlanWeekday(ctx, calendar.Date(date))
+	if err != nil {
+		return nil, err
+	}
+	if weekday > 5 {
 		return result, nil
 	}
 	facts, err := s.plan(ctx, student, date, false)

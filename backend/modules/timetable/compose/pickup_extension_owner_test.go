@@ -822,5 +822,5 @@ func countPickupExtensionRows(t *testing.T, db *bun.DB, studentID int64) int {
 		Where("tenant_id = ?", testpkg.Tenant(t)).Where("student_id = ?", studentID).
 		Count(testpkg.WithPackageTenantRuntime(context.Background()))
 	require.NoError(t, err)
-	return count
+	return int(count)
 }

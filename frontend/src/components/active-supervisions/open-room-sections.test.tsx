@@ -80,7 +80,12 @@ function roster(instanceId: string, canOperate: boolean): TimetableRoster {
 
 function block(
   id: string,
-  options: { own?: boolean; planned?: boolean; canOperate: boolean },
+  options: {
+    own?: boolean;
+    planned?: boolean;
+    canOperate: boolean;
+    spontaneous?: boolean;
+  },
 ): OpenRoomSessionView {
   return {
     activeGroupId: id,
@@ -93,26 +98,30 @@ function block(
       instanceId: id,
       startTime: "11:00",
       endTime: "11:45",
+      isSpontaneous: options.spontaneous === true,
       isUserAssigned: options.planned === true,
       canOperate: options.canOperate,
     },
   };
 }
 
-function context(overviewEnabled: boolean): OpenRoomBlockContext {
+function context(
+  overviewEnabled: boolean,
+  canReadPresentChildren = true,
+): OpenRoomBlockContext {
   return {
     allRooms: [],
     currentStaffId: "staff-1",
     mutateDashboard: vi.fn(),
-    refresh: vi.fn(),
     adoptSession: vi.fn(() => "/active-supervisions"),
     setSelectedTimetableInstanceId: vi.fn(),
     router: { push: vi.fn() },
-    reopenableInstanceId: null,
+    reopenable: null,
     rememberReopenable: vi.fn(),
     clearReopenable: vi.fn(),
     attendanceWebEnabled: true,
     showTimetableCounts: false,
+    canReadPresentChildren,
     canExcuseRestOfDay: false,
     overviewEnabled,
     onAddSupervisor: vi.fn(),
@@ -122,6 +131,7 @@ function context(overviewEnabled: boolean): OpenRoomBlockContext {
 function renderRoom(
   sessions: readonly OpenRoomSessionView[],
   overviewEnabled = true,
+  canReadPresentChildren = true,
 ) {
   const sections = openRoomSections({ sessions });
   if (!sections) throw new Error("the room has blocks");
@@ -139,7 +149,7 @@ function renderRoom(
         now: new Date(),
         onOpenStudent: vi.fn(),
       }}
-      blocks={context(overviewEnabled)}
+      blocks={context(overviewEnabled, canReadPresentChildren)}
     />,
     { wrapper: ToastProvider },
   );
@@ -196,6 +206,23 @@ describe("OpenRoomSections (#3281)", () => {
         screen.getByRole("heading", { name: "GT planned" }).parentElement!,
       ).getByText("Eingeplant"),
     ).toBeInTheDocument();
+  });
+
+  it("hides the present-children picker without directory access", () => {
+    renderRoom([block("own", { own: true, canOperate: true })], true, false);
+
+    expect(
+      screen.queryByRole("button", { name: "Anwesende Kinder" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows an open end for a spontaneous running block", () => {
+    renderRoom([block("foreign", { canOperate: false, spontaneous: true })]);
+
+    expect(
+      screen.getByText("seit 11:00 Uhr · Sie sind hier nicht eingeplant."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/11:00–11:45 Uhr/)).not.toBeInTheDocument();
   });
 
   // #3634: the section header shows count against limit and names an
@@ -274,5 +301,43 @@ describe("OpenRoomSections (#3281)", () => {
     for (const name of BLOCK_ACTIONS) {
       expect(screen.getByRole("button", { name })).toBeInTheDocument();
     }
+  });
+});
+
+describe("OpenRoomSections search (#3889)", () => {
+  beforeEach(() => {
+    rosters.clear();
+    rosters.set("timetable-roster-own", roster("own", true));
+  });
+
+  it("narrows an own block's list to the children the page search finds", () => {
+    const sections = openRoomSections({
+      sessions: [block("own", { own: true, canOperate: true })],
+    });
+    if (!sections) throw new Error("the room has blocks");
+    render(
+      <OpenRoomSections
+        sections={sections}
+        students={[]}
+        filteredStudents={[]}
+        grid={{
+          pickupTimesData: undefined,
+          arrivalTimesData: undefined,
+          trackingData: undefined,
+          myGroupIds: [],
+          myGroupRooms: [],
+          now: new Date(),
+          onOpenStudent: vi.fn(),
+        }}
+        blocks={{
+          ...context(true),
+          rosterRowFilter: (row) => row.studentName.startsWith("Ben"),
+        }}
+      />,
+      { wrapper: ToastProvider },
+    );
+
+    expect(screen.getByText("Ben Beispiel")).toBeInTheDocument();
+    expect(screen.queryByText("Marie Muster")).not.toBeInTheDocument();
   });
 });

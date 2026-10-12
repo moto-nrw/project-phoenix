@@ -62,7 +62,7 @@ func (r *AuthEventRepository) FindByAccountID(ctx context.Context, accountID int
 		Order(orderByCreatedAtDesc)
 
 	if limit > 0 {
-		query = query.Limit(limit)
+		query = query.Limit(int64(limit))
 	}
 
 	err := query.Scan(ctx)

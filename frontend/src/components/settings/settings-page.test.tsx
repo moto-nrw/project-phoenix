@@ -177,7 +177,29 @@ const mockSchema = {
     {
       key: "gdpr",
       label: "Datenschutz",
-      categories: [],
+      categories: [
+        {
+          key: "bewegungsdaten",
+          label: "bewegungsdaten",
+          items: [
+            {
+              key: "gdpr.retention_days",
+              label: "Aufbewahrung",
+              description: "Retention",
+              type: "number" as const,
+              default: 30,
+              value: 30,
+              is_default: true,
+              writable: true,
+              visible: true,
+              sort_order: 1,
+              validation: null,
+              depends_on: null,
+              options: null,
+            },
+          ],
+        },
+      ],
     },
   ],
 };
@@ -360,6 +382,37 @@ describe("useSettingsTabs", () => {
     expect(captured!.tabs.map((tab) => tab.id)).not.toContain(
       "settings-devices",
     );
+  });
+
+  it("hides a tab whose settings are all hidden (#3925)", async () => {
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
+    mockFetchSchema.mockResolvedValue({
+      tabs: [
+        ...mockSchema.tabs,
+        {
+          key: "devices",
+          label: "devices",
+          categories: [
+            {
+              key: "checkout",
+              label: "checkout",
+              items: [{ ...schemaItem("checkout.wc_enabled"), visible: false }],
+            },
+          ],
+        },
+      ],
+    });
+    let captured: TabsResult | null = null;
+
+    render(<HookWrapper onResult={(r) => (captured = r)} />);
+    await waitFor(() => {
+      expect(captured).not.toBeNull();
+    });
+    expect(captured!.tabs.map((tab) => tab.id)).toEqual([
+      "settings-operations",
+      "settings-gdpr",
+      "settings-personalisierung",
+    ]);
   });
 
   it("never renders the startseite schema tab as a generic tab (#3737)", async () => {

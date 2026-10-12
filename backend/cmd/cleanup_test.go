@@ -49,17 +49,18 @@ func render(fn func(io.Writer)) string {
 // setupTestCleanupContext creates a cleanupContext with test database
 func setupTestCleanupContext(t *testing.T) *cleanupContext {
 	db := testpkg.SetupTestDB(t)
-	cleanupSvc := buildRetentionCleanupService(&cleanupContext{DB: db, Audit: repositories.NewTestAuditStore(db)})
 	schools, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
-	return &cleanupContext{
-		Schools:        schools,
-		TenantRuntime:  testpkg.TenantRuntime(t, db),
-		DB:             db,
-		CleanupService: cleanupSvc,
-		Output:         io.Discard,
-		Logger:         log.New(io.Discard, "", 0),
+	ctx := &cleanupContext{
+		Schools:       schools,
+		TenantRuntime: testpkg.TenantRuntime(t, db),
+		DB:            db,
+		Audit:         repositories.NewTestAuditStore(db),
+		Output:        io.Discard,
+		Logger:        log.New(io.Discard, "", 0),
 	}
+	ctx.CleanupService = buildRetentionCleanupService(ctx)
+	return ctx
 }
 
 // setupTestCleanupContextWithServices creates the narrow session-cleanup service.

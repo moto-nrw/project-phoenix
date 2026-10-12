@@ -56,7 +56,7 @@ func TestIntakeCreationRollsBackEachAuthoritativeWrite(t *testing.T) {
 				for _, table := range []string{"enrollment.phases", "enrollment.requests", "enrollment.request_children"} {
 					count, err := db.NewSelect().Table(table).Where("tenant_id = ?", testpkg.Tenant(t)).Count(ctx)
 					require.NoError(t, err)
-					require.Equal(t, expected, count, table)
+					require.Equal(t, int64(expected), count, table)
 				}
 			}
 			assertCounts(0)

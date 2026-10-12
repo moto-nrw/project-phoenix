@@ -531,8 +531,12 @@ export const DEFAULT_LAYOUTS: Record<
     { key: "section.my_day", span: 4, col: 0, row: 0 },
     { key: "section.my_group", span: 2, col: 0, row: 3 },
     { key: "section.reminders", span: 2, col: 2, row: 3 },
+    // Steht allein in ihrer Reihe und wird deshalb breit gezogen
+    // (`widenIntoFreeCells`); fehlen die Erinnerungen, rückt sie nach oben.
     { key: "section.staff_notices", span: 2, col: 0, row: 5 },
-    { key: "section.birthdays", span: 2, col: 2, row: 5 },
+    // Volle Breite wie bei der Leitung: drei Zeilen hoch neben einer Liste
+    // aus zwei Zeilen ließe darunter ein Loch (#3893).
+    { key: "section.birthdays", span: 4, col: 0, row: 7 },
   ],
   lead: [
     // Eine Reihe mit vier Zahlen (#3260): wer da ist, wer noch im Unterricht
@@ -564,7 +568,7 @@ export const DEFAULT_LAYOUTS: Record<
     { key: "section.staff_today", span: 2, col: 0, row: 6 },
     { key: "section.staff_notices", span: 2, col: 2, row: 6 },
     { key: "section.day_flow", span: 2, col: 0, row: 8 },
-    { key: "section.birthdays", span: 2, col: 2, row: 8 },
+    { key: "section.birthdays", span: 4, col: 0, row: 10 },
   ],
 };
 
@@ -634,6 +638,33 @@ function firstFit(
       if (isFree(placements, candidate)) return candidate;
     }
   }
+}
+
+/**
+ * Zieht in der Standardansicht jeden Baustein nach rechts in freie Zellen,
+ * so weit seine erlaubten Breiten reichen. Sonst bliebe neben dem letzten
+ * Baustein einer Reihe ein Loch, sobald ein Baustein fehlt oder ihre Zahl
+ * ungerade ist (#3893). Eine eigene Anordnung behält ihre Löcher; die hat die
+ * Person so gebaut.
+ */
+function widenIntoFreeCells(
+  placements: readonly HomeBlockPlacement[],
+): HomeBlockPlacement[] {
+  let laid = [...placements];
+  for (const entry of sortedPlacements(placements)) {
+    const spans = BLOCK_BY_KEY.get(entry.key)?.spans ?? [];
+    const wider = spans
+      .filter(
+        (span) => span > entry.span && entry.col + span <= HOME_BOARD_COLUMNS,
+      )
+      .reverse()
+      .find((span) => isFree(laid, { ...entry, span }));
+    if (wider === undefined) continue;
+    laid = laid.map((placed) =>
+      placed.key === entry.key ? { ...placed, span: wider } : placed,
+    );
+  }
+  return laid;
 }
 
 /**
@@ -1084,6 +1115,8 @@ export function resolveHomeLayout(
       : [...placements, firstFit(placements, block.key, span)];
     placed.add(block.key);
   }
+
+  if (!arranged) placements = widenIntoFreeCells(placements);
 
   const addable = available.filter(
     (block) => !placed.has(block.key) && policyOf(block.key) !== "disabled",

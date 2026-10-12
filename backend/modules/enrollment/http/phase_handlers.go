@@ -1,0 +1,611 @@
+package enrollmenthttp
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
+	"github.com/go-chi/render"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// PhaseResponse is the wire shape returned to admin UIs. Int64 IDs are
+// stringified to keep the existing int64-as-string convention; dates
+// are formatted YYYY-MM-DD; timestamps RFC3339. The frontend reverses
+// the formatting when binding the edit form.
+type PhaseResponse struct {
+	ID                        string  `json:"id"`
+	Name                      string  `json:"name"`
+	Kind                      string  `json:"kind"`
+	ServiceStartDate          string  `json:"service_start_date"`
+	ServiceEndDate            string  `json:"service_end_date"`
+	EnrollmentOpenAt          *string `json:"enrollment_open_at,omitempty"`
+	EnrollmentCloseAt         *string `json:"enrollment_close_at,omitempty"`
+	FormSchemaID              *string `json:"form_schema_id,omitempty"`
+	CalendarPeriodID          *string `json:"calendar_period_id,omitempty"`
+	ShowStatusReasonToParent  bool    `json:"show_status_reason_to_parent"`
+	CareOverflowMode          string  `json:"care_overflow_mode"`
+	CareOfferingSelectionMode string  `json:"care_offering_selection_mode"`
+	IsActive                  bool    `json:"is_active"`
+	// Rollover columns (migration 1.15.61) — emitted so the admin UI
+	// can distinguish rollover phases from fresh ones and surface the
+	// review-queue link only for rolled-forward phases.
+	RolloverSourcePhaseID *string `json:"rollover_source_phase_id,omitempty"`
+	RolloverMode          *string `json:"rollover_mode,omitempty"`
+	RolloverAutoApprove   bool    `json:"rollover_auto_approve"`
+	RolloverDeadline      *string `json:"rollover_deadline,omitempty"`
+	RolloverBumpsGrade    bool    `json:"rollover_bumps_grade"`
+	// Concrete-class config (migration 1.15.171, issue #1833). The pick
+	// list the public form offers for grade >= 2, and whether choosing is
+	// mandatory. Only meaningful when the tenant setting
+	// enrollment.collect_school_class is on.
+	AvailableSchoolClasses []string `json:"available_school_classes"`
+	RequireSchoolClass     bool     `json:"require_school_class"`
+	// Eligibility config (migration 1.15.234, issue #1663): who may
+	// apply, and an optional class restriction every submitted child
+	// must satisfy.
+	Audience              string   `json:"audience"`
+	EligibleSchoolClasses []string `json:"eligible_school_classes"`
+	// EligibleGradeLevels (migration 1.15.237) restricts the phase to whole
+	// grades — the case a concrete-class list cannot express.
+	EligibleGradeLevels []int `json:"eligible_grade_levels"`
+	// Translations carries the school-written translations of Name with
+	// their German source, so the editor can tell stale ones apart (#3377).
+	Translations enrollmentOwner.Translations `json:"translations,omitempty"`
+	CreatedAt    string                       `json:"created_at"`
+	UpdatedAt    string                       `json:"updated_at"`
+}
+
+func toPhaseResponse(p *enrollmentOwner.Phase) PhaseResponse {
+	resp := PhaseResponse{
+		ID:                        strconv.FormatInt(p.ID, 10),
+		Name:                      p.Name,
+		Kind:                      p.Kind,
+		ServiceStartDate:          string(p.ServiceStartDate),
+		ServiceEndDate:            string(p.ServiceEndDate),
+		ShowStatusReasonToParent:  p.ShowStatusReasonToParent,
+		CareOverflowMode:          p.CareOverflowMode,
+		CareOfferingSelectionMode: p.CareOfferingSelectionMode,
+		IsActive:                  p.IsActive,
+		CreatedAt:                 p.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:                 p.UpdatedAt.Format(time.RFC3339),
+	}
+	applyPhaseLinks(&resp, p)
+	applyPhaseClassConfig(&resp, p)
+	resp.Translations = p.Translations
+	return resp
+}
+
+// applyPhaseLinks renders the window, the schema, calendar and rollover
+// links of a phase.
+func applyPhaseLinks(resp *PhaseResponse, p *enrollmentOwner.Phase) {
+	if p.EnrollmentOpenAt != nil {
+		s := p.EnrollmentOpenAt.Format(time.RFC3339)
+		resp.EnrollmentOpenAt = &s
+	}
+	if p.EnrollmentCloseAt != nil {
+		s := p.EnrollmentCloseAt.Format(time.RFC3339)
+		resp.EnrollmentCloseAt = &s
+	}
+	if p.FormSchemaID != nil {
+		s := strconv.FormatInt(*p.FormSchemaID, 10)
+		resp.FormSchemaID = &s
+	}
+	if p.CalendarPeriodID != nil {
+		s := strconv.FormatInt(*p.CalendarPeriodID, 10)
+		resp.CalendarPeriodID = &s
+	}
+	if p.RolloverSourcePhaseID != nil {
+		s := strconv.FormatInt(*p.RolloverSourcePhaseID, 10)
+		resp.RolloverSourcePhaseID = &s
+	}
+	if p.RolloverMode != nil {
+		mode := *p.RolloverMode
+		resp.RolloverMode = &mode
+	}
+	resp.RolloverAutoApprove = p.RolloverAutoApprove
+	if p.RolloverDeadline != nil {
+		s := p.RolloverDeadline.Format(time.RFC3339)
+		resp.RolloverDeadline = &s
+	}
+	resp.RolloverBumpsGrade = p.RolloverBumpsGrade
+}
+
+// applyPhaseClassConfig renders the class and eligibility config of a phase.
+func applyPhaseClassConfig(resp *PhaseResponse, p *enrollmentOwner.Phase) {
+	resp.AvailableSchoolClasses = p.AvailableSchoolClasses
+	if resp.AvailableSchoolClasses == nil {
+		// Emit [] rather than null so the frontend list binding is stable.
+		resp.AvailableSchoolClasses = []string{}
+	}
+	resp.RequireSchoolClass = p.RequireSchoolClass
+	resp.Audience = p.Audience
+	resp.EligibleSchoolClasses = p.EligibleSchoolClasses
+	if resp.EligibleSchoolClasses == nil {
+		resp.EligibleSchoolClasses = []string{}
+	}
+	resp.EligibleGradeLevels = p.EligibleGradeLevels
+	if resp.EligibleGradeLevels == nil {
+		resp.EligibleGradeLevels = []int{}
+	}
+}
+
+// PhaseRequest is the wire shape POST + PUT accept. Dates are
+// YYYY-MM-DD strings; window timestamps are RFC3339 (or omitted for
+// "unbounded"). FormSchemaID is the string ID of an existing schema
+// row, or omitted/empty for "no custom fields" (the parent form
+// renders core fields only).
+type PhaseRequest struct {
+	Name                      string  `json:"name"`
+	Kind                      string  `json:"kind"`
+	ServiceStartDate          string  `json:"service_start_date"`
+	ServiceEndDate            string  `json:"service_end_date"`
+	EnrollmentOpenAt          *string `json:"enrollment_open_at,omitempty"`
+	EnrollmentCloseAt         *string `json:"enrollment_close_at,omitempty"`
+	FormSchemaID              *string `json:"form_schema_id,omitempty"`
+	CalendarPeriodID          *string `json:"calendar_period_id,omitempty"`
+	ShowStatusReasonToParent  bool    `json:"show_status_reason_to_parent"`
+	CareOverflowMode          string  `json:"care_overflow_mode"`
+	CareOfferingSelectionMode string  `json:"care_offering_selection_mode"`
+	IsActive                  bool    `json:"is_active"`
+	// Concrete-class config (issue #1833) is optional on the wire so a
+	// stale client that predates the feature omits it rather than sending
+	// zero values. Pointers distinguish "field omitted" (nil -> preserve
+	// existing on update / default on create) from "explicitly cleared"
+	// ([] / false). A non-pointer would make every omission look like an
+	// explicit wipe, silently deleting an admin's class list. See
+	// createPhase / updatePhase for how each side resolves nil.
+	AvailableSchoolClasses *[]string `json:"available_school_classes,omitempty"`
+	RequireSchoolClass     *bool     `json:"require_school_class,omitempty"`
+	// Eligibility config (#1663) follows the same optional-pointer
+	// convention: a stale client that omits the fields preserves the
+	// stored values on update rather than resetting them.
+	Audience              *string   `json:"audience,omitempty"`
+	EligibleSchoolClasses *[]string `json:"eligible_school_classes,omitempty"`
+	EligibleGradeLevels   *[]int    `json:"eligible_grade_levels,omitempty"`
+	// Translations (#3377) follows the same convention: omitted keeps the
+	// stored translations, an explicit {} clears them.
+	Translations *enrollmentOwner.Translations `json:"translations,omitempty"`
+
+	calendarPeriodIDPresent bool
+}
+
+func (req *PhaseRequest) Bind(_ *http.Request) error { return nil }
+
+func (req *PhaseRequest) UnmarshalJSON(data []byte) error {
+	type phaseRequestAlias PhaseRequest
+	var alias phaseRequestAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*req = PhaseRequest(alias)
+	_, req.calendarPeriodIDPresent = raw["calendar_period_id"]
+	return nil
+}
+
+// toModel maps the wire shape onto a Phase model. Date parsing
+// failures bubble back as 400 from the handler — kept here so the
+// parsing logic is in one place.
+func (req *PhaseRequest) toModel(existingID int64) (*enrollmentOwner.Phase, error) {
+	startDate, err := calendar.ParseDate(req.ServiceStartDate)
+	if err != nil {
+		return nil, enrollmentOwner.InvalidInput(common.CodeEnrollmentPhaseServicePeriodInvalid, "service_start_date", errors.New("service_start_date must be YYYY-MM-DD"))
+	}
+	endDate, err := calendar.ParseDate(req.ServiceEndDate)
+	if err != nil {
+		return nil, enrollmentOwner.InvalidInput(common.CodeEnrollmentPhaseServicePeriodInvalid, "service_end_date", errors.New("service_end_date must be YYYY-MM-DD"))
+	}
+
+	p := &enrollmentOwner.Phase{
+		Name:                      req.Name,
+		Kind:                      req.Kind,
+		ServiceStartDate:          enrollmentOwner.Date(startDate),
+		ServiceEndDate:            enrollmentOwner.Date(endDate),
+		ShowStatusReasonToParent:  req.ShowStatusReasonToParent,
+		CareOverflowMode:          req.CareOverflowMode,
+		CareOfferingSelectionMode: req.CareOfferingSelectionMode,
+		IsActive:                  req.IsActive,
+	}
+	req.applyClassAndEligibility(p)
+	if err := req.applyWindowAndLinks(p); err != nil {
+		return nil, err
+	}
+	p.ID = existingID
+	return p, nil
+}
+
+// applyClassAndEligibility copies the class and eligibility config and the
+// translations of the request onto the phase.
+func (req *PhaseRequest) applyClassAndEligibility(p *enrollmentOwner.Phase) {
+	// Class config: a provided value (even []/false) is applied verbatim;
+	// an omitted value (nil pointer) leaves the zero value here. On create
+	// that means an empty list / not-required (matching a fresh phase); on
+	// update the handler re-hydrates the omitted field from the stored
+	// phase so a partial update never wipes it. See updatePhase.
+	if req.AvailableSchoolClasses != nil {
+		p.AvailableSchoolClasses = normalizeSchoolClasses(*req.AvailableSchoolClasses)
+	} else {
+		p.AvailableSchoolClasses = []string{}
+	}
+	if req.RequireSchoolClass != nil {
+		p.RequireSchoolClass = *req.RequireSchoolClass
+	}
+	// Eligibility config mirrors the class-config handling: provided
+	// values apply verbatim (normalized), omitted values default here
+	// and are re-hydrated from the stored phase on update.
+	if req.Audience != nil {
+		p.Audience = strings.TrimSpace(*req.Audience)
+	}
+	if req.EligibleSchoolClasses != nil {
+		p.EligibleSchoolClasses = normalizeSchoolClasses(*req.EligibleSchoolClasses)
+	} else {
+		p.EligibleSchoolClasses = []string{}
+	}
+	if req.EligibleGradeLevels != nil {
+		// Range/dedup normalization lives in Phase.Validate, which owns the
+		// shared grade bounds; copying the slice keeps the request body from
+		// aliasing into the model.
+		p.EligibleGradeLevels = append([]int{}, *req.EligibleGradeLevels...)
+	} else {
+		p.EligibleGradeLevels = []int{}
+	}
+	if req.Translations != nil {
+		p.Translations = *req.Translations
+	}
+}
+
+// applyWindowAndLinks parses the enrollment window and the schema and
+// calendar period links of the request onto the phase.
+func (req *PhaseRequest) applyWindowAndLinks(p *enrollmentOwner.Phase) error {
+	openAt, err := parseOptionalRFC3339(req.EnrollmentOpenAt, "enrollment_open_at must be RFC3339")
+	if err != nil {
+		return enrollmentOwner.InvalidInput(common.CodeEnrollmentPhaseWindowInvalid, "enrollment_open_at", err)
+	}
+	p.EnrollmentOpenAt = openAt
+	closeAt, err := parseOptionalRFC3339(req.EnrollmentCloseAt, "enrollment_close_at must be RFC3339")
+	if err != nil {
+		return enrollmentOwner.InvalidInput(common.CodeEnrollmentPhaseWindowInvalid, "enrollment_close_at", err)
+	}
+	p.EnrollmentCloseAt = closeAt
+	schemaID, err := parseOptionalPositiveID(req.FormSchemaID, "form_schema_id must be a positive integer string")
+	if err != nil {
+		return err
+	}
+	p.FormSchemaID = schemaID
+	periodID, err := parseOptionalPositiveID(req.CalendarPeriodID, "calendar_period_id must be a positive integer string")
+	if err != nil {
+		return err
+	}
+	p.CalendarPeriodID = periodID
+	return nil
+}
+
+// hydrateOmittedFields copies every optional field the request omitted from
+// the stored phase onto the update model. PUT replaces the whole row, so a
+// stale client that predates one of these fields (pre-#1833 concrete classes,
+// pre-#1663 eligibility) would otherwise silently wipe the admin's
+// configuration. A PUT without calendar_period_id likewise keeps the stored
+// link; only an explicit null (or value) changes it.
+func (req *PhaseRequest) hydrateOmittedFields(model, existing *enrollmentOwner.Phase) {
+	if !req.calendarPeriodIDPresent {
+		model.CalendarPeriodID = existing.CalendarPeriodID
+	}
+	if req.AvailableSchoolClasses == nil {
+		model.AvailableSchoolClasses = existing.AvailableSchoolClasses
+	}
+	if req.RequireSchoolClass == nil {
+		model.RequireSchoolClass = existing.RequireSchoolClass
+	}
+	if req.Audience == nil {
+		model.Audience = existing.Audience
+	}
+	if req.EligibleSchoolClasses == nil {
+		model.EligibleSchoolClasses = existing.EligibleSchoolClasses
+	}
+	if req.EligibleGradeLevels == nil {
+		model.EligibleGradeLevels = existing.EligibleGradeLevels
+	}
+	if req.Translations == nil {
+		model.Translations = existing.Translations
+	}
+}
+
+// parseOptionalRFC3339 parses an optional RFC3339 timestamp. A nil or empty
+// value yields (nil, nil); a malformed value yields errMsg.
+func parseOptionalRFC3339(value *string, errMsg string) (*time.Time, error) {
+	if value == nil || *value == "" {
+		return nil, nil
+	}
+	t, err := time.Parse(time.RFC3339, *value)
+	if err != nil {
+		return nil, errors.New(errMsg)
+	}
+	return &t, nil
+}
+
+// parseOptionalPositiveID parses an optional positive int64 ID string. A nil
+// or empty value yields (nil, nil); a non-positive or malformed value yields
+// errMsg.
+func parseOptionalPositiveID(value *string, errMsg string) (*int64, error) {
+	if value == nil || *value == "" {
+		return nil, nil
+	}
+	id, err := strconv.ParseInt(*value, 10, 64)
+	if err != nil || id <= 0 {
+		return nil, errors.New(errMsg)
+	}
+	return &id, nil
+}
+
+// normalizeSchoolClasses trims each entry, drops empties, and dedups
+// case-sensitively while preserving admin-entered order. Returns a
+// non-nil empty slice so the jsonb column stores '[]' rather than null.
+func normalizeSchoolClasses(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := make(map[string]struct{}, len(in))
+	for _, c := range in {
+		t := strings.TrimSpace(c)
+		if t == "" {
+			continue
+		}
+		if _, ok := seen[t]; ok {
+			continue
+		}
+		seen[t] = struct{}{}
+		out = append(out, t)
+	}
+	return out
+}
+
+func (rs *Resource) listPhases(w http.ResponseWriter, r *http.Request) {
+	if rs.PhaseService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase service not configured")))
+		return
+	}
+
+	var phases []*enrollmentOwner.Phase
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		list, listErr := rs.PhaseService.AllPhases(ctx)
+		phases = list
+		return listErr
+	})
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	out := make([]PhaseResponse, 0, len(phases))
+	for _, p := range phases {
+		out = append(out, toPhaseResponse(p))
+	}
+	common.Respond(w, r, http.StatusOK, out, "Phases retrieved")
+}
+
+func (rs *Resource) getPhase(w http.ResponseWriter, r *http.Request) {
+	if rs.PhaseService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase service not configured")))
+		return
+	}
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
+		return
+	}
+
+	var phase *enrollmentOwner.Phase
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		p, e := rs.PhaseService.PhaseByID(ctx, id)
+		phase = p
+		return e
+	})
+	if err != nil {
+		if errors.Is(err, enrollmentOwner.ErrPhaseNotFound) {
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, toPhaseResponse(phase), "Phase retrieved")
+}
+
+func (rs *Resource) createPhase(w http.ResponseWriter, r *http.Request) {
+	if rs.PhaseService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase service not configured")))
+		return
+	}
+	req := &PhaseRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	model, err := req.toModel(0)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	var created *enrollmentOwner.Phase
+	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		p, e := rs.PhaseService.CreatePhase(ctx, model)
+		created = p
+		return e
+	})
+	if err != nil {
+		common.RenderError(w, r, phaseWriteErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, toPhaseResponse(created), "Phase created")
+}
+
+// updateWithRefetch is the shared decode -> update -> refetch -> respond body
+// of updatePhase and updateCareOffering. decode binds the request and maps it
+// to the update model; both bind and mapping failures render as 400. updateErr
+// maps an update() failure to its HTTP error (sentinel-based status dispatch
+// lives at the call site).
+func updateWithRefetch[M, E any](rs *Resource, w http.ResponseWriter, r *http.Request,
+	serviceMissing bool, missingMsg string,
+	decode func(r *http.Request, id int64) (M, error),
+	update func(ctx context.Context, model M) error,
+	refetch func(ctx context.Context, id int64) (E, error),
+	toResponse func(E) any, successMsg string,
+	updateErr func(error) render.Renderer,
+) {
+	if serviceMissing {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(missingMsg)))
+		return
+	}
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
+		return
+	}
+	model, err := decode(r, id)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		return update(ctx, model)
+	})
+	if err != nil {
+		common.RenderError(w, r, updateErr(err))
+		return
+	}
+
+	// Refetch so the response carries DB-managed timestamps + applied
+	// defaults (e.g. care_overflow_mode normalisation in Validate).
+	var refreshed E
+	if fetchErr := rs.runInTenantTx(r, func(ctx context.Context) error {
+		e, err := refetch(ctx, id)
+		refreshed = e
+		return err
+	}); fetchErr != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(fetchErr))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, toResponse(refreshed), successMsg)
+}
+
+// phaseWriteErrorRenderer maps phase create/update failures onto their HTTP
+// status: duplicate name -> 409, missing phase -> 404, validation -> 400,
+// everything else -> 500. The 409 cases carry a stable code and render only
+// the sentinel text: the wrapped cause is a Postgres constraint message that
+// must not reach the UI (#3263).
+func phaseWriteErrorRenderer(err error) render.Renderer {
+	switch {
+	case errors.Is(err, enrollmentOwner.ErrPhaseDuplicateName):
+		return common.ErrorConflictOnField(enrollmentOwner.ErrPhaseDuplicateName, common.CodeEnrollmentPhaseNameExists, "name")
+	case errors.Is(err, enrollmentOwner.ErrPhaseCareOfferingConflict):
+		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseCareOfferingConflict, common.CodeEnrollmentPhaseCareOfferingConflict)
+	case errors.Is(err, enrollmentOwner.ErrPhaseNotFound):
+		return common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound)
+	case errors.Is(err, enrollmentOwner.ErrInvalidPhase):
+		return common.ErrorInvalidRequest(err)
+	default:
+		return common.ErrorInternalServer(err)
+	}
+}
+
+func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
+	req := &PhaseRequest{}
+	updateWithRefetch(rs, w, r, rs.PhaseService == nil, "phase service not configured",
+		func(r *http.Request, id int64) (*enrollmentOwner.Phase, error) {
+			if err := render.Bind(r, req); err != nil {
+				return nil, err
+			}
+			return req.toModel(id)
+		},
+		func(ctx context.Context, model *enrollmentOwner.Phase) error {
+			// A PUT without calendar_period_id keeps the stored link; only an
+			// explicit null (or value) changes it. The fetch also surfaces
+			// ErrPhaseNotFound before the update runs.
+			existing, getErr := rs.PhaseService.PhaseByID(ctx, model.ID)
+			if getErr != nil {
+				return getErr
+			}
+			req.hydrateOmittedFields(model, existing)
+			return rs.PhaseService.UpdatePhase(ctx, model)
+		},
+		func(ctx context.Context, id int64) (*enrollmentOwner.Phase, error) {
+			return rs.PhaseService.PhaseByID(ctx, id)
+		},
+		func(p *enrollmentOwner.Phase) any { return toPhaseResponse(p) },
+		"Phase updated",
+		phaseWriteErrorRenderer)
+}
+
+func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {
+	if rs.PhaseService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase service not configured")))
+		return
+	}
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
+		return
+	}
+
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		return rs.PhaseService.DeletePhase(ctx, id)
+	})
+	if err != nil {
+		if errors.Is(err, enrollmentOwner.ErrPhaseNotFound) {
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.RespondNoContent(w, r)
+}
+
+// PhaseDeleteImpactResponse is the delete-confirmation preview the admin
+// UI fetches before deleting. Requests + CareOfferings will be
+// permanently removed; StudentsKept survive the delete.
+type PhaseDeleteImpactResponse struct {
+	Requests      int `json:"requests"`
+	CareOfferings int `json:"care_offerings"`
+	StudentsKept  int `json:"students_kept"`
+}
+
+func (rs *Resource) getPhaseDeleteImpact(w http.ResponseWriter, r *http.Request) {
+	if rs.PhaseService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase service not configured")))
+		return
+	}
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
+		return
+	}
+
+	var impact *enrollmentOwner.PhaseDeleteImpact
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		i, e := rs.PhaseService.DeleteImpact(ctx, id)
+		impact = i
+		return e
+	})
+	if err != nil {
+		if errors.Is(err, enrollmentOwner.ErrPhaseNotFound) {
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, PhaseDeleteImpactResponse{
+		Requests:      impact.Requests,
+		CareOfferings: impact.CareOfferings,
+		StudentsKept:  impact.StudentsKept,
+	}, "Phase delete impact")
+}

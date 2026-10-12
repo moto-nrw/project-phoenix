@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   DEPLOYMENTS,
+  FEATURES,
   POSTHOG_HOST,
   dashboards,
+  featureExpression,
+  featureOfPage,
   missingPath,
   posthogClient,
   readBrowserEvents,
@@ -14,13 +17,15 @@ import {
 const definitions = dashboards({ projectId: '1' });
 const insights = definitions.flatMap((dashboard) => dashboard.insights);
 
-test('defines the five dashboards of #3604', () => {
+test('defines the dashboards of #3604, the feature areas, and the demo behaviour', () => {
   assert.deepEqual(definitions.map((dashboard) => dashboard.name), [
     'Nutzungsanalyse: Demo-Funnel',
     'Nutzungsanalyse: Nutzung pro Rolle und Oberfläche',
     'Nutzungsanalyse: Seiten',
     'Nutzungsanalyse: Reibung',
     'Nutzungsanalyse: Aktive Schulen',
+    'Nutzungsanalyse: Funktionen in Schulen',
+    'Nutzungsanalyse: Demo-Verhalten',
   ]);
   const names = insights.map((insight) => insight.name);
   assert.equal(new Set(names).size, names.length, 'insight names are the sync key and must be unique');
@@ -44,9 +49,14 @@ test('every insight filters on production or the demo, never staging', () => {
   }
 });
 
-test('the demo funnel stays in the demo and the school dashboards in production', () => {
-  const [demo, ...schools] = definitions;
-  assert.ok(demo.insights.every((insight) => insight.deployment === 'demo'));
+test('the demo dashboards stay in the demo and the school dashboards in production', () => {
+  const isDemo = (dashboard) => dashboard.name.startsWith('Nutzungsanalyse: Demo');
+  const demos = definitions.filter(isDemo);
+  assert.deepEqual(demos.map((d) => d.name), ['Nutzungsanalyse: Demo-Funnel', 'Nutzungsanalyse: Demo-Verhalten']);
+  for (const demo of demos) {
+    assert.ok(demo.insights.every((insight) => insight.deployment === 'demo'), demo.name);
+  }
+  const schools = definitions.filter((d) => !isDemo(d));
   for (const dashboard of schools.filter((d) => d.name !== 'Nutzungsanalyse: Reibung')) {
     assert.ok(dashboard.insights.every((insight) => insight.deployment === 'production'), dashboard.name);
   }
@@ -76,6 +86,31 @@ test('reads the browser events from analytics-policy.ts', () => {
   assert.throws(() => readBrowserEvents('const OTHER = 1;'), /CUSTOM_EVENTS/);
   const usage = insights.find((insight) => insight.name.startsWith('Nutzung: Kernaktionen'));
   assert.match(usage.query.source.query, /event not in \('login_failed', /);
+});
+
+test('every route template belongs to exactly one feature area or is an entry page', () => {
+  for (const [surface, template] of readRouteTemplates()) {
+    const feature = featureOfPage(surface, template);
+    assert.notEqual(feature, 'Sonstiges', `${surface} ${template}: add it to FEATURES or NO_FEATURE_PAGES`);
+    const owners = FEATURES.filter((f) => (f.pages?.[surface] ?? []).some((pattern) => pattern.endsWith('/**')
+      ? template === pattern.slice(0, -3) || template.startsWith(pattern.slice(0, -2))
+      : template === pattern));
+    assert.ok(owners.length <= 1, `${surface} ${template} is in ${owners.map((f) => f.name).join(' and ')}`);
+  }
+  assert.equal(featureOfPage('ogs', '/students/:id/room-history'), 'Kinder und Kindakte');
+  assert.equal(featureOfPage('ogs', '/students-archive'), 'Sonstiges', 'a prefix covers its sub pages only');
+  assert.equal(featureOfPage('parents', '/login'), null);
+});
+
+test('feature areas have unique names, each event belongs to one area, and the kiosk counts', () => {
+  const names = FEATURES.map((f) => f.name);
+  assert.equal(new Set(names).size, names.length);
+  const events = FEATURES.flatMap((f) => f.events ?? []);
+  assert.equal(new Set(events).size, events.length);
+  assert.ok(events.includes('student_checked_in') && events.includes('student_checked_out'));
+  const expression = featureExpression();
+  for (const name of names) assert.ok(expression.includes(`'${name}'`), name);
+  assert.match(expression, /startsWith\(event, 'demo_'\)/, 'the demo funnel events are no feature use');
 });
 
 test('the page list names every route template', () => {
@@ -135,9 +170,9 @@ function fakePostHog() {
 test('sync creates everything once and is idempotent', async () => {
   const posthog = fakePostHog();
   const first = await sync(posthog.api, '1', definitions);
-  assert.equal(posthog.store.dashboards.length, 5);
+  assert.equal(posthog.store.dashboards.length, definitions.length);
   assert.equal(posthog.store.insights.length, insights.length);
-  assert.equal(first.length, 5 + insights.length);
+  assert.equal(first.length, definitions.length + insights.length);
   for (const dashboard of posthog.store.dashboards) {
     const expected = definitions.find((d) => d.name === dashboard.name).insights.length;
     assert.equal(posthog.store.insights.filter((i) => i.dashboards.includes(dashboard.id)).length, expected);
@@ -173,6 +208,6 @@ test('defaults PostHog adds to a stored query do not count as a change', () => {
 test('a dry run writes nothing', async () => {
   const posthog = fakePostHog();
   const log = await sync(posthog.api, '1', definitions, { dryRun: true });
-  assert.equal(log.length, 5 + insights.length);
+  assert.equal(log.length, definitions.length + insights.length);
   assert.deepEqual(posthog.writes, []);
 });

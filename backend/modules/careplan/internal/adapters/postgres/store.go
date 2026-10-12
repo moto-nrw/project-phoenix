@@ -213,7 +213,7 @@ func (s *Store) CountCareOfferingsByPhase(ctx context.Context, phaseID int64) (i
 		return 0, stats, fmt.Errorf("care plan postgres: count care offerings by phase: %w", err)
 	}
 	stats.Rows = int64(count)
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 func (s *Store) CreateCareOffering(ctx context.Context, fields domain.CareOfferingFields) (domain.CareOffering, domain.OperationStats, error) {
@@ -324,7 +324,7 @@ func insertAutoAddTriggers(ctx context.Context, db bun.IDB, tenantID, targetID i
 	if err != nil {
 		return stats, fmt.Errorf("care plan postgres: validate care offering auto triggers: %w", err)
 	}
-	if count != len(triggerIDs) {
+	if count != int64(len(triggerIDs)) {
 		return stats, domain.ErrCareOfferingTriggerInvalid
 	}
 	rows := make([]autoTriggerRow, 0, len(triggerIDs))
@@ -400,7 +400,7 @@ func (s *Store) ListOfferingChanges(ctx context.Context, filter domain.OfferingC
 	}
 	query = orderOfferingChanges(query, filter)
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit)
+		query = query.Limit(int64(filter.Limit))
 	}
 	if filter.LockForUpdate {
 		query = query.For("UPDATE")

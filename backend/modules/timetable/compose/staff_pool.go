@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -89,6 +90,9 @@ func (d *conflictDetection) loadStaffPoolFacts(ctx context.Context, instance *sc
 	if err != nil {
 		return nil, false, nil, fmt.Errorf("load staff directory: %w", err)
 	}
+	staff = slices.DeleteFunc(staff, func(member *usersModels.Staff) bool {
+		return member != nil && member.IsGuest
+	})
 	sortStaffByName(staff)
 	return buildStaffPoolFacts(instance, plannable, rows, shifts), len(usedWeeks) > 0, staff, nil
 }

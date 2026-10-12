@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -22,19 +21,18 @@ import (
 // Resource is the staff messaging HTTP resource.
 type Resource struct {
 	Service communication.ParentMessagingCapability
-	db      *bun.DB
 }
 
 // NewResource wires the staff messaging resource.
-func NewResource(service communication.ParentMessagingCapability, db *bun.DB) *Resource {
-	return &Resource{Service: service, db: db}
+func NewResource(service communication.ParentMessagingCapability) *Resource {
+	return &Resource{Service: service}
 }
 
 // Router returns the chi router scoped to /messages.
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 
-	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 
 		// users:read is the coarse gate; per-child access is enforced in the
 		// service via authorize.CanReadStudent. Starting/sending a thread

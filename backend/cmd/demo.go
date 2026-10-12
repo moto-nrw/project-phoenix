@@ -184,7 +184,7 @@ func loadDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, slug, 
 	}
 	visitorParentID := seedapi.VisitorParentAccountID(profile)
 	ticker, err := simulate.NewDemoTicker(simulate.DemoTickOptions{
-		State: state, Client: client, Now: time.Now, Visits: query,
+		State: state, Client: client, Now: time.Now, Visits: query, PlanWeekdays: true,
 		// The other parents ask for pickup changes and write messages (#3468);
 		// they keep a client of their own, apart from the admin's login.
 		Parents: simulate.OtherDemoParents(profile.Credentials.Parents, visitorParentID),

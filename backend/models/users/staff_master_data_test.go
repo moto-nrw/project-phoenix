@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,9 +14,9 @@ func ptr[T any](v T) *T { return &v }
 func TestStaffMasterData_Validate(t *testing.T) {
 	t.Parallel()
 
-	entry := timezone.NewDate(2024, 8, 1)
-	before := timezone.NewDate(2024, 7, 31)
-	after := timezone.NewDate(2025, 1, 31)
+	entry := calendar.NewDate(2024, 8, 1)
+	before := calendar.NewDate(2024, 7, 31)
+	after := calendar.NewDate(2025, 1, 31)
 
 	tests := []struct {
 		name    string
@@ -85,9 +85,9 @@ func TestStaffMasterData_Validate(t *testing.T) {
 func TestStaffQualification_Validate(t *testing.T) {
 	t.Parallel()
 
-	acquired := timezone.NewDate(2023, 3, 10)
-	expires := timezone.NewDate(2026, 3, 10)
-	expired := timezone.NewDate(2022, 3, 10)
+	acquired := calendar.NewDate(2023, 3, 10)
+	expires := calendar.NewDate(2026, 3, 10)
+	expired := calendar.NewDate(2022, 3, 10)
 
 	require.NoError(t, (&StaffQualification{
 		StaffID:    9001,

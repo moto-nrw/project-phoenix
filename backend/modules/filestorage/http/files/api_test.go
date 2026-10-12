@@ -70,7 +70,7 @@ func setupFileStoreRoute(t *testing.T) *apiContext {
 	objects, err := common.PrivateUploadsBackend()
 	require.NoError(t, err)
 	db, svc := testutil.SetupFileStoreModule(t, objects)
-	resource := filestoreAPI.NewResource(svc.FileStore, db, slog.Default())
+	resource := filestoreAPI.NewResource(svc.FileStore, slog.Default())
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Mount("/files", resource.Router())

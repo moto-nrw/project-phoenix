@@ -187,7 +187,7 @@ func (s *statusDayStore) CountStudentStatusDays(ctx context.Context, options *ca
 	if err != nil {
 		return 0, stats, requestDBError("count student status days", err)
 	}
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 func (s *statusDayStore) CountEffectiveStudentAbsences(ctx context.Context, date careplan.Date) (careplan.StudentStatusCounts, carePlanCompose.RequestStoreStats, error) {

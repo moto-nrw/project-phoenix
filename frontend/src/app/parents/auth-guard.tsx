@@ -2,6 +2,8 @@
 
 import { redirect, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import useSWR from "swr";
+import { fetchParentProfile, parentProfileCacheKey } from "~/lib/parent-api";
 import { parentPath } from "~/lib/parent-url";
 import { ParentShellProvider } from "~/lib/shell-auth-context";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
@@ -50,6 +52,13 @@ export function ParentAuthGuard({
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
   const { data: session, status } = useSession();
+  // Der Name der Kopfzeile kommt aus dem Elternprofil (#3891).
+  const { data: profile } = useSWR(
+    !isPublicPage && status === "authenticated" && session?.user?.id
+      ? parentProfileCacheKey(session.user.id)
+      : null,
+    fetchParentProfile,
+  );
 
   // Login page: render without auth guards.
   if (isPublicPage) {
@@ -68,7 +77,13 @@ export function ParentAuthGuard({
   // Locale handling lives in the single ParentLocaleProvider mounted by
   // ParentProviders; it picks up the now-authenticated session on its own.
   return (
-    <ParentShellProvider>
+    <ParentShellProvider
+      accountName={
+        profile
+          ? { firstName: profile.first_name, lastName: profile.last_name }
+          : undefined
+      }
+    >
       <BreadcrumbProvider>
         {!sessionLoading ? <ParentRealtimeBridge /> : null}
         <ParentShell>

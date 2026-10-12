@@ -7,7 +7,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
+	"context"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type dailyDeparture struct {
@@ -102,4 +105,15 @@ func dailyDepartureMatchesFilter(daily dailyDeparture, filter string) bool {
 	default:
 		return false
 	}
+}
+
+// departurePlanDate is the day whose weekday's departure plan applies on
+// date: the Friday before a weekend that follows Friday's plan (#3921), else
+// date itself. A weekday never reads the setting.
+func departurePlanDate(ctx context.Context, date timezone.Date) (timezone.Date, error) {
+	weekday, err := calendar.PlanWeekday(ctx, date)
+	if err != nil {
+		return date, err
+	}
+	return date.AddDays(weekday - calendar.ISOWeekday(date)), nil
 }

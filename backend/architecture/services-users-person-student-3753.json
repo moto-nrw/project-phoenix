@@ -1,0 +1,123 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2728",
+    "#3750",
+    "#3751",
+    "#3752",
+    "#3771"
+  ],
+  "owner_and_capability": "People Directory — the retained person and student services leave services/users (slice 4 of #2728, #3753). The person service is the concrete PersonDirectory in modules/peopledirectory/compose, without an interface: consumers keep the ports they own (#3771) and the root passes the concrete type. The change-history retention sweep is a People Directory compose service over consumer-owned ports. The photo, audit-actor and student-directory contracts and the student directory service move to the same compose package. The staff write inputs move with the embedded StaffDirectory port, so the owner of the two staff writes stays undecided.",
+  "affected_packages": [
+    "services/users",
+    "services/users/userstest",
+    "services",
+    "modules/peopledirectory/compose",
+    "modules/peopledirectory/userscontract",
+    "modules/devicescan/compose",
+    "modules/timetable/compose",
+    "workflows/parentportal/care",
+    "workflows/parentportal/compose",
+    "database/repositories",
+    "api",
+    "test"
+  ],
+  "affected_tables": [
+    "users.persons",
+    "users.students",
+    "users.teachers",
+    "audit.student_field_edits",
+    "audit.data_deletions"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/models/base",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/models/audit",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/services/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users/userstest|github.com/moto-nrw/project-phoenix/models/base",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users/userstest|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users/userstest|github.com/moto-nrw/project-phoenix/services/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/models/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/services/config"
+  ],
+  "atomic_cutover": "One code-only change. person_directory_service.go, its ports and the two caregiver lookups move to modules/peopledirectory/compose as PersonDirectory with the StudentRoutePersons and GroupRoutePeople adapters; student_change_log_cleanup_service.go becomes a compose service over StudentChangeLogStore, StudentChangeLogDeletionLog and StudentChangeLogRetention, bound by services.NewStudentChangeLogCleanup with the same deletion-trail rows; student_photo_port.go, student_audit_port.go, student_directory_port.go and student_directory_service.go move to modules/peopledirectory/compose; the audit contract drops GetChangeHistory (only suites called it; they read the repository seam) and ErrPhotoNoTenant moves to its producer in services. The person and student suites stay in services/users because every other test scope would add keys. The error aliases of #3750 are removed: callers name userscontract, ErrPersonNotFound and ErrStudentNotFound move into userscontract with their instances, and the three staff write refusals move into services. The dead List and FindByName person reads and the unused companion re-exports are deleted. The Care Plan participation resolver is injected at construction (late-bound in the root, WithCareParticipation for test graphs), so no setter is added. services/users/userstest is deleted; its one consumer uses test.StaffAccountPeople. Routes, error bodies and /api/iot error texts are unchanged.",
+  "tests": [
+    "services/users: the person behavior suite against the isolated PostgreSQL test database through the services factory, with exact wire messages where the external test scope may not import userscontract; the student deletion, consent, audit, photo, change-log cleanup, staff and offboarding suites.",
+    "modules/peopledirectory/compose: the roster enrollment rule and the fail-closed cleanup paths; modules/peopledirectory/userscontract: the error vocabulary.",
+    "Module suites that built the person service (Care Plan contract tests, communication messages, presence, parent portal, timetable) through services.NewTestPersonDirectory and test.StaffAccountPeople.",
+    "go test ./test (ratchets incl. function length, policy temporary rules, composition inventory), golangci-lint on the affected packages, scripts/test-changed.sh against the base without --fast.",
+    "scripts/backend-architecture.sh check with exactly the listed keys absent from legacy.jsonl and none added; scripts/backend-architecture.sh validate-ticket --all."
+  ],
+  "runtime_evidence": {
+    "source": "Local runs on the #3753 branch on 2026-10-10 against the local postgres-test server.",
+    "sources": [
+      "backend/modules/peopledirectory/compose/person_directory.go",
+      "backend/modules/peopledirectory/compose/student_change_log_cleanup.go",
+      "backend/services/student_change_log_cleanup_composition.go",
+      "backend/services/factory.go"
+    ],
+    "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh against the base, local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "Code-only contract: every affected suite passes with the same scenarios, and scripts/backend-architecture.sh check passes with exactly the listed keys removed, no key added and a composition surface that does not grow.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "The same repositories issue the same statements against the same tables; the retention sweep writes the same audit.data_deletions rows."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No statement was added or removed on any read or write path."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #3753 names zero old files and the route suites as the gate for a code-only move."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency run was made; #3753 names zero old files and the route suites as the gate for a code-only move."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed with 196 remaining keys (206 at the base) and a composition surface of 591 -> 591; golangci-lint reported 0 issues on the affected packages; the module, policy and composition-inventory ratchets in go test ./test pass."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection acquisition or pool setting changed."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "The same rows are locked in the same order; the bracelet assignment still locks the student row before the person row."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No lock order changed, so no new deadlock can arise."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "The retention sweep issues the same statements per tenant."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No retry behaviour changed."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No scheduling changed."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The retention sweep still refuses to run without a retention resolver or deletion trail and writes the trail before the delete; a missing or graduated child in the bracelet assignment keeps its 404 mapping; a missing locked child still matches base.ErrNotFound and sql.ErrNoRows. Asserted by the compose unit tests and the services/users suites."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No data write path or schema change. Reverting the change restores the files, the rules and the baseline entries."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "go build ./... and go vet ./... passed; the affected packages ran through scripts/test-changed.sh. No manual application start was made."
+    }
+  },
+  "rollback_and_cleanup": "Revert the code-only change if a hidden caller appears. No table, migration or configuration is touched, and nothing remains to clean up.",
+  "exit_criterion": "No alias of #3750 is left, services/users holds only the caregiver and guardian clusters, the student deletion and consent suites (query budgets included) pass, and every listed key is absent from legacy.jsonl with none added."
+}

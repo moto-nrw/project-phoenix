@@ -15,6 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -36,23 +37,23 @@ type moveSetup struct {
 	roomID   int64
 	staffID  int64 // assigned to source in makeMoveSetup
 	otherID  int64 // free second staff member
-	source   *scheduleModels.ActivityInstance
-	target   *scheduleModels.ActivityInstance
+	source   *testpkg.ActivityInstance
+	target   *testpkg.ActivityInstance
 	rowIDs   []int64
 }
 
 // createMoveInstance inserts one activity instance for the setup's tenant.
-func createMoveInstance(t *testing.T, s *moveSetup, title, startHHMM, endHHMM, status string) *scheduleModels.ActivityInstance {
+func createMoveInstance(t *testing.T, s *moveSetup, title, startHHMM, endHHMM, status string) *testpkg.ActivityInstance {
 	t.Helper()
-	row := &scheduleModels.ActivityInstance{
-		Date:      scheduleModels.Date(moveTestDate()),
+	row := &testpkg.ActivityInstance{
+		Date:      testpkg.ScheduleDate(moveTestDate()),
 		Title:     title,
 		StartTime: parseMoveClock(t, startHHMM),
 		EndTime:   parseMoveClock(t, endHHMM),
 		RoomID:    s.roomID,
 		Status:    status,
 	}
-	row.SetTenantID(s.tenantID)
+	row.TenantID = s.tenantID
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, row)
 	return row
 }
@@ -61,9 +62,9 @@ func createMoveInstance(t *testing.T, s *moveSetup, title, startHHMM, endHHMM, s
 // is active and bridged to the group.
 func runMoveBlock(t *testing.T, s *moveSetup, instanceID, groupID int64) {
 	t.Helper()
-	row := &scheduleModels.ActivityInstance{Status: scheduleModels.InstanceStatusActive, ActiveGroupID: &groupID}
+	row := &testpkg.ActivityInstance{Status: scheduleModels.InstanceStatusActive, ActiveGroupID: &groupID}
 	row.ID = instanceID
-	row.SetTenantID(s.tenantID)
+	row.TenantID = s.tenantID
 	testpkg.UpsertActivitySession(t, s.ctx, s.db, row)
 }
 
@@ -213,6 +214,24 @@ func TestMoveStaffBetweenBlocks_AssignFromPoolCreatesRow(t *testing.T) {
 	assert.Contains(t, string(events[0].NewValue), fmt.Sprintf(`"to_instance_id": %d`, s.target.ID))
 }
 
+func TestMoveStaffBetweenBlocks_RejectsExternalCaregiver(t *testing.T) {
+	t.Parallel()
+
+	s := makeMoveSetup(t)
+	external := &usersModels.Guest{StaffID: s.otherID, ActivityExpertise: "Musik"}
+	external.SetTenantID(s.tenantID)
+	_, err := s.db.NewInsert().Model(external).ModelTableExpr(`users.guests`).Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{
+		StaffID: external.StaffID,
+	})
+	de := requireDeviationErr(t, err)
+	assert.Equal(t, http.StatusBadRequest, de.Status)
+	assert.Equal(t, timetable.CodeDeviationSelectionInvalid, de.Code)
+	assert.Empty(t, loadInstanceStaffRows(t, s.db, s.ctx, s.target.ID))
+}
+
 func TestMoveStaffBetweenBlocks_RetryIsIdempotent(t *testing.T) {
 	t.Parallel()
 
@@ -335,15 +354,15 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 
 	t.Run("cross-date move rejected", func(t *testing.T) {
 		s := setup(t)
-		otherDay := &scheduleModels.ActivityInstance{
-			Date:      scheduleModels.Date(moveTestDate().AddDays(1)),
+		otherDay := &testpkg.ActivityInstance{
+			Date:      testpkg.ScheduleDate(moveTestDate().AddDays(1)),
 			Title:     "Anderer Tag",
 			StartTime: parseMoveClock(t, "14:00"),
 			EndTime:   parseMoveClock(t, "15:00"),
 			RoomID:    s.roomID,
 			Status:    scheduleModels.InstanceStatusPlanned,
 		}
-		otherDay.SetTenantID(s.tenantID)
+		otherDay.TenantID = s.tenantID
 		testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, otherDay)
 
 		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, otherDay.ID, timetable.MoveStaffInput{
@@ -552,15 +571,15 @@ func TestMoveStaffBetweenBlocks_PastDateRejected(t *testing.T) {
 	t.Parallel()
 
 	s := makeMoveSetup(t)
-	past := &scheduleModels.ActivityInstance{
-		Date:      scheduleModels.Date(calendar.TodayDate().AddDays(-1)),
+	past := &testpkg.ActivityInstance{
+		Date:      testpkg.ScheduleDate(calendar.TodayDate().AddDays(-1)),
 		Title:     "Gestern",
 		StartTime: parseMoveClock(t, "14:00"),
 		EndTime:   parseMoveClock(t, "15:00"),
 		RoomID:    s.roomID,
 		Status:    scheduleModels.InstanceStatusPlanned,
 	}
-	past.SetTenantID(s.tenantID)
+	past.TenantID = s.tenantID
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, past)
 
 	_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, past.ID, timetable.MoveStaffInput{StaffID: s.staffID})

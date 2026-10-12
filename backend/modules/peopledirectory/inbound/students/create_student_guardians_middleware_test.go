@@ -46,7 +46,7 @@ func assertNoStudentCommittedUnderTenantTx(
 		Where("first_name = ? AND last_name = ?", firstName, lastName).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, personCount,
+	assert.Equal(t, int64(0), personCount,
 		"student/person must NOT be committed when guardian validation fails under TenantTxMiddleware")
 }
 

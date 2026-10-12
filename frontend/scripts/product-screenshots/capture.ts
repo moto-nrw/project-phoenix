@@ -66,20 +66,44 @@ nextjs-portal { display: none !important; }
  * ersten Besuch einen Dialog, solange der Browser keine gespeicherte
  * Entscheidung hat. Der Schlüssel enthält die Konto-ID, die vorher niemand
  * kennt; deshalb beantwortet dieses Skript die Frage für jeden Schlüssel dieser
- * Form mit "erledigt". Ein Produkt-Screenshot zeigt die App im Alltag, nicht
- * ihren Erststart.
+ * Form mit "erledigt". Dasselbe gilt für die Erste-Schritte-Liste der Eltern
+ * (components/parent/onboarding), die sich beim ersten Besuch über den Inhalt
+ * legt: Sie gilt als ausgeblendet. Ein Produkt-Screenshot zeigt die App im
+ * Alltag, nicht ihren Erststart.
  */
 const PRESET_DECISIONS = `
 (() => {
   const setupKey = /^moto\\.[a-z]+\\.notification-setup\\.v1\\./;
+  const parentFirstStepsKey = /^parent-first-steps:v1:/;
   const original = Storage.prototype.getItem;
   Storage.prototype.getItem = function (key) {
-    return setupKey.test(key) ? '{"done":true}' : original.call(this, key);
+    if (setupKey.test(key)) return '{"done":true}';
+    if (parentFirstStepsKey.test(key)) return '{"dismissed":true}';
+    return original.call(this, key);
   };
 })();
 `;
 
 const LOADING_SELECTOR = '[aria-busy="true"], .animate-pulse';
+
+/**
+ * Pulsierende Status-Punkte ("Belegt", "eingestempelt") tragen dieselbe
+ * Klasse wie Skelette, laden aber nichts. Sie sind höchstens so groß.
+ */
+const STATUS_DOT_MAX_PX = 8;
+
+/** Sichtbare Ladeanzeigen auf der Seite, ohne Status-Punkte. */
+function countLoadingIndicators(page: Page): Promise<number> {
+  return page.evaluate(
+    ({ selector, dotMax }) =>
+      Array.from(document.querySelectorAll(selector)).filter((element) => {
+        if (element.matches('[aria-busy="true"]')) return true;
+        const { width, height } = element.getBoundingClientRect();
+        return width > dotMax || height > dotMax;
+      }).length,
+    { selector: LOADING_SELECTOR, dotMax: STATUS_DOT_MAX_PX },
+  );
+}
 
 async function login(
   context: BrowserContext,
@@ -138,18 +162,13 @@ async function sessionFor(
 }
 
 async function waitForSettled(page: Page, timeoutMs: number): Promise<number> {
-  try {
-    await page.waitForFunction(
-      (selector) => document.querySelectorAll(selector).length === 0,
-      LOADING_SELECTOR,
-      { timeout: timeoutMs },
-    );
-  } catch {
-    // Die Ladeanzeigen sind nach dem Timeout noch da: wird unten gezählt.
+  const deadline = Date.now() + timeoutMs;
+  while ((await countLoadingIndicators(page)) > 0 && Date.now() < deadline) {
+    await page.waitForTimeout(200);
   }
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(SETTLE_MS);
-  return page.locator(LOADING_SELECTOR).count();
+  return countLoadingIndicators(page);
 }
 
 async function runStep(page: Page, step: Step): Promise<void> {
@@ -159,7 +178,9 @@ async function runStep(page: Page, step: Step): Promise<void> {
     await page
       .locator(step.warten_auf)
       .first()
-      .waitFor({ state: "visible", timeout: 15_000 });
+      // Großzügig: nach einem Klick auf eine andere Seite kompiliert der
+      // Dev-Server deren Route beim ersten Aufruf.
+      .waitFor({ state: "visible", timeout: 30_000 });
   } else if (typeof step.scrollen === "number") {
     const offset = step.scrollen;
     await page.evaluate((top) => window.scrollTo(0, top), offset);
@@ -189,7 +210,11 @@ async function captureOne(
     locale: "de-DE",
     timezoneId: "Europe/Berlin",
     colorScheme: "light",
-    reducedMotion: "reduce",
+    // Kein reducedMotion: framer-motion liest die Einstellung erst im Browser
+    // (useReducedMotion ist auf dem Server null). Mit "reduce" weichen die
+    // Startstile animierter Elemente vom Server-HTML ab, und die Kindersuche
+    // bricht mit einem Hydration-Fehler ab. CLEAN_CSS und
+    // `animations: "disabled"` halten das Bild trotzdem ruhig.
   });
   try {
     await context.addInitScript(PRESET_DECISIONS);
@@ -251,12 +276,18 @@ async function captureOne(
       (step) => "klicken" in step,
     );
     let loadingIndicators = await waitForSettled(page, loadTimeoutMs);
+    // Die Umleitungsprüfung gilt der Seite, auf der der Shot landet. Ein Klick
+    // der Vorbereitung darf danach weiterführen, etwa von der Kindersuche auf
+    // ein Kind, dessen ID erst der Seed vergibt.
+    const landedPath = new URL(page.url()).pathname;
     for (const step of shot.vorbereitung ?? []) {
       try {
         await runStep(page, step);
       } catch (error) {
+        // Mit dem Anfang des Call-Logs: er sagt, ob der Selektor nichts fand
+        // oder ein Element, das sich nicht klicken ließ.
         stepFailures.push(
-          `Vorbereitung ${JSON.stringify(step)} fehlgeschlagen: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`,
+          `Vorbereitung ${JSON.stringify(step)} fehlgeschlagen: ${error instanceof Error ? error.message.split("\n").slice(0, 4).join(" ").replace(/\s+/g, " ") : String(error)}`,
         );
         break;
       }
@@ -267,7 +298,7 @@ async function captureOne(
       ...stepFailures,
       ...findBrokenReasons({
         requestedPath,
-        finalPath: new URL(page.url()).pathname,
+        finalPath: landedPath,
         documentStatus: response?.status() ?? null,
         failedResponses,
         consoleErrors,

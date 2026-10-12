@@ -13,7 +13,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,7 +67,7 @@ func TestCheckoutRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 				if detailed {
 					presenceMode = "detailed"
 				}
-				activeService.ConfigureForTest(svc, activeService.WithSettings(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) { return presenceMode, settingsErr }})))
+				activeService.ConfigureForTest(svc, activeService.WithSettings(services.PresenceSettings(&settingsDouble{ResolveStringFn: func(context.Context, string) (string, error) { return presenceMode, settingsErr }})))
 				staff := testpkg.CreateTestStaff(t, db, "SlotCheckout", "Staff")
 				device := testpkg.CreateTestDevice(t, db, "slot-checkout-rollback")
 				room := testpkg.CreateTestRoom(t, db, "SlotCheckoutRoom")

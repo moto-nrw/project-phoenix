@@ -313,7 +313,7 @@ func TestInstance_UpdatePlannedRejectsDateOutsideActiveCalendarPeriod(t *testing
 	require.ErrorIs(t, err, timetable.ErrInstanceOutsideActiveCalendarPeriod)
 	stored, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
-	assert.Equal(t, instance.Date, stored.Date)
+	assert.Equal(t, instance.Date.String(), stored.Date.String())
 }
 
 func TestInstance_UpdatePlannedKeepsDateAfterPeriodDeactivation(t *testing.T) {
@@ -1231,8 +1231,8 @@ func TestInstance_Start_StaffSameRoomIsNotAConflict(t *testing.T) {
 // (#2151 review).
 func seedBridgedActiveInstance(t *testing.T, s *lifecycleSetup, group *studentpresence.LiveGroup, staffID int64, overrideRoomID *int64, withStaffRow bool) {
 	t.Helper()
-	ai := &scheduleModels.ActivityInstance{
-		Date:          scheduleModels.NewDate(2026, 4, 20),
+	ai := &testpkg.ActivityInstance{
+		Date:          testpkg.Date(2026, 4, 20),
 		Title:         "Lifecycle-Bridged",
 		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -1241,7 +1241,7 @@ func seedBridgedActiveInstance(t *testing.T, s *lifecycleSetup, group *studentpr
 		IsSpontaneous: true,
 		ActiveGroupID: &group.ID,
 	}
-	ai.SetTenantID(testpkg.Tenant(t))
+	ai.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, ai)
 
 	if withStaffRow {
@@ -1433,15 +1433,15 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 	// #2299: a manual planning-module block without an offering is planned
 	// (is_spontaneous=false) but has no template — materialization could never
 	// recreate it, so a whole-grid re-plan must not delete it.
-	plannedManual := &scheduleModels.ActivityInstance{
-		Date:      scheduleModels.Date(from.AddDays(1)),
+	plannedManual := &testpkg.ActivityInstance{
+		Date:      testpkg.ScheduleDate(from.AddDays(1)),
 		Title:     fmt.Sprintf("Row-manual-%d", time.Now().UnixNano()),
 		StartTime: time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
 		RoomID:    s.roomID,
 		Status:    scheduleModels.InstanceStatusPlanned,
 	}
-	plannedManual.SetTenantID(tenant.FromContext(s.ctx))
+	plannedManual.TenantID = tenant.FromContext(s.ctx)
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, plannedManual)
 
 	// Manual cleanup for the survivors (the planned-normal row may be deleted
@@ -1491,8 +1491,8 @@ func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {
 	otherGroup := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("LC-Other-%d", time.Now().UnixNano()))
 
 	mine := insertInstance(t, s, from, scheduleModels.InstanceStatusPlanned, false)
-	other := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(from.AddDays(1)),
+	other := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(from.AddDays(1)),
 		Title:           fmt.Sprintf("Row-other-%d", time.Now().UnixNano()),
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -1501,7 +1501,7 @@ func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {
 		IsSpontaneous:   false,
 		ActivityGroupID: &otherGroup.ID,
 	}
-	other.SetTenantID(testpkg.Tenant(t))
+	other.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, other)
 
 	result, err := s.svc.ReplanWeek(s.ctx, from, to, &s.tmplID, nil)
@@ -1927,7 +1927,7 @@ func TestInstance_DeleteCancelled_PlannedOrCancelled(t *testing.T) {
 		exceptions := loadLifecycleExceptions(t, s)
 		require.Len(t, exceptions, 1)
 		assert.Equal(t, s.tmplID, exceptions[0].ActivityGroupID)
-		assert.Equal(t, ai.Date, exceptions[0].ExceptionDate)
+		assert.Equal(t, ai.Date.String(), exceptions[0].ExceptionDate.String())
 		assert.Equal(t, scheduleModels.ActivityExceptionCancelled, exceptions[0].ExceptionType)
 	})
 

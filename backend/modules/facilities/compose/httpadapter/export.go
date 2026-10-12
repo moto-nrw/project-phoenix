@@ -108,7 +108,7 @@ func loadRoomSnapshotStudents(ctx context.Context, dependencies Dependencies, st
 	if len(studentIDs) == 0 {
 		return result, nil
 	}
-	students, err := dependencies.Users.GetStudentsByIDs(ctx, studentIDs)
+	students, err := dependencies.Users.StudentsByIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func loadRoomSnapshotStudents(ctx context.Context, dependencies Dependencies, st
 			groupIDs = appendUniqueInt64(groupIDs, *student.GroupID)
 		}
 	}
-	persons, err := dependencies.Users.GetByIDs(ctx, personIDs)
+	persons, err := dependencies.Users.PersonsByIDs(ctx, personIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ func loadRoomSnapshotStudents(ctx context.Context, dependencies Dependencies, st
 			}
 		}
 		name := fmt.Sprintf("Kind %d", student.ID)
-		if person := persons[student.PersonID]; person != nil {
+		if person, ok := persons[student.PersonID]; ok {
 			name = strings.TrimSpace(person.FirstName + " " + person.LastName)
 		}
 		result[id] = roomSnapshotStudent{ID: id, Name: name, SchoolClass: student.SchoolClass, GroupName: groupName}

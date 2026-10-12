@@ -203,9 +203,11 @@ export function ProfileDropdownMenu({
             <div className="truncate font-semibold text-gray-900">
               {displayName}
             </div>
-            <div className="truncate text-xs text-gray-500" title={userEmail}>
-              {userEmail}
-            </div>
+            {userEmail ? (
+              <div className="truncate text-xs text-gray-500" title={userEmail}>
+                {userEmail}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

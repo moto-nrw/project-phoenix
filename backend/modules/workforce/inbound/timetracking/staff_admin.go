@@ -16,7 +16,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/uptrace/bun"
 )
 
 // StaffAdminResource serves the workforce half of /api/staff.
@@ -41,8 +40,8 @@ type StaffAdminResource struct {
 	targetOverrides    workforce.StaffTargetOverrides
 	notifyTimeTracking func(context.Context)
 	identity           IdentityFunc
-	db                 *bun.DB
-	logger             *slog.Logger
+
+	logger *slog.Logger
 }
 
 // StaffAdminDependencies are the collaborators of the workforce admin
@@ -67,14 +66,14 @@ type StaffAdminDependencies struct {
 	NotifyChanged   func(context.Context)
 	ExportTransfer  ExportTransfer
 	Identity        IdentityFunc
-	DB              *bun.DB
-	Logger          *slog.Logger
+
+	Logger *slog.Logger
 }
 
 // NewStaffAdminResource wires the workforce resource.
 func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
-	if deps.Staff == nil || deps.Documents == nil || deps.OffboardingCleanup == nil || deps.WorkSessions == nil || deps.StaffAbsences == nil || deps.Identity == nil || deps.DB == nil {
-		panic("staff admin resource: staff directory, documents, work sessions, absences, identity and db are required")
+	if deps.Staff == nil || deps.Documents == nil || deps.OffboardingCleanup == nil || deps.WorkSessions == nil || deps.StaffAbsences == nil || deps.Identity == nil {
+		panic("staff admin resource: staff directory, documents, work sessions, absences and identity are required")
 	}
 	// Normalised once here so the handlers can log through rs.logger without
 	// a nil guard at every call site.
@@ -103,7 +102,6 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 		targetOverrides:      deps.TargetOverrides,
 		notifyTimeTracking:   deps.NotifyChanged,
 		identity:             deps.Identity,
-		db:                   deps.DB,
 		logger:               logger,
 	}
 }
@@ -114,7 +112,7 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 func (rs *StaffAdminResource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-	common.ProtectedTenantGroup(r, rs.db, rs.RegisterStaffRoutes)
+	common.ProtectedTenantRoutes(r, rs.RegisterStaffRoutes)
 	return r
 }
 

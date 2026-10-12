@@ -113,7 +113,7 @@ cmd_up() {
   # air's binary first and migrating with it avoids a second full compile
   # (`go run` links its own copy); air's first build is then a cache hit.
   start_svc backend backend bash -c 'go build -ldflags="-s -w" -o ./tmp/main . && ./tmp/main migrate && exec air -c .air.toml'
-  PORT=$FRONTEND_HOST_PORT start_svc frontend frontend pnpm dev
+  PORT=$FRONTEND_HOST_PORT start_svc frontend frontend node --max-http-header-size=65536 node_modules/next/dist/bin/next dev
 
   trap 'echo; stop_native; exit 130' INT TERM
   echo "dev-native: backend http://localhost:$SERVER_HOST_PORT  frontend http://localhost:$FRONTEND_HOST_PORT  mailpit http://localhost:$MAILPIT_HOST_PORT"

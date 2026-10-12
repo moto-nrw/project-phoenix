@@ -217,7 +217,7 @@ func assertAuditRowsExist(t *testing.T, db *testpkg.DB, table string, ids ...int
 	t.Helper()
 	count, err := db.NewSelect().TableExpr(table).Where("id IN (?)", testpkg.DBList(ids)).Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, len(ids), count)
+	assert.Equal(t, int64(len(ids)), count)
 }
 
 func assertAuditRowsMissing(t *testing.T, db *testpkg.DB, table string, ids ...int64) {

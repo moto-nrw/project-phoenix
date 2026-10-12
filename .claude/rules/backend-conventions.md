@@ -141,8 +141,6 @@ type TenantModel struct { TenantID int64 `bun:"tenant_id,notnull"` }
 func (t *TenantModel) GetTenantID() int64 / SetTenantID(id int64)
 ```
 
-Exception: a domain package whose owner the policy forbids from importing `models/base` (`models/education` since #2742) declares its own `Model`/`TenantModel` with the identical column tags and no `GetID`-style getters; `TestModelMapsTheSharedRowColumns` pins the tags.
-
 The shared base shapes provide `GetID()`/`GetCreatedAt()`/`GetUpdatedAt()` — never redeclare them per entity. Audit models keep their honest timestamp fields (`AccessedAt`, `DeletedAt`, `OccurredAt`, or `ChangedAt`) and do not pretend to implement the conventional timestamp contract. The generic repository has no method constraint because Bun performs CRUD from mappings rather than accessors. The same goes for GORM-style `TableName()` methods: bun never calls them; table names come from struct tags and `ModelTableExpr` strings. Both patterns are CI-ratcheted to zero by `TestModelCeremonyRatchet` (`backend/test/model_ceremony_ratchet_test.go`).
 
 ### A note on `BeforeAppendModel`
@@ -317,15 +315,15 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 |---|---|
 | DB fixtures (`CreateTest*` / `Cleanup*`) | `test/fixtures*.go` (the mandated catalog) |
 | Pointer helpers (`StrPtr`, `IntPtr`, `Int64Ptr`, `TimePtr`) | `test/helpers.go` |
-| `email.Mailer` capture | `test.CapturingMailer` (`test/mailers.go`) |
-| `realtime.Broadcaster` recording fake | `test.RecordingBroadcaster` (`test/broadcaster.go`) |
+| `email.Mailer` capture | `emailtest.CapturingMailer` (`email/emailtest`; alias `test.CapturingMailer`) |
+| `realtime.Broadcaster` recording fake | `realtimetest.RecordingBroadcaster` (`realtime/realtimetest`; alias `test.RecordingBroadcaster`) |
 | Repo mocks for `models/*` interfaces (School, Staff, suggestions) | `test/repo_mocks.go`, `test/suggestions_mocks.go` |
-| `config.SettingsService` | `configtest.Mock` (`services/config/configtest`) |
+| Consumer-owned settings ports (`ResolveBool`, `ResolveString`, …) | a package-local func-field `settingsDouble` with only the resolvers the ports need; `services/config/configtest` is gone (#3965) |
 | `identityaccess.AccountMFA` | a package-local func-field double; the behaviour suites keep theirs in `modules/identityaccess/behavior` |
-| `users.PersonService` | `services/users/userstest` |
+| Person-directory lookups of the acting account's staff identity | `test.StaffAccountPeople` (`test/repo_mocks.go`) |
 | API request/bootstrap helpers | `api/testutil` (`SetupAPITest`, `ExecuteWithAuth`, `ExecuteWithAuthPermissions`, `MintTestJWT`) |
 
-Placement rules: mocks for `models/*` interfaces go in `test/` (imports models only — safe for internal test packages); mocks for a service interface go in a leaf `<domain>test` package next to the interface (usable everywhere EXCEPT that package's own internal tests — import cycle). New shared mocks follow the func-field convention (`XxxFn` fields, nil = zero-value default). Behaviorally divergent doubles (error-injection hooks, deliberate panics, channel-based capture) may stay package-local — divergence is the documented exception, copy-paste is not.
+Placement rules: mocks for `models/*` interfaces go in `test/` (imports models only — safe for internal test packages); mocks for a service interface go in a leaf `<domain>test` package next to the interface (usable everywhere EXCEPT that package's own internal tests — import cycle). New shared mocks follow the func-field convention (`XxxFn` fields, nil = zero-value default). Behaviorally divergent doubles (error-injection hooks, deliberate panics, channel-based capture) may stay package-local — divergence is the documented exception, copy-paste is not. Settings doubles are the second exception: each consumer declares its own narrow settings port, so its `settingsDouble` implements exactly that port; a shared double for the settings service's full method set would pull the Settings Platform's schema types into test support (#3965).
 
 ---
 

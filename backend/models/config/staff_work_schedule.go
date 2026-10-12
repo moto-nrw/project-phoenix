@@ -109,4 +109,9 @@ type StaffWorkScheduleRepository interface {
 	// rows keep theirs, so a schedule change can no longer re-parity the past.
 	// A zero anchor leaves the column NULL (rotation_length 1 has no parity).
 	ReplaceSchedule(ctx context.Context, staffID int64, entries []*StaffWorkSchedule, anchor CalendarDate) error
+	// ReplaceScheduleWithValidFrom is ReplaceSchedule with an explicit start
+	// day for the new version. It must carry that day even when entries is
+	// empty, because replacing a schedule with no target time still closes the
+	// current version.
+	ReplaceScheduleWithValidFrom(ctx context.Context, staffID int64, entries []*StaffWorkSchedule, anchor, validFrom CalendarDate) error
 }

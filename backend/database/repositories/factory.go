@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
-	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	"github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -27,6 +26,7 @@ import (
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -38,7 +38,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
@@ -485,8 +484,24 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	identity := newIdentityAccess(db, timetableDependencies.ObserveIdentityAccess)
 	personRepo := NewPersonRepository(db)
 	studentRepo := NewStudentRepository(db)
-	groupRepo := NewEducationGroupRepository(db)
-	factory := &Factory{
+	var factory *Factory
+	groupRepo := NewEducationGroupRepository(db, education.GroupRepositoryDependencies{
+		TeachingAssignments: func(ctx context.Context, groupIDs, teacherIDs []int64) ([]education.TeacherGroupID, error) {
+			assignments, err := factory.schoolMembership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{GroupIDs: groupIDs, TeacherIDs: teacherIDs})
+			if err != nil {
+				return nil, err
+			}
+			result := make([]education.TeacherGroupID, 0, len(assignments))
+			for _, assignment := range assignments {
+				result = append(result, education.TeacherGroupID{TeacherID: assignment.TeacherID, GroupID: assignment.GroupID})
+			}
+			return result, nil
+		},
+		SupervisingStaff: func(ctx context.Context, pairs education.GroupMembershipPairs) ([]education.StaffGroupID, error) {
+			return supervisionStaffResolver(lazyStaffLookup{get: func() schoolmembership.Capability { return factory.schoolMembership }}, workforceSubstitutedStaff(timetableDependencies.Workforce))(ctx, pairs)
+		},
+	})
+	factory = &Factory{
 		db: db,
 		// Users repositories
 		Person:              personRepo,
@@ -670,25 +685,18 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		}
 		return ids, nil
 	})
-	groupRepo.BindTeachingAssignments(func(ctx context.Context, groupIDs, teacherIDs []int64) ([]education.TeacherGroupID, error) {
-		assignments, err := factory.schoolMembership.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{GroupIDs: groupIDs, TeacherIDs: teacherIDs})
-		if err != nil {
-			return nil, err
-		}
-		result := make([]education.TeacherGroupID, 0, len(assignments))
-		for _, assignment := range assignments {
-			result = append(result, education.TeacherGroupID{TeacherID: assignment.TeacherID, GroupID: assignment.GroupID})
-		}
-		return result, nil
-	})
+
 	// Group substitutions belong to Workforce (#2688): the retained contract
 	// is served by the adapter, which resolves groups through School
 	// Structure and staff through School Membership.
-	factory.GroupSubstitution = workforceLegacy.NewGroupSubstitutionRepository(timetableDependencies.Workforce,
-		func(ctx context.Context, ids []int64) (map[int64]*educationModels.Group, error) {
+	factory.GroupSubstitution = newGroupSubstitutions(
+		workforceLegacy.NewGroupSubstitutionRepository(timetableDependencies.Workforce, func(ctx context.Context, ids []int64) (map[int64]string, error) {
+			return NewGroupNames(factory.Group).GroupNamesByID(ctx, ids)
+		}),
+		func(ctx context.Context, ids []int64) (map[int64]*education.Group, error) {
 			return factory.Group.FindByIDs(ctx, ids)
 		},
-		substitutionStaffResolver(lazyStaffLookup{get: func() schoolmembership.Capability { return factory.schoolMembership }}),
+		lazyStaffLookup{get: func() schoolmembership.Capability { return factory.schoolMembership }},
 	)
 	factory.bindAppointments(appointmentsModule)
 	// Bind student ports while their repositories are still raw. The staff

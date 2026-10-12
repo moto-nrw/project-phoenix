@@ -17,7 +17,7 @@ Before your first contribution can be accepted, you must agree to our [Contribut
 ### Prerequisites
 
 - Docker and Docker Compose
-- [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/) + [direnv](https://direnv.net/docs/installation.html) (pin Go 1.27.0, Node 24+, and all CLI tools)
+- [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/) + [direnv](https://direnv.net/docs/installation.html) (pin Go 1.27.2, Node 24+, and all CLI tools)
 
 The pinned Devbox environment supports Apple Silicon macOS and Linux on arm64
 or amd64. Intel macOS is not supported; current Nixpkgs releases no longer

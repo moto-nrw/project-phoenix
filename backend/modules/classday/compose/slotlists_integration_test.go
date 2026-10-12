@@ -366,8 +366,8 @@ func buildMensaFixtureOn(t *testing.T, db *bun.DB) *mensaFixture {
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	listKind := activitiesModels.ListKindMensa
 
-	instance := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(listDate),
+	instance := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 11, 30, 0, 0, time.UTC),
@@ -377,7 +377,7 @@ func buildMensaFixtureOn(t *testing.T, db *bun.DB) *mensaFixture {
 		ActiveGroupID:   &activeGroup.ID,
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(testpkg.Tenant(t))
+	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	planned := testpkg.CreateTestStudent(t, db, "SL-Planned", fmt.Sprintf("P-%d", suffix), "3a")
@@ -497,8 +497,8 @@ func TestBuildList_ManualAbsenceOverridesStaleVisit(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	listKind := activitiesModels.ListKindMensa
 
-	instance := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(listDate),
+	instance := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-Man %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 11, 30, 0, 0, time.UTC),
@@ -508,7 +508,7 @@ func TestBuildList_ManualAbsenceOverridesStaleVisit(t *testing.T) {
 		ActiveGroupID:   &activeGroup.ID,
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(testpkg.Tenant(t))
+	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	corrected := testpkg.CreateTestStudent(t, db, "SL-ManCorr", fmt.Sprintf("MC-%d", suffix), "3a")
@@ -568,8 +568,8 @@ func TestBuildList_VisitOutsideNominalWindowCountsPresent(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	listKind := activitiesModels.ListKindMensa
 
-	instance := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(listDate),
+	instance := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa spät %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 11, 30, 0, 0, time.UTC),
@@ -579,7 +579,7 @@ func TestBuildList_VisitOutsideNominalWindowCountsPresent(t *testing.T) {
 		ActiveGroupID:   &activeGroup.ID,
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(testpkg.Tenant(t))
+	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	attended := testpkg.CreateTestStudent(t, db, "SL-LateAttended", fmt.Sprintf("LA-%d", suffix), "3a")
@@ -699,8 +699,8 @@ func TestBuildList_CancelledManualAttendanceExcluded(t *testing.T) {
 
 	// Cancelled AFTER it ran: ActiveGroupID and the visit are preserved, exactly
 	// the state InstanceService.Cancel leaves behind for an already-active slot.
-	instance := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(listDate),
+	instance := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-CxlMan %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 11, 30, 0, 0, time.UTC),
@@ -710,7 +710,7 @@ func TestBuildList_CancelledManualAttendanceExcluded(t *testing.T) {
 		ActiveGroupID:   &activeGroup.ID,
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(testpkg.Tenant(t))
+	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	corrected := testpkg.CreateTestStudent(t, db, "SL-CxlManCorr", fmt.Sprintf("CMC-%d", suffix), "3a")
@@ -755,8 +755,8 @@ func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, f.db, fmt.Sprintf("SL-Other-Room-%d", suffix))
 	activity := testpkg.CreateTestActivityGroup(t, f.db, fmt.Sprintf("SL-Other-Act-%d", suffix))
 	listKind := activitiesModels.ListKindLearningTime
-	otherInstance := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(listDate),
+	otherInstance := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Lernzeit %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 13, 30, 0, 0, time.UTC),
@@ -765,7 +765,7 @@ func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusPlanned,
 		ListKind:        &listKind,
 	}
-	otherInstance.SetTenantID(testpkg.Tenant(t))
+	otherInstance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, f.db, otherInstance)
 
 	student := testpkg.CreateTestStudent(t, f.db, "SL-Other", fmt.Sprintf("O-%d", suffix), "3c")
@@ -1326,8 +1326,8 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-ExRoom-%d", suffix))
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-ExAct-%d", suffix))
 
-	instance := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(listDate),
+	instance := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -1335,7 +1335,7 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 		RoomID:          room.ID,
 		Status:          scheduleModels.InstanceStatusActive,
 	}
-	instance.SetTenantID(testpkg.Tenant(t))
+	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	expected := testpkg.CreateTestStudent(t, db, "SL-Expected", fmt.Sprintf("EX-%d", suffix), "5a")
@@ -1411,8 +1411,8 @@ func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) 
 	staff := testpkg.CreateTestStaff(t, db, "SL-Staff", fmt.Sprintf("SCC-%d", suffix))
 
 	// A completed instance: the block already ran and ended.
-	instance := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(listDate),
+	instance := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -1420,7 +1420,7 @@ func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) 
 		RoomID:          room.ID,
 		Status:          scheduleModels.InstanceStatusCompleted,
 	}
-	instance.SetTenantID(testpkg.Tenant(t))
+	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	child := testpkg.CreateTestStudent(t, db, "SL-Cxl", fmt.Sprintf("CC-%d", suffix), "3b")
@@ -1999,8 +1999,8 @@ func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-EndRoom-%d", suffix))
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-EndAct-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
-	instance := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(listDate),
+	instance := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2009,7 +2009,7 @@ func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusActive,
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(testpkg.Tenant(t))
+	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	enrolled := testpkg.CreateTestStudent(t, db, "SL-StillHere", fmt.Sprintf("SH-%d", suffix), "5a")
@@ -2065,8 +2065,8 @@ func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-UnbookedAct-%d", suffix))
 	staff := testpkg.CreateTestStaff(t, db, "SL-UnbookedStaff", fmt.Sprintf("US-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
-	instance := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(listDate),
+	instance := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2075,7 +2075,7 @@ func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusActive, // live: not_scheduled not stamped yet
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(testpkg.Tenant(t))
+	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	booked := testpkg.CreateTestStudent(t, db, "SL-Booked", fmt.Sprintf("BK-%d", suffix), "5a")
@@ -2149,8 +2149,8 @@ func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-UpAct-%d", suffix))
 	staff := testpkg.CreateTestStaff(t, db, "SL-UpStaff", fmt.Sprintf("UP-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
-	instance := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(listDate),
+	instance := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2159,7 +2159,7 @@ func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusActive, // live: not_scheduled not stamped yet
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(testpkg.Tenant(t))
+	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	booked := testpkg.CreateTestStudent(t, db, "SL-UpBooked", fmt.Sprintf("UB-%d", suffix), "5a")
@@ -2240,8 +2240,8 @@ func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-CxaAct-%d", suffix))
 	staff := testpkg.CreateTestStaff(t, db, "SL-CxaStaff", fmt.Sprintf("CXA-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
-	instance := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(listDate),
+	instance := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2250,7 +2250,7 @@ func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing
 		Status:          scheduleModels.InstanceStatusActive, // live: no_show not yet finalized
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(testpkg.Tenant(t))
+	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	attended := testpkg.CreateTestStudent(t, db, "SL-CxaAtt", fmt.Sprintf("CXAA-%d", suffix), "5a")
@@ -2342,8 +2342,8 @@ func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCoun
 	staff := testpkg.CreateTestStaff(t, db, "SL-CxvStaff", fmt.Sprintf("CXV-%d", suffix))
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	listKind := activitiesModels.ListKindMensa
-	instance := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(listDate),
+	instance := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2353,7 +2353,7 @@ func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCoun
 		ActiveGroupID:   &activeGroup.ID,                     // started, so visits are reachable
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(testpkg.Tenant(t))
+	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	attended := testpkg.CreateTestStudent(t, db, "SL-CxvAtt", fmt.Sprintf("CXVA-%d", suffix), "5a")
@@ -2447,8 +2447,8 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-SdAct-%d", suffix))
 	staff := testpkg.CreateTestStaff(t, db, "SL-SdStaff", fmt.Sprintf("SDS-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
-	instance := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(listDate),
+	instance := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2457,7 +2457,7 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusActive, // live: not_scheduled not stamped yet
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(testpkg.Tenant(t))
+	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	booked := testpkg.CreateTestStudent(t, db, "SL-SdBooked", fmt.Sprintf("SB-%d", suffix), "5a")
@@ -2546,8 +2546,8 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 
 	// pickupNow is 12:00 on pickupDate (Wednesday, ISO 3); this occurrence starts
 	// at 15:00 → not yet started, so the reconciliation reaches it deferred.
-	future := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(pickupDate),
+	future := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(pickupDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-Future %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -2556,7 +2556,7 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 		Status:          scheduleModels.InstanceStatusPlanned,
 		ListKind:        &mensa,
 	}
-	future.SetTenantID(testpkg.Tenant(t))
+	future.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, future)
 
 	sickUnbooked := testpkg.CreateTestStudent(t, db, "SL-DefSdSick", fmt.Sprintf("DS-%d", suffix), "5a")
@@ -2643,8 +2643,8 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-CxAct-%d", suffix))
 	staff := testpkg.CreateTestStaff(t, db, "SL-CxStaff", fmt.Sprintf("CXS-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
-	instance := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(listDate),
+	instance := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2653,7 +2653,7 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusActive,
 		ListKind:        &listKind,
 	}
-	instance.SetTenantID(testpkg.Tenant(t))
+	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
 	cancelled := testpkg.CreateTestStudent(t, db, "SL-CxChild", fmt.Sprintf("CX-%d", suffix), "5a")
@@ -2729,8 +2729,8 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 	mensa := activitiesModels.ListKindMensa
 
 	// pickupNow is 12:00; this occurrence starts at 15:00 → not yet started.
-	future := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(pickupDate),
+	future := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(pickupDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-Future %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -2739,7 +2739,7 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusPlanned,
 		ListKind:        &mensa,
 	}
-	future.SetTenantID(testpkg.Tenant(t))
+	future.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, future)
 
 	planned := testpkg.CreateTestStudent(t, db, "SL-NysPlanned", fmt.Sprintf("NP-%d", suffix), "3a")
@@ -2778,8 +2778,8 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 
 	// A slot that has already started (start 09:00 < 12:00) with no presence
 	// evidence does reconcile — its expected no-show is a genuine "Fehlt".
-	started := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(pickupDate),
+	started := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(pickupDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-Started %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
@@ -2788,7 +2788,7 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 		Status:          scheduleModels.InstanceStatusPlanned,
 		ListKind:        &mensa,
 	}
-	started.SetTenantID(testpkg.Tenant(t))
+	started.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, started)
 	startedRow := &scheduleModels.InstanceStudent{
 		InstanceID: started.ID,
@@ -2832,8 +2832,8 @@ func TestBuildList_SlotReconciliationKeepsRegisteredAbsenceBeforeStart(t *testin
 
 	// pickupNow is 12:00; this occurrence starts at 15:00 → not yet started, so
 	// the reconciliation reaches it deferred (no active group yet).
-	future := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(pickupDate),
+	future := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(pickupDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-Future %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -2842,7 +2842,7 @@ func TestBuildList_SlotReconciliationKeepsRegisteredAbsenceBeforeStart(t *testin
 		Status:          scheduleModels.InstanceStatusPlanned,
 		ListKind:        &mensa,
 	}
-	future.SetTenantID(testpkg.Tenant(t))
+	future.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, future)
 
 	excused := testpkg.CreateTestStudent(t, db, "SL-RegAbsExcused", fmt.Sprintf("RE-%d", suffix), "3a")

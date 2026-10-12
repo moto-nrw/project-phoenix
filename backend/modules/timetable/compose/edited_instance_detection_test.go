@@ -102,7 +102,7 @@ func edDiff(
 	expected []materialParams,
 ) []string {
 	expectedStudentIDs := expectedStudentIDsOn(
-		edEnrollments(), nil, nil, timezone.Date(inst.Date), calendarPeriodID(inst),
+		edEnrollments(), nil, nil, timezone.Date(inst.Date), calendarPeriodID(inst), isoWeekday(timezone.Date(inst.Date)),
 	)
 	return diffOccurrenceWithExpectedStudents(
 		inst,
@@ -112,6 +112,7 @@ func edDiff(
 		staff,
 		students,
 		expected,
+		false,
 	)
 }
 

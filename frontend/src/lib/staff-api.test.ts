@@ -21,7 +21,6 @@ vi.mock("./session-cache", () => {
         headers: {
           "Content-Type": "application/json",
           ...(init?.headers as Record<string, string> | undefined),
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
     }),
@@ -138,8 +137,8 @@ describe("staff-api", () => {
       expect(mockFetch).toHaveBeenCalledWith(
         "/api/staff/documents-directory",
         expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: "Bearer test-token",
+          headers: expect.not.objectContaining({
+            Authorization: expect.anything(),
           }),
         }),
       );
@@ -180,8 +179,8 @@ describe("staff-api", () => {
       expect(mockFetch).toHaveBeenCalledWith(
         "/api/staff/documents-profile/42",
         expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: "Bearer test-token",
+          headers: expect.not.objectContaining({
+            Authorization: expect.anything(),
           }),
         }),
       );
@@ -1321,6 +1320,8 @@ describe("staff-api", () => {
               ...sampleBackendStaff,
               employment_type: "mini_job",
               work_status: "present",
+              is_external: true,
+              external_organization: "Musikschule Bergstadt",
             },
           }),
       } as Response);
@@ -1334,6 +1335,8 @@ describe("staff-api", () => {
       expect(result.id).toBe("1");
       expect(result.currentLocation).toBe("Anwesend");
       expect(result.employmentType).toBe("mini_job");
+      expect(result.isExternal).toBe(true);
+      expect(result.externalOrganization).toBe("Musikschule Bergstadt");
     });
 
     it("throws when the staff member request fails", async () => {

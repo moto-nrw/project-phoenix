@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -15,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
+	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -230,7 +230,7 @@ type calendarGroupPort struct {
 
 func (p calendarGroupPort) List(ctx context.Context) ([]*calendarCompose.Group, error) {
 	value, err := p.source.List(ctx, nil)
-	return calendarMapSlice(value, func(v *educationModels.Group) *calendarCompose.Group {
+	return calendarMapSlice(value, func(v *educationRepo.Group) *calendarCompose.Group {
 		return &calendarCompose.Group{ID: v.ID, Name: v.Name}
 	}), err
 }

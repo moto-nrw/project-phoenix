@@ -80,7 +80,7 @@ func WithinAdminTransaction(ctx context.Context, fn func(context.Context) error)
 }
 
 func AttachLockWaitEvidence(db *bun.DB) {
-	db.AddQueryHook(database.NewLockWaitQueryHook(tenant.ObserveLockWait))
+	db.AddQueryHook(database.NewLockWaitQueryHook(tenant.ObserveLockWait)) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
 }
 
 var packageTenantRuntime atomic.Pointer[tenant.UnitOfWork]

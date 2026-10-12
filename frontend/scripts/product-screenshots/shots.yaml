@@ -9,18 +9,321 @@
 #   geraete      optional: macbook | ipad | iphone.
 #                Standard: tenant = macbook + ipad, eltern = iphone + ipad
 #   vorbereitung optional: Schritte vor dem Foto, jeweils genau eines von
-#                klicken (Selektor), warten_auf (Selektor), scrollen (Pixel oder Selektor)
+#                klicken (Selektor), warten_auf (Selektor), scrollen (Pixel oder Selektor).
+#                Ein Klick darf auf eine andere Seite führen, etwa auf ein
+#                Kind, dessen ID erst der Seed vergibt; geprüft wird, dass
+#                `pfad` selbst erreichbar ist.
 #
 # Unbekannte Felder schlagen beim Laden fehl. Die Daten kommen aus dem
 # Seed-Profil `marketing` (backend/seed/api).
+#
+# Auswahl (#3764, vom Maintainer bestätigt): die Flows der Hilfe und die
+# Nutzung laut PostHog (nur lesend abgefragt). Erfasst sind Seitenaufrufe der
+# Produktion seit dem 02.08.2026, früher gab es keine Daten; Zahlen mit
+# "in 8 Tagen" stammen aus der neuen Erfassung ab 25.09.2026. Die Zeile über
+# jedem Shot nennt seinen Grund. Die IDs folgen den Namen der
+# Hilfe-Screenshots (frontend/public/help/screens), wo es einen für dieselbe
+# Ansicht gibt, sonst dem Seitennamen; Shots aus dem Eltern-Portal beginnen
+# mit `eltern-`. `anwesenheit-ueberblick` bleibt aus dem Tracer (#3761), weil
+# eine ID die Dateinamen in Drive bestimmt.
 shots:
+  # --- Tagesbetrieb ---------------------------------------------------------
+  # Hilfe erste-schritte-mit-moto; PostHog: meistbesuchte Seite (1665 Aufrufe in 8 Tagen). ID aus dem Tracer #3761
   - id: anwesenheit-ueberblick
-    titel: Anwesenheit im Überblick
+    titel: Startseite mit der Anwesenheit des Tages
     portal: tenant
     rolle: admin
     pfad: /home
+  # Hilfe kindersuche; PostHog: Platz 1 der Seiten (7595 Aufrufe, 11 Schulen)
+  - id: kindersuche
+    titel: Alle Kinder mit Aufenthaltsort
+    portal: tenant
+    rolle: admin
+    pfad: /students/search
+  # Hilfe kind-an-und-abmelden; PostHog: Kindersuche zu 51 % mobil
+  - id: kinder-an-und-abmelden
+    titel: Kinder an- und abmelden
+    portal: tenant
+    rolle: admin
+    pfad: /students/search
+    geraete: [iphone, ipad, macbook]
+    vorbereitung:
+      - klicken: 'role=button[name="Kinder an- und abmelden"]'
+  # Hilfe kindersuche, angaben-eines-kindes-verwalten; PostHog: Platz 2 (6281 Aufrufe)
+  - id: kinderdetailansicht
+    titel: Kinderakte mit dem heutigen Tag
+    portal: tenant
+    rolle: admin
+    pfad: /students/search
+    vorbereitung:
+      - klicken: 'role=button[name="Finn Hartmann - Details öffnen"]'
+      - warten_auf: 'role=tab[name="Stammdaten"]'
+  # Hilfe betreuungszeiten-eintragen, kind-angaben-aendern
+  - id: betreuungszeiten-pflegen
+    titel: Betreuungszeiten eines Kindes
+    portal: tenant
+    rolle: admin
+    pfad: /students/search
+    vorbereitung:
+      - klicken: 'role=button[name="Finn Hartmann - Details öffnen"]'
+      - warten_auf: 'role=tab[name="Stammdaten"]'
+      - klicken: '[role="tab"][data-tab-value="betreuungszeiten"]'
+  # Hilfe abwesenheiten; PostHog: 253 Abwesenheitsmeldungen
+  - id: kinderdetail-krank-melden
+    titel: Ein Kind krank melden
+    portal: tenant
+    rolle: admin
+    pfad: /students/search
+    vorbereitung:
+      - klicken: 'role=button[name="Finn Hartmann - Details öffnen"]'
+      - warten_auf: 'role=tab[name="Stammdaten"]'
+      - klicken: 'main button:has-text("Krank melden")'
+      - warten_auf: '[role="dialog"]'
+  # Hilfe meine-gruppen; PostHog: Platz 3 (3933 Aufrufe), meist Betreuer am Handy
+  - id: meine-gruppen
+    titel: Meine Gruppe mit allen Kindern
+    portal: tenant
+    rolle: admin
+    pfad: /ogs-groups
+    geraete: [iphone, ipad, macbook]
+  # Hilfe gruppe-uebergeben
+  - id: gruppe-uebergeben
+    titel: Gruppe vorübergehend übergeben
+    portal: tenant
+    rolle: admin
+    pfad: /ogs-groups
+    vorbereitung:
+      - klicken: 'role=button[name="Weitere Aktionen"]'
+      - klicken: 'text=Gruppe übergeben'
+      - warten_auf: '[role="dialog"]'
+  # Hilfe aktuelle-aufsicht; PostHog: 3061 Aufrufe, im Median 54 min offen
+  - id: aktuelle-aufsicht
+    titel: Laufende Aufsicht im Raum
+    portal: tenant
+    rolle: betreuer
+    pfad: /active-supervisions
+  # Hilfe aktuelle-aufsicht (Spontane Aktivität starten)
+  - id: spontane-aktivitaet
+    titel: Spontane Aktivität starten
+    portal: tenant
+    rolle: admin
+    pfad: /active-supervisions
+    vorbereitung:
+      - klicken: 'main button:has-text("Spontane Aktivität starten")'
+      - warten_auf: '[role="dialog"]'
+  # Hilfe tagesplan-ansehen; PostHog: 2224 Aufrufe
+  - id: tagesplan
+    titel: Tagesplan mit laufenden Blöcken
+    portal: tenant
+    rolle: betreuer
+    pfad: /tagesplan
+  # Hilfe raeume-und-belegung
+  - id: raeume
+    titel: Räume und ihre Belegung
+    portal: tenant
+    rolle: admin
+    pfad: /rooms
+  # Hilfe notfall
+  - id: notfall
+    titel: Notfallliste
+    portal: tenant
+    rolle: admin
+    pfad: /emergency
+
+  # --- Eltern ---------------------------------------------------------------
+  # Hilfe eltern-nachricht-schreiben; PostHog: 997 Aufrufe
+  - id: nachrichten
+    titel: Nachrichten von Eltern
+    portal: tenant
+    rolle: admin
+    pfad: /messages
+  # Hilfe eltern-nachricht-schreiben; PostHog: 606 Aufrufe der Verläufe
+  - id: nachrichten-verlauf
+    titel: Gespräch mit einer Familie
+    portal: tenant
+    rolle: admin
+    pfad: /messages
+    vorbereitung:
+      - klicken: 'text=Sarah Yilmaz'
+      - warten_auf: 'main textarea'
+  # Hilfe elternanfragen-bearbeiten; PostHog: 607 Aufrufe, 82 Abholentscheidungen
+  - id: offene-anfragen
+    titel: Offene Anfragen von Eltern
+    portal: tenant
+    rolle: admin
+    pfad: /anfragen
+  # Hilfe elternmitteilung-veroeffentlichen, elternbrief-versenden
+  - id: elternbriefe
+    titel: Elternmitteilungen
+    portal: tenant
+    rolle: admin
+    pfad: /parent-announcements
+  # Hilfe essensplan-veroeffentlichen
+  - id: essensplan
+    titel: Essensplan der Woche
+    portal: tenant
+    rolle: admin
+    pfad: /meal-plan
+
+  # --- Team -----------------------------------------------------------------
+  # Hilfe arbeitszeit-und-pausen-erfassen; PostHog: 919 Aufrufe, 70 % mobil
+  - id: zeiterfassung
+    titel: Arbeitszeit erfassen
+    portal: tenant
+    rolle: betreuer
+    pfad: /time-tracking
+    geraete: [iphone, ipad, macbook]
+  # Hilfe urlaub-beantragen
+  - id: urlaub-beantragen
+    titel: Urlaub beantragen
+    portal: tenant
+    rolle: betreuer
+    pfad: /time-tracking
+    vorbereitung:
+      - klicken: 'role=button[name="Urlaub beantragen"]'
+      - warten_auf: '[role="dialog"]'
+  # Hilfe person-im-team-finden; PostHog: 716 Aufrufe
+  - id: mitarbeiter
+    titel: Das Team im Überblick
+    portal: tenant
+    rolle: admin
+    pfad: /staff
+  # Hilfe team-chat-nutzen
+  - id: team-chat
+    titel: Team-Chat
+    portal: tenant
+    rolle: admin
+    pfad: /team-chat
+  # Hilfe tagesinformationen-schreiben; PostHog: im Median 209 s offen
+  - id: tagesinformationen
+    titel: Tagesinformationen für das Team
+    portal: tenant
+    rolle: admin
+    pfad: /tagesinformationen
+  # Hilfe meine-termine-und-einsaetze; PostHog: 261 Aufrufe
+  - id: kalender
+    titel: Mein Kalender
+    portal: tenant
+    rolle: admin
+    pfad: /calendar
+
+  # --- Planung --------------------------------------------------------------
+  # Hilfe betreuungsplan-erstellen; PostHog: 364 Aufrufe in 11 Schulen
+  - id: betreuungsplan
+    titel: Betreuungsplan der Woche
+    portal: tenant
+    rolle: admin
+    pfad: /betreuungsplan
+  # Hilfe vertretung-planen
+  - id: vertretungsplan
+    titel: Vertretung planen
+    portal: tenant
+    rolle: admin
+    pfad: /vertretung
+
+  # --- Verwaltung -----------------------------------------------------------
+  # Hilfe datenverwaltung; PostHog: 880 Aufrufe
+  - id: datenverwaltung
+    titel: Datenverwaltung
+    portal: tenant
+    rolle: admin
+    pfad: /database
+  # Hilfe kinder-anlegen; PostHog: 1189 Aufrufe
+  - id: datenverwaltung-kinder
+    titel: Kinder verwalten
+    portal: tenant
+    rolle: admin
+    pfad: /database/students
+  # Hilfe einstellungen-ueberblick
+  - id: einstellungen
+    titel: Einstellungen der Schule
+    portal: tenant
+    rolle: admin
+    pfad: /settings
+
+  # --- Eltern-Portal --------------------------------------------------------
+  # PostHog: meistbesuchte Seite im Eltern-Portal (1013 Aufrufe)
+  - id: eltern-start
+    titel: Startseite im Eltern-Portal
+    portal: eltern
+    rolle: eltern
+    pfad: /
+  # Hilfe mein-kind-und-den-heutigen-tag-ansehen; PostHog: 238 Aufrufe
   - id: eltern-kinder
     titel: Meine Kinder im Eltern-Portal
     portal: eltern
     rolle: eltern
     pfad: /children
+  # Hilfe mein-kind-und-den-heutigen-tag-ansehen; PostHog: 295 Aufrufe
+  - id: eltern-kind-heute
+    titel: Der Tag meines Kindes
+    portal: eltern
+    rolle: eltern
+    pfad: /children
+    vorbereitung:
+      - klicken: 'text=Emir Yilmaz'
+      - warten_auf: 'role=tab'
+  # Hilfe abwesenheit-meines-kindes-melden; PostHog: 75 Abwesenheitsanfragen
+  - id: eltern-kind-abmelden
+    titel: Kind abmelden
+    portal: eltern
+    rolle: eltern
+    pfad: /children
+    vorbereitung:
+      - klicken: 'text=Emir Yilmaz'
+      - warten_auf: 'role=tab'
+      - klicken: 'main button:has-text("Emir abmelden")'
+      - warten_auf: '[role="dialog"]'
+  # Hilfe abholzeit-fuer-einen-tag-aendern; PostHog: 86 Abholänderungen
+  - id: eltern-abholzeit-aendern
+    titel: Abholzeit für einen Tag ändern
+    portal: eltern
+    rolle: eltern
+    pfad: /children
+    vorbereitung:
+      - klicken: 'text=Emir Yilmaz'
+      - warten_auf: 'role=tab'
+      - klicken: 'main button:has-text("Abholzeit für")'
+      - warten_auf: '[role="dialog"]'
+  # Hilfe als-elternteil-nachrichten-lesen; PostHog: 323 Aufrufe
+  - id: eltern-nachrichten
+    titel: Nachrichten an die OGS
+    portal: eltern
+    rolle: eltern
+    pfad: /messages
+  # PostHog: 165 Aufrufe, im Median 821 s offen
+  - id: eltern-nachrichten-verlauf
+    titel: Gespräch mit der OGS
+    portal: eltern
+    rolle: eltern
+    pfad: /messages
+    vorbereitung:
+      - klicken: 'text=Für Emir Yilmaz'
+      - warten_auf: 'main textarea'
+  # Hilfe als-elternteil-den-kalender-ansehen; PostHog: 132 Aufrufe
+  - id: eltern-kalender
+    titel: Termine der Schule
+    portal: eltern
+    rolle: eltern
+    pfad: /calendar
+  # Hilfe elternbriefe-lesen
+  - id: eltern-elternbriefe
+    titel: Elternbriefe
+    portal: eltern
+    rolle: eltern
+    pfad: /news
+  # Hilfe elternbriefe-lesen
+  - id: eltern-elternbrief-lesen
+    titel: Einen Elternbrief lesen
+    portal: eltern
+    rolle: eltern
+    pfad: /news
+    vorbereitung:
+      - klicken: 'main button:has-text("Herbstfest am Freitag")'
+      - warten_auf: '[role="dialog"]'
+  # Hilfe mittagessen-ansehen; PostHog: im Median 735 s offen
+  - id: eltern-mittagessen
+    titel: Mittagessen der Woche
+    portal: eltern
+    rolle: eltern
+    pfad: /meal-plan

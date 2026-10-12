@@ -188,7 +188,7 @@ func liveStaffCount(t *testing.T, db *testpkg.DB, personID int64) int {
 		Where(`"s".deleted_at IS NULL`).
 		Count(context.Background())
 	require.NoError(t, err)
-	return count
+	return int(count)
 }
 
 // The repair matches persons, staff and teachers within one school, and the
@@ -244,7 +244,7 @@ func liveStaffCountForTenant(t *testing.T, db *testpkg.DB, personID, tenantID in
 		Where(`"s".deleted_at IS NULL`).
 		Count(context.Background())
 	require.NoError(t, err)
-	return count
+	return int(count)
 }
 
 func liveTeacherCountForTenant(t *testing.T, db *testpkg.DB, personID, tenantID int64) int {
@@ -257,7 +257,7 @@ func liveTeacherCountForTenant(t *testing.T, db *testpkg.DB, personID, tenantID 
 		Where(`"t".deleted_at IS NULL`).
 		Count(context.Background())
 	require.NoError(t, err)
-	return count
+	return int(count)
 }
 
 func liveTeacherCount(t *testing.T, db *testpkg.DB, personID int64) int {
@@ -269,7 +269,7 @@ func liveTeacherCount(t *testing.T, db *testpkg.DB, personID int64) int {
 		Where(`"t".deleted_at IS NULL`).
 		Count(context.Background())
 	require.NoError(t, err)
-	return count
+	return int(count)
 }
 
 // The second source of the same broken state: an account that reached the
@@ -414,7 +414,7 @@ func livePersonCount(t *testing.T, db *testpkg.DB, tenantID, accountID int64) in
 		Where(`"p".deleted_at IS NULL`).
 		Count(context.Background())
 	require.NoError(t, err)
-	return count
+	return int(count)
 }
 
 func requireSinglePersonAt(t *testing.T, db *testpkg.DB, tenantID, accountID int64) int64 {

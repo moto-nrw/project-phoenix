@@ -506,8 +506,11 @@ function TimeStatusRow({
         ? `${label}: ${timeText}`
         : timeText;
 
+  // Auf der Karte bricht die Zeile um, statt abzuschneiden: Ein breites
+  // Ortsetikett oder eine Notiz ließ sonst nur „Ankunftszeit: 08:…" übrig
+  // (#3893).
   return (
-    <StudentInfoRow icon={icon} variant={variant}>
+    <StudentInfoRow icon={icon} variant={variant} wrap={variant === "card"}>
       {status.textColor ? (
         <span style={{ color: status.textColor }}>{fullText}</span>
       ) : (

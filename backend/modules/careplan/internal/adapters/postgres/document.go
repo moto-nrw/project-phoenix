@@ -108,7 +108,7 @@ func (s *Store) listCareDocuments(ctx context.Context, studentID int64, categori
 		query = query.OrderExpr(`"care_document".created_at DESC, "care_document".id DESC`)
 	}
 	if limit > 0 {
-		query = query.Limit(limit)
+		query = query.Limit(int64(limit))
 	}
 	query = withTenant(query, "care_document", tenantID)
 	stats, err := scanAll(ctx, query, "list care documents")

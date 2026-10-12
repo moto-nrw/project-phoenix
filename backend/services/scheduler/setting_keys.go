@@ -3,6 +3,8 @@ package scheduler
 import (
 	"context"
 	"log/slog"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Keys and values of the Settings Platform registry the Worker reads
@@ -25,6 +27,7 @@ const (
 	settingSickClearMode                         = "operations.sick_clear_mode"
 	settingExcusedClearMode                      = "operations.excused_clear_mode"
 	settingPresenceMode                          = "operations.presence_mode"
+	settingWeekendFollowsFriday                  = "operations.weekend_follows_friday"
 	settingTimetableEnabled                      = "timetable.enabled"
 	settingTimetableMaterializationEnabled       = "timetable.materialization_enabled"
 	settingTimetableMaterializationWeekday       = "timetable.materialization_weekday"
@@ -124,4 +127,17 @@ func logSettingFallback(logger *slog.Logger, message, key string, err error) {
 		slog.String("key", key),
 		slog.String("error", err.Error()),
 	)
+}
+
+// withWeekendPlan lets a tenant's jobs read whether its weekend follows
+// Friday's plan (#3921). The source runs only for weekend dates, inside the
+// tenant context the job got, so the minute snapshot serves it.
+func (s *Scheduler) withWeekendPlan(ctx context.Context) context.Context {
+	if s.settings == nil {
+		return ctx
+	}
+	settings := s.settings
+	return calendar.WithWeekendPlan(ctx, func(ctx context.Context) (bool, error) {
+		return settings.ResolveBool(ctx, settingWeekendFollowsFriday)
+	})
 }

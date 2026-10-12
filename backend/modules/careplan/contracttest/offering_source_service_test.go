@@ -1630,7 +1630,7 @@ func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing
 	input.GradeLevels = []int{2}
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
 
-	loadInstanceStudents := func(instanceID int64) []scheduleModels.InstanceStudent {
+	loadInstanceStudents := func(instanceID int64) []testpkg.InstanceStudent {
 		return loadSourcedInstanceStudents(t, env, instanceID)
 	}
 
@@ -1701,11 +1701,11 @@ func TestResyncTemplateOfferingRoster_PreservesManualOccurrenceRemoval(t *testin
 
 // loadSourcedInstanceStudents reads one occurrence's attendance rows ordered
 // by student id.
-func loadSourcedInstanceStudents(t *testing.T, env *decisionTestEnv, instanceID int64) []scheduleModels.InstanceStudent {
+func loadSourcedInstanceStudents(t *testing.T, env *decisionTestEnv, instanceID int64) []testpkg.InstanceStudent {
 	t.Helper()
 	composed := testpkg.InstanceStudentsWhere(t, testpkg.Ctx(t), env.db, `"instance_student".instance_id = ?`, instanceID)
-	slices.SortFunc(composed, func(a, b *scheduleModels.InstanceStudent) int { return cmp.Compare(a.StudentID, b.StudentID) })
-	rows := make([]scheduleModels.InstanceStudent, 0, len(composed))
+	slices.SortFunc(composed, func(a, b *testpkg.InstanceStudent) int { return cmp.Compare(a.StudentID, b.StudentID) })
+	rows := make([]testpkg.InstanceStudent, 0, len(composed))
 	for _, row := range composed {
 		rows = append(rows, *row)
 	}

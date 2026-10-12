@@ -109,7 +109,10 @@ func (s *dayReports) supervisionStatus(ctx context.Context, studentID int64, dat
 // wired costs the names in brackets, but a lookup failure fails the sheet
 // closed so a partial departure instruction is never presented as complete.
 func (s *dayReports) supervisionDeparture(ctx context.Context, student *SheetStudent, date timezone.Date, boundary []int64) (string, error) {
-	weekday := classDayWeekdayKey(date)
+	weekday, err := classDayPlanKey(ctx, date)
+	if err != nil {
+		return "", err
+	}
 	if weekday == "" {
 		return classDayDepartureUnknown, nil
 	}

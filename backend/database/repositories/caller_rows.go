@@ -6,9 +6,9 @@ import (
 	"log/slog"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
@@ -172,7 +172,7 @@ func (r *CallerRows) GetSubstitutedGroupIDs(ctx context.Context) (map[int64]bool
 
 // GetMyGroups returns the caller's educational groups. A partial group set
 // is returned together with its CallerGroupsPartialError.
-func (r *CallerRows) GetMyGroups(ctx context.Context) ([]*educationModels.Group, error) {
+func (r *CallerRows) GetMyGroups(ctx context.Context) ([]*educationRepo.Group, error) {
 	ids, err := r.caller.MyGroupIDs(ctx)
 	if ids == nil {
 		return nil, err
@@ -206,8 +206,8 @@ func (r *CallerRows) GetMySupervisedGroups(ctx context.Context) ([]*studentprese
 	return result, nil
 }
 
-func (r *CallerRows) groupsByID(ctx context.Context, ids []int64) ([]*educationModels.Group, error) {
-	result := make([]*educationModels.Group, 0, len(ids))
+func (r *CallerRows) groupsByID(ctx context.Context, ids []int64) ([]*educationRepo.Group, error) {
+	result := make([]*educationRepo.Group, 0, len(ids))
 	if len(ids) == 0 {
 		return result, nil
 	}
@@ -235,7 +235,7 @@ func (r *CallerRows) TeacherRow(ctx context.Context, teacherID int64) (any, erro
 
 // callerGroupRow is an educational group with the caller's access path.
 type callerGroupRow struct {
-	*educationModels.Group
+	*educationRepo.Group
 	ViaSubstitution bool `json:"via_substitution"`
 }
 

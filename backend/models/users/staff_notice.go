@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Wichtigkeit einer Tagesinformation (spiegelt chk_staff_notices_priority).
@@ -68,8 +68,8 @@ type StaffNotice struct {
 	Audience string `bun:"audience,notnull,default:'all'" json:"audience"`
 	// ValidFrom/ValidUntil sind Kalendertage, keine Zeitpunkte. ValidUntil nil
 	// heißt unbefristet.
-	ValidFrom  timezone.Date  `bun:"valid_from,notnull,type:date" json:"valid_from"`
-	ValidUntil *timezone.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`
+	ValidFrom  calendar.Date  `bun:"valid_from,notnull,type:date" json:"valid_from"`
+	ValidUntil *calendar.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`
 	// Weekdays sind ISO-Wochentage (1=Montag … 7=Sonntag). Leer = jeder Tag im
 	// Zeitraum.
 	Weekdays []int16 `bun:"weekdays,array,notnull" json:"weekdays"`
@@ -102,7 +102,7 @@ func (n *StaffNotice) ContainsWeekday(weekday int) bool {
 // Reine Ableitung aus vorhandenen Feldern, keine Entscheidung: das
 // Wochenmuster, die Sichtbarkeit je Rolle und die Kenntnisnahme gehören in den
 // Service.
-func (n *StaffNotice) AppliesOn(date timezone.Date) bool {
+func (n *StaffNotice) AppliesOn(date calendar.Date) bool {
 	if !n.Active {
 		return false
 	}
@@ -130,7 +130,7 @@ func (n *StaffNotice) AppliesTo(reader string) bool {
 // ISOWeekday übersetzt einen Kalendertag in den ISO-Wochentag (1=Montag …
 // 7=Sonntag). Go zählt Sonntag als 0, die Wochentagslisten in Stundenplan und
 // Dienstplan zählen ihn als 7.
-func ISOWeekday(d timezone.Date) int {
+func ISOWeekday(d calendar.Date) int {
 	if wd := d.Weekday(); wd != time.Sunday {
 		return int(wd)
 	}
@@ -209,7 +209,7 @@ type StaffNoticeRepository interface {
 	// ListValidOn gibt die aktiven Hinweise zurück, deren Zeitraum den Tag
 	// enthält und deren Zielgruppe die Leserart einschließt. Wochentag und
 	// Wochenmuster prüft der Service — die Datenbank grenzt nur grob ein.
-	ListValidOn(ctx context.Context, date timezone.Date, reader string) ([]*StaffNotice, error)
+	ListValidOn(ctx context.Context, date calendar.Date, reader string) ([]*StaffNotice, error)
 	// Acknowledge stempelt die Kenntnisnahme einer Person; ein zweiter Aufruf
 	// ändert nichts.
 	Acknowledge(ctx context.Context, noticeID, accountID int64) error

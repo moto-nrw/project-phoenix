@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -19,7 +21,6 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -57,7 +58,7 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Port
 		PersonRepo:          repos.Person,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
-		StudentAudit:        userService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(db)),
+		StudentAudit:        services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAudit(db)),
 		Settings:            masterDataSettings(editEnabled, false, true),
 		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		Logger:              slog.Default(),

@@ -8,14 +8,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
-	"github.com/uptrace/bun"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 )
 
-func newSettingsResource(operations configAPI.Operations, homeLayouts configAPI.HomeLayoutOperations, references func(context.Context, string, string) (bool, error), db *bun.DB) *configAPI.SettingsResource {
+func newSettingsResource(operations configAPI.Operations, homeLayouts configAPI.HomeLayoutOperations, references func(context.Context, string, string) (bool, error)) *configAPI.SettingsResource {
 	settingsRuntime := configAPI.NewRuntime(configAPI.RuntimeDependencies{
 		Protected: func(r chi.Router, fn func(chi.Router, configAPI.Middleware)) {
-			apiCommon.ProtectedTenantGroup(r, db, fn)
+			apiCommon.ProtectedTenantRoutes(r, fn)
 		},
 		Permission: func(access configAPI.Access) configAPI.Middleware {
 			switch access {

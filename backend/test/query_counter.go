@@ -51,7 +51,7 @@ func NewQueryCounter() *QueryCounter {
 func CaptureQueries(tb testing.TB, db *bun.DB) *QueryCounter {
 	tb.Helper()
 	c := NewQueryCounter()
-	db.AddQueryHook(c)
+	db.AddQueryHook(c) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
 	tb.Cleanup(c.Stop)
 	return c
 }
@@ -62,7 +62,7 @@ func CaptureQueriesForContext(tb testing.TB, db *bun.DB) *QueryCounter {
 	tb.Helper()
 	c := NewQueryCounter()
 	c.scope = queryCounterScopeID.Add(1)
-	db.AddQueryHook(c)
+	db.AddQueryHook(c) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
 	tb.Cleanup(c.Stop)
 	return c
 }
@@ -79,7 +79,7 @@ func (c *QueryCounter) Context(ctx context.Context) context.Context {
 // CaptureSettingValueSelects counts config.setting_values SELECTs (#2065).
 func CaptureSettingValueSelects(db *bun.DB) func() int32 {
 	c := NewQueryCounter()
-	db.AddQueryHook(c)
+	db.AddQueryHook(c)                                                            //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
 	return func() int32 { return int32(len(c.Selects("config.setting_values"))) } //nolint:gosec // test-only count
 }
 

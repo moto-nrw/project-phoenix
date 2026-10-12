@@ -33,7 +33,7 @@ const (
 
 // uploadStudentPhoto handles POST /api/students/{id}/photo. Mounted without
 // TenantTxMiddleware so a slow 5 MiB upload doesn't pin a bun pool connection;
-// the service opens its own short tx.
+// the caller check and the service's commit each open their own short tx.
 func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -54,8 +54,8 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	}
 	defer common.CloseFile(uploaded.File)
 
-	if !rs.canModifyStudentPhoto(r.Context()) {
-		mapPhotoUploadError(w, r, peopleModule.ErrPhotoStudentForbidden)
+	if err := withinPhotoCaller(r.Context(), rs.canModifyStudentPhoto, nil); err != nil {
+		mapPhotoUploadError(w, r, err)
 		return
 	}
 
@@ -116,11 +116,7 @@ func (rs *Resource) serveStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	}
 	filename := chi.URLParam(r, "filename")
 
-	if !rs.canReadStudentPhoto(r.Context()) {
-		mapPhotoReadError(w, r, peopleModule.ErrPhotoStudentForbidden)
-		return
-	}
-	storedURL, err := rs.findStudentPhoto(r.Context(), id, filename)
+	storedURL, err := rs.findReadableStudentPhoto(r.Context(), id, filename)
 	if err != nil {
 		mapPhotoReadError(w, r, err)
 		return
@@ -211,10 +207,34 @@ func (rs *Resource) clearStudentPhoto(ctx context.Context, studentID int64) (str
 	return rs.StudentPhotos.ClearStudentPhoto(ctx, studentID)
 }
 
-// findStudentPhoto resolves the stored URL behind a served photo filename.
-func (rs *Resource) findStudentPhoto(ctx context.Context, studentID int64, filename string) (string, error) {
+// findReadableStudentPhoto checks the caller and resolves the stored URL
+// behind a served photo filename in one short tenant transaction.
+func (rs *Resource) findReadableStudentPhoto(ctx context.Context, studentID int64, filename string) (string, error) {
 	if err := requirePhotoTenant(ctx); err != nil {
 		return "", err
 	}
-	return rs.StudentPhotos.FindStudentPhoto(ctx, studentID, filename)
+	var storedURL string
+	err := withinPhotoCaller(ctx, rs.canReadStudentPhoto, func(txCtx context.Context) error {
+		var findErr error
+		storedURL, findErr = rs.StudentPhotos.FindStudentPhoto(txCtx, studentID, filename)
+		return findErr
+	})
+	return storedURL, err
+}
+
+// withinPhotoCaller runs gate and then fn (when set) in one short tenant
+// transaction, refusing with ErrPhotoStudentForbidden when the gate fails.
+// The upload and serve routes skip withTx, and the gate's staff lookup reads
+// the caller's rows, which RLS shows only inside a tenant transaction:
+// without one the gate refuses every non-admin (#3830).
+func withinPhotoCaller(ctx context.Context, gate func(context.Context) bool, fn func(context.Context) error) error {
+	return tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		if !gate(txCtx) {
+			return peopleModule.ErrPhotoStudentForbidden
+		}
+		if fn == nil {
+			return nil
+		}
+		return fn(txCtx)
+	})
 }

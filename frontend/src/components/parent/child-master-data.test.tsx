@@ -198,10 +198,14 @@ describe("ChildMasterDataView", () => {
       />,
     );
 
+    const heading = await screen.findByRole("heading", {
+      name: "So geht Lina Muster nach Hause",
+    });
+    expect(heading).toBeInTheDocument();
     expect(
-      await screen.findByRole("heading", {
-        name: "So geht Lina Muster nach Hause",
-      }),
+      heading
+        .closest("section")
+        ?.querySelector('[data-parent-tour="child-departure"]'),
     ).toBeInTheDocument();
     expect(screen.queryByDisplayValue("Lara")).not.toBeInTheDocument();
     // The matrix IS the saved state: every checked box is a stored mode.

@@ -137,7 +137,7 @@ func (s *Store) CountAttendanceByStaff(ctx context.Context, id int64) (int, port
 	count, err := db.NewSelect().Table("active.attendance").Where("tenant_id = ?", tenantID).
 		Where("(checked_in_by = ? OR checked_out_by = ?)", id, id).Count(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
-	return count, stats, err
+	return int(count), stats, err
 }
 
 func (s *Store) ListOpenAttendanceStudentIDs(ctx context.Context, date string) ([]int64, ports.Stats, error) {

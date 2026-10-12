@@ -4,8 +4,8 @@ import (
 	"context"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // The adapter in this file serves the staff lookups of the public Workforce
@@ -16,12 +16,12 @@ import (
 
 type staffDirectoryCapability struct {
 	workforce.StaffRecordAdmin
-	people users.PersonService
+	people *peopleCompose.PersonDirectory
 }
 
 // StaffDirectoryCapability serves workforce.StaffDirectory: the lookups from
 // the retained person service, the administration from Workforce.
-func StaffDirectoryCapability(people users.PersonService, admin workforce.StaffRecordAdmin) workforce.StaffDirectory {
+func StaffDirectoryCapability(people *peopleCompose.PersonDirectory, admin workforce.StaffRecordAdmin) workforce.StaffDirectory {
 	if people == nil || admin == nil {
 		panic("staff directory capability: person service and personnel-record administration are required")
 	}

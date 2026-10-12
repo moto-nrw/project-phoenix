@@ -182,7 +182,7 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 			Where("student_id = ?", student.ID).
 			Count(context.Background())
 		require.NoError(t, err)
-		assert.Equal(t, 0, count)
+		assert.Equal(t, int64(0), count)
 	})
 
 	t.Run("bad_request_invalid_weekday", func(t *testing.T) {

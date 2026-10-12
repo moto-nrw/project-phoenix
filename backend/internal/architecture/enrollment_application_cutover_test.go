@@ -71,7 +71,7 @@ func TestEnrollmentApplicationCutoverRefusesOtherSources(t *testing.T) {
 		enrollmentCutoverPoint("enrollment", "postgres"),
 		enrollmentCutoverPoint("care-plan", "compose"),
 		enrollmentCutoverPoint("parent-portal", "compose"),
-		enrollmentCutoverPoint("inbound-enrollment", "http"),
+		enrollmentCutoverPoint("enrollment", "http"),
 	} {
 		if enrollmentApplicationCutoverPermission(base, candidate, ScopeProduction, source, application) {
 			t.Fatalf("%s/%s reached enrollment/application", source.Owner, source.Role)

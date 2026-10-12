@@ -14,7 +14,7 @@ import (
 
 // SettingsTestModule contains only the settings application capabilities.
 type SettingsTestModule struct {
-	Settings       config.SettingsService
+	Settings       config.BatchSettingsService
 	TenantSettings *config.TenantOperations
 	payroll        config.PayrollStatusGetter
 	runtime        config.TenantOperationsRuntime

@@ -1,11 +1,9 @@
-// Package legacy adapts the retained owner services to the supervision
-// projection's consumer-owned ports (#2703). It exists only because those
-// owners (identity, settings, presence, the Schulhof workflow, timetable
-// operations, day planning) still live in legacy service packages; the
-// adapters translate rows into plain records and delegate every rule to its
-// owner, deciding nothing themselves. Delete this package with the last
-// legacy source once each owner exposes the fact through its public
-// capability.
+// Package legacy adapts retained owner services to supervision ports (#2703).
+// The owners (identity, settings, presence, the Schulhof workflow, timetable
+// operations, day planning) remain in legacy service packages. Adapters
+// translate rows into plain records and delegate every rule to their owners.
+// They decide nothing themselves. Delete this package with the last
+// legacy source once each owner exposes the fact through its public capability.
 package legacy
 
 import (
@@ -23,11 +21,10 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	educationService "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
@@ -55,10 +52,10 @@ type Sources struct {
 	OpenVisits   studentpresence.SessionReads
 	Rooms        supervisiondashboard.RoomDirectory
 	UserContext  CallerContext
-	Education    educationService.Service
+	Education    educationService.GroupRoomsQuery
 	Schulhof     facilitiesService.SchulhofService
 	Operations   timetable.OperationQuery
-	Settings     configService.SettingsService
+	Settings     supervisiondashboard.Resolver
 	Pickups      careplan.BulkPickupTimes
 	Arrivals     careplan.BulkArrivalTimes
 	Now          func() time.Time
@@ -95,7 +92,7 @@ func New(sources Sources) (supervisiondashboard.Query, error) {
 }
 
 type access struct {
-	settings configService.SettingsService
+	settings supervisiondashboard.Resolver
 	CallerContext
 }
 
@@ -299,7 +296,7 @@ func schulhofStatus(status *facilitiesService.SchulhofStatus) *supervisiondashbo
 }
 
 type groups struct {
-	education   educationService.Service
+	education   educationService.GroupRoomsQuery
 	userContext CallerContext
 }
 
@@ -389,6 +386,7 @@ func (s schedule) SessionBlocks(ctx context.Context, query supervisiondashboard.
 			Title:         block.Title,
 			StartTime:     block.StartTime,
 			EndTime:       block.EndTime,
+			IsSpontaneous: block.IsSpontaneous,
 			IsAssigned:    block.IsAssigned,
 			CanOperate:    block.CanOperate,
 		}
@@ -410,6 +408,9 @@ func plannedInstance(instance timetable.OperationPlannedInstance) supervisiondas
 		ExpectedStudentsCount: instance.ExpectedStudentsCount,
 		PresentStudentsCount:  instance.PresentStudentsCount,
 		NotScheduledCount:     instance.NotScheduledCount,
+		CurrentStudentsCount:  instance.CurrentStudentsCount,
+		PlannedStudentsCount:  instance.PlannedStudentsCount,
+		IsSpontaneous:         instance.IsSpontaneous,
 		AssignedStaffIDs:      instance.AssignedStaffIDs,
 		IsAssigned:            instance.IsAssigned,
 		IsPrimary:             instance.IsPrimary,
@@ -435,13 +436,8 @@ func plannedInstance(instance timetable.OperationPlannedInstance) supervisiondas
 
 func rosterRow(row timetable.OperationRosterRow) supervisiondashboard.RosterRow {
 	var parallel *supervisiondashboard.ParallelPresence
-	if row.ParallelPresentIn != nil {
-		parallel = &supervisiondashboard.ParallelPresence{
-			InstanceID: row.ParallelPresentIn.InstanceID,
-			Title:      row.ParallelPresentIn.Title,
-			StartTime:  row.ParallelPresentIn.StartTime,
-			EndTime:    row.ParallelPresentIn.EndTime,
-		}
+	if in := row.ParallelPresentIn; in != nil {
+		parallel = &supervisiondashboard.ParallelPresence{InstanceID: in.InstanceID, Title: in.Title, StartTime: in.StartTime, EndTime: in.EndTime}
 	}
 	return supervisiondashboard.RosterRow{
 		StudentID:        row.StudentID,
@@ -626,27 +622,19 @@ func wallClock(at *time.Time) *string {
 	return &formatted
 }
 
-type settings struct{ settings configService.SettingsService }
+type settings struct{ settings supervisiondashboard.Resolver }
 
 func (s settings) Prepare(ctx context.Context) (context.Context, error) {
-	batch, ok := s.settings.(configService.BatchSettingsService)
-	if !ok {
-		return ctx, nil
-	}
-	snapshot, err := batch.ResolveMany(ctx, []string{
+	return s.settings.Prefetch(ctx, []string{
 		configModel.KeyOperationalOverviewScope,
 		configModel.KeyGroupMode,
 		configModel.KeyStudentPhotosEnabled,
-		configModel.KeyWebSpontaneousActivities,
+		configModel.KeyWebSpontaneousActivities, configModel.KeyWeekendFollowsFriday,
 		configModel.KeyTrackingIndicatorsEnabled,
 		configModel.KeyTrackingIndicator1,
 		configModel.KeyTrackingIndicator2,
 		configModel.KeyTrackingIndicator3,
 	})
-	if err != nil {
-		return ctx, err
-	}
-	return configService.WithSettingsSnapshot(ctx, snapshot), nil
 }
 
 func (s settings) StudentPhotosEnabled(ctx context.Context) (bool, error) {

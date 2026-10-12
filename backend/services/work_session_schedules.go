@@ -17,9 +17,9 @@ import (
 // contract the schedule port is served from.
 type WorkSessionScheduleRecords interface {
 	GetCurrentByStaffID(context.Context, int64) ([]*config.StaffWorkSchedule, error)
-	GetByStaffIDAndDate(context.Context, int64, config.CalendarDate) ([]*config.StaffWorkSchedule, error)
 	FindByStaffIDsValidInRange(context.Context, []int64, config.CalendarDate, config.CalendarDate) ([]*config.StaffWorkSchedule, error)
 	ReplaceSchedule(context.Context, int64, []*config.StaffWorkSchedule, config.CalendarDate) error
+	ReplaceScheduleWithValidFrom(context.Context, int64, []*config.StaffWorkSchedule, config.CalendarDate, config.CalendarDate) error
 }
 
 type WorkSessionSchedules struct{ records WorkSessionScheduleRecords }
@@ -33,11 +33,6 @@ func (r *WorkSessionSchedules) GetCurrentByStaffID(ctx context.Context, staffID 
 	return workScheduleRows(rows), err
 }
 
-func (r *WorkSessionSchedules) GetByStaffIDAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*timetracking.WorkScheduleRow, error) {
-	rows, err := r.records.GetByStaffIDAndDate(ctx, staffID, config.CalendarDate(date))
-	return workScheduleRows(rows), err
-}
-
 func (r *WorkSessionSchedules) FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*timetracking.WorkScheduleRow, error) {
 	rows, err := r.records.FindByStaffIDsValidInRange(ctx, staffIDs, config.CalendarDate(from), config.CalendarDate(to))
 	return workScheduleRows(rows), err
@@ -45,6 +40,10 @@ func (r *WorkSessionSchedules) FindByStaffIDsValidInRange(ctx context.Context, s
 
 func (r *WorkSessionSchedules) ReplaceSchedule(ctx context.Context, staffID int64, rows []*timetracking.WorkScheduleRow, anchor timezone.Date) error {
 	return r.records.ReplaceSchedule(ctx, staffID, staffWorkScheduleRows(rows), config.CalendarDate(anchor))
+}
+
+func (r *WorkSessionSchedules) ReplaceScheduleWithValidFrom(ctx context.Context, staffID int64, rows []*timetracking.WorkScheduleRow, anchor, validFrom timezone.Date) error {
+	return r.records.ReplaceScheduleWithValidFrom(ctx, staffID, staffWorkScheduleRows(rows), config.CalendarDate(anchor), config.CalendarDate(validFrom))
 }
 
 // WorkSessionTimeModelRecords is the retained work-time-model repository

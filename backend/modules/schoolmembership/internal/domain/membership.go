@@ -30,6 +30,10 @@ type Staff struct {
 	RotationAnchorDate    string
 	BirthdayDisplayOptOut bool
 	DeletedAt             *time.Time
+	// IsGuest marks an external caregiver without a moto account (#3823);
+	// GuestOrganization is the optional organization they come from.
+	IsGuest           bool
+	GuestOrganization string
 }
 
 func (s Staff) IsDeleted() bool { return s.DeletedAt != nil }

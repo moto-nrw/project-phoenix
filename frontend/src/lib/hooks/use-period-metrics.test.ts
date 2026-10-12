@@ -68,7 +68,7 @@ function mockSWR(
   data: Partial<
     Record<"summary" | "targets" | "sessions" | "absences", unknown>
   >,
-  errors: Partial<Record<"summary" | "targets", unknown>> = {},
+  errors: Partial<Record<"summary" | "targets" | "absences", unknown>> = {},
 ) {
   const keys: string[] = [];
   const configs = new Map<string, SWROptions>();
@@ -122,7 +122,13 @@ function mockSWR(
       }
       if (typeof key === "string" && key.includes("absences")) {
         // Own portal: raw camelCase StaffAbsence[]; admin: StaffAbsenceRow[].
-        return { data: data.absences ?? [], isLoading: false, mutate };
+        return {
+          // SWR keeps the last response while a revalidation fails.
+          data: data.absences ?? [],
+          isLoading: false,
+          error: errors.absences,
+          mutate,
+        };
       }
       // The own history key is SHARED with the Zeiterfassung table and carries
       // that table's shape; the admin key carries a flat session array.
@@ -275,6 +281,32 @@ describe("usePeriodMetrics", () => {
     const { result } = renderHook(() => usePeriodMetrics("42"));
 
     expect(result.current.week).toBeNull();
+  });
+
+  // A failed refresh still exposes SWR's cached absence response. The week's
+  // figure must nevertheless stay unavailable: a cached empty list might miss
+  // a sick day's credit and read as a reliable value (#3885).
+  it("reports no week when refreshing cached absences fails", async () => {
+    const error = new Error("absences unavailable");
+    const swr = mockSWR(
+      {
+        summary: SUMMARY,
+        targets: new Map([["2026-08-03", 480]]),
+        sessions: [],
+        absences: [],
+      },
+      { absences: error },
+    );
+
+    const { result } = renderHook(() => usePeriodMetrics());
+
+    expect(result.current.week).toBeNull();
+    expect(result.current.error).toBe(error);
+    expect(result.current.failed).toBe(true);
+    await result.current.retry();
+    expect(
+      swr.mutates.get("time-tracking-table-absences-2026-08-03-2026-08-09"),
+    ).toHaveBeenCalledTimes(1);
   });
 
   it("exposes a failed metric source with a retry", async () => {

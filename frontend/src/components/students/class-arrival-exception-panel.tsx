@@ -168,6 +168,11 @@ export interface ClassArrivalExceptionPanelProps {
    * Angabe nennt die OGS Einträge der Schule.
    */
   readonly originLabel?: (exception: ClassArrivalException) => string | null;
+  /**
+   * Die Schule betreut Sa/So nach dem Freitagsplan (#3921): dann sind auch
+   * Wochenendtage wählbar.
+   */
+  readonly weekendOpen?: boolean;
 }
 
 const WEEKDAY_SHORT: Record<number, string> = {
@@ -267,6 +272,7 @@ function ClassArrivalExceptionPanelBody({
   defaultDate,
   readOnlyHint = OGS_READ_ONLY_HINT,
   originLabel = ogsOriginLabel,
+  weekendOpen = false,
 }: ClassArrivalExceptionPanelBodyProps) {
   const [exceptions, setExceptions] = useState<ClassArrivalException[]>([]);
   const [canEdit, setCanEdit] = useState(false);
@@ -475,7 +481,7 @@ function ClassArrivalExceptionPanelBody({
                 onChange={setDate}
                 minDate={today}
                 maxDate={maxDate}
-                disabledDay={isWeekend}
+                disabledDay={weekendOpen ? undefined : isWeekend}
                 placeholder="Datum wählen"
                 hideClearButton
                 required

@@ -19,8 +19,6 @@ package parent
 import (
 	"net/http"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
@@ -30,7 +28,6 @@ import (
 	pwaService "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -45,8 +42,8 @@ type Resource struct {
 	ParentService         PortalService
 	RequestSharing        parentService.RequestSharingService
 	CalendarService       calendarService.Service
-	RequestService        enrollmentAPI.RequestService
-	GuardianProfileLoader *usersService.GuardianProfileLoader
+	EnrollmentForms       EnrollmentForms
+	GuardianProfileLoader GuardianProfileLoader
 	SchoolService         SchoolDirectory
 	PushService           notificationsService.PushSubscriptionService
 	PreferenceService     notificationsService.PreferenceService
@@ -63,11 +60,12 @@ type ResourceConfig struct {
 	// Auth is the login runtime the composition root binds (#3364).
 	Auth LoginRuntime
 	// Resets is the reset runtime the composition root binds (#3332).
-	Resets                PasswordResetRuntime
-	Parent                PortalService
-	Calendar              calendarService.Service
-	Requests              enrollmentAPI.RequestService
-	GuardianProfileLoader *usersService.GuardianProfileLoader
+	Resets   PasswordResetRuntime
+	Parent   PortalService
+	Calendar calendarService.Service
+	// Enrollment is the public form flow the composition root binds (#2734).
+	Enrollment            EnrollmentForms
+	GuardianProfileLoader GuardianProfileLoader
 	Schools               SchoolDirectory
 	// Push is the Web Push subscription service (#2003).
 	Push notificationsService.PushSubscriptionService
@@ -96,7 +94,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		ParentService:         cfg.Parent,
 		RequestSharing:        sharing,
 		CalendarService:       cfg.Calendar,
-		RequestService:        cfg.Requests,
+		EnrollmentForms:       cfg.Enrollment,
 		GuardianProfileLoader: cfg.GuardianProfileLoader,
 		SchoolService:         cfg.Schools,
 		PushService:           cfg.Push,
@@ -105,12 +103,6 @@ func NewResource(cfg ResourceConfig) *Resource {
 		Reports:               cfg.Reports,
 		db:                    cfg.DB,
 	}
-}
-
-// Router returns the chi router scoped to /parent without a rate limiter on
-// the public auth endpoints; tests drive it directly.
-func (rs *Resource) Router() chi.Router {
-	return rs.RouterWithAuthRateLimiter(nil)
 }
 
 // RouterWithAuthRateLimiter returns the chi router scoped to /parent with the
@@ -206,8 +198,8 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 
 		// Authenticated submit. Stamps guardian_account_id on the
 		// resulting enrollment.requests row, skips captcha (parent
-		// already authenticated), and forwards to the same
-		// RequestService.Submit the public path uses.
+		// already authenticated), and forwards to the same owner
+		// submission the public path uses.
 		r.Post("/enrollments/{tenantSlug}/submit", rs.submitParentEnrollment)
 
 		// Per-child write features. The {studentId} is validated against

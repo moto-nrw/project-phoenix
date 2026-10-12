@@ -10,31 +10,59 @@ import {
   getSchoolYear,
 } from "~/lib/student-helpers";
 import type { ActiveSupervisionStudent } from "~/components/active-supervisions/view-model";
+import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
 
-/** Check if a student matches the current search, group, and year filters */
-function matchesStudentFilters(
-  student: ActiveSupervisionStudent,
-  searchTerm: string,
-  groupFilter: string,
-  yearFilter: string,
+interface FilterCriteria {
+  readonly searchTerm: string;
+  readonly groupFilter: string;
+  readonly yearFilter: string;
+}
+
+/** What the search and the filters look at, from a card or a roster row. */
+interface FilterableChild {
+  readonly names: readonly (string | undefined)[];
+  readonly groupName: string | undefined;
+  readonly schoolClass: string;
+}
+
+function matchesCriteria(
+  child: FilterableChild,
+  { searchTerm, groupFilter, yearFilter }: FilterCriteria,
 ): boolean {
   if (searchTerm) {
     const searchLower = searchTerm.toLowerCase();
-    const matchesSearch =
-      (student.name?.toLowerCase().includes(searchLower) ?? false) ||
-      (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
-      (student.second_name?.toLowerCase().includes(searchLower) ?? false);
+    const matchesSearch = child.names.some(
+      (name) => name?.toLowerCase().includes(searchLower) ?? false,
+    );
     if (!matchesSearch) return false;
   }
   if (groupFilter !== "all") {
-    const studentGroupName = student.group_name ?? "Unbekannt";
+    const studentGroupName = child.groupName ?? "Unbekannt";
     if (studentGroupName !== groupFilter) return false;
   }
   if (yearFilter !== "all") {
-    const studentYear = getSchoolYear(student.school_class);
+    const studentYear = getSchoolYear(child.schoolClass);
     if (studentYear !== yearFilter) return false;
   }
   return true;
+}
+
+function studentAsFilterable(
+  student: ActiveSupervisionStudent,
+): FilterableChild {
+  return {
+    names: [student.name, student.first_name, student.second_name],
+    groupName: student.group_name,
+    schoolClass: student.school_class,
+  };
+}
+
+function rosterRowAsFilterable(row: TimetableRosterRow): FilterableChild {
+  return {
+    names: [row.studentName],
+    groupName: row.groupName,
+    schoolClass: row.schoolClass,
+  };
 }
 
 export interface StudentFilters {
@@ -43,37 +71,56 @@ export interface StudentFilters {
   readonly setGroupFilter: (value: string) => void;
   readonly setSelectedYear: (value: string) => void;
   readonly filteredStudents: ActiveSupervisionStudent[];
+  /**
+   * The same search and filters for the rows of a block list (#3889): it
+   * holds expected, absent and departed children too, under their status.
+   * Null while nothing is searched or filtered.
+   */
+  readonly rosterRowFilter: ((row: TimetableRosterRow) => boolean) | null;
   readonly filterConfigs: FilterConfig[];
   readonly activeFilters: ActiveFilter[];
   readonly clearAllFilters: () => void;
 }
 
 /**
- * Search / group / year filter state of the visitor list, with the
- * PageHeaderWithSearch configs derived from the current students.
+ * Search / group / year filter state of the visitor list and the block list,
+ * with the PageHeaderWithSearch configs derived from the children, its own
+ * roster and every loaded roster in an open room.
  */
 export function useStudentFilters(
   students: readonly ActiveSupervisionStudent[],
+  rosterRows: readonly TimetableRosterRow[] = [],
+  openRoomRosterGroups: readonly string[] = [],
 ): StudentFilters {
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
   const [selectedYear, setSelectedYear] = useState("all");
 
-  const filteredStudents = useMemo(
-    () =>
-      (Array.isArray(students) ? students : []).filter((student) =>
-        matchesStudentFilters(student, searchTerm, groupFilter, selectedYear),
-      ),
-    [students, searchTerm, groupFilter, selectedYear],
-  );
+  const filteredStudents = useMemo(() => {
+    const criteria = { searchTerm, groupFilter, yearFilter: selectedYear };
+    return (Array.isArray(students) ? students : []).filter((student) =>
+      matchesCriteria(studentAsFilterable(student), criteria),
+    );
+  }, [students, searchTerm, groupFilter, selectedYear]);
+
+  const rosterRowFilter = useMemo(() => {
+    if (!searchTerm && groupFilter === "all" && selectedYear === "all") {
+      return null;
+    }
+    const criteria = { searchTerm, groupFilter, yearFilter: selectedYear };
+    return (row: TimetableRosterRow) =>
+      matchesCriteria(rosterRowAsFilterable(row), criteria);
+  }, [searchTerm, groupFilter, selectedYear]);
 
   const filterConfigs: FilterConfig[] = useMemo(() => {
     // Compute available groups inside useMemo to ensure proper updates
     const groups = Array.from(
       new Set(
-        students
-          .map((student) => student.group_name)
-          .filter((name): name is string => !!name),
+        [
+          ...students.map((student) => student.group_name),
+          ...rosterRows.map((row) => row.groupName),
+          ...openRoomRosterGroups,
+        ].filter((name): name is string => !!name),
       ),
     ).sort((a, b) => a.localeCompare(b, "de"));
 
@@ -101,7 +148,7 @@ export function useStudentFilters(
         ],
       },
     ];
-  }, [selectedYear, groupFilter, students]);
+  }, [selectedYear, groupFilter, students, rosterRows, openRoomRosterGroups]);
 
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const filters: ActiveFilter[] = [];
@@ -145,6 +192,7 @@ export function useStudentFilters(
     setGroupFilter,
     setSelectedYear,
     filteredStudents,
+    rosterRowFilter,
     filterConfigs,
     activeFilters,
     clearAllFilters,

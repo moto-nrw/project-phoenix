@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Person represents a physical person in the system
@@ -15,7 +15,7 @@ type Person struct {
 	base.TenantModel
 	FirstName string         `bun:"first_name,notnull" json:"first_name"`
 	LastName  string         `bun:"last_name,notnull" json:"last_name"`
-	Birthday  *timezone.Date `bun:"birthday,type:date" json:"birthday,omitempty"`
+	Birthday  *calendar.Date `bun:"birthday,type:date" json:"birthday,omitempty"`
 	TagID     *string        `bun:"tag_id" json:"tag_id,omitempty"`
 	AccountID *int64         `bun:"account_id" json:"account_id,omitempty"`
 	DeletedAt *time.Time     `bun:"deleted_at,soft_delete,nullzero" json:"-"`

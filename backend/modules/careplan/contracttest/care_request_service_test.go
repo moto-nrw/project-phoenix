@@ -300,7 +300,7 @@ func TestDecide_ApproveAppliesModeArrivalPickup(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, usersModels.DeparturePickup, student.DepartureDays["mon"])
 
-	history, err := f.sf.StudentAudit.GetChangeHistory(ctx, f.chain.StudentID)
+	history, err := repositories.NewStudentAudit(f.db).GetChangeHistory(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	require.NotEmpty(t, history)
 	var departureEditFound bool

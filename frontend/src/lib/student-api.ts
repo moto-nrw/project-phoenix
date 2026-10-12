@@ -48,6 +48,8 @@ export interface StudentFilters {
   last_name?: string;
   page?: number;
   page_size?: number;
+  /** Adds today's effective pickup time (`pickup_time`) to every row. */
+  include_pickup_times?: boolean;
 }
 
 // Generic API response interface
@@ -134,6 +136,8 @@ async function buildStudentUrl(
   if (filters.page) params.append("page", filters.page.toString());
   if (filters.page_size)
     params.append("page_size", filters.page_size.toString());
+  if (filters.include_pickup_times)
+    params.append("include_pickup_times", "true");
 
   const queryString = params.toString();
   return { url: queryString ? `${baseUrl}?${queryString}` : baseUrl, useProxy };

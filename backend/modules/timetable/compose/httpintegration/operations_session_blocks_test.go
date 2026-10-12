@@ -48,6 +48,7 @@ func sessionBlocksFixture(t *testing.T) (*timetableOpsTestDeps, calendar.Date, m
 		block(44, 54, 14, 16, scheduleModels.InstanceStatusActive),
 		block(45, 0, 16, 17, scheduleModels.InstanceStatusPlanned),
 	}
+	deps.instanceRepo.byDate[1].IsSpontaneous = true
 	deps.staffRepo.byInstance[41] = []*scheduleModels.InstanceStaff{{StaffID: callerStaffID}, {StaffID: colleagueStaffID}}
 	deps.staffRepo.byInstance[42] = []*scheduleModels.InstanceStaff{{StaffID: colleagueStaffID}}
 	deps.staffRepo.byInstance[43] = []*scheduleModels.InstanceStaff{{StaffID: colleagueStaffID}, {StaffID: callerStaffID, IsAbsent: true}}
@@ -98,7 +99,7 @@ func TestTimetableOperationsSessionBlocksMirrorCanOperate(t *testing.T) {
 	}, bySession[51])
 	assert.Equal(t, timetable.OperationSessionBlock{
 		ActiveGroupID: 52, InstanceID: 42, Title: "GT", StartTime: "13:00", EndTime: "15:00",
-		IsAssigned: false, CanOperate: true,
+		IsSpontaneous: true, IsAssigned: false, CanOperate: true,
 	}, bySession[52], "a supervisor operates a block without being planned on it")
 	assert.Equal(t, timetable.OperationSessionBlock{
 		ActiveGroupID: 53, InstanceID: 43, Title: "GT", StartTime: "14:00", EndTime: "15:00",

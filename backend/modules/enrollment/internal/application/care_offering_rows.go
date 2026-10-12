@@ -291,3 +291,37 @@ func unmarshalOptional(data json.RawMessage, target any) error {
 	}
 	return json.Unmarshal(data, target)
 }
+
+// PublicCareOffering describes one enrollment row in the public offering
+// value; a nil row stays nil.
+func PublicCareOffering(row *enrollmentModels.CareOffering) *enrollment.CareOffering {
+	if row == nil {
+		return nil
+	}
+	return publicCareOfferings([]*enrollmentModels.CareOffering{row})[0]
+}
+
+// PublicCareOfferingList describes enrollment rows in the public offering
+// value.
+func PublicCareOfferingList(rows []*enrollmentModels.CareOffering) []*enrollment.CareOffering {
+	return publicCareOfferings(rows)
+}
+
+// CareOfferingRowOf builds the enrollment row of a public offering value,
+// as a route that saves the offering sets every column it carries.
+func CareOfferingRowOf(value *enrollment.CareOffering) (*enrollmentModels.CareOffering, error) {
+	row := &enrollmentModels.CareOffering{
+		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		PhaseID: value.PhaseID, ActivityGroupID: value.ActivityGroupID, Name: value.Name, Description: value.Description,
+		DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays,
+		IncludesHolidayCare: value.IncludesHolidayCare, IncludesLunch: value.IncludesLunch,
+		Capacity: value.Capacity, PriceCents: value.PriceCents, IsActive: value.IsActive, IsRequired: value.IsRequired,
+		CountsAsCare: value.CountsAsCare, CountsAsCareSet: true, AutoAddGradeLevels: value.AutoAddGradeLevels,
+		SortOrder: value.SortOrder, SelectionGroup: value.SelectionGroup, SelectionRule: value.SelectionRule,
+		PickupTimes: value.PickupTimes, Translations: value.Translations, AutoAddTriggerOfferingIDs: value.AutoAddTriggerOfferingIDs,
+	}
+	if err := unmarshalOptional(value.AvailabilityRule, &row.AvailabilityRule); err != nil {
+		return nil, fmt.Errorf("decode care offering availability rule: %w", err)
+	}
+	return row, nil
+}

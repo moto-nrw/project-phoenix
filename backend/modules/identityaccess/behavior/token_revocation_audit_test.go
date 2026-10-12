@@ -115,7 +115,7 @@ func TestRevocationAuditFailureRollsBackAndRetryIsIdempotent(t *testing.T) {
 
 	count, err := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, count, "token deletion must roll back with the failed audit insert")
+	assert.Equal(t, 1, int(count), "token deletion must roll back with the failed audit insert")
 
 	// A caller may retry after the fail-closed transaction. The retry revokes
 	// the still-present token and emits exactly one ledger row; another retry
@@ -132,7 +132,7 @@ func TestRevocationAuditFailureRollsBackAndRetryIsIdempotent(t *testing.T) {
 		Where("metadata->>'reason' = ?", "password_reset").
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, eventCount, "retry must not append a duplicate revocation event")
+	assert.Equal(t, 1, int(eventCount), "retry must not append a duplicate revocation event")
 }
 
 func TestSessionCapAuditsEvictedTokenFamily(t *testing.T) {
@@ -154,7 +154,7 @@ func TestSessionCapAuditsEvictedTokenFamily(t *testing.T) {
 
 	tokenCount, err := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 5, tokenCount)
+	assert.Equal(t, 5, int(tokenCount))
 
 	var event authEventRow
 	require.NoError(t, db.NewSelect().Model(&event).

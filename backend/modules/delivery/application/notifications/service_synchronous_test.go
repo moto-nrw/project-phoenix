@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 )
 
 // syncChannel is a channel that also reports acceptance synchronously — the
@@ -30,8 +29,8 @@ func (c *syncChannel) DeliverSynchronously(_ context.Context, event notification
 
 // windowSettings resolves the dispatch flag plus an active window whose bounds
 // are given as "HH:MM". Equal bounds mean an unrestricted 24h window.
-func windowSettings(enabled bool, start, end string) *configtest.Mock {
-	return &configtest.Mock{
+func windowSettings(enabled bool, start, end string) *settingsDouble {
+	return &settingsDouble{
 		ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
 			if key == configModel.KeyNotificationsDispatchEnabled {
 				return enabled, nil
@@ -51,7 +50,7 @@ func windowSettings(enabled bool, start, end string) *configtest.Mock {
 }
 
 // openWindowSettings enables dispatch with an unrestricted delivery window.
-func openWindowSettings() *configtest.Mock {
+func openWindowSettings() *settingsDouble {
 	return windowSettings(true, "00:00", "00:00")
 }
 
@@ -189,7 +188,7 @@ func TestNotifySynchronouslyHonorsTenantGates(t *testing.T) {
 
 	t.Run("a feature flag read failure is wrapped, not swallowed", func(t *testing.T) {
 		settingsErr := errors.New("settings unavailable")
-		svc := notifications.NewService(&configtest.Mock{
+		svc := notifications.NewService(&settingsDouble{
 			ResolveBoolForTenantFn: func(context.Context, int64, string) (bool, error) {
 				return false, settingsErr
 			},
@@ -222,7 +221,7 @@ func TestNotifySynchronouslyHonorsTenantGates(t *testing.T) {
 
 	t.Run("a window read failure is returned", func(t *testing.T) {
 		windowErr := errors.New("window unavailable")
-		svc := notifications.NewService(&configtest.Mock{
+		svc := notifications.NewService(&settingsDouble{
 			ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
 				return key == configModel.KeyNotificationsDispatchEnabled, nil
 			},

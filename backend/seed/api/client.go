@@ -102,6 +102,10 @@ func (c *Client) GetWithAuth(auth AuthRef, path string) ([]byte, error) {
 	return c.doRequestWithExplicitAuth("GET", path, nil, auth, nil)
 }
 
+func (c *Client) GetWithAuthAndHeaders(auth AuthRef, path string, headers map[string]string) ([]byte, error) {
+	return c.doRequestWithExplicitAuth("GET", path, nil, auth, headers)
+}
+
 func (c *Client) PostWithAuth(auth AuthRef, path string, body any) ([]byte, error) {
 	return c.doRequestWithExplicitAuth("POST", path, body, auth, nil)
 }

@@ -239,7 +239,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 
 	t.Run("updates device successfully", func(t *testing.T) {
 		// ARRANGE
-		device := testpkg.CreateTestDevice(t, db, "to-update")
+		device := ownerDevice(testpkg.CreateTestDevice(t, db, "to-update"))
 
 		// Modify device
 		newName := "Updated Device Name"
@@ -302,7 +302,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 
 	t.Run("returns error for invalid device data", func(t *testing.T) {
 		// ARRANGE
-		device := testpkg.CreateTestDevice(t, db, "invalid-update")
+		device := ownerDevice(testpkg.CreateTestDevice(t, db, "invalid-update"))
 
 		// Make device invalid
 		device.DeviceType = "" // invalid
@@ -317,7 +317,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 	t.Run("returns error when changing to duplicate device ID", func(t *testing.T) {
 		// ARRANGE - create two devices
 		device1 := testpkg.CreateTestDevice(t, db, "first-device")
-		device2 := testpkg.CreateTestDevice(t, db, "second-device")
+		device2 := ownerDevice(testpkg.CreateTestDevice(t, db, "second-device"))
 
 		// Try to change device2's DeviceID to match device1's
 		device2.DeviceID = device1.DeviceID
@@ -906,7 +906,7 @@ func TestIoTService_WebManualDeviceProtection(t *testing.T) {
 	service := setupIoTService(t, db)
 	ctx := testpkg.Ctx(t)
 
-	webManualDevice := testpkg.EnsureWebManualDevice(t, db)
+	webManualDevice := ownerDevice(testpkg.EnsureWebManualDevice(t, db))
 
 	createTenantVirtualDevice := func(tb testing.TB, suffix string) *iotModels.Device {
 		tb.Helper()

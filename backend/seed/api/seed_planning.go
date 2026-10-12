@@ -344,6 +344,10 @@ func createSeedTargetVariants(rt *Runtime, roomID, categoryID, trackID int64, st
 	for _, body := range variants {
 		body["room_id"], body["category_id"], body["planning_track_id"] = roomID, categoryID, trackID
 		body["week_pattern"], body["student_ids"], body["staff_ids"] = 0, studentIDs[:10], staffIDs[:3]
+		if body["list_kind"] == "learning_time" {
+			// The Sternengruppe's own caregiver joins its Lernzeit (#3922).
+			body["staff_ids"] = withVisitorStaff(rt.FixedSeeder, staffIDs[:3])
+		}
 		body["primary_staff_id"] = staffIDs[0]
 		body["materialize_from"], body["materialize_to"] = today.String(), today.AddDays(6).String()
 		if _, err := rt.Client.Post("/api/timetable/templates", body); err != nil {

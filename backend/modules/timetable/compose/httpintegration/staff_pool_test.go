@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -28,8 +29,8 @@ type poolSetup struct {
 	roomID    int64
 	staffID   int64 // planned on the source block by the tests that need it
 	otherID   int64 // free second staff member
-	source    *scheduleModels.ActivityInstance
-	target    *scheduleModels.ActivityInstance
+	source    *testpkg.ActivityInstance
+	target    *testpkg.ActivityInstance
 }
 
 // poolTestDate is a fixed Monday; the pool reads one day and its week.
@@ -44,17 +45,17 @@ func parsePoolClock(t *testing.T, hhmm string) time.Time {
 	return parsed
 }
 
-func createPoolInstance(t *testing.T, s *poolSetup, title, startHHMM, endHHMM, status string) *scheduleModels.ActivityInstance {
+func createPoolInstance(t *testing.T, s *poolSetup, title, startHHMM, endHHMM, status string) *testpkg.ActivityInstance {
 	t.Helper()
-	row := &scheduleModels.ActivityInstance{
-		Date:      scheduleModels.Date(poolTestDate()),
+	row := &testpkg.ActivityInstance{
+		Date:      testpkg.ScheduleDate(poolTestDate()),
 		Title:     title,
 		StartTime: parsePoolClock(t, startHHMM),
 		EndTime:   parsePoolClock(t, endHHMM),
 		RoomID:    s.roomID,
 		Status:    status,
 	}
-	row.SetTenantID(s.tenantID)
+	row.TenantID = s.tenantID
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, row)
 	return row
 }
@@ -201,6 +202,22 @@ func TestStaffPoolForInstance_NoShiftsMeansDienstplanNotInUse(t *testing.T) {
 	entry := poolEntryOf(t, pool, s.staffID)
 	assert.Equal(t, timetable.StaffPoolNotOnShift, entry.Category)
 	assert.Empty(t, entry.ShiftWindows)
+}
+
+func TestStaffPoolForInstance_LeavesExternalCaregiversOut(t *testing.T) {
+	t.Parallel()
+
+	s := makePoolSetup(t)
+	external := &usersModels.Guest{StaffID: s.otherID, ActivityExpertise: "Musik"}
+	external.SetTenantID(s.tenantID)
+	_, err := s.db.NewInsert().Model(external).ModelTableExpr(`users.guests`).Exec(s.ctx)
+	require.NoError(t, err)
+
+	pool, err := s.detection.StaffPoolForInstance(s.ctx, s.target.ID)
+	require.NoError(t, err)
+	for _, entry := range pool.Entries {
+		assert.NotEqual(t, external.StaffID, entry.StaffID)
+	}
 }
 
 // TestStaffPoolForInstance_TouchingWindowsDoNotOverlap: a block ending

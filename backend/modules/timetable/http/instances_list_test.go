@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -111,7 +110,7 @@ func buildListSetup(t *testing.T) *listSetup {
 		Templates:         data,
 		TimetableData:     data.TimetableData(),
 		ConflictDetection: data.ConflictDetection(),
-		SettingsService: &configtest.Mock{
+		SettingsService: &settingsDouble{
 			ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil },
 			ResolveIntFn: func(_ context.Context, key string) (int, error) {
 				switch key {
@@ -374,8 +373,10 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff1.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
 	sickRow := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff2.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 	sickAbsenceID := sickRow.ID
-	sickRow.SickAbsenceID = &sickAbsenceID
-	require.NoError(t, mustTimetableTestRepositories(s.db).InstanceStaff.Update(s.ctx, sickRow))
+	storedSickRow, err := mustTimetableTestRepositories(s.db).InstanceStaff.FindByID(s.ctx, sickRow.ID)
+	require.NoError(t, err)
+	storedSickRow.SickAbsenceID = &sickAbsenceID
+	require.NoError(t, mustTimetableTestRepositories(s.db).InstanceStaff.Update(s.ctx, storedSickRow))
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, timetable.SlotAttendanceExpected)
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, timetable.SlotAttendancePresent)
 
@@ -668,7 +669,7 @@ func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
 	t.Parallel()
 
 	res := NewResource(Dependencies{
-		SettingsService: &configtest.Mock{
+		SettingsService: &settingsDouble{
 			ResolveBoolFn: func(context.Context, string) (bool, error) {
 				return false, errors.New("settings down")
 			},
@@ -698,7 +699,7 @@ func TestCompleteLeadMinutesResolvesZero(t *testing.T) {
 	t.Parallel()
 
 	res := NewResource(Dependencies{
-		SettingsService: &configtest.Mock{
+		SettingsService: &settingsDouble{
 			ResolveIntFn: func(_ context.Context, key string) (int, error) {
 				require.Equal(t, settings.KeyTimetableCompleteLeadMinutes, key)
 				return 0, nil
@@ -714,7 +715,7 @@ func TestCompleteLeadMinutesPropagatesResolveError(t *testing.T) {
 	t.Parallel()
 
 	res := NewResource(Dependencies{
-		SettingsService: &configtest.Mock{
+		SettingsService: &settingsDouble{
 			ResolveIntFn: func(context.Context, string) (int, error) {
 				return 0, errors.New("settings down")
 			},
@@ -730,7 +731,7 @@ func TestCompletionAvailabilityAppliesCompleteLead(t *testing.T) {
 	t.Parallel()
 
 	res := NewResource(Dependencies{
-		SettingsService: &configtest.Mock{
+		SettingsService: &settingsDouble{
 			ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil },
 			ResolveIntFn: func(_ context.Context, key string) (int, error) {
 				require.Equal(t, settings.KeyTimetableCompleteLeadMinutes, key)
@@ -824,7 +825,7 @@ func TestListInstances_CapacityFields(t *testing.T) {
 	// Tenant-override ratio of 2 children per staff member, exercised via the
 	// same HasTenantOverride -> ResolveInt chain the real settings service
 	// uses (settings-system.md), not just the registry default.
-	s.res.SettingsService = &configtest.Mock{
+	s.res.SettingsService = &settingsDouble{
 		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
 		ResolveIntFn:        func(context.Context, string) (int, error) { return 2, nil },
 	}
@@ -1054,6 +1055,7 @@ func TestListInstances_OccupancyCountsChildrenStillThere(t *testing.T) {
 			continue
 		}
 		assert.Equal(t, 3, item.PresentStudentsCount, "the day's present count keeps the child who left")
+		assert.Equal(t, 2, item.CurrentStudentsCount, "the block's own count of children still there, limit or not (#3921)")
 		require.NotNil(t, item.Occupancy)
 		assert.Equal(t, 2, item.Occupancy.ParticipantLimit)
 		assert.Equal(t, 2, item.Occupancy.CurrentStudentsCount, "a child who left no longer counts against the limit")

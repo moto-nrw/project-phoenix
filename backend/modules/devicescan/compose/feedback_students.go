@@ -6,14 +6,13 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 type FeedbackStudents = devicescan.FeedbackStudents
 
-type feedbackStudents struct{ users usersSvc.PersonService }
+type feedbackStudents struct{ users PersonDirectory }
 
-func NewFeedbackStudents(users usersSvc.PersonService) devicescan.FeedbackStudents {
+func NewFeedbackStudents(users PersonDirectory) devicescan.FeedbackStudents {
 	if users == nil {
 		panic("feedback student composition: users are required")
 	}

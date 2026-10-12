@@ -111,6 +111,14 @@ func (d *Decisions) lockExistingStudentGates(ctx context.Context) error {
 // the approval-time activation plan. The window itself follows the phase KIND
 // (see renewedEnrollmentWindow): only a school-year renewal may replace the
 // master enrollment window.
+//
+// A child the school still cares for whose renewal starts in the future keeps
+// its running class and enrollment start until the new year begins (#3917):
+// the approval only extends the window's end and plans the class switch for
+// the phase start, which the rollover tick applies (ApplyDueClassSwitches).
+// Writing next year's values at once put the child in next year's class for
+// the rest of the running year, and a future enrolled_from made every reader
+// of the window treat it as not yet enrolled.
 func (d *Decisions) renewExistingStudent(ctx context.Context, child *RequestChild, phase *enrollment.Phase, studentID, reviewedBy int64) (*Student, string, approvalActivationPlan, error) {
 	existing, err := d.readEnrollmentStudent(ctx, studentID, "")
 	if err != nil {
@@ -122,15 +130,28 @@ func (d *Decisions) renewExistingStudent(ctx context.Context, child *RequestChil
 	beforeStatus := existing.Status
 	plan := d.approvalActivationPlan(ctx, phase)
 	previousSchoolClass := existing.SchoolClass
-	existing.SchoolClass = resolveRolloverSchoolClass(child, existing.SchoolClass)
+	targetSchoolClass := resolveRolloverSchoolClass(child, existing.SchoolClass)
+	switchOn := calendar.Date(phase.ServiceStartDate)
+	deferred := phase.Kind == enrollment.PhaseKindSchoolYear &&
+		existing.Status == studentStatusActive && switchOn.After(d.todayDate())
 	enrolledFrom, enrolledUntil := renewedEnrollmentWindow(phase, existing.EnrolledFrom, existing.EnrolledUntil)
-	existing.EnrolledFrom = &enrolledFrom
+	if !deferred {
+		existing.SchoolClass = targetSchoolClass
+		existing.EnrolledFrom = &enrolledFrom
+	}
 	existing.EnrolledUntil = &enrolledUntil
 	if existing.Status != studentStatusActive {
 		existing.Status = plan.StudentStatus
 	}
 	if err := d.deps.StudentEnrollment.RenewEnrollmentStudent(ctx, existing.ID, enrollmentStudentInput(existing)); err != nil {
 		return nil, "", plan, fmt.Errorf("decision: update existing student: %w", err)
+	}
+	var planned *enrollment.ClassSwitch
+	if deferred {
+		planned = &enrollment.ClassSwitch{RequestChildID: child.ID, From: previousSchoolClass, To: targetSchoolClass, On: enrollment.Date(switchOn.String())}
+	}
+	if err := d.planClassSwitch(ctx, child.ID, planned); err != nil {
+		return nil, "", plan, err
 	}
 	if err := d.auditRenewedStatus(ctx, existing, beforeStatus, reviewedBy); err != nil {
 		return nil, "", plan, err

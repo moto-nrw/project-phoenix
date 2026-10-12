@@ -77,7 +77,7 @@ func (c *nativeSessionCodec) IssueTokenPair(access identityaccess.SessionClaims,
 func (c *nativeSessionCodec) IssueAccessToken(claims identityaccess.SessionClaims) (string, error) {
 	now := time.Now()
 	wire := map[string]any{
-		"roles": claims.Roles, "permissions": claims.Permissions,
+		"roles": claims.Roles, "role_is_system": claims.RoleIsSystem, "permissions": claims.Permissions,
 		"iat": now.Unix(), "exp": now.Add(c.accessExpiry).Unix(),
 	}
 	put(wire, "id", claims.AccountID, claims.AccountID != 0)

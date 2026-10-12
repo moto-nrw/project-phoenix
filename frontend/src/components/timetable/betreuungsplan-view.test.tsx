@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
+import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { ApiError, transportFetch } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import type { GapInstance, TimetableTemplate } from "~/lib/timetable-types";
@@ -1346,6 +1347,51 @@ describe("BetreuungsplanView", () => {
     // Montag -> Zurück landet auf dem vorigen Freitag.
     fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
     expect(urlParams().get("d")).toBe("2026-05-01");
+  });
+
+  describe("wenn das Wochenende dem Freitagsplan folgt (#3921)", () => {
+    beforeEach(() => {
+      vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    });
+    afterEach(() => {
+      vi.mocked(useWeekendFollowsFriday).mockReturnValue(false);
+    });
+
+    it("navigiert in der Tagesansicht auch über Samstag und Sonntag", () => {
+      setUrl("view=tag&d=2026-05-08");
+      const { unmount } = render(<BetreuungsplanView />);
+      fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+      expect(urlParams().get("d")).toBe("2026-05-09");
+      unmount();
+
+      setUrl("view=tag&d=2026-05-11");
+      render(<BetreuungsplanView />);
+      fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
+      expect(urlParams().get("d")).toBe("2026-05-10");
+    });
+
+    it("bleibt am Wochenende auf dem heutigen Tag und zeigt sieben Spalten", () => {
+      setTestClock(new Date("2026-05-09T12:00:00Z"));
+      setUrl("d=2026-05-09");
+      render(<BetreuungsplanView />);
+
+      expect(screen.getByTestId("grid-week-days")).toHaveTextContent("7");
+      expect(urlParams().get("d")).not.toBe("2026-05-11");
+    });
+
+    it("führt Heute am Samstag auf den Samstag statt auf Montag", () => {
+      setTestClock(new Date("2026-05-09T12:00:00Z"));
+      setUrl("view=tag&d=2026-05-04");
+      render(<BetreuungsplanView />);
+
+      fireEvent.click(screen.getAllByRole("button", { name: "Heute" })[0]!);
+      expect(urlParams().get("d")).toBe("2026-05-09");
+    });
+  });
+
+  it("zeigt ohne Wochenend-Betreuung nur Mo bis Fr", () => {
+    render(<BetreuungsplanView />);
+    expect(screen.getByTestId("grid-week-days")).toHaveTextContent("5");
   });
 
   it("führt Heute in der Tagesansicht am Wochenende auf den nächsten Schultag", () => {

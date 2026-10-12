@@ -40,7 +40,7 @@ type scenarioSetup struct {
 	period        *scheduleModels.CalendarPeriod
 	template      *activitiesModels.Group
 	schedule      *activitiesModels.Schedule
-	timeframe     *scheduleModels.Timeframe
+	timeframe     *testpkg.Timeframe
 	students      []int64
 	staffID       int64
 	categoryID    int64
@@ -553,7 +553,7 @@ func TestMaterializeForTenant_ABWeekSmoke(t *testing.T) {
 // Helpers
 // -----------------------------------------------------------------------------
 
-func listInstancesForDate(tb testing.TB, db *bun.DB, templateID int64, date calendar.Date) []*scheduleModels.ActivityInstance {
+func listInstancesForDate(tb testing.TB, db *bun.DB, templateID int64, date calendar.Date) []*testpkg.ActivityInstance {
 	tb.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

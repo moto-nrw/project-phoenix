@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +24,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -54,7 +55,7 @@ func newCareLifecycleServiceWithLockAt(
 	repos, err := repositories.NewCareLifecycleTestRepositories(db, nil)
 	require.NoError(t, err)
 	svc, err := repos.NewCareLifecycle(repositories.CareLifecycleTestConfig{
-		Audit:                 userService.NewStudentAuditService(testpkg.RequestAuditActor, repositories.NewStudentAudit(db)),
+		Audit:                 services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAudit(db)),
 		LockCareBookingWrites: lockCareBookingWrites,
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },
 		Today:                 today,

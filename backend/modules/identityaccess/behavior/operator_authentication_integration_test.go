@@ -48,7 +48,7 @@ func countOperatorSessions(t *testing.T, db *bun.DB, operatorID int64) int {
 		Where("operator_id = ?", operatorID).
 		Count(context.Background())
 	require.NoError(t, err)
-	return count
+	return int(count)
 }
 
 func countOperatorAudit(t *testing.T, db *bun.DB, operatorID int64, action string) int {
@@ -58,7 +58,7 @@ func countOperatorAudit(t *testing.T, db *bun.DB, operatorID int64, action strin
 		Where("operator_id = ? AND action = ?", operatorID, action).
 		Count(context.Background())
 	require.NoError(t, err)
-	return count
+	return int(count)
 }
 
 // jsonColumn reads one JSON column of the newest matching row as text and

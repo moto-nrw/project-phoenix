@@ -328,7 +328,7 @@ func TestApplyDeviations_CannotClearSickAbsence(t *testing.T) {
 	row := testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
 	sickAbsenceID := row.ID
 	row.SickAbsenceID = &sickAbsenceID
-	require.NoError(t, timetableAPI.BoundTimetableRepositories(s.db).InstanceStaff.Update(s.ctx, row))
+	stampInstanceStaffSickAbsence(t, s.db, s.ctx, row.ID, row.SickAbsenceID)
 
 	w := doScopedDev(t, s, instance.ID, map[string]any{
 		"presences": []map[string]any{{
@@ -394,7 +394,7 @@ func TestApplyDeviations_CannotRemoveSickSubstitute(t *testing.T) {
 	row := testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true, IsAbsent: true})
 	sickAbsenceID := row.ID
 	row.SickAbsenceID = &sickAbsenceID
-	require.NoError(t, timetableAPI.BoundTimetableRepositories(s.db).InstanceStaff.Update(s.ctx, row))
+	stampInstanceStaffSickAbsence(t, s.db, s.ctx, row.ID, row.SickAbsenceID)
 
 	w := doScopedDev(t, s, instance.ID, map[string]any{
 		"substitution_removals": []map[string]any{{
@@ -617,7 +617,7 @@ func TestApplyDeviations_DayWidePresenceSkipsTerminalSickAbsence(t *testing.T) {
 	terminalRow := testpkg.CreateTestInstanceStaff(t, s.db, terminal.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
 	sickAbsenceID := terminalRow.ID
 	terminalRow.SickAbsenceID = &sickAbsenceID
-	require.NoError(t, timetableAPI.BoundTimetableRepositories(s.db).InstanceStaff.Update(s.ctx, terminalRow))
+	stampInstanceStaffSickAbsence(t, s.db, s.ctx, terminalRow.ID, terminalRow.SickAbsenceID)
 
 	w := doScopedDev(t, s, planned.ID, map[string]any{
 		"presences": []map[string]any{{"staff_id": s.staffA}},
@@ -646,4 +646,15 @@ func assertStaffMissing(t *testing.T, rows []timetable.InstanceStaff, staffID in
 			t.Fatalf("staff %d unexpectedly present", staffID)
 		}
 	}
+}
+
+// stampInstanceStaffSickAbsence stores a sick-absence stamp on a fixture row through the
+// Timetable repository, as the sick cascade writes it.
+func stampInstanceStaffSickAbsence(t *testing.T, db *bun.DB, ctx context.Context, rowID int64, sickAbsenceID *int64) {
+	t.Helper()
+	repo := timetableAPI.BoundTimetableRepositories(db).InstanceStaff
+	stored, err := repo.FindByID(ctx, rowID)
+	require.NoError(t, err)
+	stored.SickAbsenceID = sickAbsenceID
+	require.NoError(t, repo.Update(ctx, stored))
 }

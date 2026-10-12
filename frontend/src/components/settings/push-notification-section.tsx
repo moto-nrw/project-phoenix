@@ -285,7 +285,11 @@ export function PushNotificationSection({
   });
 
   if (state === "loading") return <PushNotificationSkeleton />;
-  if (state === "disabled") return null;
+  if (state === "disabled") {
+    return portal === "parent" ? (
+      <span hidden data-parent-tour="notification-device-unavailable" />
+    ) : null;
+  }
 
   // Der Zustandstext gehört als Erklärung in den Kartenkopf, nicht als
   // freier Absatz darunter. Hinweise, die einen Schritt außerhalb der App
@@ -399,7 +403,10 @@ export function PushNotificationSection({
     installed !== null;
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
+    <div
+      data-parent-tour={portal === "parent" ? "notification-device" : undefined}
+      className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6"
+    >
       <ConceptSectionHeader
         className={hasBody ? "mb-4" : undefined}
         // Geschwisterkarten auf /profile und /parents/settings sind h3.

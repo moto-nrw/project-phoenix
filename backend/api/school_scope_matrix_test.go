@@ -25,7 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-func checkSchoolScopeMatrix(t *testing.T, apiInstance *API) {
+func checkSchoolScopeMatrix(t *testing.T, apiInstance *serveGraph) {
 	t.Parallel()
 
 	tokenAuth, err := newSessionTokenAuth()
@@ -46,7 +46,7 @@ func checkSchoolScopeMatrix(t *testing.T, apiInstance *API) {
 	require.NoError(t, err)
 
 	var apiRoutes []string
-	walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+	walkErr := chi.Walk(apiInstance.router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		if strings.HasPrefix(route, "/api/") {
 			apiRoutes = append(apiRoutes, method+" "+route)
 		}
@@ -72,12 +72,12 @@ func checkSchoolScopeMatrix(t *testing.T, apiInstance *API) {
 		probePath = strings.ReplaceAll(probePath, "*", "x")
 
 		baseline := httptest.NewRecorder()
-		apiInstance.Router.ServeHTTP(baseline, httptest.NewRequest(method, probePath, nil))
+		apiInstance.router.ServeHTTP(baseline, httptest.NewRequest(method, probePath, nil))
 
 		req := httptest.NewRequest(method, probePath, nil)
 		req.Header.Set("Authorization", "Bearer "+schoolToken)
 		rec := httptest.NewRecorder()
-		apiInstance.Router.ServeHTTP(rec, req)
+		apiInstance.router.ServeHTTP(rec, req)
 
 		if baseline.Code == http.StatusUnauthorized {
 			require.Equal(t, http.StatusUnauthorized, rec.Code,

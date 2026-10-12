@@ -95,17 +95,24 @@ describe("getCachedSession", () => {
     expect(mockGetSession).toHaveBeenCalledTimes(2);
   });
 
-  it("clears rate-limit backoff with the session context", async () => {
+  it("clears API and log-shipping backoff with the session context", async () => {
     const { clearSessionCache } = await freshModule();
-    const { rateLimitBlockedError, recordRateLimit } =
-      await import("./rate-limit-backoff");
+    const {
+      isClientLogShippingPaused,
+      pauseClientLogShipping,
+      rateLimitBlockedError,
+      recordRateLimit,
+    } = await import("./rate-limit-backoff");
 
     recordRateLimit("17", "PATCH");
+    pauseClientLogShipping("17");
     expect(rateLimitBlockedError("PATCH")).not.toBeNull();
+    expect(isClientLogShippingPaused()).toBe(true);
 
     clearSessionCache();
 
     expect(rateLimitBlockedError("PATCH")).toBeNull();
+    expect(isClientLogShippingPaused()).toBe(false);
   });
 
   it("does not let an in-flight lookup repopulate the cache across a clear", async () => {
@@ -229,6 +236,48 @@ describe("sessionFetch", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+  });
+
+  // The BFF routes read the access token from the session cookie (auth()).
+  // A Bearer header on top sends the same token twice and pushed large
+  // sessions past Node's header limit (HTTP 431, #3918).
+  it("sends the access token only in the session cookie, not as a header", async () => {
+    const { sessionFetch } = await freshModule();
+    mockGetSession.mockResolvedValue(session("token-a"));
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+    await sessionFetch("/api/test", {
+      method: "POST",
+      headers: { "X-Custom": "1" },
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/test");
+    expect(init.method).toBe("POST");
+    expect(init.headers).toEqual({
+      "Content-Type": "application/json",
+      "X-Custom": "1",
+    });
+  });
+
+  it("retries after a refresh without a Bearer header", async () => {
+    const { sessionFetch } = await freshModule();
+    mockGetSession
+      .mockResolvedValueOnce(session("token-old"))
+      .mockResolvedValueOnce(session("token-new"));
+    mockHandleAuthFailure.mockResolvedValueOnce(true);
+    mockFetch
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+    const response = await sessionFetch("/api/test");
+
+    expect(response.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    for (const [, init] of mockFetch.mock.calls as [string, RequestInit][]) {
+      expect(init.headers).toEqual({ "Content-Type": "application/json" });
+    }
   });
 
   it("normalizes a failed session lookup as unavailable", async () => {

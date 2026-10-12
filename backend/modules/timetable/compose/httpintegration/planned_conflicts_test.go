@@ -79,7 +79,7 @@ func probeQuery(s *plannedConflictSetup, mutate func(*timetable.PlannedConflictP
 	return q
 }
 
-func seedConflictInstance(t *testing.T, s *plannedConflictSetup, opts testpkg.ActivityInstanceOpts) *scheduleModels.ActivityInstance {
+func seedConflictInstance(t *testing.T, s *plannedConflictSetup, opts testpkg.ActivityInstanceOpts) *testpkg.ActivityInstance {
 	t.Helper()
 	inst := testpkg.CreateTestActivityInstance(t, s.db, s.date, s.roomID, opts)
 	return inst

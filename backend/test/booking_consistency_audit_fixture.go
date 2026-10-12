@@ -9,10 +9,8 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModel "github.com/moto-nrw/project-phoenix/models/enrollment"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -20,10 +18,15 @@ import (
 
 var bookingAuditMonday = timezone.NewDate(2026, time.January, 5)
 
-// Raw arrival rows on unbooked days and broad class rosters are deliberate in
-// booking-led care. This fixture includes both and pins that only actionable
+// The VerifyBookingConsistencyAudit* scenarios arrange their rows here and
+// assert the report of the repository the Audit integration suite composes
+// (database/repositories/audit/integration).
+
+// VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows: raw arrival
+// rows on unbooked days and broad class rosters are deliberate in booking-led
+// care. This fixture includes both and pins that only actionable
 // pickup/offering violations contribute to the report.
-func verifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.T, db *bun.DB, repository any) {
+func VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.T, db *bun.DB, repository any) {
 	ctx := Ctx(t)
 	repo := repository.(auditModel.BookingConsistencyRepository)
 	auditDate := bookingAuditMonday
@@ -44,38 +47,38 @@ func verifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.
 	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), link)
 
 	staff := CreateTestStaff(t, db, "Audit", "Planung")
-	arrivalMonday := &scheduleModel.StudentArrivalSchedule{
+	arrivalMonday := &StudentArrivalSchedule{
 		StudentID: bookedStudent.ID, Weekday: 1, ExpectedArrival: bookingAuditWallClock(11, 45), CreatedBy: staff.ID,
 	}
-	insertTenantBookingAuditModel(t, db, ctx, arrivalMonday)
-	arrivalWednesday := &scheduleModel.StudentArrivalSchedule{
+	insertTenantBookingAuditModel(t, db, ctx, arrivalMonday, &arrivalMonday.TenantID)
+	arrivalWednesday := &StudentArrivalSchedule{
 		StudentID: bookedStudent.ID, Weekday: 3, ExpectedArrival: bookingAuditWallClock(11, 45), CreatedBy: staff.ID,
 	}
-	insertTenantBookingAuditModel(t, db, ctx, arrivalWednesday)
+	insertTenantBookingAuditModel(t, db, ctx, arrivalWednesday, &arrivalWednesday.TenantID)
 	offeringID := offering.ID
-	pickupTuesday := &scheduleModel.StudentPickupSchedule{
+	pickupTuesday := &StudentPickupSchedule{
 		StudentID: bookedStudent.ID, Weekday: 2, PickupTime: bookingAuditWallClock(16, 0),
-		Source: scheduleModel.PickupScheduleSourceCareOffering, CareOfferingID: &offeringID,
+		Source: SchedulePickupSourceCareOffering, CareOfferingID: &offeringID,
 	}
-	insertTenantBookingAuditModel(t, db, ctx, pickupTuesday)
+	insertTenantBookingAuditModel(t, db, ctx, pickupTuesday, &pickupTuesday.TenantID)
 
 	room := CreateTestRoom(t, db, "Audit")
 	nonCareGroup := CreateTestActivityGroup(t, db, "Audit AG")
 	tuesday := CreateTestActivityInstance(t, db, auditDate.AddDays(1), room.ID, ActivityInstanceOpts{
 		ActivityGroupID: &nonCareGroup.ID,
 	})
-	CreateTestInstanceStudent(t, db, tuesday.ID, bookedStudent.ID, scheduleModel.AttendanceStatusExpected)
+	CreateTestInstanceStudent(t, db, tuesday.ID, bookedStudent.ID, ScheduleAttendanceStatusExpected)
 	thursday := CreateTestActivityInstance(t, db, auditDate.AddDays(3), room.ID, ActivityInstanceOpts{
 		ActivityGroupID: &nonCareGroup.ID,
 	})
-	CreateTestInstanceStudent(t, db, thursday.ID, bookedStudent.ID, scheduleModel.AttendanceStatusExpected)
+	CreateTestInstanceStudent(t, db, thursday.ID, bookedStudent.ID, ScheduleAttendanceStatusExpected)
 	careGroup := CreateTestActivityGroup(t, db, "Audit Betreuung")
-	careGroup.Type = activitiesModel.GroupTypeCare
+	careGroup.Type = ActivityGroupTypeCare
 	updateBookingAuditModel(t, db, ctx, careGroup, "type")
 	wednesday := CreateTestActivityInstance(t, db, auditDate.AddDays(2), room.ID, ActivityInstanceOpts{
 		ActivityGroupID: &careGroup.ID,
 	})
-	CreateTestInstanceStudent(t, db, wednesday.ID, bookedStudent.ID, scheduleModel.AttendanceStatusExpected)
+	CreateTestInstanceStudent(t, db, wednesday.ID, bookedStudent.ID, ScheduleAttendanceStatusExpected)
 
 	missingRequiredStudent := CreateTestStudent(t, db, "Pflicht", "Audit", "1b")
 	createApprovedBookingAuditChild(t, ctx, db, auditDate, missingRequiredStudent.ID,
@@ -97,7 +100,9 @@ func verifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.
 	assert.Equal(t, 2, report.TotalFindings())
 }
 
-func verifyBookingConsistencyAuditRequiresDateAndTenant(t *testing.T, repository any) {
+// VerifyBookingConsistencyAuditRequiresDateAndTenant pins the refusals of an
+// audit without a tenant context or date.
+func VerifyBookingConsistencyAuditRequiresDateAndTenant(t *testing.T, repository any) {
 	repo := repository.(auditModel.BookingConsistencyRepository)
 	_, err := repo.Audit(context.Background(), auditModel.Date(timezone.TodayDate().String()))
 	require.ErrorContains(t, err, "requires a tenant context")
@@ -106,7 +111,9 @@ func verifyBookingConsistencyAuditRequiresDateAndTenant(t *testing.T, repository
 	require.ErrorContains(t, err, "date is required")
 }
 
-func verifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, db *bun.DB, repository any) {
+// VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions pins that
+// arrival exceptions and links valid only later do not count as findings.
+func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, db *bun.DB, repository any) {
 	ctx := Ctx(t)
 	repo := repository.(auditModel.BookingConsistencyRepository)
 	auditDate := bookingAuditMonday
@@ -123,10 +130,10 @@ func verifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 		RequestChildID: child.child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}, ValidFrom: &auditDate,
 	}
 	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), arrivalLink)
-	arrivalException := &scheduleModel.StudentArrivalException{
-		StudentID: withArrivalException.ID, ExceptionDate: scheduleModel.Date(auditDate), CreatedBy: staff.ID,
+	arrivalException := &StudentArrivalException{
+		StudentID: withArrivalException.ID, ExceptionDate: timezone.Date(auditDate), CreatedBy: staff.ID,
 	}
-	insertTenantBookingAuditModel(t, db, ctx, arrivalException)
+	insertTenantBookingAuditModel(t, db, ctx, arrivalException, &arrivalException.TenantID)
 
 	futureStudent := CreateTestStudent(t, db, "Zukunft", "Ausnahme", "1c")
 	futureChild := createApprovedBookingAuditChild(t, ctx, db, auditDate, futureStudent.ID,
@@ -148,7 +155,9 @@ func verifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 	assert.Equal(t, 1, report.ApprovedWithoutRequiredOffering)
 }
 
-func verifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing.T, db *bun.DB, repository any) {
+// VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks pins that
+// two contiguous links of one offering cover the required offering.
+func VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing.T, db *bun.DB, repository any) {
 	ctx := Ctx(t)
 	repo := repository.(auditModel.BookingConsistencyRepository)
 	auditDate := bookingAuditMonday
@@ -173,11 +182,11 @@ func verifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing
 		SelectedDays: []string{"mon"}, ValidFrom: &splitDate, ValidUntil: &phaseEndExclusive,
 	}
 	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), secondLink)
-	arrival := &scheduleModel.StudentArrivalSchedule{
-		StudentID: student.ID, Weekday: scheduleModel.WeekdayMonday,
+	arrival := &StudentArrivalSchedule{
+		StudentID: student.ID, Weekday: ScheduleWeekdayMonday,
 		ExpectedArrival: bookingAuditWallClock(11, 45), CreatedBy: staff.ID,
 	}
-	insertTenantBookingAuditModel(t, db, ctx, arrival)
+	insertTenantBookingAuditModel(t, db, ctx, arrival, &arrival.TenantID)
 
 	report, err := repo.Audit(ctx, auditModel.Date(auditDate.String()))
 	require.NoError(t, err)
@@ -236,13 +245,15 @@ func createApprovedBookingAuditChild(
 	return approvedBookingAuditChild{phase: phase, child: child}
 }
 
+// AuditTenantIDFromContext reads the tenant the Audit Platform binds to a
+// context, for repositories composed in tests.
 func AuditTenantIDFromContext(ctx context.Context) int64 {
 	return auditModel.TenantIDFromContext(ctx)
 }
 
-func insertTenantBookingAuditModel(t *testing.T, db *bun.DB, ctx context.Context, model interface{ SetTenantID(int64) }) {
+func insertTenantBookingAuditModel(t *testing.T, db *bun.DB, ctx context.Context, model any, tenantID *int64) {
 	t.Helper()
-	model.SetTenantID(auditModel.TenantIDFromContext(ctx))
+	*tenantID = auditModel.TenantIDFromContext(ctx)
 	insertBookingAuditModel(t, db, ctx, model)
 }
 
@@ -270,7 +281,7 @@ func auditFixtureUpdateTable(model any) string {
 		return `enrollment.phases AS "phase"`
 	case *enrollmentModel.CareOffering:
 		return `enrollment.care_offerings AS "care_offering"`
-	case *activitiesModel.Group:
+	case *ActivityGroup:
 		return `activities.groups AS "group"`
 	default:
 		panic(fmt.Sprintf("unsupported Audit fixture update %T", model))
@@ -285,13 +296,13 @@ func auditFixtureTable(model any) string {
 		return "enrollment.care_offerings"
 	case *auditOfferingSelection:
 		return "enrollment.care_offering_bookings"
-	case *scheduleModel.StudentArrivalSchedule:
+	case *StudentArrivalSchedule:
 		return "schedule.student_arrival_schedules"
-	case *scheduleModel.StudentArrivalException:
+	case *StudentArrivalException:
 		return "schedule.student_arrival_exceptions"
-	case *scheduleModel.StudentPickupSchedule:
+	case *StudentPickupSchedule:
 		return "schedule.student_pickup_schedules"
-	case *activitiesModel.Group:
+	case *ActivityGroup:
 		return "activities.groups"
 	default:
 		panic(fmt.Sprintf("unsupported Audit fixture model %T", model))

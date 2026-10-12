@@ -140,8 +140,8 @@ func TestCalendarServiceIntegration_ReminderPreparationRollsBackEmailAndPushClai
 		claims, err := db.NewSelect().TableExpr("calendar.appointment_reminder_push_deliveries").
 			Where("tenant_id = ?", testpkg.Tenant(t)).Where("appointment_id = ?", detail.Appointment.ID).Count(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, expected, emails, "durable reminder emails")
-		assert.Equal(t, expected, claims, "durable reminder push claims")
+		assert.Equal(t, int64(expected), emails, "durable reminder emails")
+		assert.Equal(t, int64(expected), claims, "durable reminder push claims")
 	}
 
 	_, err = command.EnqueueDueAppointmentReminders(ctx, from, to)

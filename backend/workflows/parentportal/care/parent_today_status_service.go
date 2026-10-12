@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // attendanceCultureLookbackDays bestimmt, ueber wie viele Kalendertage
@@ -134,8 +135,11 @@ func (s *Service) resolveExpectedArrival(ctx context.Context, studentID int64, t
 	// "invalid weekday". Also gar nicht erst fragen. Eine Ferienbetreuung am
 	// Wochenende faellt trotzdem nicht durchs Raster, weil eine vorhandene
 	// Anwesenheit in deriveTodayStatus vor dem Betreuungstag geprueft wird.
-	if isWeekend(today) {
-		return expectedArrival{resolved: true, isCareDay: false}, nil
+	// Ausnahme: Folgt das Wochenende der Schule dem Freitagsplan (#3921),
+	// gilt der Wochenplan vom Freitag.
+	planWeekday, careWeekday, err := planWeekdayOf(ctx, today)
+	if err != nil || !careWeekday {
+		return expectedArrival{resolved: err == nil}, err
 	}
 
 	exception, err := s.ArrivalSchedules.GetStudentArrivalExceptionForDate(ctx, studentID, today)
@@ -149,39 +153,36 @@ func (s *Service) resolveExpectedArrival(ctx context.Context, studentID int64, t
 		return expectedArrival{resolved: true, isCareDay: true, hhmm: hhmm(*exception.ExpectedArrival)}, nil
 	}
 
-	plan, err := s.ArrivalSchedules.GetStudentArrivalScheduleForWeekday(ctx, studentID, isoWeekdayOf(today))
+	plan, err := s.ArrivalSchedules.GetStudentArrivalScheduleForWeekday(ctx, studentID, planWeekday)
 	if err != nil {
 		return expectedArrival{}, err
 	}
 	if plan == nil {
-		if s.PickupSchedules != nil {
-			pickup, pickupErr := s.PickupSchedules.GetEffectivePickupTimeForDate(ctx, studentID, today)
-			if pickupErr != nil {
-				return expectedArrival{}, pickupErr
-			}
-			if pickup != nil && pickup.PickupTime != nil {
-				return expectedArrival{resolved: true, isCareDay: true}, nil
-			}
-		}
-		return expectedArrival{resolved: true, isCareDay: false}, nil
+		return s.arrivalWithoutPlan(ctx, studentID, today)
 	}
 	return expectedArrival{resolved: true, isCareDay: true, hhmm: hhmm(plan.ExpectedArrival)}, nil
 }
 
-// isoWeekdayOf bildet einen Kalendertag auf die Wochentagszahl ab, die
-// schedule.StudentArrivalSchedule verwendet (1 = Montag bis 5 = Freitag).
-// Sonntag ist in Go 0 und wird auf 7 gehoben, damit ein Wochenendtag nie
-// versehentlich als Montag gilt.
-func isoWeekdayOf(date timezone.Date) int {
-	weekday := int(date.Weekday())
-	if weekday == 0 {
-		return scheduleModels.WeekdaySunday
+// arrivalWithoutPlan beantwortet einen Tag ohne Ankunftsplan: Eine
+// Abholzeit fuer heute macht ihn trotzdem zum Betreuungstag.
+func (s *Service) arrivalWithoutPlan(ctx context.Context, studentID int64, today timezone.Date) (expectedArrival, error) {
+	if s.PickupSchedules == nil {
+		return expectedArrival{resolved: true, isCareDay: false}, nil
 	}
-	return weekday
+	pickup, err := s.PickupSchedules.GetEffectivePickupTimeForDate(ctx, studentID, today)
+	if err != nil {
+		return expectedArrival{}, err
+	}
+	return expectedArrival{resolved: true, isCareDay: pickup != nil && pickup.PickupTime != nil}, nil
 }
 
-// isWeekend meldet Samstag und Sonntag. Der Wochenplan kennt sie nicht.
-func isWeekend(date timezone.Date) bool {
-	weekday := isoWeekdayOf(date)
-	return weekday == scheduleModels.WeekdaySaturday || weekday == scheduleModels.WeekdaySunday
+// planWeekdayOf liefert den Wochentag, dessen Wochenplan heute gilt, und ob
+// das ueberhaupt ein Betreuungstag sein kann: Montag bis Freitag, oder ein
+// Wochenende, das dem Freitagsplan folgt (#3921).
+func planWeekdayOf(ctx context.Context, today timezone.Date) (int, bool, error) {
+	weekday, err := calendar.PlanWeekday(ctx, today)
+	if err != nil {
+		return 0, false, err
+	}
+	return weekday, weekday <= scheduleModels.WeekdayFriday, nil
 }

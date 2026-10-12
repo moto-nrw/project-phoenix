@@ -73,8 +73,8 @@ func setupRoomsRoute(t *testing.T) *testContext {
 	require.NoError(t, err)
 	resource := NewResource(rooms, Dependencies{
 		Facilities: svc.Facilities, Settings: svc.Settings, UserContext: svc.UserContext,
-		Active: svc.Active, Users: svc.Users, Education: svc.Education, ListExport: svc.ListExport,
-	}, db, slog.Default())
+		Active: svc.Active, Users: services.NewRoomSnapshotPeople(svc.Users), Education: svc.Education, ListExport: svc.ListExport,
+	}, slog.Default())
 
 	return &testContext{
 		services: svc,

@@ -35,6 +35,21 @@ describe("presentError", () => {
     );
   });
 
+  it("names the browser's cookies, not the reader's entries, for an oversized request", () => {
+    // #3883: Node rejects the request with 431 before any route answers, so
+    // the error has no envelope and only the status says what happened.
+    const result = presentError(
+      new ApiError("Request Header Fields Too Large", 431),
+      "Die Personalliste",
+    );
+
+    expect(result.message).toBe(
+      "Die Personalliste konnte nicht bearbeitet werden. Bitte löschen Sie im Browser die Cookies dieser Seite. Melden Sie sich danach neu an.",
+    );
+    expect(result.retryable).toBe(false);
+    expect(result.requestId).toBeUndefined();
+  });
+
   it("falls back to the class text in the reader's language when a code is unknown", () => {
     const error = new ApiError("Backend diagnostic", 503, {
       code: "future.unknown",

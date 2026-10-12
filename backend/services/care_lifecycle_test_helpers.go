@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -11,14 +13,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type CareLifecycleTestModule struct {
 	CareLifecycle careplan.CareLifecycle
-	StudentAudit  users.StudentAuditService
+	StudentAudit  peopleCompose.StudentAuditService
 	Settings      config.SettingsService
 }
 
@@ -35,7 +36,7 @@ func NewCareLifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork) (CareLifecyc
 	if err != nil {
 		return CareLifecycleTestModule{}, err
 	}
-	audit := users.NewStudentAuditService(requestAuditActor, repositories.NewStudentAudit(db))
+	audit := peopleCompose.NewStudentAuditService(requestAuditActor, repositories.NewStudentAudit(db))
 	recurrenceLock, err := repositories.NewTimetableRecurrenceLock(db)
 	if err != nil {
 		return CareLifecycleTestModule{}, err

@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 func TestNativeClassArrivalPlansUpsertClearAndRollback(t *testing.T) {
@@ -173,8 +174,8 @@ func TestNativeClassArrivalExceptionsKeepDatesAndTenantScope(t *testing.T) {
 func TestClassArrivalQueriesNormalizeScopeAndPropagateFailures(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	row := testpkg.CreateTestClassArrivalTime(t, db, " 1A ", map[string]string{"mon": "12:15", "fri": "11:45"})
-	testpkg.CreateTestClassArrivalTime(t, db, "2b", map[string]string{"mon": "13:00"})
+	row := testpkg.CreateTestClassArrivalTime(t, fixtureClassArrivals(t, db), " 1A ", map[string]string{"mon": "12:15", "fri": "11:45"})
+	testpkg.CreateTestClassArrivalTime(t, fixtureClassArrivals(t, db), "2b", map[string]string{"mon": "13:00"})
 	var observations []Observation
 	query, err := NewClassArrivalQueries(db, func(value Observation) { observations = append(observations, value) })
 	require.NoError(t, err)
@@ -204,8 +205,8 @@ func TestClassArrivalQueriesNormalizeScopeAndPropagateFailures(t *testing.T) {
 func TestClassArrivalPlansPreserveDisplayLabelsWithinTenant(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	row := testpkg.CreateTestClassArrivalTime(t, db, " 3A ", map[string]string{"mon": "12:15"})
-	testpkg.CreateTestClassArrivalTime(t, db, "4b", map[string]string{"fri": "13:00"})
+	row := testpkg.CreateTestClassArrivalTime(t, fixtureClassArrivals(t, db), " 3A ", map[string]string{"mon": "12:15"})
+	testpkg.CreateTestClassArrivalTime(t, fixtureClassArrivals(t, db), "4b", map[string]string{"fri": "13:00"})
 	var observations []Observation
 	query, err := NewClassArrivalQueries(db, func(value Observation) { observations = append(observations, value) })
 	require.NoError(t, err)
@@ -234,4 +235,13 @@ func TestClassArrivalPlansPreserveDisplayLabelsWithinTenant(t *testing.T) {
 	cancel()
 	_, err = query.ListClassArrivalPlans(ctx, []string{"3a"})
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+// fixtureClassArrivals writes the arrival fixtures through the owner's
+// command capability (#3556).
+func fixtureClassArrivals(t *testing.T, db *bun.DB) timetable.ClassArrivals {
+	t.Helper()
+	arrivals, err := NewClassArrivals(db, func(Observation) {})
+	require.NoError(t, err)
+	return arrivals
 }

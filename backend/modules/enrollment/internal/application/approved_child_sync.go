@@ -147,7 +147,13 @@ func (d *Decisions) syncApprovedChildPerson(ctx context.Context, personID int64,
 // offering-sourced Regeltermine and their materialized future occurrences
 // must follow in the same transaction (#2147 review round 13). The
 // recurrence gate is already held.
+//
+// A renewal whose class switch is still planned for the new school year keeps
+// the running class; the edit re-derives the planned target instead (#3917).
 func (d *Decisions) syncApprovedChildClass(ctx context.Context, run *approvedChildSync) error {
+	if replanned, err := d.replanApprovedChildClass(ctx, run); err != nil || replanned {
+		return err
+	}
 	student := run.student
 	previousSchoolClass := student.SchoolClass
 	student.SchoolClass = resolveRolloverSchoolClass(run.child, student.SchoolClass)

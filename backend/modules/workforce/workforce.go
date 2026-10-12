@@ -153,11 +153,14 @@ type StaffWorkScheduleEntry struct {
 
 // ReplaceStaffSchedule closes the staff member's running schedule versions and
 // writes Entries as the new current version. An empty RotationAnchorDate
-// leaves the per-version anchor unset.
+// leaves the per-version anchor unset. An empty ValidFrom starts the version
+// today; an earlier day is accepted for the first schedule of a staff member
+// only, and never inside a closed month.
 type ReplaceStaffSchedule struct {
 	StaffID            int64
 	Entries            []StaffWorkScheduleEntry
 	RotationAnchorDate string
+	ValidFrom          string
 }
 
 type Query interface {

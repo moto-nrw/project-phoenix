@@ -20,7 +20,8 @@ func TestActivityInstancesOfTheDayCarryTheirSessionStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Overdue Room %d", time.Now().UnixNano()))
-	day := testpkg.ScheduleDate(2026, time.April, 20)
+	const dayISO = "2026-04-20"
+	day := testpkg.Date(2026, time.April, 20)
 	planned := testpkg.CreateTestActivityInstance(t, db, day, room.ID, testpkg.ActivityInstanceOpts{
 		Title: "Overdue planned", IsSpontaneous: true, StartHHMM: "10:00",
 	})
@@ -31,7 +32,7 @@ func TestActivityInstancesOfTheDayCarryTheirSessionStatus(t *testing.T) {
 	repos, err := repositories.NewTimetableTestRepositories(db)
 	require.NoError(t, err)
 
-	rows, err := repos.ActivityInstance.FindByTenantAndDate(ctx, day)
+	rows, err := repos.ActivityInstance.FindByTenantAndDate(ctx, dayISO)
 
 	require.NoError(t, err)
 	statuses := make(map[int64]string, len(rows))

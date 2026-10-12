@@ -114,8 +114,8 @@ describe("active-service", () => {
           "/api/active/groups",
           expect.objectContaining({
             method: "GET",
-            headers: expect.objectContaining({
-              Authorization: "Bearer test-token",
+            headers: expect.not.objectContaining({
+              Authorization: expect.anything(),
             }),
           }),
         );
@@ -1116,8 +1116,8 @@ describe("active-service", () => {
           "/api/active/schulhof/status",
           expect.objectContaining({
             method: "GET",
-            headers: expect.objectContaining({
-              Authorization: "Bearer test-token",
+            headers: expect.not.objectContaining({
+              Authorization: expect.anything(),
             }),
           }),
         );

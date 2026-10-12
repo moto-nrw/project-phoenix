@@ -12,9 +12,15 @@ import (
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
+
+// StudentChangeRecorder appends the per-child change history for a field the
+// flow changed, attributed to the authenticated actor (People Directory, bound
+// by the composition root).
+type StudentChangeRecorder interface {
+	RecordChangesForActor(ctx context.Context, before, after *usersModels.Student, editedBy int64) error
+}
 
 // Config is the dependency bundle of the guardian portal's child flows. The
 // unit of work comes from the request context; the package holds no database.
@@ -62,7 +68,7 @@ type Config struct {
 
 	// People Directory: the child's change history, consent projection and
 	// photo lifecycle, and the parent-request ledger.
-	StudentAudit        usersSvc.StudentChangeRecorder
+	StudentAudit        StudentChangeRecorder
 	StudentConsents     StudentConsentService
 	ParentRequestEvents usersModels.ParentRequestEventRepository
 	// StudentPhotos resolves the photo lifecycle when a withdrawal needs it.

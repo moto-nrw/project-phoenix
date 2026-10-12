@@ -7,8 +7,8 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/services/iot/staffclock"
-	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // rfidCardLookup maps the owner's validated card facts to the staff-clock port.
@@ -29,12 +29,12 @@ func (l rfidCardLookup) FindCard(ctx context.Context, rawTag string) (*staffcloc
 // through the retained person service. It answers the two stable kiosk
 // outcomes the workflow classifies on and lets every other failure through.
 type staffClockStaffLookup struct {
-	people users.PersonService
+	people *peopleCompose.PersonDirectory
 }
 
 // StaffClockStaffLookup binds the staff resolution of the kiosk to the person
 // service.
-func StaffClockStaffLookup(people users.PersonService) staffclock.StaffLookup {
+func StaffClockStaffLookup(people *peopleCompose.PersonDirectory) staffclock.StaffLookup {
 	if people == nil {
 		panic("staff clock staff lookup: person service is required")
 	}
@@ -44,7 +44,7 @@ func StaffClockStaffLookup(people users.PersonService) staffclock.StaffLookup {
 func (l staffClockStaffLookup) ResolveStaffByTag(ctx context.Context, tag string) (staffclock.StaffIdentity, error) {
 	person, err := l.people.FindByTagID(ctx, tag)
 	if err != nil {
-		if errors.Is(err, users.ErrPersonNotFound) {
+		if peopleCompose.IsPersonNotFound(err) {
 			return staffclock.StaffIdentity{}, staffclock.ErrRFIDTagNotFound
 		}
 		return staffclock.StaffIdentity{}, fmt.Errorf("look up person by RFID tag: %w", err)

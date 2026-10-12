@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // weekdayLabels are the printed day columns in weekday order.
@@ -29,13 +29,13 @@ const (
 // week is one printed sheet: its Monday and the days it covers — five, or
 // seven once the exported range plans a weekend.
 type week struct {
-	monday timezone.Date
-	days   []timezone.Date
+	monday calendar.Date
+	days   []calendar.Date
 }
 
 // last is the final printed day of the week: Friday, or Sunday on a widened
 // sheet.
-func (w week) last() timezone.Date {
+func (w week) last() calendar.Date {
 	return w.days[len(w.days)-1]
 }
 
@@ -51,7 +51,7 @@ func (w week) label() string {
 }
 
 // mondayOf is the Monday of the calendar week containing d.
-func mondayOf(d timezone.Date) timezone.Date {
+func mondayOf(d calendar.Date) calendar.Date {
 	return d.StartOfISOWeek()
 }
 
@@ -60,7 +60,7 @@ func mondayOf(d timezone.Date) timezone.Date {
 // Wednesday prints that Wednesday's whole week. The weeks come back full so
 // the callers load the weekend too; narrowWeeks then drops it again unless
 // the loaded data actually uses it.
-func expandWeeks(from, to timezone.Date) ([]week, error) {
+func expandWeeks(from, to calendar.Date) ([]week, error) {
 	first := mondayOf(from)
 	last := mondayOf(to)
 	count := first.DaysUntil(last)/7 + 1
@@ -70,7 +70,7 @@ func expandWeeks(from, to timezone.Date) ([]week, error) {
 
 	weeks := make([]week, 0, count)
 	for monday := first; !monday.After(last); monday = monday.AddDays(7) {
-		days := make([]timezone.Date, fullWeekDays)
+		days := make([]calendar.Date, fullWeekDays)
 		for i := range days {
 			days[i] = monday.AddDays(i)
 		}

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -28,6 +29,9 @@ type staffCompositionContext struct {
 	// absentToday records an approved absence of a school-defined type with
 	// the given wording for the staff member on the current day.
 	absentToday func(staffID int64, wording string)
+	// createAccountGuest records a guest profile for a staff member with a
+	// moto account. It returns the staff ID.
+	createAccountGuest func(firstName, lastName string) int64
 }
 
 func setupStaffCompositionRoute(t *testing.T) *staffCompositionContext {
@@ -49,6 +53,13 @@ func setupStaffCompositionRoute(t *testing.T) *staffCompositionContext {
 		absentToday: func(staffID int64, wording string) {
 			absenceType := testpkg.CreateTestStaffAbsenceType(t, db, wording)
 			testpkg.CreateTestStaffAbsenceToday(t, db, staffID, absenceType.ID)
+		},
+		createAccountGuest: func(firstName, lastName string) int64 {
+			staff, _ := testpkg.CreateTestStaffWithAccount(t, db, firstName, lastName)
+			_, err := db.NewRaw(`INSERT INTO users.guests (tenant_id, staff_id, activity_expertise) VALUES (?, ?, ?)`,
+				testpkg.Tenant(t), staff.ID, "Musik").Exec(context.Background())
+			require.NoError(t, err)
+			return staff.ID
 		},
 	}
 }

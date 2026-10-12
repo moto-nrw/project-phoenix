@@ -23,8 +23,8 @@ type StudentAuditCapability interface {
 
 // StudentAudit adapts the People Directory change-history capability to the
 // retained model-typed contract the legacy services still call
-// (services/users.StudentAuditService, satisfied structurally so this seam
-// does not depend on them).
+// (StudentAuditRecorder in modules/peopledirectory/compose, satisfied
+// structurally).
 type StudentAudit struct{ capability StudentAuditCapability }
 
 // NewStudentAuditFor binds an already composed owner capability, so the

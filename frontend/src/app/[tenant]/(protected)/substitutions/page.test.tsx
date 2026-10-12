@@ -94,8 +94,19 @@ vi.mock("~/lib/substitution-api", () => ({
   },
 }));
 vi.mock("~/components/active-supervisions/add-supervisor-modal", () => ({
-  AddSupervisorModal: ({ activeGroupId }: { activeGroupId: string }) => (
-    <div role="dialog">Zusätzliche Aufsicht für {activeGroupId}</div>
+  AddSupervisorModal: ({
+    activeGroupId,
+    canCreateExternalCaregiver,
+  }: {
+    activeGroupId: string;
+    canCreateExternalCaregiver?: boolean;
+  }) => (
+    <div
+      role="dialog"
+      data-can-create-external={String(canCreateExternalCaregiver)}
+    >
+      Zusätzliche Aufsicht für {activeGroupId}
+    </div>
   ),
 }));
 
@@ -179,6 +190,28 @@ describe("SubstitutionPage", () => {
       screen.getByRole("button", { name: "Betreuer hinzufügen" }),
     );
     expect(screen.getByRole("dialog", { name: "" })).toHaveTextContent("41");
+  });
+
+  it("enables external caregiver entries for users who may create users", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          roles: ["admin"],
+          permissions: ["schedules:read", "schedules:manage", "users:create"],
+        },
+      },
+      status: "authenticated",
+    } as never);
+    render(<SubstitutionPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Betreuer hinzufügen" }),
+    );
+
+    expect(screen.getByRole("dialog", { name: "" })).toHaveAttribute(
+      "data-can-create-external",
+      "true",
+    );
   });
 
   it("links an allowed appointment to the existing module flow", () => {

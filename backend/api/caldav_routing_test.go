@@ -21,7 +21,7 @@ func TestCalDAVExtensionMethodsReachHandlerUnchanged(t *testing.T) {
 				received = r.Method
 				w.WriteHeader(http.StatusNoContent)
 			})))
-			api := &API{Router: router}
+			api := &serveGraph{router: router}
 
 			response := httptest.NewRecorder()
 			api.ServeHTTP(response, httptest.NewRequest(method, "/api/caldav/principal/", nil))
@@ -39,7 +39,7 @@ func TestCalDAVMethodNormalizationDoesNotCaptureOtherPaths(t *testing.T) {
 	router.HandleFunc("/other/*", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
-	api := &API{Router: router}
+	api := &serveGraph{router: router}
 
 	response := httptest.NewRecorder()
 	api.ServeHTTP(response, httptest.NewRequest("PROPFIND", "/other/resource", nil))
@@ -56,7 +56,7 @@ func TestCalDAVExtensionMethodReachesSlashlessRoot(t *testing.T) {
 		received = r.Method
 		w.WriteHeader(http.StatusNoContent)
 	})))
-	api := &API{Router: router}
+	api := &serveGraph{router: router}
 
 	response := httptest.NewRecorder()
 	api.ServeHTTP(response, httptest.NewRequest("PROPFIND", "/api/caldav", nil))
@@ -74,7 +74,7 @@ func TestCalDAVExtensionMethodReachesWellKnownDiscovery(t *testing.T) {
 		received = r.Method
 		w.WriteHeader(http.StatusNoContent)
 	})))
-	api := &API{Router: router}
+	api := &serveGraph{router: router}
 
 	response := httptest.NewRecorder()
 	api.ServeHTTP(response, httptest.NewRequest("PROPFIND", "/.well-known/caldav", nil))

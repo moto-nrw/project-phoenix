@@ -494,7 +494,7 @@ func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 		ActivityGroupID: group.ID,
 		ValidFrom:       testpkg.ActivityDate(calendar.TodayDate().AddDays(7)),
 	}
-	enr.SetTenantID(chain.TenantID)
+	enr.TenantID = chain.TenantID
 	_, err := db.NewInsert().
 		Model(enr).
 		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
@@ -554,7 +554,7 @@ func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testi
 		ValidFrom:       testpkg.ActivityDate(today.AddDays(-1)),
 		Weekday:         &otherWeekday,
 	}
-	enrollment.SetTenantID(chain.TenantID)
+	enrollment.TenantID = chain.TenantID
 	_, err := db.NewInsert().
 		Model(enrollment).
 		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).

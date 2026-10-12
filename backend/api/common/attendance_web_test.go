@@ -8,9 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,8 +16,10 @@ func TestRequireWebAttendanceEnabled(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		settings   configService.SettingsService
+		name     string
+		settings interface {
+			ResolveBool(context.Context, string) (bool, error)
+		}
 		wantStatus int
 		wantBody   string
 		wantNext   bool
@@ -27,14 +27,14 @@ func TestRequireWebAttendanceEnabled(t *testing.T) {
 		{name: "missing service fails closed", wantStatus: http.StatusServiceUnavailable},
 		{
 			name: "resolution failure is not treated as disabled",
-			settings: &configtest.Mock{ResolveBoolFn: func(context.Context, string) (bool, error) {
+			settings: &settingsDouble{ResolveBoolFn: func(context.Context, string) (bool, error) {
 				return false, errors.New("repository unavailable")
 			}},
 			wantStatus: http.StatusServiceUnavailable,
 		},
 		{
 			name: "disabled returns stable code",
-			settings: &configtest.Mock{ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
+			settings: &settingsDouble{ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 				assert.Equal(t, configModel.KeyAttendanceWebEnabled, key)
 				return false, nil
 			}},
@@ -43,7 +43,7 @@ func TestRequireWebAttendanceEnabled(t *testing.T) {
 		},
 		{
 			name: "enabled reaches handler",
-			settings: &configtest.Mock{ResolveBoolFn: func(context.Context, string) (bool, error) {
+			settings: &settingsDouble{ResolveBoolFn: func(context.Context, string) (bool, error) {
 				return true, nil
 			}},
 			wantStatus: http.StatusNoContent,

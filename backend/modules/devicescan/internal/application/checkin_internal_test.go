@@ -359,7 +359,19 @@ func TestCreateSpecialRoomSession_WCNeedsStaffText(t *testing.T) {
 
 	_, err := h.service().createSpecialRoomSession(context.Background(), room)
 
-	requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageWCNeedsStaff)
+	requireCodedFailure(t, err, devicescan.FailureInternal, devicescan.MessageWCNeedsStaff, devicescan.CodeWCNeedsStaff)
+}
+
+func TestCreateSpecialRoomSession_WCNotConfigured(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	room := facilities.Room{ID: 42, Name: facilities.WCRoomName}
+	h.rooms.toilet = &room
+	h.activities.listErr = errors.New("activity lookup failed")
+
+	_, err := h.service().createSpecialRoomSession(context.Background(), room)
+
+	requireCodedFailure(t, err, devicescan.FailureInternal, devicescan.MessageWCNotConfigured, devicescan.CodeWCNotConfigured)
 }
 
 func TestCreateSpecialRoomSession_SchulhofNotConfigured(t *testing.T) {
@@ -370,7 +382,7 @@ func TestCreateSpecialRoomSession_SchulhofNotConfigured(t *testing.T) {
 
 	_, err := h.service().createSpecialRoomSession(context.Background(), room)
 
-	requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageSchulhofNotConfigured)
+	requireCodedFailure(t, err, devicescan.FailureInternal, devicescan.MessageSchulhofNotConfigured, devicescan.CodeSchulhofNotConfigured)
 }
 
 func TestCreateSpecialRoomSession_StartFailure(t *testing.T) {

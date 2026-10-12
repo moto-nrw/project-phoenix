@@ -75,7 +75,11 @@ type PersonResponse struct {
 
 // StaffResponse represents a staff response.
 type StaffResponse struct {
-	ID int64 `json:"id"`
+	// ID goes out as a decimal STRING for the same reason as PersonID: staff
+	// IDs are bigints, and the Next.js proxy parses every JSON number before
+	// the mapper can preserve it. A rounded staff ID could address a different
+	// staff record when the caller sends it back.
+	ID int64 `json:"id,string"`
 	// PersonID goes out as a decimal STRING. It is a bigint, and the staff
 	// screens send it back to identify the person they edit — as a JSON
 	// number it would be rounded past 2^53 by the JSON.parse in the Next.js
@@ -92,11 +96,16 @@ type StaffResponse struct {
 	// AbsenceTypeLabel carries the school's own Abwesenheitsart wording for
 	// today's absence (#2403). Empty for the five standard types — the client
 	// keeps deriving those labels from AbsenceType itself.
-	AbsenceTypeLabel string    `json:"absence_type_label,omitempty"`
-	AccountRole      string    `json:"account_role,omitempty"`
-	EmploymentType   *string   `json:"employment_type,omitempty"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	AbsenceTypeLabel string  `json:"absence_type_label,omitempty"`
+	AccountRole      string  `json:"account_role,omitempty"`
+	EmploymentType   *string `json:"employment_type,omitempty"`
+	// IsExternal marks an external caregiver without a moto account (#3823)
+	// and ExternalOrganization names where they come from. Every colleague
+	// sees both on purpose: the supervision pickers label these people.
+	IsExternal           bool      `json:"is_external"`
+	ExternalOrganization string    `json:"external_organization,omitempty"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 // TeacherResponse represents a teacher response (extends staff).
@@ -148,6 +157,39 @@ func (req *StaffRequest) Bind(*http.Request) error {
 	req.Specialization = strings.TrimSpace(req.Specialization)
 	req.Role = strings.TrimSpace(req.Role)
 	req.Qualifications = strings.TrimSpace(req.Qualifications)
+	return nil
+}
+
+// Name length limits of an external caregiver entry: long enough for any real
+// name, short enough to keep a typo'd paste out of every picker.
+const (
+	maxExternalNameLength         = 100
+	maxExternalOrganizationLength = 150
+)
+
+// ExternalStaffRequest records an external caregiver without a moto account
+// (#3823): only a name and, optionally, the organization they come from.
+type ExternalStaffRequest struct {
+	FirstName    string `json:"first_name"`
+	LastName     string `json:"last_name"`
+	Organization string `json:"organization,omitempty"`
+}
+
+// Bind trims and validates the external caregiver request.
+func (req *ExternalStaffRequest) Bind(*http.Request) error {
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
+	req.Organization = strings.TrimSpace(req.Organization)
+	switch {
+	case req.FirstName == "":
+		return errors.New("first name is required")
+	case req.LastName == "":
+		return errors.New("last name is required")
+	case len([]rune(req.FirstName)) > maxExternalNameLength || len([]rune(req.LastName)) > maxExternalNameLength:
+		return fmt.Errorf("names must not exceed %d characters", maxExternalNameLength)
+	case len([]rune(req.Organization)) > maxExternalOrganizationLength:
+		return fmt.Errorf("organization must not exceed %d characters", maxExternalOrganizationLength)
+	}
 	return nil
 }
 
@@ -235,6 +277,7 @@ func newPersonResponse(person *Person, email, avatar string) *PersonResponse {
 // single constructor every staff response goes through, so a new endpoint
 // cannot forget it.
 func buildStaffResponse(access staffFieldAccess, staff schoolmembership.Staff, person *Person, isTeacher bool, data enrichment) StaffResponse {
+	isExternal := staff.IsGuest && person != nil && person.AccountID == nil
 	response := StaffResponse{
 		ID:               staff.ID,
 		PersonID:         staff.PersonID,
@@ -246,8 +289,12 @@ func buildStaffResponse(access staffFieldAccess, staff schoolmembership.Staff, p
 		AbsenceTypeLabel: data.absenceTypeLabel,
 		AccountRole:      data.accountRole,
 		EmploymentType:   staff.EmploymentType,
+		IsExternal:       isExternal,
 		CreatedAt:        staff.CreatedAt,
 		UpdatedAt:        staff.UpdatedAt,
+	}
+	if isExternal {
+		response.ExternalOrganization = staff.GuestOrganization
 	}
 	if person != nil {
 		response.Person = newPersonResponse(person, data.email, data.avatar)

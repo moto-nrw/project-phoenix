@@ -290,13 +290,13 @@ func TestRepository_Delete(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify the delete
-	var count int
+	var count int64
 	count, err = db.NewSelect().Model((*testSettingValue)(nil)).
 		ModelTableExpr(baseTestTable).
 		Where("id = ?", sv.ID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, count)
+	assert.Equal(t, int64(0), count)
 }
 
 // TestRepository_List tests the List method.

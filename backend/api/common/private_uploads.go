@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/storage"
+	storage "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 )
 
 // PrivateUploads binds managed tenant objects to the shared uploads backend.
@@ -26,7 +26,7 @@ func (s *PrivateUploads) SavePrivate(ctx context.Context, kind string, tenantID 
 	if err != nil {
 		return 0, err
 	}
-	return s.backend.Save(ctx, key, source, storage.SaveOptions{Private: true})
+	return s.backend.WriteObject(ctx, key, source, storage.SaveOptions{Private: true})
 }
 
 func (s *PrivateUploads) OpenPrivate(ctx context.Context, kind string, tenantID int64, storedName string) (interface {
@@ -37,7 +37,11 @@ func (s *PrivateUploads) OpenPrivate(ctx context.Context, kind string, tenantID 
 	if err != nil {
 		return nil, err
 	}
-	return s.backend.Open(ctx, key)
+	object, err := s.backend.OpenObject(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	return &privateUploadObject{ReadSeekCloser: object.Content, modifiedAt: object.ModifiedAt}, nil
 }
 
 func (s *PrivateUploads) RemovePrivate(ctx context.Context, kind string, tenantID int64, storedName string) error {
@@ -45,5 +49,12 @@ func (s *PrivateUploads) RemovePrivate(ctx context.Context, kind string, tenantI
 	if err != nil {
 		return err
 	}
-	return s.backend.Remove(ctx, key)
+	return s.backend.RemoveObject(ctx, key)
 }
+
+type privateUploadObject struct {
+	io.ReadSeekCloser
+	modifiedAt time.Time
+}
+
+func (o *privateUploadObject) ModTime() time.Time { return o.modifiedAt }

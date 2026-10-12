@@ -65,7 +65,7 @@ func (rs *RFIDResource) renderTagFailure(w http.ResponseWriter, r *http.Request,
 	if failure, ok := devicescan.IsFailure(err); ok {
 		switch failure.Kind {
 		case devicescan.FailureNotFound:
-			rs.runtime.Failure(w, r, http.StatusNotFound, errors.New(failure.Message), "")
+			rs.runtime.Failure(w, r, http.StatusNotFound, failure, "")
 			return
 		case devicescan.FailureInternal:
 			rs.runtime.Failure(w, r, http.StatusInternalServerError, failure.Cause, failure.Message)

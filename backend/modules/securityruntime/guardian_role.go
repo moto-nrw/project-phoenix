@@ -9,9 +9,19 @@ import (
 // Role presets of a student-guardian relationship.
 const (
 	GuardianRolePrimaryGuardian = authorize.GuardianRolePrimaryGuardian
+	GuardianRoleLegalGuardian   = authorize.GuardianRoleLegalGuardian
+	GuardianRoleCoGuardian      = authorize.GuardianRoleCoGuardian
 	GuardianRoleEmergency       = authorize.GuardianRoleEmergency
 	GuardianRolePickupOnly      = authorize.GuardianRolePickupOnly
+	GuardianRoleSocialWorker    = authorize.GuardianRoleSocialWorker
 	GuardianRoleCustom          = authorize.GuardianRoleCustom
+)
+
+// Parent-portal permissions a relationship role preset grants.
+const (
+	GuardianPermissionPortalAccess     = authorize.GuardianPermissionPortalAccess
+	GuardianPermissionEnrollmentSubmit = authorize.GuardianPermissionEnrollmentSubmit
+	GuardianPermissionPollResponse     = authorize.GuardianPermissionPollResponse
 )
 
 // StudentGuardianRolePreset returns the stored role of a relationship role

@@ -127,7 +127,7 @@ func (s *InstanceLifecycleService) loadMoveSource(ctx context.Context, target *s
 }
 
 func (s *InstanceLifecycleService) requireStaff(ctx context.Context, staffID int64) error {
-	staff, err := s.deps.StaffRepo.FindByID(ctx, staffID)
+	staff, err := s.deps.StaffRepo.FindWithPerson(ctx, staffID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
 			return timetable.DeviationNotFound("staff not found").WithCode(timetable.CodeStaffNotFound).OnField("staff_id")
@@ -136,6 +136,9 @@ func (s *InstanceLifecycleService) requireStaff(ctx context.Context, staffID int
 	}
 	if staff == nil || staff.ID == 0 {
 		return timetable.DeviationNotFound("staff not found").WithCode(timetable.CodeStaffNotFound).OnField("staff_id")
+	}
+	if staff.IsGuest && staff.Person != nil && staff.Person.AccountID == nil {
+		return timetable.DeviationBadRequest("Diese Person kann nicht im Dienstplan eingeplant werden.").WithCode(timetable.CodeDeviationSelectionInvalid).OnField("staff_id")
 	}
 	return nil
 }

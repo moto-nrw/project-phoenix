@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
@@ -38,17 +37,24 @@ type StaffRecipientResolver interface {
 type staffRecipientResolver struct {
 	preferences  PreferenceService
 	students     userModel.StudentRepository
-	groups       groupSupervisors
+	groups       GroupSupervisors
 	staff        userModel.StaffRepository
 	accounts     authAccountReader
 	settings     settingsBoolReader
 	workSessions dutyReader
 }
 
-// groupSupervisors answers who supervises the given education groups on a
-// day, the slice of the retained group repository this resolver needs.
-type groupSupervisors interface {
-	ListStaffIDsByEducationGroupIDs(ctx context.Context, groupIDs []int64, on timezone.Date) ([]educationModel.StaffGroupID, error)
+// GroupSupervisors answers who supervises the given education groups on a
+// day. The composition root binds it over School Structure's group reads.
+type GroupSupervisors interface {
+	ListGroupSupervisors(ctx context.Context, groupIDs []int64, on timezone.Date) ([]StaffGroupPair, error)
+}
+
+// StaffGroupPair pairs a staff member with one education group they
+// supervise.
+type StaffGroupPair struct {
+	StaffID int64
+	GroupID int64
 }
 
 // authAccountReader is the slice of the account repository this resolver needs.
@@ -69,7 +75,7 @@ type dutyReader interface {
 func NewStaffRecipientResolver(
 	preferences PreferenceService,
 	students userModel.StudentRepository,
-	groups groupSupervisors,
+	groups GroupSupervisors,
 	staff userModel.StaffRepository,
 	accounts authAccountReader,
 	settings settingsBoolReader,
@@ -146,7 +152,7 @@ func (r *staffRecipientResolver) addGroupStaff(ctx context.Context, visibleByAcc
 	if len(groupIDs) == 0 {
 		return nil
 	}
-	pairs, err := r.groups.ListStaffIDsByEducationGroupIDs(ctx, groupIDs, timezone.TodayDate())
+	pairs, err := r.groups.ListGroupSupervisors(ctx, groupIDs, timezone.TodayDate())
 	if err != nil {
 		return fmt.Errorf("resolve supervising staff: %w", err)
 	}

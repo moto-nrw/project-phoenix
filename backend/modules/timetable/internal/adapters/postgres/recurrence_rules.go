@@ -70,7 +70,7 @@ func filterRecurrenceRules(query *bun.SelectQuery, filter domain.RecurrenceRuleF
 		query = query.Where(`("recurrence_rule".end_date IS NULL OR "recurrence_rule".end_date >= ?)`, *filter.ActiveAt)
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit).Offset(filter.Offset)
+		query = query.Limit(int64(filter.Limit)).Offset(int64(filter.Offset))
 	}
 	return orderRecurrenceRules(query, filter.SortBy, filter.SortDescending)
 }

@@ -217,7 +217,7 @@ func (s *MessageStore) ListByThread(ctx context.Context, threadID int64, limit i
 		OrderExpr(`"parent_message".created_at DESC`).
 		OrderExpr(`"parent_message".id DESC`)
 	if limit > 0 {
-		query = query.Limit(limit)
+		query = query.Limit(int64(limit))
 	}
 	query = withTenant(query, parentMessageAlias, tenantID)
 	if err := query.Scan(ctx); err != nil {

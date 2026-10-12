@@ -337,7 +337,7 @@ func TestRevokeAccess_PayerStaysWithoutFinancialPermission(t *testing.T) {
 		Where(`"change".new_value = ?`, "false").
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, count, "clearing the payer on removal must be audited")
+	assert.Equal(t, 1, int(count), "clearing the payer on removal must be audited")
 }
 
 func TestRevokeAccess_ParentCannotRemoveStaffManagedNoAccountContact(t *testing.T) {

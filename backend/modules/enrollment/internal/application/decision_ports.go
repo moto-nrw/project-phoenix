@@ -39,6 +39,10 @@ type (
 		UpdateChildStatus(context.Context, int64, string, *string, int64) error
 		UpdateChildActivationPlan(context.Context, int64, string, *enrollment.Date) error
 		LinkCreatedStudent(context.Context, int64, int64) error
+		// The planned class switch of an approved re-enrollment (#3917).
+		SetChildClassSwitch(context.Context, int64, *enrollment.ClassSwitch) error
+		ChildClassSwitch(context.Context, int64) (*enrollment.ClassSwitch, error)
+		DueClassSwitches(context.Context, enrollment.Date) ([]enrollment.DueClassSwitch, error)
 	}
 	// DecisionGuardians reads the co-guardians of a request and stamps the
 	// guardian profile an approval resolved for one of them.

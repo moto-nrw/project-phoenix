@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  presentChildCandidates,
   rosterPickupTimeLabel,
   upcomingArrivalTime,
 } from "./timetable-roster-helpers";
@@ -92,5 +93,42 @@ describe("upcomingArrivalTime", () => {
     expect(
       upcomingArrivalTime(arrivalWarnings("13:45"), at(13, 0), "2026-09-01"),
     ).toBeNull();
+  });
+});
+
+describe("presentChildCandidates", () => {
+  // 2026-09-09 12:00 Berlin, the shared test clock instant.
+  const noon = new Date("2026-09-09T10:00:00Z");
+  const children = [
+    { id: "1", pickupTime: "11:30" },
+    { id: "2", pickupTime: "12:00" },
+    { id: "3", pickupTime: "12:01" },
+    { id: "4", pickupTime: "16:00" },
+    { id: "5", pickupTime: null },
+    { id: "6", pickupTime: "16:00" },
+  ];
+
+  it("keeps children whose Gehzeit is still ahead and those without one", () => {
+    const ids = presentChildCandidates(children, new Set(), noon, "stays").map(
+      (child) => child.id,
+    );
+    expect(ids).toEqual(["3", "4", "5", "6"]);
+  });
+
+  it("offers every present child under all", () => {
+    const ids = presentChildCandidates(children, new Set(), noon, "all").map(
+      (child) => child.id,
+    );
+    expect(ids).toEqual(["1", "2", "3", "4", "5", "6"]);
+  });
+
+  it("never offers a child that is already in the block", () => {
+    const ids = presentChildCandidates(
+      children,
+      new Set(["4", "1"]),
+      noon,
+      "all",
+    ).map((child) => child.id);
+    expect(ids).toEqual(["2", "3", "5", "6"]);
   });
 });

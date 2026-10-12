@@ -8,6 +8,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CareScheduleManager } from "./care-schedule-manager";
 import { ApiError } from "~/lib/api-error";
+import { toISODate } from "~/lib/date-helpers";
 import type { ArrivalScheduleFormEntry } from "~/lib/arrival-schedule-helpers";
 import type {
   ArrivalData,
@@ -154,9 +155,11 @@ vi.mock("./care-plan-editor-modal", () => ({
     isOpen,
     onClose,
     onSubmitException,
+    arrivalDay,
   }: {
     isOpen: boolean;
     onClose: () => void;
+    arrivalDay: { date: Date } | null;
     onSubmitException: (payload: {
       date: string;
       arrival:
@@ -173,6 +176,9 @@ vi.mock("./care-plan-editor-modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="care-plan-editor-day">
+        <span data-testid="care-plan-editor-date">
+          {arrivalDay ? toISODate(arrivalDay.date) : ""}
+        </span>
         <button
           type="button"
           onClick={() =>
@@ -695,6 +701,33 @@ describe("CareScheduleManager", () => {
     expect(onVisibleDateRangeChange).toHaveBeenCalledWith(
       "2026-06-01",
       "2026-06-05",
+    );
+  });
+
+  it("shows weekend days and opens their exceptions when the weekend follows Friday", async () => {
+    const onVisibleDateRangeChange = vi.fn();
+
+    render(
+      <CareScheduleManager
+        studentId="42"
+        weekendFollowsFriday
+        onVisibleDateRangeChange={onVisibleDateRangeChange}
+      />,
+    );
+    await screen.findByText("Betreuungszeiten");
+
+    expect(mockFetchArrivalData).toHaveBeenCalledWith(
+      "42",
+      "2026-05-25",
+      "2026-05-31",
+    );
+    expect(screen.getAllByText("Sa").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("So").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Ausnahme" })[6]!);
+
+    expect(screen.getByTestId("care-plan-editor-date")).toHaveTextContent(
+      "2026-05-30",
     );
   });
 

@@ -28,10 +28,10 @@ func (s *Store) ListCombinedGroups(ctx context.Context, filter ports.CombinedGro
 		}
 	}
 	if filter.Limit > 0 {
-		q = q.Limit(filter.Limit)
+		q = q.Limit(int64(filter.Limit))
 	}
 	if filter.Offset > 0 {
-		q = q.Offset(filter.Offset)
+		q = q.Offset(int64(filter.Offset))
 	}
 	if filter.OpenOnly {
 		q = q.Where("end_time IS NULL")

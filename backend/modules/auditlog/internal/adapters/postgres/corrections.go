@@ -38,7 +38,7 @@ func (s *Corrections) ListDirectCorrections(ctx context.Context, filter auditlog
 	query := db.NewSelect().Model(&rows).TableExpr("audit.enrollment_offering_adjustments AS adjustment").
 		ColumnExpr("adjustment.id, adjustment.student_id, adjustment.actor_name_snapshot, adjustment.actor_email_snapshot, adjustment.reason, adjustment.before_json, adjustment.after_json, adjustment.changed_at").
 		Where("adjustment.tenant_id = ?", tenantID).Where("adjustment.source = ?", "direct").
-		OrderExpr("adjustment.changed_at DESC, adjustment.id DESC").Limit(filter.Limit)
+		OrderExpr("adjustment.changed_at DESC, adjustment.id DESC").Limit(int64(filter.Limit))
 	if !filter.BeforeInstant.IsZero() {
 		query = query.Where("(adjustment.changed_at, adjustment.id) < (?, ?)", filter.BeforeInstant, filter.BeforeID)
 	}

@@ -136,10 +136,16 @@ func (s *InstanceLifecycleService) snapshotDeviations(ctx context.Context, from,
 	if err != nil {
 		return nil, nil, err
 	}
+	// A weekend that follows Friday's plan is rematerialized (#3921), so its
+	// deviations are reapplied like a weekday's.
+	follows, err := weekendFollowsFridayIn(ctx, from, to)
+	if err != nil {
+		return nil, nil, &ScheduleError{Op: "re-plan: snapshot deviations", Err: err}
+	}
 	occurrences := make(map[groupDay]int)
 	eligible := make([]*scheduleModel.ActivityInstance, 0, len(instances))
 	for _, inst := range instances {
-		if !replannableOccurrence(inst, activityGroupID) {
+		if !replannableOccurrence(inst, activityGroupID, follows) {
 			continue
 		}
 		occurrences[groupDay{*inst.ActivityGroupID, timezone.Date(inst.Date)}]++
@@ -160,8 +166,8 @@ func (s *InstanceLifecycleService) snapshotDeviations(ctx context.Context, from,
 	return snapshots, occurrences, nil
 }
 
-func replannableOccurrence(inst *scheduleModel.ActivityInstance, activityGroupID *int64) bool {
-	if inst.Date.Weekday() == time.Saturday || inst.Date.Weekday() == time.Sunday {
+func replannableOccurrence(inst *scheduleModel.ActivityInstance, activityGroupID *int64, weekendFollowsFriday bool) bool {
+	if !weekendFollowsFriday && (inst.Date.Weekday() == time.Saturday || inst.Date.Weekday() == time.Sunday) {
 		return false
 	}
 	if inst.Status != scheduleModel.InstanceStatusPlanned || inst.IsSpontaneous || inst.ActivityGroupID == nil {

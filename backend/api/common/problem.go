@@ -27,6 +27,8 @@ func ErrorClassCode(status int) string {
 	switch status {
 	case http.StatusUnauthorized, http.StatusForbidden:
 		return CodeGeneralPermission
+	case http.StatusRequestHeaderFieldsTooLarge:
+		return CodeGeneralRequestTooLarge
 	case http.StatusConflict, http.StatusGone, http.StatusUnprocessableEntity:
 		return CodeGeneralBusinessRejection
 	case http.StatusRequestTimeout, http.StatusTooManyRequests, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout, 499:

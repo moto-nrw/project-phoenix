@@ -70,7 +70,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 	output, err := os.OpenFile(*runtimeCheckpointOutput, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	require.NoError(t, err, "use a new output path for each checkpoint execution")
 	defer func() { _ = output.Close() }()
-	api := production.api
+	api := production.graph
 	db := testpkg.SetupTestDB(t)
 	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Checkpoint", "Staff")
 	phase := testpkg.CreateTestEnrollmentPhase(t, db)
@@ -419,9 +419,9 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		if *runtimeCheckpointEnrollment || *runtimeCheckpointEnrollmentWrites || changeRequests != nil || acceptance != nil {
 			continue
 		}
-		workers := testpkg.MeasureDeliveryCheckpoint(t, api.db, db, api.Services.EmailOutboxWorker, api.tenantRuntime, counter, func() string { return checkpointMetrics(t) })
+		workers := testpkg.MeasureDeliveryCheckpoint(t, api.db, db, api.services.EmailOutboxWorker, api.tenantRuntime, counter, func() string { return checkpointMetrics(t) })
 		workers = append(workers, testpkg.MeasureTimetableCheckpoint(t, api.db, db, api.tenantRuntime, counter, templateID, func(ctx context.Context) (int, int, error) {
-			result, materializeErr := api.Services.Materialization.MaterializeForTenant(ctx, "2026-09-07", "2026-09-07", "scheduler")
+			result, materializeErr := api.services.Materialization.MaterializeForTenant(ctx, "2026-09-07", "2026-09-07", "scheduler")
 			if materializeErr != nil {
 				return 0, 0, materializeErr
 			}

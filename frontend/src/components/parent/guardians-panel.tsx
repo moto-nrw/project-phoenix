@@ -330,7 +330,10 @@ export default function GuardiansPanel({
         description={t("guardians.contactsDescription")}
         concept="permissions"
         actions={
-          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+          <div
+            data-parent-tour="child-guardians"
+            className="flex flex-col items-start gap-2 sm:flex-row sm:items-center"
+          >
             <OgsVisibleBadge />
             {canAddContact ? (
               <Button

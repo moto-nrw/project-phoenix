@@ -31,7 +31,7 @@ func (r *OperatorAuditLogRepository) FindByOperatorID(ctx context.Context, opera
 		Where(`"operator_audit_entry".operator_id = ?`, operatorID).
 		OrderExpr(`"operator_audit_entry".created_at DESC`)
 	if limit > 0 {
-		query = query.Limit(limit)
+		query = query.Limit(int64(limit))
 	}
 	if err := query.Scan(ctx); err != nil {
 		return nil, wrapDatabase("find operator audit entries by operator id", err)
@@ -48,7 +48,7 @@ func (r *OperatorAuditLogRepository) FindByDateRange(ctx context.Context, start,
 		Where(`"operator_audit_entry".created_at <= ?`, end).
 		OrderExpr(`"operator_audit_entry".created_at DESC`)
 	if limit > 0 {
-		query = query.Limit(limit)
+		query = query.Limit(int64(limit))
 	}
 	if err := query.Scan(ctx); err != nil {
 		return nil, wrapDatabase("find operator audit entries by date range", err)

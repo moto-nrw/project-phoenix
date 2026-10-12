@@ -26,7 +26,7 @@ import (
 func setupClassListEntriesRoute(t *testing.T) (*testpkg.DB, chi.Router) {
 	t.Helper()
 	db, module := testutil.SetupClassListModule(t)
-	return db, newClassListEntriesResource(module.Membership, db, slog.Default()).Router()
+	return db, newClassListEntriesResource(module.Membership, slog.Default()).Router()
 }
 
 func classListEntryClaims(t *testing.T, db *testpkg.DB, prefix string) jwt.AppClaims {

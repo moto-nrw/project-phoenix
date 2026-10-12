@@ -30,7 +30,6 @@ func TestAvailableRoomsUsesDeviceTenantComposition(t *testing.T) {
 		FeedbackResponseObserver: func(int, string) {},
 		DeviceScan:               routerDeviceScan{},
 		StaffClock:               routerStaffClock{},
-		DB:                       db,
 		DeviceAuthenticator:      deviceAuth.Device(),
 		DeviceOnlyAuthenticator:  deviceAuth.DeviceOnly(),
 	})

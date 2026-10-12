@@ -42,7 +42,7 @@ func applyQueryOptions(query *bun.SelectQuery, options *users.QueryOptions) *bun
 		}
 	}
 	if options.Pagination != nil {
-		query = query.Limit(options.Pagination.PageSize).Offset(options.Pagination.Offset())
+		query = query.Limit(int64(options.Pagination.PageSize)).Offset(int64(options.Pagination.Offset()))
 	}
 	return query
 }

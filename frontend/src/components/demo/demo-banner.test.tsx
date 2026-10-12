@@ -4,6 +4,7 @@ import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { saveDemoVisit } from "~/lib/demo-access";
+import { setTestClock } from "~/test/clock";
 import { catalogText } from "~/test/error-catalog-text";
 import { DemoBanner } from "./demo-banner";
 
@@ -231,6 +232,17 @@ describe("DemoBanner", () => {
     );
 
     await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+  });
+
+  it("shows the evening row without a stored demo visit", () => {
+    localStorage.clear();
+    setTestClock("2026-09-09T20:00:00+02:00");
+
+    renderBanner();
+
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "Uhrzeiten heute verschoben.",
+    );
   });
 
   // The standing demo school is shared: its role cannot change, so the

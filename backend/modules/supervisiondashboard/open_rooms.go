@@ -56,6 +56,7 @@ type OpenRoomBlock struct {
 	InstanceID     int64  `json:"instance_id,string"`
 	StartTime      string `json:"start_time"`
 	EndTime        string `json:"end_time"`
+	IsSpontaneous  bool   `json:"is_spontaneous"`
 	IsUserAssigned bool   `json:"is_user_assigned"`
 	CanOperate     bool   `json:"can_operate"`
 }
@@ -280,6 +281,7 @@ func openRoomSession(session RunningSession, blocks map[int64]SessionBlock, staf
 			InstanceID:     block.InstanceID,
 			StartTime:      block.StartTime,
 			EndTime:        block.EndTime,
+			IsSpontaneous:  block.IsSpontaneous,
 			IsUserAssigned: block.IsAssigned,
 			CanOperate:     block.CanOperate,
 		}

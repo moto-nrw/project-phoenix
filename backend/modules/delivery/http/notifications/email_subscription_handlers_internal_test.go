@@ -44,7 +44,7 @@ func (s *emailConsentStub) RecordConsent(_ context.Context, accountID int64, not
 }
 
 func emailRouter(db *bun.DB, consent *emailConsentStub) chi.Router {
-	return NewResource(nil, nil, notificationsService.NewPreferenceService(consent, nil, nil, nil), db).Router()
+	return NewResource(nil, nil, notificationsService.NewPreferenceService(consent, nil, nil, nil)).Router()
 }
 
 const enrollmentEmailPath = "/email-subscriptions/" + notificationsService.TypeEnrollmentSubmitted
@@ -112,7 +112,7 @@ func TestEmailSubscriptionRoutes(t *testing.T) {
 
 	t.Run("the school portal does not offer it", func(t *testing.T) {
 		prefs := &emailConsentStub{}
-		router := NewResource(nil, nil, notificationsService.NewPreferenceService(prefs, nil, nil, nil), db).SchoolRouter()
+		router := NewResource(nil, nil, notificationsService.NewPreferenceService(prefs, nil, nil, nil)).SchoolRouter()
 
 		code, _ := do(t, router, manager, http.MethodGet, enrollmentEmailPath, nil)
 		assert.NotEqual(t, http.StatusOK, code)

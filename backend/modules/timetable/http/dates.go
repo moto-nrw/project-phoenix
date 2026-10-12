@@ -4,10 +4,10 @@
 package timetablehttp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -28,13 +28,32 @@ func berlinDate(input string) (calendar.Date, error) {
 // three planning views: the OGS timetable accepts appointments only Monday to
 // Friday. It lives at the HTTP boundary so direct API clients cannot create
 // entries the workweek views intentionally do not display.
-func validateTimetableWorkday(date calendar.Date) error {
-	switch date.Weekday() {
-	case time.Saturday, time.Sunday:
-		return errTimetableWeekend
-	default:
-		return nil
+// A school whose weekend follows Friday's plan (#3921) plans Saturday and
+// Sunday too. A failed read of that setting is returned as is, never read as
+// a refusal.
+func validateTimetableWorkday(ctx context.Context, date calendar.Date) error {
+	careDay, err := calendar.IsCareWeekday(ctx, date)
+	if err != nil {
+		return fmt.Errorf("resolve weekend plan: %w", err)
 	}
+	if !careDay {
+		return errTimetableWeekend
+	}
+	return nil
+}
+
+// renderWorkdayRefusal answers a failed workday check: the weekend refusal
+// as the coded 400, anything else as a 500.
+func renderWorkdayRefusal(w http.ResponseWriter, r *http.Request, err error, field string) {
+	if !errors.Is(err, errTimetableWeekend) {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("validate workday failed", err))
+		return
+	}
+	if field == "" {
+		common.RenderError(w, r, codedInvalid(err))
+		return
+	}
+	common.RenderError(w, r, codedInvalidOnField(err, field))
 }
 
 // inclusiveDayCount returns the number of calendar days in the inclusive

@@ -120,6 +120,24 @@ export function pickupRequestRef(
   return id && /^[1-9]\d*$/.test(id) ? id : null;
 }
 
+/**
+ * Does the reader's review scope reach the request a pill points at (#3886)?
+ * Sick and excused requests follow the absence scope, which a school may set
+ * apart from the scope of every other request kind. Without a known coverage
+ * the answer is no: offering a request the detail or queue would refuse with
+ * 403 is the bug this guards against.
+ */
+export function requestPillCoveredByReview(
+  message: Pick<ChatMessage, "request_type">,
+  coverage: { readonly requests: boolean; readonly absences: boolean } | null,
+): boolean {
+  if (coverage === null) return false;
+  const absence =
+    message.request_type === "sick_absence" ||
+    message.request_type === "excused_absence";
+  return absence ? coverage.absences : coverage.requests;
+}
+
 const STAFF_STATUS_LABELS: Record<RequestStatus, string> = {
   offen: "Offen",
   erledigt: "Erledigt",

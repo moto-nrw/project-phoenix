@@ -11,7 +11,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// tenantTransitionsLockKey mirrors models/education.TenantTransitionsLockKey.
+// tenantTransitionsLockKey mirrors schoolstructure.TransitionsLockKey.
 // The timetable materializer takes the same advisory key through
 // services/schedule, so a materialization pass and a grade transition never
 // run concurrently for one school; the two holders must agree on the exact
@@ -163,10 +163,10 @@ func (s *Store) ListTransitions(ctx context.Context, tenantID int64, filter doma
 		query = query.OrderExpr(`"transition".created_at DESC, "transition".id DESC`)
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit)
+		query = query.Limit(int64(filter.Limit))
 	}
 	if filter.Offset > 0 {
-		query = query.Offset(filter.Offset)
+		query = query.Offset(int64(filter.Offset))
 	}
 	started = time.Now()
 	err = query.Scan(ctx)
@@ -191,7 +191,7 @@ func (s *Store) ListTransitions(ctx context.Context, tenantID int64, filter doma
 		transition.Mappings = mappings[row.ID]
 		result = append(result, transition)
 	}
-	return result, total, stats, nil
+	return result, int(total), stats, nil
 }
 
 func (s *Store) listMappings(ctx context.Context, db bun.IDB, tenantID int64, transitionIDs []int64) (map[int64][]domain.TransitionMapping, domain.OperationStats, error) {

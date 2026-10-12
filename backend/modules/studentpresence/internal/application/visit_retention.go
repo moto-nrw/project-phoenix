@@ -7,34 +7,34 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
-func (s *Service) ListVisitRetentionCounts(ctx context.Context) (result []ports.VisitRetentionCount, err error) {
+func (s *Service) ListVisitRetentionCounts(ctx context.Context, defaultDays int) (result []ports.VisitRetentionCount, err error) {
 	err = s.run("list_visit_retention_counts", func() (ports.Stats, error) {
 		var stats ports.Stats
-		result, stats, err = s.store.ListVisitRetentionCounts(ctx)
+		result, stats, err = s.store.ListVisitRetentionCounts(ctx, defaultDays)
 		return stats, err
 	})
 	return result, err
 }
-func (s *Service) CountExpiredVisits(ctx context.Context) (result int64, err error) {
+func (s *Service) CountExpiredVisits(ctx context.Context, defaultDays int) (result int64, err error) {
 	err = s.run("count_expired_visits", func() (ports.Stats, error) {
 		var stats ports.Stats
-		result, stats, err = s.store.CountExpiredVisits(ctx)
+		result, stats, err = s.store.CountExpiredVisits(ctx, defaultDays)
 		return stats, err
 	})
 	return result, err
 }
-func (s *Service) OldestExpiredVisitDate(ctx context.Context) (result *time.Time, err error) {
+func (s *Service) OldestExpiredVisitDate(ctx context.Context, defaultDays int) (result *time.Time, err error) {
 	err = s.run("oldest_expired_visit_date", func() (ports.Stats, error) {
 		var stats ports.Stats
-		result, stats, err = s.store.OldestExpiredVisitDate(ctx)
+		result, stats, err = s.store.OldestExpiredVisitDate(ctx, defaultDays)
 		return stats, err
 	})
 	return result, err
 }
-func (s *Service) ListExpiredVisitMonths(ctx context.Context) (result []ports.VisitMonthCount, err error) {
+func (s *Service) ListExpiredVisitMonths(ctx context.Context, defaultDays int) (result []ports.VisitMonthCount, err error) {
 	err = s.run("list_expired_visit_months", func() (ports.Stats, error) {
 		var stats ports.Stats
-		result, stats, err = s.store.ListExpiredVisitMonths(ctx)
+		result, stats, err = s.store.ListExpiredVisitMonths(ctx, defaultDays)
 		return stats, err
 	})
 	return result, err

@@ -14,7 +14,6 @@ import (
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/uptrace/bun"
 )
 
 // The guardian surface under /api/guardians (#2663) is the People Directory
@@ -78,10 +77,10 @@ func guardianFailureKind(kind services.GuardianFailureKind) usersAPI.FailureKind
 // newGuardiansResource binds the guardian HTTP adapter over the People
 // Directory and the legacy-service runtime. appEnv gates the seed-only raw
 // invitation token.
-func newGuardiansResource(module peopleModule.Capability, runtime services.GuardianDirectoryRuntime, db *bun.DB, appEnv string, logger *slog.Logger) *usersAPI.GuardianResource {
+func newGuardiansResource(module peopleModule.Capability, runtime services.GuardianDirectoryRuntime, appEnv string, logger *slog.Logger) *usersAPI.GuardianResource {
 	return usersAPI.NewGuardianResource(module, usersAPI.GuardianRuntime{
 		Protected: func(router chi.Router, register func(chi.Router, usersAPI.Middleware)) {
-			apiCommon.ProtectedTenantGroup(router, db, register)
+			apiCommon.ProtectedTenantRoutes(router, register)
 		},
 		Permission: func(permission string) usersAPI.Middleware {
 			return apiCommon.RequiresPermission(permission)
@@ -130,7 +129,7 @@ func newGuardiansResource(module peopleModule.Capability, runtime services.Guard
 			result := make([]usersAPI.PendingGuardianInvitation, 0, len(invitations))
 			for _, invitation := range invitations {
 				result = append(result, usersAPI.PendingGuardianInvitation{
-					ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, CreatedAt: invitation.CreatedAt,
+					ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, Token: invitation.Token, CreatedAt: invitation.CreatedAt,
 					ExpiresAt: invitation.ExpiresAt, EmailSentAt: invitation.EmailSentAt, EmailError: invitation.EmailError,
 					EmailRetryCount: invitation.EmailRetryCount,
 				})

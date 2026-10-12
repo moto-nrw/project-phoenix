@@ -70,7 +70,7 @@ func (r *WorkSessionEditRepository) CountBySessionID(ctx context.Context, sessio
 		return 0, wrapDatabase("count by session ID", err)
 	}
 
-	return count, nil
+	return int(count), nil
 }
 
 // CountBySessionIDs returns a map of session ID → edit count for multiple sessions

@@ -1,0 +1,723 @@
+package enrollmenthttp
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
+	"github.com/go-chi/render"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+
+	"github.com/moto-nrw/project-phoenix/tenant"
+)
+
+// AdminRequestSummary is the wire shape for admin list-style responses.
+// Carries the request + per-child overview + the phase name so the
+// list can render without a second fetch. It must not carry status_token:
+// the token authorizes parent-facing status/edit routes.
+//
+// CustomData + ConsentFlags + SchemaFields are populated on the
+// detail endpoint so the decision UI can render every parent-supplied
+// answer next to its label. Listing endpoints leave them empty to
+// keep payloads light.
+type AdminRequestSummary struct {
+	ID                        string                    `json:"id"`
+	PhaseID                   string                    `json:"phase_id"`
+	PhaseName                 string                    `json:"phase_name"`
+	CareOfferingSelectionMode string                    `json:"care_offering_selection_mode"`
+	GuardianFirstName         string                    `json:"guardian_first_name"`
+	GuardianLastName          string                    `json:"guardian_last_name"`
+	GuardianEmail             string                    `json:"guardian_email"`
+	GuardianPhone             *string                   `json:"guardian_phone,omitempty"`
+	SubmittedAt               time.Time                 `json:"submitted_at"`
+	WithdrawnAt               *time.Time                `json:"withdrawn_at,omitempty"`
+	CustomData                map[string]any            `json:"custom_data,omitempty"`
+	ConsentFlags              map[string]any            `json:"consent_flags,omitempty"`
+	SchemaFields              []AdminRequestSchemaField `json:"schema_fields,omitempty"`
+	// SchemaLegalBlocks carries key→title pairs from the pinned schema's
+	// legal blocks so the detail UI can label custom consent flags (e.g.
+	// "Schwimmbad") instead of rendering raw keys. Detail endpoint only.
+	SchemaLegalBlocks []AdminRequestSchemaLegalBlock `json:"schema_legal_blocks,omitempty"`
+	Children          []AdminRequestChild            `json:"children"`
+	// AdditionalGuardians are the co-guardians the parent added beyond the
+	// primary guardian above. Empty when none were added.
+	AdditionalGuardians []AdminRequestGuardian `json:"additional_guardians,omitempty"`
+	// IsUnread is the caller's own read state (#3778). The detail read
+	// marks the request read, so it is false there.
+	IsUnread bool `json:"is_unread"`
+}
+
+// AdminRequestDetail is the manage-only response shape for a single
+// enrollment request. It includes the parent status token because the
+// detail UI exposes a direct link to the parent status page.
+type AdminRequestDetail struct {
+	AdminRequestSummary
+	StatusToken             string `json:"status_token"`
+	LateInviteGuardianEmail string `json:"late_invite_guardian_email,omitempty"`
+	LateInviteEmailMismatch bool   `json:"late_invite_email_mismatch,omitempty"`
+}
+
+// AdminRequestGuardian is one additional guardian (co-guardian) within an
+// admin summary/detail payload. Email/phone are optional.
+type AdminRequestGuardian struct {
+	ID        string  `json:"id"`
+	FirstName string  `json:"first_name"`
+	LastName  string  `json:"last_name"`
+	Email     *string `json:"email,omitempty"`
+	Phone     *string `json:"phone,omitempty"`
+}
+
+// AdminRequestSchemaLegalBlock is the slim legal-block shape the admin
+// detail UI needs to render consent flags with their original title.
+type AdminRequestSchemaLegalBlock struct {
+	Key   string `json:"key"`
+	Title string `json:"title"`
+}
+
+// AdminRequestSchemaField is the slim form-field shape the admin UI
+// needs to render parent-submitted answers with their original label
+// + target hint. Mirrors capability.FormField but stringified
+// + tagged for JSON.
+type AdminRequestSchemaField struct {
+	Key            string                          `json:"key"`
+	Label          string                          `json:"label"`
+	Type           string                          `json:"type"`
+	AppliesToChild bool                            `json:"applies_to_child"`
+	Target         string                          `json:"target,omitempty"`
+	Options        []AdminRequestSchemaFieldOption `json:"options,omitempty"`
+}
+
+// AdminRequestSchemaFieldOption mirrors capability.FormFieldOption
+// so the admin renderer can turn a stored value (e.g. "picked_up")
+// back into its human-readable label (e.g. "Wird abgeholt").
+type AdminRequestSchemaFieldOption struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+// AdminRequestChild is one child within an admin summary/detail
+// payload.
+type AdminRequestChild struct {
+	ID                string     `json:"id"`
+	FirstName         string     `json:"first_name"`
+	LastName          string     `json:"last_name"`
+	DateOfBirth       string     `json:"date_of_birth"`
+	TargetGradeLevel  *int16     `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string    `json:"target_school_class,omitempty"`
+	Status            string     `json:"status"`
+	StatusReason      *string    `json:"status_reason,omitempty"`
+	ReviewedAt        *time.Time `json:"reviewed_at,omitempty"`
+	ReviewedBy        *int64     `json:"reviewed_by,omitempty"`
+	ActivationMode    string     `json:"activation_mode"`
+	CreatedStudentID  string     `json:"created_student_id,omitempty"`
+	// ReviewReason says why an open enrollment was left to the school,
+	// e.g. child_quota_reached for a renewal the automatic approval held
+	// back (#3570). Cleared by the next decision.
+	ReviewReason *string        `json:"review_reason,omitempty"`
+	CustomData   map[string]any `json:"custom_data,omitempty"`
+	// Offerings is the per-child Betreuungsangebote selection that is on
+	// file RIGHT NOW — exactly the set a correction replaces. Populated
+	// only on the detail endpoint (listing endpoints leave it empty to
+	// keep the payload small).
+	Offerings []AdminRequestChildOffering `json:"offerings,omitempty"`
+	// UpcomingOfferings carries bookings that only take effect on a later
+	// date (an approved parent change, say). A SEPARATE field on purpose
+	// (#2185): a client that predates it keeps seeing exactly the
+	// selection it always saw, so a stale browser tab cannot pre-check a
+	// future booking and apply it months early on an untouched save.
+	UpcomingOfferings []AdminRequestChildOffering `json:"upcoming_offerings,omitempty"`
+	// OfferingsUnavailable reports that the booking lookup FAILED, as
+	// opposed to the child having no bookings. Clients must refuse to
+	// save a correction in this state: an empty editor plus a save
+	// deletes whatever the family actually booked.
+	OfferingsUnavailable bool `json:"offerings_unavailable,omitempty"`
+}
+
+// AdminRequestChildOffering is one care-offering pick for a child.
+// SelectedDays is non-empty only for offerings whose
+// days_of_week_mode is "parent_choice"; otherwise it's omitted and
+// the offering's AvailableDays describes the (admin-fixed) schedule.
+//
+// The attribute and validity fields carry the same facts the parent
+// portal renders for this booking (#2185), in the same wire shape:
+// ValidUntil is the INCLUSIVE last covered day, matching
+// modules/careplan/inbound/parent/care_offerings_handlers.go. The stored column is
+// exclusive; one JSON name must not mean two different days depending
+// on which endpoint answered.
+//
+// StartsLater marks a row that is not in effect yet — display only.
+// Which SET a row sits in (offerings vs upcoming_offerings) is what
+// says whether a correction replaces it; before the phase starts a
+// booking is not yet in effect AND on file, so the two questions have
+// different answers and must not share one flag.
+type AdminRequestChildOffering struct {
+	OfferingID            string   `json:"offering_id"`
+	OfferingName          string   `json:"offering_name"`
+	DaysOfWeekMode        string   `json:"days_of_week_mode"`
+	SelectedDays          []string `json:"selected_days,omitempty"`
+	ManualSelectedDays    []string `json:"manual_selected_days,omitempty"`
+	AutomaticSelectedDays []string `json:"automatic_selected_days,omitempty"`
+	AvailableDays         []string `json:"available_days,omitempty"`
+	IncludesLunch         bool     `json:"includes_lunch"`
+	IncludesHolidayCare   bool     `json:"includes_holiday_care"`
+	PriceCents            *int     `json:"price_cents,omitempty"`
+	ValidFrom             string   `json:"valid_from,omitempty"`
+	ValidUntil            string   `json:"valid_until,omitempty"`
+	StartsLater           bool     `json:"starts_later,omitempty"`
+}
+
+type AdminOfferingAdjustment struct {
+	ID                 string          `json:"id"`
+	RequestID          string          `json:"request_id"`
+	RequestChildID     string          `json:"request_child_id"`
+	StudentID          string          `json:"student_id"`
+	ActorAccountID     string          `json:"actor_account_id"`
+	ActorRole          string          `json:"actor_role"`
+	ActorNameSnapshot  *string         `json:"actor_name_snapshot,omitempty"`
+	ActorEmailSnapshot *string         `json:"actor_email_snapshot,omitempty"`
+	Reason             string          `json:"reason"`
+	Before             json.RawMessage `json:"before"`
+	After              json.RawMessage `json:"after"`
+	ChangedAt          time.Time       `json:"changed_at"`
+}
+
+func toAdminRequestSummary(s *RequestSummary) AdminRequestSummary {
+	out := AdminRequestSummary{
+		ID:                strconv.FormatInt(s.Request.ID, 10),
+		PhaseID:           strconv.FormatInt(s.Request.PhaseID, 10),
+		GuardianFirstName: s.Request.GuardianFirstName,
+		GuardianLastName:  s.Request.GuardianLastName,
+		GuardianEmail:     s.Request.GuardianEmail,
+		GuardianPhone:     s.Request.GuardianPhone,
+		SubmittedAt:       s.Request.SubmittedAt,
+		WithdrawnAt:       s.Request.WithdrawnAt,
+	}
+	if s.Phase != nil {
+		out.PhaseName = s.Phase.Name
+		out.CareOfferingSelectionMode = s.Phase.CareOfferingSelectionMode
+	}
+	out.Children = make([]AdminRequestChild, 0, len(s.Children))
+	for _, c := range s.Children {
+		out.Children = append(out.Children, AdminRequestChild{
+			ID:                strconv.FormatInt(c.ID, 10),
+			FirstName:         c.FirstName,
+			LastName:          c.LastName,
+			DateOfBirth:       string(c.DateOfBirth),
+			TargetGradeLevel:  c.TargetGradeLevel,
+			TargetSchoolClass: c.TargetSchoolClass,
+			Status:            c.Status,
+			StatusReason:      c.StatusReason,
+			ReviewedAt:        c.ReviewedAt,
+			ReviewedBy:        c.ReviewedBy,
+			ActivationMode:    c.ActivationMode,
+			CreatedStudentID:  optionalInt64String(c.CreatedStudentID),
+			ReviewReason:      c.ReviewReason,
+			CustomData:        c.CustomData,
+		})
+	}
+	out.AdditionalGuardians = make([]AdminRequestGuardian, 0, len(s.Guardians))
+	for _, g := range s.Guardians {
+		out.AdditionalGuardians = append(out.AdditionalGuardians, AdminRequestGuardian{
+			ID:        strconv.FormatInt(g.ID, 10),
+			FirstName: g.FirstName,
+			LastName:  g.LastName,
+			Email:     g.Email,
+			Phone:     g.Phone,
+		})
+	}
+	return out
+}
+
+// listAdminRequests returns the queue of submissions for the tenant in
+// session. Filters: phase_id, child_status. Both optional.
+func (rs *Resource) listAdminRequests(w http.ResponseWriter, r *http.Request) {
+	if rs.DecisionService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
+		return
+	}
+
+	filters := RequestFilters{}
+	if v := r.URL.Query().Get("phase_id"); v != "" {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || id <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid phase_id")))
+			return
+		}
+		filters.PhaseID = id
+	}
+	if v := r.URL.Query().Get("child_status"); v != "" {
+		filters.ChildStatus = v
+	}
+
+	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	var summaries []*RequestSummary
+	unread := map[int64]bool{}
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		list, listErr := rs.DecisionService.List(ctx, filters)
+		if listErr != nil {
+			return listErr
+		}
+		summaries = list
+		ids := make([]int64, 0, len(list))
+		for _, s := range list {
+			ids = append(ids, s.Request.ID)
+		}
+		unreadIDs, readErr := rs.DecisionService.UnreadRequestIDs(ctx, accountID, ids)
+		for _, id := range unreadIDs {
+			unread[id] = true
+		}
+		return readErr
+	})
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	out := make([]AdminRequestSummary, 0, len(summaries))
+	for _, s := range summaries {
+		row := toAdminRequestSummary(s)
+		row.IsUnread = unread[s.Request.ID]
+		out = append(out, row)
+	}
+	common.Respond(w, r, http.StatusOK, out, "Admin requests retrieved")
+}
+
+func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
+	if rs.DecisionService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
+		return
+	}
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+	var detail AdminRequestDetail
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		s, e := rs.DecisionService.Get(ctx, id)
+		if e != nil {
+			return e
+		}
+		// Opening the detail reads the enrollment for the caller (#3778).
+		// A read-only staff preview writes nothing in the previewed
+		// person's name.
+		if !claims.IsReadOnlyPreview() {
+			if e := rs.DecisionService.MarkRequestsRead(ctx, int64(claims.ID), []int64{id}); e != nil {
+				return e
+			}
+		}
+		detail = rs.toAdminRequestDetail(ctx, s)
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, capability.ErrDecisionRequestNotFound) {
+			common.RenderError(w, r, renderRequestNotFound(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, detail, "Admin request retrieved")
+}
+
+func (rs *Resource) listAdminRequestsByStudent(w http.ResponseWriter, r *http.Request) {
+	if rs.DecisionService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
+		return
+	}
+	studentID, ok := common.ParsePositiveInt64IDWithError(w, r, "studentId", "invalid studentId")
+	if !ok {
+		return
+	}
+
+	var out []AdminRequestSummary
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		summaries, listErr := rs.DecisionService.ListByStudent(ctx, studentID)
+		if listErr != nil {
+			return listErr
+		}
+		out = make([]AdminRequestSummary, 0, len(summaries))
+		for _, summary := range summaries {
+			out = append(out, rs.toAdminRequestDetailSummary(ctx, summary))
+		}
+		return nil
+	})
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, out, "Student admin requests retrieved")
+}
+
+func (rs *Resource) toAdminRequestDetail(ctx context.Context, summary *RequestSummary) AdminRequestDetail {
+	detail := AdminRequestDetail{
+		AdminRequestSummary: rs.toAdminRequestDetailSummary(ctx, summary),
+	}
+	if summary == nil || summary.Request == nil {
+		return detail
+	}
+	detail.StatusToken = summary.Request.StatusToken
+	if summary.LateInvite != nil {
+		detail.LateInviteGuardianEmail = summary.LateInvite.GuardianEmail
+		detail.LateInviteEmailMismatch = !strings.EqualFold(
+			strings.TrimSpace(summary.Request.GuardianEmail),
+			strings.TrimSpace(summary.LateInvite.GuardianEmail),
+		)
+	}
+	return detail
+}
+
+func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *RequestSummary) AdminRequestSummary {
+	detail := toAdminRequestSummary(summary)
+	if summary == nil || summary.Request == nil {
+		return detail
+	}
+	detail.CustomData = summary.Request.CustomData
+	detail.ConsentFlags = summary.Request.ConsentFlags
+
+	if rs.FormSchemaService != nil && summary.Request.SchemaID != nil {
+		if fs, err := rs.FormSchemaService.SchemaVersion(ctx, *summary.Request.SchemaID); err == nil && fs != nil {
+			detail.SchemaFields, detail.SchemaLegalBlocks = toAdminSchemaMetadata(fs)
+		}
+	}
+
+	if rs.DecisionService != nil {
+		childOfferings, err := rs.DecisionService.ListChildOfferings(ctx, summary.Request.ID)
+		if err != nil {
+			// Best-effort by design (TestGetAdminRequestHandler_TolerantOfMissingChildOfferings):
+			// the rest of the detail must still render. But an empty
+			// offerings list must not read as "this child booked nothing",
+			// or a correction saved on top of it deletes the real bookings.
+			for i := range detail.Children {
+				detail.Children[i].OfferingsUnavailable = true
+			}
+		} else {
+			attachChildOfferings(detail.Children, summary.Children, childOfferings)
+		}
+	}
+	return detail
+}
+
+// attachChildOfferings fills the per-child Offerings slices in place from
+// the request's care-offering rows, matching admin children to summary
+// children positionally. Children beyond the summary or without rows are
+// left untouched.
+func attachChildOfferings(children []AdminRequestChild, summaryChildren []*RequestChild, childOfferings map[int64]ChildOfferingSet) {
+	for i := range children {
+		if i >= len(summaryChildren) {
+			continue
+		}
+		set := childOfferings[summaryChildren[i].ID]
+		if len(set.Current) == 0 && len(set.Upcoming) == 0 {
+			continue
+		}
+		children[i].Offerings = toAdminChildOfferings(set.Current)
+		children[i].UpcomingOfferings = toAdminChildOfferings(set.Upcoming)
+	}
+}
+
+// toAdminChildOfferings maps one group of the service's split. The split
+// itself belongs to the service: a client must not have to re-derive which
+// bookings a correction replaces, and a nil slice must stay a nil slice so
+// "no upcoming bookings" never ships as an empty array.
+func toAdminChildOfferings(rows []ChildOfferingRow) []AdminRequestChildOffering {
+	if len(rows) == 0 {
+		return nil
+	}
+	out := make([]AdminRequestChildOffering, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toAdminChildOffering(row))
+	}
+	return out
+}
+
+func toAdminSchemaMetadata(fs *capability.FormSchema) ([]AdminRequestSchemaField, []AdminRequestSchemaLegalBlock) {
+	schemaFields := make([]AdminRequestSchemaField, 0, len(fs.Fields))
+	for _, f := range fs.Fields {
+		if f.Type == capability.FormFieldInfo {
+			continue
+		}
+		opts := make([]AdminRequestSchemaFieldOption, 0, len(f.Options))
+		for _, o := range f.Options {
+			opts = append(opts, AdminRequestSchemaFieldOption{Label: o.Label, Value: o.Value})
+		}
+		schemaFields = append(schemaFields, AdminRequestSchemaField{
+			Key:            f.Key,
+			Label:          f.Label,
+			Type:           string(f.Type),
+			AppliesToChild: f.AppliesToCh,
+			Target:         f.Target,
+			Options:        opts,
+		})
+	}
+	schemaLegalBlocks := make([]AdminRequestSchemaLegalBlock, 0, len(fs.LegalBlocks))
+	for _, b := range fs.LegalBlocks {
+		schemaLegalBlocks = append(schemaLegalBlocks, AdminRequestSchemaLegalBlock{
+			Key:   b.Key,
+			Title: b.Title,
+		})
+	}
+	return schemaFields, schemaLegalBlocks
+}
+
+// AdminDecideRequest is the body of POST .../children/{childId}/decide.
+type AdminDecideRequest struct {
+	Status string `json:"status"` // approved | waitlisted | rejected | under_review
+	Reason string `json:"reason,omitempty"`
+}
+
+func (req *AdminDecideRequest) Bind(_ *http.Request) error { return nil }
+
+func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
+	if rs.DecisionService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
+		return
+	}
+	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
+		return
+	}
+	childID, ok := common.ParsePositiveInt64IDWithError(w, r, "childId", "invalid childId")
+	if !ok {
+		return
+	}
+	body := &AdminDecideRequest{}
+	if err := render.Bind(r, body); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+	outcome, err := rs.decideChildWithRetry(r, DecideInput{
+		RequestID:  requestID,
+		ChildID:    childID,
+		Status:     DecisionStatus(body.Status),
+		Reason:     body.Reason,
+		ReviewedBy: int64(claims.ID),
+	})
+	if err != nil {
+		renderDecideError(w, r, err)
+		return
+	}
+
+	// Post-tx: schedule guardian invitation if the approval pipeline
+	// asked for one. Best-effort — failure here doesn't roll back the
+	// approval (records are already committed). Logging captures the
+	// failure for the admin to chase via "Re-send invitation".
+	if outcome != nil && outcome.PendingInvite != nil && rs.GuardianInvitations.configured() {
+		go rs.dispatchPostDecisionInvite(r.Context(), outcome.PendingInvite)
+	}
+
+	common.Respond(w, r, http.StatusOK, newAdminRequestChild(outcome.Child), "Decision applied")
+}
+
+// restoreAdminRequest undoes a parent-initiated withdraw (#2157): the
+// decision service flips every withdrawn child back to submitted, clears
+// withdrawn_at, and writes the append-only audit row — all inside the
+// tenant transaction owned here.
+func (rs *Resource) restoreAdminRequest(w http.ResponseWriter, r *http.Request) {
+	if rs.DecisionService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
+		return
+	}
+	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+	var outcome *RestoreOutcome
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		out, e := rs.DecisionService.RestoreWithdrawn(ctx, requestID, int64(claims.ID))
+		if e != nil {
+			return e
+		}
+		outcome = out
+		return nil
+	})
+	if err != nil {
+		renderRestoreError(w, r, err)
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, map[string]any{
+		"restored_children":   len(outcome.RestoredChildIDs),
+		"waitlisted_children": len(outcome.WaitlistedChildIDs),
+	}, "Request restored")
+}
+
+// renderRestoreError maps a restore failure to its HTTP status. The two
+// business guards (inactive phase, active duplicate) surface as 409s with
+// stable codes so the frontend can show specific German messages.
+func renderRestoreError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, context.Canceled):
+		common.RenderError(w, r, common.ErrorClientClosed(err))
+	case errors.Is(err, context.DeadlineExceeded):
+		common.RenderError(w, r, common.ErrorRequestTimeout(err))
+	case errors.Is(err, capability.ErrDecisionRequestNotFound):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentRequestNotFound))
+	case errors.Is(err, capability.ErrRestoreNothingWithdrawn):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentRestoreNothingWithdrawn))
+	case errors.Is(err, capability.ErrRestorePhaseInactive):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentRestorePhaseInactive))
+	case errors.Is(err, capability.ErrRestoreDuplicateActive):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentRestoreDuplicate))
+	case errors.Is(err, capability.ErrCareOfferingFull):
+		// Reject-mode phase: the capacity gate refuses the restore because
+		// an offering is meanwhile full. Same code the submit path uses.
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentCareOfferingFull))
+	case errors.Is(err, capability.ErrCareOfferingClosed):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentRestoreOfferingClosed))
+	case common.IsTransientDatabaseError(err):
+		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
+	default:
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+	}
+}
+
+// decideChildWithRetry runs the decision inside a tenant transaction,
+// retrying once on a transient database error when the decision body has
+// not yet committed. A cancelled/expired request context stops the retry
+// loop and surfaces the context error.
+func (rs *Resource) decideChildWithRetry(r *http.Request, input DecideInput) (*DecideOutcome, error) {
+	var err error
+	var outcome *DecideOutcome
+	for attempt := 0; attempt < 2; attempt++ {
+		outcome = nil
+		decisionBodySucceeded := false
+		err = rs.runInTenantTx(r, func(ctx context.Context) error {
+			out, e := rs.DecisionService.Decide(ctx, input)
+			if e != nil {
+				return e
+			}
+			outcome = out
+			decisionBodySucceeded = true
+			return nil
+		})
+		if err == nil {
+			break
+		}
+		if reqErr := r.Context().Err(); reqErr != nil {
+			return outcome, reqErr
+		}
+		if decisionBodySucceeded || !common.IsTransientDatabaseError(err) || attempt == 1 {
+			break
+		}
+		slog.WarnContext(r.Context(), "transient enrollment decision failure, retrying",
+			slog.Int64("request_id", input.RequestID),
+			slog.Int64("child_id", input.ChildID),
+			slog.String("error", err.Error()),
+		)
+	}
+	return outcome, err
+}
+
+var decideErrorRules = []common.ErrorRule{
+	{Target: context.Canceled, Render: common.ErrorClientClosed},
+	{Target: context.DeadlineExceeded, Render: common.ErrorRequestTimeout},
+	{Target: capability.ErrDecisionChildNotFound, Render: renderRequestNotFound},
+	{Target: capability.ErrDecisionRequestNotFound, Render: renderRequestNotFound},
+	{Target: capability.ErrDecisionInvalidStatus, Render: common.ErrorInvalidRequest},
+	{Target: capability.ErrDecisionAlreadyTerminal, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentDecisionAlreadyFinal)
+	}},
+	{Target: capability.ErrDecisionInvalidData, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentApprovalDataInvalid)
+	}},
+	{Target: capability.ErrWaitlistDisabled, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, common.CodeEnrollmentWaitlistDisabled)
+	}},
+	{Target: capability.ErrCareOfferingMissing, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, common.CodeEnrollmentApprovalCareOfferingMissing)
+	}},
+	{Target: capability.ErrCareOfferingExactlyOneRequired, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, common.CodeEnrollmentApprovalCareOfferingExactlyOne)
+	}},
+	{Target: capability.ErrGuardianAccountMismatch, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, common.CodeEnrollmentGuardianAccountMismatch)
+	}},
+	{Match: common.IsTransientDatabaseError, Render: common.ErrorServiceUnavailable},
+}
+
+// renderDecideError keeps cancellation and retryable database failures distinct
+// so the frontend can tell terminal decisions from requests worth retrying.
+func renderDecideError(w http.ResponseWriter, r *http.Request, err error) {
+	common.RenderError(w, r, common.RenderWithRules(err, decideErrorRules, common.ErrorInternalServer))
+}
+
+// newAdminRequestChild maps a decided child model onto the wire shape
+// returned by the decide endpoint (no CustomData / Offerings — those are
+// detail-endpoint concerns).
+func newAdminRequestChild(child *RequestChild) AdminRequestChild {
+	return AdminRequestChild{
+		ID:                strconv.FormatInt(child.ID, 10),
+		FirstName:         child.FirstName,
+		LastName:          child.LastName,
+		DateOfBirth:       string(child.DateOfBirth),
+		TargetGradeLevel:  child.TargetGradeLevel,
+		TargetSchoolClass: child.TargetSchoolClass,
+		Status:            child.Status,
+		StatusReason:      child.StatusReason,
+		ReviewedAt:        child.ReviewedAt,
+		ReviewedBy:        child.ReviewedBy,
+		ActivationMode:    child.ActivationMode,
+		CreatedStudentID:  optionalInt64String(child.CreatedStudentID),
+		ReviewReason:      child.ReviewReason,
+	}
+}
+
+func actorRoleFromClaims(roles []string) string {
+	for _, role := range roles {
+		trimmed := strings.TrimSpace(role)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return "admin"
+}
+
+// dispatchPostDecisionInvite fires the guardian invitation flow after
+// the approval tx commits. Runs in its own goroutine so the HTTP
+// response isn't blocked on SMTP / outbox writes; the invitation
+// service writes to platform.email_outbox synchronously, then the
+// outbox worker dispatches the email asynchronously on its own tick.
+func (rs *Resource) dispatchPostDecisionInvite(parentCtx context.Context, invite *PendingGuardianInvite) {
+	// Detach from request lifetime so the goroutine isn't cancelled by
+	// the response writer flushing. Re-attach tenant from the parent so
+	// the invitation service's tenant-scoped writes resolve.
+	tenantID, err := tenant.TenantFromContext(parentCtx)
+	if err != nil {
+		slog.Default().Warn("post-decision guardian invitation rejected: missing tenant", slog.String("error", err.Error()))
+		return
+	}
+	bgCtx := context.WithoutCancel(parentCtx)
+	bgCtx = tenant.ContextWithoutTransaction(bgCtx)
+	bgCtx = tenant.ContextWithoutAfterCommitHooks(bgCtx)
+	bgCtx, cancel := context.WithTimeout(bgCtx, 30*time.Second)
+	defer cancel()
+	bgCtx = tenant.WithTenant(bgCtx, tenantID)
+
+	// Wrap in a tenant tx so the owner's writes pick up the right RLS
+	// scope. The owner joins an existing tx from the context, so this stays
+	// a single tx.
+	err = withinTenant(bgCtx, tenantID.Int64(), func(txCtx context.Context) error {
+		return rs.GuardianInvitations.Create(txCtx, invite.GuardianProfileID, invite.CreatedBy)
+	})
+	if err != nil {
+		slog.Default().Warn("post-decision guardian invitation failed",
+			slog.Int64("guardian_profile_id", invite.GuardianProfileID),
+			slog.Int64("created_by", invite.CreatedBy),
+			slog.String("error", err.Error()))
+	}
+}

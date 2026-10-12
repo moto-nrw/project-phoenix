@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // PersonRepository defines operations for managing persons
@@ -85,7 +85,7 @@ type StudentRepository interface {
 	// submit path runs under an admin transaction where RLS does not
 	// narrow the query. Not expressible via the generic List filters:
 	// the match spans the joined users.persons row.
-	ExistsEnrolledByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday timezone.Date) (bool, error)
+	ExistsEnrolledByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday calendar.Date) (bool, error)
 
 	// FindEnrolledStudentIDByNameAndBirthday resolves the single enrolled
 	// student matching the (case-insensitive) name and birthday, backing the
@@ -93,7 +93,7 @@ type StudentRepository interface {
 	// unambiguous single match; zero or multiple matches yield (nil, nil) so
 	// approval never renews an arbitrary student. Same explicit-tenant,
 	// active+pending scope as ExistsEnrolledByNameAndBirthday.
-	FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday timezone.Date) (*int64, error)
+	FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday calendar.Date) (*int64, error)
 
 	// ListSchoolClasses retrieves all distinct non-empty school classes.
 	ListSchoolClasses(ctx context.Context) ([]string, error)
@@ -130,7 +130,7 @@ type StudentRepository interface {
 	// at least one day of the inclusive report range, with their current
 	// group. Membership follows EnrolledOn, so today decides whether an
 	// immediately activated child (active, enrolled_from still ahead) counts.
-	FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*StudentWithGroupInfo, error)
+	FindOverlappingWithGroups(ctx context.Context, from, to, today calendar.Date) ([]*StudentWithGroupInfo, error)
 	// FindOverlappingWithGroupsOnDate is the composition-boundary variant. The
 	// instant is converted to the current Berlin date inside the repository.
 	FindOverlappingWithGroupsOnDate(ctx context.Context, date string, now time.Time) ([]*StudentWithGroupInfo, error)
@@ -149,12 +149,12 @@ type StudentRepository interface {
 	// FindPendingDueForActivation returns students whose status='pending' AND
 	// enrolled_from <= asOf within the current tenant context. Used by the
 	// activate-students scheduler tick.
-	FindPendingDueForActivation(ctx context.Context, asOf timezone.Date) ([]*Student, error)
+	FindPendingDueForActivation(ctx context.Context, asOf calendar.Date) ([]*Student, error)
 
 	// FindActiveDueForDeactivation returns students whose status='active' AND
 	// enrolled_until <= asOf within the current tenant context. Used by the
 	// activate-students scheduler tick to flip rows to 'inactive'.
-	FindActiveDueForDeactivation(ctx context.Context, asOf timezone.Date) ([]*Student, error)
+	FindActiveDueForDeactivation(ctx context.Context, asOf calendar.Date) ([]*Student, error)
 
 	// Both per-tenant gates this repository takes — the photo-feature lock and
 	// the shared class-writes gate — moved to People Directory in #3349. The
@@ -189,7 +189,7 @@ type StudentRepository interface {
 	// whole rows: the materializer needs it per date for hundreds of children
 	// and must not pay for departure-plan hydration to answer one question
 	// (#2487).
-	FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]timezone.Date, error)
+	FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]calendar.Date, error)
 }
 
 // CaregiverBindingLocker serializes the caregiver blocker re-check with all

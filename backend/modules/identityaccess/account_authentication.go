@@ -88,6 +88,7 @@ type SessionClaims struct {
 	FirstName     string
 	LastName      string
 	Roles         []string
+	RoleIsSystem  []bool
 	Permissions   []string
 	IsAdmin       bool
 	Scope         string

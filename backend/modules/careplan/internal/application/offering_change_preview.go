@@ -110,6 +110,14 @@ func (s *OfferingChanges) manualPlanningConflicts(ctx context.Context, studentID
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list manual planning conflicts: %w", err)
 	}
+	for _, occurrence := range occurrences {
+		if calendar.IsWeekend(calendar.Date(occurrence.Date)) {
+			if diff.weekendFollowsFriday, err = calendar.WeekendFollowsFriday(ctx); err != nil {
+				return nil, fmt.Errorf("offering change: resolve weekend plan: %w", err)
+			}
+			break
+		}
+	}
 	return aggregateManualPlanningConflicts(occurrences, diff), nil
 }
 
@@ -135,7 +143,7 @@ func proposedSelectionCoversOccurrence(diff *offeringDecisionDiff, selected care
 	if offering.DaysOfWeekMode == daysOfWeekModeFixed {
 		days = offering.AvailableDays
 	}
-	return slices.Contains(days, canonicalDayForWeekday(date.Weekday()))
+	return slices.Contains(days, canonicalDayForWeekday(diff.planWeekday(date)))
 }
 
 func proposedLegacyPlanningCoversOccurrence(diff *offeringDecisionDiff, occurrence ports.ManualPlanningOccurrence) bool {
@@ -177,7 +185,7 @@ func aggregateManualPlanningConflicts(occurrences []ports.ManualPlanningOccurren
 		if date.Before(conflict.FirstDate) {
 			conflict.FirstDate = date
 		}
-		if day := canonicalDayForWeekday(date.Weekday()); !seenDays[occurrence.ActivityGroupID][day] {
+		if day := canonicalDayForWeekday(diff.planWeekday(date)); !seenDays[occurrence.ActivityGroupID][day] {
 			seenDays[occurrence.ActivityGroupID][day] = true
 			conflict.Days = append(conflict.Days, day)
 		}
@@ -186,6 +194,16 @@ func aggregateManualPlanningConflicts(occurrences []ports.ManualPlanningOccurren
 		conflicts[i].Days = canonicalDays(conflicts[i].Days)
 	}
 	return conflicts
+}
+
+// planWeekday is the weekday whose bookings cover date: Friday for a weekend
+// that follows Friday's plan (#3921).
+func (diff *offeringDecisionDiff) planWeekday(date calendar.Date) time.Weekday {
+	weekday := date.Weekday()
+	if diff != nil && diff.weekendFollowsFriday && (weekday == time.Saturday || weekday == time.Sunday) {
+		return time.Friday
+	}
+	return weekday
 }
 
 func canonicalDayForWeekday(weekday time.Weekday) string {

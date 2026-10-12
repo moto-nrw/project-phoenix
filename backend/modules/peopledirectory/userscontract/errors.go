@@ -1,23 +1,17 @@
 // Package userscontract is the model-free error vocabulary of the retained
-// people services (#3750, services/users slice 1). It moved out of
-// services/users so later slices can leave that package without importing it
-// back; services/users keeps aliases of every name until the person and student
-// services move (#3753), so errors.Is and errors.As match the same instances
-// for every existing caller. The messages are part of the wire contract and
-// must not change.
+// people services (#3750, services/users slice 1). services/users kept
+// aliases of every name until the person and student services moved (#3753);
+// callers now name these instances directly. The messages are part of the wire
+// contract and must not change.
 //
-// The interface half (PersonService and the model-typed inputs it names) stays
-// in services/users: it exposes models/users, models/base and internal/timezone,
-// which no people-directory package may import without a new ratchet key.
-//
-// ErrPersonNotFound, ErrStudentNotFound, ErrGuardianDeletePreviewChanged,
-// ErrGuardianForceDeleteRequiresAdmin, ErrPayerRemovalRequiresFinancial and
-// GuardianStillLinkedError already exist in the public People Directory package
-// with their own instances and stay defined in services/users: importing the
-// public package from a people-directory application package is a forbidden
-// edge. ErrCompanionWouldLoseDeparture and ErrCompanionLockBusy stay
-// re-exports of models/users there: the repository's departure-plan write path
-// raises that instance and it carries its own message.
+// The person and student services moved to modules/peopledirectory/compose
+// (#3753) and brought ErrPersonNotFound and ErrStudentNotFound along. The
+// public People Directory package has sentinels of the same names and
+// messages; they are separate instances, and the retained callers match these.
+// The staff write refusals (ErrStaffAdoptionNotPermitted,
+// ErrStaffLehrkraftCaregiverProfile, ErrStaffInUse) live in the root
+// composition next to the staff directory that raises them, because that
+// composition may not import this package.
 package userscontract
 
 import (
@@ -26,6 +20,12 @@ import (
 )
 
 var (
+	// ErrPersonNotFound indicates a person could not be found
+	ErrPersonNotFound = errors.New("person not found")
+
+	// ErrStudentNotFound indicates a student could not be found in this tenant
+	ErrStudentNotFound = errors.New("student not found")
+
 	// ErrPersonIdentifierRequired indicates missing required identifier
 	ErrPersonIdentifierRequired = errors.New("either tag ID or account ID is required")
 
@@ -48,24 +48,6 @@ var (
 	// tenant. Self-service staff settings render it as a 404 rather than a
 	// 500: an account that is not staff here has nothing to configure.
 	ErrStaffNotFound = errors.New("staff not found")
-
-	// ErrStaffAdoptionNotPermitted indicates a staff-creation request landed on
-	// a person who already carries a live staff record, from a caller that may
-	// only create. Adopting that record writes the notes and the caregiver
-	// fields of someone who is already in the directory, which is an edit — and
-	// POST /api/staff is gated on users:create alone.
-	//
-	// Since #2906 the required authority is staff:manage — the same one
-	// PUT /api/staff/{id} needs. Admins hold it through the admin:* wildcard,
-	// so this refuses the direct-API case, not the staff form.
-	ErrStaffAdoptionNotPermitted = errors.New("Für das Ändern eines vorhandenen Mitarbeiter-Datensatzes fehlt die Berechtigung") //nolint:staticcheck // ST1005: user-facing German message
-
-	// ErrStaffLehrkraftCaregiverProfile indicates a caregiver profile was
-	// requested for an account holding the Lehrkraft system role (#1772). That
-	// role is class_day:read only and is provisioned without a profile on
-	// purpose; the role-assignment paths refuse the same combination from the
-	// other direction (ErrRoleLehrkraftCaregiverProfile).
-	ErrStaffLehrkraftCaregiverProfile = errors.New("Ein Lehrkraft-Konto kann kein Betreuungsprofil erhalten") //nolint:staticcheck // ST1005: user-facing German message
 
 	// ErrStudentGraduated indicates a write that only makes sense for an
 	// enrolled child targeted a graduated (alumnus) student. Graduation is a
@@ -119,9 +101,6 @@ var (
 	// so it must surface as a 500 (rolling the transaction back), never as a
 	// 4xx the middleware would commit.
 	ErrCompanionExtensionNotAuthorized = errors.New("companion departure-plan extension was not authorized")
-
-	// ErrStaffInUse indicates staff has attendance records or active supervisions
-	ErrStaffInUse = errors.New("Personal kann nicht gelöscht werden: Mitarbeiter/in hat aktive Aufsichten oder Anwesenheitseinträge") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // UsersError represents an error in the users service

@@ -463,7 +463,14 @@ describe("getParentHelpTopicForPath", () => {
       "Bei einfacher Anwesenheit zeigt die Liste `Anwesend` statt eines Raums.",
     );
     expect(article(detailedTopics, HELP_TOPICS.ownGroups)?.steps).toContain(
-      "Öffnen Sie `Meine Gruppen` in der Seitenleiste.",
+      "Öffnen Sie `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste.",
+    );
+    expect(
+      getHelpTopics("unknown", "unknown", true).find(
+        (topic) => topic.id === HELP_TOPICS.ownGroups,
+      )?.steps,
+    ).toContain(
+      "Prüfen Sie, ob `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste steht.",
     );
     expect(article(openCareTopics, HELP_TOPICS.ownGroups)).toBeUndefined();
     expect(article(openCareTopics, HELP_TOPICS.transferGroup)).toBeUndefined();
@@ -548,7 +555,7 @@ describe("getParentHelpTopicForPath", () => {
     );
     const visible = new Set(parentTopics.map((topic) => topic.id));
 
-    expect(parentTopics).toHaveLength(21);
+    expect(parentTopics).toHaveLength(22);
     expect(
       parentTopics.every(
         (topic) =>

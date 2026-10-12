@@ -180,7 +180,7 @@ func (s *Store) CountOperatorInvitationsCreatedAfter(ctx context.Context, create
 	if err != nil {
 		return 0, stats, fmt.Errorf("identity access postgres: count operator invitations: %w", err)
 	}
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 func (s *Store) RedeemOperatorInvitation(ctx context.Context, token string, now time.Time) (domain.OperatorInvitation, bool, domain.OperationStats, error) {
@@ -290,7 +290,7 @@ func (s *Store) CountOperatorEmailChangesCreatedAfter(ctx context.Context, opera
 	if err != nil {
 		return 0, stats, fmt.Errorf("identity access postgres: count operator email changes: %w", err)
 	}
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 func (s *Store) RedeemOperatorEmailChange(ctx context.Context, token string, now time.Time) (domain.OperatorEmailChange, bool, domain.OperationStats, error) {

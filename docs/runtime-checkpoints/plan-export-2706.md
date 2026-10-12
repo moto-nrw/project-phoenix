@@ -1,8 +1,14 @@
 # Plan export local runtime evidence (#2706)
 
+The sections up to "Correctness" record the first cutover (#3157, #3234),
+measured through the retired `modules/planexport/legacy` adapter. The final
+cutover, where the composition binds the owners' public reads, is measured in
+[Owner-bound composition](#owner-bound-composition-2026-10-07).
+
 ## Reproduce
 
-Run from the repository root:
+The commands below ran at the time of the first cutover; the package they
+name was deleted with the final cutover.
 
 ```bash
 CGO_ENABLED=0 scripts/run-go-toolchain.sh go -C backend test ./modules/planexport/legacy -run '^TestPlanExportRuntimeEvidence$' -parallel 8 -count=1 -v
@@ -131,3 +137,61 @@ sheet. A second two-tenant test, since #2707 in
 intent per school through the public routes and proves `documents.files` and
 `documents.file_cleanup` (with #2707: every File Storage table) invisible
 across the boundary under the least-privilege role.
+
+## Owner-bound composition (2026-10-07)
+
+The final cutover deletes `modules/planexport/legacy`. The plan export's
+ports are bound in `modules/planexport/compose` to the owners' public reads,
+and the record translation is the only code between them. Run from the
+repository root:
+
+```bash
+CGO_ENABLED=0 scripts/run-go-toolchain.sh go -C backend test ./modules/planexport/compose -run '^TestPlanExportRuntimeEvidence$' -parallel 8 -count=1 -v
+CGO_ENABLED=0 scripts/run-go-toolchain.sh go -C backend test ./modules/workforce/compose -run '^TestDienstplanRuntimeEvidence$' -parallel 8 -count=1 -v
+```
+
+Same machine class, PostgreSQL 17.11, Go 1.27.0, isolated test databases,
+five warmups and 30 samples per scenario, concurrency one, the same fixtures
+as above.
+
+The Betreuungsplan harness binds every port, as the root does. Blocks and
+their staff come from the Timetable owner's reads, room names and the head
+count per block from the tenant transaction, and staff names from fixtures.
+The extra statement against the first cutover is the head-count read, which
+the earlier harness left unbound and the production root has always bound.
+
+| Scenario | p50 / p95 (ms) | Queries | Returned driver rows |
+|---|---:|---:|---:|
+| Empty week | 1.061 / 1.337 | 5 | 1 |
+| One week, 20 blocks | 2.024 / 2.602 | 8 | 42 |
+| Four weeks, 80 blocks | 2.490 / 3.485 | 8 | 162 |
+| Four weeks, 80 blocks, PDF | 40.547 / 43.000 | 8 | 162 |
+
+The Dienstplan harness lives in Workforce's behaviour suite, because the
+overview's staff and room ports still name retained People Directory and
+Facilities rows. The shifts now come from the real Workforce capability
+instead of a reconstructed read, which accounts for the extra statement; the
+blocks and their staff come from the Timetable owner's reads, the rooms from
+the root's room repository and the staff roster from the tenant transaction.
+
+| Scenario | p50 / p95 (ms) | Queries | Returned driver rows |
+|---|---:|---:|---:|
+| Empty week | 2.915 / 3.227 | 12 | 9 |
+| One week, 20 shifts, 20 blocks | 4.062 / 4.606 | 14 | 71 |
+| Four weeks, 80 shifts, 80 blocks | 4.144 / 4.603 | 14 | 254 |
+| Four weeks, 80 shifts, 80 blocks, PDF | 38.070 / 44.925 | 14 | 254 |
+
+All 280 measured exports succeeded with zero DML rows, zero pool waits and
+zero deadlocks, with no sampled lock waiters.
+[Betreuungsplan raw samples](plan-export-2706.compose.raw.json) and
+[Dienstplan raw samples](plan-export-2706.dienstplan-workforce.raw.json) keep
+every duration, query count, driver row count, pool delta and lock-sampling
+result. The times are local samples within laptop noise of the first cutover,
+not evidence of a change.
+
+The File Storage cleanup intents in `documents.file_cleanup` keep their
+statements: the owner's adapter issues the same upsert, locked batch read and
+settling updates the generic repository issued, now with a static table name.
+`TestFileMetadataTablesEnforceRLS` in `modules/filestorage/http/files` still
+queues an intent per school through the public routes and proves the table
+invisible across the tenant boundary.

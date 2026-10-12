@@ -30,7 +30,7 @@ commit. Terms: `CONTEXT.md`, section „Nutzungsanalyse"; spec #3598.
 | Analyse-Freigabe settings (`analytics.*`, operator-only) | `backend/services/config/defaults/analytics.go`; reaches the OGS portal through tenant resolve |
 | Pseudonymous user ID (same hash on both sides) | `frontend/src/lib/analytics-pseudonym.ts`, `backend/analytics/pseudonym.go` |
 | PostHog project settings, privacy text draft | `docs/operations/nutzungsanalyse.md` |
-| The five PostHog dashboards and their insights | `scripts/posthog-dashboards.mjs` |
+| The PostHog dashboards, their insights, and the feature areas (`FEATURES`) | `scripts/posthog-dashboards.mjs` |
 
 The floor for real schools: route templates instead of URLs, the deployment
 instead of the real host (the OGS portal runs on `{slug}.TENANT_DOMAIN`), no

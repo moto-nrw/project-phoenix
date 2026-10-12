@@ -107,7 +107,7 @@ func applyLogical(query *bun.SelectQuery, filters []modelBase.Filter, operator s
 }
 
 func ApplyPagination(query *bun.SelectQuery, pagination modelBase.Pagination) *bun.SelectQuery {
-	return query.Limit(pagination.PageSize).Offset(pagination.Offset())
+	return query.Limit(int64(pagination.PageSize)).Offset(int64(pagination.Offset()))
 }
 
 func ApplySorting(query *bun.SelectQuery, sorting modelBase.Sorting) *bun.SelectQuery {

@@ -24,12 +24,13 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
 import { getUserDisplayName } from "~/lib/auth-utils";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
-import { getTimeBasedGreeting } from "~/lib/greeting";
+import { useTimeBasedGreeting } from "~/lib/greeting";
 import type { ClassDayReport } from "~/lib/class-day-api";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { schoolClassLabel } from "~/lib/school-class-label";
+import type { ClassDayClasses } from "~/lib/school-class-day-api";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
 import { countDayChanges } from "./day-changes";
@@ -141,8 +142,8 @@ function ClassLink({
 }
 
 export interface ClassDayOverviewProps {
-  /** Klassenliste der angemeldeten Lehrkraft — portal-eigene Session. */
-  readonly fetchMyClasses: () => Promise<string[]>;
+  /** Klassenliste und Wochenendplan der angemeldeten Lehrkraft. */
+  readonly fetchClasses: () => Promise<ClassDayClasses>;
   /** Tagesreport einer Klasse — portal-eigene Session. */
   readonly fetchClassDay: (
     schoolClass: string,
@@ -151,17 +152,16 @@ export interface ClassDayOverviewProps {
 }
 
 export function ClassDayOverview({
-  fetchMyClasses,
+  fetchClasses,
   fetchClassDay,
 }: ClassDayOverviewProps) {
+  const greeting = useTimeBasedGreeting();
   const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   // Der Tag steht in der Adresse, nicht nur im Zustand: nur so führt der
   // Zurück-Weg aus einer Klasse auf denselben Tag zurück.
   const dateISO = classDayDateParam(searchParams.get("tag"));
-  const weekend = isWeekendISO(dateISO);
-
   // Die Klassenliste MUSS mitrevalidieren (App-Default ist
   // revalidateOnFocus: false): bliebe sie auf dem Mount-Stand eingefroren,
   // würde eine entzogene Klasse für immer im Reports-Key stehen (jede
@@ -169,14 +169,17 @@ export function ClassDayOverview({
   // bliebe bis zum Reload stehen), und eine neu zugewiesene Klasse erschiene
   // nie.
   const {
-    data: classes,
+    data: classList,
     error: classesError,
     isLoading: classesLoading,
     mutate: reloadClasses,
-  } = useSWRAuth("class-day-my-classes", fetchMyClasses, {
+  } = useSWRAuth("class-day-my-classes", fetchClasses, {
     revalidateOnFocus: true,
     focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
   });
+  const classes = classList?.classes;
+  const weekend =
+    isWeekendISO(dateISO) && classList?.weekend_follows_friday !== true;
 
   // Alle zugewiesenen Klassen für den Tag parallel laden: die Übersicht
   // braucht von jeder Klasse die Zahlen und die Anzahl der Abweichungen.
@@ -288,13 +291,8 @@ export function ClassDayOverview({
             <p className="text-xs font-semibold tracking-wide text-[var(--class-day-blue)] uppercase">
               Klassenansicht
             </p>
-            {/* Der Gruss kommt aus der Uhr: Server und Geraet koennen
-                verschiedene Stunden sehen, das ist hier kein Fehler. */}
-            <h2
-              className="mt-1 text-base font-semibold text-gray-900"
-              suppressHydrationWarning
-            >
-              {getTimeBasedGreeting()}, {getUserDisplayName(session)}
+            <h2 className="mt-1 text-base font-semibold text-gray-900">
+              {greeting}, {getUserDisplayName(session)}
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
               Ihre Übergabe nach Unterricht am {formatDate(dateISO)}. Öffnen Sie

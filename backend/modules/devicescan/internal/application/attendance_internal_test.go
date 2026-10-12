@@ -107,7 +107,7 @@ func TestAttendanceRFIDLookupDistinguishesMissingTagFromFailure(t *testing.T) {
 			h := newHarness(t)
 			err := call(h.service())
 			failure := classifiedFailure(t, err, devicescan.FailureNotFound, devicescan.MessageRFIDTagNotFound)
-			assert.Empty(t, failure.Code, "the attendance routes carry no code")
+			assert.Equal(t, devicescan.CodeRFIDTagNotFound, failure.Code, "the attendance routes carry the scan's code (#3939)")
 			require.Len(t, h.fleet.scans, 1)
 			assert.Equal(t, "UNKNOWN", h.fleet.scans[0].TagUID)
 		})
@@ -171,7 +171,7 @@ func TestToggleAttendance(t *testing.T) {
 		h := newHarness(t)
 		h.people.persons[testTag].HasTag = false
 		_, err := h.service().ToggleAttendance(ctx, confirm)
-		requireFailure(t, err, devicescan.FailureNotFound, devicescan.MessageRFIDTagUnassigned)
+		requireCodedFailure(t, err, devicescan.FailureNotFound, devicescan.MessageRFIDTagUnassigned, devicescan.CodeRFIDTagUnassigned)
 	})
 	t.Run("an alumnus is rejected", func(t *testing.T) {
 		t.Parallel()

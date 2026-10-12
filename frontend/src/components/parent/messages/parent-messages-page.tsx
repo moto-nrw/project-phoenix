@@ -184,11 +184,13 @@ export function ParentMessagesPage() {
   if (loading) {
     return (
       <ParentPage>
-        <ParentPageHeader
-          kicker={t("kicker")}
-          title={t("title")}
-          description={t("description")}
-        />
+        <div data-parent-tour="messages">
+          <ParentPageHeader
+            kicker={t("kicker")}
+            title={t("title")}
+            description={t("description")}
+          />
+        </div>
         <ParentSectionSkeleton rows={3} showHeader={false} />
       </ParentPage>
     );
@@ -197,11 +199,13 @@ export function ParentMessagesPage() {
   if (error) {
     return (
       <ParentPage>
-        <ParentPageHeader
-          kicker={t("kicker")}
-          title={t("title")}
-          description={t("description")}
-        />
+        <div data-parent-tour="messages">
+          <ParentPageHeader
+            kicker={t("kicker")}
+            title={t("title")}
+            description={t("description")}
+          />
+        </div>
         <LoadErrorAlert error={error} />
       </ParentPage>
     );
@@ -213,7 +217,10 @@ export function ParentMessagesPage() {
       <ParentPage>
         {/* Bei offener Handy-Tastatur braucht der Chat den Platz, sonst liegt
             das Schreibfeld unter der Tastatur (#3664). */}
-        <div className="in-data-chat-keyboard:hidden">
+        <div
+          className="in-data-chat-keyboard:hidden"
+          data-parent-tour="messages"
+        >
           <ParentPageHeader
             kicker={t("kicker")}
             title={t("title")}
@@ -228,11 +235,13 @@ export function ParentMessagesPage() {
   if (children.length === 0) {
     return (
       <ParentPage>
-        <ParentPageHeader
-          kicker={t("kicker")}
-          title={t("title")}
-          description={t("description")}
-        />
+        <div data-parent-tour="messages">
+          <ParentPageHeader
+            kicker={t("kicker")}
+            title={t("title")}
+            description={t("description")}
+          />
+        </div>
         <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600 shadow-sm backdrop-blur-md">
           {t("noChildren")}
         </p>
@@ -242,11 +251,13 @@ export function ParentMessagesPage() {
 
   return (
     <ParentPage>
-      <ParentPageHeader
-        kicker={t("kicker")}
-        title={t("title")}
-        description={t("description")}
-      />
+      <div data-parent-tour="messages">
+        <ParentPageHeader
+          kicker={t("kicker")}
+          title={t("title")}
+          description={t("description")}
+        />
+      </div>
       <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border shadow-sm">
         {rows.map((row) => (
           <li key={row.studentId}>

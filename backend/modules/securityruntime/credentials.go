@@ -32,3 +32,8 @@ func PasswordTooWeak(password string) bool {
 func FillRandom(b []byte) error {
 	return authorize.FillRandom(b)
 }
+
+// UploadFilenameSuffix preserves the upload filename entropy and alphabet.
+func UploadFilenameSuffix() (string, error) {
+	return authorize.UploadFilenameSuffix()
+}

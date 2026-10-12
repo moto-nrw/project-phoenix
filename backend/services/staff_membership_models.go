@@ -15,7 +15,7 @@ func legacyStaffToMembership(staff *userModels.Staff) schoolmembership.Staff {
 		ID: staff.ID, TenantID: staff.TenantID, CreatedAt: staff.CreatedAt, UpdatedAt: staff.UpdatedAt,
 		PersonID: staff.PersonID, StaffNotes: staff.StaffNotes, EmploymentType: staff.EmploymentType,
 		WorkTimeModelID: staff.WorkTimeModelID, PersonnelNumber: staff.PersonnelNumber,
-		BirthdayDisplayOptOut: staff.BirthdayDisplayOptOut, DeletedAt: staff.DeletedAt,
+		BirthdayDisplayOptOut: staff.BirthdayDisplayOptOut, DeletedAt: staff.DeletedAt, IsGuest: staff.IsGuest,
 	}
 	if staff.RotationAnchorDate != nil {
 		result.RotationAnchorDate = staff.RotationAnchorDate.String()

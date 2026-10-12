@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -84,7 +83,7 @@ func TestResolveTenant_CareOfferingsEnabled(t *testing.T) {
 
 	t.Run("resolution error fails closed", func(t *testing.T) {
 		settingsErr := errors.New("settings unavailable")
-		settings := &configtest.Mock{
+		settings := &settingsDouble{
 			ResolveIntForTenantFn: func(_ context.Context, _ int64, key string) (int, error) {
 				require.Equal(t, settings.KeyEnrollmentGradeLevelMax, key)
 				return 4, nil

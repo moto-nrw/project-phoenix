@@ -3,6 +3,7 @@ import type { ArrivalSchedule } from "./student-arrival-api";
 import {
   arrivalScheduleSourceLabel,
   getDayData,
+  getWeekDays,
   stripClassPrefix,
 } from "./arrival-schedule-helpers";
 
@@ -40,6 +41,29 @@ describe("arrival schedule getDayData", () => {
     expect(result.effectiveReason).toBe("Klassenfahrt");
   });
 
+  it("uses Friday's arrival schedule on an enabled weekend", () => {
+    const friday = {
+      ...schedules[0]!,
+      weekday: 5,
+      expected_arrival: "08:00",
+    };
+    const saturday = new Date("2026-09-12T12:00:00+02:00");
+
+    const result = getDayData(
+      saturday,
+      [friday],
+      [],
+      [],
+      false,
+      false,
+      null,
+      true,
+    );
+
+    expect(result.weekday).toBe(5);
+    expect(result.effectiveTime).toBe("08:00");
+  });
+
   it("labels class and own arrival times without a duplicate class prefix", () => {
     expect(stripClassPrefix("Klasse 3b")).toBe("3b");
     expect(
@@ -50,5 +74,14 @@ describe("arrival schedule getDayData", () => {
     ).toBe("aus Klasse 3b");
     expect(arrivalScheduleSourceLabel({ source: "staff" })).toBe("eigene Zeit");
     expect(arrivalScheduleSourceLabel(undefined)).toBeNull();
+  });
+});
+
+describe("arrival schedule getWeekDays", () => {
+  it("includes Saturday and Sunday when the weekend follows Friday", () => {
+    const days = getWeekDays(0, true);
+
+    expect(days).toHaveLength(7);
+    expect(days.map((day) => day.getDay())).toEqual([1, 2, 3, 4, 5, 6, 0]);
   });
 });

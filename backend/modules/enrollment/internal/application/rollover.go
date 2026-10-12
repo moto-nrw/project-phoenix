@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Enrollment owner ports of the rollover; the root binds the owner.
@@ -47,9 +48,12 @@ type (
 	PhaseEligibilityGuard interface {
 		CheckEligibilityCollectable(ctx context.Context, phase *enrollment.Phase) error
 	}
-	// RolloverDecider approves an auto-renewed row on an auto-approve phase.
+	// RolloverDecider approves an auto-renewed row on an auto-approve phase
+	// and applies the class switches renewals planned for the new school
+	// year once it starts (#3917).
 	RolloverDecider interface {
 		Decide(ctx context.Context, input enrollment.DecideInput) (*enrollment.DecideOutcome, error)
+		ApplyDueClassSwitches(ctx context.Context, asOf calendar.Date) (int, error)
 	}
 )
 

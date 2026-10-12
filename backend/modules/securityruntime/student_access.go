@@ -45,3 +45,9 @@ func CanUpdateStudent(ctx context.Context, granted []string, student interface{ 
 func CanDeleteStudent(ctx context.Context, granted []string, student interface{ IsAuthorizationStudent() bool }, userCtx StudentAccessUserContext) (bool, error) {
 	return authorize.CanDeleteStudent(ctx, granted, student, userCtx)
 }
+
+// StudentDataAccess evaluates projected staff presence with the same fail-closed
+// rule the caller context uses. Admins do not need a staff lookup.
+func StudentDataAccess(ctx context.Context, granted []string, hasStaff func(context.Context) (bool, error)) (admin, staff bool) {
+	return authorize.StudentDataAccess(ctx, granted, hasStaff)
+}

@@ -114,7 +114,7 @@ func (s *Projection) ListDirectory(
 	query = query.OrderExpr(`"student".id ASC`)
 	if filter.PageSize > 0 {
 		page := max(filter.Page, 1)
-		query = query.Limit(filter.PageSize).Offset((page - 1) * filter.PageSize)
+		query = query.Limit(int64(filter.PageSize)).Offset(int64((page - 1) * filter.PageSize))
 	}
 
 	stats := OperationStats{Queries: 1}
@@ -152,7 +152,7 @@ func (s *Projection) CountDirectory(
 		return 0, stats, fmt.Errorf("student directory projection: count student directory: %w", err)
 	}
 	stats.Rows = int64(total)
-	return total, stats, nil
+	return int(total), stats, nil
 }
 
 func (s *Projection) ListDirectoryIDs(ctx context.Context) ([]int64, OperationStats, error) {

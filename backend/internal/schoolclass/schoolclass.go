@@ -21,21 +21,3 @@ const (
 func Normalize(class string) string {
 	return strings.ToLower(strings.TrimSpace(class))
 }
-
-// GradePrefix returns the first run of ASCII digits in a school class name
-// ("2a" -> "2", "Klasse 12b" -> "12"), or "" when the class contains no
-// grade number ("Bienen"). Despite the historical name, the number need not
-// be a literal prefix: frontend class parsing has long supported labels such
-// as "Klasse 3a", and every backend filter must use the same grammar.
-func GradePrefix(class string) string {
-	class = strings.TrimSpace(class)
-	start := 0
-	for start < len(class) && (class[start] < '0' || class[start] > '9') {
-		start++
-	}
-	end := start
-	for end < len(class) && class[end] >= '0' && class[end] <= '9' {
-		end++
-	}
-	return class[start:end]
-}

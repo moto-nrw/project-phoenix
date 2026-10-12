@@ -24,6 +24,12 @@ export interface ClassDayClasses {
    * (#2970): Berechtigung UND Freigabe der OGS in den Einstellungen.
    */
   can_write_arrival_exception: boolean;
+  /**
+   * Die Schule betreut Sa/So nach dem Freitagsplan
+   * (operations.weekend_follows_friday, #3921): dann ist das Wochenende ein
+   * Tag wie jeder andere und wird geladen.
+   */
+  weekend_follows_friday?: boolean;
 }
 
 export async function fetchClassDayClassesSchool(): Promise<ClassDayClasses> {
@@ -34,11 +40,8 @@ export async function fetchClassDayClassesSchool(): Promise<ClassDayClasses> {
     classes: response.data.classes ?? [],
     can_write_arrival_exception:
       response.data.can_write_arrival_exception === true,
+    weekend_follows_friday: response.data.weekend_follows_friday === true,
   };
-}
-
-export async function fetchMyClassesSchool(): Promise<string[]> {
-  return (await fetchClassDayClassesSchool()).classes;
 }
 
 export async function fetchClassDaySchool(

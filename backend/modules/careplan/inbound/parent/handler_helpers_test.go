@@ -2,7 +2,6 @@ package parent
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,9 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -33,19 +30,10 @@ func (s *parentSubmitSchoolStub) GetSchoolBySubdomain(context.Context, string) (
 	return s.school, nil
 }
 
-type parentSubmitRequestStub struct {
-	enrollmentAPI.RequestService
-	called bool
-	got    enrollmentAPI.SubmitRequest
-}
-
-func (s *parentSubmitRequestStub) Submit(_ context.Context, req enrollmentAPI.SubmitRequest) (*enrollmentAPI.SubmitResult, error) {
-	s.called = true
-	s.got = req
-	request := &enrollmentModels.Request{StatusToken: "status-token"}
-	request.ID = 99001
-	return &enrollmentAPI.SubmitResult{Request: request, StatusURL: "/status/status-token"}, nil
-}
+// parentSubmitBody is a minimal new-child application in the public submit
+// wire shape; the owner's decoding of it is pinned by the enrollment routes'
+// ParentForms tests.
+const parentSubmitBody = `{"phase_id":4242,"guardian_first_name":"Anna","guardian_last_name":"Beispiel","guardian_email":"anna@example.test","children":[{"first_name":"Lara","last_name":"Beispiel","date_of_birth":"2018-03-04"}]}`
 
 func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermission(t *testing.T) {
 	t.Parallel()
@@ -54,33 +42,23 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 	tenantID := testpkg.Tenant(t)
 	school := &EnrollmentSchool{Active: true}
 	school.ID = tenantID
-	requestSvc := &parentSubmitRequestStub{}
+	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
 		// The submit path resolves guardian facts via ParentService
 		// (#1663); the zero-value status (no guardian link, no permission)
 		// is exactly the pre-guardian-row state this test asserts on.
-		ParentService:  &fakeParentService{},
-		RequestService: requestSvc,
-		SchoolService:  &parentSubmitSchoolStub{school: school},
-		db:             db,
+		ParentService:   &fakeParentService{},
+		EnrollmentForms: requestSvc,
+		SchoolService:   &parentSubmitSchoolStub{school: school},
+		db:              db,
 	}
 
-	body, err := json.Marshal(enrollmentAPI.SubmitEnrollmentRequest{
-		PhaseID:           4242,
-		GuardianFirstName: "Anna",
-		GuardianLastName:  "Beispiel",
-		GuardianEmail:     "anna@example.test",
-		LateInviteToken:   "parent-late-token",
-		Children: []enrollmentAPI.SubmitChildRequest{
-			{FirstName: "Lara", LastName: "Beispiel", DateOfBirth: "2018-03-04"},
-		},
-	})
-	require.NoError(t, err)
+	body := parentSubmitBody
 
 	router := chi.NewRouter()
 	router.Post("/parent/enrollments/{tenantSlug}/submit", rs.submitParentEnrollment)
 	req := withClaims(
-		httptest.NewRequest(http.MethodPost, "/parent/enrollments/testschule/submit", strings.NewReader(string(body))),
+		httptest.NewRequest(http.MethodPost, "/parent/enrollments/testschule/submit", strings.NewReader(body)),
 		7777,
 	)
 	w := httptest.NewRecorder()
@@ -88,11 +66,9 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusCreated, w.Code)
-	require.True(t, requestSvc.called, "mapped parent submissions must reach RequestService before any student_guardian row exists")
-	require.NotNil(t, requestSvc.got.GuardianAccountID)
-	assert.Equal(t, int64(7777), *requestSvc.got.GuardianAccountID)
-	assert.Equal(t, tenantID, requestSvc.got.TenantID)
-	assert.Equal(t, "parent-late-token", requestSvc.got.LateInviteToken)
+	require.True(t, requestSvc.submitCalled, "mapped parent submissions must reach RequestService before any student_guardian row exists")
+	assert.Equal(t, int64(7777), requestSvc.accountID)
+	assert.Equal(t, tenantID, requestSvc.schoolID)
 }
 
 // TestSubmitParentEnrollment_NoSubmitPermissionStillReachesServiceForNewChild
@@ -109,33 +85,24 @@ func TestSubmitParentEnrollment_NoSubmitPermissionStillReachesServiceForNewChild
 
 	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
-	requestSvc := &parentSubmitRequestStub{}
+	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
 		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: false,
 		}},
-		RequestService: requestSvc,
-		SchoolService:  &parentSubmitSchoolStub{school: school},
-		db:             db,
+		EnrollmentForms: requestSvc,
+		SchoolService:   &parentSubmitSchoolStub{school: school},
+		db:              db,
 	}
 
-	body, err := json.Marshal(enrollmentAPI.SubmitEnrollmentRequest{
-		PhaseID:           4242,
-		GuardianFirstName: "Anna",
-		GuardianLastName:  "Beispiel",
-		GuardianEmail:     "anna@example.test",
-		Children: []enrollmentAPI.SubmitChildRequest{
-			{FirstName: "Lara", LastName: "Beispiel", DateOfBirth: "2018-03-04"},
-		},
-	})
-	require.NoError(t, err)
+	body := parentSubmitBody
 
 	router := chi.NewRouter()
 	router.Post("/parent/enrollments/{tenantSlug}/submit", rs.submitParentEnrollment)
 	req := withClaims(
-		httptest.NewRequest(http.MethodPost, "/parent/enrollments/testschule/submit", strings.NewReader(string(body))),
+		httptest.NewRequest(http.MethodPost, "/parent/enrollments/testschule/submit", strings.NewReader(body)),
 		7778,
 	)
 	w := httptest.NewRecorder()
@@ -143,8 +110,8 @@ func TestSubmitParentEnrollment_NoSubmitPermissionStillReachesServiceForNewChild
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusCreated, w.Code)
-	require.True(t, requestSvc.called, "a new-child application must not be blocked by a missing per-child submit permission")
-	assert.False(t, requestSvc.got.GuardianSubmitEligible,
+	require.True(t, requestSvc.submitCalled, "a new-child application must not be blocked by a missing per-child submit permission")
+	assert.False(t, requestSvc.submitEligible,
 		"no school-wide submit permission must forward GuardianSubmitEligible=false for the linked_parents audience gate")
 }
 
@@ -158,33 +125,24 @@ func TestSubmitParentEnrollment_StampsSubmitEligibility(t *testing.T) {
 
 	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
-	requestSvc := &parentSubmitRequestStub{}
+	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
 		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
-		RequestService: requestSvc,
-		SchoolService:  &parentSubmitSchoolStub{school: school},
-		db:             db,
+		EnrollmentForms: requestSvc,
+		SchoolService:   &parentSubmitSchoolStub{school: school},
+		db:              db,
 	}
 
-	body, err := json.Marshal(enrollmentAPI.SubmitEnrollmentRequest{
-		PhaseID:           4242,
-		GuardianFirstName: "Anna",
-		GuardianLastName:  "Beispiel",
-		GuardianEmail:     "anna@example.test",
-		Children: []enrollmentAPI.SubmitChildRequest{
-			{FirstName: "Lara", LastName: "Beispiel", DateOfBirth: "2018-03-04"},
-		},
-	})
-	require.NoError(t, err)
+	body := parentSubmitBody
 
 	router := chi.NewRouter()
 	router.Post("/parent/enrollments/{tenantSlug}/submit", rs.submitParentEnrollment)
 	req := withClaims(
-		httptest.NewRequest(http.MethodPost, "/parent/enrollments/testschule/submit", strings.NewReader(string(body))),
+		httptest.NewRequest(http.MethodPost, "/parent/enrollments/testschule/submit", strings.NewReader(body)),
 		7779,
 	)
 	w := httptest.NewRecorder()
@@ -192,8 +150,8 @@ func TestSubmitParentEnrollment_StampsSubmitEligibility(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusCreated, w.Code)
-	require.True(t, requestSvc.called)
-	assert.True(t, requestSvc.got.GuardianSubmitEligible,
+	require.True(t, requestSvc.submitCalled)
+	assert.True(t, requestSvc.submitEligible,
 		"submit permission must be forwarded as GuardianSubmitEligible")
 }
 
@@ -287,21 +245,12 @@ func TestToMessageResponses_StaffNameMaskedUnlessVisible(t *testing.T) {
 // "testschule" and returns the recorder.
 func serveParentSubmit(t *testing.T, rs *Resource, accountID int) *httptest.ResponseRecorder {
 	t.Helper()
-	body, err := json.Marshal(enrollmentAPI.SubmitEnrollmentRequest{
-		PhaseID:           4242,
-		GuardianFirstName: "Anna",
-		GuardianLastName:  "Beispiel",
-		GuardianEmail:     "anna@example.test",
-		Children: []enrollmentAPI.SubmitChildRequest{
-			{FirstName: "Lara", LastName: "Beispiel", DateOfBirth: "2018-03-04"},
-		},
-	})
-	require.NoError(t, err)
+	body := parentSubmitBody
 
 	router := chi.NewRouter()
 	router.Post("/parent/enrollments/{tenantSlug}/submit", rs.submitParentEnrollment)
 	req := withClaims(
-		httptest.NewRequest(http.MethodPost, "/parent/enrollments/testschule/submit", strings.NewReader(string(body))),
+		httptest.NewRequest(http.MethodPost, "/parent/enrollments/testschule/submit", strings.NewReader(body)),
 		accountID,
 	)
 	w := httptest.NewRecorder()
@@ -318,20 +267,20 @@ func TestSubmitParentEnrollment_HiddenSchoolRejectsCallerWithoutFamilyLink(t *te
 
 	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
-	requestSvc := &parentSubmitRequestStub{}
+	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
 		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
 			Linked: true,
 		}},
-		RequestService: requestSvc,
-		SchoolService:  &parentSubmitSchoolStub{school: school},
-		db:             db,
+		EnrollmentForms: requestSvc,
+		SchoolService:   &parentSubmitSchoolStub{school: school},
+		db:              db,
 	}
 
 	w := serveParentSubmit(t, rs, 7780)
 
 	require.Equal(t, http.StatusNotFound, w.Code)
-	assert.False(t, requestSvc.called, "a hidden school must not accept a submission from a caller with no family link")
+	assert.False(t, requestSvc.submitCalled, "a hidden school must not accept a submission from a caller with no family link")
 }
 
 // A deactivated school accepts no submission at all — the account-independent
@@ -342,22 +291,22 @@ func TestSubmitParentEnrollment_InactiveSchoolIsRejected(t *testing.T) {
 
 	school := &EnrollmentSchool{Active: false}
 	school.ID = 1
-	requestSvc := &parentSubmitRequestStub{}
+	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
 		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
-		RequestService: requestSvc,
-		SchoolService:  &parentSubmitSchoolStub{school: school},
-		db:             db,
+		EnrollmentForms: requestSvc,
+		SchoolService:   &parentSubmitSchoolStub{school: school},
+		db:              db,
 	}
 
 	w := serveParentSubmit(t, rs, 7781)
 
 	require.Equal(t, http.StatusNotFound, w.Code)
-	assert.False(t, requestSvc.called)
+	assert.False(t, requestSvc.submitCalled)
 }
 
 // An existing family at a hidden school keeps submitting its re-enrollments.
@@ -367,21 +316,21 @@ func TestSubmitParentEnrollment_HiddenSchoolAcceptsLinkedFamily(t *testing.T) {
 
 	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
-	requestSvc := &parentSubmitRequestStub{}
+	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
 		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
-		RequestService: requestSvc,
-		SchoolService:  &parentSubmitSchoolStub{school: school},
-		db:             db,
+		EnrollmentForms: requestSvc,
+		SchoolService:   &parentSubmitSchoolStub{school: school},
+		db:              db,
 	}
 
 	w := serveParentSubmit(t, rs, 7782)
 
 	require.Equal(t, http.StatusCreated, w.Code)
-	require.True(t, requestSvc.called)
-	assert.True(t, requestSvc.got.GuardianSubmitEligible)
+	require.True(t, requestSvc.submitCalled)
+	assert.True(t, requestSvc.submitEligible)
 }

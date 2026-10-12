@@ -12,7 +12,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -31,8 +30,8 @@ const (
 
 // birthdaySettings answers the two display settings and fails loudly on any
 // other key, so a future setting cannot silently read as false here.
-func birthdaySettings(enabled, includeStaff bool) *configtest.Mock {
-	return &configtest.Mock{
+func birthdaySettings(enabled, includeStaff bool) *settingsDouble {
+	return &settingsDouble{
 		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 			switch key {
 			case keyDisplayEnabled:
@@ -46,7 +45,7 @@ func birthdaySettings(enabled, includeStaff bool) *configtest.Mock {
 	}
 }
 
-func newBirthdayService(db *bun.DB, settings *configtest.Mock, now func() time.Time) peopledirectory.Birthdays {
+func newBirthdayService(db *bun.DB, settings *settingsDouble, now func() time.Time) peopledirectory.Birthdays {
 	return testutil.NewBirthdayCapability(db, settings, now)
 }
 
@@ -305,7 +304,7 @@ func TestBirthdayOverviewSettingsErrors(t *testing.T) {
 	now := func() time.Time { return time.Date(2026, time.August, 5, 9, 0, 0, 0, calendar.Berlin) }
 
 	t.Run("display setting fails", func(t *testing.T) {
-		settings := &configtest.Mock{
+		settings := &settingsDouble{
 			ResolveBoolFn: func(context.Context, string) (bool, error) {
 				return false, errors.New("boom")
 			},
@@ -316,7 +315,7 @@ func TestBirthdayOverviewSettingsErrors(t *testing.T) {
 	})
 
 	t.Run("staff setting fails", func(t *testing.T) {
-		settings := &configtest.Mock{
+		settings := &settingsDouble{
 			ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 				if key == keyDisplayEnabled {
 					return true, nil

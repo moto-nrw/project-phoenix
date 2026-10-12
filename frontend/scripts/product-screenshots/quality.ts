@@ -16,7 +16,7 @@ export interface FailedResponse {
 export interface ShotObservation {
   /** Pfad, den der Shot anfordert (`pfad` der Shot-Liste, ohne Query). */
   readonly requestedPath: string;
-  /** Pfad, auf dem die Seite nach dem Laden steht. */
+  /** Pfad, auf dem die Seite nach dem Laden steht, vor der Vorbereitung. */
   readonly finalPath: string;
   /** Statuscode des Dokuments der Zielseite (null, wenn keine Antwort kam). */
   readonly documentStatus: number | null;

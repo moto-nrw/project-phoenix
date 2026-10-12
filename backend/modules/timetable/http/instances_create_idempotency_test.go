@@ -109,7 +109,7 @@ func TestCreateInstance_IdempotencyKeyDeduplicatesOnlyOneCreateOperation(t *test
 	count, err := setup.db.NewSelect().TableExpr("schedule.activity_instances").
 		Where("tenant_id = ?", setup.tenantID).Where("title = ?", title).Count(testpkg.Ctx(t))
 	require.NoError(t, err)
-	assert.Equal(t, 2, count)
+	assert.Equal(t, 2, int(count))
 }
 
 func TestCreateInstance_IdempotencyKeyRejectsDifferentCreateOperation(t *testing.T) {

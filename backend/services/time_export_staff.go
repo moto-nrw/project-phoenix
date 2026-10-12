@@ -22,13 +22,18 @@ func (q timeExportStaffQuery) ListExportStaff(ctx context.Context) ([]timetracki
 	if err != nil {
 		return nil, err
 	}
-	staff := make([]timetracking.TimeExportStaff, len(rows))
-	for i, row := range rows {
-		staff[i].ID = row.ID
-		if row.Person != nil {
-			staff[i].FirstName = row.Person.FirstName
-			staff[i].LastName = row.Person.LastName
+	staff := make([]timetracking.TimeExportStaff, 0, len(rows))
+	for _, row := range rows {
+		// External caregivers (#3823) record no working time.
+		if row.IsGuest {
+			continue
 		}
+		member := timetracking.TimeExportStaff{ID: row.ID}
+		if row.Person != nil {
+			member.FirstName = row.Person.FirstName
+			member.LastName = row.Person.LastName
+		}
+		staff = append(staff, member)
 	}
 	return staff, nil
 }

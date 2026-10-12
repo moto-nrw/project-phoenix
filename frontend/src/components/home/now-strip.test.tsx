@@ -200,6 +200,19 @@ describe("NowStrip (#2180)", () => {
     );
   });
 
+  it("zeigt bei einem laufenden spontanen Einsatz kein Platzhalter-Ende", () => {
+    sources.own = [assignment({ status: "active", isSpontaneous: true })];
+
+    render(<NowStrip access={care} context={context(care)} />);
+
+    expect(
+      screen.getByText(
+        "OGS-Raum 1 · Ende offen · danach ist für heute nichts mehr geplant",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/bis 11:00/)).not.toBeInTheDocument();
+  });
+
   // Die Uhr sagt, dass der Block dran ist, nicht, dass er läuft.
   it("nennt einen fälligen, aber nicht gestarteten Einsatz so", () => {
     sources.own = [assignment()];

@@ -14,7 +14,6 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -53,6 +52,11 @@ type UsageCounts interface {
 	PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]UsageRow, error)
 }
 
+// RetentionSettings resolves the usage retention window of the current tenant.
+type RetentionSettings interface {
+	ResolveInt(ctx context.Context, key string) (int, error)
+}
+
 type usageRepository interface {
 	RecordSeen(ctx context.Context, tenantID, accountID int64, portal string) error
 	DeleteLastSeenBefore(ctx context.Context, tenantID int64, cutoff time.Time) (int, error)
@@ -82,7 +86,7 @@ type usageService struct {
 	repo           usageRepository
 	summaries      UsageCounts
 	accountTenants GuardianSchools
-	settings       config.SettingsService
+	settings       RetentionSettings
 	logger         *slog.Logger
 	tenantRuntime  *tenant.UnitOfWork
 
@@ -101,7 +105,7 @@ func NewUsageService(
 	repo usageRepository,
 	summaries UsageCounts,
 	accountTenants GuardianSchools,
-	settings config.SettingsService,
+	settings RetentionSettings,
 	logger *slog.Logger,
 ) UsageService {
 	if logger == nil {

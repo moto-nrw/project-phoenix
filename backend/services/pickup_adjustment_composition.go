@@ -3,11 +3,12 @@ package services
 import (
 	"context"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -20,7 +21,7 @@ type pickupAdjustmentInputs struct {
 	Baselines        careplan.PickupBaselineReader
 	Offerings        careplan.DirectOfferingAdjustments
 	Settings         offeringChangeSettingsReads
-	Audit            users.StudentPickupPlanRecorder
+	Audit            peopleCompose.StudentPickupPlanRecorder
 	Students         usersModels.StudentRepository
 	Today            func() calendar.Date
 }

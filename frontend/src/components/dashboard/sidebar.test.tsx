@@ -1515,6 +1515,35 @@ describe("Sidebar", () => {
       );
     });
 
+    // #3890: die Kinderseiten nennen im Breadcrumb den Bereich der Gruppe
+    // und lesen ihn aus dem Speicher.
+    it("persists the sidebar section of the selected group", () => {
+      mockUsePathname.mockReturnValue("/ogs-groups");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) => (key === "group" ? "2" : null)),
+      );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [
+          { id: "1", name: "Eulen", is_personal: true },
+          { id: "2", name: "Mondgruppe", is_personal: false },
+        ],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(mockSetItem).toHaveBeenCalledWith(
+        "sidebar-last-group-section",
+        "other",
+      );
+    });
+
     it("persists selected room and room name to localStorage", () => {
       mockUsePathname.mockReturnValue("/active-supervisions");
       mockUseSearchParams.mockReturnValue(

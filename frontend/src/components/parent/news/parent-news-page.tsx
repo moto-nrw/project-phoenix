@@ -136,11 +136,13 @@ export function ParentNewsPage() {
 
   return (
     <ParentPage>
-      <ParentPageHeader
-        kicker={t("kicker")}
-        title={t("title")}
-        description={t("description")}
-      />
+      <div data-parent-tour="news">
+        <ParentPageHeader
+          kicker={t("kicker")}
+          title={t("title")}
+          description={t("description")}
+        />
+      </div>
 
       {!loaded ? (
         <NewsListSkeleton />

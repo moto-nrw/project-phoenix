@@ -19,7 +19,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -96,11 +95,11 @@ func (f *fakeReadRepo) ListThreadsForStudent(context.Context, int64, int64) ([]*
 	return f.studentRows, f.studentErr
 }
 
-// fakePersons satisfies PersonService for the read-access load + staff-name
+// fakePersons satisfies PersonLookup for the read-access load + staff-name
 // resolution. GetStudentByID returns a real student so the admin read check
 // passes; FindByAccountID returns nil so resolveStaffName uses its default.
 type fakePersons struct {
-	usersService.PersonService
+	messaging.PersonLookup
 }
 
 func (fakePersons) GetStudentByID(context.Context, int64) (*usersModels.Student, error) {

@@ -39,9 +39,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/auth/device/devicetest"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
@@ -203,10 +201,20 @@ func SetupRFIDModule(t *testing.T) (*bun.DB, services.RFIDTestModule) {
 	return db, module
 }
 
-func SetupGroupsModule(t *testing.T) (*bun.DB, services.GroupsTestModule) {
+func SetupGroupsModule(t *testing.T, publishers ...*testpkg.RecordingBroadcaster) (*bun.DB, services.GroupsTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewGroupsTestModule(db, testpkg.TenantRuntime(t, db))
+	var broadcaster *testpkg.RecordingBroadcaster
+	if len(publishers) > 0 {
+		broadcaster = publishers[0]
+	}
+	var module services.GroupsTestModule
+	var err error
+	if broadcaster != nil {
+		module, err = services.NewGroupsTestModule(db, testpkg.TenantRuntime(t, db), broadcaster)
+	} else {
+		module, err = services.NewGroupsTestModule(db, testpkg.TenantRuntime(t, db))
+	}
 	require.NoError(t, err)
 	return db, module
 }
@@ -379,7 +387,7 @@ func SetupActivitiesModule(t *testing.T) (*bun.DB, services.ActivitiesTestModule
 // DeviceIdentity exposes the authenticated principal facts to HTTP adapter
 // runtimes without making each adapter test import the device middleware.
 func DeviceIdentity(ctx context.Context) (int64, string, bool) {
-	principal := device.DeviceFromCtx(ctx)
+	principal := devicetest.DeviceFromContext(ctx)
 	if principal == nil {
 		return 0, "", false
 	}
@@ -412,47 +420,37 @@ func AuthenticatedDeviceID(ctx context.Context) (string, bool) {
 // DevicePrincipal converts a device row into the principal the device auth
 // middleware binds to a request, so handler tests see exactly what
 // production handlers see. It never copies the API key.
-func DevicePrincipal(d *iot.Device) *device.AuthenticatedDevice {
+func DevicePrincipal(d *testpkg.Device) *devicetest.Principal {
 	if d == nil {
 		return nil
 	}
-	return &device.AuthenticatedDevice{
+	return &devicetest.Principal{
 		ID:         d.ID,
 		TenantID:   d.TenantID,
 		DeviceID:   d.DeviceID,
 		DeviceType: d.DeviceType,
 		Name:       d.Name,
-		Status:     string(d.Status),
+		Status:     d.Status,
 		LastSeen:   d.LastSeen,
 	}
-}
-
-// StaffPrincipal converts a staff row into the principal a verified web
-// boundary binds to a request.
-func StaffPrincipal(s *users.Staff) *device.AuthenticatedStaff {
-	if s == nil {
-		return nil
-	}
-	return &device.AuthenticatedStaff{ID: s.ID, TenantID: s.TenantID}
 }
 
 // WithDeviceActor binds the device and staff principals the device auth
 // middleware would bind for a verified kiosk request, so a scenario can call
 // a presence capability directly as that actor without naming the auth
-// context keys itself.
-func WithDeviceActor(ctx context.Context, d *iot.Device, s *users.Staff) context.Context {
-	ctx = context.WithValue(ctx, device.CtxDevice, DevicePrincipal(d))
-	return context.WithValue(ctx, device.CtxStaff, StaffPrincipal(s))
+// context keys itself. The staff member belongs to the device's school.
+func WithDeviceActor(ctx context.Context, d *testpkg.Device, staffID int64) context.Context {
+	return devicetest.WithStaff(devicetest.WithDevice(ctx, DevicePrincipal(d)), staffID, d.TenantID)
 }
 
 // WithDeviceContext adds an IoT device to the request context.
 // This is used for testing device-authenticated endpoints.
 // Also injects the device's tenant_id so TenantTxMiddleware can create
 // a tenant-scoped transaction (mirrors production device auth middleware).
-func WithDeviceContext(d *iot.Device) RequestOption {
+func WithDeviceContext(d *testpkg.Device) RequestOption {
 	return func(req *http.Request) {
-		ctx := context.WithValue(req.Context(), device.CtxDevice, DevicePrincipal(d))
-		if tid := d.GetTenantID(); tid != 0 {
+		ctx := devicetest.WithDevice(req.Context(), DevicePrincipal(d))
+		if tid := d.TenantID; tid != 0 {
 			ctx = tenant.WithTenantID(ctx, tid)
 		}
 		*req = *req.WithContext(ctx)
@@ -463,8 +461,8 @@ func WithDeviceContext(d *iot.Device) RequestOption {
 // that do not need a persisted device or a tenant transaction.
 func WithDeviceIdentity(id int64, deviceID string) RequestOption {
 	return func(req *http.Request) {
-		principal := &device.AuthenticatedDevice{ID: id, DeviceID: deviceID}
-		*req = *req.WithContext(context.WithValue(req.Context(), device.CtxDevice, principal))
+		principal := &devicetest.Principal{ID: id, DeviceID: deviceID}
+		*req = *req.WithContext(devicetest.WithDevice(req.Context(), principal))
 	}
 }
 
@@ -477,15 +475,15 @@ func RollbackRequested(ctx context.Context) bool             { return tenant.Rol
 // device middleware does, so services authorize through the device session.
 func WithIoTDeviceRequest() RequestOption {
 	return func(req *http.Request) {
-		*req = *req.WithContext(context.WithValue(req.Context(), device.CtxIsIoTDevice, true))
+		*req = *req.WithContext(devicetest.WithIoTDevice(req.Context()))
 	}
 }
 
-// WithStaffContext adds a staff member to the request context.
-// This is used for testing endpoints that require staff authentication.
-func WithStaffContext(s *users.Staff) RequestOption {
+// WithStaffContext adds a staff member to the request context, as the
+// principal a verified web boundary binds. This is used for testing endpoints
+// that require staff authentication.
+func WithStaffContext(staffID, tenantID int64) RequestOption {
 	return func(req *http.Request) {
-		ctx := context.WithValue(req.Context(), device.CtxStaff, StaffPrincipal(s))
-		*req = *req.WithContext(ctx)
+		*req = *req.WithContext(devicetest.WithStaff(req.Context(), staffID, tenantID))
 	}
 }

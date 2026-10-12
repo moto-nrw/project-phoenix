@@ -288,7 +288,7 @@ describe("PersonalizationTab", () => {
     // After fetch resolves with null, it updates to null — read-only description is shown
     await waitFor(() => {
       expect(
-        screen.getByText(/Das aktuelle Bild wird auf der Login-Seite/),
+        screen.getByText(/nur hochladen, wer Einstellungen ändern darf/),
       ).toBeDefined();
     });
   });
@@ -301,9 +301,28 @@ describe("PersonalizationTab", () => {
     render(<PersonalizationTab />);
     await waitFor(() => {
       expect(
-        screen.getByText(/Das aktuelle Bild wird auf der Login-Seite/),
+        screen.getByText(/nur hochladen, wer Einstellungen ändern darf/),
       ).toBeDefined();
     });
+  });
+
+  // #3893: Ohne Recht und ohne Bild war die Karte leer, ohne Vorschau und
+  // ohne Grund. Jetzt zeigt sie, was auf der Login-Seite steht.
+  it("previews the moto logo when no image is set, also read-only", async () => {
+    mockSessionFetch.mockResolvedValue(
+      jsonResponse({ data: { login_image_url: null, can_edit: false } }),
+    );
+
+    render(<PersonalizationTab />);
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Noch kein eigenes Bild. Die Login-Seite zeigt das moto-Logo.",
+        ),
+      ).toBeDefined();
+    });
+    expect(screen.getByText("moto")).toBeDefined();
+    expect(screen.queryByText("Bild auswählen")).toBeNull();
   });
 
   it("shows editable description when can_edit is true", async () => {

@@ -709,6 +709,51 @@ describe("MeinRaumPage roster actions", () => {
     }
   });
 
+  it("names the ended activity in the undo banner and opens it again on undo (#3887, #3888)", async () => {
+    globalThis.sessionStorage.setItem(
+      "timetable-reopenable-instance",
+      JSON.stringify({
+        instanceId: "199",
+        title: "Sport AG",
+        roomId: "20",
+        expiresAt: Date.now() + 60_000,
+      }),
+    );
+    vi.mocked(timetableOperationsApi.reopen).mockResolvedValue({
+      instanceId: "199",
+      activeGroupId: "2",
+      status: "active",
+    });
+
+    try {
+      render(<MeinRaumPage />);
+      expect(
+        await screen.findByText(
+          "„Sport AG“ wurde beendet. Sie können das fünf Minuten lang rückgängig machen.",
+        ),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Rückgängig" }));
+
+      await waitFor(() =>
+        expect(timetableOperationsApi.reopen).toHaveBeenCalledWith("199"),
+      );
+      await waitFor(() =>
+        expect(mockPush).toHaveBeenCalledWith(
+          expect.stringContaining("/active-supervisions?session=2"),
+        ),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("button", { name: "Rückgängig" }),
+        ).not.toBeInTheDocument(),
+      );
+      expect(localStorage.getItem("supervision-last-session")).toBe("2");
+    } finally {
+      globalThis.sessionStorage.removeItem("timetable-reopenable-instance");
+    }
+  });
+
   it("names the missing planning when the server forbids the action", async () => {
     vi.mocked(timetableOperationsApi.checkIn).mockRejectedValue(
       new ApiError("timetable operation forbidden", 403, {

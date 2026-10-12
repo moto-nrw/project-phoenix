@@ -48,6 +48,7 @@ export function ChildSwitcher({
           <li key={item.studentId}>
             <Link
               href={parentPath(`/parents/children/${item.studentId}`)}
+              data-parent-tour="child-switcher-item"
               className="moto-content-surface group flex min-h-40 flex-col rounded-2xl border p-4 shadow-sm transition-[border-color,box-shadow] hover:border-gray-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:p-5"
             >
               <span className="flex w-full min-w-0 items-start justify-between gap-4">

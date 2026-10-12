@@ -1,0 +1,112 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2742",
+    "#3020"
+  ],
+  "owner_and_capability": "School Structure: dissolve the retained services/education and database/repositories/education implementations into private application and Postgres adapters (#3555). Group reads, lifecycle commands, teaching assignments and staff school classes use bounded capabilities; retained consumers bind consumer-owned ports without exposing ORM or legacy model values in the public contract.",
+  "affected_packages": [
+    "api",
+    "services",
+    "database/repositories",
+    "modules/schoolstructure",
+    "modules/schoolstructure/contract",
+    "modules/schoolstructure/compose",
+    "modules/schoolstructure/http",
+    "modules/schoolstructure/internal/application/groups",
+    "modules/schoolstructure/internal/adapters/postgres/groups"
+  ],
+  "affected_tables": [
+    "education.groups",
+    "education.group_teacher",
+    "education.class_teachers",
+    "education.group_substitution"
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/services/education",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories|github.com/moto-nrw/project-phoenix/database/repositories/education",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/education"
+  ],
+  "atomic_cutover": "PR #3910 switches the composition and consumers to School Structure capabilities and translating ports, relocates the retained implementations and their behavior suites to owner-private packages, and deletes both legacy packages in the same change. School Membership, Workforce, Facilities and Timetable retain their foreign data access. HTTP paths, status codes, error strings, tenant transactions, auditing and post-commit notifications remain covered by the existing suites. No DDL, data-owner change, compatibility permission or second provider is introduced.",
+  "tests": [
+    "scripts/test-changed.sh origin/development without --fast runs all 85 affected packages and their importers.",
+    "School Structure composition tests cover tenant-scoped reads and writes, unbound room failures, retained equality filters, membership wiring and wrapped/joined errors.",
+    "The relocated application and repository behavior suites preserve their assertions; the HTTP suites retain route errors and post-commit notification coverage.",
+    "scripts/backend-architecture.sh check: 262 -> 259 legacy keys, composition surface 596 -> 591. validate-ticket --all --base-ref a31715273ee6af3deb99a00023bedbfef8a19ee0 must cover all three retired dependencies, including their verified relocation mappings."
+  ],
+  "runtime_evidence": {
+    "source": "PR #3910 implementation 3d586906ff and base-merged head 9429605e78. The linked CI run reports successful test and lint jobs; its architecture job failed only because these three retirements had no complete record. Local architecture analysis confirms the reduced dependency and composition counts. This record supplies dissolution evidence separately from the earlier #2742 contract migration; it does not claim a new checkpoint benchmark.",
+    "sources": [
+      "https://github.com/moto-nrw/project-phoenix/actions/runs/37833014522",
+      "backend/modules/schoolstructure/compose/new_test.go",
+      "backend/modules/schoolstructure/compose/group_repository_test.go",
+      "backend/modules/schoolstructure/compose/group_values_test.go",
+      "backend/modules/schoolstructure/internal/application/groups/substitution_module_test.go",
+      "backend/modules/schoolstructure/internal/application/groups/n_plus_one_query_budget_test.go",
+      "backend/modules/schoolstructure/http/group_access_sse_test.go",
+      "backend/modules/schoolstructure/http/errors_test.go"
+    ],
+    "workload": "Affected-package tests on the base-merged PR head, with per-test tenants and package-owned database clones; deterministic architecture analysis against development base a31715273ee6af3deb99a00023bedbfef8a19ee0. No production traffic or latency sampling.",
+    "thresholds": "All affected behavior suites pass without weakened assertions, all three retired keys have complete evidence, no new baseline key or permission is added, and the composition surface does not grow.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "This is a code-only ownership-boundary dissolution, not a data migration; no backfill, DDL or change of writable data owner occurs."
+    },
+    "query_count": {
+      "state": "measured",
+      "result": "The successful CI test job includes the retained School Structure query-budget suite. No query-budget register increase is part of the dissolution."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency sample was collected for this structural migration; the accepted checkpoint is not rerun or presented as a new measurement."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency sample was collected for this structural migration; verification uses behavior suites and architecture guards."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "The CI test job passed, including the relocated behavior suites and HTTP error-rendering assertions. The retirement validator reproduced exactly three unclaimed removals before this record."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "The dissolution preserves tenant transaction and connection acquisition behavior; this evidence-only fix changes no pool or runtime wiring. No pool-wait sample was collected."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No lock-wait sample was collected. This evidence-only fix changes no statements, transaction boundaries or lock order."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No database deadlock counter was sampled. This evidence-only fix changes no lock or transaction behavior."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "No worker workload or timing change is introduced by the evidence record; no worker duration benchmark was collected for the dissolution."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No retry policy is changed by the dissolution or this evidence record."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No worker queue or scheduling configuration is changed by the dissolution or this evidence record."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The successful CI suites include unbound-room failure regressions, wrapped/joined error preservation, substitution rollback scenarios and HTTP error/status assertions at the declared source paths."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "Deployment rollback is a code revert, not a data rollback: the dissolution adds no DDL or backfill. No deployment rollback was performed."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "Local scripts/backend-architecture.sh check passed: 259 remaining legacy violations, composition surface 596 -> 591. The CI test job passed on the same base-merged head; no manual app smoke test was performed."
+    }
+  },
+  "rollback_and_cleanup": "Revert the dissolution and its consumer wiring together to restore both legacy packages. No schema rollback or data cleanup is needed. The evidence-only fix can be reverted independently but would restore the uncovered-retirement failure.",
+  "exit_criterion": "Both legacy implementation packages are absent; consumers reach School Structure through bounded capabilities or retained consumer-owned ports; all three listed composition dependencies are absent after relocation normalization; architecture and migration-evidence checks pass with no new debt or compatibility permission."
+}

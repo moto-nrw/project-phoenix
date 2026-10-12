@@ -8,6 +8,7 @@ export interface JwtPayload {
   last_name?: string;
   email?: string;
   roles?: string[];
+  role_is_system?: boolean[];
   permissions?: string[];
   is_admin?: boolean;
   tenant_id?: number;

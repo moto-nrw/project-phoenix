@@ -426,7 +426,7 @@ func (r *GuardianProfileRepository) SearchByText(ctx context.Context, searchText
 
 	if err := query.
 		Order(`last_name ASC`, `first_name ASC`).
-		Limit(limit).
+		Limit(int64(limit)).
 		Scan(ctx); err != nil {
 		return nil, fmt.Errorf("failed to search guardian profiles: %w", err)
 	}

@@ -1,8 +1,8 @@
 package users
 
 import (
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Exit reasons a school picks from when it ends a child's care (#2487). A
@@ -33,7 +33,7 @@ type CareExit struct {
 	base.Model `bun:"schema:users,table:student_care_exits"`
 	base.TenantModel
 	StudentID              int64          `bun:"student_id,notnull" json:"student_id"`
-	PreviousEnrolledUntil  *timezone.Date `bun:"previous_enrolled_until,type:date" json:"-"`
+	PreviousEnrolledUntil  *calendar.Date `bun:"previous_enrolled_until,type:date" json:"-"`
 	Reason                 string         `bun:"reason,notnull" json:"reason"`
 	ReasonNote             *string        `bun:"reason_note" json:"reason_note,omitempty"`
 	RecordedBy             *int64         `bun:"recorded_by" json:"recorded_by,omitempty"`
@@ -48,14 +48,14 @@ type CareExit struct {
 // thresholds, no clock (backend-conventions rule 12). Every operational gate
 // spells the question this way so "ab dem Folgetag" cannot be interpreted
 // half a day differently in two places.
-func (s *Student) CareEndedOn(day timezone.Date) bool {
+func (s *Student) CareEndedOn(day calendar.Date) bool {
 	return s != nil && s.EnrolledUntil != nil && day.After(*s.EnrolledUntil)
 }
 
 // CareEndsLater reports whether an end of care is recorded but has not taken
 // effect yet on the given day. This is the "Betreuung endet am …" state the
 // child management shows while the child still attends normally.
-func (s *Student) CareEndsLater(day timezone.Date) bool {
+func (s *Student) CareEndsLater(day calendar.Date) bool {
 	return s != nil && s.EnrolledUntil != nil && !day.After(*s.EnrolledUntil)
 }
 

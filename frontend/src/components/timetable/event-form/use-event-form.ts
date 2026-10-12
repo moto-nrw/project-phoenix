@@ -766,7 +766,11 @@ export function useEventForm({
       .then((items) => {
         if (!isCurrentStaffLoad()) return;
         setStaff(
-          sortPeople(items.map((item) => ({ id: item.id, name: item.name }))),
+          sortPeople(
+            items
+              .filter((item) => !item.isExternal)
+              .map((item) => ({ id: item.id, name: item.name })),
+          ),
         );
       })
       .catch((err: unknown) => {

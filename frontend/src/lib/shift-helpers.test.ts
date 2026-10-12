@@ -344,6 +344,7 @@ describe("mapOwnAssignment", () => {
       start_time: "14:00:00",
       end_time: "15:30:00",
       status: "cancelled",
+      is_spontaneous: true,
       cancelled: true,
       is_primary: false,
       is_substitute: true,
@@ -362,6 +363,7 @@ describe("mapOwnAssignment", () => {
       startTime: "14:00",
       endTime: "15:30",
       status: "cancelled",
+      isSpontaneous: true,
       cancelled: true,
       isPrimary: false,
       isSubstitute: true,
@@ -392,6 +394,7 @@ describe("mapOwnAssignment", () => {
     expect(mapped.roomName).toBe("");
     expect(mapped.absenceReason).toBeNull();
     expect(mapped.cancelReason).toBeNull();
+    expect(mapped.isSpontaneous).toBeUndefined();
     // Times already in HH:MM are left intact by the slice.
     expect(mapped.startTime).toBe("08:00");
     expect(mapped.endTime).toBe("09:00");

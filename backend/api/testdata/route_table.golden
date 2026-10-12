@@ -775,6 +775,7 @@ POST /api/staff/
 POST /api/staff/absences/{absenceId}/approve
 POST /api/staff/absences/{absenceId}/deny
 POST /api/staff/absences/{absenceId}/question
+POST /api/staff/externals
 POST /api/staff/time-tracking/export/sftp
 POST /api/staff/time-tracking/month-close
 POST /api/staff/{id}/absences
@@ -859,6 +860,7 @@ POST /api/timetable/materialize
 POST /api/timetable/operations/instances/{id}/complete
 POST /api/timetable/operations/instances/{id}/reopen
 POST /api/timetable/operations/instances/{id}/start
+POST /api/timetable/operations/instances/{id}/students/check-in
 POST /api/timetable/operations/instances/{id}/students/{student_id}/check-in
 POST /api/timetable/operations/instances/{id}/students/{student_id}/check-out
 POST /api/timetable/operations/spontaneous/start

@@ -77,7 +77,7 @@ func instanceServiceWithGuardianNotices(t *testing.T, s *lifecycleSetup, publish
 
 // seedNoticeInstance creates a planned block on the given date with two booked
 // children and one frozen non-booking marker.
-func seedNoticeInstance(t *testing.T, s *lifecycleSetup, date calendar.Date) (*scheduleModels.ActivityInstance, int64, int64) {
+func seedNoticeInstance(t *testing.T, s *lifecycleSetup, date calendar.Date) (*testpkg.ActivityInstance, int64, int64) {
 	t.Helper()
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Fußball-AG"})
 	testpkg.CreateTestInstanceStudent(t, s.db, instance.ID, s.student1, scheduleModels.AttendanceStatusExpected)

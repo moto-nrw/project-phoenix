@@ -63,6 +63,12 @@ type liveState struct {
 	staffIDs       []int64                  // supervisor pool from seed-state accounts
 	interval       time.Duration
 	clock          func() time.Time
+	// plannedRoom is the room of each child's running block on a planned
+	// demo day (#3921); a returning child goes back there.
+	plannedRoom map[int64]int64
+	// withoutDeviceSession marks a planned demo day: the blocks run without
+	// kiosk sessions, so there is no device session to swap supervisors on.
+	withoutDeviceSession bool
 }
 
 func (ls *liveState) now() time.Time {
@@ -225,7 +231,11 @@ func runLiveTick(client Client, ls *liveState, state *SeedState, device SeedDevi
 		counts.schulhofRotates++
 
 	case roll < 95:
-		// Attendance toggle (10%)
+		// Attendance toggle (10%); the kiosk confirms attendance only inside
+		// a session of its own.
+		if ls.withoutDeviceSession {
+			return nil
+		}
 		if err := liveAttendanceToggle(client, ls, state, device, now); err != nil {
 			counts.errors++
 			return err
@@ -234,6 +244,9 @@ func runLiveTick(client Client, ls *liveState, state *SeedState, device SeedDevi
 
 	default:
 		// Supervisor swap (5%)
+		if ls.withoutDeviceSession {
+			return nil
+		}
 		if err := liveSupervisorSwap(client, ls, state, device, now); err != nil {
 			counts.errors++
 			return err
@@ -314,6 +327,9 @@ func liveReturnFromUnterwegs(client Client, ls *liveState, state *SeedState, dev
 	student := findStudent(state.Students, studentID)
 
 	roomID := ls.roomIDs[rand.Intn(len(ls.roomIDs))]
+	if planned := ls.plannedRoom[studentID]; planned != 0 {
+		roomID = planned
+	}
 	_, err := client.DevicePost("/api/iot/checkin", map[string]any{
 		"student_rfid": rfid,
 		"action":       "checkin",

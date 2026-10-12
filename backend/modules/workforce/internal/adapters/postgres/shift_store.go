@@ -197,10 +197,10 @@ func applyStaffShiftFilter(query *bun.SelectQuery, filter domain.StaffShiftFilte
 		}
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit)
+		query = query.Limit(int64(filter.Limit))
 	}
 	if filter.Offset > 0 {
-		query = query.Offset(filter.Offset)
+		query = query.Offset(int64(filter.Offset))
 	}
 	return query, false
 }

@@ -220,6 +220,15 @@ type TransferReader interface {
 	GroupHandovers(ctx context.Context, groupID int64, date Date) ([]Transfer, error)
 }
 
+// Resolver resolves the request tenant's settings. The retained adapter
+// builds Settings and the caller's overview decision over it and prefetches
+// the keys it reads once per request.
+type Resolver interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+	Prefetch(ctx context.Context, keys []string) (context.Context, error)
+}
+
 // Settings reads the tenant settings the projection depends on.
 type Settings interface {
 	// Prepare prefetches the request's settings snapshot and returns the

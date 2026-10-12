@@ -77,7 +77,7 @@ func filterActivityExceptions(query *bun.SelectQuery, filter domain.ActivityExce
 		query = query.OrderExpr(`"activity_exception".exception_date ASC, "activity_exception".id ASC`)
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit).Offset(filter.Offset)
+		query = query.Limit(int64(filter.Limit)).Offset(int64(filter.Offset))
 	}
 	return query
 }

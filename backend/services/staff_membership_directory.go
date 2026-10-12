@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -17,11 +17,45 @@ import (
 // #3752. users.staff and users.teachers belong to School Membership and
 // Workforce, so the lookups and the staff write orchestration are bound here
 // over the retained repositories and injected into the person service through
-// the users.StaffDirectory port.
+// the peopleCompose.StaffDirectory port.
 //
 // Reads return the repository result and error verbatim: callers (IoT device
 // flows, PyrePortal) branch on sql.ErrNoRows and render err.Error() into
 // response bodies.
+
+// The staff write refusals. The staff directory raises them and the staff
+// membership runtime classifies them, both in this composition, so they live
+// here rather than in People Directory's error vocabulary (#3753). The
+// messages are rendered verbatim and must not change.
+var (
+	// ErrStaffAdoptionNotPermitted indicates a staff-creation request landed on
+	// a person who already carries a live staff record, from a caller that may
+	// only create. Adopting that record writes the notes and the caregiver
+	// fields of someone who is already in the directory, which is an edit — and
+	// POST /api/staff is gated on users:create alone.
+	//
+	// Since #2906 the required authority is staff:manage — the same one
+	// PUT /api/staff/{id} needs. Admins hold it through the admin:* wildcard,
+	// so this refuses the direct-API case, not the staff form.
+	ErrStaffAdoptionNotPermitted = errors.New("Für das Ändern eines vorhandenen Mitarbeiter-Datensatzes fehlt die Berechtigung") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrStaffLehrkraftCaregiverProfile indicates a caregiver profile was
+	// requested for an account holding the Lehrkraft system role (#1772). That
+	// role is class_day:read only and is provisioned without a profile on
+	// purpose; the role-assignment paths refuse the same combination from the
+	// other direction (ErrRoleLehrkraftCaregiverProfile).
+	ErrStaffLehrkraftCaregiverProfile = errors.New("Ein Lehrkraft-Konto kann kein Betreuungsprofil erhalten") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrStaffInUse indicates staff has attendance records or active supervisions
+	ErrStaffInUse = errors.New("Personal kann nicht gelöscht werden: Mitarbeiter/in hat aktive Aufsichten oder Anwesenheitseinträge") //nolint:staticcheck // ST1005: user-facing German message
+)
+
+// LehrkraftRoleQuery is the consumer-owned port over the Identity & Access
+// role administration: whether the account holds the Lehrkraft system role at
+// the tenant in context (#3314).
+type LehrkraftRoleQuery interface {
+	AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error)
+}
 
 // StaffDirectoryDependencies are the retained collaborators of the staff
 // directory.
@@ -30,7 +64,7 @@ type StaffDirectoryDependencies struct {
 	Persons        userModels.PersonRepository
 	Staff          userModels.StaffRepository
 	Teachers       userModels.TeacherRepository
-	LehrkraftRoles users.LehrkraftRoleQuery
+	LehrkraftRoles LehrkraftRoleQuery
 }
 
 type staffMembershipDirectory struct {
@@ -38,11 +72,11 @@ type staffMembershipDirectory struct {
 	persons        userModels.PersonRepository
 	staff          userModels.StaffRepository
 	teachers       userModels.TeacherRepository
-	lehrkraftRoles users.LehrkraftRoleQuery
+	lehrkraftRoles LehrkraftRoleQuery
 }
 
 // NewStaffDirectory binds the staff directory over the retained repositories.
-func NewStaffDirectory(deps StaffDirectoryDependencies) users.StaffDirectory {
+func NewStaffDirectory(deps StaffDirectoryDependencies) peopleCompose.StaffDirectory {
 	if deps.Staff == nil {
 		panic("staff directory: the staff repository is required")
 	}
@@ -105,7 +139,7 @@ func (s *staffMembershipDirectory) ListTeachersWithStaffAndPerson(ctx context.Co
 // in, not the state the request asked for: an adopted staff row can already
 // carry a live caregiver profile, and a request that did not ask for one does
 // not remove it (see liveTeacherForStaff).
-func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, input users.CreateStaffInput) (*userModels.Staff, *userModels.Teacher, bool, error) {
+func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, input peopleCompose.CreateStaffInput) (*userModels.Staff, *userModels.Teacher, bool, error) {
 	var staff *userModels.Staff
 	var teacher *userModels.Teacher
 	teacherCreationFailed := false
@@ -128,7 +162,7 @@ func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, i
 			// caregiver profile onto them, and neither does users:update,
 			// which the plain Betreuer role holds for the child-data surfaces.
 			if !securityruntime.HasPermission(securityruntime.PermissionStaffManage, input.ActorPermissions) {
-				return users.ErrStaffAdoptionNotPermitted
+				return ErrStaffAdoptionNotPermitted
 			}
 			existing.StaffNotes = input.StaffNotes
 			if err := s.staff.Update(ctx, existing); err != nil {
@@ -197,7 +231,7 @@ func (s *staffMembershipDirectory) refuseCaregiverProfileForLehrkraft(ctx contex
 		return err
 	}
 	if isLehrkraft {
-		return users.ErrStaffLehrkraftCaregiverProfile
+		return ErrStaffLehrkraftCaregiverProfile
 	}
 	return nil
 }
@@ -216,7 +250,7 @@ func (s *staffMembershipDirectory) refuseCaregiverProfileForLehrkraft(ctx contex
 // the row carries group supervisions, and removing it is what staff offboarding
 // does — the same reason the operator paths refuse a Lehrkraft role change
 // rather than clearing the profile out from under it. UpdateStaffWithTeacher
-// answers the identical question the identical way (users.TeacherActionExisting).
+// answers the identical question the identical way (peopleCompose.TeacherActionExisting).
 //
 // Lookup errors are swallowed to nil, matching the non-fatal contract of
 // everything else touching the teacher record here: a failed read must not sink
@@ -231,7 +265,7 @@ func (s *staffMembershipDirectory) liveTeacherForStaff(ctx context.Context, staf
 
 // ensureTeacherForStaff creates the caregiver profile or updates the live one.
 // Failures are non-fatal by design (see CreateStaffWithTeacher).
-func (s *staffMembershipDirectory) ensureTeacherForStaff(ctx context.Context, staffID int64, input users.CreateStaffInput) (*userModels.Teacher, bool) {
+func (s *staffMembershipDirectory) ensureTeacherForStaff(ctx context.Context, staffID int64, input peopleCompose.CreateStaffInput) (*userModels.Teacher, bool) {
 	existing, err := s.teachers.FindByStaffID(ctx, staffID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, true
@@ -262,9 +296,9 @@ func (s *staffMembershipDirectory) ensureTeacherForStaff(ctx context.Context, st
 // locked staff row, reloads it with person data, and applies the requested
 // teacher-record change. Teacher-record failures are non-fatal; the staff
 // update always persists.
-func (s *staffMembershipDirectory) UpdateStaffWithTeacher(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, users.TeacherAction, error) {
+func (s *staffMembershipDirectory) UpdateStaffWithTeacher(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, peopleCompose.TeacherAction, error) {
 	var teacher *userModels.Teacher
-	action := users.TeacherActionNone
+	action := peopleCompose.TeacherActionNone
 
 	tenantID := tenant.FromContext(ctx)
 	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
@@ -301,7 +335,7 @@ func (s *staffMembershipDirectory) UpdateStaffWithTeacher(ctx context.Context, s
 		if !isTeacher {
 			if existingTeacher != nil {
 				teacher = existingTeacher
-				action = users.TeacherActionExisting
+				action = peopleCompose.TeacherActionExisting
 			}
 			return nil
 		}
@@ -311,11 +345,11 @@ func (s *staffMembershipDirectory) UpdateStaffWithTeacher(ctx context.Context, s
 			existingTeacher.Role = role
 			existingTeacher.Qualifications = qualifications
 			if s.teachers.Update(ctx, existingTeacher) != nil {
-				action = users.TeacherActionUpdateFailed
+				action = peopleCompose.TeacherActionUpdateFailed
 				return nil
 			}
 			teacher = existingTeacher
-			action = users.TeacherActionUpdated
+			action = peopleCompose.TeacherActionUpdated
 			return nil
 		}
 
@@ -326,14 +360,14 @@ func (s *staffMembershipDirectory) UpdateStaffWithTeacher(ctx context.Context, s
 			Qualifications: qualifications,
 		}
 		if s.teachers.Create(ctx, newTeacher) != nil {
-			action = users.TeacherActionCreateFailed
+			action = peopleCompose.TeacherActionCreateFailed
 			return nil
 		}
 		teacher = newTeacher
-		action = users.TeacherActionCreated
+		action = peopleCompose.TeacherActionCreated
 		return nil
 	}); err != nil {
-		return nil, users.TeacherActionNone, err
+		return nil, peopleCompose.TeacherActionNone, err
 	}
 
 	return teacher, action, nil

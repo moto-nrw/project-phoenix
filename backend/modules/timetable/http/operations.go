@@ -24,13 +24,13 @@ import (
 )
 
 type spontaneousStartRequest struct {
-	Title           string  `json:"title"`
-	Description     *string `json:"description,omitempty"`
-	Notes           *string `json:"notes,omitempty"`
-	RoomID          int64   `json:"room_id"`
-	ActivityGroupID *int64  `json:"activity_group_id,omitempty"`
-	StaffIDs        []int64 `json:"staff_ids,omitempty"`
-	StudentIDs      []int64 `json:"student_ids,omitempty"`
+	Title           string          `json:"title"`
+	Description     *string         `json:"description,omitempty"`
+	Notes           *string         `json:"notes,omitempty"`
+	RoomID          int64           `json:"room_id"`
+	ActivityGroupID *int64          `json:"activity_group_id,omitempty"`
+	StaffIDs        []common.JSONID `json:"staff_ids,omitempty"`
+	StudentIDs      []int64         `json:"student_ids,omitempty"`
 }
 
 func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
@@ -217,14 +217,18 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		return
 	}
 
-	req.StaffIDs = appendUniquePositive(req.StaffIDs, currentStaffID)
+	staffIDs := make([]int64, 0, len(req.StaffIDs)+1)
+	for _, staffID := range req.StaffIDs {
+		staffIDs = append(staffIDs, staffID.Int64())
+	}
+	staffIDs = appendUniquePositive(staffIDs, currentStaffID)
 	createdBy := currentStaffID
 	// Room and caller validation can span a Berlin day boundary. Capture the
 	// authoritative start window immediately before the first write-capable
 	// step so a request that crosses into a weekend cannot mutate anything.
-	window, err := spontaneousStartWorkdayWindow(rs.Now())
+	window, err := spontaneousStartWorkdayWindow(r.Context(), rs.Now())
 	if err != nil {
-		common.RenderError(w, r, codedInvalid(err))
+		renderWorkdayRefusal(w, r, err, "")
 		return
 	}
 	activityGroupID, err := rs.TimetableData.ResolveSpontaneousActivity(r.Context(), req.Title, req.ActivityGroupID, createdBy)
@@ -234,10 +238,10 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	}
 	// Activity resolution can create metadata and therefore cross a Berlin day
 	// boundary. Recheck immediately before creating the activity instance.
-	window, err = spontaneousStartWorkdayWindow(rs.Now())
+	window, err = spontaneousStartWorkdayWindow(r.Context(), rs.Now())
 	if err != nil {
 		tenant.MarkRollback(r.Context())
-		common.RenderError(w, r, codedInvalid(err))
+		renderWorkdayRefusal(w, r, err, "")
 		return
 	}
 
@@ -251,7 +255,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		Notes:            req.Notes,
 		RoomID:           req.RoomID,
 		ActivityGroupID:  activityGroupID,
-		StaffIDs:         req.StaffIDs,
+		StaffIDs:         staffIDs,
 		CreatedByStaffID: &createdBy,
 	})
 	if err != nil {
@@ -283,8 +287,8 @@ func (rs *Resource) admitSpontaneousStart(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return nil, 0, false
 	}
-	if _, err := spontaneousStartWorkdayWindow(rs.Now()); err != nil {
-		common.RenderError(w, r, codedInvalid(err))
+	if _, err := spontaneousStartWorkdayWindow(r.Context(), rs.Now()); err != nil {
+		renderWorkdayRefusal(w, r, err, "")
 		return nil, 0, false
 	}
 	if len(req.StudentIDs) > 0 {
@@ -373,9 +377,9 @@ func serverSpontaneousActivityWindow(now time.Time) spontaneousActivityWindow {
 	}
 }
 
-func spontaneousStartWorkdayWindow(now time.Time) (spontaneousActivityWindow, error) {
+func spontaneousStartWorkdayWindow(ctx context.Context, now time.Time) (spontaneousActivityWindow, error) {
 	window := serverSpontaneousActivityWindow(now)
-	if err := validateTimetableWorkday(window.date); err != nil {
+	if err := validateTimetableWorkday(ctx, window.date); err != nil {
 		return spontaneousActivityWindow{}, err
 	}
 	return window, nil
@@ -439,6 +443,70 @@ func (rs *Resource) operationsCheckInStudent(w http.ResponseWriter, r *http.Requ
 		redactOperationRosterPickupTimes(result)
 	}
 	common.Respond(w, r, http.StatusOK, result, "Student checked in to timetable instance")
+}
+
+// maxBulkCheckInStudents bounds one bulk check-in. A school's whole roster of
+// present children fits; anything above is not a selection a person made.
+const maxBulkCheckInStudents = 500
+
+type bulkCheckInRequest struct {
+	StudentIDs []common.JSONID `json:"student_ids"`
+	studentIDs []int64
+}
+
+// Bind rejects an empty or oversized selection and non-positive IDs, and
+// drops duplicates while keeping the order of first appearance.
+func (req *bulkCheckInRequest) Bind(_ *http.Request) error {
+	if len(req.StudentIDs) == 0 {
+		return errors.New("student_ids is required")
+	}
+	if len(req.StudentIDs) > maxBulkCheckInStudents {
+		return errors.New("student_ids cannot exceed 500 entries")
+	}
+	seen := make(map[int64]struct{}, len(req.StudentIDs))
+	unique := make([]int64, 0, len(req.StudentIDs))
+	for _, studentID := range req.StudentIDs {
+		id := studentID.Int64()
+		if id <= 0 {
+			return errors.New("student_ids must be positive")
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	req.studentIDs = unique
+	return nil
+}
+
+// operationsCheckInStudents checks a selection of children into a running
+// block in one transaction (#3824): the children a spontaneous activity takes
+// over from the Ganztag are picked together, not one search at a time.
+func (rs *Resource) operationsCheckInStudents(w http.ResponseWriter, r *http.Request) {
+	if rs.OperationsService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
+		return
+	}
+	instanceID, ok := parseOperationID(w, r, "id")
+	if !ok {
+		return
+	}
+	req := &bulkCheckInRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	accountID, isAdmin := operationActor(r.Context())
+	result, err := rs.OperationsService.CheckInStudents(r.Context(), accountID, isAdmin, instanceID, req.studentIDs)
+	if err != nil {
+		rs.renderOperationsError(w, r, err)
+		return
+	}
+	if !canViewOperationPickupTimes(r.Context()) {
+		redactOperationRosterPickupTimes(result)
+	}
+	common.Respond(w, r, http.StatusOK, result, "Students checked in to timetable instance")
 }
 
 func (rs *Resource) operationsCheckOutStudent(w http.ResponseWriter, r *http.Request) {

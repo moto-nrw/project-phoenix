@@ -108,7 +108,6 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		TargetOverrides:    workforceCapability,
 		ExportTransfer:     stubExportTransfer{},
 		Identity:           testIdentity,
-		DB:                 db,
 		Logger:             slog.Default(),
 	})
 

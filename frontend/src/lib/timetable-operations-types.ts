@@ -19,6 +19,18 @@ export interface PlannedTimetableInstance {
    * number is explained rather than silently smaller.
    */
   notScheduledStudentsCount: number;
+  /**
+   * Kinder, die gerade da sind: anwesend und nicht gegangen, auch ungeplant
+   * dazugekommene (#3921). presentStudentsCount zählt die Gegangenen mit.
+   */
+  currentStudentsCount?: number;
+  /**
+   * Die eigenen Kinder des Blocks an diesem Tag: noch erwartet oder schon
+   * gekommen, ohne ungeplant dazugekommene und ohne Abwesende (#3921).
+   */
+  plannedStudentsCount?: number;
+  /** Spontan gestartet: das Ende steht erst beim Beenden fest (#3921). */
+  isSpontaneous?: boolean;
   assignedStaffIds: string[];
   isAssigned: boolean;
   isPrimary: boolean;
@@ -186,6 +198,9 @@ interface BackendPlannedTimetableInstance {
   expected_students_count: number;
   not_scheduled_students_count?: number;
   present_students_count: number;
+  current_students_count?: number;
+  planned_students_count?: number;
+  is_spontaneous?: boolean;
   assigned_staff_ids: number[];
   is_assigned?: boolean;
   is_primary?: boolean;
@@ -297,6 +312,13 @@ export function mapPlannedInstance(
     expectedStudentsCount: raw.expected_students_count,
     presentStudentsCount: raw.present_students_count,
     notScheduledStudentsCount: raw.not_scheduled_students_count ?? 0,
+    ...(raw.current_students_count === undefined
+      ? {}
+      : { currentStudentsCount: raw.current_students_count }),
+    ...(raw.planned_students_count === undefined
+      ? {}
+      : { plannedStudentsCount: raw.planned_students_count }),
+    ...(raw.is_spontaneous === true ? { isSpontaneous: true } : {}),
     assignedStaffIds: raw.assigned_staff_ids.map(String),
     isAssigned: raw.is_assigned ?? false,
     isPrimary: raw.is_primary ?? false,

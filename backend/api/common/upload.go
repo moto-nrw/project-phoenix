@@ -11,8 +11,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/moto-nrw/project-phoenix/internal/randstr"
-	"github.com/moto-nrw/project-phoenix/internal/storage"
+	storage "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
 // AllowedImageTypes maps MIME types detected by http.DetectContentType to allowed image formats.
@@ -138,7 +138,7 @@ func SavePDF(file io.Reader, targetDir, prefix string) (string, error) {
 }
 
 func saveUploadedFile(file io.Reader, targetDir, prefix, ext string) (string, error) {
-	randomStr, err := randstr.String(8, randstr.Alphanumeric)
+	randomStr, err := securityruntime.UploadFilenameSuffix()
 	if err != nil {
 		return "", errors.New("failed to generate filename")
 	}
@@ -173,7 +173,7 @@ func saveThroughStorage(file io.Reader, targetDir, filename string, opts storage
 	if err != nil {
 		return "", errors.New("failed to save file")
 	}
-	if _, err := backend.Save(context.Background(), key, file, opts); err != nil {
+	if _, err := backend.WriteObject(context.Background(), key, file, opts); err != nil {
 		return "", errors.New("failed to save file")
 	}
 	return filepath.Join(dir, filename), nil
@@ -210,19 +210,19 @@ func servePublicFile(w http.ResponseWriter, r *http.Request, baseDir, filename, 
 		return
 	}
 
-	object, err := backend.Open(r.Context(), key)
+	object, err := backend.OpenObject(r.Context(), key)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 	defer func() {
-		if err := object.Close(); err != nil {
+		if err := object.Content.Close(); err != nil {
 			slog.Default().Error("file close error", slog.String("error", err.Error()))
 		}
 	}()
 
 	w.Header().Set("Cache-Control", cacheControl)
-	http.ServeContent(w, r, filename, object.ModTime(), object)
+	http.ServeContent(w, r, filename, object.ModifiedAt, object.Content)
 }
 
 // RemoveImage deletes a file from disk, logging any error.
@@ -244,7 +244,7 @@ func RemoveImage(filePath string) {
 			slog.String("error", err.Error()))
 		return
 	}
-	if err := backend.Remove(context.Background(), key); err != nil {
+	if err := backend.RemoveObject(context.Background(), key); err != nil {
 		slog.Default().Error("failed to remove file",
 			slog.String("path", filePath),
 			slog.String("error", err.Error()))

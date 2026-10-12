@@ -170,6 +170,45 @@ test("erzeugt Rohbilder, Mockups und Manifest für zwei Shots", async () => {
   }
 });
 
+test("ein Klick der Vorbereitung darf auf eine Detailseite wechseln", async () => {
+  // Detailseiten tragen IDs aus dem Seed; der Shot erreicht sie über die
+  // Liste. Die Kindersuche hat außerdem animierte Schaltflächen und Räume
+  // pulsierende Status-Punkte: beides ist kein Fehler und kein Ladezustand.
+  const outDir = test.info().outputPath("ausgabe-klick");
+  const shots = parseShotList(`
+shots:
+  - id: kinderdetail
+    titel: Kinderdetail über die Suche
+    portal: tenant
+    rolle: admin
+    pfad: /students/search
+    geraete: [macbook]
+    vorbereitung:
+      - klicken: 'role=button[name="Emir Yilmaz - Details öffnen"]'
+      - warten_auf: 'role=heading[name="Emir Yilmaz"]'
+  - id: raeume
+    titel: Räume mit belegten Räumen
+    portal: tenant
+    rolle: admin
+    pfad: /rooms
+    geraete: [macbook]
+`);
+  const manifest = await runPipeline({
+    access: stack!,
+    shots,
+    outDir,
+    version: "test",
+    now: NOW,
+  });
+  expect(manifest.shots.map((shot) => shot.id)).toEqual([
+    "kinderdetail",
+    "raeume",
+  ]);
+  expect(await exists(join(outDir, "kinderdetail", "roh-macbook.png"))).toBe(
+    true,
+  );
+});
+
 test("ein Shot mit nicht existierender Route bricht den Lauf ab und gibt nichts aus", async () => {
   const outDir = test.info().outputPath("ausgabe-abbruch");
   const shots = parseShotList(`

@@ -3,7 +3,7 @@ package users
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,9 +12,9 @@ import (
 // Diese Tests halten genau diese Ableitung fest — ohne Datenbank, weil daran
 // nichts mandantenabhängig ist.
 
-func date(t *testing.T, iso string) timezone.Date {
+func date(t *testing.T, iso string) calendar.Date {
 	t.Helper()
-	d, err := timezone.ParseDate(iso)
+	d, err := calendar.ParseDate(iso)
 	require.NoError(t, err)
 	return d
 }

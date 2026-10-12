@@ -215,3 +215,32 @@ func ValidateClock(value, field string) error {
 	}
 	return nil
 }
+
+// ScheduleVersionStart is the day a replaced schedule starts: today, or the
+// requested earlier day. An earlier day is accepted for the first schedule of
+// a staff member only, so the Soll of days a version already priced never
+// changes. It must also not fall into a closed month, whose figures are
+// frozen. A future start is not supported.
+func ScheduleVersionStart(validFrom, today string, hasHistory bool, closed []*StaffMonthBalanceSnapshot) (string, error) {
+	if validFrom == "" || validFrom == today {
+		return today, nil
+	}
+	if err := ValidateDate(validFrom, "valid_from"); err != nil {
+		return "", err
+	}
+	if validFrom > today {
+		return "", invalid("valid_from must not be after today")
+	}
+	if hasHistory {
+		return "", invalid("valid_from before today is only allowed for the first schedule of a staff member")
+	}
+	for _, snapshot := range closed {
+		if snapshot == nil || snapshot.ReopenedAt != nil {
+			continue
+		}
+		if month := fmt.Sprintf("%04d-%02d", snapshot.Year, snapshot.Month); validFrom[:7] <= month {
+			return "", invalid("valid_from falls into the closed month %s", month)
+		}
+	}
+	return validFrom, nil
+}

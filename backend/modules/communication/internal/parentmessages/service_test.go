@@ -1,8 +1,8 @@
 package messaging_test
 
 // Integration tests for the staff-side parent-OGS messaging service. They run
-// against the real test DB through the real repositories, the real PersonService
-// (for staff-name resolution and the read-access student load), the shared
+// against the real test DB through the real repositories, the real person
+// directory (for staff-name resolution and the read-access student load), the shared
 // parentmessaging core, and a capturing broadcaster, so the inbox / thread /
 // reply / new-conversation flows and their authorization and feature-flag gates
 // are exercised end to end exactly as the HTTP handlers drive them.
@@ -27,8 +27,8 @@ import (
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -91,13 +91,9 @@ type fixture struct {
 	staffAccount int64
 }
 
-func newPersons(repos *repositories.Factory, db *bun.DB) usersService.PersonService {
-	return usersService.NewPersonService(usersService.PersonServiceDependencies{
-		PersonRepo:    repos.Person,
-		AccountExists: repositories.AccountExists(repos.Profile),
-		StudentRepo:   repos.Student,
-		DB:            db,
-		Logger:        slog.Default(),
+func newPersons(repos *repositories.Factory, db *bun.DB) messaging.PersonLookup {
+	return services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
+		Persons: repos.Person, Students: repos.Student, AccountExists: repositories.AccountExists(repos.Profile),
 	})
 }
 

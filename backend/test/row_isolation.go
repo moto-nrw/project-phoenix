@@ -36,7 +36,7 @@ func AssertTenantRowIsolation(tb testing.TB, db *bun.DB, ownCtx, foreignCtx cont
 	require.NoError(tb, tenant.WithTenantTx(foreignCtx, db, tenant.FromContext(foreignCtx), func(ctx context.Context, tx bun.Tx) error {
 		count, err := tx.NewSelect().Table(table).Where("id = ?", foreignID).Count(ctx)
 		require.NoError(tb, err)
-		assert.Equal(tb, 1, count, "foreign row must survive attempted mutation")
+		assert.Equal(tb, 1, int(count), "foreign row must survive attempted mutation")
 		return nil
 	}))
 }

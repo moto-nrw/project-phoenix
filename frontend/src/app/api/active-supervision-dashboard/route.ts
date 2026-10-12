@@ -88,6 +88,7 @@ interface WireOpenRoomSession {
     instance_id: string;
     start_time: string;
     end_time: string;
+    is_spontaneous?: boolean;
     is_user_assigned: boolean;
     can_operate: boolean;
   } | null;
@@ -115,6 +116,9 @@ interface WirePlannedInstance {
   expected_students_count: number;
   present_students_count: number;
   not_scheduled_students_count?: number;
+  current_students_count?: number;
+  planned_students_count?: number;
+  is_spontaneous?: boolean;
   assigned_staff_ids: number[];
   is_assigned?: boolean;
   is_primary?: boolean;
@@ -315,6 +319,7 @@ interface ActiveSupervisionDashboardResponse {
         instanceId: string;
         startTime: string;
         endTime: string;
+        isSpontaneous?: boolean;
         isUserAssigned: boolean;
         canOperate: boolean;
       } | null;
@@ -361,6 +366,12 @@ interface ActiveSupervisionDashboardResponse {
     expectedStudentsCount: number;
     presentStudentsCount: number;
     notScheduledStudentsCount: number;
+    /** Kinder, die gerade da sind; ohne die Gegangenen (#3921). */
+    currentStudentsCount?: number;
+    /** Eigene Kinder des Blocks, ohne ungeplant dazugekommene (#3921). */
+    plannedStudentsCount?: number;
+    /** Spontane Blöcke haben bis zum Beenden kein festes Ende (#3921). */
+    isSpontaneous?: boolean;
     assignedStaffIds: string[];
     isAssigned: boolean;
     isPrimary: boolean;
@@ -472,6 +483,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
               instanceId: session.block.instance_id,
               startTime: session.block.start_time,
               endTime: session.block.end_time,
+              isSpontaneous: session.block.is_spontaneous === true,
               isUserAssigned: session.block.is_user_assigned,
               canOperate: session.block.can_operate,
             }
@@ -525,6 +537,15 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
       expectedStudentsCount: i.expected_students_count,
       presentStudentsCount: i.present_students_count,
       notScheduledStudentsCount: i.not_scheduled_students_count ?? 0,
+      ...(i.current_students_count === undefined
+        ? {}
+        : { currentStudentsCount: i.current_students_count }),
+      ...(i.planned_students_count === undefined
+        ? {}
+        : { plannedStudentsCount: i.planned_students_count }),
+      ...(i.is_spontaneous === undefined
+        ? {}
+        : { isSpontaneous: i.is_spontaneous }),
       assignedStaffIds: (i.assigned_staff_ids ?? []).map(String),
       isAssigned: i.is_assigned ?? false,
       isPrimary: i.is_primary ?? false,

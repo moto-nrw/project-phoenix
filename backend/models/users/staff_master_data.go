@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Gender values for users.staff_master_data.gender. Nil means "keine Angabe".
@@ -35,9 +35,9 @@ type StaffMasterData struct {
 	EmergencyContactName  *string `bun:"emergency_contact_name" json:"emergency_contact_name,omitempty"`
 	EmergencyContactPhone *string `bun:"emergency_contact_phone" json:"emergency_contact_phone,omitempty"`
 
-	EntryDate        *timezone.Date `bun:"entry_date,type:date" json:"entry_date,omitempty"`
-	ContractEndDate  *timezone.Date `bun:"contract_end_date,type:date" json:"contract_end_date,omitempty"`
-	ProbationEndDate *timezone.Date `bun:"probation_end_date,type:date" json:"probation_end_date,omitempty"`
+	EntryDate        *calendar.Date `bun:"entry_date,type:date" json:"entry_date,omitempty"`
+	ContractEndDate  *calendar.Date `bun:"contract_end_date,type:date" json:"contract_end_date,omitempty"`
+	ProbationEndDate *calendar.Date `bun:"probation_end_date,type:date" json:"probation_end_date,omitempty"`
 	WeeklyHours      *float64       `bun:"weekly_hours" json:"weekly_hours,omitempty"`
 }
 
@@ -74,8 +74,8 @@ type StaffQualification struct {
 	base.TenantModel
 	StaffID    int64          `bun:"staff_id,notnull" json:"staff_id"`
 	Name       string         `bun:"name,notnull" json:"name"`
-	AcquiredOn *timezone.Date `bun:"acquired_on,type:date" json:"acquired_on,omitempty"`
-	ExpiresOn  *timezone.Date `bun:"expires_on,type:date" json:"expires_on,omitempty"`
+	AcquiredOn *calendar.Date `bun:"acquired_on,type:date" json:"acquired_on,omitempty"`
+	ExpiresOn  *calendar.Date `bun:"expires_on,type:date" json:"expires_on,omitempty"`
 }
 
 // Validate ensures the qualification row is storable.

@@ -163,7 +163,7 @@ export function useSchulhofActions(
         activity_group_id: schulhofState.activityGroupId
           ? Number(schulhofState.activityGroupId)
           : undefined,
-        staff_ids: [Number(currentStaffId)],
+        staff_ids: [currentStaffId],
       });
     } catch (err) {
       const occupied =

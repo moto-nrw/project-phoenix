@@ -38,6 +38,8 @@ export interface ClassArrivalExceptionDialogProps {
   readonly defaultDate: Date | null;
   /** Wird nach jedem Speichern oder Entfernen gerufen. */
   readonly onChanged?: () => void;
+  /** Die Schule betreut Sa/So nach dem Freitagsplan (#3921). */
+  readonly weekendOpen?: boolean;
 }
 
 export function ClassArrivalExceptionDialog({
@@ -46,6 +48,7 @@ export function ClassArrivalExceptionDialog({
   schoolClass,
   defaultDate,
   onChanged,
+  weekendOpen = false,
 }: ClassArrivalExceptionDialogProps) {
   // Nur Erfolgsmeldungen: Fehler zeigt das Panel selbst über den
   // gemeinsamen Fehlerweg (#2513) in seinem Formular.
@@ -99,6 +102,7 @@ export function ClassArrivalExceptionDialog({
             originLabel={(exception) =>
               exception.origin === "school" ? null : "Eingetragen von der OGS"
             }
+            weekendOpen={weekendOpen}
           />
         ) : null}
       </div>

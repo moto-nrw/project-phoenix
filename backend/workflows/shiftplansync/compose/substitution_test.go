@@ -7,10 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	substitution "github.com/moto-nrw/project-phoenix/services/education"
+	substitution "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -316,13 +318,13 @@ func TestScheduleSubstitutionExternalInterfacePermissionAndTenantIsolation(t *te
 	foreignTenant, _ := testpkg.CreateTestTenant(t, db)
 	foreignRoom := testpkg.CreateTestRoomForTenant(t, db, foreignTenant, "Fremder Raum")
 	foreignAbsent := testpkg.CreateTestStaffForTenant(t, db, foreignTenant, "Fremde", "Person")
-	foreignInstance := &scheduleModels.ActivityInstance{
-		Date: scheduleModels.Date(date), Title: "Fremder Termin", RoomID: foreignRoom.ID,
+	foreignInstance := &testpkg.ActivityInstance{
+		Date: testpkg.ScheduleDate(date), Title: "Fremder Termin", RoomID: foreignRoom.ID,
 		StartTime: time.Date(2000, time.January, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(2000, time.January, 1, 15, 0, 0, 0, time.UTC),
 		Status:    scheduleModels.InstanceStatusPlanned,
 	}
-	foreignInstance.SetTenantID(foreignTenant)
+	foreignInstance.TenantID = foreignTenant
 	testpkg.InsertActivityInstanceRow(t, context.Background(), db, foreignInstance)
 	foreignRow := &scheduleModels.InstanceStaff{InstanceID: foreignInstance.ID, StaffID: foreignAbsent.ID}
 	foreignRow.SetTenantID(foreignTenant)
@@ -503,12 +505,8 @@ func scheduleSubstitutionCaller(t *testing.T) substitution.Caller {
 // newScheduleSubstitutionModule drives the substitution module's schedule half
 // through the composed workflow: the module keeps its own authorization and
 // transaction handling, the workflow performs the deviation writes.
-func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, repositories.TimetableTestRepositories, substitution.Module) {
+func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, repositories.TimetableTestRepositories, substitution.SubstitutionModule) {
 	t.Helper()
 	env := newPlanSyncEnv(t, nil, nil)
-	return env.db, env.repos, substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
-		Schedule: env.substitution,
-		Runtime:  testpkg.TenantTransactionRuntime{},
-		Logger:   slog.Default(),
-	})
+	return env.db, env.repos, services.NewScheduleSubstitutionSuiteModule(env.substitution, testpkg.TenantTransactionRuntime{}, slog.Default())
 }

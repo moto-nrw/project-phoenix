@@ -64,7 +64,7 @@ func TestBulkUpsertBySchoolClassWritesTheClassTimetable(t *testing.T) {
 	assert.Equal(t, 2, result.StudentsAffected)
 
 	t.Run("the class carries the time exactly once", func(t *testing.T) {
-		rows := testpkg.ClassArrivalTimesOf(t, db, "7c")
+		rows := testpkg.ClassArrivalTimesOf(t, timetableClassArrivals(t, db), "7c")
 		require.Len(t, rows, 1)
 		assert.Equal(t, "11:45", rows[0].ArrivalTimes["mon"])
 	})
@@ -282,6 +282,51 @@ func TestArrivalDataForDateRangeKeepsOneRowPerWeekday(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, data.Schedules, 1)
 	assert.Equal(t, scheduleModel.WeekdayTuesday, data.Schedules[0].Weekday)
+}
+
+type weekendFridayArrivalBaseline struct{}
+
+func (weekendFridayArrivalBaseline) Project(
+	_ context.Context,
+	studentIDs []int64,
+	from, to timezone.Date,
+) (*careplan.ArrivalBaselineProjection, error) {
+	projection := &careplan.ArrivalBaselineProjection{
+		WeeklyByStudentDate:   make(careplan.ArrivalPlansByStudent, len(studentIDs)),
+		DerivedByStudentDate:  make(careplan.ArrivalPlansByStudent, len(studentIDs)),
+		BookingsAuthoritative: true,
+		WeekendFollowsFriday:  true,
+	}
+	for _, studentID := range studentIDs {
+		weekly := careplan.ArrivalPlanByDate{}
+		for date := from; !date.After(to); date = date.AddDays(1) {
+			weekly[date] = careplan.ArrivalWeek{
+				scheduleModel.WeekdayFriday: {
+					StudentID: studentID,
+					Weekday:   scheduleModel.WeekdayFriday,
+				},
+			}
+		}
+		projection.WeeklyByStudentDate[studentID] = weekly
+		projection.DerivedByStudentDate[studentID] = careplan.ArrivalPlanByDate{}
+	}
+	return projection, nil
+}
+
+func TestArrivalDataForWeekendRangeReadsFridayRows(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	ctx := testpkg.Ctx(t)
+	svc := nativeArrivalSchedules(t, repos.CarePlan(), weekendFridayArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
+	student := testpkg.CreateTestStudent(t, db, "Wochenende", "Freitag", "8n")
+	saturday := mondayOnOrAfter(timezone.TodayDate()).AddDays(5)
+
+	data, err := svc.GetStudentArrivalDataForDateRange(ctx, student.ID, saturday, saturday.AddDays(1))
+	require.NoError(t, err)
+	require.Len(t, data.Schedules, 1)
+	assert.Equal(t, scheduleModel.WeekdayFriday, data.Schedules[0].Weekday)
 }
 
 type firstMondayOnlyArrivalBaseline struct{}

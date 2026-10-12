@@ -156,6 +156,9 @@ export interface Teacher {
   /** Konto-ID als Dezimalzeichenfolge; PostgreSQL `int64` bleibt exakt. */
   account_id?: string;
   is_teacher?: boolean;
+  /** Externe Betreuungskraft ohne moto-Konto (#3823). */
+  is_external?: boolean;
+  external_organization?: string | null;
   person?: unknown; // For nested person object
   // ID fields for proper mapping
   staff_id?: string;

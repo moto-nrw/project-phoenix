@@ -1,0 +1,112 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2729",
+    "https://github.com/moto-nrw/project-phoenix/blob/development/docs/adr/0040-every-role-may-import-the-shared-kernel.md"
+  ],
+  "owner_and_capability": "People Directory: retained models/users calendar-date vocabulary, bounded contract step of #2729 implemented by #3757. User models, repository signatures and calendar helpers name sharedkernel/calendar directly; no capability behavior or runtime write ownership moves.",
+  "affected_packages": [
+    "models/users",
+    "internal/timezone",
+    "sharedkernel/calendar",
+    "test"
+  ],
+  "affected_tables": [
+    "users.persons",
+    "users.guests",
+    "users.staff_master_data",
+    "users.staff_qualifications",
+    "users.staff_notices",
+    "users.student_care_exits",
+    "users.care_withdrawal_completions",
+    "users.student_school_memberships",
+    "users.staff_employment_profiles"
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/models/users|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/models/users|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/models/users|github.com/moto-nrw/project-phoenix/internal/timezone"
+  ],
+  "atomic_cutover": "One code-only change replaces internal/timezone imports and selectors in all 12 current production files and the five specified test files of models/users with sharedkernel/calendar. CalendarDate remains an alias of the identical canonical Date; parsing, current Berlin date and instant-to-calendar conversion call the functions the old wrappers already forwarded to. Nullable fields, bun and JSON tags, validation and existing model test assertions remain unchanged. The DATE-column checker recognizes the canonical type by exact import path and symbol and recognizes actual Go aliases, while rejecting named types, timestamp aliases and lookalike packages. The three obsolete baseline entries are removed without adding any entry or policy permission.",
+  "tests": [
+    "Pinned toolchain: go test -count=1 -parallel 8 ./models/users and ./sharedkernel/calendar passed on 2026-10-08.",
+    "TestDateColumnTypes, TestActivityInstanceWallClockRatchet, TestCalendarDateAliasTypeIdentity and TestCanonicalCalendarDateTypeIdentity passed. New canonical direct-type and alias cases failed before the checker fix; existing rejection cases remain.",
+    "scripts/test-backend.sh: 28,530 tests, two configuration-dependent skips (web push and seed coverage), exit 0; scripts/test-changed.sh origin/development without --fast: all 163 affected packages passed.",
+    "Full golangci-lint reported zero issues. scripts/backend-architecture.sh check passed: 265 -> 262 legacy keys, composition 596 -> 596, policy unchanged.",
+    "Retirement coverage is checked with scripts/backend-architecture.sh validate-ticket --all --base-ref dede09c988f8d7ccbd94d34f2005dbe8eb28df9f, matching PR #3901 CI. Validation without --base-ref only checks record validity and does not prove coverage of retired keys."
+  ],
+  "runtime_evidence": {
+    "source": "Observed local verification of commit 939b88b25f125ce40d3efb8bf80d6834b6523450 on 2026-10-08 in the #3757 worktree; PR #3901 CI separately passed backend quality, lint and seed/simulate smoke. The initial CI architecture job exposed the missing retirement-evidence record.",
+    "sources": [
+      "backend/internal/timezone/date.go",
+      "backend/sharedkernel/calendar/date.go",
+      "backend/models/users/student_directory_filter.go",
+      "backend/test/calendar_date_alias_test.go",
+      "backend/test/calendar_date_verification_test.go",
+      "https://github.com/moto-nrw/project-phoenix/actions/runs/37750881794/job/113223893638",
+      "https://github.com/moto-nrw/project-phoenix/actions/runs/37750881794/job/113223893729"
+    ],
+    "workload": "No load benchmark. Focused uncached model/calendar tests, the full backend suite and all 163 affected packages ran via scripts/run-go-toolchain.sh. Database suites used isolated package clones and per-test tenants on the existing managed localhost:5553 test server; the worktree test port could not allocate a Docker default network. No local environment files were changed.",
+    "thresholds": "Behavior-preserving import cutover: the existing model assertions and DATE-column invariant pass, all three exact timezone keys are absent with no key or policy permission added, composition stays at 596 targets, and PR-base retirement validation covers all three removed keys.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "No SQL, schema or stored data changes. The replaced type was already a Go alias of calendar.Date, so the fields retain the same storage representation."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No query or caller control flow changed; this migration replaces imports, type selectors and already-forwarded calendar helpers only."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was performed. This code-only type-identity cutover changes no query, transaction or date implementation; the issue requires model tests and retirement of the exact dependency keys."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No latency benchmark was performed. This code-only type-identity cutover changes no query, transaction or date implementation; the issue requires model tests and retirement of the exact dependency keys."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "Local full backend suite and all 163 affected packages exited 0; focused model/calendar tests passed; full lint reported zero issues; architecture check passed at 262 keys and composition 596 -> 596. Two full-suite configuration skips were reported, not treated as executed checks."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "No connection acquisition, database pool or transaction boundary is changed by an import/type-alias replacement."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No SQL statement or transaction boundary changed; the cutover adds no locks or lock operations."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No write operation, transaction boundary or lock order changed."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "No scheduler or worker implementation changes; callers receive the same date type and calendar helper results."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No scheduler or worker retry behavior changes; the old helpers forward to the same canonical functions."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No scheduler or worker queue, enqueue operation or processing path changes."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Canonical direct-type and alias regression cases failed before the DATE-column checker fix and passed afterward. Rejection cases for new named types, timestamp aliases and lookalike imports also passed; no existing model assertion was weakened."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "There is no data or schema cutover to reverse. A code revert restores the previous imports, checker, three baseline entries and workplan counts without data repair."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "The full backend and affected-package suites passed locally. PR #3901 Seed & simulate smoke passed on Linux at commit 939b88b25f125ce40d3efb8bf80d6834b6523450. No manual application start or HTTP smoke was performed locally."
+    }
+  },
+  "rollback_and_cleanup": "Revert the code-only #3757 change, including the three removed baseline entries, date-checker adjustment, workplan counts and this evidence record if a caller regression is found. No database migration, environment setting, runtime adapter or cleanup task is introduced.",
+  "exit_criterion": "models/users imports no internal/timezone in production, internal tests or external tests; all three listed keys are absent, no keys or permissions are added, existing model and date-column tests pass, composition does not grow, and PR-base migration evidence validation reports all three retirements covered."
+}

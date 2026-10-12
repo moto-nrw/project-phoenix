@@ -1,6 +1,6 @@
 module github.com/moto-nrw/project-phoenix/tools/architecturecmd
 
-go 1.27.0
+go 1.27.2
 
 require github.com/moto-nrw/project-phoenix v0.0.0
 

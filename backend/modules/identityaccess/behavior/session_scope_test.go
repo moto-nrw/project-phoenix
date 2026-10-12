@@ -36,7 +36,7 @@ func assertTokenCountByPortal(t *testing.T, db *bun.DB, accountID int64, portalS
 		Where(`"token".expiry > NOW()`).
 		Count(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, want, count, "active %s sessions", portalScope)
+	require.Equal(t, int64(want), count, "active %s sessions", portalScope)
 }
 
 func TestLogoutLeavesOtherDeviceSessionsIntact(t *testing.T) {
@@ -109,7 +109,7 @@ func tokenFamilyID(t *testing.T, db *bun.DB, accountID int64, offset int) string
 		Where("account_id = ?", accountID).
 		Where("rotated_at IS NULL").
 		OrderExpr("id ASC").
-		Offset(offset).
+		Offset(int64(offset)).
 		Limit(1).
 		Scan(context.Background(), &familyID))
 	require.NotEmpty(t, familyID)
@@ -216,7 +216,7 @@ func TestSessionCapAppliesAcrossSchoolsOnSwitchTenant(t *testing.T) {
 		Where("expiry > NOW()").
 		Count(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 5, count, "switch-tenant must share the staff portal cap across schools")
+	require.Equal(t, 5, int(count), "switch-tenant must share the staff portal cap across schools")
 }
 
 func TestCleanupExpiredTokensRemovesOrphanPush(t *testing.T) {
@@ -455,7 +455,7 @@ func TestAssignRoleFromAdminTxKeepsOtherSchoolSessions(t *testing.T) {
 		Where("expiry > NOW()").
 		Count(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 1, count)
+	require.Equal(t, 1, int(count))
 }
 
 func uniqueTestName(prefix string) string {
@@ -791,7 +791,7 @@ func TestCleanupExpiredTokensDoesNotWipeReactivatedSessions(t *testing.T) {
 		Where("expiry > NOW()").
 		Count(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 1, count)
+	require.Equal(t, 1, int(count))
 }
 
 func TestActivateAccountCompletesPendingAccountWideWipeWithoutMutatingHistory(t *testing.T) {
@@ -824,7 +824,7 @@ func TestActivateAccountCompletesPendingAccountWideWipeWithoutMutatingHistory(t 
 		Where(`metadata @> ?`, `{"pending_account_wide_wipe":true}`).
 		Count(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 1, history, "completion must not update or delete the pending event")
+	require.Equal(t, 1, int(history), "completion must not update or delete the pending event")
 
 	completed, err := db.NewSelect().
 		TableExpr("audit.auth_events").
@@ -833,7 +833,7 @@ func TestActivateAccountCompletesPendingAccountWideWipeWithoutMutatingHistory(t 
 		Where(`metadata->>'pending_event_id' = ?`, fmt.Sprint(pendingID)).
 		Count(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 1, completed)
+	require.Equal(t, 1, int(completed))
 }
 
 func TestCleanupExpiredTokensLeavesSessionsCreatedAfterPendingWipe(t *testing.T) {
@@ -862,7 +862,7 @@ func TestCleanupExpiredTokensLeavesSessionsCreatedAfterPendingWipe(t *testing.T)
 		Where("expiry > NOW()").
 		Count(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 1, count)
+	require.Equal(t, 1, int(count))
 }
 
 func TestCleanupExpiredTokensRevokesRefreshedFamilyAfterPendingWipe(t *testing.T) {

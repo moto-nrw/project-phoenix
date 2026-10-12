@@ -100,10 +100,10 @@ func (s *Store) ListGroupSubstitutions(ctx context.Context, filter domain.GroupS
 	}
 	query = query.OrderExpr(`"group_substitution".id ASC`)
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit)
+		query = query.Limit(int64(filter.Limit))
 	}
 	if filter.Offset > 0 {
-		query = query.Offset(filter.Offset)
+		query = query.Offset(int64(filter.Offset))
 	}
 	stats, err := scanAll(ctx, query, "list group substitutions")
 	if err != nil {

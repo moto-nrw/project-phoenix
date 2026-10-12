@@ -80,6 +80,12 @@ func (s *InstanceLifecycleService) complete(ctx context.Context, instanceID int6
 	if err := s.updateLifecycleColumns(ctx, instance, "status", "completed_at", "completed_by", "reopen_until", "completion_snapshot"); err != nil {
 		return nil, &ScheduleError{Op: "complete instance: update", Err: err}
 	}
+	if end, ok := spontaneousCompletionEnd(instance, completedAt); ok {
+		instance.EndTime = end
+		if err := s.updateLifecycleColumns(ctx, instance, "end_time"); err != nil {
+			return nil, &ScheduleError{Op: "complete instance: record spontaneous end", Err: err}
+		}
+	}
 	s.broadcastInstanceEvent(ctx, LifecycleEventInstanceCompleted, instance, nil, nil)
 	return instance, nil
 }

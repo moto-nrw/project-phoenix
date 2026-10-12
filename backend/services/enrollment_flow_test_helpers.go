@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -12,7 +14,6 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
 
@@ -80,8 +81,8 @@ func (enrollmentFlowGuardianDirectory) ResolveGuardianDisplays(context.Context, 
 
 // NewEnrollmentFlowStudentAudit records student changes with the request's
 // audit actor, the way the root binds the decision flow's student audit.
-func NewEnrollmentFlowStudentAudit(db *bun.DB, actor users.RequestAuditActor) users.StudentAuditService {
-	return users.NewStudentAuditService(actor, repositories.NewStudentAudit(db))
+func NewEnrollmentFlowStudentAudit(db *bun.DB, actor peopleCompose.RequestAuditActor) peopleCompose.StudentAuditService {
+	return peopleCompose.NewStudentAuditService(actor, repositories.NewStudentAudit(db))
 }
 
 // NewEnrollmentFlowPickupExcusal composes Care Plan's pickup auto-excusal the

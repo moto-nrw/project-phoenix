@@ -105,18 +105,19 @@ func (s School) Live() bool { return !s.Deleted && s.Active }
 // SessionClaims is the payload an access token is built from and the shape the
 // session validation returns.
 type SessionClaims struct {
-	AccountID   int64
-	Email       string
-	Username    string
-	FirstName   string
-	LastName    string
-	Roles       []string
-	Permissions []string
-	IsAdmin     bool
-	Scope       string
-	TenantID    int64
-	OrgID       int64
-	FamilyID    string
+	AccountID    int64
+	Email        string
+	Username     string
+	FirstName    string
+	LastName     string
+	Roles        []string
+	RoleIsSystem []bool
+	Permissions  []string
+	IsAdmin      bool
+	Scope        string
+	TenantID     int64
+	OrgID        int64
+	FamilyID     string
 	// ReadOnly, ActingAdminID and PreviewID mark an admin staff-view preview
 	// token (#2893); session validation refuses to pair one with a refresh.
 	ReadOnly      bool
@@ -258,6 +259,16 @@ func RoleNames(roles []RoleAssignment) []string {
 		names = append(names, role.Name)
 	}
 	return names
+}
+
+// RoleSystemFlags preserves whether each role came from the system catalog.
+// It stays aligned with RoleNames so duplicate role names retain their origin.
+func RoleSystemFlags(roles []RoleAssignment) []bool {
+	flags := make([]bool, 0, len(roles))
+	for _, role := range roles {
+		flags = append(flags, role.IsSystem)
+	}
+	return flags
 }
 
 // IsAccountWideRevocation reports whether a revocation reason wipes every

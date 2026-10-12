@@ -105,6 +105,14 @@ const STUDENT_SCOPED_KEY_PREFIXES = [
 // The per-group student list on the OGS page ("<slug>:ogs-students-7").
 const OGS_STUDENTS_KEY_PREFIX = "ogs-students-";
 
+// Reasons the timetable lifecycle puts on active_supervision_changed
+// (instanceRefreshReason in backend/modules/timetable/compose).
+const TIMETABLE_LIFECYCLE_REASONS: ReadonlySet<string> = new Set([
+  "instance_started",
+  "instance_completed",
+  "instance_cancelled",
+]);
+
 // Every cache family that renders a child's resolved PICKUP (Gehzeit) time.
 // "active-supervision-dashboard-" carries the Aktuelle-Aufsicht pickup rows
 // since #2096 folded them into the aggregate; the key disables focus
@@ -925,6 +933,15 @@ export function useGlobalSSE(): SSEHookState {
       ) {
         hasPendingActivityEvent.current = true;
         hasPendingBroadOgsEvent.current = true;
+      } else if (
+        event.data.reason !== undefined &&
+        TIMETABLE_LIFECYCLE_REASONS.has(event.data.reason)
+      ) {
+        // A planned block started, ended or was cancelled: the running
+        // sessions changed, so the sidebar's supervision list is stale
+        // (#3888). The children moved by it arrive with their own scoped
+        // check-in/check-out events.
+        hasPendingActivityEvent.current = true;
       }
     },
     [collectEduGroupScope],

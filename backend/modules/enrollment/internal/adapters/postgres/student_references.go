@@ -61,5 +61,5 @@ func (r *Store) CountStudentReferences(ctx context.Context, studentID int64) (in
 	if err != nil {
 		return 0, fmt.Errorf("count enrollment student references: %w", err)
 	}
-	return count, nil
+	return int(count), nil
 }

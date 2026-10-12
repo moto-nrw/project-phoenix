@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -67,12 +66,12 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	_ = testpkg.CreateTestInstanceStudent(t, s.db, freshInstance.ID, studA.ID, "")
 
 	// Old exception (template-scoped cleanup).
-	oldExc := &scheduleModel.ActivityException{
+	oldExc := &testpkg.ActivityException{
 		ActivityGroupID: 0, // doesn't reference a real template; tenant-scope + date drive the delete
-		ExceptionDate:   scheduleModel.Date(oldExceptionDate),
-		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
+		ExceptionDate:   testpkg.ScheduleDate(oldExceptionDate),
+		ExceptionType:   testpkg.ScheduleExceptionCancelled,
 	}
-	oldExc.SetTenantID(s.primaryTenant)
+	oldExc.TenantID = s.primaryTenant
 	// activity_group_id is FK-constrained; point it at a throwaway template.
 	tmpl := s.buildTemplate(templateSpec{
 		name:       "FlowF-TemplatePlaceholder",
@@ -198,7 +197,7 @@ func studAStaffProxy(t *testing.T, s *scenario) int64 {
 func instanceExists(t *testing.T, s *scenario, id int64) bool {
 	t.Helper()
 	n, err := s.db.NewSelect().
-		Model((*scheduleModel.ActivityInstance)(nil)).
+		Model((*testpkg.ActivityInstance)(nil)).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Where(`"activity_instance".id = ?`, id).
 		Where(`"activity_instance".tenant_id = ?`, s.primaryTenant).
@@ -211,7 +210,7 @@ func instanceExists(t *testing.T, s *scenario, id int64) bool {
 func exceptionExists(t *testing.T, s *scenario, id int64) bool {
 	t.Helper()
 	n, err := s.db.NewSelect().
-		Model((*scheduleModel.ActivityException)(nil)).
+		Model((*testpkg.ActivityException)(nil)).
 		ModelTableExpr(`schedule.activity_exceptions AS "activity_exception"`).
 		Where(`"activity_exception".id = ?`, id).
 		Where(`"activity_exception".tenant_id = ?`, s.primaryTenant).
@@ -225,13 +224,13 @@ func exceptionExists(t *testing.T, s *scenario, id int64) bool {
 func countInstanceStudents(t *testing.T, s *scenario, instanceID int64) int {
 	t.Helper()
 	n, err := s.db.NewSelect().
-		Model((*scheduleModel.InstanceStudent)(nil)).
+		Model((*testpkg.InstanceStudent)(nil)).
 		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
 		Where(`"instance_student".instance_id = ?`, instanceID).
 		Where(`"instance_student".tenant_id = ?`, s.primaryTenant).
 		Count(s.tenantCtx())
 	require.NoError(t, err)
-	return n
+	return int(n)
 }
 
 // countAuditRows counts audit.data_deletions rows for (student, deletionType).
@@ -244,7 +243,7 @@ func countAuditRows(t *testing.T, s *scenario, studentID int64, deletionType str
 		Where(`"data_deletion".tenant_id = ?`, s.primaryTenant).
 		Count(s.tenantCtx())
 	require.NoError(t, err)
-	return n
+	return int(n)
 }
 
 // retentionAuditRow reads the retention audit row of one student: the count

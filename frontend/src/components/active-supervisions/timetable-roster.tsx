@@ -1,15 +1,24 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
-import { UserPlus } from "lucide-react";
+import {
+  useEffect,
+  useId,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from "react";
+import { UserPlus, Users } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
+import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import { Input } from "~/components/ui/input";
 import { OccupancyBadges } from "~/components/ui/occupancy-badges";
+import type { PresentChildrenPickerProps } from "~/components/active-supervisions/present-children-picker";
+import { SectionCard } from "~/components/ui/section-card";
 import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import {
@@ -26,6 +35,7 @@ import {
   canCompleteInstance,
   completeAvailableClock,
 } from "~/lib/timetable-lifecycle";
+import { hasOpenEnd } from "~/lib/block-children";
 import { TIMETABLE_VIEW_ONLY_NOTICE } from "~/lib/timetable-operation-access";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type {
@@ -543,6 +553,7 @@ interface TimetableRosterHeaderProps {
   readonly toggle?: ReactNode;
   /** Öffnet den Dialog „Kind ungeplant hinzufügen“; fehlt ohne das Recht. */
   readonly onAddStudent?: () => void;
+  readonly onAddPresentStudents?: () => void;
   readonly onComplete: () => Promise<void>;
   readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
 }
@@ -563,6 +574,7 @@ function TimetableRosterHeader({
   extraActions,
   toggle,
   onAddStudent,
+  onAddPresentStudents,
   onComplete,
   onConfirmExpected,
 }: TimetableRosterHeaderProps) {
@@ -589,7 +601,9 @@ function TimetableRosterHeader({
           Knöpfe darunter; ab sm steht der Pfeil hinter den Knöpfen, wie in
           der eingeklappten Karte. */}
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-100 p-4 sm:flex">
-        <div className="flex min-w-0 items-center gap-3">
+        {/* Ab sm hält der Titel seine Mindestbreite: viele Knöpfe brechen
+            um, statt Raum und Uhrzeit abzuschneiden. */}
+        <div className="flex min-w-0 items-center gap-3 sm:min-w-64">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
             <MotoConceptIcon concept="present" size={18} />
           </span>
@@ -612,7 +626,9 @@ function TimetableRosterHeader({
             </h2>
             <p className="truncate text-sm text-gray-600">
               {roster.instance.roomName ?? `Raum ${roster.instance.roomId}`} ·{" "}
-              {roster.instance.startTime}-{roster.instance.endTime}
+              {hasOpenEnd(roster.instance)
+                ? `seit ${roster.instance.startTime}`
+                : `${roster.instance.startTime}-${roster.instance.endTime}`}
             </p>
             {occupancy?.limit != null ? (
               <div className="mt-1 flex flex-wrap gap-1.5">
@@ -628,6 +644,18 @@ function TimetableRosterHeader({
         {toggle ? <div className="sm:order-last">{toggle}</div> : null}
         <div className="col-span-2 flex flex-wrap gap-2 sm:ml-auto sm:justify-end">
           {extraActions}
+          {attendanceWebEnabled && onAddPresentStudents ? (
+            <Button
+              type="button"
+              onClick={onAddPresentStudents}
+              variant="outline"
+              size="md"
+              className="bg-white"
+            >
+              <Users className="h-4 w-4" aria-hidden="true" />
+              Anwesende Kinder
+            </Button>
+          ) : null}
           {attendanceWebEnabled && onAddStudent ? (
             <Button
               type="button"
@@ -674,7 +702,15 @@ function TimetableRosterHeader({
           {note}
         </p>
       ) : null}
-      {showTimetableCounts ? (
+      {showTimetableCounts && roster.instance.isSpontaneous ? (
+        // Ein spontaner Block hat keine eigenen Kinder: alle sind ungeplant
+        // dazugekommen. Anwesend, Erwartet und Abwesend wären immer 0, die
+        // Kinder im Raum heißen hier wie die Liste darunter (#3921).
+        <div className="grid grid-cols-2 gap-2 p-4">
+          <RosterSummaryStat label="Teilnehmende" value={summary.unplanned} />
+          <RosterSummaryStat label="Gegangen" value={summary.departed} />
+        </div>
+      ) : showTimetableCounts ? (
         <div
           className={`grid grid-cols-2 gap-2 p-4 ${
             summary.arrivingLater > 0 ? "sm:grid-cols-6" : "sm:grid-cols-5"
@@ -884,6 +920,22 @@ interface TimetableRosterContentProps {
    */
   readonly headerToggle?: ReactNode;
   readonly onAddStudent: (studentId: string) => Promise<boolean>;
+  /**
+   * Trägt eine Auswahl der gerade anwesenden Kinder gesammelt ein (#3824).
+   * Ohne ihn fehlt die Kopf-Aktion „Anwesende Kinder“.
+   */
+  readonly onAddPresentStudents?: (studentIds: string[]) => Promise<boolean>;
+  /**
+   * Der Dialog „Anwesende Kinder hinzufügen“. Die Tenant-Seiten reichen ihn
+   * herein, damit das Schulportal, das ihn nie zeigt, ihn auch nicht mitlädt.
+   */
+  readonly presentChildrenPicker?: ComponentType<PresentChildrenPickerProps>;
+  /**
+   * Öffnet die Auswahl „Anwesende Kinder hinzufügen“ einmal von selbst, z. B.
+   * direkt nach dem Start einer spontanen Aktivität.
+   */
+  readonly presentPickerAutoOpen?: boolean;
+  readonly onPresentPickerAutoOpened?: () => void;
   readonly onComplete: () => Promise<void>;
   readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
   readonly onRosterAction: RosterRowActionsProps["onAction"];
@@ -897,8 +949,82 @@ interface TimetableRosterContentProps {
   readonly onExcuseRestOfDay?: (row: TimetableRosterRow) => Promise<void>;
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
   readonly onSearchChange: (value: string) => void;
+  /**
+   * Suche und Filter der Seite (#3889). Sie engen die Abschnitte ein, die
+   * Zahlen im Kopf bleiben die des ganzen Blocks. Ohne Filter alle Zeilen.
+   */
+  readonly rowFilter?: ((row: TimetableRosterRow) => boolean) | null;
   /** Fehler des Nachtragens; steht im Dialog „Kind ungeplant hinzufügen“. */
   readonly addStudentError?: FormErrorInput;
+}
+
+/**
+ * Sorts a roster's rows into the sections of the list. Runs once over every
+ * row for the head figures and the bulk confirm, and once over the rows the
+ * page's search and filters leave for the sections on screen (#3889).
+ */
+function rosterSections(
+  rows: readonly TimetableRosterRow[],
+  now: Date,
+  date: string,
+) {
+  const present = rows.filter((row) => row.currentlyPresent && row.planned);
+  // The care plan decides who counts as expected (#1747): rows the plan does
+  // not place here today — not booked, or the day was cancelled — go into
+  // their own section below, never into "Erwartet" and never into the bulk
+  // confirm, which would persist attendance for a child who is not coming.
+  const stillExpected = rows.filter(
+    (row) =>
+      row.planned &&
+      !row.currentlyPresent &&
+      row.status === "expected" &&
+      isCareDayExpected(row.careDayStatus),
+  );
+  // A child whose expected arrival is still ahead (six lessons instead of
+  // five, #2878) is not expected yet: it gets its own "Kommt später" section
+  // and stays out of the bulk confirm, which would check it in prematurely.
+  // Once the minute clock passes the arrival time the row moves to "Erwartet"
+  // by itself.
+  const arrivingLater = stillExpected.filter(
+    (row) => upcomingArrivalTime(row.warnings, now, date) !== null,
+  );
+  const expected = stillExpected.filter(
+    (row) => upcomingArrivalTime(row.warnings, now, date) === null,
+  );
+  // An absence a sick / excused / class-trip day status wrote onto a day the
+  // child was never booked into care belongs here too, not under "Abwesend":
+  // the block has not ended yet, so nothing has undone that false absence, and
+  // the header count already groups it this way (#1747).
+  const notScheduled = rows.filter(
+    (row) =>
+      row.planned &&
+      !row.currentlyPresent &&
+      isNotScheduledRow(row.status, row.careDayStatus),
+  );
+  const absent = rows.filter(
+    (row) =>
+      row.planned &&
+      !row.currentlyPresent &&
+      row.status === "absent" &&
+      !isNotScheduledRow(row.status, row.careDayStatus),
+  );
+  const departed = rows.filter(
+    (row) =>
+      !row.currentlyPresent &&
+      (row.status === "present" || (row.isUnplanned && row.visitId)),
+  );
+  const unplanned = rows.filter(
+    (row) => row.isUnplanned && row.currentlyPresent,
+  );
+  return {
+    present,
+    expected,
+    arrivingLater,
+    notScheduled,
+    absent,
+    departed,
+    unplanned,
+  };
 }
 
 export function TimetableRosterContent({
@@ -916,12 +1042,17 @@ export function TimetableRosterContent({
   headerActions,
   headerToggle,
   onAddStudent,
+  onAddPresentStudents,
+  presentChildrenPicker: PresentChildrenPicker,
+  presentPickerAutoOpen = false,
+  onPresentPickerAutoOpened,
   onComplete,
   onConfirmExpected,
   onRosterAction,
   onExcuseRestOfDay,
   onOpenStudent,
   onSearchChange,
+  rowFilter = null,
   addStudentError,
 }: TimetableRosterContentProps) {
   const now = useMinuteClock();
@@ -959,6 +1090,17 @@ export function TimetableRosterContent({
     .filter(Boolean)
     .join(" ");
   const [addStudentOpen, setAddStudentOpen] = useState(false);
+  const [presentPickerOpen, setPresentPickerOpen] = useState(false);
+  const presentPickerEnabled =
+    actionsEnabled &&
+    canAddUnplanned &&
+    onAddPresentStudents !== undefined &&
+    PresentChildrenPicker !== undefined;
+  useEffect(() => {
+    if (!presentPickerAutoOpen) return;
+    if (presentPickerEnabled) setPresentPickerOpen(true);
+    onPresentPickerAutoOpened?.();
+  }, [presentPickerAutoOpen, presentPickerEnabled, onPresentPickerAutoOpened]);
   const [excuseRow, setExcuseRow] = useState<TimetableRosterRow | null>(null);
   const [isExcusing, setIsExcusing] = useState(false);
   // Mit dem Recht für Teilabwesenheiten fragt „Entschuldigt“ zuerst, ob nur
@@ -993,58 +1135,24 @@ export function TimetableRosterContent({
     // wird vom gemeinsamen Such-Handler zurückgesetzt.
     onSearchChange("");
   };
-  const present = roster.rows.filter(
-    (row) => row.currentlyPresent && row.planned,
+  const closePresentPicker = () => {
+    setPresentPickerOpen(false);
+    // Fehler gehören zu diesem Dialog; der gemeinsame Such-Handler räumt sie.
+    onSearchChange("");
+  };
+  const inBlockStudentIds = new Set(
+    roster.rows
+      .filter((row) => row.currentlyPresent)
+      .map((row) => row.studentId),
   );
-  // The care plan decides who counts as expected (#1747): rows the plan does
-  // not place here today — not booked, or the day was cancelled — go into
-  // their own section below, never into "Erwartet" and never into the bulk
-  // confirm, which would persist attendance for a child who is not coming.
-  const stillExpected = roster.rows.filter(
-    (row) =>
-      row.planned &&
-      !row.currentlyPresent &&
-      row.status === "expected" &&
-      isCareDayExpected(row.careDayStatus),
-  );
-  // A child whose expected arrival is still ahead (six lessons instead of
-  // five, #2878) is not expected yet: it gets its own "Kommt später" section
-  // and stays out of the bulk confirm, which would check it in prematurely.
-  // Once the minute clock passes the arrival time the row moves to "Erwartet"
-  // by itself.
-  const arrivingLater = stillExpected.filter(
-    (row) =>
-      upcomingArrivalTime(row.warnings, now, roster.instance.date) !== null,
-  );
-  const expected = stillExpected.filter(
-    (row) =>
-      upcomingArrivalTime(row.warnings, now, roster.instance.date) === null,
-  );
-  // An absence a sick / excused / class-trip day status wrote onto a day the
-  // child was never booked into care belongs here too, not under "Abwesend":
-  // the block has not ended yet, so nothing has undone that false absence, and
-  // the header count already groups it this way (#1747).
-  const notScheduled = roster.rows.filter(
-    (row) =>
-      row.planned &&
-      !row.currentlyPresent &&
-      isNotScheduledRow(row.status, row.careDayStatus),
-  );
-  const absent = roster.rows.filter(
-    (row) =>
-      row.planned &&
-      !row.currentlyPresent &&
-      row.status === "absent" &&
-      !isNotScheduledRow(row.status, row.careDayStatus),
-  );
-  const departed = roster.rows.filter(
-    (row) =>
-      !row.currentlyPresent &&
-      (row.status === "present" || (row.isUnplanned && row.visitId)),
-  );
-  const unplanned = roster.rows.filter(
-    (row) => row.isUnplanned && row.currentlyPresent,
-  );
+  const all = rosterSections(roster.rows, now, roster.instance.date);
+  const { present, expected, arrivingLater, absent, departed, unplanned } = all;
+  // The page's search and filters narrow the sections, never the figures in
+  // the head: those describe the block, not the search (#3889).
+  const visible = rowFilter
+    ? rosterSections(roster.rows.filter(rowFilter), now, roster.instance.date)
+    : all;
+  const hasNoMatch = rowFilter ? !roster.rows.some(rowFilter) : false;
   const confirmableExpectedRows = expected.filter(
     (row) => row.planned && !row.currentlyPresent,
   );
@@ -1081,6 +1189,9 @@ export function TimetableRosterContent({
         onAddStudent={
           canAddUnplanned ? () => setAddStudentOpen(true) : undefined
         }
+        onAddPresentStudents={
+          presentPickerEnabled ? () => setPresentPickerOpen(true) : undefined
+        }
         summary={{
           absent: absent.length,
           arrivingLater: arrivingLater.length,
@@ -1112,6 +1223,17 @@ export function TimetableRosterContent({
           onSearchChange={onSearchChange}
         />
       ) : null}
+      {presentPickerEnabled && onAddPresentStudents ? (
+        <PresentChildrenPicker
+          isOpen={presentPickerOpen}
+          instanceId={roster.instance.id}
+          inBlockStudentIds={inBlockStudentIds}
+          isAdding={isAddingStudent}
+          error={addStudentError}
+          onAdd={onAddPresentStudents}
+          onClose={closePresentPicker}
+        />
+      ) : null}
       {actionAccess.absence && onExcuseRestOfDay ? (
         <ExcuseScopeModal
           instance={roster.instance}
@@ -1121,39 +1243,47 @@ export function TimetableRosterContent({
           onSelect={(scope) => void handleExcuseScope(scope)}
         />
       ) : null}
+      {hasNoMatch ? (
+        <SectionCard>
+          <EmptyStudentResults
+            totalCount={roster.rows.length}
+            filteredCount={0}
+          />
+        </SectionCard>
+      ) : null}
       <TimetableRosterSection
         title="Anwesend"
-        rows={present}
+        rows={visible.present}
         {...sectionProps}
       />
       <TimetableRosterSection
         title="Erwartet"
-        rows={expected}
+        rows={visible.expected}
         {...sectionProps}
       />
       <TimetableRosterSection
         title="Kommt später"
-        rows={arrivingLater}
+        rows={visible.arrivingLater}
         {...sectionProps}
       />
       <TimetableRosterSection
         title="Heute nicht eingeplant"
-        rows={notScheduled}
+        rows={visible.notScheduled}
         {...sectionProps}
       />
       <TimetableRosterSection
         title="Entschuldigt / Abwesend"
-        rows={absent}
+        rows={visible.absent}
         {...sectionProps}
       />
       <TimetableRosterSection
         title="Nicht mehr im Raum"
-        rows={departed}
+        rows={visible.departed}
         {...sectionProps}
       />
       <TimetableRosterSection
         title={unplannedTitle}
-        rows={unplanned}
+        rows={visible.unplanned}
         {...sectionProps}
       />
     </div>

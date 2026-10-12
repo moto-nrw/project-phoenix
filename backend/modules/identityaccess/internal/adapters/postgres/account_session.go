@@ -169,7 +169,7 @@ func (s *Store) CountExpiredAccountSessions(ctx context.Context, now time.Time) 
 	if err != nil {
 		return 0, stats, fmt.Errorf("identity access postgres: count expired account sessions: %w", err)
 	}
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 func (s *Store) ListInactiveAccountIDsWithLiveSessions(ctx context.Context, now time.Time) ([]int64, domain.OperationStats, error) {

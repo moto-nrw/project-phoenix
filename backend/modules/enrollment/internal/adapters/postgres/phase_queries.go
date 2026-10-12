@@ -23,7 +23,7 @@ func (r *Store) CountPhaseSchemaReferences(ctx context.Context, schemaIDs []int6
 	if err != nil {
 		return 0, fmt.Errorf("failed to count phase schema references: %w", err)
 	}
-	return count, nil
+	return int(count), nil
 }
 
 func (r *Store) RepointPhaseSchemas(ctx context.Context, fromIDs []int64, toID int64) (int64, error) {

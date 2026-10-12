@@ -182,7 +182,7 @@ func TestIntegration_GrantAccountTenantAccess_CustomUserBaseCreatesCaregiverProf
 		Where(`"p".tenant_id = ?`, accessTargetTenantID(t)).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, teacherCount, "custom user-base roles need the caregiver profile their tier reads through")
+	assert.Equal(t, 1, int(teacherCount), "custom user-base roles need the caregiver profile their tier reads through")
 }
 
 func TestIntegration_GrantAccountTenantAccess_RejectsDuplicate(t *testing.T) {
@@ -703,7 +703,7 @@ func TestIntegration_UpdateAccountTenantRole_ToCaregiverCreatesLocalIdentity(t *
 		Where(`"p".tenant_id = ?`, accessTargetTenantID(t)).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, teacherCount)
+	assert.Equal(t, 1, int(teacherCount))
 }
 
 func TestIntegration_UpdateAccountTenantRole_ToCaregiverRequiresIdentity(t *testing.T) {

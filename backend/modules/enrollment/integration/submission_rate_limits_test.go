@@ -359,14 +359,14 @@ func TestSubmissionRateLimitRepository_CleanupExpired_RemovesAncientRows(t *test
 		Where("tenant_id = ? AND key_value = ?", tenantID, ancientKey).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 0, c, "ancient row MUST be deleted by CleanupExpired")
+	assert.Equal(t, int64(0), c, "ancient row MUST be deleted by CleanupExpired")
 
 	c, err = db.NewSelect().
 		Table("enrollment.submission_rate_limits").
 		Where("tenant_id = ? AND key_value = ?", tenantID, freshKey).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 1, c, "fresh row MUST survive CleanupExpired")
+	assert.Equal(t, 1, int(c), "fresh row MUST survive CleanupExpired")
 }
 
 func TestSubmissionRateLimitCleanupRollbackAndIdempotentRetry(t *testing.T) {
@@ -396,7 +396,7 @@ func TestSubmissionRateLimitCleanupRollbackAndIdempotentRetry(t *testing.T) {
 	require.ErrorIs(t, err, failure)
 	count, err := db.NewSelect().Table("enrollment.submission_rate_limits").Where("tenant_id = ?", tenantID).Count(testpkg.Ctx(t))
 	require.NoError(t, err)
-	require.Equal(t, 2, count, "failed cleanup must restore the expired bucket")
+	require.Equal(t, 2, int(count), "failed cleanup must restore the expired bucket")
 	for _, expected := range []int{1, 0} {
 		require.NoError(t, runUnscoped(t, db, func(ctx context.Context) error {
 			deleted, err := owner.CleanupExpired(ctx)
@@ -407,7 +407,7 @@ func TestSubmissionRateLimitCleanupRollbackAndIdempotentRetry(t *testing.T) {
 	count, err = db.NewSelect().Table("enrollment.submission_rate_limits").
 		Where("tenant_id = ? AND key_value = ?", tenantID, freshKey).Count(testpkg.Ctx(t))
 	require.NoError(t, err)
-	require.Equal(t, 1, count, "cleanup and retries must preserve the fresh bucket")
+	require.Equal(t, 1, int(count), "cleanup and retries must preserve the fresh bucket")
 }
 
 func TestSubmissionRateLimitRepository_CleanupExpired_ZeroAffectedIsNoError(t *testing.T) {

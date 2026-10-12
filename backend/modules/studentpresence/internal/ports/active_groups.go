@@ -146,6 +146,9 @@ type GroupSupervisor struct {
 	Role      string    `json:"role"`
 	StartDate Date      `json:"start_date"`
 	EndDate   *Date     `json:"end_date,omitempty"`
+	// SkipPresenceStamp is command-only. It is not an active.group_supervisors
+	// column and prevents an external caregiver from receiving a work session.
+	SkipPresenceStamp bool `bun:"-" json:"-"`
 
 	// Owner-provided projections, not ORM relations.
 	Staff       *SessionStaff `json:"staff,omitempty"`

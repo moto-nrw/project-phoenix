@@ -90,15 +90,15 @@ func ListEndedCare(ctx context.Context, db bun.IDB, tenantID int64, asOfDay stri
 		ColumnExpr(`"membership".enrolled_until AS last_care_day`).
 		OrderExpr(`"membership".enrolled_until DESC, "person".last_name ASC, "person".first_name ASC, "student".id ASC`)
 	if filter.PageSize > 0 {
-		query = query.Limit(filter.PageSize)
+		query = query.Limit(int64(filter.PageSize))
 		if filter.Page > 1 {
-			query = query.Offset((filter.Page - 1) * filter.PageSize)
+			query = query.Offset(int64((filter.Page - 1) * filter.PageSize))
 		}
 	}
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, 0, fmt.Errorf("student directory projection: list ended care: %w", err)
 	}
-	return rows, total, nil
+	return rows, int(total), nil
 }
 
 // LockCareExitPeople freezes the person rows whose names and RFID assignment

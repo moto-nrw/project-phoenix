@@ -38,5 +38,6 @@ func ScheduledInstanceOf(row *scheduleModels.ActivityInstance) timetable.Schedul
 		CompletedBy:           row.CompletedBy,
 		ReopenUntil:           row.ReopenUntil,
 		HasCompletionSnapshot: len(row.CompletionSnapshot) > 0,
+		IsDuty:                row.TemplateType == timetable.GroupTypeDuty,
 	}
 }

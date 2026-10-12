@@ -342,6 +342,11 @@ export function ZeiterfassungTab({
   const monthLoad = useSwrLoadError(monthSummaryError, "die Monatskarte", () =>
     mutateMonthSummary(),
   );
+  const metricsLoad = useSwrLoadError(
+    metrics.error,
+    "die Übersicht der Arbeitszeit",
+    () => metrics.retry(),
+  );
 
   if (scheduleLoading) {
     return (
@@ -392,7 +397,13 @@ export function ZeiterfassungTab({
 
   return (
     <div className="space-y-5">
-      <KpiCards metrics={metrics} />
+      {/* Ohne geladene Quellen stehen statt der Kacheln nur der Hinweis und
+          Wiederholen: „–“ ohne Grund sähe wie ein leerer Monat aus (#3885). */}
+      {metricsLoad ? (
+        <LoadErrorAlert error={metricsLoad} />
+      ) : (
+        <KpiCards metrics={metrics} />
+      )}
 
       <SectionCard
         title="Zeiterfassung"

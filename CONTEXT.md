@@ -199,6 +199,13 @@ Eine **zusätzliche Aufsicht** ordnet einer bereits laufenden Betreuung eine
 weitere Betreuungskraft zu. Sie ersetzt keine abwesende Person und verändert
 weder Gruppenübergaben noch geplante Termine.
 
+Eine **externe Betreuungskraft** ist eine Person ohne moto-Konto, etwa eine
+AG-Leitung der Musikschule (#3823). Sie wird als Personal mit Gastprofil
+(`users.guests`) geführt, kann einer spontanen Aktivität und einer zusätzlichen
+Aufsicht zugeordnet werden, übernimmt aber nie eine Gruppe. Zeiterfassung und
+Dienstplan führen sie nicht. Personal, das nur ohne E-Mail-Adresse importiert
+wurde, ist keine externe Betreuungskraft.
+
 Die **Vertretungsübersicht** ist die gemeinsame Arbeitsfläche für
 Gruppenübergaben, Vertretungen und zusätzliche Aufsichten. Die drei Vorgänge
 bleiben trotz der gemeinsamen Arbeitsfläche fachlich getrennt.
@@ -716,3 +723,24 @@ Hintergrund eingesetzt ist.
 _Vermeiden_: Marketing-Bild, Screen, gestaltetes Bild (für Mockups).
 
 Hilfe-Screenshots im Hilfebereich sind keine Produkt-Screenshots.
+
+## Löschfrist
+
+Eine **Löschfrist** legt fest, wie lange moto eine Datenart einer Schule
+aufbewahrt, bevor die nächtliche Löschung sie entfernt. Sie läuft ab einem
+festen Startzeitpunkt der Datenart, etwa dem Betreuungstag oder dem Austritt.
+Für fachliche Daten vereinbart das moto-Team die Löschfrist mit der Schule bzw.
+ihrem Träger und trägt sie für diese Schule ein; ohne Vereinbarung gilt die
+Voreinstellung. Für technische Daten und Protokolle gilt eine feste Löschfrist
+für alle Schulen. Die Schule kann die nächtliche Löschung nicht abschalten.
+_Vermeiden_: Aufbewahrungsfrist (meint eine gesetzliche Mindestdauer),
+Retention (nur im Code).
+
+## Personaldokument
+
+Ein **Personaldokument** ist eine Datei zu einer beschäftigten Person, die die
+Schule in moto für den Alltag ablegt, etwa Arbeitsvertrag, Lohnabrechnung oder
+AU-Bescheinigung. moto ist dafür Ablage, kein gesetzliches Archiv: Gesetzliche
+Aufbewahrungspflichten erfüllt der Träger in seinem eigenen Lohn- und
+Aktensystem.
+_Vermeiden_: Personalakte (meint das vollständige gesetzliche Archiv).

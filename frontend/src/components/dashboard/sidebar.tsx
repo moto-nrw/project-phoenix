@@ -30,6 +30,7 @@ import { useOptionalSupervision } from "~/lib/supervision-context";
 import type { SupervisedRoom } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { isDemoBannerShown } from "~/components/demo/demo-banner";
+import { useDemoEveningActive } from "~/components/demo/demo-evening-notice";
 import {
   hasEffectiveAdminScope,
   hasPermission,
@@ -46,6 +47,11 @@ import { useSidebarGroups } from "~/lib/hooks/use-sidebar-groups";
 import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import { useSidebarCollapseTransition } from "~/lib/hooks/use-sidebar-collapse-transition";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
+import {
+  LAST_GROUP_SECTION_STORAGE_KEY,
+  OGS_GROUP_SECTION_LABELS,
+  ogsGroupSectionOf,
+} from "~/lib/ogs-group-sections";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
@@ -539,10 +545,17 @@ function asideClasses(collapsed: boolean, className: string): string {
 // dieselbe Höhe mitwandern, sonst schiebt sich die Kopfzeile beim Scrollen
 // über ihre obersten Einträge. Der Streifen der öffentlichen Demo (#3467)
 // hat dieselbe Höhe.
-function stickyClasses(collapsed: boolean, stripActive: boolean): string {
-  const offset = stripActive
-    ? "top-[105px] h-[calc(100vh-105px)]"
-    : "top-[57px] h-[calc(100vh-57px)]";
+// Abends kommt unter dem Demo-Streifen eine Hinweiszeile dazu (h-8, #3921).
+function stickyClasses(
+  collapsed: boolean,
+  stripActive: boolean,
+  eveningRow = false,
+): string {
+  const offset = eveningRow
+    ? "top-[137px] h-[calc(100vh-137px)]"
+    : stripActive
+      ? "top-[105px] h-[calc(100vh-105px)]"
+      : "top-[57px] h-[calc(100vh-57px)]";
   return `sticky ${offset} flex flex-col ${
     collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
   } ${SIDEBAR_WIDTH_TRANSITION}`;
@@ -578,6 +591,7 @@ function SidebarContent({
   const { data: session } = useSession();
   const { mode, isPreview } = useShellAuth();
   const demoBannerShown = isDemoBannerShown({ mode, isPreview });
+  const eveningRow = useDemoEveningActive() && demoBannerShown;
   const changeRequestAccess = useChangeRequestAccess();
   // Compare every active state against clean tenant-internal paths. The helper
   // only strips in path-routing mode, avoiding slug/route collisions on tenant
@@ -1259,11 +1273,13 @@ function SidebarContent({
   useEffect(() => {
     if (pathname.startsWith("/ogs-groups") && currentGroupParam) {
       localStorage.setItem("sidebar-last-group", currentGroupParam);
-      const groupName = groups.find(
-        (g) => g.id.toString() === currentGroupParam,
-      )?.name;
-      if (groupName) {
-        localStorage.setItem("sidebar-last-group-name", groupName);
+      const group = groups.find((g) => g.id.toString() === currentGroupParam);
+      if (group) {
+        localStorage.setItem("sidebar-last-group-name", group.name);
+        localStorage.setItem(
+          LAST_GROUP_SECTION_STORAGE_KEY,
+          ogsGroupSectionOf(group.is_personal),
+        );
       }
     }
   }, [pathname, currentGroupParam, groups]);
@@ -1445,6 +1461,7 @@ function SidebarContent({
           className={stickyClasses(
             collapsed,
             isPreview === true || demoBannerShown,
+            eveningRow,
           )}
         >
           <nav
@@ -1485,7 +1502,7 @@ function SidebarContent({
         <SidebarAccordionSection
           icon={GROUP_NAV_ICON}
           concept="groups"
-          label="Meine Gruppen"
+          label={OGS_GROUP_SECTION_LABELS.personal}
           tourId="nav-section-groups"
           activeColor="text-moto-green"
           isExpanded={expanded === "groups" && !areOtherGroupsExpanded}
@@ -1553,7 +1570,7 @@ function SidebarContent({
               <SidebarAccordionSection
                 icon={GROUP_NAV_ICON}
                 concept="groups"
-                label="Weitere Gruppen"
+                label={OGS_GROUP_SECTION_LABELS.other}
                 activeColor="text-moto-green"
                 isExpanded={areOtherGroupsExpanded}
                 collapsed={collapsed}
@@ -1876,6 +1893,7 @@ function SidebarContent({
         className={stickyClasses(
           collapsed,
           isPreview === true || demoBannerShown,
+          eveningRow,
         )}
       >
         {/* Main navigation, scrollable.

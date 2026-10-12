@@ -37,6 +37,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.sick_clear_mode",
 		"operations.excused_clear_mode",
 		"operations.federal_state",
+		// Saturday and Sunday on Friday's plan, demo schools only (#3921).
+		"operations.weekend_follows_friday",
 		"gdpr.data_cleanup_enabled",
 		"gdpr.data_cleanup_time",
 		"gdpr.data_cleanup_timeout_minutes",
@@ -95,6 +97,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.require_pickup_offering_review",
 		"operations.time_tracking_account_start_date",
 		"operations.time_tracking_enforce_planned_start",
+		"operations.time_tracking_planned_start_tolerance_minutes",
 		// F9 deviation-reason gate (Planung redesign, Inkrement 6A).
 		"operations.time_tracking_require_deviation_reason",
 		"operations.time_tracking_deviation_tolerance_minutes",
@@ -344,6 +347,16 @@ func TestPresenceModeSetting(t *testing.T) {
 	values := []any{def.Options.Static[0].Value, def.Options.Static[1].Value}
 	assert.Contains(t, values, config.PresenceModeDetailed)
 	assert.Contains(t, values, config.PresenceModeBinary)
+}
+
+func TestWeekendFollowsFridaySetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyWeekendFollowsFriday)
+	require.NotNil(t, def, "operations.weekend_follows_friday should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "real schools never care on weekends")
+	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy, "turns the weekend into care days for the whole school")
 }
 
 func TestFederalStateSetting(t *testing.T) {
@@ -753,6 +766,49 @@ func TestTimeTrackingEnforcePlannedStartSetting(t *testing.T) {
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "zeiterfassung", def.Category)
 	assert.Equal(t, "config:update", def.WritePermission)
+}
+
+func TestTimeTrackingPlannedStartToleranceSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyTimeTrackingPlannedStartToleranceMinutes)
+	require.NotNil(t, def, "operations.time_tracking_planned_start_tolerance_minutes should be registered")
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 5, def.Default, "#3825: the window opens five minutes before the shift start")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "zeiterfassung", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	assert.Equal(t, float64(0), *def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(120), *def.Validation.Max)
+	require.NotNil(t, def.DependsOn, "tolerance is only visible while the lock is on")
+	assert.Equal(t, config.KeyTimeTrackingEnforcePlannedStart, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
+
+	parent := config.GetDefinition(config.KeyTimeTrackingEnforcePlannedStart)
+	require.NotNil(t, parent)
+	assert.Equal(t, parent.SortOrder+1, def.SortOrder, "sits directly under the lock it tunes")
+}
+
+// The Zeiterfassung settings come from four files; a shared SortOrder lets
+// the UI order them by chance, so a tolerance can drift away from its toggle.
+func TestTimeTrackingSettingsHaveDistinctSortOrders(t *testing.T) {
+	t.Parallel()
+
+	seen := map[int]string{}
+	for key, def := range config.DefaultRegistry().AllDefinitions() {
+		if def.Category != "zeiterfassung" {
+			continue
+		}
+		if other, taken := seen[def.SortOrder]; taken {
+			t.Errorf("SortOrder %d is shared by %s and %s", def.SortOrder, other, key)
+		}
+		seen[def.SortOrder] = key
+	}
 }
 
 func TestTimeTrackingRequireDeviationReasonSetting(t *testing.T) {

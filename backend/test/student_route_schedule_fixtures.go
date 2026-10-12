@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
 // Care-plan rows the student route suites (#2731) arrange with exact column
@@ -28,16 +28,16 @@ type StudentArrivalScheduleRow struct {
 }
 
 // InsertStudentArrivalScheduleRow inserts one schedule.student_arrival_schedules row.
-func InsertStudentArrivalScheduleRow(tb testing.TB, db *bun.DB, spec StudentArrivalScheduleRow) *schedule.StudentArrivalSchedule {
+func InsertStudentArrivalScheduleRow(tb testing.TB, db *bun.DB, spec StudentArrivalScheduleRow) *StudentArrivalSchedule {
 	tb.Helper()
-	row := &schedule.StudentArrivalSchedule{
+	row := &StudentArrivalSchedule{
 		StudentID:       spec.StudentID,
 		Weekday:         spec.Weekday,
 		ExpectedArrival: spec.ExpectedArrival,
 		Notes:           spec.Notes,
 		CreatedBy:       spec.CreatedBy,
 	}
-	row.SetTenantID(spec.TenantID)
+	row.TenantID = spec.TenantID
 	insertStudentRouteRow(tb, db, row, "schedule.student_arrival_schedules")
 	return row
 }
@@ -56,9 +56,9 @@ type StudentPickupScheduleRow struct {
 }
 
 // InsertStudentPickupScheduleRow inserts one schedule.student_pickup_schedules row.
-func InsertStudentPickupScheduleRow(tb testing.TB, db *bun.DB, spec StudentPickupScheduleRow) *schedule.StudentPickupSchedule {
+func InsertStudentPickupScheduleRow(tb testing.TB, db *bun.DB, spec StudentPickupScheduleRow) *StudentPickupSchedule {
 	tb.Helper()
-	row := &schedule.StudentPickupSchedule{
+	row := &StudentPickupSchedule{
 		StudentID:      spec.StudentID,
 		Weekday:        spec.Weekday,
 		PickupTime:     spec.PickupTime,
@@ -67,7 +67,7 @@ func InsertStudentPickupScheduleRow(tb testing.TB, db *bun.DB, spec StudentPicku
 		Source:         spec.Source,
 		CareOfferingID: spec.CareOfferingID,
 	}
-	row.SetTenantID(spec.TenantID)
+	row.TenantID = spec.TenantID
 	insertStudentRouteRow(tb, db, row, "schedule.student_pickup_schedules")
 	return row
 }
@@ -87,18 +87,18 @@ type StudentArrivalExceptionRow struct {
 }
 
 // InsertStudentArrivalExceptionRow inserts one schedule.student_arrival_exceptions row.
-func InsertStudentArrivalExceptionRow(tb testing.TB, db *bun.DB, spec StudentArrivalExceptionRow) *schedule.StudentArrivalException {
+func InsertStudentArrivalExceptionRow(tb testing.TB, db *bun.DB, spec StudentArrivalExceptionRow) *StudentArrivalException {
 	tb.Helper()
-	row := &schedule.StudentArrivalException{
+	row := &StudentArrivalException{
 		StudentID:         spec.StudentID,
-		ExceptionDate:     schedule.Date(spec.ExceptionDate.String()),
+		ExceptionDate:     timezone.Date(spec.ExceptionDate.String()),
 		ExpectedArrival:   spec.ExpectedArrival,
 		Reason:            spec.Reason,
 		Source:            spec.Source,
 		CreatedBy:         spec.CreatedBy,
 		CreatedByGuardian: spec.CreatedByGuardian,
 	}
-	row.SetTenantID(spec.TenantID)
+	row.TenantID = spec.TenantID
 	insertStudentRouteRow(tb, db, row, "schedule.student_arrival_exceptions")
 	return row
 }
@@ -118,18 +118,18 @@ type StudentPickupExceptionRow struct {
 }
 
 // InsertStudentPickupExceptionRow inserts one schedule.student_pickup_exceptions row.
-func InsertStudentPickupExceptionRow(tb testing.TB, db *bun.DB, spec StudentPickupExceptionRow) *schedule.StudentPickupException {
+func InsertStudentPickupExceptionRow(tb testing.TB, db *bun.DB, spec StudentPickupExceptionRow) *StudentPickupException {
 	tb.Helper()
-	row := &schedule.StudentPickupException{
+	row := &StudentPickupException{
 		StudentID:         spec.StudentID,
-		ExceptionDate:     schedule.Date(spec.ExceptionDate.String()),
+		ExceptionDate:     timezone.Date(spec.ExceptionDate.String()),
 		PickupTime:        spec.PickupTime,
 		Reason:            spec.Reason,
 		Source:            spec.Source,
 		CreatedBy:         spec.CreatedBy,
 		CreatedByGuardian: spec.CreatedByGuardian,
 	}
-	row.SetTenantID(spec.TenantID)
+	row.TenantID = spec.TenantID
 	insertStudentRouteRow(tb, db, row, "schedule.student_pickup_exceptions")
 	return row
 }
@@ -144,29 +144,29 @@ type StudentDatedNoteRow struct {
 }
 
 // InsertStudentArrivalNoteRow inserts one schedule.student_arrival_notes row.
-func InsertStudentArrivalNoteRow(tb testing.TB, db *bun.DB, spec StudentDatedNoteRow) *schedule.StudentArrivalNote {
+func InsertStudentArrivalNoteRow(tb testing.TB, db *bun.DB, spec StudentDatedNoteRow) *StudentArrivalNote {
 	tb.Helper()
-	row := &schedule.StudentArrivalNote{
+	row := &StudentArrivalNote{
 		StudentID: spec.StudentID,
-		NoteDate:  schedule.Date(spec.NoteDate.String()),
+		NoteDate:  timezone.Date(spec.NoteDate.String()),
 		Content:   spec.Content,
 		CreatedBy: spec.CreatedBy,
 	}
-	row.SetTenantID(spec.TenantID)
+	row.TenantID = spec.TenantID
 	insertStudentRouteRow(tb, db, row, "schedule.student_arrival_notes")
 	return row
 }
 
 // InsertStudentPickupNoteRow inserts one date-specific schedule.student_pickup_notes row.
-func InsertStudentPickupNoteRow(tb testing.TB, db *bun.DB, spec StudentDatedNoteRow) *schedule.StudentPickupNote {
+func InsertStudentPickupNoteRow(tb testing.TB, db *bun.DB, spec StudentDatedNoteRow) *StudentPickupNote {
 	tb.Helper()
-	row := &schedule.StudentPickupNote{
+	row := &StudentPickupNote{
 		StudentID: spec.StudentID,
-		NoteDate:  schedule.Date(spec.NoteDate.String()),
+		NoteDate:  timezone.Date(spec.NoteDate.String()),
 		Content:   spec.Content,
 		CreatedBy: spec.CreatedBy,
 	}
-	row.SetTenantID(spec.TenantID)
+	row.TenantID = spec.TenantID
 	insertStudentRouteRow(tb, db, row, "schedule.student_pickup_notes")
 	return row
 }

@@ -11,9 +11,10 @@ import (
 	"testing"
 )
 
-// isCanonicalDateAlias accepts Go aliases of timezone.Date, not new named
-// types or timestamp aliases. The import path and declaration establish type
-// identity; the caller's choice of package qualifier does not.
+// isCanonicalDateAlias accepts the canonical shared-kernel Date and Go
+// aliases of it or timezone.Date, not new named types or timestamp aliases.
+// The import path and declaration establish type identity; the caller's choice
+// of package qualifier does not.
 func isCanonicalDateAlias(root, source, spelling string) bool {
 	parts := strings.Split(strings.TrimPrefix(spelling, "*"), ".")
 	if len(parts) != 2 {
@@ -25,6 +26,9 @@ func isCanonicalDateAlias(root, source, spelling string) bool {
 	}
 	const modulePrefix = "github.com/moto-nrw/project-phoenix/"
 	importPath := dateAliasImportPath(consumer, parts[0])
+	if importPath == modulePrefix+"sharedkernel/calendar" && parts[1] == "Date" {
+		return true
+	}
 	if !strings.HasPrefix(importPath, modulePrefix) {
 		return false
 	}
@@ -55,7 +59,11 @@ func isCanonicalDateAlias(root, source, spelling string) bool {
 					return false
 				}
 				qualifier, ok := selector.X.(*ast.Ident)
-				return ok && dateAliasImportPath(decls, qualifier.Name) == modulePrefix+"internal/timezone"
+				if !ok {
+					return false
+				}
+				aliasPath := dateAliasImportPath(decls, qualifier.Name)
+				return aliasPath == modulePrefix+"internal/timezone" || aliasPath == modulePrefix+"sharedkernel/calendar"
 			}
 		}
 	}
@@ -85,7 +93,9 @@ func TestCalendarDateAliasTypeIdentity(t *testing.T) {
 		name, imported, declaration string
 		want                        bool
 	}{
-		{"canonical alias", "github.com/moto-nrw/project-phoenix/internal/timezone", "type Date = clock.Date", true},
+		{"legacy canonical alias", "github.com/moto-nrw/project-phoenix/internal/timezone", "type Date = clock.Date", true},
+		{"shared kernel alias", "github.com/moto-nrw/project-phoenix/sharedkernel/calendar", "type Date = clock.Date", true},
+		{"shared kernel named type", "github.com/moto-nrw/project-phoenix/sharedkernel/calendar", "type Date clock.Date", false},
 		{"new named type", "github.com/moto-nrw/project-phoenix/internal/timezone", "type Date clock.Date", false},
 		{"timestamp alias", "time", "type Date = clock.Time", false},
 		{"lookalike package", "example.com/timezone", "type Date = clock.Date", false},
@@ -108,6 +118,32 @@ func TestCalendarDateAliasTypeIdentity(t *testing.T) {
 			for _, spelling := range []string{"calendar.Date", "*calendar.Date"} {
 				if got := isCanonicalDateAlias(root, consumer, spelling); got != tc.want {
 					t.Errorf("%s: canonical date alias = %v, want %v", spelling, got, tc.want)
+				}
+			}
+		})
+	}
+}
+
+func TestCanonicalCalendarDateTypeIdentity(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, imported string
+		want           bool
+	}{
+		{"shared kernel", "github.com/moto-nrw/project-phoenix/sharedkernel/calendar", true},
+		{"lookalike package", "example.com/calendar", false},
+		{"timestamp package", "time", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			consumer := "row.go"
+			contents := "package example\nimport clock " + strconv.Quote(tc.imported) + "\n"
+			if err := os.WriteFile(filepath.Join(root, consumer), []byte(contents), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			for _, spelling := range []string{"clock.Date", "*clock.Date"} {
+				if got := isCanonicalDateAlias(root, consumer, spelling); got != tc.want {
+					t.Errorf("%s: canonical date type = %v, want %v", spelling, got, tc.want)
 				}
 			}
 		})

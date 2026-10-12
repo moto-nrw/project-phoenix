@@ -98,7 +98,7 @@ func applyStudentScheduleOptions(query *bun.SelectQuery, options *careplan.Stude
 		}
 	}
 	if options.Limit > 0 {
-		query = query.Limit(options.Limit).Offset(options.Offset)
+		query = query.Limit(int64(options.Limit)).Offset(int64(options.Offset))
 	}
 	return query
 }

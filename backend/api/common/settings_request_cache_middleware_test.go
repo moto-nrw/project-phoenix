@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	configSvc "github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
 // WithSettingsRequestCache returns its input unchanged when a cache is already

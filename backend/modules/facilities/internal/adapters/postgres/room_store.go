@@ -255,7 +255,7 @@ func (s *Store) ListPage(ctx context.Context, filter domain.RoomFilter, offset, 
 		stats.StatementDuration = time.Since(started)
 		return nil, 0, stats, fmt.Errorf("facilities postgres: count rooms: %w", err)
 	}
-	query = query.Offset(offset).Limit(limit)
+	query = query.Offset(int64(offset)).Limit(int64(limit))
 	stats.Queries++
 	if err := query.Scan(ctx); err != nil {
 		stats.StatementDuration = time.Since(started)

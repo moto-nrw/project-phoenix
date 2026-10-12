@@ -22,6 +22,47 @@ two-repo change: `backend/api/testdata/iot_error_strings.golden`
 and the golden move together.
 Backend header and attribution rules: `backend/CLAUDE.md` RFID/IoT Integration.
 
+### Kiosk error codes
+
+Each kiosk refusal answers with its own `iot.*` code (#3939). Status, text and
+error class did not change. PyrePortal moves its text patterns to these
+codes in #2508; until then the golden and the guard list only the codes it maps.
+
+| Code | Status | Text |
+|---|---|---|
+| `iot.device_api_key_required` | 401 | device API key is required |
+| `iot.device_api_key_format_invalid` | 401 | invalid API key format - use Bearer token |
+| `iot.device_api_key_invalid` | 401 | invalid device API key |
+| `iot.device_pin_required` | 401 | staff PIN is required |
+| `iot.device_pin_invalid` | 401 | invalid staff PIN |
+| `iot.device_inactive` | 403 | device is not active |
+| `iot.rfid_tag_not_found` | 404 | RFID tag not found (scan, pickup, attendance) |
+| `iot.rfid_tag_unassigned` | 404 | RFID tag not assigned to any person |
+| `iot.rfid_tag_not_student_or_staff` | 404 | RFID tag not assigned to student or staff |
+| `iot.person_not_student` | 404 | person is not a student |
+| `iot.pickup_student_rfid_required` | 400 | student RFID tag required for pickup query |
+| `iot.no_active_session` | 404 | no active session - please start an activity first |
+| `iot.no_session_to_end` | 400 | no active session to end |
+| `iot.no_active_groups_in_room` | 404 | no active groups in specified room |
+| `iot.no_room_available` | 400 | no room available for this activity |
+| `iot.no_attendance_record_today` | 404 | student has no attendance record for today |
+| `iot.schulhof_not_configured` | 500 | schulhof activity not configured |
+| `iot.wc_not_configured` | 500 | WC activity not configured |
+| `iot.wc_needs_staff` | 500 | WC activity auto-create requires staff context |
+| `iot.staff_not_found` | 404 | staff not found |
+| `iot.staff_rfid_tag_unassigned` | 404 | staff has no RFID tag assigned |
+
+Device authentication codes come from `backend/auth/device/errors.go`, the
+others from `backend/modules/devicescan/scan.go`.
+`checkIoTErrorCodes` (`backend/api/iot_error_codes_contract_test.go`) drives
+them through the production router. The Schulhof, WC and unassigned-card codes
+need a missing system activity or a card without a person behind it;
+`TestWireFormat_ClassifiedFailures` (`backend/api/iot/checkin/wire_test.go`)
+pins them. Other kiosk programming errors and 5xx faults
+keep their class code. `device is already running an activity session` has
+no code: no backend path returns it, and a second start answers the session
+conflict instead.
+
 ### Error reports relay
 
 `POST /api/iot/error-reports` is PyrePortal's Sentry tunnel (#3645, SDK option

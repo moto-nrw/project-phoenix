@@ -36,6 +36,10 @@ import {
 import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollment-extra-fields";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
+import {
+  LAST_GROUP_SECTION_STORAGE_KEY,
+  parseOgsGroupSection,
+} from "~/lib/ogs-group-sections";
 import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
@@ -104,6 +108,7 @@ import {
   berlinTodayISO,
   formatDate as formatCalendarDate,
 } from "~/lib/date-helpers";
+import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import {
   fetchStudentCareWithdrawal,
   type CareWithdrawalCompletion,
@@ -422,6 +427,7 @@ function StudentDetailPageContent() {
   // dem aktuellen Stand, etwa einer inzwischen geänderten Notiz.
   const dialogErrors = useApiFormError();
   const { data: session, status: sessionStatus } = useSession();
+  const weekendFollowsFriday = useWeekendFollowsFriday();
 
   // Switch tabs by updating the `?tab=` query param in place (preserves the
   // `from` referrer). We echo the current `usePathname` back verbatim and only
@@ -571,9 +577,13 @@ function StudentDetailPageContent() {
       : visibleTabs;
 
   // Set breadcrumb data, include group/room name for 3-level breadcrumb
-  // when navigating from an accordion section (e.g. Meine Gruppe > 1a > Mia Fischer)
+  // when navigating from an accordion section (e.g. Weitere Gruppen > 1a > Mia Fischer)
   const breadcrumbGroupName = useLocalStorageValue(
     "sidebar-last-group-name",
+    referrer.startsWith("/ogs-groups"),
+  );
+  const breadcrumbGroupSection = useLocalStorageValue(
+    LAST_GROUP_SECTION_STORAGE_KEY,
     referrer.startsWith("/ogs-groups"),
   );
   const breadcrumbRoomName = useLocalStorageValue(
@@ -585,6 +595,7 @@ function StudentDetailPageContent() {
     studentName: student?.name,
     referrerPage: referrer,
     ogsGroupName: breadcrumbGroupName ?? undefined,
+    ogsGroupSection: parseOgsGroupSection(breadcrumbGroupSection),
     activeSupervisionName: breadcrumbRoomName ?? undefined,
   });
 
@@ -770,6 +781,9 @@ function StudentDetailPageContent() {
       student?.sick ?? false,
       pickupData.notes,
       student?.excused ?? false,
+      null,
+      pickupData.effectiveSchedules,
+      weekendFollowsFriday,
     );
 
     if (dayData.effectiveTime) {
@@ -780,7 +794,13 @@ function StudentDetailPageContent() {
       };
     }
     return {};
-  }, [pickupData, hasFullAccess, student?.sick, student?.excused]);
+  }, [
+    pickupData,
+    hasFullAccess,
+    student?.sick,
+    student?.excused,
+    weekendFollowsFriday,
+  ]);
 
   const todayArrival = useMemo<TodayArrival>(() => {
     if (!hasFullAccess || !arrivalData) return {};
@@ -792,6 +812,8 @@ function StudentDetailPageContent() {
       arrivalData.notes,
       student?.sick ?? false,
       student?.excused ?? false,
+      null,
+      weekendFollowsFriday,
     );
 
     if (dayData.isAbsent) {
@@ -810,7 +832,13 @@ function StudentDetailPageContent() {
       };
     }
     return {};
-  }, [arrivalData, hasFullAccess, student?.excused, student?.sick]);
+  }, [
+    arrivalData,
+    hasFullAccess,
+    student?.excused,
+    student?.sick,
+    weekendFollowsFriday,
+  ]);
 
   // Clamp the URL tab to the set the current access level actually exposes, so a
   // stale deep-link (e.g. ?tab=betreuungszeiten without full access) falls back
@@ -1665,6 +1693,7 @@ function StudentDetailPageContent() {
           student={student}
           studentId={studentId}
           hasWriteAccess={hasWriteAccess}
+          weekendFollowsFriday={weekendFollowsFriday}
           attendanceLogEnabled={attendanceLogEnabled}
           feedbackEnabled={feedbackEnabled}
           activeTab={activeTab}
@@ -1911,6 +1940,7 @@ interface FullAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
   hasWriteAccess: boolean;
+  weekendFollowsFriday: boolean;
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
   activeTab: StudentTabId;
@@ -1935,6 +1965,7 @@ function FullAccessView({
   student,
   studentId,
   hasWriteAccess,
+  weekendFollowsFriday,
   attendanceLogEnabled,
   feedbackEnabled,
   activeTab,
@@ -2112,6 +2143,7 @@ function FullAccessView({
         <CareScheduleManager
           studentId={studentId}
           readOnly={!hasWriteAccess}
+          weekendFollowsFriday={weekendFollowsFriday}
           onUpdate={hasWriteAccess ? onRefreshData : undefined}
           isSick={student.sick}
           isExcused={student.excused}

@@ -295,10 +295,12 @@ func (c *effectiveTimeCore[S, E, N, D]) effectiveTimeForDate(
 	studentID int64,
 	date calendar.Date,
 ) (*domain.EffectiveTimeResult, error) {
-	weekday := domain.ISOWeekday(date)
+	weekday, err := calendar.PlanWeekday(ctx, date)
+	if err != nil {
+		return nil, &careplan.ScheduleError{Op: c.operation("get effective %s time"), Err: err}
+	}
 	var row S
 	if weekday <= 5 {
-		var err error
 		row, err = c.schedules.FindByStudentIDAndWeekday(ctx, studentID, weekday)
 		if err != nil {
 			return nil, &careplan.ScheduleError{Op: c.operation("get effective %s time"), Err: err}
@@ -321,11 +323,15 @@ func (c *effectiveTimeCore[S, E, N, D]) effectiveTimeForDateWithSchedule(
 		Date:        date,
 		WeekdayName: domain.WeekdayName(weekday),
 	}
-	if weekday > 5 {
+	op := c.operation("get effective %s time")
+	careDay, err := calendar.IsCareWeekday(ctx, date)
+	if err != nil {
+		return nil, &careplan.ScheduleError{Op: op, Err: err}
+	}
+	if !careDay {
 		return result, nil
 	}
 
-	op := c.operation("get effective %s time")
 	exception, err := c.exceptions.FindByStudentIDAndDate(ctx, studentID, calendar.Date(date))
 	if err != nil {
 		return nil, &careplan.ScheduleError{Op: op, Err: err}
@@ -395,7 +401,10 @@ func (c *effectiveTimeCore[S, E, N, D]) bulkEffectiveTimesForDate(
 	studentIDs []int64,
 	date calendar.Date,
 ) (map[int64]*domain.EffectiveTimeResult, error) {
-	weekday := domain.ISOWeekday(date)
+	weekday, err := calendar.PlanWeekday(ctx, date)
+	if err != nil {
+		return nil, &careplan.ScheduleError{Op: c.operation("get bulk effective %s times"), Err: err}
+	}
 	scheduleMap := make(map[int64]S, len(studentIDs))
 	if len(studentIDs) > 0 && weekday <= 5 {
 		schedules, err := c.schedules.FindByStudentIDsAndWeekday(ctx, studentIDs, weekday)
@@ -423,11 +432,15 @@ func (c *effectiveTimeCore[S, E, N, D]) bulkEffectiveTimesForDateWithSchedules(
 
 	weekday := domain.ISOWeekday(date)
 	result := initialEffectiveResults(studentIDs, date, weekday)
-	if weekday > 5 {
+	op := c.operation("get bulk effective %s times")
+	careDay, err := calendar.IsCareWeekday(ctx, date)
+	if err != nil {
+		return nil, &careplan.ScheduleError{Op: op, Err: err}
+	}
+	if !careDay {
 		return result, nil
 	}
 
-	op := c.operation("get bulk effective %s times")
 	exceptions, err := c.exceptions.FindByStudentIDsAndDate(ctx, studentIDs, calendar.Date(date))
 	if err != nil {
 		return nil, &careplan.ScheduleError{Op: op, Err: err}

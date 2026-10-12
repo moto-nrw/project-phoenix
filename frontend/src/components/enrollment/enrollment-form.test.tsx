@@ -3880,7 +3880,11 @@ describe("EnrollmentForm restrictToOfferings (#2251)", () => {
     await waitForLoaded();
 
     // Add the flexible offering and pick a day.
-    fireEvent.click(screen.getByText("Flexible Betreuung"));
+    const flexibleOffering = screen.getByRole("checkbox", {
+      name: /Flexible Betreuung/,
+    });
+    fireEvent.click(flexibleOffering);
+    await waitFor(() => expect(flexibleOffering).toBeChecked());
     fireEvent.click(await screen.findByRole("button", { name: "Mo" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));

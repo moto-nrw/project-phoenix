@@ -34,7 +34,7 @@ type attachmentContext struct {
 func setupAttachmentRoute(t *testing.T) *attachmentContext {
 	t.Helper()
 	c := setupFileStoreRoute(t)
-	c.router.Mount("/announcement-attachments", filestoreAPI.NewResource(c.files, c.db, slog.Default()).AnnouncementAttachmentRouter())
+	c.router.Mount("/announcement-attachments", filestoreAPI.NewResource(c.files, slog.Default()).AnnouncementAttachmentRouter())
 	t.Cleanup(func() {
 		if pubDir, err := common.ResolvePublicDir(); err == nil {
 			_ = os.RemoveAll(filepath.Join(pubDir, "uploads", "announcement-attachments",

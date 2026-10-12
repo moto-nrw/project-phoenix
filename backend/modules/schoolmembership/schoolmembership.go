@@ -67,6 +67,11 @@ type Staff struct {
 	RotationAnchorDate    string     `json:"rotation_anchor_date,omitempty"`
 	BirthdayDisplayOptOut bool       `json:"birthday_display_opt_out"`
 	DeletedAt             *time.Time `json:"-"`
+	// IsGuest marks an external caregiver without a moto account, recorded
+	// as a guest profile (#3823). Time tracking and the duty roster leave
+	// these people out; supervision pickers offer them.
+	IsGuest           bool   `json:"is_guest"`
+	GuestOrganization string `json:"guest_organization,omitempty"`
 }
 
 func (s Staff) IsDeleted() bool { return s.DeletedAt != nil }

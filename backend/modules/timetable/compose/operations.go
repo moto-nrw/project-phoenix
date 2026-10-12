@@ -12,9 +12,9 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // The operational day of the Timetable owner (#3424 slice S5): the
@@ -276,7 +276,7 @@ func (s *operations) resolveStaffID(ctx context.Context, accountID int64) (int64
 	}
 	person, err := s.deps.People.FindByAccountID(ctx, accountID)
 	if err != nil {
-		if errors.Is(err, usersSvc.ErrPersonNotFound) {
+		if errors.Is(err, userscontract.ErrPersonNotFound) {
 			return 0, false, nil
 		}
 		return 0, false, err

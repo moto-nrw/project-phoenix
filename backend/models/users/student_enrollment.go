@@ -1,6 +1,6 @@
 package users
 
-import "github.com/moto-nrw/project-phoenix/internal/timezone"
+import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 // EnrolledOn reports whether a child is enrolled in the OGS on the given
 // calendar date. It is the single definition of that question; every reader
@@ -27,7 +27,7 @@ import "github.com/moto-nrw/project-phoenix/internal/timezone"
 // carries no information, so the current lifecycle status is the only signal
 // and an inactive student is treated as no longer enrolled.
 //
-// today is a parameter rather than a fresh timezone.TodayDate() read so a
+// today is a parameter rather than a fresh calendar.TodayDate() read so a
 // request spanning Berlin midnight keeps one notion of "today" across every
 // date it decides — re-reading the process clock per call could admit a child
 // for one date and drop them for the next.
@@ -38,7 +38,7 @@ import "github.com/moto-nrw/project-phoenix/internal/timezone"
 //	CASE WHEN status = 'active' THEN LEAST(enrolled_from, today) ELSE enrolled_from END
 //
 // with NULL meaning "no bound". Keep those in step with this function.
-func EnrolledOn(student *Student, date, today timezone.Date) bool {
+func EnrolledOn(student *Student, date, today calendar.Date) bool {
 	if student == nil {
 		return false
 	}

@@ -99,7 +99,7 @@ func TestUpdateNotifiesTimeTrackingOnlyAfterTheWriteSucceeds(t *testing.T) {
 func TestRouterRejectsUsersRead(t *testing.T) {
 	t.Parallel()
 
-	resource := worktimemodelsHTTP.NewResource(&capabilityStub{}, runtime(nil, func(context.Context) {}))
+	resource := worktimemodelsHTTP.NewResource(&capabilityStub{}, runtime(func(context.Context) {}))
 	router := resource.Router()
 	claims := routetest.DefaultTestClaims()
 	claims.Roles = []string{"user"}

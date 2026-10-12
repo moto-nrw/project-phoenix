@@ -11,10 +11,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // classArrivalBaseline builds the projection with the booking mode off, which
@@ -41,7 +43,16 @@ func approvedOfferingProjection(t *testing.T) careplan.ApprovedBookingReader {
 
 func setClassArrivalTimes(t *testing.T, class string, times map[string]string) {
 	t.Helper()
-	testpkg.UpsertTestClassArrivalTime(t, testpkg.SetupTestDB(t), class, times)
+	testpkg.UpsertTestClassArrivalTime(t, timetableClassArrivals(t, testpkg.SetupTestDB(t)), class, times)
+}
+
+// timetableClassArrivals is the Timetable owner's class arrival capability
+// the arrival fixtures write through (#3556).
+func timetableClassArrivals(t *testing.T, db *bun.DB) timetable.ClassArrivals {
+	t.Helper()
+	arrivals, err := arrivalTimetable.NewClassArrivals(db, func(arrivalTimetable.Observation) {})
+	require.NoError(t, err)
+	return arrivals
 }
 
 // mondayOnOrAfter keeps the assertions off weekends without pinning a date.

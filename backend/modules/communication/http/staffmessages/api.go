@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -22,12 +21,11 @@ import (
 // Resource is the internal messaging HTTP resource.
 type Resource struct {
 	Service communication.StaffMessagingCapability
-	db      *bun.DB
 }
 
 // NewResource wires the internal messaging resource.
-func NewResource(svc communication.StaffMessagingCapability, db *bun.DB) *Resource {
-	return &Resource{Service: svc, db: db}
+func NewResource(svc communication.StaffMessagingCapability) *Resource {
+	return &Resource{Service: svc}
 }
 
 // Router returns the chi router scoped to /staff-messages.
@@ -39,18 +37,18 @@ func NewResource(svc communication.StaffMessagingCapability, db *bun.DB) *Resour
 // not have.
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
-	common.ProtectedTenantGroup(r, rs.db, rs.registerRoutes)
+	common.ProtectedTenantRoutes(r, rs.registerRoutes)
 	return r
 }
 
 // SchoolRouter is the school-portal mantle of the same surface (#2208):
 // identical handlers and authorization (participation + active staff row),
-// gated to school-scope tokens by ProtectedSchoolGroup. A Lehrkraft holds a
+// gated to school-scope tokens by ProtectedSchoolRoutes. A Lehrkraft holds a
 // users.staff row (services/auth/school_identity.go), so the staffJoin that
 // decides who is addressable admits them without a special case.
 func (rs *Resource) SchoolRouter() chi.Router {
 	r := chi.NewRouter()
-	common.ProtectedSchoolGroup(r, rs.db, rs.registerRoutes)
+	common.ProtectedSchoolRoutes(r, rs.registerRoutes)
 	return r
 }
 

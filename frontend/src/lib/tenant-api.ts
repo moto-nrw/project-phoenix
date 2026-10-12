@@ -134,6 +134,12 @@ export interface TenantInfo {
    * null when the school switched the question off or the value is missing.
    */
   earlyCheckoutNoteToleranceMinutes?: number | null;
+  /**
+   * Saturday and Sunday are care days on Friday's plan
+   * (operations.weekend_follows_friday, #3921). Day pickers and day views then
+   * stop skipping the weekend. Missing metadata is off.
+   */
+  weekendFollowsFriday?: boolean;
 }
 
 /** Identity-only tenant row returned by list/switch endpoints. Feature and
@@ -180,6 +186,7 @@ interface TenantResolveResponse {
   analytics_recording_sample_percent?: number;
   early_checkout_note_enabled?: boolean;
   early_checkout_note_tolerance_minutes?: number;
+  weekend_follows_friday?: boolean;
 }
 
 /**
@@ -332,6 +339,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
         data.early_checkout_note_enabled,
         data.early_checkout_note_tolerance_minutes,
       ),
+      weekendFollowsFriday: data.weekend_follows_friday === true,
     };
   } catch {
     return null;

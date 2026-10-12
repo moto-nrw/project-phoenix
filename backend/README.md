@@ -6,7 +6,7 @@ GDPR-compliant RFID student attendance and room management system for educationa
 
 | Component | Version / Library |
 |-----------|-------------------|
-| Language | Go 1.27.0 |
+| Language | Go 1.27.2 |
 | Router | chi/v5 |
 | ORM | bun (pgdialect, pgdriver) |
 | Database | PostgreSQL 17+ (multi-schema, SSL) |

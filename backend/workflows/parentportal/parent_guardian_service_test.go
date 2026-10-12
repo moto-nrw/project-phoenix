@@ -1323,7 +1323,7 @@ func TestUpdateGuardianContact_CaseVariantEmailRaceLeavesSingleWinner(t *testing
 			Where("LOWER(email) = ?", lower).
 			Count(testpkg.WithPackageTenantRuntime(context.Background()))
 		require.NoError(t, cerr)
-		require.Equalf(t, 1, count, "round %d: exactly one profile may hold LOWER(email)=%s", i, lower)
+		require.Equalf(t, 1, int(count), "round %d: exactly one profile may hold LOWER(email)=%s", i, lower)
 	}
 }
 

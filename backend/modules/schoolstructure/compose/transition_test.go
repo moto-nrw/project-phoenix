@@ -576,6 +576,11 @@ func TestTransitionsOfOtherTenantsStayInvisible(t *testing.T) {
 		_, err := module.FindTransition(ctx, foreign.ID)
 		require.ErrorIs(t, err, schoolstructure.ErrTransitionNotFound, "the other school's draft is not readable")
 
+		_, err = module.UpdateTransition(ctx, schoolstructure.TransitionUpdate{ID: foreign.ID, Notes: testpkg.StrPtr("Must not change another school")})
+		require.ErrorIs(t, err, schoolstructure.ErrTransitionNotFound)
+		require.ErrorIs(t, module.DeleteTransition(ctx, foreign.ID), schoolstructure.ErrTransitionNotFound)
+		require.ErrorIs(t, module.MarkTransitionApplied(ctx, foreign.ID, account.ID, time.Now(), nil), schoolstructure.ErrTransitionStateConflict)
+
 		listed, total, err := module.ListTransitions(ctx, schoolstructure.TransitionFilter{})
 		require.NoError(t, err)
 		assert.Equal(t, 1, total, "the count is tenant-scoped too")

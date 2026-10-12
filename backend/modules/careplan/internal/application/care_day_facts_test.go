@@ -325,3 +325,41 @@ func TestCareDayStatusExemptFromAbsence_OnlyNonBookings(t *testing.T) {
 	assert.False(t, careplan.CareDayUnknown.ExemptFromAbsence())
 	assert.False(t, careplan.CareDayStatus("").ExemptFromAbsence())
 }
+
+// A weekend that follows Friday's plan (#3921) reads Friday's weekly arrival;
+// without the setting the weekend has none.
+func TestEffectiveArrivalOnAFollowingWeekendReadsFriday(t *testing.T) {
+	t.Parallel()
+
+	plans := plansForStudent(7, 5)
+	assert.Nil(t, plans.effectiveArrival(7, careDaySaturday).ArrivalTime)
+	assert.False(t, plans.hasArrivalSchedule(7, careDaySaturday))
+
+	plans.weekendFollowsFriday = true
+	arrival := plans.effectiveArrival(7, careDaySaturday).ArrivalTime
+	if assert.NotNil(t, arrival) {
+		assert.Equal(t, "08:00", arrival.Format("15:04"))
+	}
+	assert.True(t, plans.hasArrivalSchedule(7, careDaySaturday))
+	assert.Equal(t, "Samstag", plans.effectiveArrival(7, careDaySaturday).WeekdayName, "the day keeps its own name")
+}
+
+func TestWeekendFollowsFridayInResolvesOnlyForAWeekend(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	ctx := calendar.WithWeekendPlan(context.Background(), func(context.Context) (bool, error) {
+		calls++
+		return true, nil
+	})
+	monday := calendar.NewDate(2026, time.September, 7)
+	follows, err := weekendFollowsFridayIn(ctx, monday, monday.AddDays(4))
+	require.NoError(t, err)
+	assert.False(t, follows)
+	assert.Zero(t, calls, "a weekday range never reads the setting")
+
+	follows, err = weekendFollowsFridayIn(ctx, monday, monday.AddDays(6))
+	require.NoError(t, err)
+	assert.True(t, follows)
+	assert.Equal(t, 1, calls)
+}

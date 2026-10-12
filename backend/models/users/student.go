@@ -7,8 +7,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // StudentStatus represents the lifecycle status of a student.
@@ -49,10 +49,9 @@ const MaxDepartureCompanionNoteLen = departure.MaxDepartureCompanionNoteLen
 var ErrDepartureCompanionNoteRequired = departure.ErrDepartureCompanionNoteRequired
 
 // ErrStudentRowMissing says a child the caller named has no row. It lives here
-// because the two sides that need it — the People Directory composition seam
-// that observes the owner's not-found, and the retained student service that
-// translates it into the error shape its handlers branch on — may not import
-// each other (#3349).
+// because the People Directory composition seams that observe the owner's
+// not-found and the retained callers that branch on it may not import each
+// other (#3349).
 var ErrStudentRowMissing = errors.New("student row not found")
 
 // MissingStudentError is the error a lookup returns for a child that is not
@@ -134,8 +133,8 @@ type Student struct {
 	Excused       *bool          `bun:"excused" json:"excused,omitempty"`                             // true = currently excused (not attending today)
 	ExcusedSince  *time.Time     `bun:"excused_since" json:"excused_since,omitempty"`                 // When excused status was reported
 	Status        StudentStatus  `bun:"status,notnull,default:'active'" json:"status"`
-	EnrolledFrom  *timezone.Date `bun:"enrolled_from,type:date" json:"enrolled_from,omitempty"`
-	EnrolledUntil *timezone.Date `bun:"enrolled_until,type:date" json:"enrolled_until,omitempty"`
+	EnrolledFrom  *calendar.Date `bun:"enrolled_from,type:date" json:"enrolled_from,omitempty"`
+	EnrolledUntil *calendar.Date `bun:"enrolled_until,type:date" json:"enrolled_until,omitempty"`
 
 	// Photo (optional, gated by operations.student_photos_enabled setting +
 	// per-student parental consent recorded in photo_consent_given_at).

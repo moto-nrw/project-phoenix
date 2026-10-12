@@ -170,7 +170,7 @@ func TestCourseCatalogQueryBudget(t *testing.T) {
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "CourseCatalogBudget")
-	group := testpkg.CreateTestActivityGroup(t, env.db, "CourseCatalogBudget")
+	group := repositoryActivityGroup(t, ctx, env, "CourseCatalogBudget")
 	group.Type = activitiesModels.GroupTypeActivity
 	require.NoError(t, env.repos.ActivityGroup.Update(ctx, group))
 	zero := 0
@@ -1193,8 +1193,10 @@ func createPlanningOccurrence(
 		NotScheduled: opts.notScheduled,
 	})
 	if opts.unplanned {
-		attendance.IsUnplanned = true
-		require.NoError(t, env.repos.InstanceStudent.Update(testpkg.Ctx(t), attendance))
+		stored, err := env.repos.InstanceStudent.FindByID(testpkg.Ctx(t), attendance.ID)
+		require.NoError(t, err)
+		stored.IsUnplanned = true
+		require.NoError(t, env.repos.InstanceStudent.Update(testpkg.Ctx(t), stored))
 	}
 }
 
@@ -1226,13 +1228,13 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	})
 	require.NoError(t, err)
 
-	manualGroup := testpkg.CreateTestActivityGroup(t, env.db, "ManualPlanningPreview")
+	manualGroup := repositoryActivityGroup(t, ctx, env, "ManualPlanningPreview")
 	manualGroup.Type = activitiesModels.GroupTypeCare
 	manualGroup.IsTemplate = true
 	manualGroup.TargetGroupType = activitiesModels.TargetGroupTypeAngebot
 	require.NoError(t, env.repos.ActivityGroup.Update(ctx, manualGroup))
 
-	sourcedGroup := testpkg.CreateTestActivityGroup(t, env.db, "OfferingPlanningPreview")
+	sourcedGroup := repositoryActivityGroup(t, ctx, env, "OfferingPlanningPreview")
 	sourcedGroup.Type = activitiesModels.GroupTypeCare
 	sourcedGroup.IsTemplate = true
 	sourcedGroup.TargetGroupType = activitiesModels.TargetGroupTypeAngebot
@@ -1245,7 +1247,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	legacySourcedGroup.IsTemplate = true
 	legacySourcedGroup.TargetGroupType = activitiesModels.TargetGroupTypeNone
 	require.NoError(t, env.repos.ActivityGroup.Update(ctx, legacySourcedGroup))
-	parentChoiceGroup := testpkg.CreateTestActivityGroup(t, env.db, "EmptyParentChoicePlanning")
+	parentChoiceGroup := repositoryActivityGroup(t, ctx, env, "EmptyParentChoicePlanning")
 	parentChoiceGroup.Type = activitiesModels.GroupTypeCare
 	parentChoiceGroup.IsTemplate = true
 	require.NoError(t, env.repos.ActivityGroup.Update(ctx, parentChoiceGroup))
@@ -1369,7 +1371,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsManualPlanningForFu
 	})
 	require.NoError(t, err)
 
-	manualGroup := testpkg.CreateTestActivityGroup(t, env.db, "ManualFullWithdrawal")
+	manualGroup := repositoryActivityGroup(t, ctx, env, "ManualFullWithdrawal")
 	manualGroup.Type, manualGroup.IsTemplate = activitiesModels.GroupTypeCare, true
 	require.NoError(t, env.repos.ActivityGroup.Update(ctx, manualGroup))
 	period := testpkg.CreateTestCalendarPeriod(
@@ -1514,4 +1516,13 @@ func offeringChangePayload(t *testing.T, row *careplan.OfferingChangeRequest) ma
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(row.Payload, &payload))
 	return payload
+}
+
+// repositoryActivityGroup creates an activity fixture and reads it back as the
+// owner row the activity repository updates.
+func repositoryActivityGroup(t *testing.T, ctx context.Context, env *decisionTestEnv, name string) *activitiesModels.Group {
+	t.Helper()
+	group, err := env.repos.ActivityGroup.FindByID(ctx, testpkg.CreateTestActivityGroup(t, env.db, name).ID)
+	require.NoError(t, err)
+	return group
 }

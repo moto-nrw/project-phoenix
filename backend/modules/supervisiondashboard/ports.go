@@ -115,6 +115,7 @@ type SessionBlock struct {
 	Title         string
 	StartTime     string
 	EndTime       string
+	IsSpontaneous bool
 	// IsAssigned reports that the caller is planned on the block.
 	IsAssigned bool
 	// CanOperate is the Timetable owner's verdict whether the caller may act
@@ -220,6 +221,15 @@ type Arrival struct {
 type Planning interface {
 	Pickups(ctx context.Context, studentIDs []int64, date Date) (map[int64]Pickup, error)
 	Arrivals(ctx context.Context, studentIDs []int64, date Date) (map[int64]Arrival, error)
+}
+
+// Resolver resolves the request tenant's settings. The retained adapter
+// builds Settings and the caller's overview decision over it and prefetches
+// the keys it reads once per request.
+type Resolver interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+	Prefetch(ctx context.Context, keys []string) (context.Context, error)
 }
 
 // Settings reads the tenant settings the projection depends on.

@@ -33,7 +33,117 @@ func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *
 		return err
 	}
 	adoptedDataObjects := adoptableDataObjects(base, candidate, baseManifest, violations)
+	retiredExpressionObjects, err := adoptableFromRetiredExpressions(project, base, candidate, baseManifest, adoptedDataObjects)
+	if err != nil {
+		return err
+	}
+	for name := range retiredExpressionObjects {
+		adoptedDataObjects[name] = struct{}{}
+	}
 	return comparePolicyStrictness(base, candidate, createdDataObjects, adoptedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols)
+}
+
+// adoptionProbeOwner is the write owner the retired-expression probe assigns
+// to a table it examines. No policy owner has this ID, so every package that
+// names the table surfaces as a foreign read or write in the probe.
+const adoptionProbeOwner = "architecture-adoption-probe"
+
+// adoptableFromRetiredExpressions returns the candidate data objects a
+// reviewed policy epoch may adopt although the base baseline records no
+// tables.unclassified finding for them (ADR 0045): the base reached the table
+// only through a generic store whose table expression the analysis cannot
+// resolve, so the only debt the base could record is tables.unresolved.
+//
+// A table qualifies when it has no write owner at the base, is not already
+// adoptable from recorded debt, the base baseline records at least one
+// production tables.unresolved finding for a package the candidate no longer
+// classifies, and the candidate names the table statically from packages of
+// the adopting owner and from no other package. The last condition ties the
+// adoption to the access that replaced the retired expression; it is proven
+// by analysing the candidate once more with the table assigned to an owner
+// that does not exist, so every accessor surfaces as a foreign read or write.
+// The epoch must increase, as for every reviewed registration.
+func adoptableFromRetiredExpressions(project string, base, candidate *Policy, baseManifest *LegacyManifest, adopted map[string]struct{}) (map[string]struct{}, error) {
+	adoptable := make(map[string]struct{})
+	if baseManifest == nil || candidate.PolicyEpoch <= base.PolicyEpoch {
+		return adoptable, nil
+	}
+	candidatePackages := candidate.packageMap()
+	retired := false
+	recorded := make(map[string]struct{})
+	for _, entry := range baseManifest.Entries {
+		if entry.Scope != ScopeProduction {
+			continue
+		}
+		switch entry.Rule {
+		case "tables.unresolved":
+			if _, classified := candidatePackages[entry.Source]; !classified {
+				retired = true
+			}
+		case "tables.unclassified":
+			recorded[entry.Target] = struct{}{}
+		}
+	}
+	if !retired {
+		return adoptable, nil
+	}
+	baseObjects := dataObjectsByName(base)
+	pending := make(map[string]string)
+	for _, object := range candidate.DataObjects {
+		_, owned := baseObjects[object.Name]
+		_, alreadyAdopted := adopted[object.Name]
+		_, debt := recorded[object.Name]
+		if !owned && !alreadyAdopted && !debt {
+			pending[object.Name] = object.WriteOwner
+		}
+	}
+	if len(pending) == 0 {
+		return adoptable, nil
+	}
+	probe := *candidate
+	// Projection permissions must not hide foreign readers from the probe.
+	probe.ReadProjections = nil
+	probe.DataObjects = make([]DataObject, 0, len(candidate.DataObjects))
+	for _, object := range candidate.DataObjects {
+		if _, examined := pending[object.Name]; examined {
+			object.WriteOwner = adoptionProbeOwner
+		}
+		probe.DataObjects = append(probe.DataObjects, object)
+	}
+	violations, err := analyzeSemantics(project, &probe)
+	if err != nil {
+		return nil, fmt.Errorf("probe retired-expression adoption: %w", err)
+	}
+	accessors := make(map[string][]string)
+	for _, violation := range violations {
+		if violation.Scope != ScopeProduction {
+			continue
+		}
+		if _, examined := pending[violation.Target]; !examined {
+			continue
+		}
+		switch violation.Rule {
+		case "tables.foreign-read", "tables.foreign-write":
+			accessors[violation.Target] = append(accessors[violation.Target], violation.Source)
+		}
+	}
+	for name, owner := range pending {
+		sources := accessors[name]
+		if len(sources) == 0 {
+			continue
+		}
+		adopt := true
+		for _, source := range sources {
+			if pkg, classified := candidatePackages[source]; !classified || pkg.Owner != owner {
+				adopt = false
+				break
+			}
+		}
+		if adopt {
+			adoptable[name] = struct{}{}
+		}
+	}
+	return adoptable, nil
 }
 
 // adoptableDataObjects returns the candidate data objects a reviewed policy
@@ -316,7 +426,7 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 			continue
 		}
 		if candidate.PolicyEpoch > base.PolicyEpoch &&
-			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedSharedKernelRule(rule)) {
+			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) || reviewedSharedKernelRule(rule) || reviewedCommonHTTPRule(rule)) {
 			continue
 		}
 		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
@@ -367,13 +477,17 @@ const sharedFixtureOwner = "test-support"
 // sharedFixtureTargets are the owner/role points the shared fixture owner may
 // reach in a reviewed epoch (ADR 0039, #2748): its own tooling, the tenant
 // runtime rows are created under, the calendar-date type DATE columns are
-// mandated to use, and the permission constants tokens carry. Nothing an
-// owner is dissolving is among them.
+// mandated to use, and the permission constants tokens carry. ADR 0047
+// (#3944) adds the security and settings contracts the guardian presets,
+// student access decisions and settings double are served through. No
+// implementation role of another owner is among them.
 var sharedFixtureTargets = map[[2]string]bool{
 	{sharedFixtureOwner, "test-support"}: true,
 	{"tenant-runtime", "public"}:         true,
 	{"legacy-shared", "domain"}:          true,
 	{"security-runtime", "contract"}:     true,
+	{"security-runtime", "public"}:       true,
+	{"settings-platform", "public"}:      true,
 }
 
 // reviewedSharedFixtureRule reports whether a rule has the one owner-specific
@@ -408,16 +522,50 @@ func reviewedSharedFixtureRule(rule Rule) bool {
 	return sharedFixtureTargets[[2]string{rule.TargetOwner, rule.TargetRole}]
 }
 
-// firstPartyAllowedByReviewedSharedFixtureRule reports whether the single rule
-// that admits this first-party import in the candidate policy is a reviewed
-// shared-fixture rule (ADR 0039). The import loosening it implies is then the
-// intended effect of that rule, not a separate widening.
-func firstPartyAllowedByReviewedSharedFixtureRule(base, candidate *Policy, scope Scope, source, target Package) bool {
-	if candidate.PolicyEpoch <= base.PolicyEpoch || source.Owner != sharedFixtureOwner {
+// ownerSuiteRules are the three owner-suite reaches ADR 0047 (#3944) pins for
+// the tests that leave the shared fixture package: the settings suite decides
+// the overview scope through the security contract, and the Audit
+// integration suite composes Enrollment and Care Plan through their test
+// support. Each is exact: source owner and role, target owner and role, and
+// the one scope the suite runs in.
+var ownerSuiteRules = []Rule{
+	{SourceOwner: "settings-platform", SourceRole: "module-internal-test", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{string(ScopeInternalTest)}},
+	{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "enrollment", TargetRole: "test-support", Scopes: []string{string(ScopeExternalTest)}},
+	{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "care-plan", TargetRole: "test-support", Scopes: []string{string(ScopeExternalTest)}},
+}
+
+// reviewedOwnerSuiteRule reports whether a rule is one of the pinned
+// ownerSuiteRules, in its scope only. Owner kinds, external classes, the
+// same-owner flag and every other source, target or scope stay under the
+// ordinary loosening guards.
+func reviewedOwnerSuiteRule(rule Rule) bool {
+	if rule.SourceOwnerKind != "" || rule.TargetOwnerKind != "" || rule.TargetClass != "" || rule.SameOwner || len(rule.Scopes) == 0 {
+		return false
+	}
+	for _, pinned := range ownerSuiteRules {
+		if rule.SourceOwner == pinned.SourceOwner && rule.SourceRole == pinned.SourceRole &&
+			rule.TargetOwner == pinned.TargetOwner && rule.TargetRole == pinned.TargetRole &&
+			scopesContain(pinned.Scopes, rule.Scopes) {
+			return true
+		}
+	}
+	return false
+}
+
+// firstPartyAllowedByReviewedFixtureRule reports whether the single rule that
+// admits this first-party import in the candidate policy is a reviewed
+// shared-fixture rule (ADR 0039, ADR 0047) or a pinned owner-suite rule
+// (ADR 0047). The import loosening it implies is then the intended effect of
+// that rule, not a separate widening.
+func firstPartyAllowedByReviewedFixtureRule(base, candidate *Policy, scope Scope, source, target Package) bool {
+	if candidate.PolicyEpoch <= base.PolicyEpoch {
 		return false
 	}
 	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
-	return decision.Allowed != nil && len(decision.Overlaps) == 0 && reviewedSharedFixtureRule(*decision.Allowed)
+	if decision.Allowed == nil || len(decision.Overlaps) != 0 {
+		return false
+	}
+	return reviewedSharedFixtureRule(*decision.Allowed) || reviewedOwnerSuiteRule(*decision.Allowed)
 }
 
 // reviewedSharedKernelRule reports whether a rule has the one owner-agnostic
@@ -642,8 +790,9 @@ func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, base
 				!timetablePlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
 				!shiftPlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
 				!enrollmentApplicationCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!firstPartyAllowedByReviewedSharedFixtureRule(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedSharedKernelRule(base, candidate, scope, source, target) {
+				!firstPartyAllowedByReviewedFixtureRule(base, candidate, scope, source, target) &&
+				!firstPartyAllowedByReviewedSharedKernelRule(base, candidate, scope, source, target) &&
+				!firstPartyAllowedByReviewedCommonHTTPRule(base, candidate, scope, source, target) {
 				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())
 			}
 		}

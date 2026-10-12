@@ -114,6 +114,7 @@ func applyStaffToLegacy(target *userModels.Staff, value schoolmembership.Staff) 
 	target.RotationAnchorDate = usersRepo.ParseCalendarDate(value.RotationAnchorDate)
 	target.BirthdayDisplayOptOut = value.BirthdayDisplayOptOut
 	target.DeletedAt = value.DeletedAt
+	target.IsGuest = value.IsGuest
 }
 
 func toLegacyStaff(value schoolmembership.Staff) *userModels.Staff {
@@ -248,6 +249,10 @@ func (r staffMembershipRepository) hydrateStaffPersons(ctx context.Context, memb
 		if person, found := persons[member.PersonID]; found {
 			member.Person = person
 		}
+		// A guest profile alone is not an external caregiver. The People
+		// Directory owns the account link, so resolve this marker only after
+		// its projection is attached.
+		member.IsGuest = member.IsGuest && member.Person != nil && member.Person.AccountID == nil
 	}
 	return nil
 }

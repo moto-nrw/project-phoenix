@@ -156,6 +156,11 @@ interface SupervisionStudentTable {
   };
 }
 
+// Ohne Block gibt es keine Liste erwarteter oder gegangener Kinder: die Suche
+// kennt nur die Kinder im Raum und sagt das, statt kaputt zu wirken (#3889).
+const ROOM_SEARCH_SCOPE =
+  "Gesucht wird nur unter den Kindern im Raum. Alle anderen finden Sie unter „Alle Kinder“.";
+
 interface SupervisionStudentGridProps {
   readonly students: readonly ActiveSupervisionStudent[];
   readonly filteredStudents: readonly ActiveSupervisionStudent[];
@@ -207,6 +212,7 @@ export function SupervisionStudentGrid({
         <EmptyStudentResults
           totalCount={students.length}
           filteredCount={filteredStudents.length}
+          description={ROOM_SEARCH_SCOPE}
         />
       </SectionCard>
     );

@@ -65,7 +65,7 @@ func filterTimeframes(query *bun.SelectQuery, filter domain.TimeframeFilter) *bu
 		query = query.Where(`("timeframe".end_time IS NULL OR "timeframe".end_time >= CAST(? AS TIME))`, *filter.OverlapsStart)
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit).Offset(filter.Offset)
+		query = query.Limit(int64(filter.Limit)).Offset(int64(filter.Offset))
 	}
 	return query
 }

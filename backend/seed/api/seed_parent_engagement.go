@@ -39,26 +39,132 @@ func (seedParentEngagementStep) Run(ctx context.Context, rt *Runtime) error {
 	if err := seedParentMealParticipation(rt, auth, studentID); err != nil {
 		return err
 	}
+	if err := seedParentAppointments(rt, studentID); err != nil {
+		return err
+	}
 	rt.Client.BindAuth(rt.TenantAuth)
-	fmt.Println("  1 parent preference, 1 conversation, audited contact/consent changes, 1 master-data request and lunch participation created")
+	fmt.Println("  1 parent preference, 1 conversation, audited contact/consent changes, 1 master-data request, lunch participation and parent appointments created")
 	return nil
 }
 
+// seedParentMealParticipation registers the child for lunch Monday to
+// Thursday and changes one day, so the week the parents portal opens with
+// shows days with and without lunch (#3923). Regular days only apply from
+// the first day still open for changes; the portal opens that day's week.
 func seedParentMealParticipation(rt *Runtime, auth AuthRef, studentID int64) error {
 	basePath := fmt.Sprintf("/parent/me/children/%d/meal-participation", studentID)
-	if _, err := rt.Client.PutWithAuth(auth, basePath, map[string]any{
-		"weekdays": []int{1, 2, 3, 4, 5},
-	}); err != nil {
+	raw, err := rt.Client.PutWithAuth(auth, basePath, map[string]any{
+		"weekdays": []int{1, 2, 3, 4},
+	})
+	if err != nil {
 		return fmt.Errorf("seed regular meal participation: %w", err)
 	}
-
-	nextMonday := nextWeekday(todaySeedDate().AddDays(1).UTCMidnight(), time.Monday)
-	if _, err := rt.Client.PutWithAuth(auth, basePath+"/"+nextMonday.Format(seedDateLayout), map[string]any{
-		"participating": false,
+	var resp struct {
+		Data struct {
+			EffectiveFrom string `json:"effective_from"`
+		} `json:"data"`
+	}
+	if err := parseJSON(raw, &resp); err != nil {
+		return fmt.Errorf("parse regular meal participation: %w", err)
+	}
+	effectiveFrom, err := parseSeedDate(resp.Data.EffectiveFrom)
+	if err != nil {
+		return fmt.Errorf("parse meal participation start %q: %w", resp.Data.EffectiveFrom, err)
+	}
+	day, participating := mealParticipationException(effectiveFrom)
+	if _, err := rt.Client.PutWithAuth(auth, basePath+"/"+day.String(), map[string]any{
+		"participating": participating,
 	}); err != nil {
 		return fmt.Errorf("seed meal participation exception: %w", err)
 	}
 	return nil
+}
+
+// mealParticipationException picks the changed day in the week of the first
+// changeable day: Wednesday off while Wednesday is still ahead, otherwise
+// Friday on. Either way the week mixes days with and without lunch.
+func mealParticipationException(firstChangeable seedDate) (seedDate, bool) {
+	if firstChangeable.Weekday() <= time.Wednesday {
+		return firstChangeable.AddDays(int(time.Wednesday - firstChangeable.Weekday())), false
+	}
+	return firstChangeable.AddDays(int(time.Friday - firstChangeable.Weekday())), true
+}
+
+// seedOutingDate is the day of the group's outing: a school day in a little
+// over two weeks, after every other dated parent request of the seed.
+func seedOutingDate(today seedDate) seedDate {
+	return seedWeekdayOnOrAfter(today.AddDays(15))
+}
+
+// seedParentAppointments fills the families' calendar for the coming weeks
+// (#3923). It showed nothing before: only the marketing profile created a
+// parent appointment.
+func seedParentAppointments(rt *Runtime, studentID int64) error {
+	today := todaySeedDate()
+	groupID, err := seedStudentGroupID(rt, studentID)
+	if err != nil {
+		return err
+	}
+	parentsEvening := seedWeekdayOnOrAfter(today.AddDays(6)).String()
+	outing := seedOutingDate(today).String()
+	closingDay := seedWeekdayOnOrAfter(today.AddDays(24)).String()
+	festival := nextWeekday(today.AddDays(30).UTCMidnight(), time.Friday).Format(seedDateLayout)
+	allParents := []map[string]any{{"type": "all_school_parents"}, {"type": "all_staff"}}
+	appointments := []map[string]any{
+		{
+			"title": "Elternabend der Gruppe", "location": "Gruppenraum",
+			"description": "Wir stellen den Tagesablauf vor und planen die Wochen bis zu den Ferien.",
+			"start_date":  parentsEvening, "end_date": parentsEvening, "start_time": "19:00", "end_time": "20:30", "all_day": false,
+			"delivery_mode": "rsvp_required", "overview_visibility": "all",
+			"targets":    []map[string]any{{"type": "parents_by_group", "id": groupID}, {"type": "all_staff"}},
+			"send_email": false,
+		},
+		{
+			"title": "Ausflug in den Zoo", "location": "Treffpunkt Schulhof",
+			"description": "Bitte geben Sie Ihrem Kind einen Rucksack mit Trinkflasche und Regenjacke mit. Wir sind gegen 15 Uhr zurück.",
+			"start_date":  outing, "end_date": outing, "start_time": "08:30", "end_time": "15:00", "all_day": false,
+			"delivery_mode": "informational", "targets": allParents, "send_email": false,
+		},
+		{
+			"title":       "Pädagogischer Tag: OGS geschlossen",
+			"description": "Das Team bildet sich fort. An diesem Tag findet keine Betreuung statt.",
+			"start_date":  closingDay, "end_date": closingDay, "start_time": "00:00", "end_time": "23:59", "all_day": true,
+			"delivery_mode": "informational", "targets": allParents, "send_email": false,
+		},
+		{
+			"title": "Laternenfest", "location": "Schulhof",
+			"description": "Die Kinder basteln ihre Laternen in der OGS. Wir ziehen gemeinsam durch das Viertel.",
+			"start_date":  festival, "end_date": festival, "start_time": "17:00", "end_time": "19:00", "all_day": false,
+			"delivery_mode": "rsvp_required", "overview_visibility": "all", "targets": allParents, "send_email": false,
+		},
+	}
+	for _, appointment := range appointments {
+		if _, err := rt.Client.PostWithAuth(rt.TenantAuth, "/api/calendar/appointments", appointment); err != nil {
+			return fmt.Errorf("create parent appointment %s: %w", appointment["title"], err)
+		}
+	}
+	return nil
+}
+
+// seedStudentGroupID reads the group a child belongs to.
+func seedStudentGroupID(rt *Runtime, studentID int64) (int64, error) {
+	raw, err := rt.Client.GetWithAuth(rt.TenantAuth, fmt.Sprintf("/api/students/%d", studentID))
+	if err != nil {
+		return 0, fmt.Errorf("load student %d: %w", studentID, err)
+	}
+	var resp struct {
+		Data struct {
+			GroupID any `json:"group_id"`
+		} `json:"data"`
+	}
+	if err := parseJSON(raw, &resp); err != nil {
+		return 0, fmt.Errorf("parse student %d: %w", studentID, err)
+	}
+	groupID, err := parseSeedID(resp.Data.GroupID)
+	if err != nil || groupID == 0 {
+		return 0, fmt.Errorf("student %d has no group", studentID)
+	}
+	return groupID, nil
 }
 
 func seedParentPhotoConsentHistory(rt *Runtime, auth AuthRef, studentID int64) error {

@@ -32,7 +32,7 @@ func TestGroupMappingCommandsAreIdempotentAndTransactional(t *testing.T) {
 	count := func() int {
 		n, err := db.NewSelect().Table("active.group_mappings").Where("tenant_id = ? AND active_combined_group_id = ?", testpkg.Tenant(t), combinedID).Count(ctx)
 		require.NoError(t, err)
-		return n
+		return int(n)
 	}
 	abort := errors.New("abort mapping")
 	require.ErrorIs(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {

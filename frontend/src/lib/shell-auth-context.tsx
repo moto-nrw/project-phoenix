@@ -28,6 +28,7 @@ interface ShellUser {
   name: string;
   email: string;
   roles: string[];
+  roleIsSystem?: boolean[];
 }
 
 interface ShellProfile {
@@ -93,10 +94,13 @@ export function TeacherShellProvider({
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
-          id: session.user.id,
+          ...(session.user.id ? { id: session.user.id } : {}),
           name: session.user.name?.trim() || "Benutzer",
           email: session.user.email ?? "",
           roles: session.user.roles ?? [],
+          ...(session.user.roleIsSystem
+            ? { roleIsSystem: session.user.roleIsSystem }
+            : {}),
         }
       : null;
 
@@ -194,7 +198,7 @@ export function OperatorShellProvider({
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
-          id: session.user.id,
+          ...(session.user.id ? { id: session.user.id } : {}),
           name: session.user.name?.trim() || "Operator",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["operator"],
@@ -256,7 +260,7 @@ export function SchoolShellProvider({
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
-          id: session.user.id,
+          ...(session.user.id ? { id: session.user.id } : {}),
           name: session.user.name?.trim() || "Lehrkraft",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["lehrkraft"],
@@ -334,29 +338,50 @@ export function SchoolShellProvider({
 // dashboard fetches it directly via /api/parent/me/children.
 export function ParentShellProvider({
   children,
+  accountName,
 }: {
   readonly children: React.ReactNode;
+  /**
+   * Der Name aus dem Elternprofil. Das Eltern-Token trägt keine Namen, nur
+   * den Benutzernamen, und der ist meist die E-Mail-Adresse. Das Profil ist
+   * dieselbe Quelle wie die Begrüßung der Startseite, damit Kopfzeile und
+   * Begrüßung dieselbe Person zeigen (#3891). Ohne Profil bleibt es beim
+   * Namen der Sitzung.
+   */
+  readonly accountName?: {
+    readonly firstName?: string;
+    readonly lastName?: string;
+  };
 }) {
   const { data: session, status: sessionStatus } = useSession();
+  const profileFirstName = accountName?.firstName?.trim() ?? "";
+  const profileLastName = accountName?.lastName?.trim() ?? "";
 
   const value = useMemo<ShellAuthContextType>(() => {
+    // Elternkonten tragen im Session-Namen haeufig die E-Mail-Adresse. Die
+    // darf weder als Name noch als Vorname durchgereicht werden: "Guten Tag,
+    // karin.klein@email.de" liest sich wie ein Datenbankauswurf. Ohne
+    // brauchbaren Namen bleibt das Profil leer, und die Oberflaeche gruesst
+    // ohne Anrede.
+    const sessionName = session?.user?.name?.trim() ?? "";
+    const nameParts = profileFirstName
+      ? [profileFirstName, profileLastName].filter(Boolean)
+      : sessionName.includes("@")
+        ? []
+        : sessionName.split(" ");
+    const displayName = nameParts.join(" ");
+
     const user: ShellUser | null = session?.user
       ? {
-          id: session.user.id,
-          name: session.user.name?.trim() || "Eltern",
+          ...(session.user.id ? { id: session.user.id } : {}),
+          name: displayName || "Eltern",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["guardian"],
         }
       : null;
 
-    // Elternkonten tragen im Session-Namen haeufig die E-Mail-Adresse. Die
-    // darf nie als Vorname durchgereicht werden: "Guten Tag,
-    // karin.klein@email.de" liest sich wie ein Datenbankauswurf. Ohne
-    // brauchbaren Namen bleibt das Profil leer, und die Oberflaeche gruesst
-    // ohne Anrede.
-    const displayName = session?.user?.name?.trim() ?? "";
-    const nameParts = displayName.includes("@") ? [] : displayName.split(" ");
-    const firstName = session?.user?.firstName?.trim() || nameParts[0];
+    const firstName =
+      profileFirstName || session?.user?.firstName?.trim() || nameParts[0];
     const shellProfile: ShellProfile | null = firstName
       ? {
           firstName,
@@ -391,7 +416,7 @@ export function ParentShellProvider({
       // account settings, so the avatar menu offered nothing but "Abmelden".
       profileUrl: parentPath("/parents/settings"),
     };
-  }, [session, sessionStatus]);
+  }, [profileFirstName, profileLastName, session, sessionStatus]);
 
   return (
     <ShellAuthContext.Provider value={value}>

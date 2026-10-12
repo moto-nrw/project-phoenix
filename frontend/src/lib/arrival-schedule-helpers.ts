@@ -50,10 +50,14 @@ function getWeekStart(weekOffset = 0): Date {
   return monday;
 }
 
-export function getWeekDays(weekOffset = 0): Date[] {
+export function getWeekDays(
+  weekOffset = 0,
+  weekendFollowsFriday = false,
+): Date[] {
   const monday = getWeekStart(weekOffset);
   const days: Date[] = [];
-  for (let i = 0; i < 5; i++) {
+  const dayCount = weekendFollowsFriday ? 7 : 5;
+  for (let i = 0; i < dayCount; i++) {
     const day = new Date(monday);
     day.setDate(monday.getDate() + i);
     days.push(day);
@@ -141,12 +145,14 @@ export function getDayData(
   isSickToday = false,
   isExcusedToday = false,
   statusForDate: StudentStatusKind | null = null,
+  weekendFollowsFriday = false,
 ): ArrivalDayData {
-  const weekday = getWeekdayFromDate(date);
+  const calendarWeekday = getWeekdayFromDate(date);
+  const weekday = calendarWeekday ?? 5;
   const dateStr = formatDateISO(date);
   const today = new Date();
 
-  if (weekday === null) {
+  if (calendarWeekday === null && !weekendFollowsFriday) {
     return {
       date,
       weekday: 0,

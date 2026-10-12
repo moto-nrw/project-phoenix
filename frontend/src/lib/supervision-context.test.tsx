@@ -450,6 +450,67 @@ describe("SupervisionProvider", () => {
     expect(supervisedRequests).toHaveLength(1);
   });
 
+  it("runs a forced refresh again when it arrives during a load (#3888)", async () => {
+    setupFetchMock();
+    const fallbackFetch = mockFetch.getMockImplementation();
+    let resolveInitialSupervised: ((value: unknown) => void) | undefined;
+    let resolveFollowUpSupervised: ((value: unknown) => void) | undefined;
+    let supervisedRequestCount = 0;
+
+    mockFetch.mockImplementation((url: string) => {
+      if (!url.includes("/api/me/groups/supervised")) {
+        return fallbackFetch?.(url);
+      }
+      supervisedRequestCount++;
+      if (supervisedRequestCount === 1) {
+        return new Promise((resolve) => {
+          resolveInitialSupervised = resolve;
+        });
+      }
+      return new Promise((resolve) => {
+        resolveFollowUpSupervised = resolve;
+      });
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => expect(supervisedRequestCount).toBe(1));
+
+    // The own end of a block lands while the first load is still running.
+    const queuedRefresh = result.current.refresh({
+      silent: true,
+      force: true,
+    });
+    expect(supervisedRequestCount).toBe(1);
+
+    await act(async () => {
+      resolveInitialSupervised?.({
+        ok: true,
+        json: async () => ({ data: [] }),
+      });
+    });
+
+    await waitFor(() => expect(supervisedRequestCount).toBe(2));
+
+    let refreshSettled = false;
+    void queuedRefresh.then(() => {
+      refreshSettled = true;
+    });
+    await Promise.resolve();
+    expect(refreshSettled).toBe(false);
+
+    await act(async () => {
+      resolveFollowUpSupervised?.({
+        ok: true,
+        json: async () => ({ data: [] }),
+      });
+      await queuedRefresh;
+    });
+    expect(refreshSettled).toBe(true);
+  });
+
   it("stops listening for phoenix:supervision-stale after unmount", async () => {
     setupFetchMock();
 

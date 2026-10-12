@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -15,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // The Stammdaten decision and the cross-kind parent-request commands are
@@ -30,7 +31,7 @@ type masterDataDecisionWiring struct {
 	fields      peopledirectory.StudentFieldReviewQuery
 	students    usersModels.StudentRepository
 	persons     usersModels.PersonRepository
-	audit       users.StudentChangeRecorder
+	audit       peopleCompose.StudentChangeRecorder
 	scope       carePlanCompose.ReviewScopeResolver
 	emitter     *parentmessaging.Emitter
 	broadcaster realtime.Broadcaster
@@ -155,7 +156,7 @@ func (r masterDataFieldReviews) ReviewFields(ctx context.Context, changes []care
 type masterDataRecords struct {
 	students usersModels.StudentRepository
 	persons  usersModels.PersonRepository
-	audit    users.StudentChangeRecorder
+	audit    peopleCompose.StudentChangeRecorder
 }
 
 var _ carePlanCompose.MasterDataRecords = masterDataRecords{}

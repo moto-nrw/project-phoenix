@@ -9,9 +9,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
 // Fixtures of the kiosk scan flows (#2698): rooms with exact names, the
@@ -25,13 +22,13 @@ func fixtureCtx() (context.Context, context.CancelFunc) {
 
 // CreateTestRoomNamed inserts a room with exactly this name and no capacity.
 // The special-room flows match on the name, so no unique suffix is added.
-func CreateTestRoomNamed(tb testing.TB, db *bun.DB, name string) *facilities.Room {
+func CreateTestRoomNamed(tb testing.TB, db *bun.DB, name string) *Room {
 	tb.Helper()
 	ctx, cancel := fixtureCtx()
 	defer cancel()
 
-	room := &facilities.Room{Name: name, Building: "Test Building"}
-	room.SetTenantID(fixtureTenantID(tb))
+	room := &Room{Name: name, Building: "Test Building"}
+	room.TenantID = fixtureTenantID(tb)
 	err := db.NewInsert().Model(room).ModelTableExpr(`facilities.rooms`).Scan(ctx)
 	require.NoError(tb, err, "Failed to create test room %q", name)
 	return room
@@ -39,20 +36,20 @@ func CreateTestRoomNamed(tb testing.TB, db *bun.DB, name string) *facilities.Roo
 
 // CreateTestSystemRoom inserts the reserved system room with exactly this
 // name; released marks it as a permanently open room (#3064).
-func CreateTestSystemRoom(tb testing.TB, db *bun.DB, name string, released bool) *facilities.Room {
+func CreateTestSystemRoom(tb testing.TB, db *bun.DB, name string, released bool) *Room {
 	tb.Helper()
 	ctx, cancel := fixtureCtx()
 	defer cancel()
 
-	room := &facilities.Room{Name: name, Building: "Test Building", IsSystem: true, IsOpenRoom: released}
-	room.SetTenantID(fixtureTenantID(tb))
+	room := &Room{Name: name, Building: "Test Building", IsSystem: true, IsOpenRoom: released}
+	room.TenantID = fixtureTenantID(tb)
 	err := db.NewInsert().Model(room).ModelTableExpr(`facilities.rooms`).Scan(ctx)
 	require.NoError(tb, err, "Failed to create test system room %q", name)
 	return room
 }
 
 // CreateTestRoomWithCapacity inserts a uniquely named room with a capacity.
-func CreateTestRoomWithCapacity(tb testing.TB, db *bun.DB, name string, capacity int) *facilities.Room {
+func CreateTestRoomWithCapacity(tb testing.TB, db *bun.DB, name string, capacity int) *Room {
 	tb.Helper()
 	room := CreateTestRoom(tb, db, name)
 	SetRoomCapacity(tb, db, room.ID, capacity)
@@ -110,7 +107,7 @@ func setColumn(tb testing.TB, db *bun.DB, table, column string, value any, id in
 
 // CreateTestActivityGroupWithLimit inserts an open activity with a
 // participant limit.
-func CreateTestActivityGroupWithLimit(tb testing.TB, db *bun.DB, name string, maxParticipants int) *activities.Group {
+func CreateTestActivityGroupWithLimit(tb testing.TB, db *bun.DB, name string, maxParticipants int) *ActivityGroup {
 	tb.Helper()
 	group := CreateTestActivityGroup(tb, db, name)
 	setColumn(tb, db, "activities.groups", "max_participants", maxParticipants, group.ID)
@@ -126,22 +123,22 @@ func CreateTestRunningBlock(tb testing.TB, db *bun.DB, roomID int64, name string
 	activity := CreateTestActivityGroup(tb, db, name)
 	session := CreateTestActiveGroup(tb, db, activity.ID, roomID)
 	instance := CreateTestActivityInstance(tb, db, timezone.TodayDate(), roomID, ActivityInstanceOpts{
-		Status: schedule.InstanceStatusActive, ActivityGroupID: &activity.ID, ActiveGroupID: &session.ID, Title: name,
+		Status: ScheduleInstanceStatusActive, ActivityGroupID: &activity.ID, ActiveGroupID: &session.ID, Title: name,
 	})
 	for _, studentID := range rosterStudentIDs {
-		CreateTestInstanceStudent(tb, db, instance.ID, studentID, schedule.AttendanceStatusExpected)
+		CreateTestInstanceStudent(tb, db, instance.ID, studentID, ScheduleAttendanceStatusExpected)
 	}
 	return session
 }
 
 // CreateTestPickupNote inserts a date-specific pickup note.
-func CreateTestPickupNote(tb testing.TB, db *bun.DB, studentID int64, date CalendarDate, staffID int64, content string) *schedule.StudentPickupNote {
+func CreateTestPickupNote(tb testing.TB, db *bun.DB, studentID int64, date CalendarDate, staffID int64, content string) *StudentPickupNote {
 	tb.Helper()
 	ctx, cancel := fixtureCtx()
 	defer cancel()
 
-	row := &schedule.StudentPickupNote{StudentID: studentID, NoteDate: schedule.Date(date.String()), Content: content, CreatedBy: staffID}
-	row.SetTenantID(fixtureTenantID(tb))
+	row := &StudentPickupNote{StudentID: studentID, NoteDate: timezone.Date(date.String()), Content: content, CreatedBy: staffID}
+	row.TenantID = fixtureTenantID(tb)
 	_, err := db.NewInsert().Model(row).ModelTableExpr(`schedule.student_pickup_notes`).Exec(ctx)
 	require.NoError(tb, err, "Failed to create test pickup note")
 	return row
@@ -149,7 +146,7 @@ func CreateTestPickupNote(tb testing.TB, db *bun.DB, studentID int64, date Calen
 
 // CreateTestPickupScheduleWithNote inserts one weekday pickup time with a
 // recurring note.
-func CreateTestPickupScheduleWithNote(tb testing.TB, db *bun.DB, studentID int64, weekday int, staffID int64, pickupHHMM, note string) *schedule.StudentPickupSchedule {
+func CreateTestPickupScheduleWithNote(tb testing.TB, db *bun.DB, studentID int64, weekday int, staffID int64, pickupHHMM, note string) *StudentPickupSchedule {
 	tb.Helper()
 	row := CreateTestPickupSchedule(tb, db, studentID, weekday, staffID, pickupHHMM)
 	setColumn(tb, db, "schedule.student_pickup_schedules", "notes", note, row.ID)
@@ -185,7 +182,7 @@ func CountOpenActiveGroupsInRoom(tb testing.TB, db *bun.DB, roomID int64) int {
 	count, err := db.NewSelect().TableExpr(`active.groups AS "group"`).
 		Where(`"group".room_id = ?`, roomID).Where(`"group".end_time IS NULL`).Count(ctx)
 	require.NoError(tb, err, "failed to count open active groups in room %d", roomID)
-	return count
+	return int(count)
 }
 
 // ActiveGroupLastActivity reads the heartbeat of a session.

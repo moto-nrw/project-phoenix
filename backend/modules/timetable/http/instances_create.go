@@ -156,8 +156,8 @@ func bindCreateInstanceRequest(w http.ResponseWriter, r *http.Request) (*parsedC
 			errors.New("invalid date format, expected YYYY-MM-DD")))
 		return nil, false
 	}
-	if err := validateTimetableWorkday(date); err != nil {
-		common.RenderError(w, r, codedInvalidOnField(err, "date"))
+	if err := validateTimetableWorkday(r.Context(), date); err != nil {
+		renderWorkdayRefusal(w, r, err, "date")
 		return nil, false
 	}
 	startTime, err := parseClockTime(req.StartTime)

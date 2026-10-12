@@ -34,7 +34,7 @@ type sessionEvents struct {
 }
 
 // serveSentrySession sends a request with the given session through the
-// middleware order of api.New: request ID, Recoverer, Sentry reporting, the
+// middleware order of the Serve root: request ID, Recoverer, Sentry reporting, the
 // root verifier and the session tags. A nil session sends no token. The
 // request comes from a client IP, directly and forwarded, so the tests can
 // prove it stays out. The Sentry client records instead of sending and keeps

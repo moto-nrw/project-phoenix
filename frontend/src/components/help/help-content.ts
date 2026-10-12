@@ -551,7 +551,7 @@ function editStudentTopic(): HelpTopic {
           "Wählen Sie oben rechts `Wochenplan`.",
           "Setzen Sie bei den Betreuungstagen einen Haken.",
           "Tragen Sie je Tag `Ankunft` und `Abholung` ein.",
-          "Kommt das Kind an einem Wochentag nicht? Lassen Sie `Abholung` leer.",
+          "Kommt das Kind an einem Betreuungstag nicht? Lassen Sie `Abholung` leer.",
           "Öffnen Sie `Notizen`. Tragen Sie den Hinweis unter `Notiz zum Tag (jede Woche)` ein.",
           "Wählen Sie `Speichern`.",
         ],
@@ -585,6 +585,7 @@ function editStudentTopic(): HelpTopic {
       // #3371: Knopf erscheint nur mit gepflegter Vorgabe unter einem leeren
       // Feld an einem Betreuungstag (care-weekly-plan-editor.tsx).
       "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
+      "Betreut Ihre OGS am Wochenende? Dann gelten Samstag und Sonntag nach dem Freitagsplan.",
     ],
     related: [
       HELP_TOPICS.studentSearch,
@@ -988,9 +989,9 @@ function ownGroupsTopic(
       audience: ["caregiver", "lead"],
       icon: "Users",
       steps: [
-        "Prüfen Sie, ob `Meine Gruppen` in der Seitenleiste steht.",
-        "Ist der Bereich vorhanden? Öffnen Sie dort die gewünschte Gruppe.",
-        "Fehlt der Bereich? Öffnen Sie `Alle Kinder` und nutzen Sie Suche und Filter.",
+        "Prüfen Sie, ob `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste steht.",
+        "Ist einer der Bereiche vorhanden? Öffnen Sie dort die gewünschte Gruppe.",
+        "Fehlen beide Bereiche? Öffnen Sie `Alle Kinder` und nutzen Sie Suche und Filter.",
       ],
       result:
         "Sie sehen die Kinder entweder in festen eigenen Gruppen oder in einer gemeinsamen Kinderliste.",
@@ -1012,7 +1013,7 @@ function ownGroupsTopic(
     audience: ["caregiver", "lead"],
     icon: "Users",
     steps: [
-      "Öffnen Sie `Meine Gruppen` in der Seitenleiste.",
+      "Öffnen Sie `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste.",
       "Wählen Sie die gewünschte Gruppe.",
       "Prüfen Sie die Zahlen für `krank` und `entschuldigt`.",
       "Suchen Sie bei Bedarf über `Name suchen...` nach einem Kind.",
@@ -1026,6 +1027,7 @@ function ownGroupsTopic(
     differences: [
       "In der Seitenleiste steht hinter jeder Gruppe, wie viele Kinder gerade da sind.",
       "Eine vorübergehend übernommene Gruppe erscheint ebenfalls unter `Meine Gruppen`.",
+      "Gruppen, die nicht Ihre eigenen sind, stehen unter `Weitere Gruppen`.",
       "Fehlt eine Gruppe? Bitten Sie Ihre Leitung, Ihre Gruppenzuordnung zu prüfen.",
     ],
     troubleshooting: HELP_TOPICS.missingChildOrGroup,
@@ -1207,6 +1209,9 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       // Live geprueft: die Kopfzeile des Reiters traegt das Kennzeichen.
       "Steht oben rechts `Nur ansehen`? Dann dürfen Sie den Plan lesen, aber nicht ändern.",
     ],
+    notes: [
+      "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
+    ],
     troubleshootingDetails: [
       "Der Tab `Betreuungsplan` fehlt? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
       "Steht dort `Noch kein Planungszeitraum`? Dann hat Ihre Leitung den Zeitraum noch nicht angelegt.",
@@ -1256,7 +1261,10 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
         ? ["Bei einfacher Anwesenheit gibt es den Tagesplan nicht."]
         : []),
     ],
-    notes: ["Mit den Pfeilen oben rechts sehen Sie einen anderen Tag."],
+    notes: [
+      "Mit den Pfeilen oben rechts sehen Sie einen anderen Tag.",
+      "Betreut Ihre OGS am Wochenende? Dann zeigt der Tagesplan auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
+    ],
     troubleshootingDetails: [
       // Live geprueft: der haeufigste Leerzustand einer Betreuungskraft.
       "Steht dort `Heute ist keine Betreuung geplant`? Dann sind Sie für diesen Tag nicht eingeteilt. Die Einteilung macht Ihre Leitung.",
@@ -1416,6 +1424,17 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
           // Seite, auch ohne geplanten Block und ohne NFC.
           "Oder wählen Sie `Spontane Aktivität starten`, wenn nichts geplant ist.",
           "Prüfen Sie Raum, Aktivität und Betreuungsteam.",
+          "Nach dem Start einer spontanen Aktivität öffnet sich `Anwesende Kinder hinzufügen`. Wählen Sie dort die Kinder für die Aktivität aus.",
+        ],
+      },
+      {
+        // #3823: externe Kräfte ohne Konto, live geprüft in beiden Dialogen.
+        title: "Weitere Betreuer eintragen",
+        steps: [
+          "Wählen Sie in der laufenden Aufsicht `Betreuer hinzufügen`.",
+          "Wählen Sie die Person unter `Betreuer auswählen` und dann `Hinzufügen`.",
+          "Hat die Person kein moto-Konto, zum Beispiel eine AG-Leitung von außen? Wählen Sie `Externe Person eintragen`, geben Sie den Namen ein und wählen Sie `Eintragen`.",
+          "Beim Start einer spontanen Aktivität geht das genauso unter `Weitere Betreuer`.",
         ],
       },
       {
@@ -1423,6 +1442,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
         steps: [
           "Suchen Sie ein Kind in der laufenden Aufsicht.",
           "Wählen Sie `Hinzufügen`, wenn das Kind anwesend ist und zur Aufsicht kommen soll.",
+          "Mehrere Kinder auf einmal? Wählen Sie `Anwesende Kinder`. Dort stehen die Kinder, die gerade in der OGS sind und laut Gehzeit noch bleiben. Haken Sie die Kinder an und wählen Sie `Kinder hinzufügen`.",
           "Prüfen Sie geplante Abholzeiten und Hinweise in der Liste.",
           "Wechselt ein Kind den Raum oder geht nach Hause? Ändern Sie seinen Aufenthaltsort.",
         ],
@@ -1447,7 +1467,9 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
       "Auf dem Handy stehen die offenen Räume nicht in der Seitenleiste, sondern oben auf der Seite `Aufsicht` als Reiter.",
       "Welche Räume offen sind, legt Ihre OGS fest.",
+      "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`. In Zeiterfassung und Dienstplan erscheint sie nicht.",
       "Fehlt `Spontane Aktivität starten`? Dann hat Ihre OGS in den `Einstellungen` unter `Betrieb` den Schalter `Spontane Aktivitäten erlauben` ausgeschaltet.",
+      "Fehlt ein Kind unter `Anwesende Kinder`? Ist seine Gehzeit schon erreicht, steht es nur unter `Alle anwesenden`. Ist es noch nicht angemeldet, suchen Sie es über `Kind hinzufügen`.",
     ],
     troubleshooting: HELP_TOPICS.attendanceProblem,
     related: [HELP_TOPICS.rooms, HELP_TOPICS.ownGroups],
@@ -1599,6 +1621,7 @@ function parentMessageTopic(): HelpTopic {
     differences: [
       "Sehen Sie `Nachrichten` nicht? Vielleicht ist die Funktion ausgeschaltet.",
       "Möglicherweise fehlt Ihnen auch der Zugriff auf die betroffenen Kinder.",
+      "Fehlen bei einer Anfrage `Anfrage ansehen` oder `Anfrage bearbeiten`? Dann dürfen Sie die Anfrage für dieses Kind nicht prüfen.",
     ],
     notes: [
       "Schreiben Sie persönliche Angaben nur in die Unterhaltung der richtigen Bezugsperson.",
@@ -1720,7 +1743,7 @@ function findStaffTopic(presenceMode: HelpPresenceMode): HelpTopic {
         ? "Sie sehen, ob die Person gerade arbeitet."
         : "Sie sehen, ob die Person gerade arbeitet. Manchmal steht dort auch ihre Aufsicht.",
     differences: [
-      "Persönliche Personalunterlagen und Arbeitszeiten sind besonders geschützt. Ohne zusätzliches Recht sehen Sie diese Angaben nicht.",
+      "Auch ohne Recht für Personalakten sehen Sie, wo die Person gerade ist. Die Karte öffnet dann keine Personalakte. Fragen Sie bei Bedarf Ihre Leitung.",
       "Möchten Sie der Person schreiben? Öffnen Sie den `Team-Chat`.",
     ],
     related: [HELP_TOPICS.teamChat, HELP_TOPICS.activeSupervision],
@@ -1823,6 +1846,7 @@ function trackWorkTimeTopic(): HelpTopic {
       "Steht dort `Bitte Status wählen`? Dann fehlt noch der Arbeitsort. Wählen Sie zuerst `In der OGS` oder `Homeoffice`.",
       "Eine geplante Schicht steht oberhalb der Stempeluhr. Sie startet die Zeiterfassung nicht automatisch.",
       "Bei einer deutlichen Abweichung von Ihrer geplanten Schicht kann moto nach einem Grund fragen.",
+      "Ihre Schule kann das Einstempeln erst kurz vor Ihrer Schicht erlauben. Dann zeigt moto, ab wann es geht.",
       "Nach der gewählten Pausenlänge läuft die Arbeitszeit automatisch weiter.",
     ],
     related: [HELP_TOPICS.correctWorkTime, HELP_TOPICS.nfcWorkTime],
@@ -2170,6 +2194,7 @@ function nfcWorkTimeTopic(nfcEnabled: boolean | null): HelpTopic {
     differences: [
       "Kinderarmbänder und nicht zugewiesene Armbänder funktionieren für die persönliche Arbeitszeit nicht.",
       "Eine laufende Pause wird als `In Pause` angezeigt.",
+      "Ihre Schule kann das Einstempeln erst kurz vor Ihrer Schicht erlauben. Dann zeigt das Tablet, ab wann es geht.",
     ],
     troubleshooting: HELP_TOPICS.nfcProblem,
     related: [HELP_TOPICS.trackWorkTime, HELP_TOPICS.tagAssignment],
@@ -3048,7 +3073,7 @@ function careTimesTopic(): HelpTopic {
           "Wählen Sie `Wochenplan`.",
           "Wählen Sie die Betreuungstage.",
           "Tragen Sie `Ankunft` und `Abholung` ein.",
-          "Kommt das Kind an einem Wochentag nicht? Lassen Sie `Abholung` leer.",
+          "Kommt das Kind an einem Betreuungstag nicht? Lassen Sie `Abholung` leer.",
           "Öffnen Sie `Notizen`. Tragen Sie den Hinweis unter `Notiz zum Tag (jede Woche)` ein.",
           "Wählen Sie `Wochenplan speichern`.",
         ],
@@ -3093,6 +3118,7 @@ function careTimesTopic(): HelpTopic {
       "Tippen Sie nur Ziffern, zum Beispiel 1600 für 16:00 Uhr.",
       "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
       "Die üblichen Zeiten stehen unter `Einstellungen` bei `Betreuungszeiten`. Jede Schule pflegt ihre eigenen Zeiten.",
+      "Betreut Ihre OGS am Wochenende? Dann gelten Samstag und Sonntag nach dem Freitagsplan.",
     ],
     differences: [
       // Einstellung `enrollment.bookings_authoritative`, Vorgabe aus. Der
@@ -4852,6 +4878,7 @@ function leadCarePlanTopic(): HelpTopic {
       "Ein Regeltermin wiederholt sich. Die Ansicht `Serien` zeigt alle Regeltermine.",
       "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
       "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
+      "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
     differences: [
       "Steht oben `Nur ansehen`? Dann dürfen Sie den Plan lesen, aber nicht ändern.",
@@ -5837,6 +5864,49 @@ function parentLoginTopic(): HelpTopic {
 }
 
 /**
+ * Die Eltern-Tour (#3747). Sie erklärt vorhandene Bereiche und speichert den
+ * Stand nur für dieses Elternkonto auf diesem Gerät.
+ */
+function parentFirstStepsTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.parentFirstSteps,
+    title: "Erste Schritte im Elternportal",
+    question: "Wie zeigt mir moto die wichtigsten Bereiche?",
+    summary:
+      "Eine kurze Checkliste führt Sie durch die wichtigsten Bereiche im Elternportal.",
+    group: "einstieg",
+    audience: "parent",
+    icon: "ListChecks",
+    steps: [
+      "Nach der Anmeldung öffnet sich die Checkliste `Erste Schritte`.",
+      "Klappen Sie einen Punkt auf und wählen Sie `Tour starten`.",
+      "moto markiert den passenden Bereich. Tippen Sie auf die markierte Stelle oder wählen Sie `Weiter`.",
+      "Nach der Tour bekommt der Punkt einen Haken. Sie können danach mit einem anderen Punkt weitermachen.",
+      "Sind alle Punkte erledigt, wählen Sie `Erste Schritte abschließen`.",
+    ],
+    result:
+      "Die Checkliste verschwindet. Alle ausführlichen Anleitungen bleiben in der Hilfe verfügbar.",
+    notes: [
+      "Auf dem Handy steht die Checkliste über der unteren Navigation. Sie können sie einklappen und später wieder öffnen.",
+      "Mit `Noch einmal zeigen` können Sie eine erledigte Tour wiederholen.",
+      "`Angaben zu meinem Kind ändern` zeigt Angaben, Betreuungszeiten, den Heimweg und Kontakte.",
+      "`moto als App auf dem Handy hinzufügen` und `Benachrichtigungen einschalten` sind zwei getrennte Touren.",
+      "Der Stand gilt für dieses Elternkonto auf diesem Gerät.",
+    ],
+    troubleshootingDetails: [
+      "Sie haben `Erste Schritte ausblenden` gewählt? Dann erscheint die Checkliste auf diesem Gerät nicht mehr. Die einzelnen Anleitungen finden Sie weiterhin in der Hilfe.",
+      "Ein Bereich fehlt? Manche Bereiche zeigt moto nur, wenn Ihre OGS sie nutzt.",
+    ],
+    related: [
+      HELP_TOPICS.parentChildOverview,
+      HELP_TOPICS.parentMessages,
+      HELP_TOPICS.parentInstallApp,
+      HELP_TOPICS.parentNotifications,
+    ],
+  };
+}
+
+/**
  * Eltern-Fassung des App-Themas. Der Samsung-Hinweis ist echt und steht in
  * den Einstellungen wie im Installationshinweis (i18n `pwaInstallHint`).
  */
@@ -6239,6 +6309,7 @@ function parentCareChangeTopic(): HelpTopic {
       "Eine Änderung am Wochenplan ist dauerhaft und gilt jede Woche.",
       "Geht es nur um einen Tag? Ändern Sie stattdessen die Abholzeit.",
       "Eine offene Anfrage lässt sich mit `Anfrage bearbeiten` noch ändern.",
+      "Betreut Ihre OGS am Wochenende? Dann gilt der Freitagsplan auch für Samstag und Sonntag.",
     ],
     differences: [
       "Die Entscheidung der OGS steht unter `Beantragte Änderung`: `Änderung übernommen` oder `Anfrage abgelehnt` mit Begründung.",
@@ -6425,6 +6496,7 @@ function parentMealPlanTopic(): HelpTopic {
     ],
     differences: [
       "Steht an einem Tag `Kein Essen eingetragen`, hat die OGS dafür nichts hinterlegt.",
+      "Die Seite zeigt gleich `Nächste Woche`? Dann können Sie in dieser Woche nichts mehr ändern, zum Beispiel am Wochenende. Mit dem Pfeil nach links sehen Sie diese Woche.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Essensplan sei nicht freigeschaltet? Dann nutzt Ihre OGS diese Funktion nicht.",
@@ -6713,6 +6785,7 @@ const PARENT_DRAFT_TOPICS: readonly HelpTopic[] = [
   // --- Einstieg und Konto ---
   parentAccountTopic(),
   parentLoginTopic(),
+  parentFirstStepsTopic(),
   parentInstallAppTopic(),
   parentNotificationsTopic(),
 
@@ -6870,8 +6943,9 @@ function teacherClassDayTopic(): HelpTopic {
     notes: [
       "Steht bei einer Klasse `4 Kinder anders als sonst`, weicht dort heute etwas vom üblichen Plan ab.",
       "Mit den Pfeilen sehen Sie den vorherigen oder nächsten Tag.",
+      "Betreut Ihre OGS am Wochenende? Dann sehen Sie auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
-    differences: ["An einem Tag ohne Unterricht steht `Kein Schultag`."],
+    differences: ["An einem Wochenende ohne Betreuung steht `Kein Schultag`."],
     troubleshootingDetails: [
       "Es steht `Keine Klassen zugewiesen`? Dann hat die OGS Ihnen noch keine Klasse zugeordnet.",
     ],

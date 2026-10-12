@@ -252,7 +252,10 @@ func supervisorRow(row studentpresence.GroupSupervision) (*ports.GroupSupervisor
 	if err != nil {
 		return nil, &studentpresence.OperationError{Op: "ParseSupervisionDate", Err: studentpresence.ErrInvalidData}
 	}
-	supervisor := &ports.GroupSupervisor{StaffID: row.StaffID, GroupID: row.GroupID, Role: row.Role, StartDate: start}
+	supervisor := &ports.GroupSupervisor{
+		StaffID: row.StaffID, GroupID: row.GroupID, Role: row.Role, StartDate: start,
+		SkipPresenceStamp: row.SkipPresenceStamp,
+	}
 	supervisor.ID, supervisor.CreatedAt, supervisor.UpdatedAt = row.ID, row.CreatedAt, row.UpdatedAt
 	supervisor.SetTenantID(row.TenantID)
 	if row.EndDate != nil {

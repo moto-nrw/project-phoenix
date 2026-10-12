@@ -11,8 +11,8 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -41,7 +41,7 @@ func (f *Factory) bindGuardianDirectory(persons peopledirectory.Capability, db *
 }
 
 type guardianDirectoryProvider struct {
-	guardians *usersSvc.GuardianService
+	guardians *peopleCompose.GuardianService
 	db        *bun.DB
 }
 
@@ -233,7 +233,7 @@ func (p *guardianDirectoryProvider) AddGuardianPhone(ctx context.Context, guardi
 	var phone *userModels.GuardianPhoneNumber
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
-		phone, txErr = p.guardians.AddPhoneNumber(txCtx, guardianID, usersSvc.PhoneNumberCreateRequest{
+		phone, txErr = p.guardians.AddPhoneNumber(txCtx, guardianID, peopleCompose.PhoneNumberCreateRequest{
 			PhoneNumber: input.PhoneNumber, PhoneType: input.PhoneType, Label: input.Label, IsPrimary: input.IsPrimary,
 		})
 		return txErr
@@ -246,7 +246,7 @@ func (p *guardianDirectoryProvider) AddGuardianPhone(ctx context.Context, guardi
 
 func (p *guardianDirectoryProvider) UpdateGuardianPhone(ctx context.Context, phoneID int64, input peopledirectory.GuardianPhoneUpdate) error {
 	return mapGuardianPhoneError(p.inTenantTx(ctx, func(txCtx context.Context) error {
-		return p.guardians.UpdatePhoneNumber(txCtx, phoneID, usersSvc.PhoneNumberUpdateRequest{
+		return p.guardians.UpdatePhoneNumber(txCtx, phoneID, peopleCompose.PhoneNumberUpdateRequest{
 			PhoneNumber: input.PhoneNumber, PhoneType: input.PhoneType, Label: input.Label, IsPrimary: input.IsPrimary, Priority: input.Priority,
 		})
 	}))
@@ -268,7 +268,7 @@ func (p *guardianDirectoryProvider) LinkGuardianToStudent(ctx context.Context, i
 	var link *userModels.StudentGuardian
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
-		link, txErr = p.guardians.LinkGuardianToStudent(txCtx, usersSvc.StudentGuardianCreateRequest{
+		link, txErr = p.guardians.LinkGuardianToStudent(txCtx, peopleCompose.StudentGuardianCreateRequest{
 			StudentID: input.StudentID, GuardianProfileID: input.GuardianProfileID,
 			RelationshipType: input.RelationshipType, GuardianRole: input.GuardianRole,
 			IsPrimary: input.IsPrimary, IsEmergencyContact: input.IsEmergencyContact, CanPickup: input.CanPickup,
@@ -297,7 +297,7 @@ func (p *guardianDirectoryProvider) AddGuardiansToStudent(ctx context.Context, s
 
 func (p *guardianDirectoryProvider) UpdateGuardianLink(ctx context.Context, linkID int64, input peopledirectory.GuardianLinkUpdate) error {
 	return mapGuardianLinkError(p.inTenantTx(ctx, func(txCtx context.Context) error {
-		return p.guardians.UpdateStudentGuardianRelationship(txCtx, linkID, usersSvc.StudentGuardianUpdateRequest{
+		return p.guardians.UpdateStudentGuardianRelationship(txCtx, linkID, peopleCompose.StudentGuardianUpdateRequest{
 			RelationshipType: input.RelationshipType, GuardianRole: input.GuardianRole,
 			IsPrimary: input.IsPrimary, IsEmergencyContact: input.IsEmergencyContact, CanPickup: input.CanPickup,
 			PickupNotes: input.PickupNotes, EmergencyPriority: input.EmergencyPriority,
@@ -320,7 +320,7 @@ func (p *guardianDirectoryProvider) RevealGuardianPayment(ctx context.Context, g
 }
 
 func (p *guardianDirectoryProvider) UpdateGuardianPayment(ctx context.Context, guardianID int64, input peopledirectory.GuardianPaymentInput) error {
-	return mapGuardianPaymentError(p.guardians.UpdateGuardianPayment(ctx, guardianID, usersSvc.GuardianPaymentInput{
+	return mapGuardianPaymentError(p.guardians.UpdateGuardianPayment(ctx, guardianID, peopleCompose.GuardianPaymentInput{
 		IBAN: input.IBAN, AccountHolder: input.AccountHolder,
 	}, input.ActorAccountID, input.Note))
 }
@@ -338,30 +338,28 @@ func mapGuardianError(err error) error {
 	if err == nil {
 		return nil
 	}
-	var validation *usersSvc.ValidationError
-	var stillLinked *usersSvc.GuardianStillLinkedError
+	validation, isValidation := peopleCompose.ValidationFailure(err)
+	var stillLinked *peopleCompose.GuardianStillLinkedError
 	switch {
-	case errors.As(err, &validation) && errors.Is(err, usersSvc.ErrGuardianEmailInUse):
+	case isValidation && errors.Is(err, peopleCompose.ErrGuardianEmailInUse):
 		// Still invalid input for every caller; the sentinel adds the code.
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianEmailTaken,
 			&peopledirectory.InvalidGuardianError{Reason: validation.Error()})
-	case errors.As(err, &validation):
+	case isValidation:
 		return &peopledirectory.InvalidGuardianError{Reason: validation.Error()}
 	case errors.As(err, &stillLinked):
 		return &peopledirectory.GuardianStillLinkedError{StudentNames: stillLinked.StudentNames}
-	case errors.Is(err, usersSvc.ErrGuardianForceDeleteRequiresAdmin):
+	case errors.Is(err, peopleCompose.ErrGuardianForceDeleteRequiresAdmin):
 		return peopledirectory.ErrGuardianForceDeleteRequiresAdmin
-	case errors.Is(err, usersSvc.ErrGuardianDeletePreviewChanged):
+	case errors.Is(err, peopleCompose.ErrGuardianDeletePreviewChanged):
 		return peopledirectory.ErrGuardianDeletePreviewChanged
-	case errors.Is(err, usersSvc.ErrPayerRemovalRequiresFinancial):
+	case errors.Is(err, peopleCompose.ErrPayerRemovalRequiresFinancial):
 		return peopledirectory.ErrPayerRemovalRequiresFinancial
 	case errors.Is(err, userModels.ErrGuardianProfileNotFound):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianNotFound, err)
 	case errors.Is(err, userModels.ErrStudentGuardianNotFound):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianLinkNotFound, err)
-	case errors.Is(err, usersSvc.ErrStudentNotFound):
-		return fmt.Errorf("%w: %w", peopledirectory.ErrStudentNotFound, err)
-	case usersSvc.IsGuardianLinkConstraintViolation(err):
+	case peopleCompose.IsGuardianLinkConstraintViolation(err):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianLinkConflict, err)
 	case strings.Contains(err.Error(), "not found"):
 		// The legacy service reports missing rows through wrapped messages
@@ -399,17 +397,15 @@ func mapGuardianPaymentError(err error) error {
 	switch {
 	case errors.Is(err, sql.ErrNoRows), errors.Is(err, userModels.ErrGuardianProfileNotFound):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianNotFound, err)
-	case errors.Is(err, usersSvc.ErrStudentNotFound):
-		return fmt.Errorf("%w: %w", peopledirectory.ErrStudentNotFound, err)
-	case errors.Is(err, usersSvc.ErrGuardianIBANInvalid):
+	case errors.Is(err, peopleCompose.ErrGuardianIBANInvalid):
 		return peopledirectory.ErrGuardianIBANInvalid
-	case errors.Is(err, usersSvc.ErrGuardianAccountHolderTooLong):
+	case errors.Is(err, peopleCompose.ErrGuardianAccountHolderTooLong):
 		return peopledirectory.ErrGuardianAccountHolderTooLong
-	case errors.Is(err, usersSvc.ErrGuardianStudentRequired):
+	case errors.Is(err, peopleCompose.ErrGuardianStudentRequired):
 		return peopledirectory.ErrGuardianStudentRequired
-	case errors.Is(err, usersSvc.ErrGuardianNotLinkedToStudent):
+	case errors.Is(err, peopleCompose.ErrGuardianNotLinkedToStudent):
 		return peopledirectory.ErrGuardianNotLinkedToStudent
-	case errors.Is(err, usersSvc.ErrGuardianPaymentInvalid):
+	case errors.Is(err, peopleCompose.ErrGuardianPaymentInvalid):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianPaymentInvalid, err)
 	default:
 		return err
@@ -418,20 +414,20 @@ func mapGuardianPaymentError(err error) error {
 
 // --- projections ---
 
-func toGuardianCreateRequest(input peopledirectory.GuardianInput) usersSvc.GuardianCreateRequest {
-	return usersSvc.GuardianCreateRequest{
+func toGuardianCreateRequest(input peopledirectory.GuardianInput) peopleCompose.GuardianCreateRequest {
+	return peopleCompose.GuardianCreateRequest{
 		FirstName: input.FirstName, LastName: input.LastName, Email: input.Email,
 		AddressStreet: input.AddressStreet, AddressCity: input.AddressCity, AddressPostalCode: input.AddressPostalCode,
 		PreferredContactMethod: input.PreferredContactMethod, LanguagePreference: input.LanguagePreference, Notes: input.Notes,
 	}
 }
 
-func toNewStudentGuardians(inputs []peopledirectory.NewStudentGuardian) []usersSvc.NewStudentGuardian {
-	out := make([]usersSvc.NewStudentGuardian, 0, len(inputs))
+func toNewStudentGuardians(inputs []peopledirectory.NewStudentGuardian) []peopleCompose.NewStudentGuardian {
+	out := make([]peopleCompose.NewStudentGuardian, 0, len(inputs))
 	for i := range inputs {
 		in := inputs[i]
-		out = append(out, usersSvc.NewStudentGuardian{
-			Profile: usersSvc.GuardianCreateRequest{
+		out = append(out, peopleCompose.NewStudentGuardian{
+			Profile: peopleCompose.GuardianCreateRequest{
 				FirstName:              strings.TrimSpace(in.FirstName),
 				LastName:               strings.TrimSpace(in.LastName),
 				Email:                  trimToNil(in.Email),
@@ -442,7 +438,7 @@ func toNewStudentGuardians(inputs []peopledirectory.NewStudentGuardian) []usersS
 				LanguagePreference:     in.LanguagePreference,
 				Notes:                  trimToNil(in.Notes),
 			},
-			Relationship: usersSvc.StudentGuardianRelationship{
+			Relationship: peopleCompose.StudentGuardianRelationship{
 				RelationshipType:   in.RelationshipType,
 				GuardianRole:       in.GuardianRole,
 				IsPrimary:          in.IsPrimary,
@@ -458,13 +454,13 @@ func toNewStudentGuardians(inputs []peopledirectory.NewStudentGuardian) []usersS
 	return out
 }
 
-func toNewGuardianPhones(phones []peopledirectory.NewGuardianPhone) []usersSvc.PhoneNumberCreateRequest {
+func toNewGuardianPhones(phones []peopledirectory.NewGuardianPhone) []peopleCompose.PhoneNumberCreateRequest {
 	if len(phones) == 0 {
 		return nil
 	}
-	out := make([]usersSvc.PhoneNumberCreateRequest, 0, len(phones))
+	out := make([]peopleCompose.PhoneNumberCreateRequest, 0, len(phones))
 	for i := range phones {
-		out = append(out, usersSvc.PhoneNumberCreateRequest{
+		out = append(out, peopleCompose.PhoneNumberCreateRequest{
 			PhoneNumber: strings.TrimSpace(phones[i].PhoneNumber),
 			PhoneType:   phones[i].PhoneType,
 			Label:       trimToNil(phones[i].Label),
@@ -539,7 +535,7 @@ func toDirectoryLink(link *userModels.StudentGuardian) peopledirectory.GuardianL
 		RelationshipType: link.RelationshipType, GuardianRole: link.GuardianRole,
 		IsPrimary: link.IsPrimary, IsEmergencyContact: link.IsEmergencyContact, CanPickup: link.CanPickup,
 		PickupNotes: link.PickupNotes, EmergencyPriority: link.EmergencyPriority, IsPayer: link.IsPayer,
-		Permissions: usersSvc.GrantedGuardianPermissions(link),
+		Permissions: grantedGuardianPermissions(link),
 	}
 }
 
@@ -553,7 +549,7 @@ func toDirectoryStudent(student *userModels.Student) peopledirectory.Student {
 	}
 }
 
-func toDirectoryPaymentRows(rows []usersSvc.GuardianPaymentRow) []peopledirectory.GuardianPaymentRow {
+func toDirectoryPaymentRows(rows []peopleCompose.GuardianPaymentRow) []peopledirectory.GuardianPaymentRow {
 	result := make([]peopledirectory.GuardianPaymentRow, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, peopledirectory.GuardianPaymentRow{
@@ -591,6 +587,7 @@ type GuardianInvitationSummary struct {
 type PendingGuardianInvitation struct {
 	ID                int64
 	GuardianProfileID int64
+	Token             string
 	CreatedAt         time.Time
 	ExpiresAt         time.Time
 	EmailSentAt       *time.Time
@@ -707,7 +704,7 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 			result := make([]PendingGuardianInvitation, 0, len(invitations))
 			for _, invitation := range invitations {
 				result = append(result, PendingGuardianInvitation{
-					ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, CreatedAt: invitation.CreatedAt,
+					ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, Token: invitation.Token, CreatedAt: invitation.CreatedAt,
 					ExpiresAt: invitation.ExpiresAt, EmailSentAt: invitation.EmailSentAt, EmailError: invitation.EmailError,
 				})
 			}

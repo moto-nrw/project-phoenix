@@ -3,12 +3,12 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 // GroupRoomRecords is the legacy group read accepted during composition.
 type GroupRoomRecords interface {
-	List(context.Context, map[string]interface{}) ([]*education.Group, error)
+	List(context.Context, map[string]interface{}) ([]*domain.Group, error)
 }
 
 type GroupRoom struct {

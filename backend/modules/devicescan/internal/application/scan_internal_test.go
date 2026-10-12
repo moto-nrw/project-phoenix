@@ -38,6 +38,12 @@ func requireFailure(t *testing.T, err error, kind devicescan.FailureKind, messag
 	_ = classifiedFailure(t, err, kind, message)
 }
 
+// requireCodedFailure also asserts the registered code the kiosk maps.
+func requireCodedFailure(t *testing.T, err error, kind devicescan.FailureKind, message, code string) {
+	t.Helper()
+	assert.Equal(t, code, classifiedFailure(t, err, kind, message).Code)
+}
+
 func TestScan_RequiresDevice(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
@@ -82,7 +88,7 @@ func TestScan_UnassignedCardIsNotFound(t *testing.T) {
 
 	_, err := h.service().Scan(context.Background(), scanCommand(nil))
 
-	requireFailure(t, err, devicescan.FailureNotFound, devicescan.MessageRFIDTagUnassigned)
+	requireCodedFailure(t, err, devicescan.FailureNotFound, devicescan.MessageRFIDTagUnassigned, devicescan.CodeRFIDTagUnassigned)
 }
 
 func TestScan_UnregisteredScanFailureOnlyLogs(t *testing.T) {

@@ -73,15 +73,6 @@ export interface TenantPageTab {
 export interface TenantPageProps {
   readonly title: string;
   /**
-   * Setzen, wenn der Titel von der Uhr der Person abhängt (Tageszeit-Gruß der
-   * Startseite). Server und Browser können dann unterschiedliche Stunden
-   * sehen: beim Serverrendern gilt die Uhr des Servers, beim Hydrieren die des
-   * Geräts. React meldet das sonst als Hydrierungsfehler, obwohl der Text
-   * genau so gemeint ist. Nur für zeitabhängige Titel setzen, sonst würden
-   * echte Abweichungen still bleiben.
-   */
-  readonly titleFromClock?: boolean;
-  /**
    * Statuszeile unter dem Titel: echte Zahlen der Seite, die sie ohnehin lädt
    * („116 Kinder · 107 zuhause · 9 krank"). Kein Erklärsatz. Während des
    * Ladens rendert das Gerüst an dieser Stelle ein Skelett.
@@ -281,7 +272,6 @@ const CONTROL_HEIGHT =
 
 export function TenantPage({
   title,
-  titleFromClock = false,
   stats,
   statsLoading = false,
   actions,
@@ -374,24 +364,18 @@ export function TenantPage({
                     ? "compact:text-2xl text-[28px] leading-tight max-sm:text-2xl"
                     : "compact:text-xl text-2xl leading-tight max-sm:text-xl",
                 )}
-                suppressHydrationWarning={titleFromClock}
               >
                 {title}
               </h1>
-              {statusLine != null &&
-                (statsLoading ? (
-                  <div className="mt-1 text-sm leading-5 text-gray-600">
-                    {statusLine}
-                  </div>
-                ) : (
-                  // Ein div, kein p: Manche Seiten geben hier Bausteine mit,
-                  // die selbst Blöcke sind (die Kindakte ihr Standort-Badge).
-                  // In einem p wäre das ungültiges HTML und ein
-                  // Hydration-Fehler.
-                  <div className="mt-1 text-sm leading-5 text-gray-600">
-                    {statusLine}
-                  </div>
-                ))}
+              {/* Ein div, kein p: `stats` ist beliebiges ReactNode, und
+                  Seiten setzen Blockelemente hinein (das LocationBadge der
+                  Kinderseite rendert ein div). In einem p wäre das ungültiges
+                  HTML und ein Hydration-Fehler. */}
+              {statusLine != null && (
+                <div className="mt-1 text-sm leading-5 text-gray-600">
+                  {statusLine}
+                </div>
+              )}
             </div>
           </div>
           {actions && (

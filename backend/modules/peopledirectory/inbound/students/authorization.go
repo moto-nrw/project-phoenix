@@ -163,7 +163,8 @@ func (rs *Resource) buildSupervisorContacts(ctx context.Context, groupID int64) 
 //
 // Both are caller-only (#2329): admin or a verified staff member of the
 // tenant, every other authenticated role out. The route's own permission
-// middleware still decides WHICH photo operation the caller may reach.
+// middleware still decides WHICH photo operation the caller may reach. The
+// staff lookup needs a tenant transaction in ctx (#3830).
 func (rs *Resource) canModifyStudentPhoto(ctx context.Context) bool {
 	ok, _ := securityruntime.CanUpdateStudent(
 		ctx, jwt.PermissionsFromCtx(ctx), photoAuthorizationStudent{}, rs.UserContextService)

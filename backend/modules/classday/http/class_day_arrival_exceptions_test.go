@@ -70,7 +70,7 @@ func setupArrivalExceptionRoute(t *testing.T) (*testpkg.DB, func(t *testing.T, c
 		require.NoError(t, err)
 		return body
 	}
-	return db, retainedMondayReport, classdayhttp.NewResource(factory.ClassDay, db, nil).SchoolRouter()
+	return db, retainedMondayReport, classdayhttp.NewResource(factory.ClassDay, nil).SchoolRouter()
 }
 
 // setupArrivalExceptionFixture builds one Lehrkraft with an assigned class

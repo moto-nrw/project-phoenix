@@ -24,8 +24,8 @@ type StudentDirectoryCapability interface {
 }
 
 // StudentDirectory adapts the owner's directory read to the retained
-// model-typed contract (services/users.StudentDirectoryReader, satisfied
-// structurally so this seam does not depend on it).
+// model-typed contract (StudentDirectoryAccess and StudentLocker in
+// modules/peopledirectory/compose, satisfied structurally).
 type StudentDirectory struct{ directory StudentDirectoryCapability }
 
 // NewStudentDirectory adapts the owner's directory read to the retained

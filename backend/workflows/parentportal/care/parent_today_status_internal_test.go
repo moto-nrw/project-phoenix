@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // berlinClock baut einen Zeitpunkt an einem festen Tag in Europe/Berlin. Der
@@ -233,8 +234,8 @@ func TestIsoWeekdayOfMapsAWholeWeek(t *testing.T) {
 	}
 	for offset, expected := range want {
 		date := monday.AddDays(offset)
-		if got := isoWeekdayOf(date); got != expected {
-			t.Errorf("isoWeekdayOf(%s) = %d, erwartet %d", date, got, expected)
+		if got := calendar.ISOWeekday(date); got != expected {
+			t.Errorf("calendar.ISOWeekday(%s) = %d, erwartet %d", date, got, expected)
 		}
 	}
 }
@@ -248,8 +249,8 @@ func TestIsWeekendCoversTheWeek(t *testing.T) {
 	want := []bool{false, false, false, false, false, true, true}
 	for offset, expected := range want {
 		date := monday.AddDays(offset)
-		if got := isWeekend(date); got != expected {
-			t.Errorf("isWeekend(%s) = %v, erwartet %v", date, got, expected)
+		if got := calendar.IsWeekend(date); got != expected {
+			t.Errorf("calendar.IsWeekend(%s) = %v, erwartet %v", date, got, expected)
 		}
 	}
 }

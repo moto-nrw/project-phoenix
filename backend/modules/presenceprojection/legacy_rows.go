@@ -171,7 +171,7 @@ func legacyInstanceStateFilters(query *bun.SelectQuery, filter LegacyInstanceFil
 		query = query.OrderExpr(`"activity_instance".date ASC, "activity_instance".start_time ASC`)
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit).Offset(filter.Offset)
+		query = query.Limit(int64(filter.Limit)).Offset(int64(filter.Offset))
 	}
 	return query
 }
@@ -334,7 +334,7 @@ func legacyParticipantOrder(query *bun.SelectQuery, filter LegacyParticipantFilt
 		query = query.OrderExpr(`"activity_instance".date ASC, "activity_instance".start_time ASC, "instance_student".id ASC`)
 	}
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit).Offset(filter.Offset)
+		query = query.Limit(int64(filter.Limit)).Offset(int64(filter.Offset))
 	}
 	return query
 }

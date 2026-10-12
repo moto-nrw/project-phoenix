@@ -1041,8 +1041,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvent
 	assert.Contains(t, before, fmt.Sprintf("UID:timetable-%d-%d@moto-app.de", instance.ID, testpkg.Tenant(t)))
 	assert.Contains(t, before, fmt.Sprintf("UID:shift-%d-%d@moto-app.de", shift.ID, testpkg.Tenant(t)))
 
-	assignment.StaffID = otherStaff.ID
-	require.NoError(t, repos.InstanceStaff.Update(testpkg.Ctx(t), assignment))
+	storedAssignment, err := repos.InstanceStaff.FindByID(testpkg.Ctx(t), assignment.ID)
+	require.NoError(t, err)
+	storedAssignment.StaffID = otherStaff.ID
+	require.NoError(t, repos.InstanceStaff.Update(testpkg.Ctx(t), storedAssignment))
 	require.NoError(t, repos.StaffShift.Delete(testpkg.Ctx(t), shift.ID))
 
 	_, after, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
@@ -1094,8 +1096,10 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEve
 		Where("id = ?", instance.ID).
 		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
-	shift.Cancelled = true
-	require.NoError(t, repos.StaffShift.Update(testpkg.Ctx(t), shift))
+	storedShift, err := repos.StaffShift.FindByID(testpkg.Ctx(t), shift.ID)
+	require.NoError(t, err)
+	storedShift.Cancelled = true
+	require.NoError(t, repos.StaffShift.Update(testpkg.Ctx(t), storedShift))
 
 	_, after, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.NoError(t, err)
@@ -1961,7 +1965,7 @@ func TestCalendarServiceIntegration_CreateRollsBackAppointmentsWhenRecurrenceWri
 		Where(`"appointment".title = ?`, request.Title).
 		Count(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, 1, count, "retry creates exactly one appointment")
+	assert.Equal(t, 1, int(count), "retry creates exactly one appointment")
 }
 
 func TestCalendarServiceIntegration_UpdateRollsBackRecurrenceReplacementAndRetries(t *testing.T) {

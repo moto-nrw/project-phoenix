@@ -288,6 +288,8 @@ func (rs *Resource) mountOperationRoutes(r chi.Router, withTx common.Middleware)
 		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 			Post("/instances/{id}/students/{student_id}/check-in", rs.operationsCheckInStudent)
 		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
+			Post("/instances/{id}/students/check-in", rs.operationsCheckInStudents)
+		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 			Post("/instances/{id}/students/{student_id}/check-out", rs.operationsCheckOutStudent)
 		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 			Patch("/instances/{id}/students/{student_id}/attendance", rs.operationsPatchAttendance)

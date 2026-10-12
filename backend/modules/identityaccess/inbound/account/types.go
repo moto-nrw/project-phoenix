@@ -132,6 +132,11 @@ type TenantResolveResponse struct {
 	// error only hides the field (fails closed to false).
 	EarlyCheckoutNoteEnabled          bool `json:"early_checkout_note_enabled"`
 	EarlyCheckoutNoteToleranceMinutes int  `json:"early_checkout_note_tolerance_minutes"`
+	// WeekendFollowsFriday is the tenant's resolved
+	// operations.weekend_follows_friday setting (#3921): Saturday and Sunday
+	// are care days on Friday's plan. Shell metadata so day pickers and day
+	// views stop skipping the weekend. Fails closed (false).
+	WeekendFollowsFriday bool `json:"weekend_follows_friday"`
 }
 
 type tenantShellSettings struct {
@@ -156,6 +161,7 @@ type tenantShellSettings struct {
 	analyticsSamplePercent int
 	earlyCheckoutNote      bool
 	earlyCheckoutTolerance int
+	weekendFollowsFriday   bool
 }
 
 // SwitchTenantRequest represents the switch-tenant request payload

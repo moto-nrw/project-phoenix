@@ -14,8 +14,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -41,7 +40,7 @@ func newService(t *testing.T, db *bun.DB) *staffmessaging.Service {
 func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays int) *staffmessaging.Service {
 	t.Helper()
 
-	settings := &configtest.Mock{
+	settings := &settingsDouble{
 		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 			if key == configModels.KeyStaffMessagingEnabled {
 				return enabled, nil
@@ -56,12 +55,12 @@ func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays
 		},
 	}
 
-	// The REAL person service, not a mock: freezing the sender's display name
-	// onto the message is part of what these tests verify, so the lookup must
-	// go through the same path production uses. FindByAccountID only touches
-	// PersonRepo, so the rest of the DI bundle stays empty on purpose.
-	persons := userService.NewPersonService(userService.PersonServiceDependencies{
-		PersonRepo: repositories.NewPersonRepository(db),
+	// The REAL person directory, not a mock: freezing the sender's display
+	// name onto the message is part of what these tests verify, so the lookup
+	// must go through the same path production uses. FindByAccountID only
+	// touches the person repository, so the other sources stay empty on purpose.
+	persons := services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
+		Persons: repositories.NewPersonRepository(db),
 	})
 
 	repos := newRepositories(t, db)
@@ -79,7 +78,7 @@ func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays
 // be resolved, for the "never delete on a guessed window" test.
 func newServiceWithBrokenRetention(t *testing.T, db *bun.DB) *staffmessaging.Service {
 	t.Helper()
-	settings := &configtest.Mock{
+	settings := &settingsDouble{
 		ResolveBoolFn: func(_ context.Context, _ string) (bool, error) { return true, nil },
 		ResolveIntFn: func(_ context.Context, _ string) (int, error) {
 			return 0, errors.New("settings unavailable")

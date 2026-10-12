@@ -64,7 +64,7 @@ func nextMonday() timezone.Date {
 	return date
 }
 
-func loadSlotRow(t *testing.T, db *bun.DB, rowID int64) *scheduleModels.InstanceStudent {
+func loadSlotRow(t *testing.T, db *bun.DB, rowID int64) *testpkg.InstanceStudent {
 	t.Helper()
 	return testpkg.InstanceStudentByIDContext(t, testpkg.WithPackageTenantRuntime(context.Background()), db, rowID)
 }

@@ -209,6 +209,46 @@ describe("GET /api/staff/[id]", () => {
     expect(json.data.account_id).toBe(accountID);
   });
 
+  it("keeps the external caregiver fields in the detail response", async () => {
+    mockApiGet.mockResolvedValueOnce({
+      status: "success",
+      data: {
+        id: "9007199254740993",
+        person_id: "1",
+        is_teacher: false,
+        is_external: true,
+        external_organization: "Musikschule Bergstadt",
+        person: {
+          id: 1,
+          first_name: "Lea",
+          last_name: "Gast",
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+        },
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+      },
+    });
+
+    const response = await GET(
+      createMockRequest("/api/staff/9007199254740993"),
+      createMockContext({ id: "9007199254740993" }),
+    );
+
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        id: string;
+        is_external: boolean;
+        external_organization: string | null;
+      }>
+    >(response);
+    expect(json.data).toMatchObject({
+      id: "9007199254740993",
+      is_external: true,
+      external_organization: "Musikschule Bergstadt",
+    });
+  });
+
   it("throws error when staff member not found", async () => {
     mockApiGet.mockResolvedValueOnce({ data: null });
 

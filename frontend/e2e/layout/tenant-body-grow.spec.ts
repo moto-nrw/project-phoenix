@@ -116,3 +116,46 @@ test("the last surface of an ordinary tenant page still grows to the bottom", as
     Math.round(shell.y + shell.height),
   );
 });
+
+// Die Wurzel der InfoCard (info-card.tsx) trägt `h-full`. Als letzte Fläche
+// unter anderen Karten war sie so hoch wie der ganze Rumpf und stand unter
+// der Unterkante; die Seite scrollte ins Leere (#3893).
+const INFO_CARD =
+  "moto-content-surface compact:p-4 flex h-full flex-col rounded-2xl border p-6 shadow-sm backdrop-blur max-sm:p-4";
+
+test("a last surface with h-full ends at the bottom, not below it", async ({
+  page,
+}) => {
+  await render(
+    page,
+    tenantPage(`
+      <section class="${PLAIN_CARD}" style="height:200px">Laufende Betreuungen</section>
+      <section class="${PLAIN_CARD}" style="height:200px">Termine</section>
+      <div data-testid="last" class="${INFO_CARD}">Gruppen</div>`),
+  );
+
+  const shell = await box(page, "shell");
+  const last = await box(page, "last");
+  expect(Math.round(last.y + last.height)).toBe(
+    Math.round(shell.y + shell.height),
+  );
+});
+
+// Eine Liste einzelner Karten in einem Gitter (die Bereiche der
+// Einstellungen) wächst nicht: die letzte Karte bleibt so hoch wie ihr
+// Inhalt (#3893).
+test("cards inside a grid keep their content height", async ({ page }) => {
+  await render(
+    page,
+    tenantPage(`
+      <div class="grid grid-cols-1 gap-4">
+        <section class="${PLAIN_CARD}">Termine</section>
+        <section data-testid="last" class="${PLAIN_CARD}">Sperre nach Fehlversuchen</section>
+      </div>`),
+  );
+
+  const shell = await box(page, "shell");
+  const last = await box(page, "last");
+  expect(last.height).toBeLessThan(120);
+  expect(last.y + last.height).toBeLessThan(shell.y + shell.height - 200);
+});

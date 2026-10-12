@@ -360,14 +360,14 @@ func countBreaksForSession(t *testing.T, db *testpkg.DB, sessionID int64) int {
 	t.Helper()
 	n, err := db.NewSelect().Table("active.work_session_breaks").Where("session_id = ?", sessionID).Count(context.Background())
 	require.NoError(t, err)
-	return n
+	return int(n)
 }
 
 func countEditsForSession(t *testing.T, db *testpkg.DB, sessionID int64) int {
 	t.Helper()
 	n, err := db.NewSelect().Table("audit.work_session_edits").Where("session_id = ?", sessionID).Count(context.Background())
 	require.NoError(t, err)
-	return n
+	return int(n)
 }
 
 func findStaffDeletionRows(t *testing.T, db *testpkg.DB, staffID int64) []*audit.DataDeletion {

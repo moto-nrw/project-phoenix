@@ -177,7 +177,7 @@ func (s *Store) CountByIDs(ctx context.Context, ids []int64) (int, domain.Operat
 	if err != nil {
 		return 0, stats, fmt.Errorf("organization tenancy postgres: count organizations: %w", err)
 	}
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 func (s *Store) CountNonDeletedSchools(ctx context.Context, organizationID int64) (int, domain.OperationStats, error) {
@@ -195,7 +195,7 @@ func (s *Store) CountNonDeletedSchools(ctx context.Context, organizationID int64
 	if err != nil {
 		return 0, stats, fmt.Errorf("organization tenancy postgres: count organization schools: %w", err)
 	}
-	return count, stats, nil
+	return int(count), stats, nil
 }
 
 func (s *Store) SoftDelete(ctx context.Context, id int64) (domain.OperationStats, error) {

@@ -74,7 +74,7 @@ func (s *Store) PruneConflictAcks(ctx context.Context, accountID int64, keep int
 		Where(`"newest".tenant_id = ?`, tenantID).
 		Where(`"newest".account_id = ?`, accountID).
 		OrderExpr(`"newest".created_at DESC, "newest".id DESC`).
-		Limit(keep)
+		Limit(int64(keep))
 	stats := domain.OperationStats{}
 	rows, err := execPlannedSupervisorWrite(ctx, db.NewDelete().Table(conflictAckTable).
 		Where("tenant_id = ?", tenantID).

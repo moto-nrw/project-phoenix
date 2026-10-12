@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // A birthday row is rendered by its name, so a half-filled person must not
@@ -54,10 +54,10 @@ func TestMonthDayOf(t *testing.T) {
 
 	assert.Equal(t,
 		MonthDay{Month: time.February, Day: 29},
-		MonthDayOf(timezone.NewDate(2020, time.February, 29)),
+		MonthDayOf(calendar.NewDate(2020, time.February, 29)),
 	)
 	assert.Equal(t,
 		MonthDay{Month: time.August, Day: 5},
-		MonthDayOf(timezone.NewDate(1979, time.August, 5)),
+		MonthDayOf(calendar.NewDate(1979, time.August, 5)),
 	)
 }

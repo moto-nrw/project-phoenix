@@ -278,7 +278,7 @@ func TestAbsenceDecisionRollsBackAfterEachWriteAndRetriesCleanly(t *testing.T) {
 	countRows := func(table string) int {
 		count, err := db.NewSelect().TableExpr(table).Where("tenant_id = ?", testpkg.Tenant(t)).Count(context.Background())
 		require.NoError(t, err)
-		return count
+		return int(count)
 	}
 
 	for _, failAfter := range []int{1, 2} {

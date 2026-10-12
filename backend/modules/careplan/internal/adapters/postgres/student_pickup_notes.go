@@ -2,10 +2,12 @@ package postgres
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -50,7 +52,11 @@ func (s *Store) ListPickupNotes(ctx context.Context, f careplan.StudentScheduleF
 	if f.StudentIDs != nil {
 		query = query.Where(`"student_pickup_note".student_id IN (?)`, bun.List(f.StudentIDs))
 	}
-	query = applyPickupNoteDateFilter(query, f)
+	follows, err := pickupNoteWeekendFollowsFriday(ctx, f)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	query = applyPickupNoteDateFilter(query, f, follows)
 	query = applyStudentScheduleOptions(query, f.Options, "student_pickup_note")
 	if f.Options == nil || len(f.Options.Sorting) == 0 {
 		query = query.OrderExpr(`"student_pickup_note".note_date ASC NULLS FIRST, "student_pickup_note".weekday ASC, "student_pickup_note".created_at ASC`)
@@ -66,7 +72,7 @@ func (s *Store) ListPickupNotes(ctx context.Context, f careplan.StudentScheduleF
 // recurring notes by every weekday they occur within the requested range.
 // Keeping the weekday calculation in Go makes the query portable and avoids
 // the static architecture check's opaque EXTRACT(... FROM ...) expression.
-func applyPickupNoteDateFilter(query *bun.SelectQuery, f careplan.StudentScheduleFilter) *bun.SelectQuery {
+func applyPickupNoteDateFilter(query *bun.SelectQuery, f careplan.StudentScheduleFilter, weekendFollowsFriday bool) *bun.SelectQuery {
 	if !f.Date.IsZero() {
 		if pickupNoteDateOutsideBounds(f.Date, f) {
 			return query.Where(`FALSE`)
@@ -74,7 +80,7 @@ func applyPickupNoteDateFilter(query *bun.SelectQuery, f careplan.StudentSchedul
 		return query.Where(
 			`("student_pickup_note".note_date = ? OR "student_pickup_note".weekday = ?)`,
 			calendarDate(f.Date),
-			isoWeekday(f.Date),
+			pickupNotePlanWeekday(f.Date, weekendFollowsFriday),
 		)
 	}
 
@@ -98,7 +104,7 @@ func applyPickupNoteDateFilter(query *bun.SelectQuery, f careplan.StudentSchedul
 			calendarDate(from),
 		)
 	}
-	weekdays := pickupNoteWeekdaysInRange(from, f.To)
+	weekdays := pickupNoteWeekdaysInRange(from, f.To, weekendFollowsFriday)
 	if len(weekdays) == 0 {
 		return query.Where(
 			`"student_pickup_note".note_date >= ? AND "student_pickup_note".note_date <= ?`,
@@ -127,7 +133,7 @@ func latestPickupNoteStart(a, b careplan.Date) careplan.Date {
 	return a
 }
 
-func pickupNoteWeekdaysInRange(from, to careplan.Date) []int {
+func pickupNoteWeekdaysInRange(from, to careplan.Date, weekendFollowsFriday bool) []int {
 	if from.IsZero() || to.IsZero() {
 		return []int{1, 2, 3, 4, 5}
 	}
@@ -140,12 +146,43 @@ func pickupNoteWeekdaysInRange(from, to careplan.Date) []int {
 
 	weekdays := make([]int, 0, 5)
 	for date := from; !date.After(to); date = date.AddDays(1) {
-		weekday := isoWeekday(date)
-		if weekday <= 5 {
+		weekday := pickupNotePlanWeekday(date, weekendFollowsFriday)
+		if weekday <= 5 && !slices.Contains(weekdays, weekday) {
 			weekdays = append(weekdays, weekday)
 		}
 	}
 	return weekdays
+}
+
+// pickupNotePlanWeekday is the weekday whose recurring notes apply on date:
+// Friday for a weekend that follows Friday's plan (#3921).
+func pickupNotePlanWeekday(date careplan.Date, weekendFollowsFriday bool) int {
+	weekday := isoWeekday(date)
+	if weekendFollowsFriday && weekday > 5 {
+		return 5
+	}
+	return weekday
+}
+
+// pickupNoteWeekendFollowsFriday resolves the weekend plan only for a filter
+// that reaches a Saturday or Sunday, so weekday reads never touch settings.
+func pickupNoteWeekendFollowsFriday(ctx context.Context, f careplan.StudentScheduleFilter) (bool, error) {
+	if !f.Date.IsZero() {
+		if !calendar.IsWeekend(calendar.Date(f.Date)) {
+			return false, nil
+		}
+		return calendar.WeekendFollowsFriday(ctx)
+	}
+	from := latestPickupNoteStart(f.From, f.UpcomingFrom)
+	if from.IsZero() || f.To.IsZero() || !f.To.Before(from.AddDays(6)) {
+		return false, nil
+	}
+	for date := from; !date.After(f.To); date = date.AddDays(1) {
+		if calendar.IsWeekend(calendar.Date(date)) {
+			return calendar.WeekendFollowsFriday(ctx)
+		}
+	}
+	return false, nil
 }
 
 func isoWeekday(date careplan.Date) int {

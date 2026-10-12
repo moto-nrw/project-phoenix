@@ -18,7 +18,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "zeiterfassung",
-		SortOrder:       5,
+		SortOrder:       8,
 	})
 
 	// Feature flag for the notification abstraction (#1624). On by default

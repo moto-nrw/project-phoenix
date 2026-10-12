@@ -101,7 +101,7 @@ export function ClassDayClass({
   const at = now ?? new Date();
   const searchParams = useSearchParams();
   const dateISO = classDayDateParam(searchParams.get("tag"));
-  const weekend = isWeekendISO(dateISO);
+  const weekendDay = isWeekendISO(dateISO);
   const [exceptionDialogOpen, setExceptionDialogOpen] = useState(false);
 
   // Das Schreib-Flag kommt von der Klassenliste (Berechtigung UND Freigabe
@@ -113,7 +113,11 @@ export function ClassDayClass({
     fetchClasses ? "class-day-classes" : null,
     async () => {
       if (!fetchClasses) {
-        return { classes: [], can_write_arrival_exception: false };
+        return {
+          classes: [],
+          can_write_arrival_exception: false,
+          weekend_follows_friday: false,
+        };
       }
       try {
         return await fetchClasses();
@@ -137,6 +141,10 @@ export function ClassDayClass({
     ) === true;
   const canWriteArrivalException =
     classes?.can_write_arrival_exception === true && isAssignedClass;
+  // Eine Schule, die Sa/So nach dem Freitagsplan betreut (#3921), hat auch
+  // am Wochenende einen Schultag; sonst wird das Wochenende gar nicht geladen.
+  const weekendOpen = classes?.weekend_follows_friday === true;
+  const weekend = weekendDay && !weekendOpen;
 
   const {
     data: report,
@@ -366,6 +374,7 @@ export function ClassDayClass({
           schoolClass={schoolClass}
           defaultDate={weekend ? null : parseISODate(dateISO)}
           onChanged={() => void refetchReport()}
+          weekendOpen={weekendOpen}
         />
       ) : null}
     </div>

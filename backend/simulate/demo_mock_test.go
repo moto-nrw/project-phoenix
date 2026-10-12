@@ -161,6 +161,47 @@ func (c *demoRecordingClient) DevicePut(string, any, string, string) ([]byte, er
 	return []byte(`{"data":{}}`), nil
 }
 
+type retryDemoCheckoutClient struct {
+	demoRecordingClient
+	failCheckout bool
+}
+
+func (c *retryDemoCheckoutClient) Post(path string, _ any) ([]byte, error) {
+	c.studentActions = append(c.studentActions, path)
+	if path == "/api/active/visits/student/1/checkout" && c.failCheckout {
+		c.failCheckout = false
+		return nil, fmt.Errorf("temporary checkout failure")
+	}
+	return []byte(`{"data":{}}`), nil
+}
+
+func TestDemoTickRetriesFailedPickupCheckout(t *testing.T) {
+	t.Parallel()
+	now := demoDayAt(t, "16:00")
+	state := minimalLiveState("")
+	client := &retryDemoCheckoutClient{failCheckout: true}
+	ticker := &DemoTicker{
+		options: DemoTickOptions{State: state, Client: client},
+		day: demoDay{
+			times: map[int64]demoTimes{state.Students[0].ID: {arrival: 0, pickup: 15 * 60}},
+			home:  map[int64]bool{},
+		},
+	}
+	latest := map[int64]DemoVisit{state.Students[0].ID: {
+		StudentID: state.Students[0].ID, Active: true, ChangedAt: now,
+	}}
+
+	require.NoError(t, ticker.sendHome(t.Context(), now, latest))
+	assert.NotContains(t, ticker.day.home, state.Students[0].ID, "a failed checkout must be retried")
+
+	require.NoError(t, ticker.sendHome(t.Context(), now, latest))
+	assert.Contains(t, ticker.day.home, state.Students[0].ID)
+	assert.Equal(t, []string{
+		"/api/active/visits/student/1/checkout",
+		"/api/active/visits/student/1/checkout",
+	}, client.studentActions)
+}
+
 func TestDemoTickKeepsWebChildUntouchedWhileOtherChildrenMove(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 9, 20, 22, 0, 0, 0, time.UTC)

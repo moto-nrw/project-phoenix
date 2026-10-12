@@ -1,10 +1,5 @@
 package jwt
 
-import (
-	"errors"
-	"time"
-)
-
 // MFA enrollment scope values mirror the challenge scopes — same conventions,
 // different stage in the flow. An enrollment token is issued when MFA is
 // required for the tenant/operator role but the account has not yet
@@ -84,58 +79,4 @@ func (c *MFAEnrollmentClaims) ParseClaims(claims map[string]any) error {
 	c.Scope = scope
 	c.MFAEnrollmentPending = true
 	return nil
-}
-
-// CreateMFAEnrollmentJWT mints a new MFA enrollment JWT with the given TTL.
-// Callers pick the TTL based on how long the enrollment flow may take.
-// Recommended: same window as a regular access token (15 minutes) — long
-// enough for a real user to retrieve the emailed code, short enough that
-// a forgotten enrollment session expires quickly.
-func (a *TokenAuth) CreateMFAEnrollmentJWT(c MFAEnrollmentClaims, ttl time.Duration) (string, error) {
-	now := time.Now()
-	c.IssuedAt = now.Unix()
-	c.ExpiresAt = now.Add(ttl).Unix()
-
-	claims := map[string]any{
-		"account_id":             c.AccountID,
-		"mfa_enrollment_pending": true,
-		"iat":                    c.IssuedAt,
-		"exp":                    c.ExpiresAt,
-	}
-	if c.Scope != "" {
-		claims["scope"] = c.Scope
-	}
-	if c.TenantID != 0 {
-		claims["tenant_id"] = c.TenantID
-	}
-
-	_, tokenString, err := a.JwtAuth.Encode(claims)
-	return tokenString, err
-}
-
-// ParseMFAEnrollmentJWT decodes an enrollment token, extracts its claims
-// into MFAEnrollmentClaims, and rejects expired tokens. Mirrors
-// ParseMFAChallengeJWT — the verify path on the enrollment authenticator
-// uses this for the same reason: the loop would otherwise duplicate in
-// every consumer.
-func (a *TokenAuth) ParseMFAEnrollmentJWT(tokenString string) (*MFAEnrollmentClaims, error) {
-	jwtToken, err := a.JwtAuth.Decode(tokenString)
-	if err != nil {
-		return nil, err
-	}
-	raw := make(map[string]any)
-	for _, k := range jwtToken.Keys() {
-		var v any
-		if jwtToken.Get(k, &v) == nil {
-			raw[k] = v
-		}
-	}
-	var claims MFAEnrollmentClaims
-	if err := claims.ParseClaims(raw); err != nil {
-		return nil, err
-	}
-	if claims.ExpiresAt > 0 && claims.ExpiresAt < time.Now().Unix() {
-		return nil, errors.New("enrollment token expired")
-	}
-	return &claims, nil
 }

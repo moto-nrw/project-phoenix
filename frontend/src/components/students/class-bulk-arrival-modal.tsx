@@ -28,6 +28,7 @@ import { SchoolPeriodSelect } from "./school-period-select";
 import { formatDate } from "~/lib/date-helpers";
 import { stripClassPrefix } from "~/lib/arrival-schedule-helpers";
 import { cn } from "~/lib/utils";
+import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "FilteredBulkArrivalModal" });
 
@@ -91,6 +92,7 @@ export function FilteredBulkArrivalModal({
   onSuccess,
 }: FilteredBulkArrivalModalProps) {
   const { success: toastSuccess } = useToast();
+  const weekendOpen = useWeekendFollowsFriday();
   const [draft, setDraft] = useState<DraftState>(initialDraft);
   const [saving, setSaving] = useState(false);
   // Validation and save errors of the form (Bauart 2 Regel 5): shown in the
@@ -358,6 +360,7 @@ export function FilteredBulkArrivalModal({
             classLabel={targetTitle}
             onChanged={onSuccess}
             onConfirmationVisibilityChange={setArrivalExceptionConfirmationOpen}
+            weekendOpen={weekendOpen}
           />
         ) : null}
         {showDayView ? null : isClassTimetable ? (

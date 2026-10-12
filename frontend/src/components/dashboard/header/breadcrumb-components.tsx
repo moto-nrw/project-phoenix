@@ -7,6 +7,10 @@ import { NavLink } from "~/components/ui/nav-link";
 import { useTranslations } from "next-intl";
 
 import {
+  OGS_GROUP_SECTION_LABELS,
+  type OgsGroupSection,
+} from "~/lib/ogs-group-sections";
+import {
   ENROLLMENT_SECTION,
   ENROLLMENT_SUB_PAGES,
 } from "~/lib/section-navigation";
@@ -174,16 +178,21 @@ function AccordionSectionBreadcrumb({
 }
 
 /**
- * OGS Groups breadcrumb with optional group name
+ * OGS Groups breadcrumb with optional group name. Der Bereich ist der, unter
+ * dem die Gruppe in der Seitenleiste steht (#3890).
  */
 interface OgsGroupsBreadcrumbProps {
   readonly groupName?: string;
+  readonly section?: OgsGroupSection;
 }
 
-export function OgsGroupsBreadcrumb({ groupName }: OgsGroupsBreadcrumbProps) {
+export function OgsGroupsBreadcrumb({
+  groupName,
+  section = "personal",
+}: OgsGroupsBreadcrumbProps) {
   return (
     <AccordionSectionBreadcrumb
-      sectionLabel="Meine Gruppe"
+      sectionLabel={OGS_GROUP_SECTION_LABELS[section]}
       itemName={groupName}
     />
   );

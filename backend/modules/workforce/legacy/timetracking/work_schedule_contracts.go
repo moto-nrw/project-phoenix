@@ -32,17 +32,17 @@ const (
 	MaxDailyTargetMinutes = 720
 )
 
+// ScheduleEntry and ScheduleUpdateInput are the schedule PUT at the service
+// boundary.
 type (
+	ScheduleEntry         = workforce.ScheduleEntry
+	ScheduleUpdateInput   = workforce.ScheduleUpdateInput
 	WorkScheduleRow       = workforce.ScheduleRow
 	WorkTimeTemplate      = workforce.ScheduleTemplate
 	WorkTimeTemplateEntry = workforce.ScheduleTemplateEntry
 )
 
 var (
-	ISODayIndex               = workforce.ISODayIndex
-	ScheduleRotationLength    = workforce.ScheduleRotationLength
-	ResolveRotationWeek       = workforce.ResolveRotationWeek
-	ResolveScheduleAnchor     = workforce.ResolveScheduleAnchor
 	DailyTargetFromSchedule   = workforce.DailyTargetFromSchedule
 	DailyTargetFromTemplate   = workforce.DailyTargetFromTemplate
 	WeeklyTargetFromSchedule  = workforce.WeeklyTargetFromSchedule
@@ -50,12 +50,12 @@ var (
 )
 
 // WorkSessionSchedules is the schedule capability used by work-session
-// enforcement, summaries, and effective-dated schedule replacement.
+// summaries and effective-dated schedule replacement.
 type WorkSessionSchedules interface {
-	GetByStaffIDAndDate(context.Context, int64, timezone.Date) ([]*WorkScheduleRow, error)
 	FindByStaffIDsValidInRange(context.Context, []int64, timezone.Date, timezone.Date) ([]*WorkScheduleRow, error)
 	GetCurrentByStaffID(context.Context, int64) ([]*WorkScheduleRow, error)
 	ReplaceSchedule(context.Context, int64, []*WorkScheduleRow, timezone.Date) error
+	ReplaceScheduleWithValidFrom(context.Context, int64, []*WorkScheduleRow, timezone.Date, timezone.Date) error
 }
 
 // WorkSessionTimeModels is the work-time-template capability the work-session

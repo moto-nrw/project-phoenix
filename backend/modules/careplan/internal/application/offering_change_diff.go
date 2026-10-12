@@ -28,6 +28,8 @@ type offeringDecisionDiff struct {
 	phase         *ports.BookingPhase
 	requested     []careplan.OfferingChangeSelection
 	effectiveFrom calendar.Date
+	// weekendFollowsFriday reads a weekend occurrence as Friday's (#3921).
+	weekendFollowsFriday bool
 }
 
 type offeringDecisionMaterialization struct {

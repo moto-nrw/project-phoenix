@@ -456,7 +456,7 @@ func TestUpdateActiveGroupSupervisors_ReactivateEndedSupervisor(t *testing.T) {
 		Where("end_date IS NULL").
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 2, activeCount, "Both supervisors should be active")
+	assert.Equal(t, 2, int(activeCount), "Both supervisors should be active")
 }
 
 // TestEndDailySessions_WithMultipleVisitsAndSupervisors exercises endActiveVisitsForGroup coverage

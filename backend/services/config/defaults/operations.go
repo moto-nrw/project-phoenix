@@ -5,6 +5,23 @@ import (
 )
 
 func init() {
+	// Operator-only: it turns Saturday and Sunday into care days for the
+	// whole school, with Friday's blocks, arrival and pickup times (#3921).
+	// It exists for the public demo schools; real schools keep it off.
+	config.Register(config.Definition{
+		Key:             config.KeyWeekendFollowsFriday,
+		Label:           "Wochenende nach dem Freitagsplan",
+		Description:     "Samstag und Sonntag gelten als Betreuungstage mit dem Plan vom Freitag: Blöcke, Ankunfts- und Abholzeiten. Für Demo-Schulen.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "system",
+		Category:        "betreuungstage",
+		SortOrder:       1,
+		AccessPolicy:    config.AccessOperatorOnly,
+	})
+
 	// --- Session End (system tab — automated background process) ---
 
 	config.Register(config.Definition{
@@ -271,15 +288,30 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTimeTrackingEnforcePlannedStart,
-		Label:           "Einstempeln erst ab geplanter Startzeit",
-		Description:     "Mitarbeitende können erst ab der Startzeit aus ihrem Arbeitszeitmodell einstempeln. Tage ohne Startzeit sind nicht betroffen.",
+		Label:           "Einstempeln erst kurz vor Schichtbeginn",
+		Description:     "Mitarbeitende können erst kurz vor ihrer ersten Schicht im Dienstplan einstempeln. Zu spät einstempeln geht immer. Tage ohne Schicht sind nicht betroffen.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "zeiterfassung",
-		SortOrder:       2,
+		SortOrder:       4,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyTimeTrackingPlannedStartToleranceMinutes,
+		Label:           "Einstempeln so viele Minuten vor Schichtbeginn",
+		Description:     "So früh vor dem Schichtbeginn können Mitarbeitende einstempeln.",
+		Type:            config.FieldNumber,
+		Default:         5,
+		Validation:      config.Range(0, 120),
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       5,
+		DependsOn:       config.DependsOnEq(config.KeyTimeTrackingEnforcePlannedStart, true),
 	})
 
 	config.Register(config.Definition{
@@ -295,7 +327,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "zeiterfassung",
-		SortOrder:       3,
+		SortOrder:       6,
 	})
 
 	config.Register(config.Definition{
@@ -309,7 +341,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "zeiterfassung",
-		SortOrder:       4,
+		SortOrder:       7,
 		DependsOn:       config.DependsOnEq(config.KeyTimeTrackingRequireDeviationReason, true),
 	})
 

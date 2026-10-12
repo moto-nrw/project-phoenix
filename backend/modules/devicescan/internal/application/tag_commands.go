@@ -12,7 +12,7 @@ import (
 func (q *tagAssignments) staffPerson(ctx context.Context, staffID int64) (*ports.StaffMember, *ports.Person, error) {
 	staff, err := q.people.FindStaff(ctx, staffID)
 	if err != nil || staff == nil {
-		return nil, nil, devicescan.NotFound("staff not found")
+		return nil, nil, devicescan.NotFoundWithCode("staff not found", devicescan.CodeStaffNotFound)
 	}
 	person, err := q.people.FindPerson(ctx, staff.PersonID)
 	if err != nil {
@@ -63,7 +63,7 @@ func (q *tagAssignments) UnassignStaffTag(ctx context.Context, staffID int64) (d
 		return devicescan.TagAssignmentChange{}, err
 	}
 	if person.TagID == nil {
-		return devicescan.TagAssignmentChange{}, devicescan.NotFound("staff has no RFID tag assigned")
+		return devicescan.TagAssignmentChange{}, devicescan.NotFoundWithCode("staff has no RFID tag assigned", devicescan.CodeStaffRFIDTagUnassigned)
 	}
 	removed := *person.TagID
 	if err := q.people.UnlinkTag(ctx, person.ID); err != nil {

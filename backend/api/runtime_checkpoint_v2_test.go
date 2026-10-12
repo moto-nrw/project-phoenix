@@ -269,8 +269,8 @@ func (w *targetRiskWorkload) pendingWithdrawal(t *testing.T, production *Runtime
 	t.Helper()
 	tenantID, err := tenant.NewTenantID(w.tenantID)
 	require.NoError(t, err)
-	ctx := tenant.WithUnitOfWork(testpkg.Ctx(w.fixtures), production.api.tenantRuntime)
-	writer := tenantScopedUpsert(production.api.repos.CareWithdrawal.UpsertPending, func(fn func(context.Context) error) error {
+	ctx := tenant.WithUnitOfWork(testpkg.Ctx(w.fixtures), production.graph.tenantRuntime)
+	writer := tenantScopedUpsert(production.graph.repos.CareWithdrawal.UpsertPending, func(fn func(context.Context) error) error {
 		return tenant.WithinTenant(ctx, tenantID, fn)
 	})
 	return testpkg.CreateTestCareWithdrawalCompletion(w.fixtures, writer, studentID, w.accountID, "2026-09-14").ID
@@ -634,7 +634,7 @@ func (w *targetRiskWorkload) measureContention(t *testing.T, production *Runtime
 	t.Helper()
 	operations := contentionOperations()
 	require.GreaterOrEqual(t, concurrency, len(operations), "every contention operation needs at least one slot per round")
-	api := production.api
+	api := production.graph
 	slots := make([]*checkpointConcurrentOperation, concurrency)
 	for i := range slots {
 		index := i

@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // instanceStaffReconciliation is the state one staff alignment pass works
@@ -113,9 +114,13 @@ func (s *TemplateService) reconcileOccurrenceStaff(
 ) error {
 	periodID := calendarPeriodID(inst)
 	instanceDate := timezone.Date(inst.Date)
-	primaryStaffID, hasPrimary := effectivePrimarySupervisor(pass.supervisors, instanceDate, periodID)
+	planWeekday, err := calendar.PlanWeekday(ctx, instanceDate)
+	if err != nil {
+		return &ScheduleError{Op: "reconcile predecessor staff: resolve weekend plan", Err: err}
+	}
+	primaryStaffID, hasPrimary := effectivePrimarySupervisor(pass.supervisors, instanceDate, periodID, planWeekday)
 	for _, staffID := range staffIDs {
-		desired := supervisorsPlanStaffOn(pass.byStaff[staffID], instanceDate, periodID)
+		desired := supervisorsPlanStaffOn(pass.byStaff[staffID], instanceDate, periodID, planWeekday)
 		key := instanceStudentPair{instanceID: inst.ID, studentID: staffID}
 		row, exists := pass.existing[key]
 		wantPrimary := hasPrimary && staffID == primaryStaffID
@@ -124,7 +129,7 @@ func (s *TemplateService) reconcileOccurrenceStaff(
 		case desired && !exists:
 			// The pre-edit rows already planned this occurrence and the row is
 			// gone regardless — a hand removal that stays.
-			if !supervisorsPlanStaffOn(pass.priorByStaff[staffID], instanceDate, periodID) {
+			if !supervisorsPlanStaffOn(pass.priorByStaff[staffID], instanceDate, periodID, planWeekday) {
 				err = s.addOccurrenceStaff(ctx, key, wantPrimary, pass)
 			}
 		case desired && exists && instanceStaffRowIsStillPlanned(row):
@@ -180,9 +185,9 @@ func (s *TemplateService) removeOccurrenceStaff(ctx context.Context, key instanc
 
 // supervisorsPlanStaffOn reports whether any of the rows plans its staff
 // member on the occurrence date.
-func supervisorsPlanStaffOn(rows []*activitiesModel.SupervisorPlanned, date timezone.Date, periodID int64) bool {
+func supervisorsPlanStaffOn(rows []*activitiesModel.SupervisorPlanned, date timezone.Date, periodID int64, planWeekday int) bool {
 	for _, sup := range rows {
-		if isSupervisorValidOn(sup, date, periodID) {
+		if isSupervisorValidOn(sup, date, periodID, planWeekday) {
 			return true
 		}
 	}

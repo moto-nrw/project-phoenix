@@ -875,6 +875,7 @@ function EndDialog({
 type PageOverlaysProps = Readonly<{
   data: ReturnType<typeof useOverviewData>;
   admin: boolean;
+  canCreateExternalCaregiver: boolean;
   assignOpen: boolean;
   runningId: string | null;
   ending: Substitution | null;
@@ -901,6 +902,7 @@ function PageOverlays(props: PageOverlaysProps) {
       {props.runningId ? (
         <AddSupervisorModal
           activeGroupId={props.runningId}
+          canCreateExternalCaregiver={props.canCreateExternalCaregiver}
           isOpen
           onClose={props.closeRunning}
           onAdded={data.mutate}
@@ -1014,6 +1016,7 @@ function LoadedPage({ session, data, openCare }: LoadedPageProps) {
         <PageOverlays
           data={data}
           admin={hasEffectiveAdminScope(session)}
+          canCreateExternalCaregiver={hasPermission(session, "users:create")}
           assignOpen={dialogs.assignOpen}
           runningId={dialogs.runningId}
           ending={dialogs.ending}

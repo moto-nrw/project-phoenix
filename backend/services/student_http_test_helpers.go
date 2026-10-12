@@ -11,8 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // The compositions the student route suites
@@ -30,7 +30,7 @@ type StudentHTTPTestAuditCommand = auditModels.Command
 
 // StudentHTTPTestChangeRecorder records a companion widening in the
 // change history.
-type StudentHTTPTestChangeRecorder = users.StudentChangeRecorder
+type StudentHTTPTestChangeRecorder = peopleCompose.StudentChangeRecorder
 
 // The owner capabilities the student route suites receive, named here so the
 // test support forwarding them imports none of the owners.
@@ -60,7 +60,7 @@ func NewStudentHTTPTestPeople(db *bun.DB) peopledirectory.Capability {
 // NewStudentHTTPTestCompanions composes Care Plan's companion graph over the
 // suite's rows. audit may be nil only for suites that never widen a
 // companion's plan.
-func NewStudentHTTPTestCompanions(rows StudentHTTPTestRows, people peopledirectory.Capability, audit users.StudentChangeRecorder) careplan.StudentCompanions {
+func NewStudentHTTPTestCompanions(rows StudentHTTPTestRows, people peopledirectory.Capability, audit peopleCompose.StudentChangeRecorder) careplan.StudentCompanions {
 	var recorder repositories.StudentChangeAudit
 	if audit != nil {
 		recorder = audit
@@ -95,7 +95,7 @@ func NewStudentHTTPTestMembership(db *bun.DB) (schoolmembership.Capability, erro
 type StudentHTTPTestCareLifecycle struct {
 	BookingsAuthoritative func(context.Context) (bool, error)
 	Today                 func() timezone.Date
-	AuditActor            users.RequestAuditActor
+	AuditActor            peopleCompose.RequestAuditActor
 }
 
 // NewStudentHTTPTestCareLifecycle composes the native Care Plan lifecycle
@@ -107,7 +107,7 @@ func NewStudentHTTPTestCareLifecycle(db *bun.DB, config StudentHTTPTestCareLifec
 		return nil, err
 	}
 	return repos.NewCareLifecycle(repositories.CareLifecycleTestConfig{
-		Audit:                 users.NewStudentAuditService(config.AuditActor, repositories.NewStudentAudit(db)),
+		Audit:                 peopleCompose.NewStudentAuditService(config.AuditActor, repositories.NewStudentAudit(db)),
 		BookingsAuthoritative: config.BookingsAuthoritative,
 		Today:                 config.Today,
 	})
@@ -115,6 +115,6 @@ func NewStudentHTTPTestCareLifecycle(db *bun.DB, config StudentHTTPTestCareLifec
 
 // StudentRoutePersons binds the student routes' person port over the
 // module's retained person service.
-func (m StudentTestModule) StudentRoutePersons() StudentRoutePersons {
-	return NewStudentRoutePersons(m.Users)
+func (m StudentTestModule) StudentRoutePersons() peopleCompose.StudentRoutePersons {
+	return peopleCompose.NewStudentRoutePersons(m.Users)
 }

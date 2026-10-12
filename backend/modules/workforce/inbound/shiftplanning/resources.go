@@ -21,15 +21,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // StaffShiftsDependencies are the collaborators the staff-shift route
-// composition cannot own: the planning capability, the database the shared
-// tenant middleware opens transactions on, and the actor lookups.
+// composition cannot own: the planning capability and the actor lookups.
+// The shared middleware opens the tenant transaction from the request context.
 type StaffShiftsDependencies struct {
 	Planning workforce.StaffShiftPlanning
-	DB       *bun.DB
+
 	// ResolveStaffID identifies the staff record of the acting admin.
 	ResolveStaffID func(context.Context) (int64, error)
 	// ActorAccountID names the acting account for audit entries; nil records
@@ -40,7 +39,7 @@ type StaffShiftsDependencies struct {
 // NewStaffShiftsResource wires /api/staff-shifts over the planning
 // capability.
 func NewStaffShiftsResource(deps StaffShiftsDependencies) *staffshiftsHTTP.Resource {
-	if deps.Planning == nil || deps.DB == nil || deps.ResolveStaffID == nil || deps.ActorAccountID == nil {
+	if deps.Planning == nil || deps.ResolveStaffID == nil || deps.ActorAccountID == nil {
 		panic("staff-shifts HTTP composition: all dependencies are required")
 	}
 	return staffshiftsHTTP.NewResource(deps.Planning, staffShiftsRuntime(deps))
@@ -49,7 +48,7 @@ func NewStaffShiftsResource(deps StaffShiftsDependencies) *staffshiftsHTTP.Resou
 func staffShiftsRuntime(deps StaffShiftsDependencies) staffshiftsHTTP.Runtime {
 	return staffshiftsHTTP.Runtime{
 		Protected: func(router chi.Router, routes func(chi.Router, staffshiftsHTTP.Middleware)) {
-			common.ProtectedTenantGroup(router, deps.DB, routes)
+			common.ProtectedTenantRoutes(router, routes)
 		},
 		Permission: common.RequiresPermission,
 		ParseID:    common.ParseID,
@@ -142,17 +141,17 @@ func renderStaffShiftsFailure(w http.ResponseWriter, r *http.Request, kind staff
 
 // NewShiftTypesResource wires /api/shift-types over the shift-type
 // administration capability.
-func NewShiftTypesResource(types workforce.ShiftTypeAdministration, db *bun.DB) *shifttypesHTTP.Resource {
-	if types == nil || db == nil {
+func NewShiftTypesResource(types workforce.ShiftTypeAdministration) *shifttypesHTTP.Resource {
+	if types == nil {
 		panic("shift-types HTTP composition: all dependencies are required")
 	}
-	return shifttypesHTTP.NewResource(types, shiftTypesRuntime(db))
+	return shifttypesHTTP.NewResource(types, shiftTypesRuntime())
 }
 
-func shiftTypesRuntime(db *bun.DB) shifttypesHTTP.Runtime {
+func shiftTypesRuntime() shifttypesHTTP.Runtime {
 	return shifttypesHTTP.Runtime{
 		Protected: func(router chi.Router, routes func(chi.Router, shifttypesHTTP.Middleware)) {
-			common.ProtectedTenantGroup(router, db, routes)
+			common.ProtectedTenantRoutes(router, routes)
 		},
 		Permission:         common.RequiresPermission,
 		ParseID:            common.ParseID,

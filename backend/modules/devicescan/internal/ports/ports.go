@@ -120,6 +120,11 @@ var (
 	ErrConflict = errors.New("presence conflict")
 	ErrNotFound = errors.New("presence not found")
 	ErrInvalid  = errors.New("presence invalid")
+	// ErrNoRoomAvailable narrows ErrInvalid: a session start without a room
+	// for an activity that has none planned.
+	ErrNoRoomAvailable = errors.New("presence no room available")
+	// ErrNoActiveSession narrows ErrNotFound for the timeout refusal.
+	ErrNoActiveSession = errors.New("presence no active session")
 )
 
 // Visits are the room stay transitions of one student.

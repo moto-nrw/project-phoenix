@@ -1,0 +1,148 @@
+package groups_test
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/gofrs/uuid"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+// tagOf reads the RFID tag currently stored on a student's person row. An empty
+// string means the tag was released (COALESCE keeps the scan off bun's
+// NULL-into-*string handling, which hands back a pointer to "").
+func tagOf(t *testing.T, ctx context.Context, db *bun.DB, personID int64) string {
+	t.Helper()
+
+	var tags []string
+	require.NoError(t, db.NewSelect().
+		TableExpr(`users.persons`).
+		ColumnExpr(`COALESCE(tag_id, '')`).
+		Where("id = ?", personID).
+		Scan(ctx, &tags))
+	require.Len(t, tags, 1)
+	return tags[0]
+}
+
+// TestGradeTransitionWorkflow_Apply_ReleasesRFIDTag covers the P1 fix (#405
+// review): graduation is a soft delete, so a graduate keeps their person row and
+// would keep holding the bracelet — a state the kiosk can SEE (GET
+// /api/iot/rfid/{tagId} resolves the person unfiltered) but never resolve
+// (DELETE /api/students/{id}/rfid runs through the alumnus gate). The apply
+// releases the tag and ledgers it in the transition history so the revert can
+// hand it back.
+func TestGradeTransitionWorkflow_Apply_ReleasesRFIDTag(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
+
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
+	defer cancel()
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	gradClass := fmt.Sprintf("4rfid-%s", suffix)
+
+	// The card is created FIRST so its cleanup runs last: deleting a card a
+	// person still points at trips the FK's SET NULL on the composite key.
+	card := testpkg.CreateTestRFIDCard(t, db, "GRADTAG")
+
+	student := testpkg.CreateTestStudent(t, db, "Armband", "Abgang", gradClass)
+
+	testpkg.LinkRFIDToStudent(t, db, student.PersonID, card.ID)
+
+	// Free the tag before the card fixture is deleted: dropping a card a person
+	// still points at fires the composite FK's SET NULL on (tenant_id, tag_id).
+	defer func() {
+		_, _ = db.NewUpdate().
+			TableExpr(`users.persons`).
+			Set("tag_id = NULL").
+			Where("tag_id = ?", card.ID).
+			Exec(context.Background())
+	}()
+
+	transitionID := f.createDraft(t, ctx, "2025-2026", graduate(gradClass))
+
+	_, err := wf.Apply(ctx, transitionID, "")
+	require.NoError(t, err)
+
+	assert.Empty(t, tagOf(t, ctx, db, student.PersonID),
+		"graduation must free the bracelet so it can be issued to a current child")
+
+	history, err := f.deps.Structure.ListTransitionHistory(ctx, transitionID)
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+	require.Equal(t, student.ID, history[0].StudentID)
+	require.NotNil(t, history[0].RFIDTag, "the released tag must be recorded for the revert")
+	assert.Equal(t, card.ID, *history[0].RFIDTag)
+
+	_, err = wf.Revert(ctx, transitionID)
+	require.NoError(t, err)
+
+	assert.Equal(t, card.ID, tagOf(t, ctx, db, student.PersonID),
+		"the revert must hand the bracelet back")
+}
+
+// TestGradeTransitionWorkflow_Revert_KeepsReissuedRFIDTag pins the other half:
+// the bracelet is a physical object. If it was handed to a current child during
+// the alumnus window, the revert must leave it with that child (users.persons
+// carries UNIQUE (tenant_id, tag_id), so the alternative is a failed revert) and
+// say so in the result warnings.
+func TestGradeTransitionWorkflow_Revert_KeepsReissuedRFIDTag(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
+
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
+	defer cancel()
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	gradClass := fmt.Sprintf("4reissue-%s", suffix)
+
+	card := testpkg.CreateTestRFIDCard(t, db, "REISSUETAG")
+
+	leaver := testpkg.CreateTestStudent(t, db, "Armband", "Weitergabe", gradClass)
+	newcomer := testpkg.CreateTestStudent(t, db, "Armband", "Neu", fmt.Sprintf("1reissue-%s", suffix))
+
+	testpkg.LinkRFIDToStudent(t, db, leaver.PersonID, card.ID)
+
+	// Free the tag before the card fixture is deleted: dropping a card a person
+	// still points at fires the composite FK's SET NULL on (tenant_id, tag_id).
+	defer func() {
+		_, _ = db.NewUpdate().
+			TableExpr(`users.persons`).
+			Set("tag_id = NULL").
+			Where("tag_id = ?", card.ID).
+			Exec(context.Background())
+	}()
+
+	transitionID := f.createDraft(t, ctx, "2025-2026", graduate(gradClass))
+
+	_, err := wf.Apply(ctx, transitionID, "")
+	require.NoError(t, err)
+	require.Empty(t, tagOf(t, ctx, db, leaver.PersonID))
+
+	// The freed bracelet goes to a child who is still here.
+	testpkg.LinkRFIDToStudent(t, db, newcomer.PersonID, card.ID)
+
+	result, err := wf.Revert(ctx, transitionID)
+	require.NoError(t, err)
+
+	assert.Empty(t, tagOf(t, ctx, db, leaver.PersonID),
+		"the current holder wins — the revert must not take the bracelet back")
+	assert.Equal(t, card.ID, tagOf(t, ctx, db, newcomer.PersonID))
+
+	require.NotEmpty(t, result.Warnings)
+	assert.Contains(t, fmt.Sprint(result.Warnings), "RFID",
+		"the admin must be told the bracelet stayed where it is")
+}

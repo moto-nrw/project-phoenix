@@ -73,7 +73,7 @@ func TestCreateStudent_WithGuardians(t *testing.T) {
 				Where("student_id = ?", resp.Data.ID).
 				Count(ctx)
 			require.NoError(t, err)
-			assert.Equal(t, 1, relCount, "expected exactly one student-guardian relationship")
+			assert.Equal(t, 1, int(relCount), "expected exactly one student-guardian relationship")
 
 			var guardianID int64
 			require.NoError(t, tc.db.NewSelect().
@@ -101,7 +101,7 @@ func TestCreateStudent_WithGuardians(t *testing.T) {
 				Where("guardian_profile_id = ?", guardianID).
 				Count(ctx)
 			require.NoError(t, err)
-			assert.Equal(t, 1, phoneCount, "expected exactly one guardian phone number")
+			assert.Equal(t, 1, int(phoneCount), "expected exactly one guardian phone number")
 			contacts, err := tc.resource.PeopleDirectory.ListStudentGuardians(testpkg.Ctx(t), resp.Data.ID)
 			require.NoError(t, err)
 			require.Len(t, contacts, 1)
@@ -178,7 +178,7 @@ func TestCreateStudent_GuardianFailureRollsBackStudent(t *testing.T) {
 		Where("first_name = ? AND last_name = ?", firstName, lastName).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, personCount, "person must not persist when guardian creation fails (transaction must roll back)")
+	assert.Equal(t, int64(0), personCount, "person must not persist when guardian creation fails (transaction must roll back)")
 }
 
 // TestCreateStudent_InvalidGuardianPhoneRollsBackStudent verifies a malformed
@@ -245,7 +245,7 @@ func TestCreateStudent_InvalidGuardianPhoneRollsBackStudent(t *testing.T) {
 		Where("first_name = ? AND last_name = ?", firstName, lastName).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, personCount, "person must not persist when guardian phone validation fails (transaction must roll back)")
+	assert.Equal(t, int64(0), personCount, "person must not persist when guardian phone validation fails (transaction must roll back)")
 }
 
 // assertGuardianBadRequestNoOrphan posts a create-student body that must fail
@@ -293,7 +293,7 @@ func assertGuardianBadRequestNoOrphan(
 		Where("first_name = ? AND last_name = ?", firstName, lastName).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, personCount, "person must not persist when guardian validation fails (transaction must roll back)")
+	assert.Equal(t, int64(0), personCount, "person must not persist when guardian validation fails (transaction must roll back)")
 }
 
 // TestCreateStudent_MultipleGuardians verifies the batch path: several guardians
@@ -350,7 +350,7 @@ func TestCreateStudent_MultipleGuardians(t *testing.T) {
 		Where("student_id = ?", resp.Data.ID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 2, relCount, "both guardians must be linked to the student")
+	assert.Equal(t, 2, int(relCount), "both guardians must be linked to the student")
 
 	// The unknown phone type was coerced to "mobile" and persisted.
 	var phoneType string

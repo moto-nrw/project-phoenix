@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
 
@@ -28,7 +27,7 @@ type ParentMessagingConfig struct {
 	ThreadRepo  usersModels.ParentMessageThreadRepository
 	MessageRepo usersModels.ParentMessageRepository
 	ReadRepo    usersModels.ParentMessageReadRepository
-	Persons     userService.PersonService
+	Persons     parentMessages.PersonLookup
 	// UserContext is the caller context: its staff check gates the read
 	// scope, and its groups serve the "own groups" count scope (#3673).
 	UserContext interface {
@@ -199,7 +198,7 @@ type StaffMessagingConfig struct {
 	ThreadRepo  usersModels.StaffMessageThreadRepository
 	MessageRepo usersModels.StaffMessageRepository
 	ReadRepo    usersModels.StaffMessageReadRepository
-	Persons     userService.PersonService
+	Persons     staffMessages.PersonLookup
 	Settings    configService.SettingsService
 	Broadcaster realtime.Broadcaster
 	DB          *bun.DB

@@ -185,6 +185,38 @@ describe("useStudentHistoryBreadcrumb", () => {
     });
   });
 
+  // #3890: ein Kind aus einer Gruppe unter „Weitere Gruppen" nennt im
+  // Breadcrumb diesen Bereich.
+  it("sets the OGS group section from localStorage when referrer is /ogs-groups", () => {
+    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation(
+      (key: string) => {
+        if (key === "sidebar-last-group-name") return "Mondgruppe";
+        if (key === "sidebar-last-group-section") return "other";
+        return null;
+      },
+    );
+
+    let breadcrumbResult: ReturnType<typeof useBreadcrumb> | undefined;
+
+    function TestConsumer() {
+      useStudentHistoryBreadcrumb({
+        studentName: "Max Mustermann",
+        referrer: "/ogs-groups",
+      });
+      breadcrumbResult = useBreadcrumb();
+      return <div>consumer</div>;
+    }
+
+    render(
+      <BreadcrumbProvider>
+        <TestConsumer />
+      </BreadcrumbProvider>,
+    );
+
+    expect(breadcrumbResult?.breadcrumb.ogsGroupName).toBe("Mondgruppe");
+    expect(breadcrumbResult?.breadcrumb.ogsGroupSection).toBe("other");
+  });
+
   it("sets breadcrumb with room name from localStorage when referrer is /active-supervisions", () => {
     (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation(
       (key: string) => {

@@ -28,6 +28,12 @@ function getStaffDisplayName(teacher: Teacher): string {
 }
 
 function buildSubtitle(teacher: Teacher): string {
+  if (teacher.is_external) {
+    const organization = teacher.external_organization?.trim();
+    return organization
+      ? `Extern, ohne moto-Konto · ${organization}`
+      : "Extern, ohne moto-Konto";
+  }
   const displayRole = teacher.account_role
     ? getRoleDisplayName(teacher.account_role)
     : null;

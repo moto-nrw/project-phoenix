@@ -129,7 +129,7 @@ func (e *sickCascadeEnv) createShift(t *testing.T, staffID int64, date timezone.
 // createBlock inserts an instance + one staff row for the subject and
 // registers cleanup. startHHMM must be unique per (template, date) — the
 // template-instance unique index spans (activity_group_id, date, start_time).
-func (e *sickCascadeEnv) createBlock(t *testing.T, date timezone.Date, status, startHHMM string, staffID int64, staffOpts testpkg.InstanceStaffOpts) (*scheduleModels.ActivityInstance, *scheduleModels.InstanceStaff) {
+func (e *sickCascadeEnv) createBlock(t *testing.T, date timezone.Date, status, startHHMM string, staffID int64, staffOpts testpkg.InstanceStaffOpts) (*testpkg.ActivityInstance, *testpkg.InstanceStaff) {
 	t.Helper()
 	instance := testpkg.CreateTestActivityInstance(t, e.db, date, e.roomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &e.tmplID,
@@ -754,9 +754,11 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 		return nil
 	})
 	ackNote := "bewusst offen"
-	clearableInstance.UnderstaffedAck = true
-	clearableInstance.UnderstaffedNote = &ackNote
-	_, err := e.repos.ActivityInstance.UpdateColumns(e.ctx, clearableInstance, "understaffed_ack", "understaffed_note")
+	storedClearable, err := e.repos.ActivityInstance.FindByID(e.ctx, clearableInstance.ID)
+	require.NoError(t, err)
+	storedClearable.UnderstaffedAck = true
+	storedClearable.UnderstaffedNote = &ackNote
+	_, err = e.repos.ActivityInstance.UpdateColumns(e.ctx, storedClearable, "understaffed_ack", "understaffed_note")
 	require.NoError(t, err)
 
 	// Admin work AFTER the cascade: a replacement covering one cancelled
@@ -793,10 +795,10 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 	assert.False(t, row.IsAbsent)
 	assert.Nil(t, row.AbsenceReason)
 	assert.Nil(t, row.SickAbsenceID)
-	clearableInstance, err = e.repos.ActivityInstance.FindByID(e.ctx, clearableInstance.ID)
+	storedClearable, err = e.repos.ActivityInstance.FindByID(e.ctx, clearableInstance.ID)
 	require.NoError(t, err)
-	assert.False(t, clearableInstance.UnderstaffedAck)
-	assert.Nil(t, clearableInstance.UnderstaffedNote)
+	assert.False(t, storedClearable.UnderstaffedAck)
+	assert.Nil(t, storedClearable.UnderstaffedNote)
 	allEvents, err := e.repos.DeviationEvent.ListByRange(e.ctx, auditModels.Date(tomorrow), auditModels.Date(tomorrow), nil, nil)
 	require.NoError(t, err)
 	var unackEvents []*auditModels.DeviationEvent

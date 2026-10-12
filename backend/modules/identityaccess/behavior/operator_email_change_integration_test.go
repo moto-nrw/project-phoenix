@@ -107,13 +107,13 @@ func TestIntegration_EmailChange_InitiateAndConfirm_HappyPath(t *testing.T) {
 	assert.NotEmpty(t, tokenStr)
 
 	// Verify audit log for initiation
-	var initiateAuditCount int
+	var initiateAuditCount int64
 	initiateAuditCount, err = db.NewSelect().
 		TableExpr("platform.operator_audit_log").
 		Where("operator_id = ? AND action = ?", operatorID, "email_change_initiated").
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, initiateAuditCount, "should have audit log for initiation")
+	assert.Equal(t, 1, int(initiateAuditCount), "should have audit log for initiation")
 
 	// Confirm email change
 	confirmedEmail, err := service.ConfirmEmailChange(ctx, tokenStr, clientIP)
@@ -131,13 +131,13 @@ func TestIntegration_EmailChange_InitiateAndConfirm_HappyPath(t *testing.T) {
 	assert.Equal(t, newEmail, updatedEmail)
 
 	// Verify audit log for confirmation
-	var confirmAuditCount int
+	var confirmAuditCount int64
 	confirmAuditCount, err = db.NewSelect().
 		TableExpr("platform.operator_audit_log").
 		Where("operator_id = ? AND action = ?", operatorID, "email_change_confirmed").
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 1, confirmAuditCount, "should have audit log for confirmation")
+	assert.Equal(t, 1, int(confirmAuditCount), "should have audit log for confirmation")
 }
 
 func TestIntegration_EmailChange_Initiate_WrongPassword(t *testing.T) {
@@ -202,7 +202,7 @@ func TestIntegration_EmailChange_Initiate_EmailAlreadyInUse(t *testing.T) {
 		Where("operator_id = ?", operatorID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, tokenCount, "no token should be created when email is already taken")
+	assert.Equal(t, int64(0), tokenCount, "no token should be created when email is already taken")
 }
 
 func TestIntegration_EmailChange_Initiate_RateLimit(t *testing.T) {
@@ -395,7 +395,7 @@ func TestIntegration_EmailChange_Cleanup_ServiceLevel(t *testing.T) {
 		Where("token = ?", staleToken).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, count, "stale token should be deleted after cleanup")
+	assert.Equal(t, int64(0), count, "stale token should be deleted after cleanup")
 }
 
 // =============================================================================

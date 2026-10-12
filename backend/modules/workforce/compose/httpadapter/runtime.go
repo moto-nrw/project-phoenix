@@ -13,7 +13,6 @@ import (
 	worktimemodelsHTTP "github.com/moto-nrw/project-phoenix/api/work-time-models"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/uptrace/bun"
 )
 
 type Resource = worktimemodelsHTTP.Resource
@@ -21,16 +20,16 @@ type Resource = worktimemodelsHTTP.Resource
 // NewResource wires the /api/work-time-models adapter over the Workforce
 // capability. NotifyChanged invalidates the time-account views after a
 // template edit rewrote the assigned staff schedules.
-func NewResource(models workforce.Capability, db *bun.DB, notifyChanged func(context.Context)) *Resource {
-	if models == nil || db == nil || notifyChanged == nil {
+func NewResource(models workforce.Capability, notifyChanged func(context.Context)) *Resource {
+	if models == nil || notifyChanged == nil {
 		panic("work-time-models HTTP composition: all dependencies are required")
 	}
-	return worktimemodelsHTTP.NewResource(models, runtime(db, notifyChanged))
+	return worktimemodelsHTTP.NewResource(models, runtime(notifyChanged))
 }
 
-func runtime(db *bun.DB, notifyChanged func(context.Context)) worktimemodelsHTTP.Runtime {
+func runtime(notifyChanged func(context.Context)) worktimemodelsHTTP.Runtime {
 	return worktimemodelsHTTP.Runtime{
-		Protected:     protectedRoutes(db),
+		Protected:     protectedRoutes(),
 		Permission:    apiCommon.RequiresPermission,
 		ParseID:       apiCommon.ParseID,
 		Success:       apiCommon.Respond,
@@ -40,9 +39,9 @@ func runtime(db *bun.DB, notifyChanged func(context.Context)) worktimemodelsHTTP
 	}
 }
 
-func protectedRoutes(db *bun.DB) func(chi.Router, func(chi.Router, worktimemodelsHTTP.Middleware)) {
+func protectedRoutes() func(chi.Router, func(chi.Router, worktimemodelsHTTP.Middleware)) {
 	return func(router chi.Router, routes func(chi.Router, worktimemodelsHTTP.Middleware)) {
-		apiCommon.ProtectedTenantGroup(router, db, routes)
+		apiCommon.ProtectedTenantRoutes(router, routes)
 	}
 }
 

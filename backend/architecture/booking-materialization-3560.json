@@ -48,7 +48,7 @@
       "backend/modules/careplan/contracttest/offering_source_service_test.go",
       "backend/modules/careplan/contracttest/offering_adjustment_dated_test.go",
       "backend/modules/careplan/contracttest/offering_pickup_projection_test.go",
-      "backend/api/enrollment/n_plus_one_query_budget_test.go",
+      "backend/modules/enrollment/http/n_plus_one_query_budget_test.go",
       "backend/test/query_budgets.go"
     ],
     "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",

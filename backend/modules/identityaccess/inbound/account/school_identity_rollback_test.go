@@ -102,7 +102,7 @@ func TestLinkToTenantReusesExistingPersonWithoutNames(t *testing.T) {
 		Where("deleted_at IS NULL").
 		Count(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, 1, staffCount, "the existing person is completed, not duplicated")
+	assert.Equal(t, 1, int(staffCount), "the existing person is completed, not duplicated")
 
 	personCount, err := tc.db.NewSelect().
 		TableExpr("users.persons").
@@ -110,5 +110,5 @@ func TestLinkToTenantReusesExistingPersonWithoutNames(t *testing.T) {
 		Where("deleted_at IS NULL").
 		Count(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, 1, personCount)
+	assert.Equal(t, 1, int(personCount))
 }

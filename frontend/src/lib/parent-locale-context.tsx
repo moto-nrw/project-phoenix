@@ -12,9 +12,14 @@ import {
 } from "react";
 import { useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
+import useSWR from "swr";
 import type { AppLocale } from "~/i18n/locales";
 import { normalizeLocale, writeLocaleCookie } from "~/i18n/locales";
-import { fetchParentProfile, updateParentPortalLocale } from "~/lib/parent-api";
+import {
+  fetchParentProfile,
+  parentProfileCacheKey,
+  updateParentPortalLocale,
+} from "~/lib/parent-api";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
@@ -149,6 +154,12 @@ export function ParentLocaleProvider({
   // re-runs when `status` flips to "authenticated".
   const { data: session, status } = useSession();
   const authenticated = status === "authenticated";
+  const { data: profile, error: profileError } = useSWR(
+    authenticated && session?.user?.id
+      ? parentProfileCacheKey(session.user.id)
+      : null,
+    fetchParentProfile,
+  );
   const { show: showError } = useApiErrorDisplay();
   const t = useTranslations("language");
   // Server-resolved locale: the cookie if present, else Accept-Language. This
@@ -178,76 +189,78 @@ export function ParentLocaleProvider({
 
   useEffect(() => {
     if (!authenticated) return;
+    if (profileError) {
+      logger.warn("parent_profile_language_load_failed", {
+        error:
+          profileError instanceof Error
+            ? profileError.message
+            : String(profileError),
+      });
+      return;
+    }
+    if (!profile) return;
+    const loadedProfile = profile;
     let cancelled = false;
     async function syncFromProfile() {
-      try {
-        const profile = await fetchParentProfile();
-        if (cancelled) return;
-        const stored = profile.portal_locale
-          ? normalizeLocale(profile.portal_locale)
+      if (cancelled) return;
+      const stored = loadedProfile.portal_locale
+        ? normalizeLocale(loadedProfile.portal_locale)
+        : null;
+      const localChoice =
+        localChoiceLocaleRef.current?.storageKey === unsyncedLocaleStorageKey
+          ? localChoiceLocaleRef.current.locale
           : null;
-        const localChoice =
-          localChoiceLocaleRef.current?.storageKey === unsyncedLocaleStorageKey
-            ? localChoiceLocaleRef.current.locale
-            : null;
-        const effectiveLocalChoice =
-          localChoice ?? readUnsyncedLocale(unsyncedLocaleStorageKey);
+      const effectiveLocalChoice =
+        localChoice ?? readUnsyncedLocale(unsyncedLocaleStorageKey);
 
-        if (effectiveLocalChoice) {
-          localChoiceLocaleRef.current = {
-            storageKey: unsyncedLocaleStorageKey,
-            locale: effectiveLocalChoice,
-          };
-          if (stored !== effectiveLocalChoice) {
-            // A local change can be ahead of, or intentionally unsynced from,
-            // the profile. Do not let an old profile GET roll it back.
-            setLocaleState(effectiveLocalChoice);
-            writeLocaleCookie(effectiveLocalChoice);
-            if (effectiveLocalChoice !== intlLocale) {
-              reloadForLocaleChange();
-            }
-            return;
-          }
-          localChoiceLocaleRef.current = null;
-          clearUnsyncedLocale(unsyncedLocaleStorageKey);
-        }
-
-        if (!stored) {
-          // The guardian has never chosen a portal language. Honour the
-          // anonymous locale they arrived with (their pre-login switcher
-          // choice via the cookie, or the browser's Accept-Language) instead
-          // of snapping to German, and persist it so even an explicit German
-          // choice is no longer indistinguishable from "never chosen". The
-          // tree was already server-rendered in intlLocale, so no refresh is
-          // needed.
-          setLocaleState(intlLocale);
-          try {
-            await persistParentLocale(intlLocale);
-          } catch (error) {
-            // Background adoption nobody asked for: the page already shows
-            // this language, and the next login tries again.
-            logger.warn("parent_profile_language_adopt_failed", {
-              error: error instanceof Error ? error.message : String(error),
-            });
+      if (effectiveLocalChoice) {
+        localChoiceLocaleRef.current = {
+          storageKey: unsyncedLocaleStorageKey,
+          locale: effectiveLocalChoice,
+        };
+        if (stored !== effectiveLocalChoice) {
+          // A local change can be ahead of, or intentionally unsynced from,
+          // the profile. Do not let an old profile GET roll it back.
+          setLocaleState(effectiveLocalChoice);
+          writeLocaleCookie(effectiveLocalChoice);
+          if (effectiveLocalChoice !== intlLocale) {
+            reloadForLocaleChange();
           }
           return;
         }
+        localChoiceLocaleRef.current = null;
+        clearUnsyncedLocale(unsyncedLocaleStorageKey);
+      }
 
-        // An explicit portal choice is the source of truth.
-        setLocaleState(stored);
-        writeLocaleCookie(stored);
-        // The page was server-rendered with intlLocale. When the stored
-        // preference differs, refresh the server tree so the whole portal
-        // re-renders in it after the locale cookie changes.
-        if (stored !== intlLocale) {
-          reloadForLocaleChange();
+      if (!stored) {
+        // The guardian has never chosen a portal language. Honour the
+        // anonymous locale they arrived with (their pre-login switcher
+        // choice via the cookie, or the browser's Accept-Language) instead
+        // of snapping to German, and persist it so even an explicit German
+        // choice is no longer indistinguishable from "never chosen". The
+        // tree was already server-rendered in intlLocale, so no refresh is
+        // needed.
+        setLocaleState(intlLocale);
+        try {
+          await persistParentLocale(intlLocale);
+        } catch (error) {
+          // Background adoption nobody asked for: the page already shows
+          // this language, and the next login tries again.
+          logger.warn("parent_profile_language_adopt_failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
-      } catch (error: unknown) {
-        // Background sync: the page keeps the language it was rendered in,
-        // which is the cookie or browser choice, so nothing is wrong to see.
-        logger.warn("parent_profile_language_load_failed", {
-          error: error instanceof Error ? error.message : String(error),
-        });
+        return;
+      }
+
+      // An explicit portal choice is the source of truth.
+      setLocaleState(stored);
+      writeLocaleCookie(stored);
+      // The page was server-rendered with intlLocale. When the stored
+      // preference differs, refresh the server tree so the whole portal
+      // re-renders in it after the locale cookie changes.
+      if (stored !== intlLocale) {
+        reloadForLocaleChange();
       }
     }
     void syncFromProfile();
@@ -258,6 +271,8 @@ export function ParentLocaleProvider({
     authenticated,
     intlLocale,
     persistParentLocale,
+    profile,
+    profileError,
     unsyncedLocaleStorageKey,
   ]);
 

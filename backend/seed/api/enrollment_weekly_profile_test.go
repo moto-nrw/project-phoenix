@@ -90,6 +90,12 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		}}})
 		return true
 	}
+	// The profile school has no Zeitraum yet; the phase creates its school
+	// year through POST /api/timetable/periods (#3924).
+	if r.Method == "POST" && r.URL.Path == "/api/timetable/periods/bootstrap" {
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"periods": []any{}}})
+		return true
+	}
 	var body map[string]any
 	if r.Method == "POST" || r.Method == "PUT" {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))

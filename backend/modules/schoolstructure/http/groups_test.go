@@ -51,10 +51,10 @@ type testContext struct {
 }
 
 // setupGroupsRoute creates test resources for groups handler tests
-func setupGroupsRoute(t *testing.T) *testContext {
+func setupGroupsRoute(t *testing.T, publishers ...*testpkg.RecordingBroadcaster) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupGroupsModule(t)
+	db, svc := testutil.SetupGroupsModule(t, publishers...)
 
 	// Groups resource requires multiple services and repositories
 	resource := schoolstructurehttp.NewResource(
@@ -74,10 +74,10 @@ func setupGroupsRoute(t *testing.T) *testContext {
 // tests exercise the real route + middleware wiring. Router() already includes
 // the JWT chain and per-route permission checks; requests must carry a signed
 // token (see newReq).
-func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
+func setupProtectedRouter(t *testing.T, publishers ...*testpkg.RecordingBroadcaster) (*testContext, chi.Router) {
 	t.Helper()
 
-	tc := setupGroupsRoute(t)
+	tc := setupGroupsRoute(t, publishers...)
 
 	router := chi.NewRouter()
 	router.Mount("/groups", tc.resource.Router())

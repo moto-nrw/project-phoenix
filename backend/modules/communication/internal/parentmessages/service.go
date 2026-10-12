@@ -27,9 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -71,6 +69,13 @@ type ThreadDetail struct {
 	Messages          []*usersModels.ParentMessage
 }
 
+// PersonLookup is the slice of People Directory the staff side reads: the
+// child behind a thread and the person behind a staff account.
+type PersonLookup interface {
+	GetStudentByID(ctx context.Context, id int64) (*usersModels.Student, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*usersModels.Person, error)
+}
+
 // Service is the staff-side messaging service.
 type Service struct {
 	Config
@@ -81,9 +86,9 @@ type Config struct {
 	ThreadRepo  usersModels.ParentMessageThreadRepository
 	MessageRepo usersModels.ParentMessageRepository
 	ReadRepo    usersModels.ParentMessageReadRepository
-	Persons     userService.PersonService
+	Persons     PersonLookup
 	UserContext authorize.StudentAccessUserContext
-	Settings    configService.SettingsService
+	Settings    parentmessaging.SettingsResolver
 	Broadcaster realtime.Broadcaster
 	DB          *bun.DB
 	Logger      *slog.Logger

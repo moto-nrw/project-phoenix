@@ -13,11 +13,12 @@ import (
 // instanceReferences are the tenant-scoped foreign ids a planner write
 // supplies.
 type instanceReferences struct {
-	roomID           int64
-	activityGroupID  *int64
-	staffIDs         []int64
-	studentIDs       []int64
-	createdByStaffID *int64
+	roomID                  int64
+	activityGroupID         *int64
+	staffIDs                []int64
+	studentIDs              []int64
+	createdByStaffID        *int64
+	allowExternalCaregivers bool
 }
 
 // validateInstanceReferences checks every supplied id against the current
@@ -38,7 +39,7 @@ func (s *InstanceLifecycleService) validateInstanceReferences(ctx context.Contex
 	if err := s.validateRoomReference(ctx, refs.roomID, isDuty); err != nil {
 		return "", err
 	}
-	if err := s.validateStaffReferences(ctx, refs.staffIDs, refs.createdByStaffID); err != nil {
+	if err := s.validateStaffReferences(ctx, refs.staffIDs, refs.createdByStaffID, refs.allowExternalCaregivers); err != nil {
 		return "", err
 	}
 	return groupType, s.validateStudentReferences(ctx, date, refs.studentIDs)
@@ -82,17 +83,67 @@ func (s *InstanceLifecycleService) validateActivityGroupReference(ctx context.Co
 	return group.Type, nil
 }
 
-func (s *InstanceLifecycleService) validateStaffReferences(ctx context.Context, staffIDs []int64, createdByStaffID *int64) error {
+func (s *InstanceLifecycleService) validateStaffReferences(ctx context.Context, staffIDs []int64, createdByStaffID *int64, allowExternalCaregivers bool) error {
+	if err := s.validatePlannableStaffReferences(ctx, staffIDs, allowExternalCaregivers); err != nil {
+		return err
+	}
+	return s.validateCreatedByStaffReference(ctx, createdByStaffID)
+}
+
+func (s *InstanceLifecycleService) validatePlannableStaffReferences(ctx context.Context, staffIDs []int64, allowExternalCaregivers bool) error {
 	uniqueStaffIDs := sliceutil.UniquePositive(staffIDs)
-	if len(uniqueStaffIDs) > 0 {
-		found, err := s.deps.StaffRepo.FindByIDs(ctx, uniqueStaffIDs)
-		if err != nil {
-			return fmt.Errorf("validate staff_ids: %w", err)
+	guestStaffIDs, err := s.findGuestStaffReferences(ctx, uniqueStaffIDs)
+	if err != nil {
+		return err
+	}
+	return s.rejectExternalCaregivers(ctx, guestStaffIDs, allowExternalCaregivers)
+}
+
+func (s *InstanceLifecycleService) findGuestStaffReferences(ctx context.Context, staffIDs []int64) ([]int64, error) {
+	if len(staffIDs) == 0 {
+		return nil, nil
+	}
+	found, err := s.deps.StaffRepo.FindByIDs(ctx, staffIDs)
+	if err != nil {
+		return nil, fmt.Errorf("validate staff_ids: %w", err)
+	}
+	if len(found) != len(staffIDs) {
+		return nil, fmt.Errorf("%w: invalid staff_ids", timetable.ErrInvalidInstanceReference)
+	}
+	guestStaffIDs := make([]int64, 0)
+	for _, staffID := range staffIDs {
+		staff, ok := found[staffID]
+		if !ok || staff == nil {
+			return nil, fmt.Errorf("%w: invalid staff_ids", timetable.ErrInvalidInstanceReference)
 		}
-		if len(found) != len(uniqueStaffIDs) {
-			return fmt.Errorf("%w: invalid staff_ids", timetable.ErrInvalidInstanceReference)
+		if staff.IsGuest {
+			guestStaffIDs = append(guestStaffIDs, staffID)
 		}
 	}
+	return guestStaffIDs, nil
+}
+
+func (s *InstanceLifecycleService) rejectExternalCaregivers(ctx context.Context, guestStaffIDs []int64, allowExternalCaregivers bool) error {
+	if allowExternalCaregivers || len(guestStaffIDs) == 0 {
+		return nil
+	}
+	staffWithPeople, err := s.deps.StaffRepo.FindWithPersonByIDs(ctx, guestStaffIDs)
+	if err != nil {
+		return fmt.Errorf("validate external staff_ids: %w", err)
+	}
+	for _, staffID := range guestStaffIDs {
+		staff, ok := staffWithPeople[staffID]
+		if !ok || staff == nil {
+			return fmt.Errorf("%w: invalid staff_ids", timetable.ErrInvalidInstanceReference)
+		}
+		if staff.IsGuest {
+			return fmt.Errorf("%w: external caregiver in staff_ids", timetable.ErrInvalidInstanceReference)
+		}
+	}
+	return nil
+}
+
+func (s *InstanceLifecycleService) validateCreatedByStaffReference(ctx context.Context, createdByStaffID *int64) error {
 	if createdByStaffID == nil {
 		return nil
 	}

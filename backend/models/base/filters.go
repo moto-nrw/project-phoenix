@@ -145,7 +145,7 @@ func (f *Filter) TrimIn(field string, values ...string) *Filter {
 }
 
 // FirstNumberIn matches when the first run of digits inside a free-text column
-// equals ANY of the values — the SQL twin of schoolclass.GradePrefix, which
+// equals ANY of the values. The shared class-label grammar
 // reads "3" out of "3a" and "Klasse 3a" alike and "13" out of "13a". A plain
 // LIKE '3%' cannot express that: it would count 13a as a third-graders' class.
 //

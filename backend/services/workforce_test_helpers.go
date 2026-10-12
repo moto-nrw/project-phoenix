@@ -9,13 +9,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
@@ -23,7 +23,7 @@ import (
 )
 
 type WorkforceTestModule struct {
-	Users                users.PersonService
+	Users                *peopleCompose.PersonDirectory
 	StaffAdmin           *workforce.StaffAdmin
 	WorkSession          timetracking.WorkSessionService
 	StaffAbsence         timetracking.StaffAbsenceService
@@ -62,11 +62,11 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	settingsService := settings.Settings
 	activeLogger := logger
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
-	usersService := users.NewPersonService(users.PersonServiceDependencies{
+	usersService := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
 		PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
 		StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
 		PersonRepo:       repos.Person, RFIDRepo: identity.RFIDCard, AccountExists: repositories.AccountExists(identityAccess), StudentRepo: repos.Student,
-		TeacherRepo: repos.Teacher, DB: db, SettingsService: settingsService, Logger: logger,
+		TeacherRepo:    repos.Teacher,
 		StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher, LehrkraftRoles: identityRoles}),
 	})
 	staffAdmin, err := NewStaffAdmin(StaffAdminDependencies{

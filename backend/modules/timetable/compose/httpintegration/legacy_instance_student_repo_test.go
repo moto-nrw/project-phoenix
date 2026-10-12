@@ -1513,7 +1513,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 			Where("student_id = ?", studentID).
 			Count(ctx)
 		require.NoError(t, cErr)
-		return n
+		return int(n)
 	}
 
 	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
@@ -1824,7 +1824,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *te
 		Where("transition_id = ?", transition.ID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, remaining, "obsolete ledger entries are consumed, not left behind")
+	assert.Equal(t, int64(0), remaining, "obsolete ledger entries are consumed, not left behind")
 
 	t.Run("an occurrence that fell into the past is not replayed either", func(t *testing.T) {
 		// Re-archive the row the replay just put back on the open occurrence.
@@ -1906,7 +1906,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
-	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, partial))
+	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, ownerPickupException(partial)))
 
 	replayed, err := repo.RestoreArchivedByTransition(ctx, transition.ID, graduates, today)
 	require.NoError(t, err)
@@ -1980,7 +1980,7 @@ func TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInsta
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
-	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, partial))
+	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, ownerPickupException(partial)))
 
 	n, err := repo.ApplyActivePartialAbsencesForInstance(ctx, cancelledInst.ID, date)
 	require.NoError(t, err)
@@ -2035,7 +2035,7 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceSkipsCompletedInstance(t *
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
-	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, partial))
+	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, ownerPickupException(partial)))
 
 	n, err := repo.ApplyPartialAbsence(ctx, partial.ID)
 	require.NoError(t, err)
@@ -2085,7 +2085,7 @@ func TestInstanceStudentRepository_ReleasePartialAbsenceSkipsCompletedInstance(t
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
-	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, partial))
+	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, ownerPickupException(partial)))
 
 	// Both rows get claimed while their instances are still live, then one
 	// block completes — the realistic order for a same-day pickup change.
@@ -2143,7 +2143,7 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t 
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
-	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, partial))
+	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, ownerPickupException(partial)))
 
 	n, err := repo.ApplyPartialAbsence(ctx, partial.ID)
 	require.NoError(t, err)
@@ -2218,7 +2218,7 @@ func TestInstanceStudentRepository_FindPartialAbsenceBlocksIncludesUnmaterialize
 	staff := testpkg.CreateTestStaff(t, db, "Preview", fmt.Sprintf("Exception-%d", time.Now().UnixNano()))
 	otherException := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "14:30", "Termin")
 	row.PickupExceptionID = &otherException.ID
-	require.NoError(t, repo.Update(ctx, row))
+	require.NoError(t, repo.Update(ctx, ownerInstanceStudent(row)))
 
 	blocks, err = repo.FindPartialAbsenceBlocks(ctx, student.ID, date,
 		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC))
@@ -2228,7 +2228,7 @@ func TestInstanceStudentRepository_FindPartialAbsenceBlocksIncludesUnmaterialize
 	from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC))
 	otherException.ExcusedFrom = &from
 	otherException.ExcusedAuto = true
-	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, otherException))
+	require.NoError(t, newBoundPickupExceptionRepository(db).Update(ctx, ownerPickupException(otherException)))
 
 	blocks, err = repo.FindPartialAbsenceBlocks(ctx, student.ID, date,
 		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC))

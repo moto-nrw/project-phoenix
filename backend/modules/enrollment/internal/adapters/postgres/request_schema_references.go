@@ -23,5 +23,5 @@ func (r *Store) CountRequestSchemaReferences(ctx context.Context, ids []int64) (
 	if err != nil {
 		return 0, fmt.Errorf("count request schema references: %w", err)
 	}
-	return count, nil
+	return int(count), nil
 }

@@ -10,15 +10,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	educationModels "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,7 +81,7 @@ func (m *mockUserContextService) MyGroups(_ context.Context) ([]CallerGroup, err
 }
 
 type mockEducationService struct {
-	educationService.Service
+	educationModels.GroupRoomsQuery
 	getGroupsWithRoomsByIDsFn func(ids []int64) (map[int64]*educationModels.Group, error)
 }
 
@@ -145,7 +142,7 @@ func fullSources() Sources {
 		Education:   &mockEducationService{},
 		Schulhof:    &mockSchulhofService{},
 		Operations:  &mockOperationsService{},
-		Settings:    &configtest.Mock{},
+		Settings:    &settingsDouble{},
 		Pickups:     &mockPickupService{},
 		Arrivals:    &mockArrivalService{},
 	}
@@ -181,7 +178,7 @@ func TestNewRejectsMissingSourcesAtComposition(t *testing.T) {
 func TestCallerResolvesOverviewAndPermissions(t *testing.T) {
 	t.Parallel()
 
-	settings := &configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+	settings := &settingsDouble{ResolveStringFn: func(_ context.Context, key string) (string, error) {
 		if key != configModel.KeyOperationalOverviewScope {
 			return "", errors.New("unexpected settings key: " + key)
 		}
@@ -318,7 +315,7 @@ func TestMyGroupsResolvesRoomsOnlyForGroupsWithRooms(t *testing.T) {
 	education := &mockEducationService{getGroupsWithRoomsByIDsFn: func(ids []int64) (map[int64]*educationModels.Group, error) {
 		assert.Equal(t, []int64{41}, ids)
 		return map[int64]*educationModels.Group{
-			41: {Model: educationModels.Model{ID: 41}, Room: &educationModels.GroupRoom{ID: 31, Name: "Igel"}},
+			41: {ID: 41, Room: &educationModels.GroupRoom{ID: 31, Name: "Igel"}},
 			42: nil,
 		}, nil
 	}}
@@ -346,7 +343,7 @@ func TestSettingsBranches(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	mock := &configtest.Mock{
+	mock := &settingsDouble{
 		ResolveBoolFn:   func(context.Context, string) (bool, error) { return true, nil },
 		ResolveStringFn: func(context.Context, string) (string, error) { return "", errors.New("boom") },
 	}
@@ -394,11 +391,18 @@ func TestSettingsBranches(t *testing.T) {
 	_, err = s.SpontaneousActivitiesEnabled(ctx)
 	require.ErrorContains(t, err, "spontaneous activities")
 
+	type prefetched struct{}
+	var preparedKeys []string
+	mock.PrefetchFn = func(ctx context.Context, keys []string) (context.Context, error) {
+		preparedKeys = keys
+		return context.WithValue(ctx, prefetched{}, true), nil
+	}
 	prepared, err := s.Prepare(ctx)
 	require.NoError(t, err)
-	assert.NotNil(t, prepared)
-	mock.ResolveManyFn = func(context.Context, []string) (*configService.SettingsSnapshot, error) {
-		return nil, errors.New("settings down")
+	assert.Equal(t, true, prepared.Value(prefetched{}), "the request continues with the prefetched context")
+	assert.Contains(t, preparedKeys, configModel.KeyWeekendFollowsFriday)
+	mock.PrefetchFn = func(ctx context.Context, _ []string) (context.Context, error) {
+		return ctx, errors.New("settings down")
 	}
 	_, err = s.Prepare(ctx)
 	require.EqualError(t, err, "settings down")

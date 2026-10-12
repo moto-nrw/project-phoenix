@@ -37,6 +37,7 @@ export function CompleteInstanceModal({
       title="Aktivität wirklich beenden?"
       confirmText="Aktivität beenden"
       isConfirmLoading={isCompleting}
+      loadingText="Wird beendet…"
       isDismissDisabled={isCompleting}
     >
       <div className="space-y-3 text-sm text-gray-700">

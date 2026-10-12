@@ -41,7 +41,7 @@ func setupStatisticsRoute(t *testing.T, statisticsClocks ...func() time.Time) *t
 	db, svc := testutil.SetupStatisticsModule(t, statisticsClocks...)
 	return &testContext{
 		db:               db,
-		resource:         statisticsAPI.NewResource(svc.Statistics, svc.ListExport, db, slog.Default()),
+		resource:         statisticsAPI.NewResource(svc.Statistics, svc.ListExport, slog.Default()),
 		createClosingDay: svc.CreateClosingDay,
 	}
 }

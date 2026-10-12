@@ -40,7 +40,7 @@ type activeTestYard struct {
 type ActiveTestModule struct {
 	GroupsTestModule
 	IoTDataTestModule
-	Settings            config.SettingsService
+	Settings            config.BatchSettingsService
 	Schulhof            activeTestYard
 	PickupSchedule      careplan.PickupScheduleService
 	ArrivalSchedule     careplan.ArrivalScheduleService

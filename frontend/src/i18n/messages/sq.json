@@ -79,6 +79,117 @@
     "openCount": "{count} të hapura",
     "noticeCount": "{count} njoftime"
   },
+  "parentFirstSteps": {
+    "title": "Hapat e parë",
+    "shortTitle": "Hapat e parë",
+    "open": "Hap hapat e parë. Kanë mbetur {count}.",
+    "collapse": "Mbyll hapat e parë",
+    "progress": "{finished} nga {total} të përfunduar",
+    "progressLabel": "Përparimi: {finished} nga {total} hapa të përfunduar",
+    "actions": {
+      "show": "Fillo udhëzimin",
+      "showAgain": "Shfaq përsëri",
+      "guide": "Hap udhëzuesin",
+      "messagesGuide": "Udhëzuesi i mesazheve",
+      "newsGuide": "Udhëzuesi i letrave për prindërit",
+      "next": "Tjetër",
+      "back": "Prapa",
+      "done": "U krye",
+      "endTour": "Përfundo udhëzimin"
+    },
+    "steps": {
+      "start": {
+        "title": "Njihuni me faqen kryesore",
+        "description": "Shihni çfarë është e rëndësishme sot dhe cilat detyra janë ende të hapura."
+      },
+      "childData": {
+        "title": "Ndrysho të dhënat e fëmijës tim",
+        "description": "Këtu gjeni të dhënat, oraret e kujdesit, rrugën për në shtëpi dhe kujdestarët."
+      },
+      "messagesNews": {
+        "title": "Gjej mesazhet dhe letrat për prindërit",
+        "description": "Lexoni mesazhet dhe gjeni letrat nga kujdesi pas shkollës."
+      },
+      "messages": {
+        "title": "Gjej mesazhet",
+        "description": "Këtu lexoni dhe shkruani mesazhe për kujdesin pas shkollës."
+      },
+      "installApp": {
+        "title": "Shto moto në telefon",
+        "description": "Shtoni moto në ekranin kryesor dhe hapeni si aplikacion."
+      },
+      "notifications": {
+        "title": "Aktivizo njoftimet",
+        "description": "Zgjidhni për çfarë mund t'ju njoftojë moto në këtë pajisje."
+      }
+    },
+    "tour": {
+      "progress": "Hapi {current} nga {total}",
+      "chooseMarked": "Prekni zonën e shënuar.",
+      "targetMissing": "Kjo zonë nuk duket tani. Mund të vazhdoni udhëzimin.",
+      "common": {
+        "moreTitle": "Gjej zonën",
+        "more": "Hapni zonën e shënuar. Në telefon e gjeni te Më shumë.",
+        "settingsNavigation": "Hapni cilësimet."
+      },
+      "start": {
+        "navigation": "Prekni Faqja kryesore.",
+        "todoTitle": "Detyrat e hapura",
+        "todo": "Këtu shihni detyrat që duhen përfunduar.",
+        "childTitle": "Fëmija juaj",
+        "child": "Prej këtu shkoni drejtpërdrejt te veprimet më të rëndësishme për fëmijën."
+      },
+      "childData": {
+        "navigation": "Hapni zonën e fëmijës tuaj.",
+        "chooseTitle": "Zgjidh fëmijën",
+        "choose": "Zgjidhni fëmijën, të dhënat e të cilit dëshironi të shihni.",
+        "tabTitle": "Hap të dhënat",
+        "tab": "Prekni Të dhënat.",
+        "detailsTitle": "Kontrollo të dhënat",
+        "details": "Këtu shihni të dhënat e ruajtura. Mund të ndryshoni drejtpërdrejt të dhënat e lejueshme.",
+        "careTabTitle": "Hap kujdesin",
+        "careTab": "Prekni Kujdesi.",
+        "careTimesTitle": "Oraret e kujdesit",
+        "careTimes": "Këtu shihni planin javor. Për ta ndryshuar, prekni “Kërko ndryshime”.",
+        "departureTitle": "Rruga për në shtëpi",
+        "departure": "Këtu shihni si shkon fëmija në shtëpi çdo ditë.",
+        "contactsTabTitle": "Hap kontaktet",
+        "contactsTab": "Prekni Kontaktet.",
+        "guardiansTitle": "Kujdestarët dhe kontaktet",
+        "guardians": "Këtu shihni kujdestarët, personat që marrin fëmijën dhe hyrjet në aplikacion."
+      },
+      "messagesNews": {
+        "messagesNavigation": "Hapni Mesazhet.",
+        "messagesTitle": "Mesazhet",
+        "messages": "Këtu lexoni mesazhet nga kujdesi dhe mund të përgjigjeni.",
+        "newsNavigation": "Hapni Letrat për prindërit.",
+        "newsTitle": "Letrat për prindërit",
+        "news": "Këtu gjeni letra dhe informacione të rëndësishme nga kujdesi."
+      },
+      "installApp": {
+        "guideTitle": "Shto moto në telefon",
+        "guide": "Këtu gjeni udhëzimin e duhur për telefonin tuaj."
+      },
+      "notifications": {
+        "topicsTitle": "Zgjidh temat",
+        "topics": "Zgjidhni temat për të cilat dëshironi njoftime.",
+        "deviceTitle": "Aktivizo këtë pajisje",
+        "device": "Aktivizoni njoftimet për këtë pajisje.",
+        "deviceUnavailable": "Njoftimet nuk mund të aktivizohen tani në këtë pajisje."
+      }
+    },
+    "complete": {
+      "title": "U krye",
+      "body": "I keni parë të gjithë hapat e parë.",
+      "action": "Përfundo hapat e parë"
+    },
+    "dismiss": {
+      "action": "Fshih hapat e parë",
+      "title": "Të fshihen hapat e parë?",
+      "body": "Udhëzuesit mbeten te Ndihma.",
+      "confirm": "Fshih"
+    }
+  },
   "parentMealPlan": {
     "kicker": "Ushqimi në kujdesin pas shkollës",
     "title": "Dreka",
@@ -397,7 +508,9 @@
     "languageTitle": "Gjuha",
     "languageDescription": "Zgjidhni gjuhën në të cilën shfaqet moto.",
     "appInstallTitle": "Instaloni moto si aplikacion",
-    "appInstallDescription": "Mos e instaloni moto përmes Samsung Internet. Hapeni moto në Chrome."
+    "appInstallDescription": "Mos e instaloni moto përmes Samsung Internet. Hapeni moto në Chrome.",
+    "appInstallGenericDescription": "Shtoni moto në ekranin kryesor të telefonit dhe hapeni si aplikacion.",
+    "appInstallGuide": "Hap udhëzuesin"
   },
   "pwaInstallHint": {
     "title": "Përdorni moto si aplikacion",
@@ -2173,6 +2286,7 @@
         "business_rejection": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "input": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "permission": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "request_too_large": "Nuk u përpunua: {object}. Fshini në shfletues cookies e kësaj faqeje. Pastaj hyni përsëri.",
         "server": "Nuk u përpunua: {object}. Provoni përsëri më vonë.",
         "unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri."
       },
@@ -2245,19 +2359,39 @@
       "iot": {
         "activity_capacity_exceeded": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "deviation_reason_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "device_api_key_format_invalid": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "device_api_key_invalid": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "device_api_key_required": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "device_id_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "device_inactive": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "device_pin_invalid": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "device_pin_required": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "invalid_rfid_tag": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_staff_clock_request": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_staff_clock_state": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "no_active_groups_in_room": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "no_active_session": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "no_attendance_record_today": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "no_room_available": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "no_session_to_end": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "open_room_binary_mode": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "person_not_student": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "pickup_student_rfid_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "planned_start_not_reached": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "rfid_tag_inactive": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "rfid_tag_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "rfid_tag_not_staff": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "rfid_tag_not_student_or_staff": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "rfid_tag_unassigned": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "room_capacity_exceeded": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "room_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "schulhof_not_configured": "Nuk u përpunua: {object}. Provoni përsëri më vonë.",
+        "staff_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "staff_rfid_tag_unassigned": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "student_already_active": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "student_not_present": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+        "student_not_present": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "wc_needs_staff": "Nuk u përpunua: {object}. Provoni përsëri më vonë.",
+        "wc_not_configured": "Nuk u përpunua: {object}. Provoni përsëri më vonë."
       },
       "meals": {
         "invalid_dishes": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

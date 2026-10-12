@@ -15,8 +15,8 @@ import (
 )
 
 // The Care Plan store caps its document cleanup reads. These mirror the
-// shared file-storage limits (documents.CleanupBatchSize and
-// documents.RequestCleanupRetryLimit), which this test package may not import.
+// File Storage limits (CleanupBatchSize and RequestCleanupRetryLimit in
+// modules/filestorage/internal/domain), which this test package may not import.
 const (
 	careDocumentCleanupBatchSize      = 200
 	careDocumentRequestCleanupRetries = 10
