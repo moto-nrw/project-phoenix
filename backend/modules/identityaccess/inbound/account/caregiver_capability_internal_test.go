@@ -47,7 +47,7 @@ func (s caregiverCapabilityServiceStub) DisableCaregiverCapability(ctx context.C
 // Local stand-ins for the failure behaviours the root's caregiver capability
 // binding attaches to People Directory's errors. The mapping from the
 // People Directory error types to these behaviours is covered where it
-// lives (services/users.CaregiverCapabilityViews).
+// lives (modules/peopledirectory/compose.CaregiverCapabilityViews).
 type (
 	fakeCaregiverBlocked struct{ blockers []string }
 	fakeCaregiverMissing struct{}

@@ -15,7 +15,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	jwtPkg "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -461,7 +460,7 @@ func TestCaregiverCapability_DisableUsesTenantScopedRoles(t *testing.T) {
 		userModels.CaregiverCapabilityBlockerMissingUsableRole,
 	)
 
-	var blockedErr *usersSvc.CaregiverCapabilityBlockedError
+	var blockedErr *userModels.CaregiverCapabilityBlockedError
 	_, err = factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
 	require.ErrorAs(t, err, &blockedErr)
 	assert.Contains(
@@ -595,7 +594,7 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 		state.GroupAssignments[0].TeacherIDs,
 	)
 
-	var blockedErr *usersSvc.CaregiverCapabilityBlockedError
+	var blockedErr *userModels.CaregiverCapabilityBlockedError
 	_, err = factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
 	require.ErrorAs(t, err, &blockedErr)
 	assert.Equal(t, state.DisableBlockers, blockedErr.Reasons)
@@ -643,7 +642,7 @@ func TestCaregiverCapability_DisableWaitsForConcurrentBindings(t *testing.T) {
 
 	require.NoError(t, tx.Commit())
 
-	var blockedErr *usersSvc.CaregiverCapabilityBlockedError
+	var blockedErr *userModels.CaregiverCapabilityBlockedError
 	err = <-resultCh
 	require.ErrorAs(t, err, &blockedErr)
 	require.Len(t, blockedErr.Reasons, 1)
@@ -671,7 +670,7 @@ func TestCaregiverCapability_RequiresTenantContextAndMapping(t *testing.T) {
 
 	testpkg.EnsureAccountTenant(t, db, account.ID, mappedTenantID)
 
-	var mappingErr *usersSvc.AccountNotAssignedToTenantError
+	var mappingErr *userModels.AccountNotAssignedToTenantError
 	_, err = factory.CaregiverCapability.GetCaregiverCapability(
 		testpkg.TenantContext(requestedTenantID),
 		account.ID,
@@ -815,7 +814,7 @@ func TestCaregiverCapability_DisableBlocksLegacyTeacherOnlyAccount(t *testing.T)
 		userModels.CaregiverCapabilityBlockerMissingUsableRole,
 	)
 
-	var blockedErr *usersSvc.CaregiverCapabilityBlockedError
+	var blockedErr *userModels.CaregiverCapabilityBlockedError
 	_, err = factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
 	require.ErrorAs(t, err, &blockedErr)
 	assert.Contains(
