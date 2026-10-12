@@ -223,6 +223,15 @@ type Planning interface {
 	Arrivals(ctx context.Context, studentIDs []int64, date Date) (map[int64]Arrival, error)
 }
 
+// Resolver resolves one setting of the request tenant. The retained adapter
+// builds Settings and the caller's overview decision over it; it prefetches
+// one snapshot per request only when the value is the full settings service,
+// which also resolves many keys at once.
+type Resolver interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
 // Settings reads the tenant settings the projection depends on.
 type Settings interface {
 	// Prepare prefetches the request's settings snapshot and returns the

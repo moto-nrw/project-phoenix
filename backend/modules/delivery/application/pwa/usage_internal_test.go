@@ -9,7 +9,6 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,8 +65,8 @@ func (s *summariesStub) PWAUsage(context.Context, int64, time.Duration) ([]Usage
 	return s.rows, s.err
 }
 
-func retentionSettings(days int) *configtest.Mock {
-	return &configtest.Mock{
+func retentionSettings(days int) *settingsDouble {
+	return &settingsDouble{
 		ResolveIntFn: func(_ context.Context, key string) (int, error) {
 			if key != configModel.KeyGDPRPWAUsageRetentionDays {
 				return 0, fmt.Errorf("unexpected settings key %q", key)

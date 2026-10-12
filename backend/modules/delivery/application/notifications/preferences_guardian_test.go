@@ -14,7 +14,6 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +39,7 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 	})
 
 	reminderEnabled := map[int64]bool{1: true, 2: true}
-	settings := &configtest.Mock{
+	settings := &settingsDouble{
 		ResolveBoolFn: func(settingsCtx context.Context, key string) (bool, error) {
 			if key == configModel.KeyNotificationsDispatchEnabled {
 				return true, nil

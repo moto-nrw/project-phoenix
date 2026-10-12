@@ -56,7 +56,7 @@ type Sources struct {
 	Education    educationService.GroupRoomsQuery
 	Schulhof     facilitiesService.SchulhofService
 	Operations   timetable.OperationQuery
-	Settings     configService.SettingsService
+	Settings     supervisiondashboard.Resolver
 	Pickups      careplan.BulkPickupTimes
 	Arrivals     careplan.BulkArrivalTimes
 	Now          func() time.Time
@@ -93,7 +93,7 @@ func New(sources Sources) (supervisiondashboard.Query, error) {
 }
 
 type access struct {
-	settings configService.SettingsService
+	settings supervisiondashboard.Resolver
 	CallerContext
 }
 
@@ -623,7 +623,7 @@ func wallClock(at *time.Time) *string {
 	return &formatted
 }
 
-type settings struct{ settings configService.SettingsService }
+type settings struct{ settings supervisiondashboard.Resolver }
 
 func (s settings) Prepare(ctx context.Context) (context.Context, error) {
 	batch, ok := s.settings.(configService.BatchSettingsService)

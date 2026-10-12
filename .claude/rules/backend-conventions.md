@@ -318,12 +318,12 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 | `email.Mailer` capture | `emailtest.CapturingMailer` (`email/emailtest`; alias `test.CapturingMailer`) |
 | `realtime.Broadcaster` recording fake | `realtimetest.RecordingBroadcaster` (`realtime/realtimetest`; alias `test.RecordingBroadcaster`) |
 | Repo mocks for `models/*` interfaces (School, Staff, suggestions) | `test/repo_mocks.go`, `test/suggestions_mocks.go` |
-| Consumer-owned settings ports (`Resolve{Bool,Bools,String,Int}`, their `ForTenant` variants, `HasTenantOverride`, `GetLoginImageURL`) | `configtest.Mock` (`services/config/configtest`); schema or snapshot reads get a local fake |
+| Consumer-owned settings ports (`ResolveBool`, `ResolveString`, …) | a package-local func-field `settingsDouble` with only the resolvers the ports need; `services/config/configtest` is gone (#3965) |
 | `identityaccess.AccountMFA` | a package-local func-field double; the behaviour suites keep theirs in `modules/identityaccess/behavior` |
 | Person-directory lookups of the acting account's staff identity | `test.StaffAccountPeople` (`test/repo_mocks.go`) |
 | API request/bootstrap helpers | `api/testutil` (`SetupAPITest`, `ExecuteWithAuth`, `ExecuteWithAuthPermissions`, `MintTestJWT`) |
 
-Placement rules: mocks for `models/*` interfaces go in `test/` (imports models only — safe for internal test packages); mocks for a service interface go in a leaf `<domain>test` package next to the interface (usable everywhere EXCEPT that package's own internal tests — import cycle). New shared mocks follow the func-field convention (`XxxFn` fields, nil = zero-value default). Behaviorally divergent doubles (error-injection hooks, deliberate panics, channel-based capture) may stay package-local — divergence is the documented exception, copy-paste is not.
+Placement rules: mocks for `models/*` interfaces go in `test/` (imports models only — safe for internal test packages); mocks for a service interface go in a leaf `<domain>test` package next to the interface (usable everywhere EXCEPT that package's own internal tests — import cycle). New shared mocks follow the func-field convention (`XxxFn` fields, nil = zero-value default). Behaviorally divergent doubles (error-injection hooks, deliberate panics, channel-based capture) may stay package-local — divergence is the documented exception, copy-paste is not. Settings doubles are the second exception: each consumer declares its own narrow settings port, so its `settingsDouble` implements exactly that port; a shared double for the settings service's full method set would pull the Settings Platform's schema types into test support (#3965).
 
 ---
 

@@ -15,7 +15,6 @@ import (
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -41,7 +40,7 @@ func newService(t *testing.T, db *bun.DB) *staffmessaging.Service {
 func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays int) *staffmessaging.Service {
 	t.Helper()
 
-	settings := &configtest.Mock{
+	settings := &settingsDouble{
 		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 			if key == configModels.KeyStaffMessagingEnabled {
 				return enabled, nil
@@ -79,7 +78,7 @@ func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays
 // be resolved, for the "never delete on a guessed window" test.
 func newServiceWithBrokenRetention(t *testing.T, db *bun.DB) *staffmessaging.Service {
 	t.Helper()
-	settings := &configtest.Mock{
+	settings := &settingsDouble{
 		ResolveBoolFn: func(_ context.Context, _ string) (bool, error) { return true, nil },
 		ResolveIntFn: func(_ context.Context, _ string) (int, error) {
 			return 0, errors.New("settings unavailable")

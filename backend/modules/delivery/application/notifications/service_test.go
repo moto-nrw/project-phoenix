@@ -16,7 +16,6 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -37,8 +36,8 @@ func (c *recordingChannel) Deliver(_ context.Context, event notifications.Event)
 }
 
 // enabledSettings returns a settings mock with the dispatch flag set as given.
-func enabledSettings(enabled bool) *configtest.Mock {
-	return &configtest.Mock{
+func enabledSettings(enabled bool) *settingsDouble {
+	return &settingsDouble{
 		ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
 			if key == configModel.KeyNotificationsDispatchEnabled {
 				return enabled, nil
@@ -277,7 +276,7 @@ func TestNotifyConfigurationErrors(t *testing.T) {
 		"notifications service has no settings service configured")
 
 	settingsErr := errors.New("settings unavailable")
-	failingSettings := &configtest.Mock{
+	failingSettings := &settingsDouble{
 		ResolveBoolForTenantFn: func(_ context.Context, _ int64, _ string) (bool, error) {
 			return false, settingsErr
 		},

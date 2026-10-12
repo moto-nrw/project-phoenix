@@ -12,14 +12,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 )
 
 // overviewScopeSettings resolves the one school-wide access setting (#2380)
 // and errors on any other key, so a live-update path reaching for a second
 // access rule fails the test loudly.
-func overviewScopeSettings(scope string) *configtest.Mock {
-	return &configtest.Mock{
+func overviewScopeSettings(scope string) *settingsDouble {
+	return &settingsDouble{
 		ResolveStringFn: func(_ context.Context, key string) (string, error) {
 			if key != settingKeyOperationalOverviewScope {
 				return "", fmt.Errorf("unexpected settings key: %s", key)
@@ -31,8 +30,8 @@ func overviewScopeSettings(scope string) *configtest.Mock {
 
 // failingOverviewSettings stands in for a settings fault: the caller context
 // falls back to the caller's own supervisions rather than opening the school.
-func failingOverviewSettings() *configtest.Mock {
-	return &configtest.Mock{
+func failingOverviewSettings() *settingsDouble {
+	return &settingsDouble{
 		ResolveStringFn: func(context.Context, string) (string, error) {
 			return "", errors.New("settings unavailable")
 		},
@@ -54,7 +53,7 @@ func (s *overviewStaffFake) HasCurrentStaff(context.Context) (bool, error) {
 
 type overviewCase struct {
 	name            string
-	settings        *configtest.Mock
+	settings        *settingsDouble
 	admin           bool
 	staff           bool
 	assignmentBound bool

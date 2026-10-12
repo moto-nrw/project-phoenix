@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -231,8 +230,8 @@ func fixedTemplateClock() time.Time {
 	return calendar.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
 }
 
-func templateGradeSettings(value int, resolveErr error) *configtest.Mock {
-	return &configtest.Mock{
+func templateGradeSettings(value int, resolveErr error) *settingsDouble {
+	return &settingsDouble{
 		ResolveIntFn: func(_ context.Context, key string) (int, error) {
 			if key == settings.KeyTimetableCompleteLeadMinutes {
 				// The instance list announces completion with the registry
@@ -534,7 +533,7 @@ func TestListTemplates_CapacityFields(t *testing.T) {
 	// Tenant-override ratio of 1 child per staff member, exercised via the
 	// same HasTenantOverride -> ResolveInt chain the real settings service
 	// uses (settings-system.md), not just the registry default.
-	s.res.SettingsService = &configtest.Mock{
+	s.res.SettingsService = &settingsDouble{
 		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
 		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
 	}
@@ -1216,7 +1215,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	// additional student/staff records above.
 	defer s.cleanupFn()
 
-	s.res.SettingsService = &configtest.Mock{
+	s.res.SettingsService = &settingsDouble{
 		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
 		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
 	}
@@ -1405,7 +1404,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 
 	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
-	s.res.SettingsService = &configtest.Mock{
+	s.res.SettingsService = &settingsDouble{
 		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
 		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
 	}

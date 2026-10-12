@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -137,12 +136,12 @@ func (m *mockArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Conte
 	return m.getBulkEffectiveArrivalTimesForDateFn(studentIDs, date)
 }
 
-// dashboardSettings is the retained settings service as the dashboard reads
-// it: the configured resolvers plus the optional snapshot read. The embedded
-// service stays nil, so a call to any other method fails the test loudly.
+// dashboardSettings adds the optional snapshot read Prepare looks for on the
+// retained settings service. The embedded service stays nil, so a call to any
+// method besides these three fails the test loudly.
 type dashboardSettings struct {
 	configService.BatchSettingsService
-	resolvers     *configtest.Mock
+	resolvers     *settingsDouble
 	resolveManyFn func(ctx context.Context, keys []string) (*configService.SettingsSnapshot, error)
 }
 
@@ -168,7 +167,7 @@ func fullSources() Sources {
 		Education:   &mockEducationService{},
 		Schulhof:    &mockSchulhofService{},
 		Operations:  &mockOperationsService{},
-		Settings:    &dashboardSettings{resolvers: &configtest.Mock{}},
+		Settings:    &settingsDouble{},
 		Pickups:     &mockPickupService{},
 		Arrivals:    &mockArrivalService{},
 	}
@@ -204,13 +203,13 @@ func TestNewRejectsMissingSourcesAtComposition(t *testing.T) {
 func TestCallerResolvesOverviewAndPermissions(t *testing.T) {
 	t.Parallel()
 
-	settings := &configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+	settings := &settingsDouble{ResolveStringFn: func(_ context.Context, key string) (string, error) {
 		if key != configModel.KeyOperationalOverviewScope {
 			return "", errors.New("unexpected settings key: " + key)
 		}
 		return configModel.OverviewScopeAdmins, nil
 	}}
-	a := access{settings: &dashboardSettings{resolvers: settings}}
+	a := access{settings: settings}
 
 	ctx := context.WithValue(adminContext(), jwt.CtxClaims, jwt.AppClaims{ID: 99, IsAdmin: true})
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{permissions.SchedulesRead})
@@ -369,7 +368,7 @@ func TestSettingsBranches(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	mock := &configtest.Mock{
+	mock := &settingsDouble{
 		ResolveBoolFn:   func(context.Context, string) (bool, error) { return true, nil },
 		ResolveStringFn: func(context.Context, string) (string, error) { return "", errors.New("boom") },
 	}

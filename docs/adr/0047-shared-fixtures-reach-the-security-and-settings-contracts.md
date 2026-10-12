@@ -118,10 +118,7 @@ widened shared-fixture or owner-suite rule in the reviewed epoch.
 ## Addendum (#3965)
 
 The `configtest` keys fell without either exit named above. No consumer read
-the schema, so `configtest.Mock` dropped every method that names a
-`services/config` type and now carries only primitive-typed resolvers; it
-imports no settings package and needs no rule. The production consumers that
-took the full settings service declare narrow ports. The supervision
-dashboard's legacy adapter keeps the full service within its LOC budget, and
-its internal test supplies the snapshot read itself. The ten keys above become
-eight.
+the schema, so every consumer that took the full settings service declares a
+narrow port of its own, each test package keeps a local func-field double with
+only the resolvers those ports need, and `configtest` is deleted. No rule was
+needed. The ten keys above become eight.

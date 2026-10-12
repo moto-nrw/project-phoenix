@@ -30,7 +30,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -191,7 +190,7 @@ func TestResolveTenant_GradeLevelSettingsFailureIsGeneric500(t *testing.T) {
 	_, slug := newTenantResolveScope(t, db)
 
 	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
-	resource.SettingsService = &configtest.Mock{
+	resource.SettingsService = &settingsDouble{
 		ResolveIntForTenantFn: func(context.Context, int64, string) (int, error) {
 			return 0, errors.New("private database failure detail")
 		},
@@ -215,7 +214,7 @@ func TestResolveTenant_StaffMessagingSettingsFailureIsGeneric500(t *testing.T) {
 	_, slug := newTenantResolveScope(t, db)
 
 	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
-	resource.SettingsService = &configtest.Mock{
+	resource.SettingsService = &settingsDouble{
 		ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
 			if key == settings.KeyStaffMessagingEnabled {
 				return false, errors.New("private staff messaging settings failure")
@@ -247,7 +246,7 @@ func TestResolveTenant_OutOfRangeGradeLevelIsGeneric500(t *testing.T) {
 			_, slug := newTenantResolveScope(t, db)
 
 			resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
-			resource.SettingsService = &configtest.Mock{
+			resource.SettingsService = &settingsDouble{
 				ResolveIntForTenantFn: func(context.Context, int64, string) (int, error) {
 					return value, nil
 				},

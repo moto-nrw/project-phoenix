@@ -9,7 +9,6 @@ import (
 	"time"
 
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,7 +49,7 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 		deletes,
 		nil,
 		nil, // Cleanup does not resolve guardian schools.
-		&configtest.Mock{
+		&settingsDouble{
 			ResolveIntFn: func(_ context.Context, key string) (int, error) {
 				if key != "gdpr.pwa_usage_retention_days" {
 					return 0, fmt.Errorf("unexpected setting key %q", key)

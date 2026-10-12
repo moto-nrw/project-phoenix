@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,14 +27,14 @@ func TestRequireWebAttendanceEnabled(t *testing.T) {
 		{name: "missing service fails closed", wantStatus: http.StatusServiceUnavailable},
 		{
 			name: "resolution failure is not treated as disabled",
-			settings: &configtest.Mock{ResolveBoolFn: func(context.Context, string) (bool, error) {
+			settings: &settingsDouble{ResolveBoolFn: func(context.Context, string) (bool, error) {
 				return false, errors.New("repository unavailable")
 			}},
 			wantStatus: http.StatusServiceUnavailable,
 		},
 		{
 			name: "disabled returns stable code",
-			settings: &configtest.Mock{ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
+			settings: &settingsDouble{ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 				assert.Equal(t, configModel.KeyAttendanceWebEnabled, key)
 				return false, nil
 			}},
@@ -44,7 +43,7 @@ func TestRequireWebAttendanceEnabled(t *testing.T) {
 		},
 		{
 			name: "enabled reaches handler",
-			settings: &configtest.Mock{ResolveBoolFn: func(context.Context, string) (bool, error) {
+			settings: &settingsDouble{ResolveBoolFn: func(context.Context, string) (bool, error) {
 				return true, nil
 			}},
 			wantStatus: http.StatusNoContent,

@@ -24,7 +24,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -261,8 +260,8 @@ func newOfferingGuardDecisions(repos repositories.EnrollmentTestRepositories, of
 	})
 }
 
-func offeringGuardSettings(offeringsEnabled bool) *configtest.Mock {
-	return &configtest.Mock{
+func offeringGuardSettings(offeringsEnabled bool) *settingsDouble {
+	return &settingsDouble{
 		ResolveStringFn: func(_ context.Context, key string) (string, error) {
 			if key == configModels.KeyEnrollmentDefaultActivationMode {
 				return configModels.EnrollmentActivationModeScheduled, nil

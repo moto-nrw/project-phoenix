@@ -32,7 +32,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -64,7 +63,7 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 		})),
 		DB:     db,
 		Logger: slog.Default(),
-	}, presenceservice.WithPresenceSettings(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
+	}, presenceservice.WithPresenceSettings(services.PresenceSettings(&settingsDouble{ResolveStringFn: func(context.Context, string) (string, error) {
 		return "binary", nil
 	}})))
 	return svc

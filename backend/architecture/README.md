@@ -3307,12 +3307,13 @@ stays a loosening. Epoch 35 registers five rules under it and seven keys fall
 (173 -> 166). `configtest` kept `services/config` then: the settings schema it
 returned carries `models/config` types no contract may expose.
 [#3965](https://github.com/moto-nrw/project-phoenix/issues/3965) needed no
-rule either: no consumer read the schema, so `configtest.Mock` now carries
-only primitive-typed resolvers and imports no settings package. The consumers
-that took the full settings service declare narrow ports instead; the
-supervision dashboard's legacy adapter keeps it within its LOC budget, and its
-internal test supplies the snapshot read itself. Both `configtest` keys fall,
-and the now unused rules `delivery.application.settings` and
+rule either: no consumer read the schema. Every consumer that took the full
+settings service declares a narrow port; the supervision dashboard's is
+`supervisiondashboard.Resolver` in its public ports, so the legacy tree stays
+within its LOC budget. Each test package keeps a local func-field
+`settingsDouble` with only the resolvers its ports need, and `configtest` is
+deleted with its package entry. Both `configtest` keys fall, and the now
+unused rules `delivery.application.settings` and
 `communication.parent-compatibility.application-settings-application` are
 deleted (166 -> 164).
 
