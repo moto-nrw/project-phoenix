@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
@@ -20,7 +19,7 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	service := activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan().LockExceptionDay)
 	studentService := services.StatusDayStudentsFromRepository(repoFactory.Student, services.AllowAllStatusDayWrites)
 	student := testpkg.CreateTestStudent(t, db, "StatusConflict", "Student", "SCS1")
@@ -64,7 +63,7 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	service := activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan().LockExceptionDay)
 	studentService := services.StatusDayStudentsFromRepository(repoFactory.Student, services.AllowAllStatusDayWrites)
 
@@ -135,7 +134,7 @@ func TestBulkCreateForDates_RejectsUnauthorizedWithoutPartialWrites(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	service := activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan().LockExceptionDay)
 
 	allowed := testpkg.CreateTestStudent(t, db, "BulkStatusAllowed", "Student", "BSA1")

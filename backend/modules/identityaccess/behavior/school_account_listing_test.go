@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -67,7 +69,7 @@ func TestOperatorAccountListingCaregiverEnrichment(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Ada", "Listing")
 	query, err := repositories.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
-	persons, err := repositories.NewPeopleDirectory(db)
+	persons, err := services.NewPeopleDirectory(db)
 	require.NoError(t, err)
 	membership, err := repositories.NewSchoolMembership(db)
 	require.NoError(t, err)

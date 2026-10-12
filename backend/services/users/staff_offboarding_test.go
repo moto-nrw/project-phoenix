@@ -42,7 +42,7 @@ type offboardingIdentity interface {
 
 type offboardingScenario struct {
 	db        *bun.DB
-	repos     *repositories.Factory
+	repos     *services.RepositoryTestFactory
 	timetable repositories.TimetableRepositories
 	workTime  workforce.Capability
 	rows      repositories.TimetableTestRepositories
@@ -62,12 +62,12 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 		db = databases[0]
 	}
 
-	rows, err := repositories.NewTimetableTestRepositories(db)
+	rows, err := repositories.NewTimetableTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, owners)
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
 
-	authService, err := services.IdentityAccessForTests(repos, services.IdentityAccessTestConfig{
+	authService, err := services.IdentityAccessForTests(services.IdentityAccessTestConfig{
 		TenantRuntime: testpkg.TenantRuntime(t, db),
 		Audit:         testpkg.NewAuthEventCommand(services.NewTestAuditPersistence(db, nil).AuthEvent),
 		FrontendURL:   "http://localhost:3000", PasswordResetExpiry: time.Hour,

@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -24,10 +23,10 @@ import (
 func buildRequestService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CarePlan(),
-		People:              repositories.MustNewPeopleDirectory(db),
+		People:              services.MustNewPeopleDirectory(db),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChild,
 		StudentRepo:         repos.Student,
@@ -56,7 +55,7 @@ func TestSubmitMasterDataChangeRequest_CreatesPending(t *testing.T) {
 	assert.Equal(t, usersModels.DataChangeStatusPending, rows[0].Status)
 
 	// The live person record is NOT changed by a Track B submission.
-	person, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.PersonID)
+	person, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Person.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.PersonID)
 	require.NoError(t, err)
 	assert.Equal(t, "Felix", person.FirstName)
 }
@@ -90,7 +89,7 @@ func TestSubmitMasterDataChangeRequest_SchoolClassRemainsPending(t *testing.T) {
 	assert.JSONEq(t, `"1a"`, string(rows[0].OldValue))
 	assert.JSONEq(t, `"2b"`, string(rows[0].NewValue))
 
-	student, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
+	student, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, "1a", student.SchoolClass)
 }
@@ -125,7 +124,7 @@ func TestListMyMasterDataRequests_HidesGuardianContactAuditRows(t *testing.T) {
 
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 
 	otherAccount := testpkg.CreateTestAccount(t, db, "other-parent")
 
@@ -278,7 +277,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	settings := parentSettingsStub{boolDefault: true}
 	emitter := communicationtest.NewParentEventEmitter(
 		db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, services.NewParentMessageRepository(db),
@@ -286,7 +285,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CarePlan(),
-		People:              repositories.MustNewPeopleDirectory(db),
+		People:              services.MustNewPeopleDirectory(db),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChild,
 		StudentRepo:         repos.Student,

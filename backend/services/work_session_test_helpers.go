@@ -30,7 +30,7 @@ func NewWorkSessionTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func
 	if err != nil {
 		return WorkSessionTestModule{}, err
 	}
-	rfid, err := repositories.NewRFIDTestRepositories(db)
+	rfid, err := NewRFIDTestRepositories(db)
 	if err != nil {
 		return WorkSessionTestModule{}, err
 	}

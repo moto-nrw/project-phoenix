@@ -63,7 +63,7 @@ func NewDataDeletionTestRepository(db *bun.DB, command auditModels.Command) audi
 // NewTimetableTestRepositories composes the Timetable test graph with its
 // deviation protocol.
 func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (repositories.TimetableTestRepositories, error) {
-	result, err := repositories.NewTimetableTestRepositories(db, clocks...)
+	result, err := repositories.NewTimetableTestRepositories(db, MustNewMembershipTestRepositories(db), clocks...)
 	if err != nil {
 		return repositories.TimetableTestRepositories{}, err
 	}
@@ -78,7 +78,7 @@ func withTimetableTestAudit(db *bun.DB, timetable repositories.TimetableTestRepo
 // NewWorkSessionTestRepositories composes the work-session test graph with its
 // edit trail.
 func NewWorkSessionTestRepositories(db *bun.DB, clocks ...func() time.Time) (repositories.WorkSessionTestRepositories, error) {
-	result, err := repositories.NewWorkSessionTestRepositories(db, clocks...)
+	result, err := repositories.NewWorkSessionTestRepositories(db, MustNewMembershipTestRepositories(db), clocks...)
 	if err != nil {
 		return repositories.WorkSessionTestRepositories{}, err
 	}
@@ -94,7 +94,7 @@ func withWorkSessionTestAudit(db *bun.DB, sessions repositories.WorkSessionTestR
 // NewWorkforceTestRepositories composes the Workforce test graph with its
 // audit trails.
 func NewWorkforceTestRepositories(db *bun.DB, command auditModels.Command, clocks ...func() time.Time) (repositories.WorkforceTestRepositories, error) {
-	result, err := repositories.NewWorkforceTestRepositories(db, clocks...)
+	result, err := repositories.NewWorkforceTestRepositories(db, MustNewMembershipTestRepositories(db), clocks...)
 	if err != nil {
 		return repositories.WorkforceTestRepositories{}, err
 	}
@@ -109,7 +109,7 @@ func NewWorkforceTestRepositories(db *bun.DB, command auditModels.Command, clock
 // NewEnrollmentTestRepositories composes the enrollment test graph with its
 // access log.
 func NewEnrollmentTestRepositories(db *bun.DB, command auditModels.Command) (repositories.EnrollmentTestRepositories, error) {
-	result, err := repositories.NewEnrollmentTestRepositories(db)
+	result, err := repositories.NewEnrollmentTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return repositories.EnrollmentTestRepositories{}, err
 	}
@@ -125,7 +125,7 @@ func withEnrollmentTestAudit(db *bun.DB, command auditModels.Command, enrollment
 // NewEnrollmentFlowTestRepositories composes the enrollment flow suites'
 // repositories with the audit repositories the flows read and write.
 func NewEnrollmentFlowTestRepositories(db *bun.DB) (*repositories.EnrollmentFlowTestRepositories, error) {
-	result, err := repositories.NewEnrollmentFlowTestRepositories(db)
+	result, err := repositories.NewEnrollmentFlowTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func NewEnrollmentFlowTestRepositories(db *bun.DB) (*repositories.EnrollmentFlow
 // NewCareLifecycleTestRepositories composes the care-lifecycle test graph with
 // its field-edit trail.
 func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (repositories.CareLifecycleTestRepositories, error) {
-	result, err := repositories.NewCareLifecycleTestRepositories(db)
+	result, err := repositories.NewCareLifecycleTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return repositories.CareLifecycleTestRepositories{}, err
 	}
@@ -154,7 +154,7 @@ func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (
 // NewStudentTestRepositories composes the student test graph with its audit
 // trails.
 func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (repositories.StudentTestRepositories, error) {
-	result, err := repositories.NewStudentTestRepositories(db)
+	result, err := repositories.NewStudentTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return repositories.StudentTestRepositories{}, err
 	}
@@ -174,7 +174,7 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (reposi
 // NewStatisticsTestRepositories composes the statistics test graph with its
 // access log.
 func NewStatisticsTestRepositories(db *bun.DB, command auditModels.Command, clocks ...func() time.Time) (repositories.StatisticsTestRepositories, error) {
-	result, err := repositories.NewStatisticsTestRepositories(db, clocks...)
+	result, err := repositories.NewStatisticsTestRepositories(db, MustNewMembershipTestRepositories(db), clocks...)
 	if err != nil {
 		return repositories.StatisticsTestRepositories{}, err
 	}
@@ -194,9 +194,9 @@ func NewGuardianTestRepositories(db *bun.DB, command auditModels.Command) reposi
 }
 
 // NewStudentConsents composes unobserved owners behind the consent seam.
-func NewStudentConsents(db *bun.DB) *repositories.StudentConsents {
-	return repositories.NewStudentConsentsFor(
-		repositories.MustNewPeopleDirectory(db),
+func NewStudentConsents(db *bun.DB) *StudentConsents {
+	return NewStudentConsentsFor(
+		MustNewPeopleDirectory(db),
 		NewTestAuditPersistence(db, nil).StudentConsentChange,
 	)
 }

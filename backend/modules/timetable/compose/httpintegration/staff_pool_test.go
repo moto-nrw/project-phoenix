@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -75,7 +77,7 @@ func createPoolStaffRow(t *testing.T, s *poolSetup, instanceID, staffID int64, m
 func makePoolSetup(t *testing.T) *poolSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos, err := repositories.NewTimetableTestRepositories(db)
+	repos, err := repositories.NewTimetableTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)

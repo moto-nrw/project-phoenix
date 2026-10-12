@@ -23,7 +23,7 @@ import (
 
 func newClassListEntryStudents(t *testing.T, db *bun.DB) classListEntryStudents {
 	t.Helper()
-	persons, err := repositories.NewPeopleDirectory(db)
+	persons, err := NewPeopleDirectory(db)
 	require.NoError(t, err)
 	return classListEntryStudents{persons: persons}
 }
@@ -57,7 +57,7 @@ func TestClassListEntryStudentsMatchTheWholeNameCaseInsensitively(t *testing.T) 
 func TestClassListEntryStudentsIgnoreGraduates(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	persons, err := repositories.NewPeopleDirectory(db)
+	persons, err := NewPeopleDirectory(db)
 	require.NoError(t, err)
 	students := classListEntryStudents{persons: persons}
 	ctx := testpkg.Ctx(t)
@@ -97,7 +97,7 @@ func TestClassListEntryStudentsReportAnUnknownIDAsAbsent(t *testing.T) {
 
 	// Deleting the fixture leaves an ID that is guaranteed to name no student.
 	student := testpkg.CreateTestStudent(t, db, "Geloescht", "Kid", "gone-1a")
-	persons, err := repositories.NewPeopleDirectory(db)
+	persons, err := NewPeopleDirectory(db)
 	require.NoError(t, err)
 	_, err = persons.DeleteStudent(ctx, student.ID)
 	require.NoError(t, err)

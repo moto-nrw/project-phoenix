@@ -49,12 +49,12 @@ type CalendarTestRepositories struct {
 	schoolCalendar             schoolcalendar.Capability
 }
 
-func NewCalendarTestRepositories(db *bun.DB) (CalendarTestRepositories, error) {
-	identity, err := NewUserContextTestRepositories(db)
+func NewCalendarTestRepositories(db *bun.DB, members MembershipTestRepositories) (CalendarTestRepositories, error) {
+	identity, err := NewUserContextTestRepositories(db, members)
 	if err != nil {
 		return CalendarTestRepositories{}, err
 	}
-	parents, err := NewParentRouteTestRepositories(db)
+	parents, err := NewParentRouteTestRepositories(db, members)
 	if err != nil {
 		return CalendarTestRepositories{}, err
 	}

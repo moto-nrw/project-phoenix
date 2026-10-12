@@ -5,6 +5,8 @@ import (
 	"context"
 	"slices"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -1425,7 +1427,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	registerSourcedInstanceCleanup(t, env, planned.ID)
 	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentID, "expected")
 
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := services.NewRepositoryTestFactory(env.db, services.NewUnobservedTimetableDependencies(env.db))
 	timetableRepos := testTimetableRepositories(env.db)
 	sourcedResyncer, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the delete-side detach")

@@ -2,9 +2,7 @@ package repositories
 
 import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
 
@@ -15,8 +13,8 @@ type UserContextTestRepositories struct {
 	StaffGroups   schoolstructure.StaffGroupQuery
 }
 
-func NewUserContextTestRepositories(db *bun.DB) (UserContextTestRepositories, error) {
-	timetable, err := NewTimetableTestRepositories(db)
+func NewUserContextTestRepositories(db *bun.DB, members MembershipTestRepositories) (UserContextTestRepositories, error) {
+	timetable, err := NewTimetableTestRepositories(db, members)
 	if err != nil {
 		return UserContextTestRepositories{}, err
 	}
@@ -36,10 +34,7 @@ func NewUserContextTestRepositories(db *bun.DB) (UserContextTestRepositories, er
 	if err != nil {
 		return UserContextTestRepositories{}, err
 	}
-	groups := NewEducationGroupRepository(db)
-	substitutions := newGroupSubstitutions(workforceLegacy.NewGroupSubstitutionRepository(workTime, NewGroupNames(groups).GroupNamesByID),
-		groups.FindByIDs, lazyStaffLookup{get: func() schoolmembership.Capability { return membership }})
 	return UserContextTestRepositories{
-		Timetable: timetable, Profile: newIdentityAccess(db, nil), Substitutions: substitutions, StaffGroups: staffGroups,
+		Timetable: timetable, Profile: newIdentityAccess(db, nil), Substitutions: members.GroupSubstitution, StaffGroups: staffGroups,
 	}, nil
 }

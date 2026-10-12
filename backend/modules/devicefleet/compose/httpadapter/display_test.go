@@ -74,7 +74,7 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 	require.NoError(t, err)
 	settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
-	carePlan, err := repositories.NewCarePlan(db, repositories.MustNewPeopleDirectory(db), repos.InstanceStudent)
+	carePlan, err := repositories.NewCarePlan(db, services.MustNewPeopleDirectory(db), repos.InstanceStudent)
 	require.NoError(t, err)
 	pickup, err := careplanCompose.NewPickupSchedules(db, carePlan, newPickupBaselineService(carePlan, approvedOfferings), nil, nil, nil)
 	require.NoError(t, err)

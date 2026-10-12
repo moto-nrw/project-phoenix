@@ -44,7 +44,7 @@ func TestVisitRevisionRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
 	module := testSchoolPresence(t, db)
-	timetableRepos := repositories.NewTimetableRepositories(db, repositories.NewUnobservedTimetableDependencies(db))
+	timetableRepos := repositories.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
 	rows := &failingSlotRevision{InstanceStudentRepository: timetableRepos.InstanceStudent}
 	syncer := newAttendanceMirror(t, timetableRepos.ActivityInstance, rows, slog.Default())
 	svc, broadcaster := newServiceWithPresenceSync(t, db, module, syncer)

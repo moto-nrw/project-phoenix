@@ -20,7 +20,7 @@ func NewClassListTestModule(db *bun.DB) (ClassListTestModule, error) {
 	if err != nil {
 		return ClassListTestModule{}, err
 	}
-	persons, err := repositories.NewPeopleDirectory(db)
+	persons, err := NewPeopleDirectory(db)
 	if err != nil {
 		return ClassListTestModule{}, err
 	}

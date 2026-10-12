@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -50,14 +49,14 @@ func (s reasonPolicySettings) ResolveStringForTenant(_ context.Context, _ int64,
 func buildReasonPolicyServices(t *testing.T, policy string) (*parentService.Portal, careplan.ExcusedAbsenceRequests, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	excused, err := services.NewTestExcusedAbsenceRequests(services.ExcusedRequestTestOptions{
 		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: repos.ParentRequestEvent, Logger: slog.Default(),
 	})
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:           repos.CarePlan(),
-		People:             repositories.MustNewPeopleDirectory(db),
+		People:             services.MustNewPeopleDirectory(db),
 		CareProfiles:       careProfiles(t, db),
 		ChildRepo:          repos.ParentChild,
 		StatusDayRepo:      repos.StudentStatusDay,

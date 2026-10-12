@@ -21,7 +21,7 @@ func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModu
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
-	parents, err := repositories.NewParentRouteTestRepositories(db)
+	parents, err := repositories.NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
@@ -52,7 +52,7 @@ func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModu
 		CalendarFacts: repositories.CalendarFacts{
 			StaffRepo:            repos.Staff,
 			StudentRepo:          repos.Student,
-			GuardianProfileRepo:  repositories.NewCalendarGuardianDirectory(repos.GuardianProfile, repositories.MustNewPeopleDirectory(db)),
+			GuardianProfileRepo:  repositories.NewCalendarGuardianDirectory(repos.GuardianProfile, MustNewPeopleDirectory(db)),
 			StudentGuardianRepo:  repos.StudentGuardian,
 			ChildRepo:            parents.ParentChild,
 			GroupRepo:            repos.Group,

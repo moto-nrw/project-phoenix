@@ -23,15 +23,12 @@ type EnrollmentTestRepositories struct {
 	DataAccessLog       auditModels.DataAccessLogRepository
 }
 
-func NewEnrollmentTestRepositories(db *bun.DB) (EnrollmentTestRepositories, error) {
-	tt, err := NewTimetableTestRepositories(db)
+func NewEnrollmentTestRepositories(db *bun.DB, members MembershipTestRepositories) (EnrollmentTestRepositories, error) {
+	tt, err := NewTimetableTestRepositories(db, members)
 	if err != nil {
 		return EnrollmentTestRepositories{}, err
 	}
-	people, err := NewPeopleDirectory(db)
-	if err != nil {
-		return EnrollmentTestRepositories{}, err
-	}
+	people := members.People
 	care, err := NewCarePlan(db, people, tt.InstanceStudent)
 	if err != nil {
 		return EnrollmentTestRepositories{}, err
@@ -40,16 +37,11 @@ func NewEnrollmentTestRepositories(db *bun.DB) (EnrollmentTestRepositories, erro
 	if err != nil {
 		return EnrollmentTestRepositories{}, err
 	}
-	members, err := NewMembershipTestRepositories(db)
-	if err != nil {
-		return EnrollmentTestRepositories{}, err
-	}
 	r := &Factory{db: db}
-	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)
 	r.BindOrganizationTenancy(organizations)
 	return EnrollmentTestRepositories{TimetableTestRepositories: tt,
 		School:          organizations,
-		StudentGuardian: NewStudentGuardianRepository(db), GuardianProfile: NewGuardianProfileRepository(db), GuardianPhoneNumber: usersRepo.NewGuardianPhoneNumberRepository(peopleRuntime(db)),
+		StudentGuardian: members.StudentGuardian, GuardianProfile: members.GuardianProfile, GuardianPhoneNumber: usersRepo.NewGuardianPhoneNumberRepository(peopleRuntime(db)),
 		Membership: members.Membership}, nil
 }

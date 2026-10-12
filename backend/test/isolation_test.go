@@ -11,6 +11,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -63,7 +65,7 @@ func TestTenantIsolation_StudentVisibility(t *testing.T) {
 	sA := CreateTestStudentForTenant(t, db, tenantA, "TenantA", "Student", "1a")
 	sB := CreateTestStudentForTenant(t, db, tenantB, "TenantB", "Student", "1a")
 
-	repo := repositories.NewStudentRepository(db)
+	repo := services.NewUnboundStudentRepository(db)
 
 	// --- Tenant A perspective ---
 	ctx42 := ctxForTenant(tenantA)
@@ -109,7 +111,7 @@ func TestTenantIsolation_EducationGroupVisibility(t *testing.T) {
 	gA := CreateTestEducationGroupForTenant(t, db, tenantA, "GroupA")
 	gB := CreateTestEducationGroupForTenant(t, db, tenantB, "GroupB")
 
-	repo := repositories.NewEducationGroupRepository(db)
+	repo := services.NewEducationGroupRepository(db)
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
@@ -201,7 +203,7 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	tfA := CreateTestTimeframeForTenant(t, db, tenantA, "TimeframeA")
 	tfB := CreateTestTimeframeForTenant(t, db, tenantB, "TimeframeB")
 
-	repos := repositories.NewTimetableRepositories(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := repositories.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
 	repo := repos.Timeframe
 
 	// --- Tenant A ---
@@ -357,7 +359,7 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	agA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	agB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	repo := repositories.NewSessionCleanupRepositories(db, repositories.NewUnobservedTimetableDependencies(db).Capability).Sessions
+	repo := repositories.NewSessionCleanupRepositories(db, services.NewUnobservedTimetableDependencies(db).Capability).Sessions
 	presence := PresenceModule(t, db)
 
 	// --- Tenant A ---
@@ -404,7 +406,7 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 	catA := CreateTestActivityCategoryForTenant(t, db, tenantA, "CatA")
 	catB := CreateTestActivityCategoryForTenant(t, db, tenantB, "CatB")
 
-	repo := repositories.NewTimetableRepositories(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityCategory
+	repo := repositories.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db)).ActivityCategory
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
@@ -471,7 +473,7 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 		// The child's write path is People Directory's (#3349), so this has to
 		// be the composed repository the composition root hands out — the raw
 		// one no longer performs the write at all.
-		repo := repositories.NewStudentRepository(db)
+		repo := services.NewUnboundStudentRepository(db)
 		err := repo.Update(ctxB, studentA)
 		require.Error(t, err, "cross-tenant student update must fail")
 		require.ErrorIs(t, err, users.ErrStudentRowMissing,
@@ -487,7 +489,7 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	})
 
 	t.Run("education group update blocked", func(t *testing.T) {
-		repo := repositories.NewEducationGroupRepository(db)
+		repo := services.NewEducationGroupRepository(db)
 		stored, err := repo.FindByID(ctxA, groupA.ID)
 		require.NoError(t, err)
 		err = repo.Update(ctxB, stored)
@@ -503,7 +505,7 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	t.Run("student UpdateStatus blocked", func(t *testing.T) {
 		// The lifecycle status is the owner's write (#3349), so this has to be
 		// the composed repository the composition root hands out.
-		repo := repositories.NewStudentRepository(db)
+		repo := services.NewUnboundStudentRepository(db)
 		err := repo.UpdateStatus(ctxB, studentA.ID, users.StudentStatusInactive)
 		require.Error(t, err, "cross-tenant UpdateStatus must fail")
 		require.ErrorIs(t, err, users.ErrStudentRowMissing,

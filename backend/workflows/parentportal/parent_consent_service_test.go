@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -33,15 +32,15 @@ func (u consentPhotoUnlinker) ScheduleUnlinkAfterCommit(_ context.Context, store
 	u.unlinker.UnlinkStored(storedURL)
 }
 
-func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *repositories.Factory, *consentRecordingUnlinker) {
+func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *services.RepositoryTestFactory, *consentRecordingUnlinker) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	unlinker := &consentRecordingUnlinker{}
 	photos := consentPhotoUnlinker{unlinker: unlinker}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CarePlan(),
-		People:              repositories.MustNewPeopleDirectory(db),
+		People:              services.MustNewPeopleDirectory(db),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChild,
 		StudentRepo:         repos.Student,

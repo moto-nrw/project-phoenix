@@ -22,7 +22,7 @@ import (
 func TestValidateSessionTokens(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	config := authTestFactoryConfig(false)
 	serviceFactory, err := services.NewFactoryForTestsWithConfig(repoFactory, db, slog.Default(), config)
 	require.NoError(t, err)

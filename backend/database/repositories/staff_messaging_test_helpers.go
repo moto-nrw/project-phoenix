@@ -15,11 +15,7 @@ type StaffMessagingTestRepositories struct {
 	Read    usersModels.StaffMessageReadRepository
 }
 
-func NewStaffMessagingTestRepositories(db *bun.DB) (StaffMessagingTestRepositories, error) {
-	members, err := NewMembershipTestRepositories(db)
-	if err != nil {
-		return StaffMessagingTestRepositories{}, err
-	}
+func NewStaffMessagingTestRepositories(db *bun.DB, members MembershipTestRepositories) (StaffMessagingTestRepositories, error) {
 	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return StaffMessagingTestRepositories{}, err

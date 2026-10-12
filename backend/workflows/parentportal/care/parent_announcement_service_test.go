@@ -13,11 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -27,15 +28,15 @@ import (
 
 // buildAnnouncementService wires the parent service with just the repositories
 // the announcement feed needs. newsEnabled controls the per-tenant feature gate.
-func buildAnnouncementService(t *testing.T, newsEnabled bool) (*messaging.Service, *bun.DB, *repositories.Factory) {
+func buildAnnouncementService(t *testing.T, newsEnabled bool) (*messaging.Service, *bun.DB, *services.RepositoryTestFactory) {
 	t.Helper()
 	return buildAnnouncementServiceOn(t, testpkg.SetupIsolatedTestDB(t), newsEnabled)
 }
 
 // buildAnnouncementServiceOn wires the service on a database the caller set up.
-func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*messaging.Service, *bun.DB, *repositories.Factory) {
+func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*messaging.Service, *bun.DB, *services.RepositoryTestFactory) {
 	t.Helper()
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	svc := messaging.New(messaging.Config{
 		Children:              childResolver(db, repos),
 		ChildRepo:             repos.ParentChild,

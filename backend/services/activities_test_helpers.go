@@ -33,8 +33,8 @@ func NewActivitiesTestModule(db *bun.DB) (ActivitiesTestModule, error) {
 	return ActivitiesTestModule{
 		Activities: activityService, Timetable: r.Timetable, UserContext: identity,
 		Users: peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
-			PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
-			StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
+			PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
+			StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
 			PersonRepo:       r.Person, TeacherRepo: r.Teacher,
 			StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: r.Person, Staff: r.Staff, Teachers: r.Teacher}),
 		}),

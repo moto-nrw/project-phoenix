@@ -53,7 +53,7 @@ func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 	// Another person on the same block — must never leak into Anna's list.
 	testpkg.CreateTestInstanceStaff(t, db, lernzeit.ID, other.ID, testpkg.InstanceStaffOpts{})
 
-	owners := repositories.NewUnobservedTimetableDependencies(db)
+	owners := services.NewUnobservedTimetableDependencies(db)
 	timetableRepos := repositories.NewTimetableRepositories(db, owners)
 	service := planning.NewStaffAssignmentService(planning.StaffAssignmentDependencies{
 		InstanceStaffRepo:    timetableRepos.InstanceStaffReads(),

@@ -67,7 +67,7 @@ func setupTestCleanupContext(t *testing.T) *cleanupContext {
 // setupTestCleanupContextWithServices creates the narrow session-cleanup service.
 func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	db := testpkg.SetupTestDB(t)
-	owners := repositories.NewUnobservedTimetableDependencies(db)
+	owners := testutil.NewUnobservedTimetableDependencies(db)
 	repoFactory := repositories.NewFactory(db, owners)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)

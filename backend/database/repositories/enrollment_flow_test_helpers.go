@@ -31,8 +31,8 @@ type EnrollmentFlowTestRepositories struct {
 
 // NewEnrollmentFlowTestRepositories composes the enrollment flow suites'
 // repositories over the test database.
-func NewEnrollmentFlowTestRepositories(db *bun.DB) (*EnrollmentFlowTestRepositories, error) {
-	tt, err := NewTimetableTestRepositories(db)
+func NewEnrollmentFlowTestRepositories(db *bun.DB, members MembershipTestRepositories) (*EnrollmentFlowTestRepositories, error) {
+	tt, err := NewTimetableTestRepositories(db, members)
 	if err != nil {
 		return nil, err
 	}
@@ -44,8 +44,8 @@ func NewEnrollmentFlowTestRepositories(db *bun.DB) (*EnrollmentFlowTestRepositor
 	return &EnrollmentFlowTestRepositories{
 		TimetableTestRepositories: tt,
 		School:                    organizations,
-		StudentGuardian:           NewStudentGuardianRepository(db),
-		GuardianProfile:           NewGuardianProfileRepository(db),
+		StudentGuardian:           members.StudentGuardian,
+		GuardianProfile:           members.GuardianProfile,
 		GuardianPhoneNumber:       usersRepo.NewGuardianPhoneNumberRepository(peopleRuntime(db)),
 		CareWithdrawal:            newCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
 	}, nil

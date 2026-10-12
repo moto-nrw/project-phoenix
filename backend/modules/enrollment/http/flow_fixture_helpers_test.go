@@ -194,7 +194,7 @@ func testGuardianAccess(db *bun.DB) TestDecisionGuardianAccess {
 }
 
 func testStudentEnrollment(db *bun.DB) TestDecisionStudentEnrollment {
-	module, err := repositories.NewPeopleDirectory(db)
+	module, err := services.NewPeopleDirectory(db)
 	if err != nil {
 		panic(err)
 	}

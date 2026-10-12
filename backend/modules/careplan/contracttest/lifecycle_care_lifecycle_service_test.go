@@ -55,7 +55,7 @@ func newCareLifecycleServiceWithLockAt(
 	repos, err := services.NewCareLifecycleTestRepositories(db, nil)
 	require.NoError(t, err)
 	svc, err := repos.NewCareLifecycle(repositories.CareLifecycleTestConfig{
-		Audit:                 services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAudit(db)),
+		Audit:                 services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, services.NewStudentAudit(db)),
 		LockCareBookingWrites: lockCareBookingWrites,
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },
 		Today:                 today,
@@ -67,7 +67,7 @@ func newCareLifecycleServiceWithLockAt(
 // carePlanRecords is the Care Plan record capability the suites stage and
 // read exit reasons through.
 func carePlanRecords(db *bun.DB) careplan.Capability {
-	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CarePlan()
+	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CarePlan()
 }
 
 // endCare runs the full product path — preview, then confirm the token it
@@ -132,7 +132,7 @@ func TestCareLifecycle_ConfirmAuditsOnlyCareEnd(t *testing.T) {
 
 func loadStudent(t *testing.T, db *bun.DB, ctx context.Context, id int64) *userModels.Student {
 	t.Helper()
-	student, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student.FindByID(ctx, id)
+	student, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Student.FindByID(ctx, id)
 	require.NoError(t, err)
 	return student
 }
@@ -320,7 +320,7 @@ func TestCareLifecycle_TenantIsolation(t *testing.T) {
 	assert.NotEmpty(t, preview.Students[0].Blocker,
 		"a child of another school is unknown here, not endable")
 
-	stored, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student.FindByID(
+	stored, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Student.FindByID(
 		tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), otherTenantID), foreign.ID)
 	require.NoError(t, err)
 	assert.Nil(t, stored.EnrolledUntil)
@@ -668,7 +668,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	today := timezone.NewDate(2030, 8, 26)
 	svc := newCareLifecycleServiceAt(t, db, today)
 	actorID := careActor(t, db)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	timetableRepos := testTimetableRepositories(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Jara", "Ohlsen", "4a")

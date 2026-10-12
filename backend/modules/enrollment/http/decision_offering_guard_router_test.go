@@ -127,7 +127,7 @@ func setupOfferingGuardRouterTest(
 	}
 	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
-	studentEnrollment, err := repositories.NewPeopleDirectory(db)
+	studentEnrollment, err := services.NewPeopleDirectory(db)
 	require.NoError(t, err)
 	bookings := testutil.NewBookingMaterialization(t, db,
 		testutil.WithBookingCatalog(testutil.NewCareOfferingCatalog(t, db).Catalog),

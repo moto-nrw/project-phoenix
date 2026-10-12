@@ -49,7 +49,7 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 		}
 		audit = command
 	}
-	repos, err := repositories.NewAuthTestRepositories(db)
+	repos, err := authTestIdentityChain(db)
 	if err != nil {
 		return nil, err
 	}

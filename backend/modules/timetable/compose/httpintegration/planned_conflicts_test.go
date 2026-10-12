@@ -46,7 +46,7 @@ func buildPlannedConflictSetup(t *testing.T) *plannedConflictSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repos, err := repositories.NewTimetableTestRepositories(db)
+	repos, err := repositories.NewTimetableTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	suffix := time.Now().UnixNano()
 

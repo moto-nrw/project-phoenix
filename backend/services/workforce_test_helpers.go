@@ -50,10 +50,6 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	identity, err := repositories.NewAuthTestRepositories(db)
-	if err != nil {
-		return WorkforceTestModule{}, err
-	}
 	logger := slog.Default()
 	identityAccess, err := lifecycleTestModule(db, unit, GuardianInvitationTestConfig{Audit: command, Logger: logger})
 	if err != nil {
@@ -64,9 +60,9 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	activeLogger := logger
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
 	usersService := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
-		PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
-		StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
-		PersonRepo:       repos.Person, RFIDRepo: identity.RFIDCard, AccountExists: repositories.AccountExists(identityAccess), StudentRepo: repos.Student,
+		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
+		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
+		PersonRepo:       repos.Person, RFIDRepo: newPeopleIdentityAccess(db, nil), AccountExists: AccountExists(identityAccess), StudentRepo: repos.Student,
 		TeacherRepo:    repos.Teacher,
 		StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher, LehrkraftRoles: identityRoles}),
 	})

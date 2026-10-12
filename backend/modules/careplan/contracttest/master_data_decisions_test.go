@@ -34,7 +34,7 @@ import (
 // requests, in the test's own tenant.
 type masterDataFixture struct {
 	db    *bun.DB
-	repos *repositories.Factory
+	repos *services.RepositoryTestFactory
 	chain testpkg.ParentChain
 }
 
@@ -42,7 +42,7 @@ func newMasterDataFixture(t *testing.T, db *bun.DB) masterDataFixture {
 	t.Helper()
 	return masterDataFixture{
 		db:    db,
-		repos: repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)),
+		repos: services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)),
 		chain: testpkg.CreateTestParentGuardianChain(t, db),
 	}
 }
@@ -52,7 +52,7 @@ func newMasterDataFixture(t *testing.T, db *bun.DB) masterDataFixture {
 func (f masterDataFixture) decisions(t *testing.T, configure ...func(*services.MasterDataDecisionTestOptions)) *careplanCompose.MasterDataDecisions {
 	t.Helper()
 	options := services.MasterDataDecisionTestOptions{
-		CarePlan: f.repos.CarePlan(), People: repositories.MustNewPeopleDirectory(f.db),
+		CarePlan: f.repos.CarePlan(), People: services.MustNewPeopleDirectory(f.db),
 		Students: f.repos.Student, Persons: f.repos.Person, Logger: slog.Default(),
 	}
 	for _, apply := range configure {
@@ -66,7 +66,7 @@ func (f masterDataFixture) decisions(t *testing.T, configure ...func(*services.M
 // queue is the native open queue and history the decisions are listed from.
 func (f masterDataFixture) queue(t *testing.T, scope careplanCompose.ReviewScopeResolver) careplan.MasterDataReviewQuery {
 	t.Helper()
-	queue, err := requestreviewcompose.NewMasterDataReviews(f.db, repositories.MustNewPeopleDirectory(f.db), scope,
+	queue, err := requestreviewcompose.NewMasterDataReviews(f.db, services.MustNewPeopleDirectory(f.db), scope,
 		careplanCompose.Today, func(requestreviewcompose.CareObservation) {})
 	require.NoError(t, err)
 	return queue
@@ -269,7 +269,7 @@ func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	audit := services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAudit(f.db))
+	audit := services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, services.NewStudentAudit(f.db))
 	svc := f.decisions(t, func(o *services.MasterDataDecisionTestOptions) { o.Audit = audit })
 	row := f.insert(t, userModels.DataChangeTargetStudent, "school_class", `"1a"`, `"2b"`)
 
@@ -390,7 +390,7 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	trail := repositories.NewStudentAudit(f.db)
+	trail := services.NewStudentAudit(f.db)
 	audit := services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, trail)
 	svc := f.decisions(t, func(o *services.MasterDataDecisionTestOptions) { o.Audit = audit })
 	row := f.insert(t, userModels.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"],"wed":["pickup"]}`)

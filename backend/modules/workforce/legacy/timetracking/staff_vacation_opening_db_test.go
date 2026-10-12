@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -30,7 +29,7 @@ import (
 type vacationOpeningFixture struct {
 	tenantID  int64
 	db        *testpkg.DB
-	repos     *repositories.Factory
+	repos     *services.RepositoryTestFactory
 	workforce workforce.Capability
 	ctx       context.Context
 	staff     int64
@@ -50,8 +49,8 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Urlaub", "Uebernahme")
 	admin := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Urlaub", "Leitung")
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, owners)
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {

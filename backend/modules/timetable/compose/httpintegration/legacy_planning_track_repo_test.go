@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	model "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -15,7 +17,7 @@ import (
 
 func planningTrackRepository(t *testing.T, db *bun.DB) model.PlanningTrackRepository {
 	t.Helper()
-	factory := repositories.NewTimetableRepositories(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := repositories.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
 	return factory.PlanningTrack
 }
 

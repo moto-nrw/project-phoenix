@@ -31,7 +31,7 @@ type snapshotFixture struct {
 	admin     int64
 	session   *timerecords.WorkSession
 	schedule  *testpkg.StaffWorkScheduleFixture
-	repos     *repositories.Factory
+	repos     *services.RepositoryTestFactory
 	workforce workforce.Capability
 	db        *testpkg.DB
 	ctx       context.Context
@@ -81,8 +81,8 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Abschluss", "Mitarbeiter")
 	admin := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Abschluss", "Leitung")
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, owners)
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {

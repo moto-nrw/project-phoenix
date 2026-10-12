@@ -6,7 +6,6 @@ import (
 
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/uptrace/bun"
 )
@@ -37,7 +36,6 @@ func (f *Factory) bindDefaultFacilities(db *bun.DB) {
 	}
 	f.roomBinders = f.roomBinders[:0]
 	f.registerActiveRoomBinders()
-	f.registerRemainingRoomBinders()
 	f.bindRoomDirectories(rooms)
 }
 
@@ -51,14 +49,6 @@ func (f *Factory) registerActiveRoomBinders() {
 		}
 		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
 			directory.rooms = rooms
-		})
-	}
-}
-
-func (f *Factory) registerRemainingRoomBinders() {
-	if repo, ok := f.Group.(*educationGroupRepository); ok {
-		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
-			repo.rooms.rooms = rooms
 		})
 	}
 }
@@ -104,27 +94,6 @@ func (d *activeRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([
 			Name: room.Name, Building: room.Building, Floor: room.Floor, Capacity: room.Capacity,
 			Category: room.Category, Color: room.Color, IsSystem: room.IsSystem,
 			IsOpenRoom: room.IsOpenRoom,
-		})
-	}
-	return result, nil
-}
-
-type educationRoomDirectory struct{ rooms facilitiesModule.Query }
-
-func (d educationRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]educationRepo.DirectoryRoom, error) {
-	if d.rooms == nil {
-		return nil, fmt.Errorf("education repositories: room directory is not bound")
-	}
-	rooms, err := d.rooms.ListRoomsByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]educationRepo.DirectoryRoom, 0, len(rooms))
-	for _, room := range rooms {
-		result = append(result, educationRepo.DirectoryRoom{
-			ID: room.ID, TenantID: room.TenantID, CreatedAt: room.CreatedAt, UpdatedAt: room.UpdatedAt,
-			Name: room.Name, Building: room.Building, Floor: room.Floor, Capacity: room.Capacity,
-			Category: room.Category, Color: room.Color,
 		})
 	}
 	return result, nil

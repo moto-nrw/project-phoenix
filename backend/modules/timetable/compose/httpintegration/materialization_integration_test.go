@@ -67,8 +67,8 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	timetableDependencies := repositories.NewUnobservedTimetableDependencies(db)
-	repoFactory := repositories.NewFactory(db, timetableDependencies)
+	timetableDependencies := services.NewUnobservedTimetableDependencies(db)
+	repoFactory := services.NewRepositoryTestFactory(db, timetableDependencies)
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
@@ -282,7 +282,7 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 
 	class3a := "3a"
 	class4a := "4a"
-	targetRepo, ok := repositories.NewTimetableRepositories(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.(activitiesModels.GroupTargetRepository)
+	targetRepo, ok := repositories.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.(activitiesModels.GroupTargetRepository)
 	require.True(t, ok)
 	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activitiesModels.GroupTarget{
 		{TargetGroupType: activitiesModels.TargetGroupTypeKlasse, TargetSchoolClass: &class3a},
@@ -369,8 +369,8 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	timetableDependencies := repositories.NewUnobservedTimetableDependencies(db)
-	repoFactory := repositories.NewFactory(db, timetableDependencies)
+	timetableDependencies := services.NewUnobservedTimetableDependencies(db)
+	repoFactory := services.NewRepositoryTestFactory(db, timetableDependencies)
 	svc := newTestMaterialization(t, db, repoFactory, repositories.NewTimetableRepositories(db, timetableDependencies))
 
 	// Use a fresh tenant id that we know has no active periods.
@@ -401,8 +401,8 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	timetableDependencies := repositories.NewUnobservedTimetableDependencies(db)
-	repoFactory := repositories.NewFactory(db, timetableDependencies)
+	timetableDependencies := services.NewUnobservedTimetableDependencies(db)
+	repoFactory := services.NewRepositoryTestFactory(db, timetableDependencies)
 	svc := newTestMaterialization(t, db, repoFactory, repositories.NewTimetableRepositories(db, timetableDependencies))
 
 	emptyTemplateTenantID := testpkg.UniqueTestTenantID(t)
@@ -651,21 +651,21 @@ func TestMaterializeForTenant_ScheduleValidFrom_SkipsNotStartedDates(t *testing.
 // rules the period editor enforces.
 func createCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, period *scheduleModels.CalendarPeriod) {
 	t.Helper()
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CalendarPeriod
+	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CalendarPeriod
 	require.NoError(t, repo.Create(ctx, period))
 }
 
 // updateCalendarPeriodRow rewrites a period row the same way.
 func updateCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, period *scheduleModels.CalendarPeriod) {
 	t.Helper()
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CalendarPeriod
+	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CalendarPeriod
 	require.NoError(t, repo.Update(ctx, period))
 }
 
 // newTestMaterialization composes the Timetable owner's materialization over
 // the retained repositories, the way the composition root does, without the
 // per-date care filter and the staffing announcement.
-func newTestMaterialization(t *testing.T, db *bun.DB, repos *repositories.Factory, timetableRepos repositories.TimetableRepositories) timetable.MaterializationCapability {
+func newTestMaterialization(t *testing.T, db *bun.DB, repos *services.RepositoryTestFactory, timetableRepos repositories.TimetableRepositories) timetable.MaterializationCapability {
 	t.Helper()
 	svc, err := compose.NewMaterialization(compose.MaterializationDependencies{
 		GroupRepo:      timetableRepos.ActivityGroup,

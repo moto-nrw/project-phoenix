@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	"log/slog"
@@ -484,7 +486,7 @@ func TestRejectedEnrollmentCleanup_WritesSystemDeletionAudit(t *testing.T) {
 
 func (f *deletionTestFixture) guardians() deletionTestGuardians {
 	f.t.Helper()
-	people, err := repositories.NewPeopleDirectory(f.db)
+	people, err := services.NewPeopleDirectory(f.db)
 	require.NoError(f.t, err)
 	return deletionTestGuardians{
 		byAccount: func(ctx context.Context, ids []int64) ([]TestDirectoryGuardian, error) {

@@ -71,7 +71,7 @@ func (m ActiveTestModule) PresenceOperations() presenceservice.PresenceOperation
 }
 
 func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (ActiveTestModule, error) {
-	r, err := repositories.NewActiveTestRepositories(db, clocks...)
+	r, err := repositories.NewActiveTestRepositories(db, MustNewMembershipTestRepositories(db), clocks...)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -110,7 +110,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	}
 	logger := slog.Default()
 	hub := deliveryCompose.NewRealtimeHub(logger)
-	students, err := repositories.NewPeopleDirectory(db)
+	students, err := NewPeopleDirectory(db)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}

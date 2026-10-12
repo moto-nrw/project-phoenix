@@ -113,8 +113,8 @@ func checkinEventsOnTopic(b *testpkg.RecordingBroadcaster, topic string) []activ
 func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, owners)
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
 	timetableRepos := repositories.NewTimetableRepositories(db, owners)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
@@ -135,7 +135,7 @@ func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *tes
 		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
 		StaffNames: services.NewAttendanceStaffNames(repos.Staff, services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
-			RFIDCards: repos.RFIDCard, AccountExists: repositories.AccountExists(repos.Profile),
+			RFIDCards: repos.RFIDCard, AccountExists: services.AccountExists(repos.Profile),
 		})),
 		DB:          db,
 		Broadcaster: broadcaster,

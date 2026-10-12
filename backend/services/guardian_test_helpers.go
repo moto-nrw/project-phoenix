@@ -40,7 +40,7 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	r, err := repositories.NewAuthTestRepositories(db)
+	r, err := NewMembershipTestRepositories(db)
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
@@ -49,7 +49,7 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 		return GuardianTestModule{}, err
 	}
 	g := NewGuardianTestRepositories(db, command)
-	people, photoRuntime, err := repositories.NewPeopleDirectoryWithPhotos(db)
+	people, photoRuntime, err := NewPeopleDirectoryWithPhotos(db)
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
@@ -75,7 +75,7 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 	guardian := users.NewGuardianService(users.GuardianServiceDependencies{
 		GuardianProfileRepo: r.GuardianProfile, GuardianPhoneNumberRepo: g.Phone, StudentGuardianRepo: r.StudentGuardian,
 		GuardianInvitations: newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return auth.AccountAuthentication }),
-		StudentRepo:         r.Student, PersonRepo: r.Person,
+		StudentRepo:         NewUnboundStudentRepository(db), PersonRepo: r.Person,
 		GuardianFinancialRepo: g.Financial, GuardianFinancialAudit: g.FinancialAudit, DataAccessLog: g.AccessLog,
 		Mailer: mailer, Dispatcher: email.NewDispatcher(mailer, slog.Default()), FrontendURL: cfg.FrontendURL, DefaultFrom: from,
 		InvitationExpiry: time.Duration(hours) * time.Hour, MailIdentity: mailIdentity, DB: db,

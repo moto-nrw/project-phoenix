@@ -51,7 +51,7 @@ func NewFileStoreTestModule(db *bun.DB, unit tenant.UnitOfWork, objects UploadsB
 	if err != nil {
 		return FileStoreTestModule{}, err
 	}
-	persons, err := repositories.NewPeopleDirectory(db)
+	persons, err := NewPeopleDirectory(db)
 	if err != nil {
 		return FileStoreTestModule{}, err
 	}

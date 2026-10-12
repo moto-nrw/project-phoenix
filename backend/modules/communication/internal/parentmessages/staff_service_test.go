@@ -24,7 +24,7 @@ import (
 // Identity & Access owners.
 func newRepositories(t *testing.T, db *bun.DB) repositories.StaffMessagingTestRepositories {
 	t.Helper()
-	repos, err := repositories.NewStaffMessagingTestRepositories(db)
+	repos, err := repositories.NewStaffMessagingTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	return repos
 }
@@ -60,7 +60,7 @@ func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays
 	// must go through the same path production uses. FindByAccountID only
 	// touches the person repository, so the other sources stay empty on purpose.
 	persons := services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
-		Persons: repositories.NewPersonRepository(db),
+		Persons: services.NewPersonRepository(db),
 	})
 
 	repos := newRepositories(t, db)

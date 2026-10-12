@@ -10,8 +10,6 @@ import (
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 )
 
 // The three repositories decorated here are people-directory repositories that
@@ -21,14 +19,10 @@ import (
 // and hands the concrete repository the resolved ids.
 
 // bindStaffMembershipDecorators wires the decorators once, innermost, so the
-// school/person/group wrappers bound afterwards keep wrapping them and a later
-// BindSchoolMembership swap still reaches them (the capability is read lazily).
-func (f *Factory) bindStaffMembershipDecorators(workTime workforce.Capability, identity identityaccess.StaffAccountQueries) {
-	capability := func() schoolmembership.Capability { return f.schoolMembership }
-	persons := func() userModels.PersonRepository { return f.membershipDeps.persons }
-	f.StaffDocument = staffDocumentMembershipRepository{
-		StaffDocumentRepository: workforceLegacy.NewStaffDocumentRepository(workTime), membership: capability,
-	}
+// school/person/group wrappers bound afterwards keep wrapping them.
+func (f *Factory) bindStaffMembershipDecorators(membership schoolmembership.Capability, identity identityaccess.StaffAccountQueries, personRepository userModels.PersonRepository) {
+	capability := func() schoolmembership.Capability { return membership }
+	persons := func() userModels.PersonRepository { return personRepository }
 	f.ParentMessageRead = parentMessageStaffRepository{
 		ParentMessageReads: parentStore.NewParentMessageReadRepository(f.db), membership: capability, persons: persons,
 	}
@@ -74,32 +68,6 @@ func staffAccountsByTenant(ctx context.Context, membership schoolmembership.Capa
 		result[member.TenantID] = append(result[member.TenantID], *person.AccountID)
 	}
 	return result, nil
-}
-
-// --- staff documents ---
-
-type staffDocumentMembershipRepository struct {
-	workforceLegacy.StaffDocumentRepository
-	membership func() schoolmembership.Capability
-}
-
-var _ userModels.StaffDocumentRepository = staffDocumentMembershipRepository{}
-
-// ListOffboardedPendingFileCleanups resolves the offboarded staff through the
-// membership owner and asks the document repository for their pending file
-// cleanups.
-func (r staffDocumentMembershipRepository) ListOffboardedPendingFileCleanups(ctx context.Context) ([]*userModels.StaffDocument, error) {
-	members, err := r.membership().ListStaff(ctx, schoolmembership.StaffFilter{IncludeDeleted: true})
-	if err != nil {
-		return nil, fmt.Errorf("list offboarded staff: %w", err)
-	}
-	offboarded := make([]int64, 0, len(members))
-	for _, member := range members {
-		if member.IsDeleted() {
-			offboarded = append(offboarded, member.ID)
-		}
-	}
-	return r.ListPendingFileCleanupsForStaff(ctx, offboarded)
 }
 
 // --- parent messaging ---

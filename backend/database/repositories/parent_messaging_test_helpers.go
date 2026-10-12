@@ -34,9 +34,7 @@ func NewParentMessagingTestRepositories(db *bun.DB) (ParentMessagingTestReposito
 	if err != nil {
 		return ParentMessagingTestRepositories{}, err
 	}
-	deps := newStaffMembershipDeps(NewPersonRepository(db), newIdentityAccess(db, nil), MustNewStaffEmployment(db))
-	groupTeachers := newGroupTeacherRepository(membership, NewEducationGroupRepository(db))
-	deps.groupTeachers = func() GroupTeacherRepository { return groupTeachers }
+	persons := newPersonRepository(db)
 	return ParentMessagingTestRepositories{
 		Thread:  parentStore.NewParentMessageThreadRepository(db, NewMessageableGuardianRepository(db)),
 		Message: parentStore.NewParentMessageRepository(db),
@@ -45,7 +43,7 @@ func NewParentMessagingTestRepositories(db *bun.DB) (ParentMessagingTestReposito
 		Read: parentMessageStaffRepository{
 			ParentMessageReads: parentStore.NewParentMessageReadRepository(db),
 			membership:         func() schoolmembership.Capability { return membership },
-			persons:            func() userModels.PersonRepository { return deps.persons },
+			persons:            func() userModels.PersonRepository { return persons },
 		},
 	}, nil
 }

@@ -29,7 +29,7 @@ type SchoolStructureRepositorySuiteDependencies = repositories.TimetableDependen
 // over the unobserved timetable dependencies, with a second set of those
 // owner capabilities for the suites that write through an owner directly.
 func NewSchoolStructureRepositorySuiteGraph(db *bun.DB) (*PeopleRepositorySuiteFactory, SchoolStructureRepositorySuiteDependencies) {
-	return repositories.NewRetainedRepositoryFactory(db), repositories.NewUnobservedTimetableDependencies(db)
+	return NewPeopleRepositorySuiteFactory(db), NewUnobservedTimetableDependencies(db)
 }
 
 // The retained School Structure service suites (services/education) may
@@ -110,8 +110,8 @@ func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db *bun.DB, b
 	}
 	service := education.NewService(repos.Group, repos.GroupTeacher, repos.ClassTeacher,
 		repositories.NewEducationRooms(NewRoomRepository(rooms)), NewEducationTeachers(repos.Teacher),
-		repositories.NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
-		education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: broadcaster, Audit: repositories.NewEducationClassAssignmentAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).StaffMasterDataChange)})
+		NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
+		education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: broadcaster, Audit: NewEducationClassAssignmentAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).StaffMasterDataChange)})
 
 	return service
 }
@@ -124,19 +124,19 @@ func NewSubstitutionSuiteModule(repos *PeopleRepositorySuiteFactory, db *bun.DB,
 		deps.Groups = repos.Group
 	}
 	if deps.Substitutions == nil {
-		deps.Substitutions = repositories.NewEducationHandovers(repos.GroupSubstitution)
+		deps.Substitutions = NewEducationHandovers(repos.GroupSubstitution)
 	}
 	if deps.Teachers == nil {
-		deps.Teachers = repositories.NewEducationCaregivers(repos.Teacher)
+		deps.Teachers = NewEducationCaregivers(repos.Teacher)
 	}
 	if deps.Staff == nil {
-		deps.Staff = repositories.NewEducationStaff(repos.Staff)
+		deps.Staff = NewEducationStaff(repos.Staff)
 	}
 	if deps.ExternalCaregivers == nil {
-		deps.ExternalCaregivers = repositories.NewEducationExternalCaregivers(repos.Staff, repos.Guest)
+		deps.ExternalCaregivers = NewEducationExternalCaregivers(repos.Staff, repos.Guest)
 	}
 	if deps.Audit == nil {
-		deps.Audit = repositories.NewEducationSubstitutionAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).SubstitutionChange)
+		deps.Audit = NewEducationSubstitutionAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).SubstitutionChange)
 	}
 	if deps.Runtime == nil {
 		deps.Runtime = education.NewLegacyRepositoryRuntime(db)
@@ -148,7 +148,7 @@ func NewSubstitutionSuiteModule(repos *PeopleRepositorySuiteFactory, db *bun.DB,
 // People Directory bound, so the suites read person-enriched rows like the
 // service graph does.
 func NewSchoolStructurePeopleSuiteFactory(db *bun.DB) (*PeopleRepositorySuiteFactory, error) {
-	return repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	return NewPeopleRepositorySuiteFactory(db), nil
 }
 
 // GradeTransitionSuiteOwners are the owner compositions the grade transition
@@ -167,7 +167,7 @@ func NewGradeTransitionSuiteOwners(db *bun.DB, clock func() time.Time) (GradeTra
 	if err != nil {
 		return GradeTransitionSuiteOwners{}, err
 	}
-	people, err := repositories.NewPeopleDirectory(db)
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return GradeTransitionSuiteOwners{}, err
 	}

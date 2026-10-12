@@ -19,7 +19,6 @@ import (
 type WorkforceTestRepositories struct {
 	WorkSessionTestRepositories
 	Membership                      schoolmembership.Capability
-	StaffDocument                   userModels.StaffDocumentRepository
 	StaffAbsenceType                workforceCapability.Capability
 	StaffAbsenceTypeAllowance       timerecords.StaffAbsenceTypeAllowanceRepository
 	StaffAbsenceTypeAllowanceChange timerecords.StaffAbsenceTypeAllowanceChangeRepository
@@ -39,8 +38,8 @@ type WorkforceTestRepositories struct {
 	DataDeletion                    auditModels.DataDeletionRepository
 }
 
-func NewWorkforceTestRepositories(db *bun.DB, clocks ...func() time.Time) (WorkforceTestRepositories, error) {
-	sessions, err := NewWorkSessionTestRepositories(db, clocks...)
+func NewWorkforceTestRepositories(db *bun.DB, members MembershipTestRepositories, clocks ...func() time.Time) (WorkforceTestRepositories, error) {
+	sessions, err := NewWorkSessionTestRepositories(db, members, clocks...)
 	if err != nil {
 		return WorkforceTestRepositories{}, err
 	}
@@ -58,7 +57,6 @@ func NewWorkforceTestRepositories(db *bun.DB, clocks ...func() time.Time) (Workf
 	}
 	return WorkforceTestRepositories{WorkSessionTestRepositories: sessions,
 		Membership:                      membership,
-		StaffDocument:                   staffDocumentMembershipRepository{StaffDocumentRepository: workforceLegacy.NewStaffDocumentRepository(workTime), membership: func() schoolmembership.Capability { return membership }},
 		StaffAbsenceType:                workTime,
 		StaffAbsenceTypeAllowance:       workforce.NewStaffAbsenceTypeAllowanceRepository(db),
 		StaffAbsenceTypeAllowanceChange: workforce.NewStaffAbsenceTypeAllowanceChangeRepository(db),

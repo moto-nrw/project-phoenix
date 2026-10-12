@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -30,13 +29,13 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 
 	emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, services.NewParentMessageRepository(db),
 		parentSettingsStub{boolDefault: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:       repos.CarePlan(),
-		People:         repositories.MustNewPeopleDirectory(db),
+		People:         services.MustNewPeopleDirectory(db),
 		CareProfiles:   careProfiles(t, db),
 		ChildRepo:      repos.ParentChild,
 		StatusDayRepo:  repos.StudentStatusDay,
@@ -91,7 +90,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 
 	// Capture the EMITTER's broadcaster (distinct from the service's own): the
 	// guardian fan-out rides BroadcastChildUpdateToGuardians on the emitter.
@@ -100,7 +99,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 		parentSettingsStub{boolDefault: true}, emitterBC, slog.Default())
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:       repos.CarePlan(),
-		People:         repositories.MustNewPeopleDirectory(db),
+		People:         services.MustNewPeopleDirectory(db),
 		CareProfiles:   careProfiles(t, db),
 		ChildRepo:      repos.ParentChild,
 		StatusDayRepo:  repos.StudentStatusDay,
@@ -147,7 +146,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 
 // loadThreadPills reads the (student, guardian) thread messages under the tenant
 // tx (RLS), returning an empty slice when no thread exists.
-func loadThreadPills(t *testing.T, db *bun.DB, repos *repositories.Factory, c testpkg.ParentChain) (int64, []*usersModels.ParentMessage) {
+func loadThreadPills(t *testing.T, db *bun.DB, repos *services.RepositoryTestFactory, c testpkg.ParentChain) (int64, []*usersModels.ParentMessage) {
 	t.Helper()
 	var threadID int64
 	var msgs []*usersModels.ParentMessage

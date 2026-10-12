@@ -253,7 +253,7 @@ func createLinkedCareOffering(
 		IsActive:                  true,
 	}
 	phase.TenantID = s.tenantID
-	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
+	repos := bookingFixtures.NewRepositoryTestFactory(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db))
 	require.NoError(t, repos.Enrollment().InsertPhase(s.ctx, phase))
 
 	offering := testpkg.NewSourceCareOffering(phase.ID,
@@ -348,7 +348,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		require.ErrorIs(t, err, timetable.ErrSplitInvalidInput)
 
 		assert.Nil(t, reloadSplitSchedule(t, s, s.schedule.ID).ValidUntil)
-		series, seriesErr := repositories.NewTimetableRepositories(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, s.template.ID)
+		series, seriesErr := repositories.NewTimetableRepositories(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, s.template.ID)
 		require.NoError(t, seriesErr)
 		require.Len(t, series, 1)
 		assert.Equal(t, s.template.ID, series[0].ID)
@@ -2078,7 +2078,7 @@ func TestTemplateSplit_SecondSuccessorKeepsOriginalSeriesRoot(t *testing.T) {
 	secondSuccessor := reloadSplitGroup(t, s, second.NewTemplateID)
 	require.NotNil(t, secondSuccessor.SeriesRootID)
 	assert.Equal(t, s.template.ID, *secondSuccessor.SeriesRootID)
-	series, err := repositories.NewTimetableRepositories(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, second.NewTemplateID)
+	series, err := repositories.NewTimetableRepositories(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, second.NewTemplateID)
 	require.NoError(t, err)
 	assert.Len(t, series, 3)
 }

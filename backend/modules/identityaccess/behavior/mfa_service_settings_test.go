@@ -29,7 +29,7 @@ import (
 
 type wiredMFAFixture struct {
 	svc      identityaccess.AccountMFA
-	repos    *repositories.Factory
+	repos    repositories.MembershipTestRepositories
 	db       *bun.DB
 	tenantID int64
 	mailer   *testpkg.CapturingMailer

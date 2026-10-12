@@ -18,7 +18,7 @@ type StaffMessagingTestModule struct {
 }
 
 func NewStaffMessagingTestModule(db *bun.DB, unit tenant.UnitOfWork) (StaffMessagingTestModule, error) {
-	repos, err := repositories.NewStaffMessagingTestRepositories(db)
+	repos, err := repositories.NewStaffMessagingTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return StaffMessagingTestModule{}, err
 	}

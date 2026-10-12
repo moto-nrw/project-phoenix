@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -27,7 +26,7 @@ import (
 
 type staffDocumentScenario struct {
 	db       *bun.DB
-	repos    *repositories.Factory
+	repos    *services.RepositoryTestFactory
 	workTime workforce.Capability
 	svc      workforce.StaffDocuments
 	ctx      context.Context
@@ -40,8 +39,8 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, owners)
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
 	admin, err := services.NewStaffAdmin(services.StaffAdminDependencies{
 		DB: db, Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
 		MasterDataAudit: services.NewTestAuditPersistence(db, nil).StaffMasterDataChange, PersonnelNumber: services.NewTestAuditPersistence(db, nil).PersonnelNumberChange, DataAccessLog: services.NewTestAuditPersistence(db, nil).DataAccessLog,

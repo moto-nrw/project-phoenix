@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -60,17 +59,20 @@ type TimetableTestRepositories struct {
 	ClassArrivalException scheduleModels.ClassArrivalExceptionRepository
 }
 
-func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (TimetableTestRepositories, error) {
-	bookings := NewUnobservedTimetableDependencies(db).Capability
+// NewTimetableTestRepositories composes the timetable suites' repository
+// graph over the People Directory and School Membership repositories in
+// members, which services composes (#2743).
+func NewTimetableTestRepositories(db *bun.DB, members MembershipTestRepositories, clocks ...func() time.Time) (TimetableTestRepositories, error) {
 	var now func() time.Time
 	if len(clocks) > 0 {
 		now = clocks[0]
 	}
-	members, err := NewMembershipTestRepositories(db)
+	persons := members.People
+	timetableRooms, err := NewFacilities(db)
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	persons, err := NewPeopleDirectory(db)
+	bookings, err := NewTimetable(db, persons, timetableRooms)
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
@@ -103,9 +105,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		Staff:      &presenceSupervisionStaff{},
 	})
 	repos := &Factory{
-		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
-		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
-		Student:             NewStudentRepository(db),
+		db:                  db,
 		ActiveGroup:         sessions,
 		GroupSupervisor:     sessions,
 		SubmissionRateLimit: enrollmentCompose.New(),
@@ -117,14 +117,14 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	repos.students = persons
 	repos.bindCarePlanAdapters(carePlan)
-	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
-	repos.BindPeopleDirectory(persons)
-	repos.BindSchoolStructure(groups)
+	repos.bindGuardianDirectories(persons)
+	repos.bindStaffProjections(membership, workTime)
+	repos.bindPersonProjections(persons)
+	repos.GroupSupervisor = groupSupervisorRepository{SupervisionRecords: repos.GroupSupervisor, groups: groups}
 	room := facilitiesAdapter.New()
 	room.Bind(rooms)
-	result := timetableTestRepositories(repos, adapters)
+	result := timetableTestRepositories(repos, members, adapters)
 	result.ClassArrivalException = timetableCompose.NewClassArrivalExceptionRepository(db)
 	result.Room = room
 	result.Timetable = bookings
@@ -136,13 +136,13 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	return result, nil
 }
 
-func timetableTestRepositories(r *Factory, t timetableCompose.Repositories) TimetableTestRepositories {
+func timetableTestRepositories(r *Factory, members MembershipTestRepositories, t timetableCompose.Repositories) TimetableTestRepositories {
 	return TimetableTestRepositories{
 		Repositories:   t,
 		CalendarPeriod: r.CalendarPeriod,
 		ClosingDay:     r.ClosingDay, Dateframe: r.Dateframe,
-		Staff: r.Staff, Teacher: r.Teacher, ClassTeacher: r.ClassTeacher, GroupTeacher: r.GroupTeacher,
-		Person: r.Person, Student: r.Student, Group: r.Group,
+		Staff: members.Staff, Teacher: members.Teacher, ClassTeacher: members.ClassTeacher, GroupTeacher: members.GroupTeacher,
+		Person: members.Person, Student: members.Student, Group: members.Group,
 		ActiveGroup: r.ActiveGroup, GroupSupervisor: r.GroupSupervisor,
 		StudentArrivalSchedule: r.StudentArrivalSchedule, StudentArrivalException: r.StudentArrivalException,
 		StudentArrivalNote: r.StudentArrivalNote, StudentPickupSchedule: r.StudentPickupSchedule,

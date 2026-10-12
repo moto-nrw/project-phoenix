@@ -19,7 +19,7 @@ import (
 )
 
 func newStaffIdentityForTests(db *bun.DB) (*repositories.CallerRows, repositories.MembershipTestRepositories, error) {
-	members, err := repositories.NewMembershipTestRepositories(db)
+	members, err := NewMembershipTestRepositories(db)
 	if err != nil {
 		return nil, members, err
 	}
@@ -60,7 +60,7 @@ func NewBirthdayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 		return BirthdayTestModule{}, err
 	}
 	birthdays := NewBirthdays(
-		BirthdayRepositories{Students: repositories.NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
+		BirthdayRepositories{Students: NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
 		settings.Settings, slog.Default(), optionalClock(clocks))
 	return BirthdayTestModule{Birthdays: birthdays, UserContext: identity, Settings: settings.Settings, ListExport: listexport.NewService()}, nil
 }
@@ -69,12 +69,12 @@ func NewBirthdayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 // retained repositories the way the factory does, with caller-supplied
 // settings and clock.
 func NewBirthdayCapabilityForTests(db *bun.DB, settings BirthdaySettingsSource, now func() time.Time) peopledirectory.Birthdays {
-	members, err := repositories.NewMembershipTestRepositories(db)
+	members, err := NewMembershipTestRepositories(db)
 	if err != nil {
 		panic(err)
 	}
 	return NewBirthdays(
-		BirthdayRepositories{Students: repositories.NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
+		BirthdayRepositories{Students: NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
 		settings, slog.Default(), now)
 }
 
@@ -88,7 +88,7 @@ type ShiftTypeTestModule struct {
 // factory does: the Workforce planning composition over the timetable test
 // repositories, with the Kategorie↔Schichtart linker of the activity service.
 func NewShiftTypeTestModule(db *bun.DB) (ShiftTypeTestModule, error) {
-	repos := repositories.NewShiftTypeTestRepositories(db)
+	repos := repositories.NewShiftTypeTestRepositories(db, MustNewMembershipTestRepositories(db))
 	linker, err := activities.NewService(repos.Timetable, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		return ShiftTypeTestModule{}, err

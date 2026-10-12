@@ -142,10 +142,9 @@ func NewStudentPresenceWithRules(db *bun.DB, rules PresenceRulesDependencies, ob
 // serving roots and the retained services compose their presence module
 // through it so every attendance rule sees the same planned roster.
 func NewStudentPresence(db *bun.DB, observe func(presenceCompose.Observation)) (*studentpresence.Module, error) {
-	students, err := NewPeopleDirectory(db)
-	if err != nil {
-		return nil, err
-	}
+	// The roster reads and the care-day row lock are People Directory reads;
+	// they need none of the owner's write owners or audit seams.
+	students := peopleDirectoryReads(db)
 	rooms, err := NewFacilities(db)
 	if err != nil {
 		return nil, err

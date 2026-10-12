@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +31,7 @@ var provisioningTestClientIP = net.IPv4(127, 0, 0, 1)
 // field is the production composition over db.
 func buildOperatorProvisioning(t *testing.T, db *bun.DB) *Factory {
 	t.Helper()
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))

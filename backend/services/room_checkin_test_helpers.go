@@ -44,7 +44,7 @@ func NewCheckinTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() t
 		return CheckinTestModule{}, err
 	}
 	logger := slog.Default()
-	rosters := repositories.SessionRosters{Sessions: newStudentPresence(db, logger), Roster: repositories.NewUnobservedTimetableDependencies(db).Capability}
+	rosters := repositories.SessionRosters{Sessions: newStudentPresence(db, logger), Roster: NewUnobservedTimetableDependencies(db).Capability}
 	scan := devicescanCompose.New(devicescanCompose.Dependencies{
 		Fleet:      module.IoT.Fleet(),
 		Presence:   newStudentPresence(db, logger),

@@ -56,7 +56,7 @@ func calendarTestConfig(t *testing.T, db *bun.DB) calendarRuntime.CalendarDepend
 		CalendarFacts: repositories.CalendarFacts{
 			StaffRepo:            repos.Staff,
 			StudentRepo:          repos.Student,
-			GuardianProfileRepo:  repositories.NewCalendarGuardianDirectory(repos.GuardianProfile, repositories.MustNewPeopleDirectory(db)),
+			GuardianProfileRepo:  repositories.NewCalendarGuardianDirectory(repos.GuardianProfile, calendarRuntime.MustNewPeopleDirectory(db)),
 			StudentGuardianRepo:  repos.StudentGuardian,
 			ChildRepo:            repos.ParentChild,
 			GroupRepo:            repos.Group,
@@ -3219,7 +3219,7 @@ func portalDate(year int, month time.Month, day int) appointments.Date {
 
 func calendarTestRepositories(t *testing.T, db *bun.DB) repositories.CalendarTestRepositories {
 	t.Helper()
-	repositories, err := repositories.NewCalendarTestRepositories(db)
+	repositories, err := repositories.NewCalendarTestRepositories(db, calendarRuntime.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	return repositories
 }

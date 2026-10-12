@@ -37,37 +37,29 @@ type StudentTestRepositories struct {
 	ParentMessage                usersModels.ParentMessageRepository
 }
 
-func NewStudentTestRepositories(db *bun.DB) (StudentTestRepositories, error) {
-	enrollment, err := NewEnrollmentTestRepositories(db)
+func NewStudentTestRepositories(db *bun.DB, members MembershipTestRepositories) (StudentTestRepositories, error) {
+	enrollment, err := NewEnrollmentTestRepositories(db, members)
 	if err != nil {
 		return StudentTestRepositories{}, err
 	}
-	lifecycle, err := NewCareLifecycleTestRepositories(db)
+	lifecycle, err := NewCareLifecycleTestRepositories(db, members)
 	if err != nil {
 		return StudentTestRepositories{}, err
 	}
-	people, err := NewPeopleDirectory(db)
+	care, err := NewCarePlan(db, members.People, enrollment.InstanceStudent)
 	if err != nil {
 		return StudentTestRepositories{}, err
 	}
-	care, err := NewCarePlan(db, people, enrollment.InstanceStudent)
-	if err != nil {
-		return StudentTestRepositories{}, err
-	}
-	r := &Factory{db: db,
-		ParentRequestEvent: usersRepo.NewParentRequestEventRepository(peopleRuntime(db)),
-		FamilyProtection:   usersRepo.NewFamilyProtectionEventRepository(peopleRuntime(db)),
-	}
-	r.BindPeopleDirectory(people)
+	r := &Factory{db: db}
 	r.bindCarePlanAdapters(care)
 	return StudentTestRepositories{
 		CarePlan:                   care,
 		ParentRequestShare:         usersRepo.NewParentRequestShareEventRepository(peopleRuntime(db)),
 		CareScheduleChangeRequest:  r.CareScheduleChangeRequest,
 		ExcusedAbsenceRequest:      r.ExcusedAbsenceRequest,
-		ParentRequestEvent:         r.ParentRequestEvent,
+		ParentRequestEvent:         usersRepo.NewParentRequestEventRepository(peopleRuntime(db)),
 		StudentDataChangeRequest:   r.StudentDataChangeRequest,
-		FamilyProtection:           r.FamilyProtection,
+		FamilyProtection:           usersRepo.NewFamilyProtectionEventRepository(peopleRuntime(db)),
 		EnrollmentTestRepositories: enrollment,
 		CareWithdrawal:             lifecycle.CareWithdrawal,
 		ParentMessageThread:        parentStore.NewParentMessageThreadRepository(db, NewMessageableGuardianRepository(db)),

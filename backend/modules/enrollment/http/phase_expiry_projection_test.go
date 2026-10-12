@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	testutil "github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -371,7 +373,7 @@ func (d phaseExpiryCareOfferingDirectory) ListCareOfferings(ctx context.Context)
 func newPhaseExpiryProjection(t *testing.T, db *bun.DB) *TestPhaseExpirySnapshots {
 	t.Helper()
 	owner := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
-	students, err := repositories.NewPeopleDirectory(db)
+	students, err := services.NewPeopleDirectory(db)
 	require.NoError(t, err)
 	return NewTestPhaseExpirySnapshots(owner, expiryStudentDirectory{students}, phaseExpiryCareOfferingDirectory{testutil.NewTestCarePlan(t, db)}, owner)
 }

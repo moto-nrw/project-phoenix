@@ -88,7 +88,7 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 		func(ctx context.Context, tenantID int64) (string, error) {
 			return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 		}, logger)
-	guardians := users.NewGuardianService(users.GuardianServiceDependencies{GuardianProfileRepo: repositories.NewGuardianProfileTestRepository(db), DB: db})
+	guardians := users.NewGuardianService(users.GuardianServiceDependencies{GuardianProfileRepo: NewGuardianProfileTestRepository(db), DB: db})
 	delivery, err := deliveryCompose.New(deliveryCompose.Dependencies{
 		DB: db, People: guardianDisplayResolver{query: guardians}, Observe: func(deliveryModule.Observation) {},
 		Provider: &deliveryProvider{registry: emailoutbox.NewTemplateRegistry(nil), mailer: email.NewMockMailer(), mailIdentity: identity,
@@ -98,7 +98,7 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
-	parents, err := repositories.NewParentRouteTestRepositories(db)
+	parents, err := repositories.NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}

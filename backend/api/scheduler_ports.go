@@ -145,6 +145,13 @@ type workerReads struct {
 	workSessions  interface {
 		GetTodayPresenceMap(context.Context) (map[int64]string, error)
 	}
+	// students and staff are the retained People Directory and School
+	// Membership repositories the activation tick and the reminder
+	// recipients read (#2743).
+	students services.StudentRootReads
+	staff    interface {
+		ListAllStaffAccountIDs(ctx context.Context) (map[int64]int64, error)
+	}
 }
 
 func newWorkerReads(modules moduleServices) workerReads {
@@ -152,6 +159,8 @@ func newWorkerReads(modules moduleServices) workerReads {
 		existingRooms: schedulerExistingRooms(modules.rooms),
 		timetable:     modules.timetableRepositories,
 		workSessions:  workforceLegacy.NewWorkSessionRepository(modules.workforce),
+		students:      modules.students,
+		staff:         modules.staff,
 	}
 }
 
@@ -175,35 +184,14 @@ func schedulerExistingRooms(capability facilitiesModule.Capability) scheduler.Ex
 
 // schedulerStudentLifecycle binds the activate-students tick to the
 // retained student repository.
-func schedulerStudentLifecycle(graph *serveGraph) scheduler.StudentLifecycleRepository {
-	students := graph.repos.Student
-	if students == nil {
+func schedulerStudentLifecycle(reads workerReads) scheduler.StudentLifecycleRepository {
+	students := reads.students
+	if students.PendingDueForActivation == nil {
 		return nil
 	}
 	return studentLifecyclePort{
-		pending: func(ctx context.Context, asOf calendar.Date) ([]int64, error) {
-			rows, err := students.FindPendingDueForActivation(ctx, asOf)
-			ids := make([]int64, 0, len(rows))
-			for _, row := range rows {
-				if row != nil {
-					ids = append(ids, row.ID)
-				}
-			}
-			return ids, err
-		},
-		activeDue: func(ctx context.Context, asOf calendar.Date) ([]int64, error) {
-			rows, err := students.FindActiveDueForDeactivation(ctx, asOf)
-			ids := make([]int64, 0, len(rows))
-			for _, row := range rows {
-				if row != nil {
-					ids = append(ids, row.ID)
-				}
-			}
-			return ids, err
-		},
-		transition: func(ctx context.Context, studentID int64, expected, next string) (bool, error) {
-			return transitionStudentStatus(students.TransitionStatus, ctx, studentID, expected, next)
-		},
+		pending: students.PendingDueForActivation, activeDue: students.ActiveDueForDeactivation,
+		transition: students.TransitionStatus,
 	}
 }
 

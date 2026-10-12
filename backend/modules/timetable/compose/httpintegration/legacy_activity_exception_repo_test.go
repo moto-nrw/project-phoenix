@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -16,7 +18,7 @@ import (
 
 func activityExceptionRepository(t *testing.T, db *bun.DB) activityExceptionQueryRepository {
 	t.Helper()
-	factory := repositories.NewTimetableRepositories(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := repositories.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
 	return factory.ActivityException.(activityExceptionQueryRepository)
 }
 

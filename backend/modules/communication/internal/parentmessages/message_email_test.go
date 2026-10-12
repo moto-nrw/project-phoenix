@@ -83,7 +83,7 @@ func (o *recordingMessageOutbox) Clear() {
 func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) *emailFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	organizations, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	outbox := &recordingMessageOutbox{}

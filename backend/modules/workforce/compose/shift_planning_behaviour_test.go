@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -86,7 +85,7 @@ func buildPlanningWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
 
 func planningDependencies(t *testing.T, db *bun.DB, capability workforce.Capability, staff *usersModels.Staff) compose.ShiftPlanningDependencies {
 	t.Helper()
-	owners := repositories.NewUnobservedTimetableDependencies(db)
+	owners := services.NewUnobservedTimetableDependencies(db)
 	return compose.ShiftPlanningDependencies{
 		Workforce: capability, Staff: planningStaffDirectory{staff: staff},
 		CalendarPeriods: owners.Calendar, Instances: planningTimetable{},

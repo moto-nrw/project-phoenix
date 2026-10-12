@@ -57,7 +57,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	today := timezone.CalendarDateClock(now)
 	logger := slog.Default()
 	hub := deliveryCompose.NewRealtimeHub(logger)
-	students, err := repositories.NewPeopleDirectory(db)
+	students, err := NewPeopleDirectory(db)
 	if err != nil {
 		return TimetableTestModule{}, err
 	}

@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -365,7 +364,7 @@ func TestMarkAllRead_KeepsTeamMark(t *testing.T) {
 	assert.Equal(t, 1, markAllRead(t, f, adminCtx(t, f.staffAccount)),
 		"the reported count keeps the team mark, so the client can explain it")
 
-	repos := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db))
+	repos := services.NewRepositoryTestFactory(f.db, services.NewUnobservedTimetableDependencies(f.db))
 	thread, err := repos.ParentMessageThread.FindByID(adminCtx(t, f.staffAccount), threadID)
 	require.NoError(t, err)
 	assert.NotNil(t, thread.StaffMarkedUnreadAt, "the team mark stays")
@@ -381,7 +380,7 @@ func TestMarkAllRead_LeavesParentReadReceipt(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, true)
-	repos := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db))
+	repos := services.NewRepositoryTestFactory(f.db, services.NewUnobservedTimetableDependencies(f.db))
 	threadID, _ := startThreadWithQuestions(t, f, f.chain, "Frage")
 	guardianCtx := adminCtx(t, f.chain.AccountID)
 

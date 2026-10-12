@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
@@ -28,7 +27,7 @@ type auditLogFixture struct {
 	staffA   int64
 	staffB   int64
 	admin    int64
-	repos    *repositories.Factory
+	repos    *services.RepositoryTestFactory
 	db       *testpkg.DB
 	ctx      context.Context
 	svc      timetracking.TimeTrackingAuditLogService
@@ -56,8 +55,8 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	// resolve it.
 	admin, adminAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Audit", "Leitung")
 
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, owners)
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {

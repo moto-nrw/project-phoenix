@@ -177,6 +177,12 @@ type moduleServices struct {
 	// studentPhotoRuntime is the slot the People Directory photo lifecycle
 	// resolves from; EnableStudentPhotos fills it once the factory exists.
 	studentPhotoRuntime *peopleCompose.StudentPhotoRuntime
+	// students is the retained student repository over the People Directory
+	// (#2743).
+	students services.StudentRootReads
+	staff    interface {
+		ListAllStaffAccountIDs(ctx context.Context) (map[int64]int64, error)
+	}
 }
 
 // NewCleanupTimetable composes the unobserved Timetable owner for CLI roots.
@@ -224,7 +230,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	// cleanup, live refresh, consent trail) only exists once the services
 	// factory and the HTTP layer are up, so the owner resolves it from a slot
 	// that EnableStudentPhotos fills.
-	persons, studentPhotoRuntime, err := repositories.NewPeopleDirectoryWithPhotosAndObserver(db, func(observation peopleCompose.Observation) {
+	persons, studentPhotoRuntime, err := services.NewPeopleDirectoryWithPhotosAndObserver(db, func(observation peopleCompose.Observation) {
 		observability.ObservePeopleDirectoryOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, peopleModule.ErrorCode(observation.Err), observation.Err)
 	})
 	if err != nil {
@@ -347,6 +353,12 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		return moduleServices{}, err
 	}
 	repoFactory.BindCarePlan(carePlan)
+	// The retained student repository is built where it is used (#2743): the
+	// meal plan's participants and the Worker's activation tick read it.
+	students := services.NewStudentRootReads(services.NewStudentRepository(db, membership, groups))
+	// The Worker's reminder recipients read the staff accounts through the
+	// same School Membership owner.
+	staff := services.NewStaffRepository(db, membership, rooms, workTime, observability.ObserveIdentityAccessOperation)
 	mealPlanSettings := mealplanCompose.NewSettings()
 	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
 		DB:       db,
@@ -355,7 +367,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 			observability.ObserveMealPlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, observation.Err)
 		},
 		Now:          time.Now,
-		Participants: mealPlanParticipantFinder(repoFactory, time.Now),
+		Participants: mealPlanParticipantFinder(students, time.Now),
 	})
 	if err != nil {
 		return moduleServices{}, err
@@ -417,7 +429,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	}
 	legacyFacilities = factory.Facilities
 	calendarAdministration = factory.SchoolCalendarAdministration()
-	return moduleServices{repositories: repoFactory, timetableRepositories: timetableRepositories, services: factory, demoAccess: authAPI.ComposedDemoAccess(factory.AccountAuthentication().DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime}, nil
+	return moduleServices{repositories: repoFactory, timetableRepositories: timetableRepositories, services: factory, demoAccess: authAPI.ComposedDemoAccess(factory.AccountAuthentication().DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff}, nil
 }
 
 // withFileStorageWiring resolves what the File Storage module needs from the
@@ -511,19 +523,16 @@ func mapRoomDeletionError(err error) error {
 	}
 }
 
-func mealPlanParticipantFinder(repoFactory *repositories.Factory, now func() time.Time) mealplanCompose.ParticipantFinder {
+func mealPlanParticipantFinder(students services.StudentRootReads, now func() time.Time) mealplanCompose.ParticipantFinder {
 	return func(ctx context.Context, date string) ([]mealplanCompose.ParticipantCandidate, error) {
-		students, err := repoFactory.Student.FindOverlappingWithGroupsOnDate(ctx, date, now())
+		rows, err := students.OverlappingOnDate(ctx, date, now())
 		if err != nil {
 			return nil, err
 		}
-		candidates := make([]mealplanCompose.ParticipantCandidate, 0, len(students))
-		for _, row := range students {
-			if row == nil || row.Student == nil || row.Person == nil {
-				continue
-			}
+		candidates := make([]mealplanCompose.ParticipantCandidate, 0, len(rows))
+		for _, row := range rows {
 			candidates = append(candidates, mealplanCompose.ParticipantCandidate{
-				StudentID: row.ID, FirstName: row.Person.FirstName, LastName: row.Person.LastName, SchoolClass: row.SchoolClass,
+				StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass,
 			})
 		}
 		sort.SliceStable(candidates, func(left, right int) bool {
@@ -1721,7 +1730,7 @@ func mountPeopleRoutes(tenant chi.Router, in routeInputs) {
 	tenant.Mount("/feedback", newFeedbackResource(modules.feedback).Router())
 	tenant.Mount("/meal-plan", newMealPlanResource(modules.mealPlan, newMealPlanExportRenderer()).Router())
 	tenant.Mount("/users", newUsersResource(modules.persons, svc.Auth.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
-		_, _, found, err := modules.repositories.RFIDCard.LookupRFIDCard(ctx, tagID)
+		_, _, found, err := svc.Auth.LookupRFIDCard(ctx, tagID)
 		return found, err
 	}).Router())
 	// Birthday display and staff birthday list (#1542).

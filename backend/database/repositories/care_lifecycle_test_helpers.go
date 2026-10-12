@@ -27,15 +27,12 @@ type CareLifecycleTestRepositories struct {
 	sources          CareLifecycleOwnerSources
 }
 
-func NewCareLifecycleTestRepositories(db *bun.DB) (CareLifecycleTestRepositories, error) {
-	tt, err := NewTimetableTestRepositories(db)
+func NewCareLifecycleTestRepositories(db *bun.DB, members MembershipTestRepositories) (CareLifecycleTestRepositories, error) {
+	tt, err := NewTimetableTestRepositories(db, members)
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}
-	people, err := NewPeopleDirectory(db)
-	if err != nil {
-		return CareLifecycleTestRepositories{}, err
-	}
+	people := members.People
 	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err

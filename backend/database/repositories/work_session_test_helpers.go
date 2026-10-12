@@ -5,7 +5,6 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
@@ -23,15 +22,12 @@ type WorkSessionTestRepositories struct {
 	WorkTimeModel     configModels.WorkTimeModelRepository
 }
 
-func NewWorkSessionTestRepositories(db *bun.DB, clocks ...func() time.Time) (WorkSessionTestRepositories, error) {
-	tt, err := NewTimetableTestRepositories(db, clocks...)
+func NewWorkSessionTestRepositories(db *bun.DB, members MembershipTestRepositories, clocks ...func() time.Time) (WorkSessionTestRepositories, error) {
+	tt, err := NewTimetableTestRepositories(db, members, clocks...)
 	if err != nil {
 		return WorkSessionTestRepositories{}, err
 	}
-	people, err := NewPeopleDirectory(db)
-	if err != nil {
-		return WorkSessionTestRepositories{}, err
-	}
+	people := members.People
 	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return WorkSessionTestRepositories{}, err
@@ -45,8 +41,8 @@ func NewWorkSessionTestRepositories(db *bun.DB, clocks ...func() time.Time) (Wor
 		return WorkSessionTestRepositories{}, err
 	}
 	r := &Factory{db: db, StaffAbsence: workforceLegacy.NewStaffAbsenceRepository(workTime)}
-	r.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
-	r.BindPeopleDirectory(people)
+	r.bindStaffProjections(membership, workTime)
+	r.bindPersonProjections(people)
 	return WorkSessionTestRepositories{TimetableTestRepositories: tt,
 		WorkSession:       workforceLegacy.NewWorkSessionRepository(workTime),
 		WorkSessionBreak:  workforceLegacy.NewWorkSessionBreakRepository(workTime),

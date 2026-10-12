@@ -38,20 +38,20 @@ type ownerCapabilities struct {
 
 // NewFactoryForTests creates the partial graph used by legacy package tests.
 // Production composition must provide every migrated module explicitly.
-func NewFactoryForTests(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, clocks ...func() time.Time) (*Factory, error) {
+func NewFactoryForTests(repos *RepositoryTestFactory, db *bun.DB, logger *slog.Logger, clocks ...func() time.Time) (*Factory, error) {
 	owners, err := newOwnerCapabilitiesForTests(db)
 	if err != nil {
 		return nil, err
 	}
-	return owners.factory(newFactory(repos, db, logger, currentTestFactoryConfig(), tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, owners.appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...))
+	return owners.factory(newFactory(repos.Factory, db, logger, currentTestFactoryConfig(), tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, owners.appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...))
 }
 
-func NewFactoryForTestsWithConfig(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cfg FactoryConfig, clocks ...func() time.Time) (*Factory, error) {
+func NewFactoryForTestsWithConfig(repos *RepositoryTestFactory, db *bun.DB, logger *slog.Logger, cfg FactoryConfig, clocks ...func() time.Time) (*Factory, error) {
 	owners, err := newOwnerCapabilitiesForTests(db)
 	if err != nil {
 		return nil, err
 	}
-	return owners.factory(newFactory(repos, db, logger, cfg, tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, owners.appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...))
+	return owners.factory(newFactory(repos.Factory, db, logger, cfg, tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, owners.appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...))
 }
 
 func currentTestFactoryConfig() FactoryConfig {
@@ -63,7 +63,7 @@ func currentTestFactoryConfig() FactoryConfig {
 // caregiverProfilesForTests binds the Lehrkraft guard to real People
 // Directory and School Membership compositions over db, as the factory does.
 func caregiverProfilesForTests(db *bun.DB) (caregiverProfiles, error) {
-	persons, err := repositories.NewPeopleDirectory(db)
+	persons, err := NewPeopleDirectory(db)
 	if err != nil {
 		return caregiverProfiles{}, err
 	}
@@ -79,7 +79,7 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
-	persons, err := repositories.NewPeopleDirectory(db)
+	persons, err := NewPeopleDirectory(db)
 	if err != nil {
 		return ownerCapabilities{}, err
 	}

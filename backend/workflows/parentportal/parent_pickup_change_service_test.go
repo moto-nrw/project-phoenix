@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -30,10 +29,10 @@ import (
 func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:       repos.CarePlan(),
-		People:         repositories.MustNewPeopleDirectory(db),
+		People:         services.MustNewPeopleDirectory(db),
 		CareProfiles:   careProfiles(t, db),
 		ChildRepo:      repos.ParentChild,
 		StatusDayRepo:  repos.StudentStatusDay,
@@ -56,18 +55,18 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentSe
 // submit/list/withdraw round trip runs against actual rows. configure adjusts
 // the service configuration before the service is built (#3163 uses it to
 // reuse the wiring for further services).
-func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *repositories.Factory) {
+func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *services.RepositoryTestFactory) {
 	t.Helper()
 	return buildPickupChangeServiceWithRequestOptions(t, nil, configure...)
 }
 
 // buildPickupChangeServiceWithRequestOptions is buildPickupChangeServiceWithRequests
 // with construction options for the request service (#3163 pins its clock).
-func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []services.CareRequestOption, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *repositories.Factory) {
+func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []services.CareRequestOption, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *services.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	timetableDeps := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, timetableDeps)
+	timetableDeps := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, timetableDeps)
 	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 
@@ -96,7 +95,7 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []s
 
 	cfg := parentportalcompose.Dependencies{
 		CarePlan:       repos.CarePlan(),
-		People:         repositories.MustNewPeopleDirectory(db),
+		People:         services.MustNewPeopleDirectory(db),
 		CareProfiles:   careProfiles(t, db),
 		ChildRepo:      repos.ParentChild,
 		StatusDayRepo:  repos.StudentStatusDay,

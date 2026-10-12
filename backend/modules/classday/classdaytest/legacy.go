@@ -12,7 +12,7 @@ import (
 // NewStudentScheduleRepositories composes the production compatibility
 // adapters without exposing the complete legacy repository factory to tests.
 func NewStudentScheduleRepositories(db *bun.DB) repositories.StudentScheduleRepositories {
-	return repositories.NewStudentScheduleRepositories(db)
+	return repositories.NewStudentScheduleRepositories(db, services.NewUnobservedTimetableDependencies(db))
 }
 
 // NewApprovedOfferingProjection composes the enrollment-owned approved

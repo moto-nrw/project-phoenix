@@ -46,8 +46,8 @@ func newServiceWithBroadcaster(
 func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.StudentPresence, syncer active.AttendanceSyncer, now ...func() time.Time) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, owners)
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
 	timetableRepos := repositories.NewTimetableRepositories(db, owners)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
@@ -223,8 +223,8 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, owners)
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
 	timetableRepos := repositories.NewTimetableRepositories(db, owners)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	devices, err := repositories.NewDeviceRepository(db)

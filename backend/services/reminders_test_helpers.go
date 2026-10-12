@@ -44,7 +44,7 @@ func NewRemindersTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return RemindersTestModule{}, err
 	}
-	students, err := repositories.NewPeopleDirectory(db)
+	students, err := NewPeopleDirectory(db)
 	if err != nil {
 		return RemindersTestModule{}, err
 	}

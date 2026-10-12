@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -30,13 +29,13 @@ const (
 
 type invitationEnv struct {
 	service services.InvitationCapability
-	repos   *repositories.InvitationPersistence
+	repos   *services.InvitationPersistence
 	db      *bun.DB
 }
 
 func newInvitationEnv(t *testing.T, db *bun.DB) invitationEnv {
 	t.Helper()
-	repos, err := repositories.NewInvitationPersistence(db)
+	repos, err := services.NewInvitationPersistence(db)
 	require.NoError(t, err)
 	return invitationEnv{service: setupInvitationService(t, db), repos: repos, db: db}
 }

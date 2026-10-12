@@ -122,7 +122,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		return StudentTestModule{}, err
 	}
 	persons := guardian.PeopleDirectory
-	contextRepos, err := repositories.NewUserContextTestRepositories(db)
+	contextRepos, err := repositories.NewUserContextTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return StudentTestModule{}, err
 	}
@@ -353,12 +353,12 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		return StudentTestModule{}, err
 	}
 	substitutionService := schoolStructure.NewSubstitutionModule(schoolStructure.SubstitutionDependencies{
-		Groups: repos.Group, Substitutions: repositories.NewEducationHandovers(contextRepos.Substitutions),
-		Persons: newEducationPersonQuery(persons), Teachers: repositories.NewEducationCaregivers(repos.Teacher),
-		Staff: repositories.NewEducationStaff(repos.Staff), Actors: substitutionActorResolver{identity: userContextService.Caller()},
+		Groups: repos.Group, Substitutions: NewEducationHandovers(contextRepos.Substitutions),
+		Persons: newEducationPersonQuery(persons), Teachers: NewEducationCaregivers(repos.Teacher),
+		Staff: NewEducationStaff(repos.Staff), Actors: substitutionActorResolver{identity: userContextService.Caller()},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
-		Audit:                   repositories.NewEducationSubstitutionAudit(repos.SubstitutionChange),
+		Audit:                   NewEducationSubstitutionAudit(repos.SubstitutionChange),
 		Runtime:                 schoolStructure.NewLegacyRepositoryRuntime(db), Broadcaster: realtimeHub,
 		Logger:   logger.With("service", "substitution"),
 		Schedule: scheduleSubstitution,

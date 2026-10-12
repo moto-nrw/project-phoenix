@@ -70,9 +70,9 @@ func (failingPickupBaseline) HasBookedOfferingPickupForWeekday(
 
 // autoExcusalRepositories is the one repository graph the pickup trigger
 // tests share (auto excusal and later-pickup tasks).
-func autoExcusalRepositories(db *bun.DB) (*repositories.Factory, timetable.Capability) {
-	deps := repositories.NewUnobservedTimetableDependencies(db)
-	return repositories.NewFactory(db, deps), deps.Capability
+func autoExcusalRepositories(db *bun.DB) (*services.RepositoryTestFactory, timetable.Capability) {
+	deps := services.NewUnobservedTimetableDependencies(db)
+	return services.NewRepositoryTestFactory(db, deps), deps.Capability
 }
 
 func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarness {
@@ -85,7 +85,7 @@ func setupAutoExcusalHarnessWithExtensions(t *testing.T, withBaseline, withExten
 	repos, tt := autoExcusalRepositories(db)
 
 	syncer := newPickupExcusal(t, db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), tt, withExtensions)
-	svc, err := services.NewPickupSchedules(db, repos.CarePlan(), repositories.MustNewPeopleDirectory(db), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), syncer, nil)
+	svc, err := services.NewPickupSchedules(db, repos.CarePlan(), services.MustNewPeopleDirectory(db), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), syncer, nil)
 	require.NoError(t, err)
 	partial, err := compose.NewPartialAbsences(db, repos.CarePlan(), repositories.NewStudentPresenceForTests(db), syncer)
 	require.NoError(t, err)
@@ -222,7 +222,7 @@ func TestAutoExcusal_DeletingTheExceptionRestoresBlocks(t *testing.T) {
 	assert.Equal(t, scheduleModel.AttendanceStatusExpected, after.Status)
 	assert.Nil(t, after.PickupExceptionID)
 
-	repos := repositories.NewFactory(h.db, repositories.NewUnobservedTimetableDependencies(h.db))
+	repos := services.NewRepositoryTestFactory(h.db, services.NewUnobservedTimetableDependencies(h.db))
 	gone, err := repos.StudentPickupException.FindByStudentIDAndDate(h.ctx, h.student.ID, scheduleModel.Date(h.date))
 	require.NoError(t, err)
 	assert.Nil(t, gone)
@@ -422,7 +422,7 @@ func TestAutoExcusal_ManualDeleteOfConvertedRowRederivesAuto(t *testing.T) {
 
 func (h *autoExcusalHarness) exception(t *testing.T) *scheduleModel.StudentPickupException {
 	t.Helper()
-	row, err := repositories.NewFactory(h.db, repositories.NewUnobservedTimetableDependencies(h.db)).StudentPickupException.FindByStudentIDAndDate(h.ctx, h.student.ID, scheduleModel.Date(h.date))
+	row, err := services.NewRepositoryTestFactory(h.db, services.NewUnobservedTimetableDependencies(h.db)).StudentPickupException.FindByStudentIDAndDate(h.ctx, h.student.ID, scheduleModel.Date(h.date))
 	require.NoError(t, err)
 	return row
 }
@@ -536,7 +536,7 @@ func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
 	t.Parallel()
 
 	h := setupAutoExcusalHarness(t, true)
-	repos := repositories.NewFactory(h.db, repositories.NewUnobservedTimetableDependencies(h.db))
+	repos := services.NewRepositoryTestFactory(h.db, services.NewUnobservedTimetableDependencies(h.db))
 	timetableRepos := testTimetableRepositories(h.db)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)

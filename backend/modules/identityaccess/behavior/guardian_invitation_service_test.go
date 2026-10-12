@@ -27,7 +27,7 @@ const strongTestPassword = "GuardianTest!2026"
 // guardianTestEnv bundles the real-DB dependencies tests need.
 type guardianTestEnv struct {
 	db      *bun.DB
-	repos   *repositories.Factory
+	repos   *services.RepositoryTestFactory
 	service services.GuardianInvitationCapability
 	cleanup func()
 }
@@ -40,7 +40,7 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*bun.DB, *services
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 
 	cfg := services.GuardianInvitationTestConfig{
 		Outbox: testpkg.NewCapturingOutbox(),
@@ -746,7 +746,7 @@ func TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransa
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	realBackfiller := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentEnrollmentRequest
+	realBackfiller := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ParentEnrollmentRequest
 	env := setupGuardianInviteWithBackfiller(t, realBackfiller)
 
 	profile := testpkg.CreateTestGuardianProfile(t, db, "backfill-outer-admin")

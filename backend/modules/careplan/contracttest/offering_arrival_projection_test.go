@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -29,7 +31,7 @@ func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritativ
 	if err != nil {
 		panic(err)
 	}
-	baselines, err := newArrivalBaselinesFixture(env.repos.CarePlan(), repositories.MustNewPeopleDirectory(env.db), classArrivalQueries, approvedOfferingTestProjection(env.repos), func(context.Context) (bool, error) { return authoritative, nil })
+	baselines, err := newArrivalBaselinesFixture(env.repos.CarePlan(), services.MustNewPeopleDirectory(env.db), classArrivalQueries, approvedOfferingTestProjection(env.repos), func(context.Context) (bool, error) { return authoritative, nil })
 	if err != nil {
 		panic(err)
 	}

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/stretchr/testify/assert"
@@ -108,7 +110,7 @@ func (f *calendarPeriodValidationFixture) createPeriod(
 		IsActive:        true,
 	}
 	period.SetTenantID(f.tenantID)
-	require.NoError(t, repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).CalendarPeriod.Create(f.ctx, period))
+	require.NoError(t, services.NewRepositoryTestFactory(f.db, services.NewUnobservedTimetableDependencies(f.db)).CalendarPeriod.Create(f.ctx, period))
 	return period
 }
 
@@ -289,7 +291,7 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering
 	_, offering := fixture.createLinkedTemplate(t, &period.ID, nil)
 	fixture.selectOfferingForSubmittedChild(t, offering.ID)
 	offering.IsActive = false
-	require.NoError(t, newCareOfferingFixtureRecords(repositories.NewFactory(fixture.db, repositories.NewUnobservedTimetableDependencies(fixture.db)).CarePlan()).Update(fixture.ctx, offering))
+	require.NoError(t, newCareOfferingFixtureRecords(services.NewRepositoryTestFactory(fixture.db, services.NewUnobservedTimetableDependencies(fixture.db)).CarePlan()).Update(fixture.ctx, offering))
 
 	replacement := calendarPeriodReplacementOf(*period)
 	replacement.IsActive = false
@@ -384,7 +386,7 @@ func setupCareGuardTest(t *testing.T) (*bun.DB, *enrollmentTest.CareOfferingRows
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	catalog := testCareOfferingCatalog(t, db,
 		testutil.WithCareOfferingPickupResync(&pickupResyncer{}))
 
@@ -466,7 +468,7 @@ func setCareTestPhaseWindow(
 	t.Helper()
 	phase.ServiceStartDate = enrollmentTest.Date(start)
 	phase.ServiceEndDate = enrollmentTest.Date(end)
-	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
+	require.NoError(t, services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
 }
 
 func createCareMaterializationException(

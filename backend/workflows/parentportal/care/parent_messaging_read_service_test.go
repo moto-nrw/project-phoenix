@@ -31,16 +31,16 @@ import (
 // buildReadService wires the full parent messaging stack including the guardian
 // profile repo (so resolveGuardianName resolves a real name) and returns the
 // service, broadcaster, db, and repo factory.
-func buildReadService(t *testing.T, enabled bool) (*messaging.Service, *testpkg.RecordingBroadcaster, *bun.DB, *repositories.Factory) {
+func buildReadService(t *testing.T, enabled bool) (*messaging.Service, *testpkg.RecordingBroadcaster, *bun.DB, *services.RepositoryTestFactory) {
 	return buildReadServiceWithNotifier(t, enabled, nil)
 }
 
-func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificationsSvc.StaffParentMessageNotifier) (*messaging.Service, *testpkg.RecordingBroadcaster, *bun.DB, *repositories.Factory) {
+func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificationsSvc.StaffParentMessageNotifier) (*messaging.Service, *testpkg.RecordingBroadcaster, *bun.DB, *services.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	// Child names come from the People Directory composition (#2661); bind
 	// it before the school projections, as the service graph does.
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos, err := services.NewRepositoryTestFactoryWithPeopleDirectory(db, services.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	organizationTenancy, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
@@ -82,7 +82,7 @@ func (n *recordingStaffParentMessageNotifier) NotifyStaffParentMessage(_ context
 // seedStaffReply inserts a staff-authored message into the guardian's child
 // thread (creating the thread), simulating an OGS reply that is unread to the
 // guardian. Returns the thread id and the staff account id (caller cleans it up).
-func seedStaffReply(t *testing.T, db *bun.DB, repos *repositories.Factory, chain testpkg.ParentChain, body string) (int64, int64) {
+func seedStaffReply(t *testing.T, db *bun.DB, repos *services.RepositoryTestFactory, chain testpkg.ParentChain, body string) (int64, int64) {
 	t.Helper()
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 

@@ -3,6 +3,8 @@ package inbound
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -15,7 +17,7 @@ func TestCustomAbsenceAllowanceIsTenantIsolated(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	tenantA := testpkg.NewTenantScope(t, db)
 	tenantB := testpkg.NewTenantScope(t, db)
-	repos, err := repositories.NewWorkforceTestRepositories(db)
+	repos, err := repositories.NewWorkforceTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantA.TenantID, "Rena", "Mandant A")
 	admin := testpkg.CreateTestStaffForTenant(t, db, tenantA.TenantID, "Lea", "Mandant A")

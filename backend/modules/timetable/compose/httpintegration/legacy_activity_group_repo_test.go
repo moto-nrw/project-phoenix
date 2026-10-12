@@ -3,6 +3,8 @@ package httpintegration_test
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -13,7 +15,7 @@ import (
 func TestTimetableGroupAdapterPreservesDatabaseErrorBehavior(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repository := repositories.NewTimetableRepositories(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityGroup
+	repository := repositories.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db)).ActivityGroup
 
 	group, err := repository.FindByID(testpkg.Ctx(t), int64(9_223_372_036_854_775_000))
 

@@ -33,7 +33,7 @@ import (
 
 type deletionFixture struct {
 	db       *bun.DB
-	repos    *repositories.Factory
+	repos    *services.RepositoryTestFactory
 	people   peopledirectory.Capability
 	deps     studentdeletion.Dependencies
 	actorID  int64
@@ -44,7 +44,7 @@ type deletionFixture struct {
 // through the repository contract the retained student services read, so the
 // deletion tests read links without driving the companion capability itself.
 func companionLinks(db *bun.DB) userModels.StudentCompanionRepository {
-	return repositories.NewStudentCompanionRepository(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CarePlan())
+	return repositories.NewStudentCompanionRepository(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CarePlan())
 }
 
 // linkCompanions stages one Monday link between two children.
@@ -58,13 +58,13 @@ func linkCompanions(t *testing.T, ctx context.Context, db *bun.DB, subjectID, co
 // studentPlans is the child repository the departure-plan fixture writes
 // through, so a staged plan is the normalized one a production write leaves.
 func studentPlans(db *bun.DB) testpkg.StudentPlanWriter {
-	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Student
 }
 
 // careWithdrawals is the Care Plan repository the withdrawal fixture stores
 // through, so a staged task obeys the owner's one-pending-task-per-child rule.
 func careWithdrawals(db *bun.DB) testpkg.CareWithdrawalWriter {
-	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
+	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CareWithdrawal
 }
 
 // clearCompanionNote drops the free-text note straight in SQL, leaving a child
@@ -84,9 +84,9 @@ func clearCompanionNote(t *testing.T, db *bun.DB, studentID int64) {
 // owners and replaces only the HTTP principal with a fixed actor.
 func newDeletionFixture(t *testing.T, db *bun.DB) *deletionFixture {
 	t.Helper()
-	timetableDeps := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, timetableDeps)
-	people, err := repositories.NewPeopleDirectory(db)
+	timetableDeps := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, timetableDeps)
+	people, err := services.NewPeopleDirectory(db)
 	require.NoError(t, err)
 	actor := testpkg.CreateTestAccount(t, db, "student-delete-actor@example.com")
 	feedback := &testpkg.FeedbackEntryCounterMock{}

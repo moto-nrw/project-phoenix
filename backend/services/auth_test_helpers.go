@@ -45,12 +45,12 @@ type AuthTestModule struct {
 	OperatorPasskeys identityaccess.OperatorPasskeyFlows
 	// Repos and TokenAuth let a behaviour test read the rows the flows
 	// wrote and mint the tokens they expect.
-	Repos     *repositories.Factory
+	Repos     repositories.MembershipTestRepositories
 	TokenAuth *authjwt.TokenAuth
 }
 
 type InvitationTestModule struct {
-	Persistence *repositories.InvitationPersistence
+	Persistence *InvitationPersistence
 	Invitation  InvitationCapability
 	// Auth is the composed Identity & Access module, for the invitation
 	// HTTP tests that mount the whole auth router and therefore need the
@@ -59,7 +59,7 @@ type InvitationTestModule struct {
 }
 
 func NewInvitationTestModule(db *bun.DB, unit tenant.UnitOfWork) (InvitationTestModule, error) {
-	repos, err := repositories.NewInvitationPersistence(db)
+	repos, err := NewInvitationPersistence(db)
 	if err != nil {
 		return InvitationTestModule{}, err
 	}
@@ -176,7 +176,12 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	r, err := repositories.NewAuthTestRepositories(db)
+	members, err := NewMembershipTestRepositories(db)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
+	r := identityChainOf(db, members)
+	parentEnrollments, err := repositories.NewAuthTestParentEnrollments(db)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -231,7 +236,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	}, logger)
 	sessionRepos := sessionRepositoriesOf(r, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db))
 	if settingsOverrides.staffCreateErr != nil {
-		sessionRepos.lifecycle.staff = failingStaffDirectory{StaffRepository: r.Staff, err: settingsOverrides.staffCreateErr}
+		sessionRepos.lifecycle.staff = failingStaffDirectory{StaffRepository: r.staff, err: settingsOverrides.staffCreateErr}
 	}
 	// The operator flows are composed here too: the operator second factor
 	// and both portals' passkey ceremonies (#3331) mint their sessions
@@ -273,7 +278,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 			guardianMail: &guardianInvitationWiring{
 				settings: settings.Settings, schools: organizations,
 				outbox:      func() platformModels.OutboxResultEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
-				enrollments: r.ParentEnrollmentRequest, parentsURL: parentsURL,
+				enrollments: parentEnrollments, parentsURL: parentsURL,
 				fallbackExpiry: time.Duration(inviteHours) * time.Hour, logger: logger,
 			},
 		},
@@ -308,17 +313,17 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		DemoAccess: identityAccess.DemoAccess(),
 		MFA:        identityAccess, Passkeys: identityAccess,
 		OperatorMFA: identityAccess, OperatorPasskeys: identityAccess,
-		Repos: r, TokenAuth: tokenAuth,
+		Repos: members, TokenAuth: tokenAuth,
 		Invitation: invitation, GuardianInvitation: guardian,
 		Schools: organizations, Settings: settings.Settings,
 	}, nil
 }
 
 // IdentityAccessForTests composes the Identity & Access module over the
-// given repositories the way the factory does it, for behaviour tests that
-// exercise sessions, the account lifecycle or the role administration
+// identity chain rows of db the way the factory does it, for behaviour tests
+// that exercise sessions, the account lifecycle or the role administration
 // without the whole factory (#3364).
-func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestConfig, db *bun.DB, logger *slog.Logger) (*identityaccess.Module, error) {
+func IdentityAccessForTests(cfg IdentityAccessTestConfig, db *bun.DB, logger *slog.Logger) (*identityaccess.Module, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -339,6 +344,10 @@ func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestC
 		return nil, err
 	}
 	organizations, err := repositories.NewOrganizationTenancy(db)
+	if err != nil {
+		return nil, err
+	}
+	repos, err := authTestIdentityChain(db)
 	if err != nil {
 		return nil, err
 	}

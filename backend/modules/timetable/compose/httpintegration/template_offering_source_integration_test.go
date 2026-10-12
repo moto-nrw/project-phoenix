@@ -64,7 +64,7 @@ func createSourceCareOfferingOnDays(
 		IsActive:                  true,
 	}
 	phase.TenantID = s.tenantID
-	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
+	repos := bookingFixtures.NewRepositoryTestFactory(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db))
 	require.NoError(t, repos.Enrollment().InsertPhase(s.ctx, phase))
 
 	offering := testpkg.NewSourceCareOffering(phase.ID, fmt.Sprintf("Frühbetreuung %d", suffix), days, nil)
@@ -97,7 +97,7 @@ func registerSourcedTemplateCleanup(t *testing.T, s *scenarioSetup, templateID i
 
 func loadTemplateGroup(t *testing.T, s *scenarioSetup, templateID int64) *activitiesModels.Group {
 	t.Helper()
-	group, err := repositories.NewTimetableRepositories(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindByID(s.ctx, templateID)
+	group, err := repositories.NewTimetableRepositories(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindByID(s.ctx, templateID)
 	require.NoError(t, err)
 	require.NotNil(t, group)
 	return group
@@ -898,7 +898,7 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 		IsActive:        true,
 	}
 	latePeriod.SetTenantID(s.tenantID)
-	require.NoError(t, repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).CalendarPeriod.Create(s.ctx, latePeriod))
+	require.NoError(t, bookingFixtures.NewRepositoryTestFactory(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db)).CalendarPeriod.Create(s.ctx, latePeriod))
 	s.extraCleanups = append([]func(){func() {
 	}}, s.extraCleanups...)
 
@@ -1087,7 +1087,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 func templatesSourcingOffering(t *testing.T, s *scenarioSetup, offeringID int64) []timetable.Group {
 	t.Helper()
 	isTemplate := true
-	sourced, err := repositories.NewUnobservedTimetableDependencies(s.db).Capability.ListGroups(s.ctx, timetable.GroupFilter{
+	sourced, err := bookingFixtures.NewUnobservedTimetableDependencies(s.db).Capability.ListGroups(s.ctx, timetable.GroupFilter{
 		IsTemplate: &isTemplate, ActiveOnly: true, SourceOfferingIDs: []int64{offeringID}, OrderByID: true,
 	})
 	require.NoError(t, err)

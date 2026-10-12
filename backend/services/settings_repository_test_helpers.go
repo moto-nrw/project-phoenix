@@ -42,7 +42,7 @@ type DisplayTestRepositories struct {
 
 // NewDisplayTestRepositories composes the dashboard's read dependencies.
 func NewDisplayTestRepositories(db *bun.DB, runtime settingsCompose.PersistenceRuntime) (DisplayTestRepositories, error) {
-	readers, err := repositories.NewDisplayTestRepositories(db)
+	readers, err := repositories.NewDisplayTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return DisplayTestRepositories{}, err
 	}

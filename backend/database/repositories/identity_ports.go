@@ -10,6 +10,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -62,18 +63,6 @@ func (d identityAccountDirectory) AccountEmail(ctx context.Context, accountID in
 	return account.Email, nil
 }
 
-// NewGuardianProfileRepository composes the People Directory guardian profile
-// repository with the Identity & Access active-account (#2720),
-// active-membership and guardian-role (#2721) queries its portal
-// reachability check joins. Compositions that do not build the whole factory
-// use it so no call site can forget the owner queries.
-func NewGuardianProfileRepository(db *bun.DB) userModels.GuardianProfileRepository {
-	return usersRepo.NewGuardianProfileRepository(peopleRuntime(db),
-		usersRepo.WithPortalMemberships(newIdentityAccess(db, nil).FindActiveGuardianMemberships),
-		usersRepo.WithPortalLoginMemberships(newIdentityAccess(db, nil).FindLoginReadyGuardianMemberships),
-	)
-}
-
 // staffMessageIdentity returns the Identity & Access owner queries the staff
 // messaging reads filter through.
 func staffMessageIdentity(accounts identityaccess.StaffAccountQueries) usersRepo.StaffMessageIdentity {
@@ -99,15 +88,17 @@ func schoolRoleClassQuery(roles identityaccess.StaffAccountQueries) usersRepo.Sc
 	}
 }
 
-// NewPersonRepository composes the People Directory person repository with
-// the Identity & Access account lookup FindWithAccount attaches (#2720).
-func NewPersonRepository(db *bun.DB) userModels.PersonRepository {
-	return usersRepo.NewPersonRepository(peopleRuntime(db), usersRepo.WithAccountLookup(accountLookup(newIdentityAccess(db, nil))))
+// newPersonRepository is the People Directory person repository with the
+// Identity & Access account lookup FindWithAccount attaches (#2720), for the
+// adapters still in this package. services composes the same repository
+// where it is used (#2743).
+func newPersonRepository(db *bun.DB) userModels.PersonRepository {
+	return peopleCompose.NewPersonRepository(db, accountLookup(newIdentityAccess(db, nil)))
 }
 
 // accountLookup adapts the owner's by-id read to the People Directory
 // lookup: a missing account resolves to nil, as the former LEFT JOIN did.
-func accountLookup(accounts identityaccess.AccountProfiles) usersRepo.AccountLookup {
+func accountLookup(accounts identityaccess.AccountProfiles) peopleCompose.AccountLookup {
 	return func(ctx context.Context, accountID int64) (*userModels.PersonAccount, error) {
 		account, err := accounts.FindAccountMetadata(ctx, accountID)
 		if errors.Is(err, identityaccess.ErrAccountNotFound) {

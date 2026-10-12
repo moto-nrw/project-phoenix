@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -34,7 +33,7 @@ func setupCaregiverFactory(t *testing.T) (*bun.DB, *services.Factory) {
 func setupServiceFactory(t *testing.T, db *bun.DB) *services.Factory {
 	t.Helper()
 
-	factory, err := services.NewFactoryForTests(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)), db, slog.Default())
+	factory, err := services.NewFactoryForTests(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)), db, slog.Default())
 	require.NoError(t, err)
 	return factory
 }
@@ -300,11 +299,11 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	assert.Equal(t, "Ada", person.FirstName)
 	assert.Equal(t, "Lovelace", person.LastName)
 
-	staff, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff.FindByPersonID(ctx, person.ID)
+	staff, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Staff.FindByPersonID(ctx, person.ID)
 	require.NoError(t, err)
 	require.NotNil(t, staff)
 
-	teacher, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Teacher.FindByStaffID(ctx, staff.ID)
+	teacher, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Teacher.FindByStaffID(ctx, staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, teacher)
 	assert.Equal(t, "Betreuungskraft", teacher.Role)

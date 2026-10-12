@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -22,7 +21,7 @@ import (
 
 // setupArrivalScheduleService creates an ArrivalScheduleService with real database connection
 func setupArrivalScheduleService(t *testing.T, db *bun.DB) careplan.ArrivalScheduleService {
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.ArrivalSchedule
@@ -247,7 +246,7 @@ func TestArrivalScheduleService_UpsertBulkWaitsForStudentLock(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	service := setupArrivalScheduleService(t, db)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "ArrivalLock", "Student", "1a")

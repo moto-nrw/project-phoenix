@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -42,7 +44,7 @@ func NewCareLifecycleOwners(db *bun.DB, sources CareLifecycleOwnerSources, chang
 		Enrollment:  careExitEnrollment{projection: NewEnrollmentBookingProjection(enrollmentCompose.New())},
 		Presence:    careExitPresence{presence: presence},
 		Calendar:    careExitCalendarPeriods{calendar: sources.Calendar},
-		Tags:        NewStudentTagReleaser(sources.People),
+		Tags:        peopleCompose.NewStudentTagReleaser(sources.People),
 		ChangeTrail: changeTrail,
 	}
 }

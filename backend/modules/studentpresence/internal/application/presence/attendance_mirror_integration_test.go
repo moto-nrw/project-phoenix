@@ -81,8 +81,8 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	}
 	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repoFactory := repositories.NewFactory(db, owners)
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repoFactory := services.NewRepositoryTestFactory(db, owners)
 	timetableRepos := repositories.NewTimetableRepositories(db, owners)
 	instanceStudentRepo := timetableRepos.InstanceStudent
 
@@ -254,7 +254,7 @@ func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
 			require.NotNil(t, checkInSnapshot5)
 			testpkg.CreateTestVisit(t, s.db, student.ID, s.activeGroup.ID, entryTime, nil)
 
-			factory, err := services.NewFactoryForTests(repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)), s.db, slog.Default())
+			factory, err := services.NewFactoryForTests(services.NewRepositoryTestFactory(s.db, services.NewUnobservedTimetableDependencies(s.db)), s.db, slog.Default())
 			require.NoError(t, err)
 			if tt.timeout {
 				device := testpkg.CreateTestDevice(t, s.db, fmt.Sprintf("AS-Bulk-%d", time.Now().UnixNano()))

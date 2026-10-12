@@ -27,7 +27,7 @@ func NewUserContextTestModule(db *bun.DB, unit tenant.UnitOfWork) (UserContextTe
 // newCallerRowsForTests composes the caller context over the same owners as
 // production. settings may be nil.
 func newCallerRowsForTests(db *bun.DB, settings callerSettings) (*repositories.CallerRows, error) {
-	r, err := repositories.NewUserContextTestRepositories(db)
+	r, err := repositories.NewUserContextTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return nil, err
 	}

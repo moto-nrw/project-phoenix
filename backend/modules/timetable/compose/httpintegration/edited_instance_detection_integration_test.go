@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -117,7 +119,7 @@ func replaceScenarioTarget(t *testing.T, s *scenarioSetup, targetType string) {
 			Exec(s.ctx)
 		require.NoError(t, err)
 	}
-	targetRepo, ok := repositories.NewTimetableRepositories(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.(activitiesModels.GroupTargetRepository)
+	targetRepo, ok := repositories.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.(activitiesModels.GroupTargetRepository)
 	require.True(t, ok)
 	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activitiesModels.GroupTarget{target}))
 }
@@ -537,6 +539,6 @@ func setInstanceStaffAbsent(t *testing.T, s *scenarioSetup, instanceID, staffID 
 }
 
 func testInstanceStudents(db *bun.DB) scheduleModels.InstanceStudentRepository {
-	factory := repositories.NewTimetableRepositories(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := repositories.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
 	return factory.InstanceStudent
 }

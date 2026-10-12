@@ -26,7 +26,7 @@ type seriesTestEnv struct {
 	db             *bun.DB
 	scope          testpkg.TenantScope
 	staff          *usersModels.Staff
-	repos          *repositories.Factory
+	repos          *services.RepositoryTestFactory
 	shiftRows      *workforceCompose.ShiftRows
 	seriesRows     *workforceCompose.ShiftSeriesRows
 	exceptionRows  *workforceCompose.ShiftSeriesExceptionRows
@@ -41,8 +41,8 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 
 	scope := testpkg.NewTenantScope(t, db)
 	staff := testpkg.CreateTestStaffForTenant(t, db, scope.TenantID, "Serie", fmt.Sprintf("Dienstplan-%d", scope.TenantID))
-	dependencies := repositories.NewUnobservedTimetableDependencies(db)
-	repoFactory := repositories.NewFactory(db, dependencies)
+	dependencies := services.NewUnobservedTimetableDependencies(db)
+	repoFactory := services.NewRepositoryTestFactory(db, dependencies)
 	// The same composition the root builds, with the materializer's calendar
 	// day pinned so the "never touch today or the past" rule is testable.
 	today := timezone.CalendarDateClock(func() time.Time {
@@ -806,8 +806,8 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 
 	queryCounter := testpkg.NewQueryCounter()
 	countedDB := env.db.WithQueryHook(queryCounter)
-	countedDependencies := repositories.NewUnobservedTimetableDependencies(countedDB)
-	repos := repositories.NewFactory(countedDB, countedDependencies)
+	countedDependencies := services.NewUnobservedTimetableDependencies(countedDB)
+	repos := services.NewRepositoryTestFactory(countedDB, countedDependencies)
 	timetableRepos := repositories.NewTimetableRepositories(countedDB, countedDependencies)
 	countedShifts := workforceCompose.NewShiftRows(countedDependencies.Workforce)
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{

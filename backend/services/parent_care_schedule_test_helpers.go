@@ -16,7 +16,7 @@ func NewParentCareScheduleTestService(db *bun.DB, module StudentTestModule) (*pa
 	if err != nil {
 		return nil, err
 	}
-	parents, err := repositories.NewParentRouteTestRepositories(db)
+	parents, err := repositories.NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return nil, err
 	}

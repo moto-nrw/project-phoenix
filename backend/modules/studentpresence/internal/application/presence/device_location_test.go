@@ -16,7 +16,7 @@ import (
 
 func buildDeviceLocationService(t *testing.T, db *testpkg.DB) activeSvc.Service {
 	t.Helper()
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return composedEngine(t, serviceFactory.Active)

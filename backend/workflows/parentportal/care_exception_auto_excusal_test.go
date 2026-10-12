@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -31,11 +33,11 @@ import (
 func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	timetableDeps := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, timetableDeps)
+	timetableDeps := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, timetableDeps)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:       repos.CarePlan(),
-		People:         repositories.MustNewPeopleDirectory(db),
+		People:         services.MustNewPeopleDirectory(db),
 		CareProfiles:   careProfiles(t, db),
 		ChildRepo:      repos.ParentChild,
 		StatusDayRepo:  repos.StudentStatusDay,
@@ -94,7 +96,7 @@ func TestSubmitCareException_PullForwardCouplesAndReleases(t *testing.T) {
 	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *row.Substatus)
 	require.NotNil(t, row.PickupExceptionID)
 
-	exception, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupException.FindByStudentIDAndDate(
+	exception, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentPickupException.FindByStudentIDAndDate(
 		testpkg.TenantContext(chain.TenantID), chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	require.NotNil(t, exception)
@@ -137,7 +139,7 @@ func TestDeleteCareException_ReleasesAutoExcusedBlocks(t *testing.T) {
 	assert.Nil(t, row.PickupExceptionID)
 	assert.Nil(t, row.Substatus)
 
-	exception, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupException.FindByStudentIDAndDate(
+	exception, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentPickupException.FindByStudentIDAndDate(
 		testpkg.TenantContext(chain.TenantID), chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	assert.Nil(t, exception, "withdrawing the override removes the guardian row")

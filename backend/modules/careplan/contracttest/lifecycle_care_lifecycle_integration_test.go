@@ -40,7 +40,7 @@ import (
 func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos, err := services.NewRepositoryTestFactoryWithPeopleDirectory(db, services.NewUnobservedTimetableDependencies(db))
 	timetableRepos := testTimetableRepositories(db)
 	require.NoError(t, err)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
@@ -64,7 +64,7 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
 		StaffNames: services.NewAttendanceStaffNames(repos.Staff, services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
-			RFIDCards: repos.RFIDCard, AccountExists: repositories.AccountExists(repos.Profile),
+			RFIDCards: repos.RFIDCard, AccountExists: services.AccountExists(repos.Profile),
 		})),
 		DB:     db,
 		Logger: slog.Default(),
@@ -94,7 +94,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos, err := services.NewRepositoryTestFactoryWithPeopleDirectory(db, services.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	today := timezone.NewDate(2026, 8, 24)
 	svc := newCareLifecycleServiceAt(t, db, today)
@@ -171,7 +171,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	t.Run("the child is gone from the group roster reads", func(t *testing.T) {
 		personSvc := services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
-			RFIDCards: repos.RFIDCard, AccountExists: repositories.AccountExists(repos.Profile),
+			RFIDCards: repos.RFIDCard, AccountExists: services.AccountExists(repos.Profile),
 		}).WithCareParticipation(func(
 			ctx context.Context, studentIDs []int64, on, today timezone.Date,
 		) (map[int64]bool, error) {

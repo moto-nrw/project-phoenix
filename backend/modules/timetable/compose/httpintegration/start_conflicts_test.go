@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -37,7 +39,7 @@ func TestStaffPoolForInstance_UnknownInstanceIsNotFound(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos, err := repositories.NewTimetableTestRepositories(db)
+	repos, err := repositories.NewTimetableTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SC-Pool-Room-%d", time.Now().UnixNano()))
 	instance := testpkg.CreateTestActivityInstance(t, db, calendar.NewDate(2026, time.April, 20), room.ID,
@@ -66,7 +68,8 @@ func TestStaffPoolForInstance_UnknownInstanceIsNotFound(t *testing.T) {
 func TestWindowConflicts_FingerprintsMatchPersistedAcknowledgements(t *testing.T) {
 	t.Parallel()
 
-	repos, err := repositories.NewTimetableTestRepositories(testpkg.SetupTestDB(t))
+	db := testpkg.SetupTestDB(t)
+	repos, err := repositories.NewTimetableTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	detection := newConflictDetection(t, repos)
 

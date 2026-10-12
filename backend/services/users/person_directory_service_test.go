@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -615,7 +614,7 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "PURGEDTAG")
 		// Deleting the student is this test's ARRANGE step, not a teardown:
 		// the point is what the service does when the row is gone.
-		repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+		repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 		require.NoError(t, repos.Student.Delete(ctx, student.ID))
 
 		// ACT

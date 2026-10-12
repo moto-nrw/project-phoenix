@@ -580,3 +580,16 @@ func (p careExitCalendarPeriods) ListCalendarPeriodIDs(ctx context.Context) ([]i
 	}
 	return ids, nil
 }
+
+func membershipID(id any) (int64, error) {
+	switch value := id.(type) {
+	case int64:
+		return value, nil
+	case int:
+		return int64(value), nil
+	case int32:
+		return int64(value), nil
+	default:
+		return 0, fmt.Errorf("unsupported id type %T", id)
+	}
+}

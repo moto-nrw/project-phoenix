@@ -141,7 +141,7 @@ type decisionTestEnv struct {
 	// over the test tenant.
 	tb    testing.TB
 	db    *bun.DB
-	repos *repositories.Factory
+	repos *services.RepositoryTestFactory
 	// timetable are the retained Timetable adapters over the same owners.
 	timetable repositories.TimetableRepositories
 	// requestSvc is the parent-facing intake.
@@ -177,8 +177,8 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings testutil.EnrollmentDe
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
-	timetableDeps := repositories.NewUnobservedTimetableDependencies(db)
-	repoFactory := repositories.NewFactory(db, timetableDeps)
+	timetableDeps := services.NewUnobservedTimetableDependencies(db)
+	repoFactory := services.NewRepositoryTestFactory(db, timetableDeps)
 	settings := newStubRequestSettings()
 	settings.boolValues[enrollmentKeys.Enabled] = true
 	settings.boolValues[enrollmentKeys.AllowSubmissionEdit] = true
@@ -370,7 +370,7 @@ func composeBookings(
 func composeDecisions(
 	tb testing.TB,
 	db *bun.DB,
-	repoFactory *repositories.Factory,
+	repoFactory *services.RepositoryTestFactory,
 	bookings enrollmentTest.DecisionBookings,
 	settings testutil.EnrollmentDecisionSettings,
 	lockTemplateRecurrence func(context.Context) error,
@@ -383,7 +383,7 @@ func composeDecisions(
 	}
 	guardianAccess, err := testutil.NewEnrollmentGuardianAccess(db)
 	require.NoError(tb, err)
-	students, err := repositories.NewPeopleDirectory(db)
+	students, err := services.NewPeopleDirectory(db)
 	require.NoError(tb, err)
 	audits := services.NewTestAuditPersistence(db, nil)
 	return testutil.NewEnrollmentDecisions(testutil.EnrollmentDecisionSources{
@@ -410,7 +410,7 @@ func composeDecisions(
 		StudentEnrollment:      students,
 		Companions:             repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:       repoFactory.CarePlan().DeleteCompanionEdges,
-		StudentAudit:           services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAudit(db)),
+		StudentAudit:           services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, services.NewStudentAudit(db)),
 		CareWithdrawal:         careWithdrawal,
 		FrontendURL:            "http://localhost:3000",
 		ParentsURL:             "http://parents.localhost:3000",
@@ -439,7 +439,7 @@ func newTestCareLifecycle(db *bun.DB, config repositories.CareLifecycleTestConfi
 		panic(err)
 	}
 	if config.Audit == nil {
-		config.Audit = services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAudit(db))
+		config.Audit = services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, services.NewStudentAudit(db))
 	}
 	lifecycle, err := repos.NewCareLifecycle(config)
 	if err != nil {
@@ -697,7 +697,7 @@ func (d offeringStudentTestDirectory) ListOfferingStudents(ctx context.Context, 
 	return rows, nil
 }
 
-func approvedOfferingTestProjection(repos *repositories.Factory) *enrollmentTest.ApprovedOfferingProjection {
+func approvedOfferingTestProjection(repos *services.RepositoryTestFactory) *enrollmentTest.ApprovedOfferingProjection {
 	return enrollmentTest.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudentTestDirectory{repos.Student})
 }
 

@@ -23,9 +23,9 @@ import (
 // overviewRepositories composes the retained readers and the Dienstplan row
 // adapter over the same handle, so a query counter attached to db observes
 // every read the projection makes.
-func overviewRepositories(db *bun.DB) (*repositories.Factory, repositories.TimetableRepositories, *workforceCompose.ShiftRows, repositories.TimetableDependencies) {
-	dependencies := repositories.NewUnobservedTimetableDependencies(db)
-	return repositories.NewFactory(db, dependencies), repositories.NewTimetableRepositories(db, dependencies), workforceCompose.NewShiftRows(dependencies.Workforce), dependencies
+func overviewRepositories(db *bun.DB) (*services.RepositoryTestFactory, repositories.TimetableRepositories, *workforceCompose.ShiftRows, repositories.TimetableDependencies) {
+	dependencies := services.NewUnobservedTimetableDependencies(db)
+	return services.NewRepositoryTestFactory(db, dependencies), repositories.NewTimetableRepositories(db, dependencies), workforceCompose.NewShiftRows(dependencies.Workforce), dependencies
 }
 
 func integrationClock(t *testing.T, value string) time.Time {
@@ -181,7 +181,7 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 
 	modelStaff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Summary", "ModelFallback")
 	createOverviewShift(t, db, tenantID, modelStaff.ID, monday, "09:00", "10:00", 0)
-	modelRepo := workforceRepositoryAdapter.NewWorkTimeModelRepository(repositories.NewUnobservedTimetableDependencies(db).Workforce)
+	modelRepo := workforceRepositoryAdapter.NewWorkTimeModelRepository(services.NewUnobservedTimetableDependencies(db).Workforce)
 	workModel := &configModel.WorkTimeModel{
 		Name:               fmt.Sprintf("Summary fallback %d", time.Now().UnixNano()),
 		RotationLength:     1,

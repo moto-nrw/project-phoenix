@@ -46,7 +46,7 @@ type careFixture struct {
 	db           *bun.DB
 	svc          carerequests.Service
 	sf           *services.Factory
-	repos        *repositories.Factory
+	repos        *services.RepositoryTestFactory
 	timetable    repositories.TimetableRepositories
 	chain        testpkg.ParentChain
 	staffAccount int64
@@ -100,8 +100,8 @@ func newCareFixture(t *testing.T, options ...services.CareRequestOption) *careFi
 func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, options ...services.CareRequestOption) *careFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	timetableDeps := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, timetableDeps)
+	timetableDeps := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, timetableDeps)
 	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, sf.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
@@ -302,7 +302,7 @@ func TestDecide_ApproveAppliesModeArrivalPickup(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, usersModels.DeparturePickup, student.DepartureDays["mon"])
 
-	history, err := repositories.NewStudentAudit(f.db).GetChangeHistory(ctx, f.chain.StudentID)
+	history, err := services.NewStudentAudit(f.db).GetChangeHistory(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	require.NotEmpty(t, history)
 	var departureEditFound bool

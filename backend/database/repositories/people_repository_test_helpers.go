@@ -30,18 +30,6 @@ type (
 	RetainedMessageableStaff           = usersRepo.MessageableStaffRepository
 )
 
-// NewRetainedCaregiverBindingLocker is the caregiver binding lock over the
-// four owners that hold caregiver capability.
-func NewRetainedCaregiverBindingLocker(db *bun.DB) usersModels.CaregiverBindingLocker {
-	return usersRepo.NewCaregiverBindingLocker(NewCaregiverBindingOwners(NewUnobservedTimetableDependencies(db), NewStudentPresenceForTests(db)))
-}
-
-// NewRetainedRepositoryFactory is the repository factory over the unobserved
-// timetable dependencies.
-func NewRetainedRepositoryFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
-	return NewFactory(db, NewUnobservedTimetableDependencies(db), clocks...)
-}
-
 // NewRetainedPersonRepository is the person repository without the Identity &
 // Access account lookup, so FindWithAccount fails closed.
 func NewRetainedPersonRepository(db *bun.DB) usersModels.PersonRepository {
@@ -89,13 +77,19 @@ func RetainedWithGuardianRelationshipOwners(pickup RetainedGuardianPickupCommand
 	return usersRepo.WithGuardianRelationshipOwners(pickup, access)
 }
 
-// RetainedWithGuardianDefaultRole binds the authorization policy's default
-// role preset, as the composition root does.
-func RetainedWithGuardianDefaultRole() RetainedGuardianRelationshipOption {
-	return usersRepo.WithGuardianDefaultRole(applyDefaultGuardianRole)
+// RetainedWithGuardianDefaultRole binds the given default role preset, as the
+// composition root binds the authorization policy's.
+func RetainedWithGuardianDefaultRole(apply func(*usersModels.StudentGuardian)) RetainedGuardianRelationshipOption {
+	return usersRepo.WithGuardianDefaultRole(apply)
 }
 
 // VerifyRetainedStudentSchema runs the startup check of the students table.
 func VerifyRetainedStudentSchema(ctx context.Context, db *bun.DB) error {
 	return usersRepo.VerifyStudentSchema(ctx, db)
+}
+
+// NewRetainedRepositoryFactory is the repository factory over the given owner
+// capabilities, for the suite graphs services composes.
+func NewRetainedRepositoryFactory(db *bun.DB, dependencies TimetableDependencies, clocks ...func() time.Time) *Factory {
+	return NewFactory(db, dependencies, clocks...)
 }

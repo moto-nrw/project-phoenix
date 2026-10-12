@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -48,13 +47,13 @@ type operatorRepositories struct {
 	students userModels.StudentRepository
 }
 
-func operatorRepositoriesOf(repos *repositories.Factory, auditLog platformModels.OperatorAuditLogRepository) operatorRepositories {
-	if repos == nil {
+func operatorRepositoriesOf(people lifecycleRepositories, auditLog platformModels.OperatorAuditLogRepository) operatorRepositories {
+	if people.persons == nil {
 		return operatorRepositories{}
 	}
 	return operatorRepositories{
 		auditLog: auditLog,
-		persons:  repos.Person, staff: repos.Staff, teachers: repos.Teacher, students: repos.Student,
+		persons:  people.persons, staff: people.staff, teachers: people.teachers, students: people.students,
 	}
 }
 

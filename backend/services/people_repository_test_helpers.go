@@ -10,7 +10,10 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -22,7 +25,6 @@ import (
 
 // The composed graphs and the values the suites pass back into them.
 type (
-	PeopleRepositorySuiteFactory               = repositories.Factory
 	PeopleRepositorySuiteParentMessaging       = repositories.ParentMessagingTestRepositories
 	PeopleRepositorySuiteCareLifecycle         = repositories.CareLifecycleTestRepositories
 	PeopleRepositorySuiteAuditCommand          = auditModels.Command
@@ -44,15 +46,61 @@ type (
 	PeopleRepositorySuiteCompanionLinks        = usersModels.StudentCompanionRepository
 )
 
-// NewPeopleRepositorySuiteFactory is the legacy repository factory over the
-// unobserved timetable dependencies.
-func NewPeopleRepositorySuiteFactory(db *bun.DB, clocks ...func() time.Time) *repositories.Factory {
-	return repositories.NewRetainedRepositoryFactory(db, clocks...)
+// PeopleRepositorySuiteFactory is the legacy repository factory over the
+// unobserved timetable dependencies, next to the People Directory and School
+// Membership repositories built where they are used (#2743).
+type PeopleRepositorySuiteFactory struct {
+	*repositories.Factory
+	repositories.MembershipTestRepositories
+	GuardianPhoneNumber   usersModels.GuardianPhoneNumberRepository
+	GuardianFinancialData usersModels.GuardianFinancialDataRepository
+	FamilyProtection      usersModels.FamilyProtectionEventRepository
+	ParentRequestShare    usersModels.ParentRequestShareEventRepository
+	ParentRequestEvent    usersModels.ParentRequestEventRepository
+	GroupSubstitution     repositories.GroupSubstitutionRepository
+	CaregiverBindingLock  usersModels.CaregiverBindingLocker
+	// RFIDCard and Profile are the Identity & Access cards and account
+	// profiles the factory used to hand out.
+	RFIDCard identityaccess.RFIDCards
+	Profile  identityaccess.AccountProfiles
+}
+
+// SchoolMembership is the School Membership owner the staff adapters read
+// through.
+func (f *PeopleRepositorySuiteFactory) SchoolMembership() schoolmembership.Capability {
+	return f.Membership
+}
+
+// NewPeopleRepositorySuiteFactory composes the suite graph over the unobserved
+// timetable dependencies.
+func NewPeopleRepositorySuiteFactory(db *bun.DB, clocks ...func() time.Time) *PeopleRepositorySuiteFactory {
+	return newPeopleRepositorySuiteFactory(db, NewUnobservedTimetableDependencies(db), clocks...)
+}
+
+func newPeopleRepositorySuiteFactory(db *bun.DB, deps repositories.TimetableDependencies, clocks ...func() time.Time) *PeopleRepositorySuiteFactory {
+	identity := newPeopleIdentityAccess(db, nil)
+	members := newMembershipRepositories(db, NewPersonRepository(db), identity, deps.Membership, deps.Rooms, deps.Workforce)
+	members.People = deps.Students
+	members.Student = NewStudentRepository(db, deps.Membership, deps.Groups)
+	members.GuardianProfile = NewGuardianProfileRepository(db)
+	members.StudentGuardian = NewStudentGuardianRepository(db)
+	return &PeopleRepositorySuiteFactory{
+		Factory:                    repositories.NewRetainedRepositoryFactory(db, deps, clocks...),
+		MembershipTestRepositories: members,
+		GuardianPhoneNumber:        peopleCompose.NewGuardianPhoneNumberRepository(db),
+		GuardianFinancialData:      peopleCompose.NewGuardianFinancialDataRepository(db),
+		FamilyProtection:           peopleCompose.NewFamilyProtectionEventRepository(db),
+		ParentRequestShare:         peopleCompose.NewParentRequestShareEventRepository(db),
+		ParentRequestEvent:         peopleCompose.NewParentRequestEventRepository(db),
+		GroupSubstitution:          newGroupSubstitutionRepository(members.Group, deps.Membership, deps.Workforce),
+		CaregiverBindingLock:       NewCaregiverBindingLocker(deps.Membership, deps.Workforce, repositories.NewStudentPresenceForTests(db), deps.Capability),
+		RFIDCard:                   identity, Profile: identity,
+	}
 }
 
 // NewPeopleRepositorySuitePeople is the People Directory owner.
 func NewPeopleRepositorySuitePeople(db *bun.DB) peopledirectory.Capability {
-	return repositories.MustNewPeopleDirectory(db)
+	return MustNewPeopleDirectory(db)
 }
 
 // NewPeopleRepositorySuiteSchoolStructure is the School Structure owner.
@@ -80,7 +128,8 @@ func NewPeopleRepositorySuiteAnnouncements(db *bun.DB, audience repositories.Ann
 // NewPeopleRepositorySuiteCaregiverBindingLocker is the caregiver binding
 // lock over the four owners that hold caregiver capability.
 func NewPeopleRepositorySuiteCaregiverBindingLocker(db *bun.DB) usersModels.CaregiverBindingLocker {
-	return repositories.NewRetainedCaregiverBindingLocker(db)
+	deps := NewUnobservedTimetableDependencies(db)
+	return NewCaregiverBindingLocker(deps.Membership, deps.Workforce, repositories.NewStudentPresenceForTests(db), deps.Capability)
 }
 
 // NewPeopleRepositorySuiteCompanions is the companion store over Care Plan.
@@ -101,20 +150,20 @@ func ReplacePeopleRepositorySuiteCompanions(ctx context.Context, links usersMode
 // NewPeopleRepositorySuiteRelationships is the relationship store with its
 // owners bound, as the composition root binds it.
 func NewPeopleRepositorySuiteRelationships(db *bun.DB) usersModels.StudentGuardianRepository {
-	return repositories.NewStudentGuardianRepository(db)
+	return NewStudentGuardianRepository(db)
 }
 
 // NewPeopleRepositorySuiteGuardianProfiles is the guardian profile store as
 // the composition root binds it.
 func NewPeopleRepositorySuiteGuardianProfiles(db *bun.DB) usersModels.GuardianProfileRepository {
-	return repositories.NewGuardianProfileRepository(db)
+	return NewGuardianProfileRepository(db)
 }
 
 // NewEnrollmentGuardianAutofillSuite is the enrollment form's autofill
 // reader as the composition root binds it, over the retained guardian profile
 // store of db (#2734).
 func NewEnrollmentGuardianAutofillSuite(db *bun.DB) EnrollmentGuardianAutofill {
-	return EnrollmentGuardianAutofill{loader: users.NewGuardianProfileLoader(repositories.NewGuardianProfileRepository(db), db, nil)}
+	return EnrollmentGuardianAutofill{loader: users.NewGuardianProfileLoader(NewGuardianProfileRepository(db), db, nil)}
 }
 
 // NewPeopleRepositorySuiteRecipients is the parent-message recipient lookup
@@ -170,10 +219,26 @@ func PeopleRepositorySuiteWithOwners(pickup repositories.RetainedGuardianPickupC
 
 // PeopleRepositorySuiteWithDefaultRole binds the default role preset.
 func PeopleRepositorySuiteWithDefaultRole() repositories.RetainedGuardianRelationshipOption {
-	return repositories.RetainedWithGuardianDefaultRole()
+	return repositories.RetainedWithGuardianDefaultRole(applyDefaultGuardianRole)
 }
 
 // VerifyPeopleRepositorySuiteStudentSchema runs the students table check.
 func VerifyPeopleRepositorySuiteStudentSchema(ctx context.Context, db *bun.DB) error {
 	return repositories.VerifyRetainedStudentSchema(ctx, db)
+}
+
+// RepositoryTestFactory is the repository factory test graphs compose, next to
+// the People Directory and School Membership repositories that left it
+// (#2743).
+type RepositoryTestFactory = PeopleRepositorySuiteFactory
+
+// NewRepositoryTestFactory composes the test graph over deps.
+func NewRepositoryTestFactory(db *bun.DB, deps repositories.TimetableDependencies, clocks ...func() time.Time) *RepositoryTestFactory {
+	return newPeopleRepositorySuiteFactory(db, deps, clocks...)
+}
+
+// NewRepositoryTestFactoryWithPeopleDirectory is NewRepositoryTestFactory for
+// suites that handle a composition error.
+func NewRepositoryTestFactoryWithPeopleDirectory(db *bun.DB, deps repositories.TimetableDependencies, clocks ...func() time.Time) (*RepositoryTestFactory, error) {
+	return newPeopleRepositorySuiteFactory(db, deps, clocks...), nil
 }

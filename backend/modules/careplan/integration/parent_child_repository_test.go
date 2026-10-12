@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -21,9 +23,9 @@ import (
 // newSchoolProjectionFactory composes the parent repositories the way the
 // service graph does: person names and eligibility through the People
 // Directory (#2661), then the school projections on top.
-func newSchoolProjectionFactory(t *testing.T, db *bun.DB) *repositories.Factory {
+func newSchoolProjectionFactory(t *testing.T, db *bun.DB) *services.RepositoryTestFactory {
 	t.Helper()
-	factory, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory, err := services.NewRepositoryTestFactoryWithPeopleDirectory(db, services.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	capability, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)

@@ -12,12 +12,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// NewStudentGuardianRepository binds relationship permission checks to native
-// Identity membership facts for tests that do not construct the serving graph.
-func NewStudentGuardianRepository(db *bun.DB) usersModels.StudentGuardianRepository {
-	return newGuardianRelationships(db, newIdentityAccess(db, nil).FindActiveSchoolMemberships, nil)
-}
-
 type ParentRouteTestRepositories struct {
 	ParentChild           parentModels.ChildRepository
 	Student               usersModels.StudentRepository
@@ -39,32 +33,37 @@ func SchoolWideReviewScope(context.Context) (carePlanCompose.ReviewScope, error)
 	return carePlanCompose.ReviewScope{SchoolWide: true}, nil
 }
 
-func NewParentRouteTestRepositories(db *bun.DB) (ParentRouteTestRepositories, error) {
-	people, err := NewPeopleDirectory(db)
+func NewParentRouteTestRepositories(db *bun.DB, members MembershipTestRepositories) (ParentRouteTestRepositories, error) {
+	people := members.People
+	rooms, err := NewFacilities(db)
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	slots := timetableCompose.NewInstanceStudentRepository(db, NewUnobservedTimetableDependencies(db).Capability, newStudentPresence(db), NewPartialAbsencePreview(db))
+	bookings, err := NewTimetable(db, people, rooms)
+	if err != nil {
+		return ParentRouteTestRepositories{}, err
+	}
+	slots := timetableCompose.NewInstanceStudentRepository(db, bookings, newStudentPresence(db), NewPartialAbsencePreview(db))
 	care, err := NewCarePlan(db, people, slots)
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
 	r := &Factory{db: db,
 		ParentChild: parentRepo.NewChildRepository(newIdentityAccess(db, nil).ListActiveAccountSchoolIDs),
-		Student:     NewStudentRepository(db), Person: NewPersonRepository(db),
-		GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: NewStudentGuardianRepository(db),
 	}
-	r.BindPeopleDirectory(people)
+	r.bindStudentDirectories(people, people)
+	r.bindGuardianDirectories(people)
+	r.bindPersonProjections(people)
 	r.bindCarePlanAdapters(care)
 	excusedRequests, err := NewExcusedAbsenceRequests(ExcusedRequestWiring{
-		CarePlan: care, Students: r.Student, Persons: r.Person, Scope: SchoolWideReviewScope,
+		CarePlan: care, Students: members.Student, Persons: members.Person, Scope: SchoolWideReviewScope,
 	})
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
 	return ParentRouteTestRepositories{
-		ParentChild: r.ParentChild, Student: r.Student, Person: r.Person,
-		GuardianProfile: r.GuardianProfile, StudentGuardian: r.StudentGuardian,
+		ParentChild: r.ParentChild, Student: members.Student, Person: members.Person,
+		GuardianProfile: members.GuardianProfile, StudentGuardian: members.StudentGuardian,
 		StudentStatusDay: r.StudentStatusDay, CareExceptions: care, ExcusedAbsenceRequest: r.ExcusedAbsenceRequest,
 		ExcusedRequests: excusedRequests,
 	}, nil

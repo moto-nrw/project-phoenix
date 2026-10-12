@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -38,7 +37,7 @@ func isProfileLockTimeout(err error) bool {
 
 // setupGuardianService creates a GuardianService with real database connection
 func setupGuardianService(t *testing.T, db *bun.DB) *users.GuardianService {
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Guardian
@@ -2316,7 +2315,7 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 		}},
 	}
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	for _, w := range writers {
 		t.Run(w.name+" blocks on a held profile lock", func(t *testing.T) {
 			// Hold the profile FOR UPDATE lock from an uncommitted tx.
@@ -2357,7 +2356,7 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	service := setupGuardianService(t, db)
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "acct-pending")
 	student := testpkg.CreateTestStudent(t, db, "AcctPending", "Student", "1a")

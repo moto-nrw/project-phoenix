@@ -37,7 +37,7 @@ func (r *recordingAbsenceRepository) GetAbsenceMapForDate(
 type overviewFixture struct {
 	tenantID  int64
 	db        *testpkg.DB
-	repos     *repositories.Factory
+	repos     *services.RepositoryTestFactory
 	workforce workforce.Capability
 	rows      repositories.TimetableTestRepositories
 	ctx       context.Context
@@ -56,10 +56,10 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	rows, err := repositories.NewTimetableTestRepositories(db)
+	owners := services.NewUnobservedTimetableDependencies(db)
+	rows, err := repositories.NewTimetableTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
-	repos := repositories.NewFactory(db, owners)
+	repos := services.NewRepositoryTestFactory(db, owners)
 	ctx := testpkg.WithTestTenantRuntime(t, testpkg.TenantContext(tenantID))
 	today := timezone.TodayDate()
 

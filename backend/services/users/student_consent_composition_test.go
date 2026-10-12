@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -69,7 +70,7 @@ func TestStudentConsentsReturnTheCurrentSharedPortalState(t *testing.T) {
 	}
 	student.ID = 91
 
-	states, err := repositories.NewStudentConsentsFor(directory, &stubStudentConsentTrail{}).
+	states, err := services.NewStudentConsentsFor(directory, &stubStudentConsentTrail{}).
 		CurrentStates(context.Background(), student, true)
 
 	require.NoError(t, err)
@@ -92,7 +93,7 @@ func TestStudentConsentsReturnTheCurrentSharedPortalState(t *testing.T) {
 func TestStudentConsentsRejectUnpersistedStudent(t *testing.T) {
 	t.Parallel()
 
-	seam := repositories.NewStudentConsentsFor(&stubStudentConsentDirectory{}, &stubStudentConsentTrail{})
+	seam := services.NewStudentConsentsFor(&stubStudentConsentDirectory{}, &stubStudentConsentTrail{})
 	_, err := seam.CurrentStates(context.Background(), &userModels.Student{}, false)
 	require.ErrorContains(t, err, "persisted student is required")
 	_, err = seam.CurrentStates(context.Background(), nil, false)
@@ -103,7 +104,7 @@ func TestStudentConsentsRecordOnlyBooleanStateTransitions(t *testing.T) {
 	t.Parallel()
 
 	trail := &stubStudentConsentTrail{}
-	recorder := repositories.NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
+	recorder := services.NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
 	oldTime := time.Date(2025, time.September, 1, 8, 0, 0, 0, time.UTC)
 	newTime := time.Date(2026, time.August, 31, 9, 0, 0, 0, time.UTC)
 	actor := int64(42)
@@ -143,7 +144,7 @@ func TestStudentConsentsRecordGrantedFieldsOnCreate(t *testing.T) {
 	t.Parallel()
 
 	trail := &stubStudentConsentTrail{}
-	recorder := repositories.NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
+	recorder := services.NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
 	grantedAt := time.Date(2026, time.August, 31, 9, 0, 0, 0, time.UTC)
 	after := &userModels.Student{EmailContactAcceptedAt: &grantedAt}
 	after.ID = 88

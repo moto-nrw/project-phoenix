@@ -108,7 +108,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos, err := repositories.NewActiveTestRepositories(db)
+	repos, err := repositories.NewActiveTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	devices, err := repositories.NewDeviceRepository(db)
 	require.NoError(t, err)

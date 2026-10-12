@@ -32,7 +32,7 @@ func (m GroupsTestModule) TeacherGroupIDs(ctx context.Context, teacherID int64) 
 }
 
 func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork, publishers ...realtimeevents.Publisher) (GroupsTestModule, error) {
-	r, err := repositories.NewUserContextTestRepositories(db)
+	r, err := repositories.NewUserContextTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return GroupsTestModule{}, err
 	}
@@ -46,13 +46,13 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork, publishers ...realt
 		publisher = publishers[0]
 	}
 	groups := education.NewGroupManagement(tt.Group, tt.GroupTeacher, tt.ClassTeacher,
-		repositories.NewEducationRooms(tt.Room), NewEducationTeachers(tt.Teacher), repositories.NewEducationStaff(tt.Staff),
+		repositories.NewEducationRooms(tt.Room), NewEducationTeachers(tt.Teacher), NewEducationStaff(tt.Staff),
 		tt.Student, r.Substitutions, education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: publisher})
 
 	persons := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
-		PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
-		StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
-		PersonRepo:       tt.Person, StudentRepo: tt.Student, TeacherRepo: tt.Teacher, AccountExists: repositories.AccountExists(r.Profile),
+		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
+		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
+		PersonRepo:       tt.Person, StudentRepo: tt.Student, TeacherRepo: tt.Teacher, AccountExists: AccountExists(r.Profile),
 		StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: tt.Person, Staff: tt.Staff, Teachers: tt.Teacher}),
 	})
 	rooms, err := repositories.NewFacilities(db)

@@ -54,7 +54,7 @@ func NewStudentHTTPTestRows(db *bun.DB, command auditModels.Command) (StudentHTT
 // NewStudentHTTPTestPeople is the People Directory owner over the test
 // database.
 func NewStudentHTTPTestPeople(db *bun.DB) peopledirectory.Capability {
-	return repositories.MustNewPeopleDirectory(db)
+	return MustNewPeopleDirectory(db)
 }
 
 // NewStudentHTTPTestCompanions composes Care Plan's companion graph over the
@@ -70,7 +70,7 @@ func NewStudentHTTPTestCompanions(rows StudentHTTPTestRows, people peopledirecto
 
 // StudentHTTPTestConsents is the consent projection and trail the student
 // routes read and append to.
-type StudentHTTPTestConsents = *repositories.StudentConsents
+type StudentHTTPTestConsents = *StudentConsents
 
 // NewStudentHTTPTestConsents binds the consent projection and the Audit
 // Platform trail over the test database.
@@ -107,7 +107,7 @@ func NewStudentHTTPTestCareLifecycle(db *bun.DB, config StudentHTTPTestCareLifec
 		return nil, err
 	}
 	return repos.NewCareLifecycle(repositories.CareLifecycleTestConfig{
-		Audit:                 peopleCompose.NewStudentAuditService(config.AuditActor, repositories.NewStudentAudit(db)),
+		Audit:                 peopleCompose.NewStudentAuditService(config.AuditActor, NewStudentAudit(db)),
 		BookingsAuthoritative: config.BookingsAuthoritative,
 		Today:                 config.Today,
 	})

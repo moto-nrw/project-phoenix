@@ -29,7 +29,7 @@ func NewOfferingReviewTestQuery(db *bun.DB, today func() calendar.Date) (carepla
 	if err != nil {
 		return nil, err
 	}
-	people, err := repositories.NewPeopleDirectory(db)
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return nil, err
 	}

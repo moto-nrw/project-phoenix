@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +25,7 @@ const operatorTestPassword = "SecurePass123!" //nolint:gosec // pragma: allowlis
 // buildServiceFactory composes the service root the way the server does.
 func buildServiceFactory(t *testing.T, db *bun.DB) *services.Factory {
 	t.Helper()
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))

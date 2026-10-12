@@ -15,21 +15,6 @@ type staffLookup interface {
 	ListTeachers(context.Context, schoolmembership.TeacherFilter) ([]schoolmembership.Teacher, error)
 }
 
-// lazyStaffLookup reads the factory's capability at call time, so a later
-// BindSchoolMembership swap (the observed module) reaches the projections
-// that were wired at construction.
-type lazyStaffLookup struct {
-	get func() schoolmembership.Capability
-}
-
-func (l lazyStaffLookup) ListStaff(ctx context.Context, filter schoolmembership.StaffFilter) ([]schoolmembership.Staff, error) {
-	return l.get().ListStaff(ctx, filter)
-}
-
-func (l lazyStaffLookup) ListTeachers(ctx context.Context, filter schoolmembership.TeacherFilter) ([]schoolmembership.Teacher, error) {
-	return l.get().ListTeachers(ctx, filter)
-}
-
 // bindStaffProjections wraps every legacy repository that used to read
 // users.staff or users.teachers through a foreign join (#2667). The wrapped
 // repositories keep their interfaces and project only the IDs they own; the
@@ -86,6 +71,6 @@ func uniqueIDs(ids []int64) []int64 {
 	return unique
 }
 
-// The owner-to-legacy staff projection (toLegacyStaff) lives in
-// staff_membership_adapters.go; Staff.Person stays nil there and is attached
-// by the person layer above through the People Directory.
+// The owner-to-legacy staff projection (toLegacyStaff) lives with the staff
+// adapters in services; Staff.Person stays nil there and is attached by the
+// person layer above through the People Directory.

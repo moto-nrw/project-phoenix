@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -20,7 +22,7 @@ func NewCarePlan(db *bun.DB, students peopledirectory.Capability, slots schedule
 	if err != nil {
 		return nil, err
 	}
-	studentLock, studentNotFound := CareStudentLock(students)
+	studentLock, studentNotFound := peopleCompose.CareStudentLock(students)
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanCompose.TenantAmbientDatabase(db),
 		StatusStudents: statusStudents,

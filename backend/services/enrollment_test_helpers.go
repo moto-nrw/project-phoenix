@@ -16,7 +16,7 @@ func NewOwnerApprovedOfferingTestProjection(db *bun.DB) (*ApprovedOfferingTestPr
 }
 
 func NewApprovedOfferingTestProjection(db *bun.DB, selections enrollmentCompose.ApprovedSelections) (*enrollmentCompose.ApprovedOfferingProjection, error) {
-	students, err := repositories.NewPeopleDirectory(db)
+	students, err := NewPeopleDirectory(db)
 	if err != nil {
 		return nil, err
 	}

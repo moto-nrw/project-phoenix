@@ -75,7 +75,7 @@ func NewBookingMaterializationTestModule(db *bun.DB, unit tenant.UnitOfWork, opt
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	people, err := repositories.NewPeopleDirectory(db)
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}

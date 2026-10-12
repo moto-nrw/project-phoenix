@@ -11,7 +11,7 @@ import (
 // services (#3753). The rules behind them — which fields are tracked,
 // how a change reads and where it is stored — belong to the People Directory
 // owner and the Audit Platform; #3349 moved them there. The composition root
-// binds an implementation (database/repositories.NewStudentAuditFor). Reading
+// binds an implementation (services.NewStudentAuditFor). Reading
 // the trail back is the owner's StudentAuditQuery, not part of this contract.
 
 // StudentChangeRecorder is the narrow write contract used by services that

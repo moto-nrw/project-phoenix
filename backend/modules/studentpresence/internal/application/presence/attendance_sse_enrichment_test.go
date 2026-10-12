@@ -47,8 +47,8 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, owners)
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
 	timetableRepos := repositories.NewTimetableRepositories(db, owners)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -210,8 +210,8 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, owners)
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
 	timetableRepos := repositories.NewTimetableRepositories(db, owners)
 	suffix := time.Now().UnixNano()
 	syncer := newAttendanceMirror(t,

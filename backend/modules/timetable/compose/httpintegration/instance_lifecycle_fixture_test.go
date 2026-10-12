@@ -43,7 +43,7 @@ type lifecycleSetup struct {
 	presence compose.LifecyclePresence
 	svc      *compose.InstanceLifecycleService
 	factory  *services.Factory
-	repos    *repositories.Factory
+	repos    *services.RepositoryTestFactory
 	// timetable are the retained Timetable adapters over the same owners.
 	timetable repositories.TimetableRepositories
 	db        *bun.DB
@@ -62,8 +62,8 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	timetableDependencies := repositories.NewUnobservedTimetableDependencies(db)
-	repoFactory := repositories.NewFactory(db, timetableDependencies)
+	timetableDependencies := services.NewUnobservedTimetableDependencies(db)
+	repoFactory := services.NewRepositoryTestFactory(db, timetableDependencies)
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))

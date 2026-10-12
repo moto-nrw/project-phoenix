@@ -71,8 +71,8 @@ func TestTimetableOperationsPlannedNowQueryBudget(t *testing.T) {
 // retained repositories; the caller is the given staff member.
 func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staff *usersModels.Staff, now time.Time) timetable.OperationCapability {
 	t.Helper()
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, owners)
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
 	timetableRepos := repositories.NewTimetableRepositories(db, owners)
 	stand := newTimetableOpsDeps()
 	stand.personService.accountPerson = staff.Person

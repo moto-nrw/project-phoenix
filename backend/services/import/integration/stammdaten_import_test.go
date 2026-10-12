@@ -24,10 +24,10 @@ import (
 // records, both importers support update mode, and the child import carries
 // address, RFID and the guardian role preset.
 
-func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels.StaffInviter) (*importService.StaffImportConfig, *repositories.Factory, repositories.TimetableDependencies) {
+func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels.StaffInviter) (*importService.StaffImportConfig, *services.RepositoryTestFactory, repositories.TimetableDependencies) {
 	t.Helper()
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, owners)
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
 	organizations, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	identity, err := repositories.NewIdentityAccessForTests(db)
@@ -223,14 +223,14 @@ func TestStaffImportConfig_FindExisting_RefusesAmbiguousName(t *testing.T) {
 	})
 }
 
-func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*importService.StudentImportConfig, *repositories.Factory) {
+func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*importService.StudentImportConfig, *services.RepositoryTestFactory) {
 	t.Helper()
 	// Guardian commands need the owner's provider, which the legacy root
 	// binds; the guardian-bearing cutover tests therefore live in the
 	// services package (import_cutover_test.go). This config covers the
 	// person, student, schedule and consent paths.
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, owners)
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
 	groups, err := repositories.NewSchoolStructure(db)
 	require.NoError(t, err)
 	rooms, err := repositories.NewFacilities(db)

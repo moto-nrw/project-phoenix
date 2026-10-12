@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
@@ -91,16 +90,16 @@ type fixture struct {
 	staffAccount int64
 }
 
-func newPersons(repos *repositories.Factory, db *bun.DB) messaging.PersonLookup {
+func newPersons(repos *services.RepositoryTestFactory, db *bun.DB) messaging.PersonLookup {
 	return services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
-		Persons: repos.Person, Students: repos.Student, AccountExists: repositories.AccountExists(repos.Profile),
+		Persons: repos.Person, Students: repos.Student, AccountExists: services.AccountExists(repos.Profile),
 	})
 }
 
-func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging.Service, *testpkg.RecordingBroadcaster, *repositories.Factory, *bun.DB) {
+func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging.Service, *testpkg.RecordingBroadcaster, *services.RepositoryTestFactory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
 		ThreadRepo:  repos.ParentMessageThread,
@@ -301,14 +300,14 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 
 	allMessages, err := services.NewParentMessageRepository(f.db).ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
 	require.NoError(t, err)
-	messaging.DecorateReadReceipts(adminCtx(t, f.chain.AccountID), repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).ParentMessageRead, nil, started.ThreadID, f.chain.AccountID, allMessages)
+	messaging.DecorateReadReceipts(adminCtx(t, f.chain.AccountID), services.NewRepositoryTestFactory(f.db, services.NewUnobservedTimetableDependencies(f.db)).ParentMessageRead, nil, started.ThreadID, f.chain.AccountID, allMessages)
 	assert.True(t, allMessages[1].ReadByStaff, "the guardian receipt remains tied to the responding staff account's personal cursor")
 
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Neue Frage")
 	assertStaffUnread(f.staffAccount, 1)
 	assertStaffUnread(colleagueAccount.ID, 1)
 
-	readRepo := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db)).ParentMessageRead
+	readRepo := services.NewRepositoryTestFactory(f.db, services.NewUnobservedTimetableDependencies(f.db)).ParentMessageRead
 	count, err := readRepo.UnreadMessageCountForStaff(adminCtx(t, colleagueAccount.ID), colleagueAccount.ID, true)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "authorized staff must see the new open message")
@@ -656,7 +655,7 @@ func TestMessaging_DisabledFeature(t *testing.T) {
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage")
 
 	// Rebuild the service with the feature OFF, same DB.
-	repos := repositories.NewFactory(f.db, repositories.NewUnobservedTimetableDependencies(f.db))
+	repos := services.NewRepositoryTestFactory(f.db, services.NewUnobservedTimetableDependencies(f.db))
 	disabled := messaging.NewService(messaging.Config{
 		ThreadRepo: repos.ParentMessageThread, MessageRepo: services.NewParentMessageRepository(f.db), ReadRepo: repos.ParentMessageRead,
 		Persons:     newPersons(repos, f.db),

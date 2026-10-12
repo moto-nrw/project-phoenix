@@ -2,7 +2,6 @@ package repositories
 
 import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/uptrace/bun"
@@ -26,18 +25,10 @@ type ShiftTypeTestRepositories struct {
 	Categories activitiesModels.CategoryRepository
 }
 
-func NewShiftTypeTestRepositories(db *bun.DB) ShiftTypeTestRepositories {
-	repos, err := NewTimetableTestRepositories(db)
+func NewShiftTypeTestRepositories(db *bun.DB, members MembershipTestRepositories) ShiftTypeTestRepositories {
+	repos, err := NewTimetableTestRepositories(db, members)
 	if err != nil {
 		panic(err)
 	}
 	return ShiftTypeTestRepositories{Timetable: repos.Timetable, Types: repos.ShiftType, Categories: repos.ActivityCategory}
-}
-
-func NewStudentLookupTestRepository(db *bun.DB) usersModels.StudentRepository {
-	return NewStudentRepository(db)
-}
-
-func NewGuardianProfileTestRepository(db *bun.DB) usersModels.GuardianProfileRepository {
-	return NewGuardianProfileRepository(db)
 }

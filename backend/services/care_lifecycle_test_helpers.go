@@ -36,7 +36,7 @@ func NewCareLifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork) (CareLifecyc
 	if err != nil {
 		return CareLifecycleTestModule{}, err
 	}
-	audit := peopleCompose.NewStudentAuditService(requestAuditActor, repositories.NewStudentAudit(db))
+	audit := peopleCompose.NewStudentAuditService(requestAuditActor, NewStudentAudit(db))
 	recurrenceLock, err := repositories.NewTimetableRecurrenceLock(db)
 	if err != nil {
 		return CareLifecycleTestModule{}, err

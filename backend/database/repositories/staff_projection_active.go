@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
@@ -13,12 +15,11 @@ import (
 // active-group supervisions. The replaced LEFT JOIN carried no soft-delete
 // filter, so an offboarded colleague keeps resolving here.
 func sessionStaff(member schoolmembership.Staff) *presenceCompose.SessionStaff {
-	row := toLegacyStaff(member)
 	return &presenceCompose.SessionStaff{
-		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		PersonID: row.PersonID, StaffNotes: row.StaffNotes, EmploymentType: row.EmploymentType,
-		WorkTimeModelID: row.WorkTimeModelID, RotationAnchorDate: row.RotationAnchorDate,
-		BirthdayDisplayOptOut: row.BirthdayDisplayOptOut,
+		ID: member.ID, TenantID: member.TenantID, CreatedAt: member.CreatedAt, UpdatedAt: member.UpdatedAt,
+		PersonID: member.PersonID, StaffNotes: member.StaffNotes, EmploymentType: member.EmploymentType,
+		WorkTimeModelID: member.WorkTimeModelID, RotationAnchorDate: usersRepo.ParseCalendarDate(member.RotationAnchorDate),
+		BirthdayDisplayOptOut: member.BirthdayDisplayOptOut,
 	}
 }
 

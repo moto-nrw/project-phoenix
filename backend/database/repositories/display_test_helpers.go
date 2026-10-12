@@ -15,15 +15,12 @@ type DisplayTestRepositories struct {
 }
 
 // NewDisplayTestRepositories composes the dashboard's read dependencies.
-func NewDisplayTestRepositories(db *bun.DB) (DisplayTestRepositories, error) {
-	r, err := NewTimetableTestRepositories(db)
+func NewDisplayTestRepositories(db *bun.DB, members MembershipTestRepositories) (DisplayTestRepositories, error) {
+	r, err := NewTimetableTestRepositories(db, members)
 	if err != nil {
 		return DisplayTestRepositories{}, err
 	}
-	people, err := NewPeopleDirectory(db)
-	if err != nil {
-		return DisplayTestRepositories{}, err
-	}
+	people := members.People
 	care, err := NewCarePlan(db, people, r.InstanceStudent)
 	if err != nil {
 		return DisplayTestRepositories{}, err

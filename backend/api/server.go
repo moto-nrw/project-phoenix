@@ -309,12 +309,12 @@ func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, graph *
 	deps.InstanceStudentRepo = reads.timetable.InstanceStudent
 	deps.StudentStatusDayRepo = graph.repos.StudentStatusDay
 	deps.OverdueBroadcaster = graph.services.RealtimeHub
-	deps.StudentLifecycleRepo = schedulerStudentLifecycle(graph)
+	deps.StudentLifecycleRepo = schedulerStudentLifecycle(reads)
 	deps.ReminderNotifications = scheduler.ReminderNotificationDeps{
 		Computer:     graph.services.Reminders,
 		Notifier:     graph.services.Notifications,
 		Preferences:  graph.services.NotificationPreferences,
-		Staff:        graph.repos.Staff,
+		Staff:        reads.staff,
 		Accounts:     graph.services.Auth,
 		WorkSessions: reads.workSessions,
 	}

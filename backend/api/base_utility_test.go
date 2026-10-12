@@ -308,7 +308,7 @@ func setupCaregiverCompositionModule(t *testing.T, graph *serveGraph) *caregiver
 func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	t.Helper()
 	db, module := testutil.SetupSettingsCallbacksModule(t, newStudentPhotoTestBootstrap())
-	repos, err := repositories.NewEnrollmentTestRepositories(db)
+	repos, err := repositories.NewEnrollmentTestRepositories(db, testutil.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	homeLayouts, ok := module.Settings.(interface {
 		HomeLayout(context.Context, int64, int64, []string) (any, error)
@@ -907,7 +907,7 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	people, err := repositories.NewPeopleDirectory(db)
+	people, err := testutil.NewPeopleDirectory(db)
 	require.NoError(t, err)
 	identity, err := repositories.NewIdentityAccessForTests(db)
 	require.NoError(t, err)

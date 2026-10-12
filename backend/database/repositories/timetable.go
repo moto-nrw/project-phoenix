@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -30,38 +29,6 @@ type TimetableDependencies struct {
 	// serving root passes its metrics sink; nil composes the module
 	// unobserved, which repository tests and CLI roots use.
 	ObserveIdentityAccess IdentityAccessObserver
-}
-
-func NewUnobservedTimetableDependencies(db *bun.DB) TimetableDependencies {
-	students, err := NewPeopleDirectory(db)
-	if err != nil {
-		panic(fmt.Sprintf("compose timetable students: %v", err))
-	}
-	rooms, err := NewFacilities(db)
-	if err != nil {
-		panic(fmt.Sprintf("compose timetable rooms: %v", err))
-	}
-	capability, err := NewTimetable(db, students, rooms)
-	if err != nil {
-		panic(fmt.Sprintf("compose timetable: %v", err))
-	}
-	groups, err := NewSchoolStructure(db)
-	if err != nil {
-		panic(fmt.Sprintf("compose timetable groups: %v", err))
-	}
-	calendar, err := NewSchoolCalendar(db)
-	if err != nil {
-		panic(fmt.Sprintf("compose timetable calendar: %v", err))
-	}
-	membership, err := NewSchoolMembership(db)
-	if err != nil {
-		panic(fmt.Sprintf("compose timetable membership: %v", err))
-	}
-	workTime, err := NewWorkforce(db, membership)
-	if err != nil {
-		panic(fmt.Sprintf("compose workforce work-time: %v", err))
-	}
-	return TimetableDependencies{Capability: capability, Students: students, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime}
 }
 
 // NewTimetable composes the owner behind legacy repository adapters for test

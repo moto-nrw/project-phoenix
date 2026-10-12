@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -30,14 +29,14 @@ import (
 func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	sf, err := services.NewFactoryForTests(repos, db, slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CarePlan(),
-		People:              repositories.MustNewPeopleDirectory(db),
+		People:              services.MustNewPeopleDirectory(db),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChild,
 		StudentRepo:         repos.Student,

@@ -3,7 +3,6 @@ package services
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -32,7 +31,7 @@ func NewStaffTestModule(db *bun.DB, unit tenant.UnitOfWork) (StaffTestModule, er
 	if err != nil {
 		return StaffTestModule{}, err
 	}
-	people, err := repositories.NewPeopleDirectory(db)
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return StaffTestModule{}, err
 	}

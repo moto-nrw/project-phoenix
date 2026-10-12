@@ -42,7 +42,7 @@ func (m *cancelingMFAMailer) SendContext(_ context.Context, _ testpkg.EmailMessa
 func newSynchronousDeliveryMFAService(
 	t *testing.T,
 	mailer testpkg.Mailer,
-) (identityaccess.AccountMFA, *repositories.Factory, *bun.DB, *authjwt.TokenAuth) {
+) (identityaccess.AccountMFA, repositories.MembershipTestRepositories, *bun.DB, *authjwt.TokenAuth) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module := newMFATestModule(t, db,

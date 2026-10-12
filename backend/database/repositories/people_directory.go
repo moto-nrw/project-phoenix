@@ -1,16 +1,10 @@
 package repositories
 
 import (
-	"context"
 	"fmt"
-	"strconv"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	membershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -20,181 +14,14 @@ func peopleRuntime(db *bun.DB) peopleCompose.LegacyRepositoryRuntime {
 	return peopleCompose.NewLegacyRepositoryRuntime(db)
 }
 
-// NewPeopleDirectory composes the person and student owner behind the
-// legacy composition seam for test graphs and CLI roots. The observed
-// instance of the serve root replaces it through BindPeopleDirectory.
-func NewPeopleDirectory(db *bun.DB) (peopledirectory.Capability, error) {
-	capability, _, err := NewPeopleDirectoryWithPhotos(db)
-	return capability, err
-}
-
-// NewPeopleDirectoryWithPhotos additionally hands back the slot the photo
-// lifecycle resolves its runtime from, so a caller that has the feature gate,
-// the caller access and the file cleanup fills it after the directory exists.
-func NewPeopleDirectoryWithPhotos(db *bun.DB) (peopledirectory.Capability, *peopleCompose.StudentPhotoRuntime, error) {
-	module, photoRuntime, err := NewPeopleDirectoryWithPhotosAndObserver(db, func(peopleCompose.Observation) {})
-	return module, photoRuntime, err
-}
-
-// NewPeopleDirectoryWithPhotosAndObserver composes the owner for a graph that
-// records People Directory observations. The Identity & Access membership
-// query stays in this legacy composition seam, which already binds the owner
-// queries used by retained repositories.
-func NewPeopleDirectoryWithPhotosAndObserver(
-	db *bun.DB,
-	observe func(peopleCompose.Observation),
-) (*peopledirectory.Module, *peopleCompose.StudentPhotoRuntime, error) {
-	photoRuntime := new(peopleCompose.StudentPhotoRuntime)
-	// Care Plan's companion slice is constructible from the database alone, so
-	// the directory's write path gets it here rather than waiting for the full
-	// Care Plan — which needs this directory and therefore cannot be built yet.
-	companions, err := careplanCompose.NewCompanionRecords(db, func(careplanCompose.Observation) {})
+// peopleDirectoryReads composes the People Directory for the student reads and
+// the row lock the adapters still in this package take. The full owner, with
+// its write owners and audit seams, is composed by services (#2743); none of
+// these reads reaches them.
+func peopleDirectoryReads(db *bun.DB) *peopledirectory.Module {
+	module, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
 	if err != nil {
-		return nil, nil, err
+		panic(fmt.Sprintf("compose people directory reads: %v", err))
 	}
-	membership, err := NewSchoolMembership(db)
-	if err != nil {
-		return nil, nil, err
-	}
-	careProfiles, err := careplanCompose.NewStudentProfiles(db, func(careplanCompose.Observation) {})
-	if err != nil {
-		return nil, nil, err
-	}
-	capability, err := peopleCompose.NewWithGuardianMemberships(peopleCompose.Dependencies{
-		StudentClassWriteGateQuery: func(ctx context.Context) (*bun.SelectQuery, error) {
-			return membershipCompose.StudentClassWriteGateQuery(ctx, db)
-		},
-		StudentOwners:            NewStudentOwners(membership, careProfiles),
-		DB:                       db,
-		Observe:                  observe,
-		StudentFieldAudit:        NewStudentFieldAuditLog(db),
-		StudentNoteDeletionAudit: NewStudentNoteDeletionAudit(db),
-		StudentConsentHistory:    NewStudentConsentHistory(db),
-		StudentPhotoRuntime:      func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
-		StudentCompanions:        NewStudentCompanionSeam(companions),
-		GuardianLinkOwners:       newGuardianLinkOwners(db),
-	},
-		newIdentityAccess(db, nil).FindActiveGuardianMemberships,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-	return capability, photoRuntime, nil
-}
-
-// peopleDirectoryAudit builds the Audit Platform persistence behind the People
-// Directory's audit seams (note deletion audit, field audit, consent history).
-// During the #2743 cut the root composition reaches the Audit composition for
-// these seams only, until People Directory construction leaves this package
-// (ADR 0049). The repositories read and append through the Audit handoff on
-// the context, falling back to db.
-func peopleDirectoryAudit(db *bun.DB) peopleDirectoryAuditRepositories {
-	repositories := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db})
-	return peopleDirectoryAuditRepositories{
-		DataDeletion: repositories.DataDeletion, StudentFieldEdit: repositories.StudentFieldEdit,
-		StudentConsentChange: repositories.StudentConsentChange,
-	}
-}
-
-type peopleDirectoryAuditRepositories struct {
-	DataDeletion         auditModels.DataDeletionRepository
-	StudentFieldEdit     auditModels.StudentFieldEditRepository
-	StudentConsentChange auditModels.StudentConsentChangeRepository
-}
-
-// NewStudentNoteDeletionAudit binds the Audit Platform deletion ledger behind
-// the People Directory note command. The append uses the ambient tenant
-// transaction, so missing evidence rolls the note's soft deletion back.
-func NewStudentNoteDeletionAudit(db *bun.DB) peopleCompose.StudentNoteDeletionAudit {
-	return studentNoteDeletionAudit{repo: peopleDirectoryAudit(db).DataDeletion}
-}
-
-type studentNoteDeletionAudit struct {
-	repo auditModels.DataDeletionRepository
-}
-
-func (a studentNoteDeletionAudit) RecordStudentNoteDeletion(
-	ctx context.Context, studentID, noteID, actorAccountID int64,
-) error {
-	record := auditModels.NewDataDeletion(studentID, auditModels.DeletionTypeManual, 1,
-		"account:"+strconv.FormatInt(actorAccountID, 10))
-	record.DeletionReason = "student note deleted"
-	record.SetMetadata("student_note_id", noteID)
-	record.SetMetadata("deleted_by_account_id", actorAccountID)
-	return a.repo.Create(ctx, record)
-}
-
-func (a studentNoteDeletionAudit) RecordLegacyStudentNoteDeletion(
-	ctx context.Context, studentID, noteID int64,
-) error {
-	record := auditModels.NewDataDeletion(studentID, auditModels.DeletionTypeManual, 1, "system")
-	record.DeletionReason = "legacy supervisor notes cleared"
-	record.SetMetadata("student_note_id", noteID)
-	record.SetMetadata("source", "supervisor_notes")
-	return a.repo.Create(ctx, record)
-}
-
-// MustNewPeopleDirectory is NewPeopleDirectory for composition seams that
-// cannot return an error; composing only fails on missing dependencies, which
-// is a programming error at wiring time.
-func MustNewPeopleDirectory(db *bun.DB) peopledirectory.Capability {
-	capability, err := NewPeopleDirectory(db)
-	if err != nil {
-		panic(fmt.Sprintf("repository factory: compose people directory: %v", err))
-	}
-	return capability
-}
-
-// NewStudentFieldAuditLog binds the Audit Platform trail behind the People
-// Directory change-history seam. Audit Platform owns
-// audit.student_field_edits; this is the composition seam that hands the
-// directory an append and a read of it.
-func NewStudentFieldAuditLog(db *bun.DB) peopleCompose.StudentFieldAuditLog {
-	return studentFieldAuditLog{repo: peopleDirectoryAudit(db).StudentFieldEdit}
-}
-
-type studentFieldAuditLog struct {
-	repo auditModels.StudentFieldEditRepository
-}
-
-func (l studentFieldAuditLog) Append(ctx context.Context, edits []peopledirectory.StudentFieldEdit) error {
-	rows := make([]*auditModels.StudentFieldEdit, 0, len(edits))
-	for _, edit := range edits {
-		rows = append(rows, &auditModels.StudentFieldEdit{
-			StudentID: edit.StudentID, EditedBy: edit.EditedBy, EditedByName: edit.EditedByName,
-			FieldName: edit.FieldName, OldValue: edit.OldValue, NewValue: edit.NewValue,
-		})
-	}
-	return l.repo.CreateBatch(ctx, rows)
-}
-
-func (l studentFieldAuditLog) ListByStudent(ctx context.Context, studentID int64) ([]peopledirectory.StudentFieldEdit, error) {
-	rows, err := l.repo.GetByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]peopledirectory.StudentFieldEdit, 0, len(rows))
-	for _, row := range rows {
-		if row == nil {
-			continue
-		}
-		result = append(result, peopledirectory.StudentFieldEdit{
-			ID: row.ID, StudentID: row.StudentID, EditedBy: row.EditedBy, EditedByName: row.EditedByName,
-			FieldName: row.FieldName, OldValue: row.OldValue, NewValue: row.NewValue, CreatedAt: row.CreatedAt,
-		})
-	}
-	return result, nil
-}
-
-// bindDefaultPeopleDirectory gives every student port an unobserved People
-// Directory as soon as the factory exists (#2662): a legacy repository never
-// answers a student read without the owner, and graphs that stop at
-// NewFactory (CLI roots, repository tests) keep working. BindPeopleDirectory
-// rebinds the ports with the observed capability and adds the person
-// projections.
-func (f *Factory) bindDefaultPeopleDirectory(db *bun.DB) {
-	students := MustNewPeopleDirectory(db)
-	f.students = students
-	f.bindStudentDirectories(students, students)
-	f.bindGuardianDirectories(students)
+	return module
 }

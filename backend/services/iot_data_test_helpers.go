@@ -38,7 +38,7 @@ func NewIoTDataTestModule(db *bun.DB, unit tenant.UnitOfWork) (IoTDataTestModule
 	if err != nil {
 		return IoTDataTestModule{}, err
 	}
-	people, err := repositories.NewPeopleDirectory(db)
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return IoTDataTestModule{}, err
 	}

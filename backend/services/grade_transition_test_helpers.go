@@ -36,7 +36,7 @@ func NewGradeTransitionTestModule(db *bun.DB, resync OfferingResync, clocks ...f
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
-	people, err := repositories.NewPeopleDirectory(db)
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}

@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -17,11 +16,11 @@ func TestNewFactoryRetainsCarePlanForBookingConsistencyAudit(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	_, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), testFactoryConfig())
 	require.NoError(t, err)
 
-	bookings, err := services.NewBookingConsistencyAudit(db, repositories.MustNewPeopleDirectory(db), repos.CarePlan())
+	bookings, err := services.NewBookingConsistencyAudit(db, services.MustNewPeopleDirectory(db), repos.CarePlan())
 	require.NoError(t, err)
 	audit := reflect.ValueOf(bookings)
 	auditDate := reflect.New(audit.Type().In(1)).Elem()

@@ -30,7 +30,7 @@ func NewPartialAbsencePreview(db *bun.DB) PartialAbsencePreview {
 	if err != nil {
 		panic(fmt.Sprintf("partial absence preview: compose care plan exception queries: %v", err))
 	}
-	return PartialAbsencePreview{reads: mustPresenceReads(db), students: MustNewPeopleDirectory(db), exceptions: exceptions}
+	return PartialAbsencePreview{reads: mustPresenceReads(db), students: peopleDirectoryReads(db), exceptions: exceptions}
 }
 
 // FindPartialAbsenceBlocks lists the blocks of the ISO day that start at or

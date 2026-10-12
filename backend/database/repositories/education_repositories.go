@@ -9,32 +9,7 @@ import (
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/uptrace/bun"
 )
-
-// NewEducationGroupRepository is the retained group store on the tenant
-// runtime of the School Structure owner.
-func NewEducationGroupRepository(db *bun.DB, options ...educationRepo.GroupRepositoryDependencies) *educationGroupRepository {
-	var deps educationRepo.GroupRepositoryDependencies
-	if len(options) > 0 {
-		deps = options[0]
-	}
-	directory := &educationRoomDirectory{}
-	if deps.Rooms == nil {
-		deps.Rooms = func() educationRepo.GroupRoomLookup {
-			if directory.rooms == nil {
-				return nil
-			}
-			return directory
-		}
-	}
-	return &educationGroupRepository{GroupRepository: educationRepo.NewGroupRepository(educationRepo.NewLegacyRepositoryRuntime(db), deps), rooms: directory}
-}
-
-type educationGroupRepository struct {
-	*educationRepo.GroupRepository
-	rooms *educationRoomDirectory
-}
 
 // The retained School Structure repository contracts the legacy composition
 // hands to its consumers, over the owner's values its composition names
@@ -69,20 +44,6 @@ type EducationGroupRepository interface {
 	// ListGroupSupervisors is the same answer for the staff notification
 	// recipients, in their own pair type (#3556).
 	ListGroupSupervisors(ctx context.Context, groupIDs []int64, on calendar.Date) ([]notifications.StaffGroupPair, error)
-}
-
-// ListGroupSupervisors answers who supervises the groups on the day for the
-// staff notification recipients.
-func (r *educationGroupRepository) ListGroupSupervisors(ctx context.Context, groupIDs []int64, on calendar.Date) ([]notifications.StaffGroupPair, error) {
-	pairs, err := r.ListStaffIDsByEducationGroupIDs(ctx, groupIDs, on)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]notifications.StaffGroupPair, 0, len(pairs))
-	for _, pair := range pairs {
-		result = append(result, notifications.StaffGroupPair{StaffID: pair.StaffID, GroupID: pair.GroupID})
-	}
-	return result, nil
 }
 
 // GroupTeacherRepository is the retained contract of education.group_teacher,
