@@ -66,15 +66,20 @@ nextjs-portal { display: none !important; }
  * ersten Besuch einen Dialog, solange der Browser keine gespeicherte
  * Entscheidung hat. Der Schlüssel enthält die Konto-ID, die vorher niemand
  * kennt; deshalb beantwortet dieses Skript die Frage für jeden Schlüssel dieser
- * Form mit "erledigt". Ein Produkt-Screenshot zeigt die App im Alltag, nicht
- * ihren Erststart.
+ * Form mit "erledigt". Dasselbe gilt für die Erste-Schritte-Liste der Eltern
+ * (components/parent/onboarding), die sich beim ersten Besuch über den Inhalt
+ * legt: Sie gilt als ausgeblendet. Ein Produkt-Screenshot zeigt die App im
+ * Alltag, nicht ihren Erststart.
  */
 const PRESET_DECISIONS = `
 (() => {
   const setupKey = /^moto\\.[a-z]+\\.notification-setup\\.v1\\./;
+  const parentFirstStepsKey = /^parent-first-steps:v1:/;
   const original = Storage.prototype.getItem;
   Storage.prototype.getItem = function (key) {
-    return setupKey.test(key) ? '{"done":true}' : original.call(this, key);
+    if (setupKey.test(key)) return '{"done":true}';
+    if (parentFirstStepsKey.test(key)) return '{"dismissed":true}';
+    return original.call(this, key);
   };
 })();
 `;
