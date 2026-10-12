@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,8 +64,8 @@ func countChangeLogDeletions(tb testing.TB, db *bun.DB, studentID int64) int {
 	return int(count)
 }
 
-func changeLogSettings(retentionDays int) *configtest.Mock {
-	return &configtest.Mock{
+func changeLogSettings(retentionDays int) *settingsDouble {
+	return &settingsDouble{
 		ResolveIntFn: func(_ context.Context, key string) (int, error) {
 			if key != configModel.KeyGDPRStudentChangeLogRetentionDays {
 				return 0, fmt.Errorf("unexpected setting key %q", key)

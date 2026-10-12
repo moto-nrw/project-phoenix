@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -17,8 +16,8 @@ import (
 
 // settingsWithWindow builds a settings double with the dispatch flag on and an
 // explicit delivery window.
-func settingsWithWindow(start, end string) *configtest.Mock {
-	return &configtest.Mock{
+func settingsWithWindow(start, end string) *settingsDouble {
+	return &settingsDouble{
 		ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
 			return key == configModel.KeyNotificationsDispatchEnabled, nil
 		},

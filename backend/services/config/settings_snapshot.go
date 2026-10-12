@@ -34,6 +34,15 @@ func WithSettingsSnapshot(ctx context.Context, snapshot *SettingsSnapshot) conte
 	return context.WithValue(ctx, settingsSnapshotContextKey{}, snapshot)
 }
 
+// Prefetch resolves keys in one read and attaches the snapshot to ctx.
+func (s *settingsService) Prefetch(ctx context.Context, keys []string) (context.Context, error) {
+	snapshot, err := s.ResolveMany(ctx, keys)
+	if err != nil {
+		return ctx, err
+	}
+	return WithSettingsSnapshot(ctx, snapshot), nil
+}
+
 func snapshotFromContext(ctx context.Context, tenantID int64, keys []string) *SettingsSnapshot {
 	snapshot, _ := ctx.Value(settingsSnapshotContextKey{}).(*SettingsSnapshot)
 	if snapshot == nil || snapshot.tenantID != tenantID || !snapshot.containsAll(keys) {

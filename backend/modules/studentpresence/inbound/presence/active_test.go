@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
 	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -267,7 +266,7 @@ func TestEndActiveGroup(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
 
 	t.Run("disabled web attendance blocks group teardown", func(t *testing.T) {
-		disabledSettings := &configtest.Mock{
+		disabledSettings := &settingsDouble{
 			ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 				assert.Equal(t, tenantsettings.KeyAttendanceWebEnabled, key)
 				return false, nil

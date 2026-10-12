@@ -10,7 +10,6 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -131,8 +130,8 @@ func (f *fakePreferenceRepo) DisableConsent(_ context.Context, accountID int64, 
 
 // allSettingsOn answers every boolean setting with true: dispatch is on and no
 // type is gated off school-wide.
-func allSettingsOn() *configtest.Mock {
-	return &configtest.Mock{
+func allSettingsOn() *settingsDouble {
+	return &settingsDouble{
 		ResolveBoolFn: func(_ context.Context, _ string) (bool, error) { return true, nil },
 	}
 }
@@ -175,7 +174,7 @@ func TestGetForAccountMergesStoredDecisions(t *testing.T) {
 func TestGetForAccountMarksSchoolGatedTypesUnavailable(t *testing.T) {
 	t.Parallel()
 
-	settings := &configtest.Mock{
+	settings := &settingsDouble{
 		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 			return key != configModel.KeyRemindersPickupUpcomingEnabled, nil
 		},
@@ -211,7 +210,7 @@ func TestGetForAccountFailures(t *testing.T) {
 	})
 
 	t.Run("a failing settings read surfaces", func(t *testing.T) {
-		settings := &configtest.Mock{
+		settings := &settingsDouble{
 			ResolveBoolFn: func(_ context.Context, _ string) (bool, error) { return false, errors.New("boom") },
 		}
 		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, settings, nil, nil)
@@ -327,7 +326,7 @@ func TestFilterOptedIn(t *testing.T) {
 	})
 
 	t.Run("a type the school switched off reaches nobody", func(t *testing.T) {
-		settings := &configtest.Mock{
+		settings := &settingsDouble{
 			ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 				return key != configModel.KeyRemindersPickupUpcomingEnabled, nil
 			},
@@ -343,7 +342,7 @@ func TestFilterOptedIn(t *testing.T) {
 	})
 
 	t.Run("a disabled parent-messaging gate reaches nobody", func(t *testing.T) {
-		settings := &configtest.Mock{
+		settings := &settingsDouble{
 			ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 				return key != configModel.KeyParentNotesEnabled, nil
 			},
@@ -359,7 +358,7 @@ func TestFilterOptedIn(t *testing.T) {
 	})
 
 	t.Run("a failing gate read surfaces", func(t *testing.T) {
-		settings := &configtest.Mock{
+		settings := &settingsDouble{
 			ResolveBoolFn: func(_ context.Context, _ string) (bool, error) { return false, errors.New("boom") },
 		}
 		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, settings, nil, nil)
@@ -417,7 +416,7 @@ func TestFilterOptedInByTypeBatchesGatesAndPreferences(t *testing.T) {
 
 	candidates := []int64{prefAccountA, prefAccountB}
 	var gateCalls int
-	settings := &configtest.Mock{
+	settings := &settingsDouble{
 		ResolveBoolsFn: func(_ context.Context, keys []string) (map[string]bool, error) {
 			gateCalls++
 			assert.ElementsMatch(t, []string{
@@ -489,7 +488,7 @@ func TestFilterNotOptedOut(t *testing.T) {
 	})
 
 	t.Run("a type the school switched off reaches nobody", func(t *testing.T) {
-		settings := &configtest.Mock{
+		settings := &settingsDouble{
 			ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 				return key != configModel.KeyRemindersPickupUpcomingEnabled, nil
 			},

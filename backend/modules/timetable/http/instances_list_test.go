@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -111,7 +110,7 @@ func buildListSetup(t *testing.T) *listSetup {
 		Templates:         data,
 		TimetableData:     data.TimetableData(),
 		ConflictDetection: data.ConflictDetection(),
-		SettingsService: &configtest.Mock{
+		SettingsService: &settingsDouble{
 			ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil },
 			ResolveIntFn: func(_ context.Context, key string) (int, error) {
 				switch key {
@@ -670,7 +669,7 @@ func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
 	t.Parallel()
 
 	res := NewResource(Dependencies{
-		SettingsService: &configtest.Mock{
+		SettingsService: &settingsDouble{
 			ResolveBoolFn: func(context.Context, string) (bool, error) {
 				return false, errors.New("settings down")
 			},
@@ -700,7 +699,7 @@ func TestCompleteLeadMinutesResolvesZero(t *testing.T) {
 	t.Parallel()
 
 	res := NewResource(Dependencies{
-		SettingsService: &configtest.Mock{
+		SettingsService: &settingsDouble{
 			ResolveIntFn: func(_ context.Context, key string) (int, error) {
 				require.Equal(t, settings.KeyTimetableCompleteLeadMinutes, key)
 				return 0, nil
@@ -716,7 +715,7 @@ func TestCompleteLeadMinutesPropagatesResolveError(t *testing.T) {
 	t.Parallel()
 
 	res := NewResource(Dependencies{
-		SettingsService: &configtest.Mock{
+		SettingsService: &settingsDouble{
 			ResolveIntFn: func(context.Context, string) (int, error) {
 				return 0, errors.New("settings down")
 			},
@@ -732,7 +731,7 @@ func TestCompletionAvailabilityAppliesCompleteLead(t *testing.T) {
 	t.Parallel()
 
 	res := NewResource(Dependencies{
-		SettingsService: &configtest.Mock{
+		SettingsService: &settingsDouble{
 			ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil },
 			ResolveIntFn: func(_ context.Context, key string) (int, error) {
 				require.Equal(t, settings.KeyTimetableCompleteLeadMinutes, key)
@@ -826,7 +825,7 @@ func TestListInstances_CapacityFields(t *testing.T) {
 	// Tenant-override ratio of 2 children per staff member, exercised via the
 	// same HasTenantOverride -> ResolveInt chain the real settings service
 	// uses (settings-system.md), not just the registry default.
-	s.res.SettingsService = &configtest.Mock{
+	s.res.SettingsService = &settingsDouble{
 		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
 		ResolveIntFn:        func(context.Context, string) (int, error) { return 2, nil },
 	}

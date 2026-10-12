@@ -1,7 +1,7 @@
 package test
 
-// Test doubles for repository-shaped collaborators, following the
-// configtest.Mock convention: exported fields configure the answers.
+// Test doubles for repository-shaped collaborators, following the func-field
+// convention: exported fields configure the answers.
 
 import (
 	"context"

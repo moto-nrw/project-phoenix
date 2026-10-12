@@ -16,8 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -144,7 +142,7 @@ func fullSources() Sources {
 		Education:   &mockEducationService{},
 		Schulhof:    &mockSchulhofService{},
 		Operations:  &mockOperationsService{},
-		Settings:    &configtest.Mock{},
+		Settings:    &settingsDouble{},
 		Pickups:     &mockPickupService{},
 		Arrivals:    &mockArrivalService{},
 	}
@@ -180,7 +178,7 @@ func TestNewRejectsMissingSourcesAtComposition(t *testing.T) {
 func TestCallerResolvesOverviewAndPermissions(t *testing.T) {
 	t.Parallel()
 
-	settings := &configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+	settings := &settingsDouble{ResolveStringFn: func(_ context.Context, key string) (string, error) {
 		if key != configModel.KeyOperationalOverviewScope {
 			return "", errors.New("unexpected settings key: " + key)
 		}
@@ -345,7 +343,7 @@ func TestSettingsBranches(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	mock := &configtest.Mock{
+	mock := &settingsDouble{
 		ResolveBoolFn:   func(context.Context, string) (bool, error) { return true, nil },
 		ResolveStringFn: func(context.Context, string) (string, error) { return "", errors.New("boom") },
 	}
@@ -393,17 +391,18 @@ func TestSettingsBranches(t *testing.T) {
 	_, err = s.SpontaneousActivitiesEnabled(ctx)
 	require.ErrorContains(t, err, "spontaneous activities")
 
+	type prefetched struct{}
 	var preparedKeys []string
-	mock.ResolveManyFn = func(_ context.Context, keys []string) (*configService.SettingsSnapshot, error) {
+	mock.PrefetchFn = func(ctx context.Context, keys []string) (context.Context, error) {
 		preparedKeys = keys
-		return &configService.SettingsSnapshot{}, nil
+		return context.WithValue(ctx, prefetched{}, true), nil
 	}
 	prepared, err := s.Prepare(ctx)
 	require.NoError(t, err)
-	assert.NotNil(t, prepared)
+	assert.Equal(t, true, prepared.Value(prefetched{}), "the request continues with the prefetched context")
 	assert.Contains(t, preparedKeys, configModel.KeyWeekendFollowsFriday)
-	mock.ResolveManyFn = func(context.Context, []string) (*configService.SettingsSnapshot, error) {
-		return nil, errors.New("settings down")
+	mock.PrefetchFn = func(ctx context.Context, _ []string) (context.Context, error) {
+		return ctx, errors.New("settings down")
 	}
 	_, err = s.Prepare(ctx)
 	require.EqualError(t, err, "settings down")

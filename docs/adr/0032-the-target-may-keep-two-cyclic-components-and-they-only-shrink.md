@@ -106,3 +106,12 @@ a new ADR that supersedes this one.
 - Make the subset check a failing mode of `cycles`, or a test over its JSON
   report, with these two lists as the fixture. Until then `cycles` only
   reports.
+
+## Addendum (#3965)
+
+`delivery.application.settings` is deleted because no Delivery application
+imports the settings application any more: notifications and PWA usage read
+settings through consumer-owned ports. The permanent direction
+`delivery-platform → settings-platform` stands and is carried by
+`delivery.application.settings-domain`; the follow-up above now applies to
+that rule and `settings-platform.http.organization-public` only.

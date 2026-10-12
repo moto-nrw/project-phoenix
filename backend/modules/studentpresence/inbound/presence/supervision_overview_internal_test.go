@@ -14,7 +14,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,8 +21,8 @@ import (
 // scopeSettings resolves operations.operational_overview_scope to the given
 // value and errors on every other key, so a handler reaching for a second
 // access setting fails the test loudly (#2380: there is only one rule).
-func scopeSettings(scope string) *configtest.Mock {
-	return &configtest.Mock{
+func scopeSettings(scope string) *settingsDouble {
+	return &settingsDouble{
 		ResolveStringFn: func(_ context.Context, key string) (string, error) {
 			if key != tenantsettings.KeyOperationalOverviewScope {
 				return "", fmt.Errorf("unexpected settings key: %s", key)
@@ -35,8 +34,8 @@ func scopeSettings(scope string) *configtest.Mock {
 
 // failingScopeSettings makes the scope lookup fail, standing in for a
 // database fault. The gate must fail closed.
-func failingScopeSettings() *configtest.Mock {
-	return &configtest.Mock{
+func failingScopeSettings() *settingsDouble {
+	return &settingsDouble{
 		ResolveStringFn: func(_ context.Context, _ string) (string, error) {
 			return "", fmt.Errorf("settings unavailable")
 		},
@@ -228,7 +227,7 @@ func TestGetAllActiveSupervisions_AllStaffScopeAllowsPermissionBearingStaff(t *t
 func TestGetAllActiveSupervisions_GroupModeAloneGrantsNothing(t *testing.T) {
 	t.Parallel()
 
-	settings := &configtest.Mock{
+	settings := &settingsDouble{
 		ResolveStringFn: func(_ context.Context, key string) (string, error) {
 			switch key {
 			case tenantsettings.KeyGroupMode:

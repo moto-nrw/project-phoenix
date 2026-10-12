@@ -899,7 +899,7 @@
       "declaration": "TestStudentChangeLogCleanup_DeletesOldEdits",
       "target": "database/repositories.NewFactory",
       "lines": [
-        92
+        91
       ],
       "tables": []
     },
@@ -909,7 +909,7 @@
       "declaration": "TestStudentChangeLogCleanup_NoOpWhenNothingExpired",
       "target": "database/repositories.NewFactory",
       "lines": [
-        122
+        121
       ],
       "tables": []
     },

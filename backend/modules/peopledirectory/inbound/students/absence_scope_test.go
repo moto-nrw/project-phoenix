@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -144,7 +143,7 @@ func TestDirectAbsenceScopeFailsClosed(t *testing.T) {
 			case "missing":
 				tc.resource.SettingsService = nil
 			case "error", "unknown":
-				tc.resource.SettingsService = &configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
+				tc.resource.SettingsService = &settingsDouble{ResolveStringFn: func(context.Context, string) (string, error) {
 					if mode == "error" {
 						return "all_staff", errors.New("settings unavailable")
 					}

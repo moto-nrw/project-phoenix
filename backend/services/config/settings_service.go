@@ -159,7 +159,7 @@ func NewSettingsServiceWithHomeLayouts(
 	logger *slog.Logger,
 	homeLayouts *HomeLayoutService,
 	registries ...*config.Registry,
-) SettingsService {
+) BatchSettingsService {
 	return newSettingsService(valueRepo, auditRepo, schoolStore, runtime, logger, homeLayouts, registries...)
 }
 
@@ -171,7 +171,7 @@ func newSettingsService(
 	logger *slog.Logger,
 	homeLayouts *HomeLayoutService,
 	registries ...*config.Registry,
-) SettingsService {
+) BatchSettingsService {
 	registry := config.DefaultRegistry()
 	if len(registries) > 0 && registries[0] != nil {
 		registry = registries[0]

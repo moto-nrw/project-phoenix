@@ -25,7 +25,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
@@ -56,7 +55,7 @@ type Sources struct {
 	Education    educationService.GroupRoomsQuery
 	Schulhof     facilitiesService.SchulhofService
 	Operations   timetable.OperationQuery
-	Settings     configService.SettingsService
+	Settings     supervisiondashboard.Resolver
 	Pickups      careplan.BulkPickupTimes
 	Arrivals     careplan.BulkArrivalTimes
 	Now          func() time.Time
@@ -93,7 +92,7 @@ func New(sources Sources) (supervisiondashboard.Query, error) {
 }
 
 type access struct {
-	settings configService.SettingsService
+	settings supervisiondashboard.Resolver
 	CallerContext
 }
 
@@ -623,14 +622,10 @@ func wallClock(at *time.Time) *string {
 	return &formatted
 }
 
-type settings struct{ settings configService.SettingsService }
+type settings struct{ settings supervisiondashboard.Resolver }
 
 func (s settings) Prepare(ctx context.Context) (context.Context, error) {
-	batch, ok := s.settings.(configService.BatchSettingsService)
-	if !ok {
-		return ctx, nil
-	}
-	snapshot, err := batch.ResolveMany(ctx, []string{
+	return s.settings.Prefetch(ctx, []string{
 		configModel.KeyOperationalOverviewScope,
 		configModel.KeyGroupMode,
 		configModel.KeyStudentPhotosEnabled,
@@ -640,10 +635,6 @@ func (s settings) Prepare(ctx context.Context) (context.Context, error) {
 		configModel.KeyTrackingIndicator2,
 		configModel.KeyTrackingIndicator3,
 	})
-	if err != nil {
-		return ctx, err
-	}
-	return configService.WithSettingsSnapshot(ctx, snapshot), nil
 }
 
 func (s settings) StudentPhotosEnabled(ctx context.Context) (bool, error) {

@@ -39,7 +39,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -210,8 +209,15 @@ type Service interface {
 	Notify(ctx context.Context, event Event) error
 }
 
+// RouterSettings resolves the dispatch flag and delivery window of an event's
+// tenant.
+type RouterSettings interface {
+	ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error)
+	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
+}
+
 type router struct {
-	settings configService.SettingsService
+	settings RouterSettings
 	channels []Channel
 	logger   *slog.Logger
 	observe  DeliveryObserver
@@ -236,14 +242,14 @@ const TypeTest = "test"
 // NewService builds the channel router. Channels are fixed at wiring time.
 // It returns Notifier so wiring can reach NotifyBatch; the value stays
 // assignable to Service for consumers that only notify one audience.
-func NewService(settings configService.SettingsService, logger *slog.Logger, channels ...Channel) Notifier {
+func NewService(settings RouterSettings, logger *slog.Logger, channels ...Channel) Notifier {
 	return &router{settings: settings, channels: channels, logger: logger}
 }
 
 // NewServiceWithDeliveryObserver builds the production router with runtime
 // evidence for fail-closed sends. NewService remains the small test and local
 // adapter constructor.
-func NewServiceWithDeliveryObserver(settings configService.SettingsService, logger *slog.Logger, observe DeliveryObserver, channels ...Channel) Notifier {
+func NewServiceWithDeliveryObserver(settings RouterSettings, logger *slog.Logger, observe DeliveryObserver, channels ...Channel) Notifier {
 	service := NewService(settings, logger, channels...).(*router)
 	service.observe = observe
 	return service

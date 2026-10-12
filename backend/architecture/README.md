@@ -3304,8 +3304,25 @@ reaches for the tests that left the fixture package: the settings suite
 (`audit-platform`/`adapter-test`, external_test) to `enrollment/test-support`
 and `care-plan/test-support`. A wider scope, another role or another target
 stays a loosening. Epoch 35 registers five rules under it and seven keys fall
-(173 -> 166). `configtest` keeps `services/config`: the settings schema it
-returns carries `models/config` types no contract may expose.
+(173 -> 166). `configtest` kept `services/config` then: the settings schema it
+returned carries `models/config` types no contract may expose.
+[#3965](https://github.com/moto-nrw/project-phoenix/issues/3965) needed no
+rule either: no consumer read the schema. Every consumer that took the full
+settings service declares a narrow port; the supervision dashboard's is
+`supervisiondashboard.Resolver` in its public ports, and the group live
+projection gets the same `grouplive.Resolver`. Both carry `Prefetch`, a new
+settings-service read that resolves keys at once and returns the context with
+the snapshot, so neither legacy adapter names a snapshot type or imports the
+settings application any more, the settings constructor returns the batch
+service, and both legacy trees shrink (710 -> 701, 548 -> 539). Each test
+package keeps a local func-field `settingsDouble` with only the methods its
+ports need, and `configtest` is deleted with its package entry. Both `configtest` keys fall,
+and the now unused rules `delivery.application.settings`,
+`communication.parent-compatibility.application-settings-application`,
+`calendar-view.adapter-test.settings-platform-application`,
+`calendar-view.adapter.settings-platform-application` and
+`group-live-view.adapter.settings-platform-application` are deleted
+(166 -> 164).
 
 A reviewed epoch may also add the one owner-agnostic shared-kernel rule
 ([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),

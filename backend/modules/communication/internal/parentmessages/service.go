@@ -27,7 +27,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -89,7 +88,7 @@ type Config struct {
 	ReadRepo    usersModels.ParentMessageReadRepository
 	Persons     PersonLookup
 	UserContext authorize.StudentAccessUserContext
-	Settings    configService.SettingsService
+	Settings    parentmessaging.SettingsResolver
 	Broadcaster realtime.Broadcaster
 	DB          *bun.DB
 	Logger      *slog.Logger

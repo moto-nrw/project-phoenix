@@ -11,18 +11,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 
 	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // --- Mock SettingsService ---
 
-// newTrackingMockSettingsService builds a configtest.Mock wired the same way
-// as the previous hand-rolled stub: ResolveBool/ResolveString delegate to the
-// given funcs (nil → zero value), and the ForTenant variants delegate to the
-// same funcs.
-func newTrackingMockSettingsService(resolveBoolFunc func(ctx context.Context, key string) (bool, error), resolveStringFunc func(ctx context.Context, key string) (string, error)) *configtest.Mock {
+// newTrackingMockSettingsService builds a settingsDouble whose
+// ResolveBool/ResolveString delegate to the given funcs (nil → zero value).
+func newTrackingMockSettingsService(resolveBoolFunc func(ctx context.Context, key string) (bool, error), resolveStringFunc func(ctx context.Context, key string) (string, error)) *settingsDouble {
 	resolveBool := func(ctx context.Context, key string) (bool, error) {
 		if resolveBoolFunc != nil {
 			return resolveBoolFunc(ctx, key)
@@ -35,12 +32,9 @@ func newTrackingMockSettingsService(resolveBoolFunc func(ctx context.Context, ke
 		}
 		return "", nil
 	}
-	return &configtest.Mock{
+	return &settingsDouble{
 		ResolveBoolFn:   resolveBool,
 		ResolveStringFn: resolveString,
-		ResolveBoolForTenantFn: func(ctx context.Context, _ int64, key string) (bool, error) {
-			return resolveBool(ctx, key)
-		},
 	}
 }
 

@@ -1703,13 +1703,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/config/configtest",
-      "owner": "test-support",
-      "role": "test-support",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "services/config/settingstest",
       "owner": "settings-platform",
       "role": "test-support",
@@ -7022,17 +7015,6 @@
       "source_role": "adapter",
       "target_owner": "identity-access",
       "target_role": "adapter"
-    },
-    {
-      "id": "group-live-view.adapter.settings-platform-application",
-      "description": "The live-group compatibility adapter prefetches and reads tenant settings through the retained settings service (#2702).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
-      "source_role": "adapter",
-      "target_owner": "settings-platform",
-      "target_role": "application"
     },
     {
       "id": "group-live-view.adapter.settings-platform-domain",
@@ -12603,17 +12585,6 @@
       "target_role": "domain"
     },
     {
-      "id": "delivery.application.settings",
-      "description": "Legacy notification and PWA applications read tenant settings through the settings service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "application",
-      "target_owner": "settings-platform",
-      "target_role": "application"
-    },
-    {
       "id": "delivery.application.tenant-runtime",
       "description": "Delivery applications join the ambient tenant transaction.",
       "scopes": [
@@ -13692,17 +13663,6 @@
       "source_role": "adapter",
       "target_owner": "people-directory",
       "target_role": "domain"
-    },
-    {
-      "id": "communication.parent-compatibility.application-settings-application",
-      "description": "The retained parent-announcement implementation resolves settings through the existing service until #2675.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "adapter",
-      "target_owner": "settings-platform",
-      "target_role": "application"
     },
     {
       "id": "communication.parent-compatibility.application-tenant-runtime",
@@ -17848,17 +17808,6 @@
       "target_role": "domain"
     },
     {
-      "id": "calendar-view.adapter.settings-platform-application",
-      "description": "The supervision compatibility adapter prefetches and reads tenant settings through the retained settings service (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "settings-platform",
-      "target_role": "application"
-    },
-    {
       "id": "calendar-view.adapter.settings-platform-domain",
       "description": "The supervision compatibility adapter names the setting keys it prefetches (#2703).",
       "scopes": [
@@ -17901,17 +17850,6 @@
       "source_role": "adapter-test",
       "target_owner": "legacy-shared",
       "target_role": "domain"
-    },
-    {
-      "id": "calendar-view.adapter-test.settings-platform-application",
-      "description": "Adapter tests fake the retained settings service (#2703).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "settings-platform",
-      "target_role": "application"
     },
     {
       "id": "calendar-view.adapter-test.settings-platform-domain",

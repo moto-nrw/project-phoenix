@@ -7,8 +7,12 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/services/config"
 )
+
+// changeLogRetentionSettings resolves the tenant's change-log retention period.
+type changeLogRetentionSettings interface {
+	ResolveInt(ctx context.Context, key string) (int, error)
+}
 
 // NewStudentChangeLogCleanup binds People Directory's change-history retention
 // sweep (#1455) to the retained change-log table, the GDPR deletion trail and
@@ -18,7 +22,7 @@ import (
 func NewStudentChangeLogCleanup(
 	edits auditModels.StudentFieldEditRepository,
 	deletions auditModels.DataDeletionRepository,
-	settings config.SettingsService,
+	settings changeLogRetentionSettings,
 	logger *slog.Logger,
 ) peopleCompose.StudentChangeLogCleanupService {
 	var deletionLog peopleCompose.StudentChangeLogDeletionLog
