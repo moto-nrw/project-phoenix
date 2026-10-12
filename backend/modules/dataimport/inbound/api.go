@@ -162,6 +162,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 		if txErr != nil {
 			return txErr
 		}
+		preview.IServ = uploadResult.IServ
 		// GDPR Compliance: Audit log for preview (Article 30).
 		return rs.studentImportService.RecordAuditInTransaction(ctx, "student", uploadResult.Filename, preview.ImportResult, accountID, true, tenantID)
 	}); err != nil {

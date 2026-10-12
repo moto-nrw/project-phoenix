@@ -2,6 +2,7 @@ package importapi
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,8 @@ import (
 type FileUploadResult struct {
 	Rows     []importModels.StudentImportRow
 	Filename string
+	// IServ is set for an IServ user export (#1446).
+	IServ *importModels.IServSummary
 }
 
 // StaffFileUploadResult contains the parsed staff rows and file metadata
@@ -38,6 +41,24 @@ func (rs *Resource) importModeFromRequest(w http.ResponseWriter, r *http.Request
 		return "", false
 	}
 	return mode, true
+}
+
+// studentFileOptions reads the optional "iserv_user_types" form field: a JSON
+// array of the IServ user types to import (#1446). Absent means no choice
+// yet. Must run after the multipart form was parsed.
+func studentFileOptions(r *http.Request) (importModels.StudentFileOptions, error) {
+	if r.MultipartForm == nil {
+		return importModels.StudentFileOptions{}, nil
+	}
+	raw, ok := r.MultipartForm.Value["iserv_user_types"]
+	if !ok || len(raw) == 0 {
+		return importModels.StudentFileOptions{}, nil
+	}
+	userTypes := []string{}
+	if err := json.Unmarshal([]byte(raw[0]), &userTypes); err != nil {
+		return importModels.StudentFileOptions{}, fmt.Errorf("ungültige Auswahl der IServ-Benutzertypen")
+	}
+	return importModels.StudentFileOptions{IServUserTypes: userTypes}, nil
 }
 
 // openValidatedUploadFile performs the shared upload validation (size limit,
@@ -101,7 +122,14 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 		}
 	}()
 
-	rows, err := rs.files.Students(file, uploadFormat(isExcel))
+	opts, err := studentFileOptions(r)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		rs.runtime.Failure(w, r, Failure{Status: http.StatusBadRequest, Cause: err})
+		return nil, false
+	}
+
+	decoded, err := rs.files.Students(file, uploadFormat(isExcel), opts)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		rs.runtime.Failure(w, r, decodeFailure(err))
@@ -109,8 +137,9 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	}
 
 	return &FileUploadResult{
-		Rows:     rows,
+		Rows:     decoded.Rows,
 		Filename: header.Filename,
+		IServ:    decoded.IServ,
 	}, true
 }
 

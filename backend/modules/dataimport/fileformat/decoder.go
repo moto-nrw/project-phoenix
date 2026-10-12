@@ -12,14 +12,14 @@ type Decoder struct{}
 
 var _ dataimport.FileDecoder = Decoder{}
 
-func (Decoder) Students(reader io.Reader, format dataimport.FileFormat) ([]dataimport.StudentImportRow, error) {
+func (Decoder) Students(reader io.Reader, format dataimport.FileFormat, opts dataimport.StudentFileOptions) (dataimport.StudentFile, error) {
 	switch format {
 	case dataimport.CSV:
-		return NewCSVParser().ParseStudents(reader)
+		return NewCSVParser().ParseStudentFile(reader, opts)
 	case dataimport.XLSX:
-		return NewXLSXParser().ParseStudents(reader)
+		return NewXLSXParser().ParseStudentFile(reader, opts)
 	default:
-		return nil, fmt.Errorf("unsupported import format %q", format)
+		return dataimport.StudentFile{}, fmt.Errorf("unsupported import format %q", format)
 	}
 }
 

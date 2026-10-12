@@ -23,6 +23,8 @@ type childQuotaPreview struct {
 type studentPreviewResponse struct {
 	*importModels.ImportResult[importModels.StudentImportRow]
 	ChildQuota *childQuotaPreview `json:"child_quota,omitempty"`
+	// IServ lists the user types of an IServ user export (#1446).
+	IServ *importModels.IServSummary `json:"iserv,omitempty"`
 }
 
 // previewStudents runs the preview's dry run and judges its new children

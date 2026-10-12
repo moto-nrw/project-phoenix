@@ -1,9 +1,13 @@
 package fileformat
 
 import (
+	"bytes"
 	"encoding/csv"
 	"fmt"
 	"io"
+	"unicode/utf8"
+
+	"golang.org/x/text/encoding/charmap"
 
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 )
@@ -20,53 +24,70 @@ func NewCSVParser() *CSVParser {
 
 // ParseStudents parses a CSV file into student import rows
 func (p *CSVParser) ParseStudents(reader io.Reader) ([]importModels.StudentImportRow, error) {
-	csvReader := csv.NewReader(reader)
+	file, err := p.ParseStudentFile(reader, importModels.StudentFileOptions{})
+	return file.Rows, err
+}
+
+// ParseStudentFile parses a CSV file into student import rows. Besides the
+// moto template it reads an IServ user export, which may be separated by
+// semicolons and saved as Windows-1252 (#1446).
+func (p *CSVParser) ParseStudentFile(reader io.Reader, opts importModels.StudentFileOptions) (importModels.StudentFile, error) {
+	content, err := io.ReadAll(reader)
+	if err != nil {
+		return importModels.StudentFile{}, fmt.Errorf("read file: %w", err)
+	}
+	content = studentCSVText(content)
+
+	csvReader := csv.NewReader(bytes.NewReader(content))
+	csvReader.Comma = csvDelimiter(content)
 	csvReader.FieldsPerRecord = -1 // Variable columns (support any number of guardians)
 	csvReader.TrimLeadingSpace = true
 	csvReader.LazyQuotes = true // Handle quotes more leniently
 
-	// Read header
 	header, err := csvReader.Read()
 	if err != nil {
-		return nil, fmt.Errorf("read header: %w", err)
+		return importModels.StudentFile{}, fmt.Errorf("read header: %w", err)
 	}
-
-	// Build column mapping (case-insensitive)
-	p.columnMapping = make(map[string]int)
-	for i, col := range header {
-		key := normalizeHeaderKey(col)
-		p.columnMapping[key] = i
-	}
-
-	// Read data rows
-	var rows []importModels.StudentImportRow
-	rowNum := 2 // Start at 2 (1=header)
-
+	rows := [][]string{header}
 	for {
 		values, err := csvReader.Read()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, rowError(rowNum, err)
+			return importModels.StudentFile{}, rowError(len(rows)+1, err)
 		}
-
-		// Use shared mapping logic
-		mapper := NewColumnMapper(p.columnMapping, values)
-		row, err := MapStudentRow(mapper)
-		if err != nil {
-			return nil, rowError(rowNum, err)
-		}
-
-		rows = append(rows, row)
-		rowNum++
+		rows = append(rows, values)
 	}
 
-	// Validate that we have at least one data row
-	// Empty files (only headers) likely indicate user uploaded the template by mistake
-	if len(rows) == 0 {
-		return nil, noCSVDataRows()
-	}
+	file, mapping, err := parseStudentSheet(studentSheet{rows: rows, noRows: noCSVDataRows, keepEmptyRows: true}, opts)
+	p.columnMapping = mapping
+	return file, err
+}
 
-	return rows, nil
+// studentCSVText drops a UTF-8 byte order mark and converts a file that is
+// not UTF-8 from Windows-1252, the encoding German Excel and IServ write.
+func studentCSVText(content []byte) []byte {
+	content = bytes.TrimPrefix(content, []byte("\uFEFF"))
+	if utf8.Valid(content) {
+		return content
+	}
+	decoded, err := charmap.Windows1252.NewDecoder().Bytes(content)
+	if err != nil {
+		return content
+	}
+	return decoded
+}
+
+// csvDelimiter picks a semicolon when the first line holds more semicolons
+// than commas, as German Excel and IServ write CSV; a comma otherwise.
+func csvDelimiter(content []byte) rune {
+	firstLine := content
+	if end := bytes.IndexByte(content, '\n'); end >= 0 {
+		firstLine = content[:end]
+	}
+	if bytes.Count(firstLine, []byte(";")) > bytes.Count(firstLine, []byte(",")) {
+		return ';'
+	}
+	return ','
 }

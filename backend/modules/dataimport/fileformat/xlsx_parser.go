@@ -29,80 +29,50 @@ func NewXLSXParser() *XLSXParser {
 
 // ParseStudents parses an Excel file into student import rows
 func (p *XLSXParser) ParseStudents(reader io.Reader) ([]importModels.StudentImportRow, error) {
-	// Read the file into memory
+	file, err := p.ParseStudentFile(reader, importModels.StudentFileOptions{})
+	return file.Rows, err
+}
+
+// ParseStudentFile parses an Excel file into student import rows. The header
+// may sit below a title row; an IServ user export keeps the chosen user types.
+func (p *XLSXParser) ParseStudentFile(reader io.Reader, opts importModels.StudentFileOptions) (importModels.StudentFile, error) {
 	buf := new(bytes.Buffer)
 	if _, err := buf.ReadFrom(reader); err != nil {
-		return nil, fmt.Errorf("read file: %w", err)
+		return importModels.StudentFile{}, fmt.Errorf("read file: %w", err)
 	}
 
-	// Open Excel file
 	f, err := excelize.OpenReader(buf, excelize.Options{
 		ShortDatePattern: studentImportShortDatePattern,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("open excel file: %w", err)
+		return importModels.StudentFile{}, fmt.Errorf("open excel file: %w", err)
 	}
 	defer func() {
 		_ = f.Close() // Ignore close errors in defer
 	}()
 
-	// Get the first sheet
 	sheetName := f.GetSheetName(0)
 	if sheetName == "" {
-		return nil, fmt.Errorf("no sheets found in Excel file")
+		return importModels.StudentFile{}, fmt.Errorf("no sheets found in Excel file")
 	}
 
-	// Read all rows from the sheet
 	rows, err := f.GetRows(sheetName)
 	if err != nil {
-		return nil, fmt.Errorf("read rows: %w", err)
+		return importModels.StudentFile{}, fmt.Errorf("read rows: %w", err)
 	}
-
 	if len(rows) == 0 {
-		return nil, fmt.Errorf("empty Excel file")
+		return importModels.StudentFile{}, fmt.Errorf("empty Excel file")
 	}
 
-	// First row is the header
-	header := rows[0]
-
-	// Build column mapping (case-insensitive)
-	p.columnMapping = make(map[string]int)
-	for i, col := range header {
-		key := normalizeHeaderKey(col)
-		p.columnMapping[key] = i
-	}
-
-	// Parse data rows (skip header)
-	var studentRows []importModels.StudentImportRow
-	for rowNum := 2; rowNum <= len(rows); rowNum++ {
-		if rowNum-1 >= len(rows) {
-			break
-		}
-
-		values := normalizeXLSXRowValues(f, sheetName, rowNum, header, rows[rowNum-1])
-
-		// Skip empty rows
-		if isEmptyRow(values) {
-			continue
-		}
-
-		// Use shared mapping logic
-		mapper := NewColumnMapper(p.columnMapping, values)
-		row, err := MapStudentRow(mapper)
-		if err != nil {
-			return nil, rowError(rowNum, err)
-		}
-
-		studentRows = append(studentRows, row)
-	}
-
-	// Validate that we have at least one data row
-	// Empty files (only headers) likely indicate user uploaded the template by mistake
-	if len(studentRows) == 0 {
-		return nil, noExcelDataRows()
-	}
-
-	return studentRows, nil
+	file, mapping, err := parseStudentSheet(studentSheet{
+		rows: rows,
+		normalize: func(rowNum int, header, values []string) []string {
+			return normalizeXLSXRowValues(f, sheetName, rowNum, header, values)
+		},
+		noRows: noExcelDataRows,
+	}, opts)
+	p.columnMapping = mapping
+	return file, err
 }
 
 // isEmptyRow checks if an Excel row is completely empty

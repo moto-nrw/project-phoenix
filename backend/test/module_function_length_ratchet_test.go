@@ -113,7 +113,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/dataimport/fileformat/helpers.go:MapStudentRow":                                                                         168,
 	"modules/dataimport/fileformat/template_writer.go:(Decoder).Template":                                                            62,
 	"modules/dataimport/fileformat/templates.go:writeHinweiseSheet":                                                                  145,
-	"modules/dataimport/fileformat/xlsx_parser.go:(*XLSXParser).ParseStudents":                                                       76,
 	"modules/dataimport/inbound/api.go:(*Resource).Router":                                                                           66,
 	"modules/delivery/application/notifications/parent_copy.go:ParentAnnouncementCopy":                                               95,
 	"modules/delivery/application/notifications/preferences.go:(*preferenceService).GetForParent":                                    63,

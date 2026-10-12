@@ -42,13 +42,18 @@ var columnAliases = map[string]string{
 	"erz1.abholung": "erz1.abholberechtigt",
 	"erz2.abholung": "erz2.abholberechtigt",
 	"erz3.abholung": "erz3.abholberechtigt",
+	// IServ user export (#1446); older IServ versions say "Klasse/Info".
+	"klasse/information":               "klasse",
+	"klasse/zusätzliche informationen": "klasse",
+	"klasse/info":                      "klasse",
+	"geburtsdatum":                     "geburtstag",
 }
 
 // normalizeHeaderKey normalizes a CSV/Excel header for column mapping.
 // Strips "(optional)", "(pflicht)" annotations and whitespace, then lowercases.
 // Also applies backward-compatible aliases for renamed columns.
 func normalizeHeaderKey(col string) string {
-	key := strings.ToLower(strings.TrimSpace(col))
+	key := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(col, "\uFEFF")))
 	// Strip annotation suffixes
 	for _, suffix := range []string{"(optional)", "(pflicht)"} {
 		key = strings.TrimSpace(strings.TrimSuffix(key, suffix))
