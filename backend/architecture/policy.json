@@ -7017,17 +7017,6 @@
       "target_role": "adapter"
     },
     {
-      "id": "group-live-view.adapter.settings-platform-application",
-      "description": "The live-group compatibility adapter prefetches and reads tenant settings through the retained settings service (#2702).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
-      "source_role": "adapter",
-      "target_owner": "settings-platform",
-      "target_role": "application"
-    },
-    {
       "id": "group-live-view.adapter.settings-platform-domain",
       "description": "The live-group compatibility adapter names the setting keys it prefetches (#2702).",
       "scopes": [
@@ -17817,17 +17806,6 @@
       "source_role": "adapter",
       "target_owner": "legacy-shared",
       "target_role": "domain"
-    },
-    {
-      "id": "calendar-view.adapter.settings-platform-application",
-      "description": "The supervision compatibility adapter prefetches and reads tenant settings through the retained settings service (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "settings-platform",
-      "target_role": "application"
     },
     {
       "id": "calendar-view.adapter.settings-platform-domain",

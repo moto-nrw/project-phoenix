@@ -3308,18 +3308,20 @@ stays a loosening. Epoch 35 registers five rules under it and seven keys fall
 returned carries `models/config` types no contract may expose.
 [#3965](https://github.com/moto-nrw/project-phoenix/issues/3965) needed no
 rule either: no consumer read the schema. Every consumer that took the full
-settings service declares a narrow port; the supervision dashboard's is the
-generic `supervisiondashboard.Resolver[S]` in its public ports, and the group
-live projection gets the same `grouplive.Resolver[S]`. Both include
-`ResolveMany`, so the legacy adapters prefetch their snapshot without a type
-check, the settings constructor returns the batch service, and both legacy
-trees shrink (710 -> 708, 548 -> 546). Each test package keeps a local
-func-field `settingsDouble` with only the resolvers its ports need; the
-dashboard's internal test names the snapshot as `modules/settings.Snapshot`.
-`configtest` is deleted with its package entry. Both `configtest` keys fall,
+settings service declares a narrow port; the supervision dashboard's is
+`supervisiondashboard.Resolver` in its public ports, and the group live
+projection gets the same `grouplive.Resolver`. Both carry `Prefetch`, a new
+settings-service read that resolves keys at once and returns the context with
+the snapshot, so neither legacy adapter names a snapshot type or imports the
+settings application any more, the settings constructor returns the batch
+service, and both legacy trees shrink (710 -> 701, 548 -> 539). Each test
+package keeps a local func-field `settingsDouble` with only the methods its
+ports need, and `configtest` is deleted with its package entry. Both `configtest` keys fall,
 and the now unused rules `delivery.application.settings`,
-`communication.parent-compatibility.application-settings-application` and
-`calendar-view.adapter-test.settings-platform-application` are deleted
+`communication.parent-compatibility.application-settings-application`,
+`calendar-view.adapter-test.settings-platform-application`,
+`calendar-view.adapter.settings-platform-application` and
+`group-live-view.adapter.settings-platform-application` are deleted
 (166 -> 164).
 
 A reviewed epoch may also add the one owner-agnostic shared-kernel rule

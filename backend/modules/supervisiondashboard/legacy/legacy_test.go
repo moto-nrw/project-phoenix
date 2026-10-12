@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	educationModels "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
-	settingsplatform "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -392,26 +391,21 @@ func TestSettingsBranches(t *testing.T) {
 	_, err = s.SpontaneousActivitiesEnabled(ctx)
 	require.ErrorContains(t, err, "spontaneous activities")
 
+	type prefetched struct{}
 	var preparedKeys []string
-	mock.ResolveManyFn = func(_ context.Context, keys []string) (*settingsplatform.Snapshot, error) {
+	mock.PrefetchFn = func(ctx context.Context, keys []string) (context.Context, error) {
 		preparedKeys = keys
-		return &settingsplatform.Snapshot{}, nil
+		return context.WithValue(ctx, prefetched{}, true), nil
 	}
 	prepared, err := s.Prepare(ctx)
 	require.NoError(t, err)
-	assert.NotNil(t, prepared)
+	assert.Equal(t, true, prepared.Value(prefetched{}), "the request continues with the prefetched context")
 	assert.Contains(t, preparedKeys, configModel.KeyWeekendFollowsFriday)
-	mock.ResolveManyFn = func(context.Context, []string) (*settingsplatform.Snapshot, error) {
-		return nil, errors.New("settings down")
+	mock.PrefetchFn = func(ctx context.Context, _ []string) (context.Context, error) {
+		return ctx, errors.New("settings down")
 	}
 	_, err = s.Prepare(ctx)
 	require.EqualError(t, err, "settings down")
-
-	// No snapshot keeps the request context unchanged.
-	mock.ResolveManyFn = nil
-	unprepared, err := s.Prepare(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, ctx, unprepared)
 }
 
 func TestPresenceMapsVisitsAndAttendance(t *testing.T) {

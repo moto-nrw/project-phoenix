@@ -16,7 +16,7 @@ import (
 type settingsDouble struct {
 	ResolveBoolFn   func(ctx context.Context, key string) (bool, error)
 	ResolveStringFn func(ctx context.Context, key string) (string, error)
-	ResolveManyFn   func(ctx context.Context, keys []string) (*settingsplatform.Snapshot, error)
+	PrefetchFn      func(ctx context.Context, keys []string) (context.Context, error)
 }
 
 func (s *settingsDouble) ResolveBool(ctx context.Context, key string) (bool, error) {
@@ -33,34 +33,30 @@ func (s *settingsDouble) ResolveString(ctx context.Context, key string) (string,
 	return "", nil
 }
 
-func (s *settingsDouble) ResolveMany(ctx context.Context, keys []string) (*settingsplatform.Snapshot, error) {
-	if s.ResolveManyFn != nil {
-		return s.ResolveManyFn(ctx, keys)
+func (s *settingsDouble) Prefetch(ctx context.Context, keys []string) (context.Context, error) {
+	if s.PrefetchFn != nil {
+		return s.PrefetchFn(ctx, keys)
 	}
-	return nil, nil
+	return ctx, nil
 }
 
-func TestSettingsPrepareFetchesOneSnapshot(t *testing.T) {
+func TestSettingsPreparePrefetchesTheProjectionKeys(t *testing.T) {
 	t.Parallel()
 
+	type prefetched struct{}
 	ctx := context.Background()
 	var requested []string
-	prepared, err := settings{settings: &settingsDouble{ResolveManyFn: func(_ context.Context, keys []string) (*settingsplatform.Snapshot, error) {
+	prepared, err := settings{settings: &settingsDouble{PrefetchFn: func(ctx context.Context, keys []string) (context.Context, error) {
 		requested = keys
-		return &settingsplatform.Snapshot{}, nil
+		return context.WithValue(ctx, prefetched{}, true), nil
 	}}}.Prepare(ctx)
 	require.NoError(t, err)
-	assert.NotEqual(t, ctx, prepared, "the snapshot travels in the returned context")
+	assert.Equal(t, true, prepared.Value(prefetched{}), "the request continues with the prefetched context")
 	assert.Contains(t, requested, settingsplatform.KeySessionEndTime)
 	assert.Contains(t, requested, settingsplatform.KeyPresenceMode)
 
-	_, err = settings{settings: &settingsDouble{ResolveManyFn: func(context.Context, []string) (*settingsplatform.Snapshot, error) {
-		return nil, errors.New("settings down")
+	_, err = settings{settings: &settingsDouble{PrefetchFn: func(ctx context.Context, _ []string) (context.Context, error) {
+		return ctx, errors.New("settings down")
 	}}}.Prepare(ctx)
 	require.EqualError(t, err, "settings down")
-
-	// No snapshot keeps the request context unchanged.
-	unprepared, err := settings{settings: &settingsDouble{}}.Prepare(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, ctx, unprepared)
 }

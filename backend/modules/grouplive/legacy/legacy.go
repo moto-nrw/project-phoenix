@@ -30,7 +30,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	educationService "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // CallerContext is the Identity & Access caller context the adapters read.
@@ -56,7 +55,7 @@ type Sources struct {
 	Substitutions     educationService.SubstitutionModule
 	UserContext       CallerContext
 	Active            studentpresence.Presence
-	Settings          grouplive.Resolver[*configService.SettingsSnapshot]
+	Settings          grouplive.Resolver
 	Pickups           careplan.BulkPickupTimes
 	Arrivals          careplan.BulkArrivalTimes
 	PlannedStudentIDs func(context.Context, []int64, timezone.Date) ([]int64, error)
@@ -100,7 +99,7 @@ func New(sources Sources) (grouplive.Query, error) {
 }
 
 type access struct {
-	settings    grouplive.Resolver[*configService.SettingsSnapshot]
+	settings    grouplive.Resolver
 	userContext CallerContext
 }
 
@@ -487,12 +486,10 @@ func (t transfers) GroupHandovers(ctx context.Context, groupID int64, date group
 	return result, nil
 }
 
-type settings struct {
-	settings grouplive.Resolver[*configService.SettingsSnapshot]
-}
+type settings struct{ settings grouplive.Resolver }
 
 func (s settings) Prepare(ctx context.Context) (context.Context, error) {
-	snapshot, err := s.settings.ResolveMany(ctx, []string{
+	return s.settings.Prefetch(ctx, []string{
 		configModel.KeyOperationalOverviewScope,
 		configModel.KeyEnrollmentBookingsAuthoritative,
 		configModel.KeyPresenceMode,
@@ -503,10 +500,6 @@ func (s settings) Prepare(ctx context.Context) (context.Context, error) {
 		configModel.KeyTrackingIndicator2,
 		configModel.KeyTrackingIndicator3,
 	})
-	if err != nil {
-		return ctx, err
-	}
-	return configService.WithSettingsSnapshot(ctx, snapshot), nil
 }
 
 func (s settings) CareDayEnd(ctx context.Context) (string, error) {

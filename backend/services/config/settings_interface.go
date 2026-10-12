@@ -185,6 +185,10 @@ type BatchSettingsService interface {
 	SettingsService
 
 	ResolveMany(ctx context.Context, keys []string) (*SettingsSnapshot, error)
+	// Prefetch resolves keys in one read and returns ctx carrying the snapshot,
+	// so later single-key reads of those keys are served in memory. On a read
+	// error it returns ctx unchanged together with the error.
+	Prefetch(ctx context.Context, keys []string) (context.Context, error)
 	ResolveManyForTenant(ctx context.Context, tenantID int64, keys []string) (*SettingsSnapshot, error)
 	ResolveManyForTenants(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*SettingsSnapshot, error)
 }
