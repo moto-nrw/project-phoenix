@@ -13,11 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBindFacilitiesRequiresCapability(t *testing.T) {
-	t.Parallel()
-	assert.Panics(t, func() { (&repositories.Factory{}).BindFacilities(nil) })
-}
-
 func TestSessionCleanupRootResolvesRoomsThroughOwner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

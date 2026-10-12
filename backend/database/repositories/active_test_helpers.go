@@ -29,20 +29,7 @@ func NewActiveTestRepositories(db *bun.DB, members MembershipTestRepositories, c
 	if err != nil {
 		return ActiveTestRepositories{}, err
 	}
-	membership, err := NewSchoolMembership(db)
-	if err != nil {
-		return ActiveTestRepositories{}, err
-	}
-	workTime, err := NewWorkforce(db, membership)
-	if err != nil {
-		return ActiveTestRepositories{}, err
-	}
-	r := &Factory{db: db, CrossTenant: &visitorProjection{visits: newStudentPresence(db)}}
-	r.bindStaffProjections(membership, workTime)
-	r.bindStudentDirectories(people, people)
-	r.bindGuardianDirectories(people)
-	r.bindPersonProjections(people)
-	r.CrossTenant = groupCrossTenantRepository{CrossTenantQuery: r.CrossTenant, groups: groups}
 	return ActiveTestRepositories{TimetableTestRepositories: tt,
-		SessionStartLock: newStudentPresence(db), GroupMapping: newStudentPresence(db), CrossTenant: r.CrossTenant}, nil
+		SessionStartLock: newStudentPresence(db), GroupMapping: newStudentPresence(db),
+		CrossTenant: NewCrossTenantQuery(newStudentPresence(db), people, groups)}, nil
 }

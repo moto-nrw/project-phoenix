@@ -196,7 +196,7 @@ func resolveListenAddr(port string) string {
 
 // newWorker assembles the embedded Worker root from one typed dependency value.
 func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*scheduler.Scheduler, error) {
-	if graph == nil || graph.services == nil || graph.repos == nil {
+	if graph == nil || graph.services == nil || reads.carePlan == nil {
 		return nil, fmt.Errorf("worker serve graph is required")
 	}
 	billing, err := newOperatorBilling(logger)
@@ -303,11 +303,11 @@ func staffMessageCleanup(service communication.StaffMessagingRuntime) scheduler.
 }
 
 func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, graph *serveGraph, reads workerReads) {
-	deps.BookingConsistency = schedulerBookingConsistency(graph)
+	deps.BookingConsistency = schedulerBookingConsistency(graph, reads)
 	deps.InstanceRepo = schedulerDayInstances(reads.timetable)
 	deps.InstanceRoomRepo = reads.existingRooms
 	deps.InstanceStudentRepo = reads.timetable.InstanceStudent
-	deps.StudentStatusDayRepo = graph.repos.StudentStatusDay
+	deps.StudentStatusDayRepo = reads.studentStatusDays
 	deps.OverdueBroadcaster = graph.services.RealtimeHub
 	deps.StudentLifecycleRepo = schedulerStudentLifecycle(reads)
 	deps.ReminderNotifications = scheduler.ReminderNotificationDeps{

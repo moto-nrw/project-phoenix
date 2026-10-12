@@ -18,10 +18,6 @@ func NewAuthTestParentEnrollments(db *bun.DB) (parentModels.EnrollmentRequestRep
 	if err != nil {
 		return nil, err
 	}
-	r := &Factory{
-		db:                      db,
-		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(parentRepo.RuntimeFunc(carePlanCompose.TenantAmbientDatabase(db)), enrollmentCompose.New(), identityAccountDirectory{accounts: newIdentityAccess(db, nil)}),
-	}
-	r.BindOrganizationTenancy(organizations)
-	return r.ParentEnrollmentRequest, nil
+	requests := parentRepo.NewEnrollmentRequestRepository(parentRepo.RuntimeFunc(carePlanCompose.TenantAmbientDatabase(db)), enrollmentCompose.New(), identityAccountDirectory{accounts: newIdentityAccess(db, nil)})
+	return schoolEnrollmentRequestRepository{EnrollmentRequestRepository: requests, schools: organizations}, nil
 }

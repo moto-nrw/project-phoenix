@@ -3,7 +3,6 @@ package repositories
 import (
 	"context"
 
-	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -48,13 +47,6 @@ func NewParentRouteTestRepositories(db *bun.DB, members MembershipTestRepositori
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	r := &Factory{db: db,
-		ParentChild: parentRepo.NewChildRepository(newIdentityAccess(db, nil).ListActiveAccountSchoolIDs),
-	}
-	r.bindStudentDirectories(people, people)
-	r.bindGuardianDirectories(people)
-	r.bindPersonProjections(people)
-	r.bindCarePlanAdapters(care)
 	excusedRequests, err := NewExcusedAbsenceRequests(ExcusedRequestWiring{
 		CarePlan: care, Students: members.Student, Persons: members.Person, Scope: SchoolWideReviewScope,
 	})
@@ -62,9 +54,9 @@ func NewParentRouteTestRepositories(db *bun.DB, members MembershipTestRepositori
 		return ParentRouteTestRepositories{}, err
 	}
 	return ParentRouteTestRepositories{
-		ParentChild: r.ParentChild, Student: members.Student, Person: members.Person,
+		ParentChild: NewParentChildRepository(newIdentityAccess(db, nil).ListActiveAccountSchoolIDs, people), Student: members.Student, Person: members.Person,
 		GuardianProfile: members.GuardianProfile, StudentGuardian: members.StudentGuardian,
-		StudentStatusDay: r.StudentStatusDay, CareExceptions: care, ExcusedAbsenceRequest: r.ExcusedAbsenceRequest,
+		StudentStatusDay: NewStudentStatusDayRepository(care), CareExceptions: care, ExcusedAbsenceRequest: NewExcusedAbsenceRequestRepository(care),
 		ExcusedRequests: excusedRequests,
 	}, nil
 }

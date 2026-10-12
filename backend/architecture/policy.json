@@ -4664,13 +4664,6 @@
   ],
   "legacy_composition": [
     {
-      "package": "database/repositories",
-      "symbols": [
-        "Factory",
-        "NewFactory"
-      ]
-    },
-    {
       "package": "services",
       "symbols": [
         "Factory"

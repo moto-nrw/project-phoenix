@@ -7,8 +7,13 @@ import (
 	"time"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -56,16 +61,42 @@ func newPresenceSessionRecords(deps presenceCompose.SessionRecordDependencies) *
 	return records
 }
 
+// SessionRecordOwners are the owners the Student Presence session records
+// project their rooms, activities, devices and supervising staff through.
+// Devices may be nil: device reads then fail loudly.
+type SessionRecordOwners struct {
+	// Now fixes the supervision "today"; nil is the Berlin clock.
+	Now        func() time.Time
+	Devices    devicefleet.Query
+	Rooms      facilitiesModule.Query
+	Timetable  timetable.Capability
+	Membership schoolmembership.Query
+	Persons    peopledirectory.Query
+}
+
+// NewSessionRecords builds the Student Presence session records with every
+// owner directory bound at construction (#2743).
+func NewSessionRecords(db *bun.DB, owners SessionRecordOwners) *presenceCompose.SessionRecords {
+	deps := presenceCompose.SessionRecordDependencies{
+		DB: db, Now: owners.Now, Rooms: activeRoomDirectory{rooms: owners.Rooms},
+		Activities: NewSessionActivities(timetableCompose.NewActivityGroupRecords(owners.Timetable)),
+		Staff:      presenceSupervisionStaff{membership: owners.Membership, persons: owners.Persons},
+	}
+	if owners.Devices != nil {
+		deps.Devices = activeDeviceDirectory{devices: owners.Devices}
+	}
+	return newPresenceSessionRecords(deps)
+}
+
 // presenceSupervisionStaff resolves the staff members behind supervision rows
-// through School Membership and, once the People Directory is bound, their
-// person facts. It is a pointer so the factory bindings can install the
-// owners behind records constructed earlier.
+// through School Membership and, when the People Directory is given, their
+// person facts.
 type presenceSupervisionStaff struct {
 	membership staffLookup
 	persons    peopledirectory.Query
 }
 
-func (d *presenceSupervisionStaff) SupervisionStaff(ctx context.Context, staffIDs []int64) (map[int64]*presenceCompose.SessionStaff, error) {
+func (d presenceSupervisionStaff) SupervisionStaff(ctx context.Context, staffIDs []int64) (map[int64]*presenceCompose.SessionStaff, error) {
 	result := make(map[int64]*presenceCompose.SessionStaff)
 	if d.membership == nil {
 		return result, nil
@@ -81,15 +112,4 @@ func (d *presenceSupervisionStaff) SupervisionStaff(ctx context.Context, staffID
 		return result, nil
 	}
 	return result, attachSupervisionPersons(ctx, d.persons, result)
-}
-
-// supervisionStaffOf returns the rebindable staff directory of the factory's
-// session records, or nil when the records were built without one.
-func (f *Factory) supervisionStaffOf() *presenceSupervisionStaff {
-	records, ok := f.ActiveGroup.(*presenceCompose.SessionRecords)
-	if !ok {
-		return nil
-	}
-	directory, _ := records.SupervisionStaff().(*presenceSupervisionStaff)
-	return directory
 }

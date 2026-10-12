@@ -959,7 +959,7 @@ type settingsCallbackRoute struct {
 func checkTimetableConflictWiring(t *testing.T, graph *serveGraph) {
 	t.Parallel()
 
-	timetable := newTimetableResource(moduleServices{services: graph.services, repositories: graph.repos}, nil, slog.Default())
+	timetable := newTimetableResource(moduleServices{services: graph.services}, nil, slog.Default())
 	require.NotNil(t, timetable)
 	require.NotNil(t, timetable.ConflictDetection, "api/timetable must hold the owner's conflict detection")
 	assert.Same(t, graph.services.TimetableData.ConflictDetection, timetable.ConflictDetection,

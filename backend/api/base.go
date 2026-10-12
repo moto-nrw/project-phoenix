@@ -154,7 +154,11 @@ func recordHTTPRuntimeEvent(tracer *observability.Tracer, observation httpRuntim
 }
 
 type moduleServices struct {
-	repositories *repositories.Factory
+	// carePlan is the observed Care Plan owner the retained repositories and
+	// the Worker's booking audit read through.
+	carePlan *carePlanModule.Module
+	// studentStatusDays archives the Worker's status flags over Care Plan.
+	studentStatusDays scheduler.StudentStatusFlagArchiver
 	// timetableRepositories are the retained Timetable adapters (#2743).
 	timetableRepositories timetableCompose.Repositories
 	services              *services.Factory
@@ -313,7 +317,6 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime,
 		ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
 	}
-	repoFactory := repositories.NewFactory(db, timetableDependencies)
 	// The retained activities and schedule repositories belong to Timetable
 	// (#2743); the Care Plan slots, the kiosk session mirror and the Worker
 	// read the same adapters.
@@ -352,7 +355,6 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
-	repoFactory.BindCarePlan(carePlan)
 	// The retained student repository is built where it is used (#2743): the
 	// meal plan's participants and the Worker's activation tick read it.
 	students := services.NewStudentRootReads(services.NewStudentRepository(db, membership, groups))
@@ -394,7 +396,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	}
 	factory, err := withFileStorageWiring(func(fileStorageWiring services.FileStorageWiring) (*services.Factory, error) {
 		return services.NewFactoryWithModules(
-			repoFactory, db, logger, publicAPIURL, tenantRuntime,
+			carePlan, db, logger, publicAPIURL, tenantRuntime,
 			organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability,
 			communicationCapability,
 			func(observation communicationCompose.Observation) {
@@ -429,7 +431,8 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	}
 	legacyFacilities = factory.Facilities
 	calendarAdministration = factory.SchoolCalendarAdministration()
-	return moduleServices{repositories: repoFactory, timetableRepositories: timetableRepositories, services: factory, demoAccess: authAPI.ComposedDemoAccess(factory.AccountAuthentication().DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff}, nil
+	studentStatusDays := repositories.NewStudentStatusDayRepository(carePlan)
+	return moduleServices{carePlan: carePlan, studentStatusDays: studentStatusDays, timetableRepositories: timetableRepositories, services: factory, demoAccess: authAPI.ComposedDemoAccess(factory.AccountAuthentication().DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff}, nil
 }
 
 // withFileStorageWiring resolves what the File Storage module needs from the
@@ -686,7 +689,6 @@ type serveGraph struct {
 	router             chi.Router
 	db                 *bun.DB
 	services           *services.Factory
-	repos              *repositories.Factory
 	tenantRuntime      apiCommon.TenantRuntime
 	metrics            *httpMetrics
 	tracer             *observability.Tracer
@@ -797,7 +799,6 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, r
 		router:             chi.NewRouter(),
 		db:                 db,
 		services:           serviceFactory,
-		repos:              modules.repositories,
 		tenantRuntime:      tenantRuntime,
 		metrics:            httpMetrics,
 		tracer:             tracer,
@@ -1426,7 +1427,7 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 		DeviceAuthenticator:          deviceAuth.Device(),
 		AuthenticatedDevice:          deviceauth.DeviceID,
 		PickupScheduleService:        svc.PickupSchedule,
-		WeekdayPickupNotes:           modules.repositories.CarePlan(),
+		WeekdayPickupNotes:           modules.carePlan,
 		PartialAbsenceService:        svc.PartialAbsence,
 		ArrivalScheduleService:       svc.ArrivalSchedule,
 		InstanceService:              svc.Instance,
@@ -1605,7 +1606,7 @@ func mountSchoolPortalRoutes(root, tenant chi.Router, in routeInputs, presence *
 	// pattern and the People Directory names of the acknowledgement list
 	// (#3418). All staff read them, admins write them.
 	staffNotices := timetableHTTPAdapter.NewStaffNoticeResource(timetableCompose.NewStaffNotices(timetableCompose.StaffNoticeDependencies{
-		DB: in.db, Periods: in.modules.repositories.CalendarPeriod, Names: services.StaffNoticeNames(svc.PeopleDirectory),
+		DB: in.db, Periods: repositories.NewCalendarPeriodRepository(in.modules.calendar, services.NewCalendarPeriodUsage(in.modules.timetable)), Names: services.StaffNoticeNames(svc.PeopleDirectory),
 		Logger: in.logger.With("service", "staffnotice"),
 	}), func(ctx context.Context) int64 { return timeTrackingIdentity(ctx).AccountID })
 	// Notification abstraction (#1624).
@@ -1631,7 +1632,7 @@ func newTimetableResource(modules moduleServices, pickupExtensions timetableModu
 	return timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriods:         modules.calendar,
 		ClosingDays:             modules.calendar,
-		CalendarPeriodUsage:     calendarPeriodUsage{usage: modules.repositories.CalendarPeriodUsage()},
+		CalendarPeriodUsage:     calendarPeriodUsage{usage: services.NewCalendarPeriodUsage(modules.timetable)},
 		MaterializationService:  svc.Materialization,
 		InstanceService:         svc.Instance,
 		InstanceSeriesConverter: svc.InstanceSeriesConverter,
@@ -1685,7 +1686,7 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	), db).Router())
 	// The schema-driven settings system.
 	homeLayouts := requireHomeLayoutOperations(svc.Settings)
-	tenant.Mount("/settings", newSettingsResource(svc.TenantSettings, homeLayouts, modules.repositories.Enrollment().SchemaReferencesLegalDocument).SettingsRouter())
+	tenant.Mount("/settings", newSettingsResource(svc.TenantSettings, homeLayouts, services.NewEnrollmentBookings().SchemaReferencesLegalDocument).SettingsRouter())
 	// Class-list-only entries (#2382).
 	tenant.Mount("/class-list-entries", newClassListEntriesResource(modules.membership, logger.With("handler", "class-list-entries")).Router())
 	tenant.Mount("/database", databaseStatsRouter(in))
@@ -1713,7 +1714,7 @@ func newEnrollmentResource(modules moduleServices) *enrollmentAPI.Resource {
 		enrollmentGuardianInvitations(svc.GuardianInvitation),
 		services.NewEnrollmentGuardianAutofill(svc.GuardianProfileLoader),
 		enrollmentSchoolDirectory{schools: svc.Schools},
-		modules.repositories.Enrollment(),
+		services.NewEnrollmentBookings(),
 	)
 	resource.ListExportService = svc.ListExport
 	resource.PhaseExpiryService = svc.EnrollmentPhaseExpiry

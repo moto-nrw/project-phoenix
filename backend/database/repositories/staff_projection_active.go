@@ -6,9 +6,12 @@ import (
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 )
 
 // staffGroupSupervisorRepository attaches the supervising staff member to
@@ -39,6 +42,17 @@ type staffAbsenceRepository struct {
 	timerecords.StaffAbsenceRepository
 	rows       absenceRequestRowsQuery
 	membership staffLookup
+}
+
+// NewStaffAbsenceRepository is the Workforce staff absence repository with
+// the request rows translated between staff and person IDs through School
+// Membership and the subject and decider names resolved through the People
+// Directory (#2667, #2690).
+func NewStaffAbsenceRepository(workTime workforce.Capability, membership schoolmembership.Query, persons peopledirectory.Query) timerecords.StaffAbsenceRepository {
+	return personStaffAbsenceRepository{
+		StaffAbsenceRepository: newStaffAbsenceRepository(workforceLegacy.NewStaffAbsenceRepository(workTime), membership),
+		persons:                persons,
+	}
 }
 
 func newStaffAbsenceRepository(inner timerecords.StaffAbsenceRepository, membership staffLookup) timerecords.StaffAbsenceRepository {

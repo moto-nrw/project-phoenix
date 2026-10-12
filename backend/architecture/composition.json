@@ -52,16 +52,6 @@
   "constructor_calls": [
     {
       "scope": "production",
-      "file": "api/base.go",
-      "declaration": "initializeModuleServices",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        316
-      ],
-      "tables": []
-    },
-    {
-      "scope": "production",
       "file": "api/server.go",
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
@@ -77,36 +67,6 @@
       "target": "api.WithRuntime",
       "lines": [
         72
-      ],
-      "tables": []
-    },
-    {
-      "scope": "production",
-      "file": "database/repositories/factory_test_helpers.go",
-      "declaration": "NewFactoryWithPeopleDirectory",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        14
-      ],
-      "tables": []
-    },
-    {
-      "scope": "production",
-      "file": "database/repositories/factory_test_helpers.go",
-      "declaration": "NewStudentScheduleRepositories",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        20
-      ],
-      "tables": []
-    },
-    {
-      "scope": "production",
-      "file": "database/repositories/people_repository_test_helpers.go",
-      "declaration": "NewRetainedRepositoryFactory",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        94
       ],
       "tables": []
     },
@@ -128,36 +88,6 @@
       "lines": [
         103,
         114
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "cmd/cleanup_test.go",
-      "declaration": "setupTestCleanupContextWithServices",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        71
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/factory_test.go",
-      "declaration": "TestNewFactory",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        21
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/factory_student_consent_test.go",
-      "declaration": "TestNewFactoryStudentConsentUsesAuditRoutedRepository",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        17
       ],
       "tables": []
     },
@@ -16438,51 +16368,26 @@
   ],
   "legacy_callers": [
     {
-      "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/database/repositories.Factory",
-      "locations": [
-        {
-          "file": "api/base.go",
-          "line": 157,
-          "declaration": "type moduleServices"
-        },
-        {
-          "file": "api/base.go",
-          "line": 689,
-          "declaration": "type serveGraph"
-        }
-      ]
-    },
-    {
-      "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/database/repositories.NewFactory",
-      "locations": [
-        {
-          "file": "api/base.go",
-          "line": 316,
-          "declaration": "initializeModuleServices"
-        }
-      ]
-    },
-    {
       "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/services.Factory",
       "locations": [
         {
           "file": "api/base.go",
-          "line": 160,
+          "line": 164,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 395,
+          "line": 397,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 440,
+          "line": 443,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 688,
+          "line": 691,
           "declaration": "type serveGraph"
         },
         {
@@ -16504,26 +16409,6 @@
           "file": "api/time_tracking_composition.go",
           "line": 78,
           "declaration": "newTimeTrackingResource"
-        }
-      ]
-    },
-    {
-      "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/database/repositories.Factory",
-      "locations": [
-        {
-          "file": "services/factory.go",
-          "line": 462,
-          "declaration": "NewFactoryWithModules"
-        },
-        {
-          "file": "services/factory.go",
-          "line": 511,
-          "declaration": "newFactory"
-        },
-        {
-          "file": "services/people_repository_test_helpers.go",
-          "line": 53,
-          "declaration": "type PeopleRepositorySuiteFactory"
         }
       ]
     }
@@ -16599,7 +16484,7 @@
     "api/route_table_golden_test.go#TestFullProductionRouterGolden",
     "api/testutil/helpers_test.go#TestSetupAuthModule",
     "cmd/root_test.go#TestRootCmd_HasCommands",
-    "database/repositories/factory_test.go#TestNewFactory",
+    "database/repositories/room_deletion_test.go#TestDefaultFacilitiesDeletesRoomWithoutGuard",
     "internal/architecture/composition_inventory_test.go#TestCompositionLegacyCallerInventory",
     "services/factory_test.go#TestNewFactory",
     "test/composition_inventory_test.go#TestCompositionInventory",
@@ -16637,7 +16522,7 @@
       "kind": "test-binary",
       "file": "database/repositories/main_test.go",
       "declaration": "TestMain",
-      "smoke_test": "database/repositories/factory_test.go#TestNewFactory",
+      "smoke_test": "database/repositories/room_deletion_test.go#TestDefaultFacilitiesDeletesRoomWithoutGuard",
       "tables": []
     },
     {

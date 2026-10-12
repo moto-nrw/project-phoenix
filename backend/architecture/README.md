@@ -3048,6 +3048,9 @@ tree. It rejects new named or embedded fields on `services.Factory`,
 #2745 deleted `api.API`; the guard keeps its name so the aggregate cannot
 return, and `api.TestServeGraphFieldsAreShrinkOnly` keeps the field set of
 its replacement, the package-private `serveGraph`, shrink-only.
+#2743 deleted `database/repositories.Factory` and `NewFactory`: their
+symbols left `legacy_composition` in `policy.json`, the guard keeps the name,
+and each retained repository is built where it is used.
 There is no accepted field/setter manifest and no approve, regenerate,
 rebaseline, or wildcard option. Deletion spends the removed declaration's
 budget permanently once it reaches the base branch.

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // staffLookup is the slice of the School Membership query the projections
@@ -13,27 +12,6 @@ import (
 type staffLookup interface {
 	ListStaff(context.Context, schoolmembership.StaffFilter) ([]schoolmembership.Staff, error)
 	ListTeachers(context.Context, schoolmembership.TeacherFilter) ([]schoolmembership.Teacher, error)
-}
-
-// bindStaffProjections wraps every legacy repository that used to read
-// users.staff or users.teachers through a foreign join (#2667). The wrapped
-// repositories keep their interfaces and project only the IDs they own; the
-// staff and teacher facts are resolved through the owner query afterwards.
-//
-// Order matters: this runs BEFORE bindPersonProjections, so the person layer
-// sits outside and still finds the Staff rows it attaches Staff.Person to.
-func (f *Factory) bindStaffProjections(membership staffLookup, workTime workforce.Capability) {
-	if membership == nil {
-		panic("repository factory: school membership query is required")
-	}
-	if staff := f.supervisionStaffOf(); staff != nil {
-		staff.membership = membership
-	}
-	if f.StaffAbsence != nil {
-		f.StaffAbsence = newStaffAbsenceRepository(f.StaffAbsence, membership)
-	}
-	// The group substitution adapter receives its staff resolver at
-	// construction.
 }
 
 // staffByID resolves the staff members for ids through the owner query,

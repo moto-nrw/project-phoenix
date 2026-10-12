@@ -7,24 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
-// bindStudentDirectories hands the People Directory to every legacy
-// repository that used to read or write users.students through a foreign
-// join (#2662). Each repository declares the narrow projection it needs;
-// the adapters below map the owner's Student onto it. Binding happens on
-// the raw repositories, before the person and school projections wrap them.
-func (f *Factory) bindStudentDirectories(students peopledirectory.StudentQuery, commands peopledirectory.StudentCommand) {
-	if repo, ok := f.CrossTenant.(*visitorProjection); ok {
-		repo.students = students
-	}
-
-	if repo, ok := f.ParentChild.(*parentRepo.ChildRepository); ok {
-		repo.BindStudentDirectory(parentStudentDirectory{students})
-	}
-	if repo, ok := f.ParentEnrollablePhase.(*parentRepo.EnrollablePhaseRepository); ok {
-		repo.BindStudentDirectory(parentStudentDirectory{students})
-	}
-}
-
 type parentStudentDirectory struct{ students peopledirectory.StudentQuery }
 
 func (d parentStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) ([]parentRepo.DirectoryStudent, error) {

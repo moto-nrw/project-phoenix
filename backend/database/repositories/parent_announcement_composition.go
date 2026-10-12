@@ -21,10 +21,6 @@ type AnnouncementEnrollmentQueries interface {
 // NewParentAnnouncementRepository composes Communication's announcement store
 // and audience projection behind the existing repository contract, feeding it
 // Enrollment's pending applicants as plain values.
-//
-// Tests reach for this instead of NewFactory: the factory is shrink-only
-// under #2580, so a test that only needs the announcement repository must not
-// add another caller that builds the whole legacy graph.
 func NewParentAnnouncementRepository(db *bun.DB, enrollment AnnouncementEnrollmentQueries, clocks ...func() time.Time) userModels.ParentAnnouncementRepository {
 	if enrollment == nil {
 		panic("parent announcements require Enrollment audience queries")

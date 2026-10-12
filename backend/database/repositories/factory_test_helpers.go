@@ -1,30 +1,25 @@
 package repositories
 
 import (
-	"time"
+	"fmt"
 
 	"github.com/uptrace/bun"
 )
 
-// NewFactoryWithPeopleDirectory builds the repository factory with the
-// People Directory and Timetable capability of dependencies bound, so
-// repository tests read the same person-enriched rows and execute the same
-// care-exit booking writes as the service graph does.
-func NewFactoryWithPeopleDirectory(db *bun.DB, dependencies TimetableDependencies, clocks ...func() time.Time) (*Factory, error) {
-	return NewFactory(db, dependencies, clocks...), nil
-}
-
 // NewStudentScheduleRepositories composes only the student schedule adapters
-// needed by legacy service integration tests.
+// needed by legacy service integration tests, over an unobserved Care Plan.
 func NewStudentScheduleRepositories(db *bun.DB, dependencies TimetableDependencies) StudentScheduleRepositories {
-	repositories := NewFactory(db, dependencies)
+	carePlan, err := NewUnobservedCarePlan(db, dependencies)
+	if err != nil {
+		panic(fmt.Sprintf("student schedule repositories: compose care plan: %v", err))
+	}
 	return StudentScheduleRepositories{
-		ArrivalSchedule:  repositories.StudentArrivalSchedule,
-		ArrivalException: repositories.StudentArrivalException,
-		ArrivalNote:      repositories.StudentArrivalNote,
-		PickupSchedule:   repositories.StudentPickupSchedule,
-		PickupException:  repositories.StudentPickupException,
-		PickupNote:       repositories.StudentPickupNote,
-		StatusDay:        repositories.StudentStatusDay,
+		ArrivalSchedule:  NewArrivalScheduleRepository(carePlan),
+		ArrivalException: NewArrivalExceptionRepository(carePlan),
+		ArrivalNote:      NewArrivalNoteRepository(carePlan),
+		PickupSchedule:   NewPickupScheduleRepository(carePlan),
+		PickupException:  NewPickupExceptionRepository(carePlan),
+		PickupNote:       NewPickupNoteRepository(carePlan),
+		StatusDay:        NewStudentStatusDayRepository(carePlan),
 	}
 }

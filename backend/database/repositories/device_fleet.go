@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
@@ -50,12 +49,4 @@ func (d activeDeviceDirectory) ListDevicesByID(ctx context.Context, ids []int64)
 		})
 	}
 	return result, nil
-}
-
-func mustNewDeviceFleet(db *bun.DB) devicefleet.Capability {
-	fleet, err := NewDeviceFleet(db)
-	if err != nil {
-		panic(fmt.Sprintf("repository factory: compose device fleet: %v", err))
-	}
-	return fleet
 }

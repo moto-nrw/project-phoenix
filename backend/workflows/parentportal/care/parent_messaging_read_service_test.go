@@ -44,7 +44,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificat
 	require.NoError(t, err)
 	organizationTenancy, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
-	repos.BindOrganizationTenancy(organizationTenancy)
+	repos = repos.WithSchoolProjections(organizationTenancy)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.New(messaging.Config{
 		Children:            childResolver(db, repos),

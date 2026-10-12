@@ -14,13 +14,14 @@ import (
 func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, NewUnobservedTimetableDependencies(db))
+	carePlan, err := repositories.NewUnobservedCarePlan(db, NewUnobservedTimetableDependencies(db))
+	require.NoError(t, err)
 	owners, err := newOwnerCapabilitiesForTests(db)
 	require.NoError(t, err)
 
 	observedAppends := 0
 	factory, err := newFactory(
-		repos,
+		carePlan,
 		db,
 		slog.Default(),
 		FactoryConfig{

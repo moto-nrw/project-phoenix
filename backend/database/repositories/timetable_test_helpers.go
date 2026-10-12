@@ -16,7 +16,6 @@ import (
 	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
@@ -99,32 +98,30 @@ func NewTimetableTestRepositories(db *bun.DB, members MembershipTestRepositories
 	adapters := newTimetableRepositories(db, TimetableDependencies{
 		Capability: bookings, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime,
 	}, newStudentPresence(db))
-	sessions := newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{
-		DB: db, Now: now, Rooms: &activeRoomDirectory{},
-		Activities: NewSessionActivities(timetableCompose.NewActivityGroupRecords(bookings)),
-		Staff:      &presenceSupervisionStaff{},
+	sessions := NewSessionRecords(db, SessionRecordOwners{
+		Now: now, Rooms: rooms, Timetable: bookings, Membership: membership, Persons: persons,
 	})
-	repos := &Factory{
-		db:                  db,
-		ActiveGroup:         sessions,
-		GroupSupervisor:     sessions,
-		SubmissionRateLimit: enrollmentCompose.New(),
-	}
-	repos.bindDefaultFacilities(db)
-	repos.bindSchoolCalendarAdapters(calendar, NewCalendarPeriodUsage(enrollmentCompose.New(), bookings))
-	repos.bindStudentDirectories(persons, persons)
 	carePlan, err := NewCarePlan(db, persons, adapters.InstanceStudent)
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	repos.bindCarePlanAdapters(carePlan)
-	repos.bindGuardianDirectories(persons)
-	repos.bindStaffProjections(membership, workTime)
-	repos.bindPersonProjections(persons)
-	repos.GroupSupervisor = groupSupervisorRepository{SupervisionRecords: repos.GroupSupervisor, groups: groups}
+	enrollment := enrollmentCompose.New()
+	usage := NewCalendarPeriodUsage(enrollmentCompose.New(), bookings)
 	room := facilitiesAdapter.New()
 	room.Bind(rooms)
-	result := timetableTestRepositories(repos, members, adapters)
+	result := TimetableTestRepositories{
+		Repositories:   adapters,
+		CalendarPeriod: NewCalendarPeriodRepository(calendar, usage),
+		ClosingDay:     NewClosingDayRepository(calendar), Dateframe: NewDateframeRepository(calendar),
+		Staff: members.Staff, Teacher: members.Teacher, ClassTeacher: members.ClassTeacher, GroupTeacher: members.GroupTeacher,
+		Person: members.Person, Student: members.Student, Group: members.Group,
+		ActiveGroup: sessions, GroupSupervisor: NewGroupSupervisionRecords(sessions, groups),
+		StudentArrivalSchedule: NewArrivalScheduleRepository(carePlan), StudentArrivalException: NewArrivalExceptionRepository(carePlan),
+		StudentArrivalNote: NewArrivalNoteRepository(carePlan), StudentPickupSchedule: NewPickupScheduleRepository(carePlan),
+		StudentPickupException: NewPickupExceptionRepository(carePlan), StudentPickupNote: NewPickupNoteRepository(carePlan),
+		StudentStatusDay: NewStudentStatusDayRepository(carePlan), CarePlan: carePlan,
+		enrollment: enrollment, schoolCalendar: calendar, calendarPeriodUsage: usage,
+	}
 	result.ClassArrivalException = timetableCompose.NewClassArrivalExceptionRepository(db)
 	result.Room = room
 	result.Timetable = bookings
@@ -134,22 +131,6 @@ func NewTimetableTestRepositories(db *bun.DB, members MembershipTestRepositories
 	result.StaffShift = NewWorkforceShiftRows(workTime)
 	result.ShiftType = NewWorkforceShiftTypeRows(workTime)
 	return result, nil
-}
-
-func timetableTestRepositories(r *Factory, members MembershipTestRepositories, t timetableCompose.Repositories) TimetableTestRepositories {
-	return TimetableTestRepositories{
-		Repositories:   t,
-		CalendarPeriod: r.CalendarPeriod,
-		ClosingDay:     r.ClosingDay, Dateframe: r.Dateframe,
-		Staff: members.Staff, Teacher: members.Teacher, ClassTeacher: members.ClassTeacher, GroupTeacher: members.GroupTeacher,
-		Person: members.Person, Student: members.Student, Group: members.Group,
-		ActiveGroup: r.ActiveGroup, GroupSupervisor: r.GroupSupervisor,
-		StudentArrivalSchedule: r.StudentArrivalSchedule, StudentArrivalException: r.StudentArrivalException,
-		StudentArrivalNote: r.StudentArrivalNote, StudentPickupSchedule: r.StudentPickupSchedule,
-		StudentPickupException: r.StudentPickupException, StudentPickupNote: r.StudentPickupNote,
-		StudentStatusDay: r.StudentStatusDay, CarePlan: r.carePlan,
-		enrollment: r.SubmissionRateLimit, schoolCalendar: r.SchoolCalendar(), calendarPeriodUsage: r.CalendarPeriodUsage(),
-	}
 }
 
 func (r TimetableTestRepositories) Enrollment() EnrollmentBookingProjection {

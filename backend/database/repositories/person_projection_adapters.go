@@ -8,29 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
-// bindPersonProjections wraps every legacy repository that used to read or
-// write users.persons through a foreign join. The wrapped repositories keep
-// their interfaces; the person columns are resolved through the owner query
-// afterwards and the tag writes go through the owner command.
-func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
-	if projection, ok := f.CrossTenant.(*visitorProjection); ok {
-		projection.persons = persons
-	}
-	if staff := f.supervisionStaffOf(); staff != nil {
-		staff.persons = persons
-	}
-	if f.StaffAbsence != nil {
-		f.StaffAbsence = personStaffAbsenceRepository{StaffAbsenceRepository: f.StaffAbsence, persons: persons}
-	}
-	if f.ParentChild != nil {
-		f.ParentChild = personChildRepository{ChildRepository: f.ParentChild, persons: persons}
-	}
-	if f.ParentEnrollablePhase != nil {
-		f.ParentEnrollablePhase = personEnrollablePhaseRepository{EnrollablePhaseRepository: f.ParentEnrollablePhase, persons: persons}
-	}
-
-}
-
 // personsByID resolves the non-deleted persons for ids through the owner
 // query, keyed by person ID. Duplicates are collapsed before the lookup.
 func personsByID(ctx context.Context, query peopledirectory.Query, ids []int64) (map[int64]peopledirectory.Person, error) {

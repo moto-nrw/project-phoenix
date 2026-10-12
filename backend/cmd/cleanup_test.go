@@ -68,12 +68,16 @@ func setupTestCleanupContext(t *testing.T) *cleanupContext {
 func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	db := testpkg.SetupTestDB(t)
 	owners := testutil.NewUnobservedTimetableDependencies(db)
-	repoFactory := repositories.NewFactory(db, owners)
+	sessionDevices, err := repositories.NewDeviceFleet(db)
+	require.NoError(t, err)
+	sessions := repositories.NewSessionRecords(db, repositories.SessionRecordOwners{
+		Devices: sessionDevices, Rooms: owners.Rooms, Timetable: owners.Capability, Membership: owners.Membership, Persons: owners.Students,
+	})
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	devices, err := repositories.NewDeviceRepository(db)
 	require.NoError(t, err)
-	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repoFactory.ActiveGroup)
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(sessions)
 	sessionService := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		SchoolPresence: presence,
 		GroupRepo:      sessionGroups,

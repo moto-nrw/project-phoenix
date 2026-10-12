@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -87,6 +88,22 @@ type CrossTenantQuery interface {
 	FindCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]presenceCompose.CrossTenantStudent, error)
 }
 
+// OpenVisitQuery is the Student Presence read behind the cross-tenant
+// students: the visitors with an open visit at the hosting school.
+type OpenVisitQuery interface {
+	ListOpenVisitStudentIDs(context.Context, int64) ([]int64, error)
+}
+
+// NewCrossTenantQuery lists the visiting students of other schools: open
+// visits from Student Presence, home-school identity and names from the
+// People Directory, group names from School Structure.
+func NewCrossTenantQuery(visits OpenVisitQuery, people peopledirectory.Capability, groups schoolstructure.Query) CrossTenantQuery {
+	return groupCrossTenantRepository{
+		CrossTenantQuery: &visitorProjection{visits: visits, students: people, persons: people},
+		groups:           groups,
+	}
+}
+
 type groupCrossTenantRepository struct {
 	CrossTenantQuery
 	groups schoolstructure.Query
@@ -108,6 +125,12 @@ func (r groupCrossTenantRepository) FindCrossTenantStudents(ctx context.Context,
 		return nil, err
 	}
 	return rows, nil
+}
+
+// NewGroupSupervisionRecords names the groups of the supervision blockers
+// through the School Structure owner.
+func NewGroupSupervisionRecords(records studentpresence.SupervisionRecords, groups schoolstructure.Query) studentpresence.SupervisionRecords {
+	return groupSupervisorRepository{SupervisionRecords: records, groups: groups}
 }
 
 type groupSupervisorRepository struct {

@@ -24,11 +24,16 @@ type careWithdrawalCompletionRepository struct {
 
 var _ userModels.CareWithdrawalCompletionRepository = careWithdrawalCompletionRepository{}
 
+// NewCareWithdrawalCompletionRepository adapts the Care Plan owner to the
+// retained care withdrawal completion contract.
+func NewCareWithdrawalCompletionRepository(carePlan careplan.Capability) userModels.CareWithdrawalCompletionRepository {
+	return newCareWithdrawalCompletionRepository(func() careplan.Capability { return carePlan })
+}
+
 // newCareWithdrawalCompletionRepository adapts the owner capability to the
-// legacy model contract. It is read on every call rather than captured, so
-// the factory may bind it after construction and a later BindCarePlan
-// reaches this adapter without rewiring it. An unbound capability fails the
-// call in owner(); it is not a construction error.
+// legacy model contract. It is read on every call rather than captured; an
+// unbound capability fails the call in owner(), it is not a construction
+// error.
 func newCareWithdrawalCompletionRepository(carePlan func() careplan.Capability) userModels.CareWithdrawalCompletionRepository {
 	if carePlan == nil {
 		panic("care withdrawal repository: Care Plan binding is required")

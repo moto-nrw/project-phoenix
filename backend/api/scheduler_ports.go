@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
+	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/jobruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -83,11 +84,11 @@ func (p schedulerSettingsPort) BindSettingsSnapshot(ctx context.Context, snapsho
 // schedulerBookingConsistency binds the booking drift audit, which the legacy
 // composition builds over the graph's People Directory and Care Plan
 // (ADR 0049). A graph without them runs no audit.
-func schedulerBookingConsistency(graph *serveGraph) scheduler.BookingConsistencyAudit {
-	if graph.services == nil || graph.repos == nil {
+func schedulerBookingConsistency(graph *serveGraph, reads workerReads) scheduler.BookingConsistencyAudit {
+	if graph.services == nil || reads.carePlan == nil {
 		return nil
 	}
-	bookings, err := services.NewBookingConsistencyAudit(graph.db, graph.services.PeopleDirectory, graph.repos.CarePlan())
+	bookings, err := services.NewBookingConsistencyAudit(graph.db, graph.services.PeopleDirectory, reads.carePlan)
 	if err != nil {
 		return nil
 	}
@@ -152,6 +153,10 @@ type workerReads struct {
 	staff    interface {
 		ListAllStaffAccountIDs(ctx context.Context) (map[int64]int64, error)
 	}
+	// carePlan is the Care Plan owner the booking drift audit reads, and
+	// studentStatusDays archives the status flags over it.
+	carePlan          carePlanModule.Query
+	studentStatusDays scheduler.StudentStatusFlagArchiver
 }
 
 func newWorkerReads(modules moduleServices) workerReads {
@@ -161,7 +166,18 @@ func newWorkerReads(modules moduleServices) workerReads {
 		workSessions:  workforceLegacy.NewWorkSessionRepository(modules.workforce),
 		students:      modules.students,
 		staff:         modules.staff,
+		// A nil owner leaves the interface nil, so the Worker runs no audit.
+		carePlan:          carePlanQuery(modules.carePlan),
+		studentStatusDays: modules.studentStatusDays,
 	}
+}
+
+// carePlanQuery keeps a missing Care Plan owner a nil interface.
+func carePlanQuery(module *carePlanModule.Module) carePlanModule.Query {
+	if module == nil {
+		return nil
+	}
+	return module
 }
 
 // schedulerExistingRooms binds the overdue tick's room check.

@@ -50,15 +50,13 @@ func NewStudentTestRepositories(db *bun.DB, members MembershipTestRepositories) 
 	if err != nil {
 		return StudentTestRepositories{}, err
 	}
-	r := &Factory{db: db}
-	r.bindCarePlanAdapters(care)
 	return StudentTestRepositories{
 		CarePlan:                   care,
 		ParentRequestShare:         usersRepo.NewParentRequestShareEventRepository(peopleRuntime(db)),
-		CareScheduleChangeRequest:  r.CareScheduleChangeRequest,
-		ExcusedAbsenceRequest:      r.ExcusedAbsenceRequest,
+		CareScheduleChangeRequest:  NewCareScheduleChangeRequestRepository(care),
+		ExcusedAbsenceRequest:      NewExcusedAbsenceRequestRepository(care),
 		ParentRequestEvent:         usersRepo.NewParentRequestEventRepository(peopleRuntime(db)),
-		StudentDataChangeRequest:   r.StudentDataChangeRequest,
+		StudentDataChangeRequest:   NewStudentDataChangeRequestRepository(care),
 		FamilyProtection:           usersRepo.NewFamilyProtectionEventRepository(peopleRuntime(db)),
 		EnrollmentTestRepositories: enrollment,
 		CareWithdrawal:             lifecycle.CareWithdrawal,

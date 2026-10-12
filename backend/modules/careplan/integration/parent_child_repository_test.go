@@ -29,8 +29,7 @@ func newSchoolProjectionFactory(t *testing.T, db *bun.DB) *services.RepositoryTe
 	require.NoError(t, err)
 	capability, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
-	factory.BindOrganizationTenancy(capability)
-	return factory
+	return factory.WithSchoolProjections(capability)
 }
 
 // ensureGuardianProfile returns the guardian_profile id for the

@@ -4,11 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
@@ -17,19 +14,6 @@ import (
 // members are offboarded?" with a join into users.staff. School Membership owns
 // those rows now, so the decorator resolves the membership through the owner
 // and hands the concrete repository the resolved ids.
-
-// bindStaffMembershipDecorators wires the decorators once, innermost, so the
-// school/person/group wrappers bound afterwards keep wrapping them.
-func (f *Factory) bindStaffMembershipDecorators(membership schoolmembership.Capability, identity identityaccess.StaffAccountQueries, personRepository userModels.PersonRepository) {
-	capability := func() schoolmembership.Capability { return membership }
-	persons := func() userModels.PersonRepository { return personRepository }
-	f.ParentMessageRead = parentMessageStaffRepository{
-		ParentMessageReads: parentStore.NewParentMessageReadRepository(f.db), membership: capability, persons: persons,
-	}
-	f.StaffMessageRead = staffStore.NewStaffMessageReadRepository(f.db, usersRepo.NewMessageableStaffRepository(peopleRuntime(f.db), func(ctx context.Context) ([]int64, error) {
-		return currentTenantStaffAccounts(ctx, capability(), persons())
-	}, staffMessageIdentity(identity)))
-}
 
 // staffAccountsByTenant maps every tenant visible in the caller's transaction
 // to the login accounts of its live staff. Under a tenant transaction that is

@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"context"
-	"time"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -86,10 +85,4 @@ func RetainedWithGuardianDefaultRole(apply func(*usersModels.StudentGuardian)) R
 // VerifyRetainedStudentSchema runs the startup check of the students table.
 func VerifyRetainedStudentSchema(ctx context.Context, db *bun.DB) error {
 	return usersRepo.VerifyStudentSchema(ctx, db)
-}
-
-// NewRetainedRepositoryFactory is the repository factory over the given owner
-// capabilities, for the suite graphs services composes.
-func NewRetainedRepositoryFactory(db *bun.DB, dependencies TimetableDependencies, clocks ...func() time.Time) *Factory {
-	return NewFactory(db, dependencies, clocks...)
 }

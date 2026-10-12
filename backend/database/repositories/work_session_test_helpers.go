@@ -40,13 +40,10 @@ func NewWorkSessionTestRepositories(db *bun.DB, members MembershipTestRepositori
 	if err != nil {
 		return WorkSessionTestRepositories{}, err
 	}
-	r := &Factory{db: db, StaffAbsence: workforceLegacy.NewStaffAbsenceRepository(workTime)}
-	r.bindStaffProjections(membership, workTime)
-	r.bindPersonProjections(people)
 	return WorkSessionTestRepositories{TimetableTestRepositories: tt,
 		WorkSession:       workforceLegacy.NewWorkSessionRepository(workTime),
 		WorkSessionBreak:  workforceLegacy.NewWorkSessionBreakRepository(workTime),
-		StaffAbsence:      r.StaffAbsence,
+		StaffAbsence:      NewStaffAbsenceRepository(workTime, membership, people),
 		StaffWorkSchedule: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(workTime),
 		WorkTimeModel:     workforceRepositoryAdapter.NewWorkTimeModelRepository(workTime)}, nil
 }

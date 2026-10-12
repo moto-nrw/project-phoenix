@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -262,7 +263,7 @@ func (w *targetRiskWorkload) putStudent(t *testing.T, studentID int64, body stri
 }
 
 // pendingWithdrawal stores one school-confirmed withdrawal task through the
-// Care Plan repository of the production graph. A withdrawal cannot be
+// Care Plan owner over the production graph's pool. A withdrawal cannot be
 // raised over HTTP without booking-led enrollment, so the fixture asks the
 // owner directly; the least-privilege pool needs the tenant transaction.
 func (w *targetRiskWorkload) pendingWithdrawal(t *testing.T, production *Runtime, studentID int64) int64 {
@@ -270,7 +271,9 @@ func (w *targetRiskWorkload) pendingWithdrawal(t *testing.T, production *Runtime
 	tenantID, err := tenant.NewTenantID(w.tenantID)
 	require.NoError(t, err)
 	ctx := tenant.WithUnitOfWork(testpkg.Ctx(w.fixtures), production.graph.tenantRuntime)
-	writer := tenantScopedUpsert(production.graph.repos.CareWithdrawal.UpsertPending, func(fn func(context.Context) error) error {
+	carePlan, err := repositories.NewUnobservedCarePlan(production.graph.db, testutil.NewUnobservedTimetableDependencies(production.graph.db))
+	require.NoError(t, err)
+	writer := tenantScopedUpsert(repositories.NewCareWithdrawalCompletionRepository(carePlan).UpsertPending, func(fn func(context.Context) error) error {
 		return tenant.WithinTenant(ctx, tenantID, fn)
 	})
 	return testpkg.CreateTestCareWithdrawalCompletion(w.fixtures, writer, studentID, w.accountID, "2026-09-14").ID

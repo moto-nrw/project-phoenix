@@ -26,32 +26,6 @@ func NewSchoolCalendar(db *bun.DB) (*schoolcalendar.Module, error) {
 	})
 }
 
-// BindSchoolCalendar replaces the calendar period, closing day and dateframe
-// adapters, and the repositories that used to read schedule.calendar_periods
-// themselves, with compositions over the observed School Calendar capability
-// (#2666). NewFactory already composes an unobserved module, so this binding
-// is about runtime evidence, not about correctness.
-func (f *Factory) BindSchoolCalendar(capability schoolcalendar.Calendar) {
-	if capability == nil {
-		panic("repository factory: school calendar capability is required")
-	}
-	if f.schoolCalendarBound {
-		return
-	}
-	f.schoolCalendarBound = true
-	f.bindSchoolCalendarAdapters(capability, f.CalendarPeriod.(calendarPeriodCalendarRepository).usage)
-}
-
-// SchoolCalendar returns the calendar owner the calendar adapters read through.
-func (f *Factory) SchoolCalendar() schoolcalendar.Calendar { return f.schoolCalendar }
-
-// CalendarPeriodUsage returns the per-period reference counts the School
-// Calendar deletion preview renders; the two planning owners each answer
-// with one statement (#3124).
-func (f *Factory) CalendarPeriodUsage() *timetableCompose.CalendarPeriodUsageRepository {
-	return f.CalendarPeriod.(calendarPeriodCalendarRepository).usage
-}
-
 // NewCalendarPeriodUsage composes the School Calendar usage read from the
 // two owners that hold calendar-period references: Enrollment (phases) and
 // Timetable (planning tables), one statement each (#3124).
@@ -69,17 +43,41 @@ func NewCalendarPeriodUsage(enrollment timetableCompose.EnrollmentPhaseQueries, 
 	})
 }
 
-// bindSchoolCalendarAdapters points every calendar-derived repository at the
-// given capability. The raw activities and users repositories are reached
-// through their bind methods, so the binding survives the person, school and
-// group wrappers layered on top of them.
-func (f *Factory) bindSchoolCalendarAdapters(capability schoolcalendar.Calendar, usage *timetableCompose.CalendarPeriodUsageRepository) {
-	f.schoolCalendar = capability
-	f.CalendarPeriod = newCalendarPeriodCalendarRepository(capability, usage)
-	f.ClosingDay = newClosingDayCalendarRepository(capability)
-	f.Dateframe = newDateframeCalendarRepository(capability)
-	// The care-exit cleanup repository reads f.schoolCalendar through the
-	// resolver it was constructed with, so the assignment above binds it too.
+// SchoolCalendarRepositories are the retained calendar period, closing day
+// and dateframe repositories served by the School Calendar owner.
+type SchoolCalendarRepositories struct {
+	CalendarPeriod scheduleModels.CalendarPeriodRepository
+	ClosingDay     scheduleModels.ClosingDayRepository
+	Dateframe      scheduleModels.DateframeRepository
+}
+
+// NewSchoolCalendarRepositories builds the retained calendar repositories
+// over the School Calendar owner; usage answers the period reference counts.
+func NewSchoolCalendarRepositories(calendar schoolcalendar.Capability, usage *timetableCompose.CalendarPeriodUsageRepository) SchoolCalendarRepositories {
+	return SchoolCalendarRepositories{
+		CalendarPeriod: NewCalendarPeriodRepository(calendar, usage),
+		ClosingDay:     NewClosingDayRepository(calendar),
+		Dateframe:      NewDateframeRepository(calendar),
+	}
+}
+
+// NewCalendarPeriodRepository serves the legacy calendar period repository
+// over the School Calendar owner; the reference counts come from usage
+// (#2666, #3124).
+func NewCalendarPeriodRepository(calendar schoolcalendar.Capability, usage *timetableCompose.CalendarPeriodUsageRepository) scheduleModels.CalendarPeriodRepository {
+	return newCalendarPeriodCalendarRepository(calendar, usage)
+}
+
+// NewClosingDayRepository serves the legacy closing day repository over the
+// School Calendar owner (#2666).
+func NewClosingDayRepository(calendar schoolcalendar.Capability) scheduleModels.ClosingDayRepository {
+	return newClosingDayCalendarRepository(calendar)
+}
+
+// NewDateframeRepository serves the legacy dateframe repository over the
+// School Calendar owner (#2666).
+func NewDateframeRepository(calendar schoolcalendar.Capability) scheduleModels.DateframeRepository {
+	return newDateframeCalendarRepository(calendar)
 }
 
 const opFindByID = "find by id"

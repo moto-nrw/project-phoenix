@@ -25,61 +25,11 @@ func NewFacilities(db *bun.DB) (facilitiesModule.Capability, error) {
 	})
 }
 
-// bindDefaultFacilities hands an unobserved room owner to every legacy
-// repository that used to join facilities.rooms itself (#2665), while those
-// repositories are still raw. The binders are kept so BindFacilities can
-// swap in the observed capability after the projections wrapped them.
-func (f *Factory) bindDefaultFacilities(db *bun.DB) {
-	rooms, err := NewFacilities(db)
-	if err != nil {
-		panic(fmt.Sprintf("repository factory: compose facilities: %v", err))
-	}
-	f.roomBinders = f.roomBinders[:0]
-	f.registerActiveRoomBinders()
-	f.bindRoomDirectories(rooms)
-}
-
-func (f *Factory) registerActiveRoomBinders() {
-	if records, ok := f.ActiveGroup.(*presenceCompose.SessionRecords); ok {
-		// The directory is installed at construction (#3214); the binder
-		// swaps the room owner behind it once Facilities is observed.
-		directory, ok := records.RoomDirectory().(*activeRoomDirectory)
-		if !ok {
-			panic("repository factory: active group repository has no rebindable room directory")
-		}
-		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
-			directory.rooms = rooms
-		})
-	}
-}
-
-// BindFacilities replaces the default room owner with the observed
-// Facilities capability, so every legacy repository that used to join
-// facilities.rooms reads through the same owner the runtime evidence
-// records (#2665).
-func (f *Factory) BindFacilities(capability facilitiesModule.Capability) {
-	if capability == nil {
-		panic("repository factory: facilities capability is required")
-	}
-	if f.facilitiesBound {
-		return
-	}
-	f.facilitiesBound = true
-	f.bindRoomDirectories(capability)
-}
-
-func (f *Factory) bindRoomDirectories(rooms facilitiesModule.Query) {
-	for _, bind := range f.roomBinders {
-		bind(rooms)
-	}
-}
-
 // activeRoomDirectory adapts the room owner for the retained session
-// repository. It is a pointer so the room binders can swap the owner behind a
-// repository constructed earlier (#2665, #3214).
+// repository (#2665, #3214).
 type activeRoomDirectory struct{ rooms facilitiesModule.Query }
 
-func (d *activeRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]presenceCompose.DirectoryRoom, error) {
+func (d activeRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]presenceCompose.DirectoryRoom, error) {
 	if d.rooms == nil {
 		return nil, fmt.Errorf("active room directory: no room owner bound")
 	}

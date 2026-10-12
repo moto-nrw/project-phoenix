@@ -31,6 +31,32 @@ type pickupScheduleRepository struct{ careplan.Capability }
 type pickupExceptionRepository struct{ careplan.Capability }
 type pickupNoteRepository struct{ careplan.Capability }
 
+// CareScheduleRepositories are the retained schedule repositories served by
+// the Care Plan owner.
+type CareScheduleRepositories struct {
+	StudentArrivalSchedule    scheduleModels.StudentArrivalScheduleRepository
+	StudentArrivalException   scheduleModels.StudentArrivalExceptionRepository
+	StudentArrivalNote        scheduleModels.StudentArrivalNoteRepository
+	StudentPickupSchedule     scheduleModels.StudentPickupScheduleRepository
+	StudentPickupException    scheduleModels.StudentPickupExceptionRepository
+	StudentPickupNote         scheduleModels.StudentPickupNoteRepository
+	CareScheduleChangeRequest scheduleModels.CareScheduleChangeRequestRepository
+}
+
+// NewCareScheduleRepositories builds the retained schedule repositories over
+// the Care Plan capability.
+func NewCareScheduleRepositories(capability careplan.Capability) CareScheduleRepositories {
+	return CareScheduleRepositories{
+		StudentArrivalSchedule:    NewArrivalScheduleRepository(capability),
+		StudentArrivalException:   NewArrivalExceptionRepository(capability),
+		StudentArrivalNote:        NewArrivalNoteRepository(capability),
+		StudentPickupSchedule:     NewPickupScheduleRepository(capability),
+		StudentPickupException:    NewPickupExceptionRepository(capability),
+		StudentPickupNote:         NewPickupNoteRepository(capability),
+		CareScheduleChangeRequest: NewCareScheduleChangeRequestRepository(capability),
+	}
+}
+
 func NewArrivalScheduleRepository(capability careplan.Capability) scheduleModels.StudentArrivalScheduleRepository {
 	return arrivalScheduleRepository{capability}
 }

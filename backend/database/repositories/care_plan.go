@@ -46,6 +46,14 @@ func NewCarePlan(db *bun.DB, students peopledirectory.Capability, slots schedule
 	return capability, nil
 }
 
+// NewUnobservedCarePlan composes Care Plan over the People Directory of
+// dependencies, reading the participant slots through the Timetable adapter
+// over an unobserved Student Presence owner, as the test graphs need it.
+func NewUnobservedCarePlan(db *bun.DB, dependencies TimetableDependencies) (careplan.Capability, error) {
+	slots := timetableCompose.NewInstanceStudentRepository(db, dependencies.Capability, newStudentPresence(db), NewPartialAbsencePreview(db))
+	return NewCarePlan(db, dependencies.Students, slots)
+}
+
 type statusStudentDirectory struct {
 	students peopledirectory.Capability
 	flags    peopledirectory.StudentStatusFlagCapability
@@ -110,36 +118,6 @@ func (d statusSlotDirectory) ApplyStatusDay(ctx context.Context, studentID int64
 
 func (d statusSlotDirectory) ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error) {
 	return d.repository.ReleaseStatusDay(ctx, statusDayID)
-}
-
-// BindCarePlan replaces the bootstrap adapters with the observed Care Plan
-// capability composed by the production root.
-func (f *Factory) BindCarePlan(capability careplan.Capability) {
-	if capability == nil {
-		panic("repository factory: care plan capability is required")
-	}
-	if f.carePlanBound {
-		return
-	}
-	f.carePlanBound = true
-	f.bindCarePlanAdapters(capability)
-}
-
-// CarePlan returns the capability used by the legacy repository adapters.
-func (f *Factory) CarePlan() careplan.Capability { return f.carePlan }
-
-func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
-	f.carePlan = capability
-	f.StudentArrivalSchedule = NewArrivalScheduleRepository(capability)
-	f.StudentArrivalException = NewArrivalExceptionRepository(capability)
-	f.StudentArrivalNote = NewArrivalNoteRepository(capability)
-	f.StudentPickupSchedule = NewPickupScheduleRepository(capability)
-	f.StudentPickupException = NewPickupExceptionRepository(capability)
-	f.StudentPickupNote = NewPickupNoteRepository(capability)
-	f.ExcusedAbsenceRequest = NewExcusedAbsenceRequestRepository(capability)
-	f.CareScheduleChangeRequest = NewCareScheduleChangeRequestRepository(capability)
-	f.StudentDataChangeRequest = NewStudentDataChangeRequestRepository(capability)
-	f.StudentStatusDay = NewStudentStatusDayRepository(capability)
 }
 
 type pickupExceptionDirectory struct {

@@ -28,18 +28,10 @@ func NewEnrollmentTestRepositories(db *bun.DB, members MembershipTestRepositorie
 	if err != nil {
 		return EnrollmentTestRepositories{}, err
 	}
-	people := members.People
-	care, err := NewCarePlan(db, people, tt.InstanceStudent)
-	if err != nil {
-		return EnrollmentTestRepositories{}, err
-	}
 	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return EnrollmentTestRepositories{}, err
 	}
-	r := &Factory{db: db}
-	r.bindCarePlanAdapters(care)
-	r.BindOrganizationTenancy(organizations)
 	return EnrollmentTestRepositories{TimetableTestRepositories: tt,
 		School:          organizations,
 		StudentGuardian: members.StudentGuardian, GuardianProfile: members.GuardianProfile, GuardianPhoneNumber: usersRepo.NewGuardianPhoneNumberRepository(peopleRuntime(db)),
