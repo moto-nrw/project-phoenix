@@ -201,7 +201,8 @@ now write and read the table through the Timetable owner's
 #3349 settles the one table two owners reached for: `users.privacy_consents`
 stays with `student-presence`. The recorded window bounds how long presence
 data is kept, and the GDPR cleanup reads it through that owner's
-`ListAcceptedRetentionSettings`; People Directory gives up the consent
+`ListVisitRetentionCounts` (children without an accepted consent use the
+tenant's `gdpr.privacy_consent_retention_days`, #3835); People Directory gives up the consent
 lifecycle it kept in `services/users` instead. The policy entry is unchanged —
 the decision is that the existing owner keeps the table, not that it changes
 hands. `audit.student_consent_changes` and `audit.student_field_edits` stay

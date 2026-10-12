@@ -32,6 +32,7 @@ type (
 	SessionDeviceDirectory             = presence.SessionDeviceDirectory
 	StudentDisplayFacts                = presence.StudentDisplayFacts
 	PresenceRetention                  = presence.PresenceRetention
+	VisitRetentionSettings             = presence.VisitRetentionSettings
 	DeletionAudit                      = presence.DeletionAudit
 	DeletionEvent                      = presence.DeletionEvent
 	DataAccessAudit                    = presence.DataAccessAudit
@@ -78,8 +79,9 @@ func presenceEngineOf(value studentpresence.Presence) (presence.Service, bool) {
 	return facade.engine, true
 }
 
-// NewPresenceCleanup builds the data-retention cleanup; the optional clock
-// fixes the calendar day stale records are compared against.
-func NewPresenceCleanup(presenceRetention PresenceRetention, supervisors ports.GroupSupervisorRepository, deletions DeletionAudit, today ...func() timezone.Date) studentpresence.PresenceCleanup {
-	return presence.NewCleanupService(presenceRetention, supervisors, deletions, today...)
+// NewPresenceCleanup builds the data-retention cleanup. settings supplies the
+// visit retention window for children without an accepted consent; the
+// optional clock fixes the calendar day stale records are compared against.
+func NewPresenceCleanup(presenceRetention PresenceRetention, supervisors ports.GroupSupervisorRepository, deletions DeletionAudit, settings VisitRetentionSettings, today ...func() timezone.Date) studentpresence.PresenceCleanup {
+	return presence.NewCleanupService(presenceRetention, supervisors, deletions, settings, today...)
 }

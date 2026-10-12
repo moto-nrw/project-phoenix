@@ -69,6 +69,12 @@ func (s presenceSettings) TimeTrackingRetentionDays(ctx context.Context) (int, e
 	return s.source.ResolveInt(ctx, configModels.KeyGDPRTimeTrackingRetentionDays)
 }
 
+// VisitRetentionDays is how long completed visits of a child without an
+// accepted consent are kept.
+func (s presenceSettings) VisitRetentionDays(ctx context.Context) (int, error) {
+	return s.source.ResolveInt(ctx, configModels.KeyPrivacyConsentRetentionDays)
+}
+
 // PresenceMode is the tenant's attendance granularity.
 func (s presenceSettings) PresenceMode(ctx context.Context) (string, error) {
 	return s.source.ResolveString(ctx, configModels.KeyPresenceMode)
