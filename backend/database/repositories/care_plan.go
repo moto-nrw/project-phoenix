@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -139,7 +138,6 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	f.CareScheduleChangeRequest = NewCareScheduleChangeRequestRepository(capability)
 	f.StudentDataChangeRequest = NewStudentDataChangeRequestRepository(capability)
 	f.StudentStatusDay = NewStudentStatusDayRepository(capability)
-	f.bindCarePlanAuditDirectory()
 }
 
 type pickupExceptionDirectory struct {
@@ -198,36 +196,6 @@ func (d pickupExceptionDirectory) ListStudentStatusDays(ctx context.Context, fil
 	result := make([]timetableCompose.StudentStatusDayProjection, 0, len(values))
 	for _, value := range values {
 		result = append(result, timetableCompose.StudentStatusDayProjection{ID: value.ID, StudentID: value.StudentID, Date: value.Date.String(), Status: value.Status})
-	}
-	return result, nil
-}
-
-func (f *Factory) bindCarePlanAuditDirectory() {
-	if f.carePlan == nil {
-		return
-	}
-	if repository, ok := f.BookingConsistency.(interface {
-		BindCarePlan(audit.CareOfferingDirectory)
-	}); ok {
-		repository.BindCarePlan(auditCarePlanDirectory{query: f.carePlan})
-	}
-}
-
-type auditCarePlanDirectory struct{ query careplan.Query }
-
-func (d auditCarePlanDirectory) ListCareOfferings(ctx context.Context) ([]audit.CareOfferingProjection, error) {
-	values, err := d.query.ListCareOfferings(ctx, careplan.CareOfferingFilter{Order: careplan.OfferingOrderID})
-	if err != nil {
-		return nil, err
-	}
-	result := make([]audit.CareOfferingProjection, 0, len(values))
-	for _, value := range values {
-		result = append(result, audit.CareOfferingProjection{
-			ID: value.ID, TenantID: value.TenantID, PhaseID: value.PhaseID,
-			DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays,
-			IsActive: value.IsActive, IsRequired: value.IsRequired,
-			CountsAsCare: value.CountsAsCare, PickupTimes: value.PickupTimes,
-		})
 	}
 	return result, nil
 }

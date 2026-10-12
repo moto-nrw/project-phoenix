@@ -38,7 +38,7 @@ func NewFileStoreTestModule(db *bun.DB, unit tenant.UnitOfWork, objects UploadsB
 		return FileStoreTestModule{}, err
 	}
 	command, err := auditSvc.NewCommand(
-		repositories.NewTestAuditStore(db),
+		NewTestAuditStore(db),
 		func(auditSvc.AppendObservation) {},
 	)
 	if err != nil {
@@ -64,7 +64,7 @@ func NewFileStoreTestModule(db *bun.DB, unit tenant.UnitOfWork, objects UploadsB
 		Identity:      identity,
 		People:        persons,
 		Settings:      fileStorageSettings{service: settings.Settings},
-		Events:        fileStorageEvents{repo: repositories.NewFileEventTestRepository(db, command)},
+		Events:        fileStorageEvents{repo: newFileEventTestRepository(db, command)},
 		HasPermission: securityruntime.HasPermission,
 		Announcements: announcements,
 		Observe:       func(filestorageCompose.Observation) {},

@@ -68,7 +68,7 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 		timetracking.WithAbsenceToday(func() timezone.Date { return timezone.NewDate(2026, 8, 24) }),
 		// Wired exactly like services/factory.go does.
 		timetracking.WithVacationOpenings(repos.StaffVacationOpening),
-		timetracking.WithAbsenceDeletionAudit(services.NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion)),
+		timetracking.WithAbsenceDeletionAudit(services.NewTimeTrackingDeletionAudit(services.NewTestAuditPersistence(db, nil).TimeTrackingDeletion)),
 	)
 
 	return &vacationOpeningFixture{

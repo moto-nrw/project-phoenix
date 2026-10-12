@@ -59,7 +59,7 @@ func (f *overviewFixture) newDatevExportService(values settingstest.Values) time
 		f.svc,
 		f.newWorkSessionService(),
 		services.TimeExportStaff(f.repos.Staff),
-		services.NewTimeTrackingDataAccessAudit(f.repos.DataAccessLog),
+		services.NewTimeTrackingDataAccessAudit(services.NewTestAuditPersistence(f.db, nil).DataAccessLog),
 		services.PayrollExportSettings{Source: payrollStatus},
 		nil,
 		services.RenderTimeTrackingWorkbook,

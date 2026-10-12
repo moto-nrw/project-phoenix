@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -178,7 +180,7 @@ func testRepositories(t *testing.T, db *bun.DB) *repositories.EnrollmentFlowTest
 // on over the suite's database.
 func flowRepositories(t testing.TB, db *bun.DB) *repositories.EnrollmentFlowTestRepositories {
 	t.Helper()
-	repos, err := repositories.NewEnrollmentFlowTestRepositories(db)
+	repos, err := services.NewEnrollmentFlowTestRepositories(db)
 	require.NoError(t, err)
 	return repos
 }

@@ -64,11 +64,10 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	require.NoError(t, err)
 	owners := repositories.NewUnobservedTimetableDependencies(db)
 	repos := repositories.NewFactory(db, owners)
-	repos.SetConfigRuntime(testpkg.ConfigRuntime(db))
 
 	authService, err := services.IdentityAccessForTests(repos, services.IdentityAccessTestConfig{
 		TenantRuntime: testpkg.TenantRuntime(t, db),
-		Audit:         testpkg.NewAuthEventCommand(repos.AuthEvent),
+		Audit:         testpkg.NewAuthEventCommand(services.NewTestAuditPersistence(db, nil).AuthEvent),
 		FrontendURL:   "http://localhost:3000", PasswordResetExpiry: time.Hour,
 	}, db, nil)
 	require.NoError(t, err)

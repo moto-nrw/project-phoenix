@@ -37,11 +37,11 @@ type WorkforceTestModule struct {
 }
 
 func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (WorkforceTestModule, error) {
-	command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	repos, err := repositories.NewWorkforceTestRepositories(db, command, clocks...)
+	repos, err := NewWorkforceTestRepositories(db, command, clocks...)
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
@@ -49,7 +49,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	identity, err := repositories.NewAuthTestRepositories(db, command)
+	identity, err := repositories.NewAuthTestRepositories(db)
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}

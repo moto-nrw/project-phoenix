@@ -318,7 +318,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		DB:            db,
 		Organizations: organizations,
 		People:        persons,
-		Audit:         communicationCompose.NewOperatorAnnouncementAudit(repoFactory.OperatorAuditLog.Create),
+		Audit:         communicationCompose.NewOperatorAnnouncementAudit(services.NewOperatorAuditLog(db).Create),
 		Observe: func(observation communicationCompose.Observation) {
 			observability.ObserveCommunicationOperation(
 				observation.Operation,

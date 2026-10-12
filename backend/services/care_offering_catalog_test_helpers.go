@@ -36,7 +36,7 @@ type CareOfferingCatalogTestModule struct {
 // NewCareOfferingCatalogTestModule composes the catalog over the test
 // database.
 func NewCareOfferingCatalogTestModule(db *bun.DB, unit tenant.UnitOfWork, options CareOfferingCatalogTestOptions) (CareOfferingCatalogTestModule, error) {
-	r, err := repositories.NewTimetableTestRepositories(db)
+	r, err := NewTimetableTestRepositories(db)
 	if err != nil {
 		return CareOfferingCatalogTestModule{}, err
 	}

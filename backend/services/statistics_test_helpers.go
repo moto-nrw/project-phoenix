@@ -30,11 +30,11 @@ func NewStatisticsTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func(
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	r, err := repositories.NewStatisticsTestRepositories(db, command, clocks...)
+	r, err := NewStatisticsTestRepositories(db, command, clocks...)
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}

@@ -3,7 +3,6 @@ package repositories
 import (
 	"context"
 
-	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
@@ -24,34 +23,6 @@ func (f *Factory) bindStudentDirectories(students peopledirectory.StudentQuery, 
 	if repo, ok := f.ParentEnrollablePhase.(*parentRepo.EnrollablePhaseRepository); ok {
 		repo.BindStudentDirectory(parentStudentDirectory{students})
 	}
-	f.bindAuditStudentDirectory()
-}
-
-// bindAuditStudentDirectory binds the booking-consistency audit, which
-// ConfigureAuditRuntime rebuilds after the directory was bound.
-func (f *Factory) bindAuditStudentDirectory() {
-	if f.students == nil {
-		return
-	}
-	if repo, ok := f.BookingConsistency.(interface {
-		BindStudentDirectory(auditRepo.StudentDirectory)
-	}); ok {
-		repo.BindStudentDirectory(auditStudentDirectory{f.students})
-	}
-}
-
-type auditStudentDirectory struct{ students peopledirectory.StudentQuery }
-
-func (d auditStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) ([]auditRepo.DirectoryStudent, error) {
-	students, err := d.students.ListStudentsByID(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]auditRepo.DirectoryStudent, 0, len(students))
-	for _, student := range students {
-		result = append(result, auditRepo.DirectoryStudent{ID: student.ID, Alumnus: student.IsAlumnus()})
-	}
-	return result, nil
 }
 
 type parentStudentDirectory struct{ students peopledirectory.StudentQuery }

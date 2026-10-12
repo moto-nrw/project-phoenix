@@ -12,6 +12,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -170,14 +171,19 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		return AuthTestModule{}, err
 	}
 	logger := slog.Default()
-	command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	r, err := repositories.NewAuthTestRepositories(db, command)
+	r, err := repositories.NewAuthTestRepositories(db)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
+	// The auth events append through the command; the operator second factor
+	// appends to the operator ledger (#3331), so the module needs it bound.
+	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db})
+	audits = audits.WithRoutedWrites(command)
+	operatorAuditLog := newOperatorAuditLog(audits.OperatorAuditLog)
 	cfg := currentFactoryConfig()
 	settingsOverrides := authTestSettings{mailer: email.NewMockMailer(), rateLimitEnabled: cfg.RateLimitEnabled, demoMaxActiveSchools: 300}
 	for _, option := range options {
@@ -218,7 +224,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	identity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: r.School}, func(ctx context.Context, tenantID int64) (string, error) {
 		return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, logger)
-	sessionRepos := sessionRepositoriesOf(r, r.School)
+	sessionRepos := sessionRepositoriesOf(r, r.School, audits.AuthEvent)
 	if settingsOverrides.staffCreateErr != nil {
 		sessionRepos.lifecycle.staff = failingStaffDirectory{StaffRepository: r.Staff, err: settingsOverrides.staffCreateErr}
 	}
@@ -231,7 +237,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		return AuthTestModule{}, err
 	}
 	operators, err := newOperatorDependencies(operatorAuthenticationWiring{
-		repos:         operatorRepositoriesOf(r),
+		repos:         operatorRepositoriesOf(r, operatorAuditLog),
 		organizations: owners.organizations,
 		persons:       owners.persons,
 		membership:    owners.membership,
@@ -250,7 +256,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		},
 		demoStandingSchool: settingsOverrides.standingDemo,
 		mfa: &mfaWiring{
-			repos: r, settings: settings.Settings,
+			operatorAuditLog: operatorAuditLog, settings: settings.Settings,
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
 			jwtSecret: mfaTestSecret(), logger: logger, backoff: settingsOverrides.mfaBackoff,
 			decorate: settingsOverrides.mfaRecords, capability: settingsOverrides.mfaCapability,
@@ -327,11 +333,12 @@ func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestC
 	if err != nil {
 		return nil, err
 	}
+	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db})
 	module, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepositoriesOf(repos, repos.School), codec: codec, settings: cfg.Settings,
+		repos: sessionRepositoriesOf(repos, repos.School, audits.AuthEvent), codec: codec, settings: cfg.Settings,
 		audit: cfg.Audit, logger: logger,
 		mfa: &mfaWiring{
-			repos: repos, settings: cfg.Settings,
+			operatorAuditLog: newOperatorAuditLog(audits.OperatorAuditLog), settings: cfg.Settings,
 			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom, frontendURL: cfg.FrontendURL,
 			jwtSecret: mfaTestSecret(), logger: logger,
 		},

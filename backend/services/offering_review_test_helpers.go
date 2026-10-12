@@ -21,11 +21,11 @@ import (
 // request-review projection binds in the server. Offering-change suites
 // assert the queue a staff member sees for the requests they submit.
 func NewOfferingReviewTestQuery(db *bun.DB, today func() calendar.Date) (careplan.OfferingReviewQuery, error) {
-	auditCommand, err := auditService.NewCommand(repositories.NewTestAuditStore(db), func(auditService.AppendObservation) {})
+	auditCommand, err := auditService.NewCommand(NewTestAuditStore(db), func(auditService.AppendObservation) {})
 	if err != nil {
 		return nil, err
 	}
-	repos, err := repositories.NewStudentTestRepositories(db, auditCommand)
+	repos, err := NewStudentTestRepositories(db, auditCommand)
 	if err != nil {
 		return nil, err
 	}

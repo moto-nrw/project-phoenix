@@ -80,19 +80,6 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.Device)
 	})
 
-	// Verify config repositories are initialized
-	t.Run("config repositories", func(t *testing.T) {
-		assert.NotNil(t, factory.SettingValue)
-		assert.NotNil(t, factory.SettingAudit)
-	})
-
-	// Verify audit repositories are initialized
-	t.Run("audit repositories", func(t *testing.T) {
-		assert.NotNil(t, factory.DataDeletion)
-		assert.NotNil(t, factory.AuthEvent)
-		assert.NotNil(t, factory.DataImport)
-	})
-
 	t.Run("enrollment repositories", func(t *testing.T) {
 		assert.NotNil(t, factory.CarePlan())
 		assert.NotNil(t, factory.Enrollment())

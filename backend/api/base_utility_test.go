@@ -308,7 +308,7 @@ func setupCaregiverCompositionModule(t *testing.T, graph *serveGraph) *caregiver
 func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	t.Helper()
 	db, module := testutil.SetupSettingsCallbacksModule(t, newStudentPhotoTestBootstrap())
-	repos, err := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
+	repos, err := repositories.NewEnrollmentTestRepositories(db)
 	require.NoError(t, err)
 	homeLayouts, ok := module.Settings.(interface {
 		HomeLayout(context.Context, int64, int64, []string) (any, error)

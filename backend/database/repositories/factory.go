@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	"github.com/moto-nrw/project-phoenix/database/repositories/config"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	"github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -41,7 +39,6 @@ import (
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -73,8 +70,7 @@ type Factory struct {
 	appointments   appointments.Capability
 	carePlan       careplan.Capability
 
-	// students is the bound People Directory; audit adapters rebuilt by
-	// ConfigureAuditRuntime after the binding read it again (#2662).
+	// students is the bound People Directory (#2662).
 	// membershipDeps carries the owner-side lookups the staff, teacher and
 	// guest adapters compose with; it survives every rebinding.
 	membershipDeps *staffMembershipDeps
@@ -111,11 +107,6 @@ type Factory struct {
 
 	// Staff documents (#1424)
 	StaffDocument userModels.StaffDocumentRepository
-
-	// School file storage trail (#2596); folders, files and attachments are
-	// owned by modules/filestorage (#2707).
-	FileEvent          auditModels.FileEventRepository
-	SubstitutionChange auditModels.SubstitutionChangeCreator
 
 	// Facilities domain
 	Room facilityModels.RoomRepository
@@ -181,38 +172,16 @@ type Factory struct {
 	PWAStandaloneUsage *pwausage.PWAStandaloneUsageRepository
 
 	// Config domain
-	SettingValue      configModels.SettingValueRepository
-	SettingAudit      configModels.SettingAuditRepository
 	StaffWorkSchedule configModels.StaffWorkScheduleRepository
 	WorkTimeModel     configModels.WorkTimeModelRepository
 
-	// Audit domain
-	DataDeletion                 auditModels.DataDeletionRepository
-	StudentDeletionAudit         auditModels.StudentDeletionRepository
-	EnrollmentDeletionAudit      auditModels.EnrollmentDeletionRepository
-	EnrollmentRestorationAudit   auditModels.EnrollmentRestorationRepository
-	DataAccessLog                auditModels.DataAccessLogRepository
-	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
-	GuardianChange               auditModels.GuardianChangeRepository
-	StudentConsentChange         auditModels.StudentConsentChangeRepository
-	DeviationEvent               auditModels.DeviationEventRepository
-	AuthEvent                    auditModels.AuthEventRepository
-	DataImport                   auditModels.DataImportRepository
-	WorkSessionEdit              auditModels.WorkSessionEditRepository
-	StudentFieldEdit             auditModels.StudentFieldEditRepository
-	UnregisteredTagScan          auditModels.UnregisteredTagScanRepository
-	TimeTrackingDeletion         auditModels.TimeTrackingDeletionRepository
-	PersonnelNumberChange        auditModels.PersonnelNumberChangeCreator
-	StaffMasterDataChange        auditModels.StaffMasterDataChangeCreator
-	GuardianFinancialChange      auditModels.GuardianFinancialChangeCreator
-	ClassListEntryChange         auditModels.ClassListEntryChangeRepository
-	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
-	BookingConsistency           auditModels.BookingConsistencyRepository
+	// UnregisteredTagScan is served by Device Fleet (#2676).
+	UnregisteredTagScan auditModels.UnregisteredTagScanRepository
 
 	// Platform domain (operator dashboard)
 	// The operator invitation and e-mail change links are owned by Identity
-	// & Access (#2722).
-	OperatorAuditLog platformModels.OperatorAuditLogRepository
+	// & Access (#2722); the operator audit ledger is built by the Audit
+	// composition (ADR 0049).
 	// School is the Organisation & Tenancy capability that owns
 	// platform.schools (#3253); BindOrganizationTenancy replaces the
 	// unobserved default with the serving root's module.
@@ -249,62 +218,6 @@ type Factory struct {
 
 	// Staff notices (Tagesinformationen: interne Hinweise der Leitung, #2180)
 	StaffNotice userModels.StaffNoticeRepository
-}
-
-// NewAuditStore binds the Audit Postgres adapter to the transaction resolver
-// owned by the composition root.
-func (f *Factory) NewAuditStore(runtime audit.Runtime) auditModels.AppendStore {
-	return NewAuditStore(runtime)
-}
-
-func NewAuditStore(runtime audit.Runtime) auditModels.AppendStore { return audit.NewAppender(runtime) }
-
-// ListRecentAuditRetentionSummaries exposes the Audit-owned cleanup query
-// without widening the producer-facing DataDeletionRepository interface.
-func ListRecentAuditRetentionSummaries(ctx context.Context, db *bun.DB, since time.Time, limit int) ([]auditModels.RecentDeletionSummary, error) {
-	runtime := audit.NewRuntime(db, auditModels.TenantIDFromContext)
-	return audit.NewDataDeletionRepository(runtime).ListRecentRetentionSummaries(ctx, since, limit)
-}
-
-// ConfigureAuditRuntime binds every Audit query adapter to the caller's
-// transaction, tenant, and read-only root DB fallback before services capture
-// the interfaces. Audit writes are routed separately through the fail-closed
-// command by RouteAuditWrites.
-func (f *Factory) ConfigureAuditRuntime(runtime audit.Runtime) {
-	f.FileEvent = audit.NewFileEventRepository(runtime)
-	f.SubstitutionChange = audit.NewSubstitutionChangeRepository(runtime)
-	f.DataDeletion = audit.NewDataDeletionRepository(runtime)
-	f.StudentDeletionAudit = audit.NewStudentDeletionRepository(runtime)
-	f.EnrollmentDeletionAudit = audit.NewEnrollmentDeletionRepository(runtime)
-	f.EnrollmentRestorationAudit = audit.NewEnrollmentRestorationRepository(runtime)
-	f.DataAccessLog = audit.NewDataAccessLogRepository(runtime)
-	f.EnrollmentOfferingAdjustment = audit.NewEnrollmentOfferingAdjustmentRepository(runtime)
-	f.GuardianChange = audit.NewGuardianChangeRepository(runtime)
-	f.StudentConsentChange = audit.NewStudentConsentChangeRepository(runtime)
-	f.DeviationEvent = audit.NewDeviationEventRepository(runtime)
-	f.AuthEvent = audit.NewAuthEventRepository(runtime)
-	f.DataImport = audit.NewDataImportRepository(runtime)
-	f.WorkSessionEdit = audit.NewWorkSessionEditRepository(runtime)
-	f.StudentFieldEdit = audit.NewStudentFieldEditRepository(runtime)
-	f.UnregisteredTagScan = NewUnregisteredTagScanRepository(mustNewDeviceFleet(f.db))
-	f.TimeTrackingDeletion = audit.NewTimeTrackingDeletionRepository(runtime)
-	f.PersonnelNumberChange = audit.NewPersonnelNumberChangeRepository(runtime)
-	f.StaffMasterDataChange = audit.NewStaffMasterDataChangeRepository(runtime)
-	f.GuardianFinancialChange = audit.NewGuardianFinancialChangeRepository(runtime)
-	f.ClassListEntryChange = audit.NewClassListEntryChangeRepository(runtime)
-	f.TimeTrackingAuditLog = audit.NewTimeTrackingAuditLogRepository(runtime)
-	f.BookingConsistency = audit.NewBookingConsistencyRepository(runtime, NewEnrollmentBookingProjection(enrollmentCompose.New()))
-	f.bindAuditStudentDirectory()
-	f.bindCarePlanAuditDirectory()
-	if f.students != nil {
-		f.bindGuardianDirectories(f.students)
-	}
-}
-
-// NewAttendanceCorrectionRepository composes the append-only attendance trail
-// with the request-scoped audit runtime used by timetable corrections.
-func NewAttendanceCorrectionRepository(runtime audit.Runtime) auditModels.AttendanceCorrectionRepository {
-	return audit.NewAttendanceCorrectionRepository(runtime)
 }
 
 // BindOrganizationTenancy replaces school-owning and school-enriched legacy
@@ -457,27 +370,11 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	})
 	enrollmentModule := enrollmentCompose.New()
 	parentAnnouncement := NewParentAnnouncementRepository(db, enrollmentModule, now)
-	auditRepositoryRuntime := func(ctx context.Context) (bun.IDB, int64) {
-		tenantID := auditModels.TenantIDFromContext(ctx)
-		if raw, ok := auditModels.TransactionFromContext(ctx); ok {
-			switch tx := raw.(type) {
-			case bun.Tx:
-				return tx, tenantID
-			case *bun.Tx:
-				if tx != nil {
-					return tx, tenantID
-				}
-			}
-		}
-		return db, tenantID
-	}
 	parentRuntime := parentRepo.RuntimeFunc(carePlanCompose.TenantAmbientDatabase(db))
 	appointmentsModule, err := NewAppointments(db)
 	if err != nil {
 		panic(fmt.Sprintf("repository factory: compose appointments: %v", err))
 	}
-	studentDeletionAudit := audit.NewStudentDeletionRepository(auditRepositoryRuntime)
-	enrollmentOfferingAdjustment := audit.NewEnrollmentOfferingAdjustmentRepository(auditRepositoryRuntime)
 	// The account facts other owners read belong to Identity & Access
 	// (#2720): the account lookups the People Directory and Care Plan
 	// repositories need are bound at construction.
@@ -532,8 +429,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// bindStaffMembershipDecorators, it needs the membership owner.
 
 		// School file storage trail (#2596)
-		FileEvent:          audit.NewFileEventRepository(auditRepositoryRuntime),
-		SubstitutionChange: audit.NewSubstitutionChangeRepository(auditRepositoryRuntime),
 
 		// Facilities repositories
 		Room: facilitiesRepositoryAdapter.New(),
@@ -594,39 +489,16 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		PWAStandaloneUsage: pwausage.NewPWAStandaloneUsageRepository(db),
 
 		// Config repositories
-		SettingValue:      config.NewSettingValueRepository(config.NewRuntime(db)),
-		SettingAudit:      config.NewSettingAuditRepository(config.NewRuntime(db)),
 		StaffWorkSchedule: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(timetableDependencies.Workforce),
 		WorkTimeModel:     workforceRepositoryAdapter.NewWorkTimeModelRepository(timetableDependencies.Workforce),
 
-		// Audit repositories
-		DataDeletion:                 audit.NewDataDeletionRepository(auditRepositoryRuntime),
-		StudentDeletionAudit:         studentDeletionAudit,
-		EnrollmentDeletionAudit:      audit.NewEnrollmentDeletionRepository(auditRepositoryRuntime),
-		EnrollmentRestorationAudit:   audit.NewEnrollmentRestorationRepository(auditRepositoryRuntime),
-		DataAccessLog:                audit.NewDataAccessLogRepository(auditRepositoryRuntime),
-		EnrollmentOfferingAdjustment: enrollmentOfferingAdjustment,
-		GuardianChange:               audit.NewGuardianChangeRepository(auditRepositoryRuntime),
-		StudentConsentChange:         audit.NewStudentConsentChangeRepository(auditRepositoryRuntime),
-		DeviationEvent:               audit.NewDeviationEventRepository(auditRepositoryRuntime),
-		AuthEvent:                    audit.NewAuthEventRepository(auditRepositoryRuntime),
-		DataImport:                   audit.NewDataImportRepository(auditRepositoryRuntime),
-		WorkSessionEdit:              audit.NewWorkSessionEditRepository(auditRepositoryRuntime),
-		StudentFieldEdit:             audit.NewStudentFieldEditRepository(auditRepositoryRuntime),
-		UnregisteredTagScan:          NewUnregisteredTagScanRepository(deviceFleet),
-		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(auditRepositoryRuntime),
-		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(auditRepositoryRuntime),
-		StaffMasterDataChange:        audit.NewStaffMasterDataChangeRepository(auditRepositoryRuntime),
-		GuardianFinancialChange:      audit.NewGuardianFinancialChangeRepository(auditRepositoryRuntime),
-		ClassListEntryChange:         audit.NewClassListEntryChangeRepository(auditRepositoryRuntime),
-		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(auditRepositoryRuntime),
-		BookingConsistency:           audit.NewBookingConsistencyRepository(auditRepositoryRuntime, NewEnrollmentBookingProjection(enrollmentModule)),
+		// Device Fleet serves the unregistered tag scans (#2676).
+		UnregisteredTagScan: NewUnregisteredTagScanRepository(deviceFleet),
 
 		// Platform repositories. Operators and their refresh sessions are
 		// served by the public Identity & Access capability the service root
-		// binds (#3252); the operator audit ledger belongs to Audit (#2720).
-		OperatorAuditLog: newOperatorAuditLog(auditRepositoryRuntime),
-		School:           mustNewOrganizationTenancy(db),
+		// binds (#3252).
+		School: mustNewOrganizationTenancy(db),
 
 		// Enrollment repositories
 		SubmissionRateLimit: enrollmentModule,
@@ -745,18 +617,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	factory.ActivityException, factory.ActivityInstance = adapters.ActivityException, adapters.ActivityInstance
 	factory.InstanceIdempotency, factory.InstanceStaff = adapters.InstanceIdempotency, adapters.InstanceStaff
 	return factory
-}
-
-// SetConfigRuntime replaces the bootstrap settings repositories with
-// tenant-aware instances before the service graph captures them.
-//
-// The work-time repositories are deliberately not rebound: they are Workforce
-// capability adapters now, and that owner resolves the tenant transaction from
-// the context itself (#2687). Passing a custom runtime here does not, and must
-// not, reach them.
-func (f *Factory) SetConfigRuntime(runtime config.Runtime) {
-	f.SettingValue = config.NewSettingValueRepository(runtime)
-	f.SettingAudit = config.NewSettingAuditRepository(runtime)
 }
 
 func (r *Factory) Enrollment() EnrollmentBookingProjection {

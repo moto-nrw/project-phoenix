@@ -87,8 +87,7 @@ func TestUpdateMasterDataField_RecordsStudentAudit(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	edits, err := repos.StudentFieldEdit.GetByStudentID(
+	edits, err := services.NewTestAuditPersistence(db, nil).StudentFieldEdit.GetByStudentID(
 		tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID),
 		chain.StudentID,
 	)

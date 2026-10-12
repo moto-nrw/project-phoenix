@@ -29,7 +29,7 @@ func (f *overviewFixture) newExportService() timetracking.StaffTimeExportService
 		f.svc,
 		f.newWorkSessionService(),
 		services.TimeExportStaff(f.repos.Staff),
-		services.NewTimeTrackingDataAccessAudit(f.repos.DataAccessLog),
+		services.NewTimeTrackingDataAccessAudit(services.NewTestAuditPersistence(f.db, nil).DataAccessLog),
 		nil,
 		nil,
 		services.RenderTimeTrackingWorkbook,
@@ -40,7 +40,7 @@ func (f *overviewFixture) newWorkSessionService() timetracking.WorkSessionServic
 	// nil settings: the F9 deviation checks are opt-in and irrelevant for
 	// reading export rows.
 	return timetracking.NewWorkSessionService(
-		f.repos.WorkSession, f.repos.WorkSessionBreak, services.NewWorkSessionAudit(f.repos.WorkSessionEdit),
+		f.repos.WorkSession, f.repos.WorkSessionBreak, services.NewWorkSessionAudit(services.NewTestAuditPersistence(f.db, nil).WorkSessionEdit),
 		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff, repositories.MustNewStaffEmployment(f.db)),
 		services.NewWorkSessionSchedules(f.repos.StaffWorkSchedule), services.NewWorkSessionTimeModels(f.repos.WorkTimeModel),
 		nil,
@@ -301,7 +301,7 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	sessionSvc := f.newWorkSessionService()
 	exportSvc := timetracking.NewStaffTimeExportService(
-		f.svc, sessionSvc, services.TimeExportStaff(f.repos.Staff), services.NewTimeTrackingDataAccessAudit(f.repos.DataAccessLog), nil, nil,
+		f.svc, sessionSvc, services.TimeExportStaff(f.repos.Staff), services.NewTimeTrackingDataAccessAudit(services.NewTestAuditPersistence(f.db, nil).DataAccessLog), nil, nil,
 		services.RenderTimeTrackingWorkbook,
 	)
 

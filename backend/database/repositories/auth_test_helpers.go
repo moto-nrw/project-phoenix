@@ -1,9 +1,7 @@
 package repositories
 
 import (
-	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -12,8 +10,9 @@ import (
 
 // NewAuthTestRepositories supplies the compatibility carrier required by the
 // auth constructors. Only auth, invitation and identity dependencies are built;
-// API tests receive the resulting auth capabilities, never this carrier.
-func NewAuthTestRepositories(db *bun.DB, command auditModels.Command) (*Factory, error) {
+// API tests receive the resulting auth capabilities, never this carrier. The
+// auth events and the operator ledger come from the Audit composition.
+func NewAuthTestRepositories(db *bun.DB) (*Factory, error) {
 	members, err := NewMembershipTestRepositories(db)
 	if err != nil {
 		return nil, err
@@ -29,10 +28,6 @@ func NewAuthTestRepositories(db *bun.DB, command auditModels.Command) (*Factory,
 		GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: NewStudentGuardianRepository(db),
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(parentRepo.RuntimeFunc(carePlanCompose.TenantAmbientDatabase(db)), enrollmentCompose.New(), identityAccountDirectory{accounts: newIdentityAccess(db, nil)}),
 		PushSubscription:        deliveryCompose.NewPushSubscriptionRepository(db),
-		AuthEvent:               authEventCommand{auditRepo.NewAuthEventRepository(newTestAuditRuntime(db)), command},
-		// The operator second factor appends to the operator ledger
-		// (#3331), so the composed test module needs it bound.
-		OperatorAuditLog: newOperatorAuditLog(newTestAuditRuntime(db)),
 	}
 	r.BindOrganizationTenancy(organizations)
 	return r, nil

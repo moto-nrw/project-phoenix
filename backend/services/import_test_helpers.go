@@ -45,11 +45,11 @@ func NewImportTestModule(db *bun.DB, unit tenant.UnitOfWork) (ImportTestModule, 
 // NewImportTestModuleWithOptions is NewImportTestModule with decorated owner
 // ports.
 func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options ImportTestOptions) (ImportTestModule, error) {
-	command, err := auditService.NewCommand(repositories.NewTestAuditStore(db), func(auditService.AppendObservation) {})
+	command, err := auditService.NewCommand(NewTestAuditStore(db), func(auditService.AppendObservation) {})
 	if err != nil {
 		return ImportTestModule{}, err
 	}
-	repos, err := repositories.NewStudentTestRepositories(db, command)
+	repos, err := NewStudentTestRepositories(db, command)
 	if err != nil {
 		return ImportTestModule{}, err
 	}

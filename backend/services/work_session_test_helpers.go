@@ -18,7 +18,7 @@ type WorkSessionTestModule struct {
 }
 
 func NewWorkSessionTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (WorkSessionTestModule, error) {
-	r, err := repositories.NewWorkSessionTestRepositories(db, clocks...)
+	r, err := NewWorkSessionTestRepositories(db, clocks...)
 	if err != nil {
 		return WorkSessionTestModule{}, err
 	}

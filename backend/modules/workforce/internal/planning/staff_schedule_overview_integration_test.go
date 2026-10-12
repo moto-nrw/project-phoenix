@@ -180,7 +180,6 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	modelStaff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Summary", "ModelFallback")
 	createOverviewShift(t, db, tenantID, modelStaff.ID, monday, "09:00", "10:00", 0)
 	modelRepos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	modelRepos.SetConfigRuntime(testpkg.ConfigRuntime(db))
 	modelRepo := modelRepos.WorkTimeModel
 	workModel := &configModel.WorkTimeModel{
 		Name:               fmt.Sprintf("Summary fallback %d", time.Now().UnixNano()),
@@ -210,7 +209,6 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	queryCounter := testpkg.NewQueryCounter()
 	countedDB := db.WithQueryHook(queryCounter)
 	repos, shiftRows := overviewRepositories(countedDB)
-	repos.SetConfigRuntime(testpkg.ConfigRuntime(countedDB))
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: shiftRows, Instances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
 		InstanceStaff: repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),

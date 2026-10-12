@@ -13,7 +13,7 @@ import (
 )
 
 func NewDatabaseStatsTestReader(db *bun.DB) (DatabaseStatsReader, error) {
-	repos, err := repositories.NewTimetableTestRepositories(db)
+	repos, err := NewTimetableTestRepositories(db)
 	if err != nil {
 		return nil, err
 	}

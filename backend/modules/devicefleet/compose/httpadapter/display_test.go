@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -53,7 +55,7 @@ func newDisplayTestTenant(t *testing.T, db *bun.DB) int64 {
 // TestDisplayFeatureGate below covers the off-by-default behavior directly.
 func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
 	t.Helper()
-	repos := repositories.NewSettingsTestRepositories(db, testpkg.SettingsRuntime(t, db))
+	repos := services.NewSettingsTestRepositories(testpkg.SettingsRuntime(t, db))
 	settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -62,7 +64,7 @@ func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
 
 func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http.Handler {
 	t.Helper()
-	repos, err := repositories.NewDisplayTestRepositories(db, testpkg.SettingsRuntime(t, db))
+	repos, err := services.NewDisplayTestRepositories(db, testpkg.SettingsRuntime(t, db))
 	require.NoError(t, err)
 	approvedOfferings, err := testutil.NewApprovedOfferingProjection(db, repos.Enrollment())
 	require.NoError(t, err)
@@ -674,7 +676,7 @@ func TestDisplayFeatureGate(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code, "dashboard must work once the feature is on: %s", rec.Body.String())
 
 		ctx := tenant.WithTenantID(context.Background(), tenantID)
-		repos := repositories.NewSettingsTestRepositories(db, testpkg.SettingsRuntime(t, db))
+		repos := services.NewSettingsTestRepositories(testpkg.SettingsRuntime(t, db))
 		settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 		require.NoError(t, settingsService.ResetValue(ctx, configModel.KeyDisplayEnabled, nil, nil))
 

@@ -20,7 +20,7 @@ type ScheduleTestModule struct {
 }
 
 func NewScheduleTestModule(db *bun.DB, unit tenant.UnitOfWork) (ScheduleTestModule, error) {
-	r, err := repositories.NewTimetableTestRepositories(db)
+	r, err := NewTimetableTestRepositories(db)
 	if err != nil {
 		return ScheduleTestModule{}, err
 	}

@@ -92,7 +92,7 @@ func NewShiftTypeTestModule(db *bun.DB) (ShiftTypeTestModule, error) {
 	if err != nil {
 		return ShiftTypeTestModule{}, err
 	}
-	timetable, err := repositories.NewTimetableTestRepositories(db)
+	timetable, err := NewTimetableTestRepositories(db)
 	if err != nil {
 		return ShiftTypeTestModule{}, err
 	}

@@ -34,11 +34,11 @@ func NewClassDayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
-	command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
-	r, err := repositories.NewEnrollmentTestRepositories(db, command)
+	r, err := NewEnrollmentTestRepositories(db, command)
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}

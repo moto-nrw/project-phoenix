@@ -8,6 +8,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -105,7 +106,7 @@ func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db *bun.DB, b
 	service := education.NewService(repos.Group, repos.GroupTeacher, repos.ClassTeacher,
 		repositories.NewEducationRooms(repos.Room), NewEducationTeachers(repos.Teacher),
 		repositories.NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
-		education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: broadcaster, Audit: repositories.NewEducationClassAssignmentAudit(repos.StaffMasterDataChange)})
+		education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: broadcaster, Audit: repositories.NewEducationClassAssignmentAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).StaffMasterDataChange)})
 
 	return service
 }
@@ -130,7 +131,7 @@ func NewSubstitutionSuiteModule(repos *PeopleRepositorySuiteFactory, db *bun.DB,
 		deps.ExternalCaregivers = repositories.NewEducationExternalCaregivers(repos.Staff, repos.Guest)
 	}
 	if deps.Audit == nil {
-		deps.Audit = repositories.NewEducationSubstitutionAudit(repos.SubstitutionChange)
+		deps.Audit = repositories.NewEducationSubstitutionAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).SubstitutionChange)
 	}
 	if deps.Runtime == nil {
 		deps.Runtime = education.NewLegacyRepositoryRuntime(db)
@@ -157,7 +158,7 @@ type GradeTransitionSuiteOwners struct {
 // NewGradeTransitionSuiteOwners composes the owners the production root binds
 // the workflow to, with the roster maintenance on the given clock.
 func NewGradeTransitionSuiteOwners(db *bun.DB, clock func() time.Time) (GradeTransitionSuiteOwners, error) {
-	rows, err := repositories.NewTimetableTestRepositories(db, clock)
+	rows, err := NewTimetableTestRepositories(db, clock)
 	if err != nil {
 		return GradeTransitionSuiteOwners{}, err
 	}

@@ -3,8 +3,8 @@ package services
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -14,10 +14,9 @@ import (
 // tenant-scoped retention and session cleanup commands.
 func NewCleanupSettingsService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger) config.SettingsService {
 	settingsRuntime := newSettingsRuntime(db, &runtime)
-	repos := repositories.NewCleanupSettingsRepositories(db, settingsRuntime)
 	return config.NewSettingsService(
-		repos.Value,
-		repos.Audit,
+		settingsCompose.NewSettingValueRepository(settingsRuntime),
+		settingsCompose.NewSettingAuditRepository(settingsRuntime),
 		newSchoolSettingsStore(schools),
 		settingsRuntime,
 		logger,

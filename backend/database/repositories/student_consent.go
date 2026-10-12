@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	auditRepositories "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -22,7 +21,7 @@ import (
 // NewStudentConsentHistory binds the Audit Platform consent trail behind the
 // People Directory projection seam.
 func NewStudentConsentHistory(db *bun.DB) peopleCompose.StudentConsentHistory {
-	return studentConsentHistory{repo: auditRepositories.NewStudentConsentChangeRepository(auditRootRuntime(db))}
+	return studentConsentHistory{repo: peopleDirectoryAudit(db).StudentConsentChange}
 }
 
 type studentConsentHistory struct {

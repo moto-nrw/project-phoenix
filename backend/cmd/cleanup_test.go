@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -55,7 +56,7 @@ func setupTestCleanupContext(t *testing.T) *cleanupContext {
 		Schools:       schools,
 		TenantRuntime: testpkg.TenantRuntime(t, db),
 		DB:            db,
-		Audit:         repositories.NewTestAuditStore(db),
+		Audit:         testutil.NewTestAuditStore(db),
 		Output:        io.Discard,
 		Logger:        log.New(io.Discard, "", 0),
 	}
@@ -91,7 +92,7 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 		DB:                       db,
 		Logger:                   slog.Default(),
 	}, presenceservice.WithPresenceSettings(detailedPresenceSettings{}))
-	cleanupSvc := buildRetentionCleanupService(&cleanupContext{DB: db, Audit: repositories.NewTestAuditStore(db)})
+	cleanupSvc := buildRetentionCleanupService(&cleanupContext{DB: db, Audit: testutil.NewTestAuditStore(db)})
 	schools, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	return &cleanupContext{

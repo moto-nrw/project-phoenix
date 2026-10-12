@@ -85,11 +85,11 @@ func (w studentAccessAuditWriter) Create(ctx context.Context, entry *auditModels
 }
 
 func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter studentdeletioncompose.Feedback, clocks ...func() time.Time) (StudentTestModule, error) {
-	auditCommand, err := auditService.NewCommand(repositories.NewTestAuditStore(db), func(auditService.AppendObservation) {})
+	auditCommand, err := auditService.NewCommand(NewTestAuditStore(db), func(auditService.AppendObservation) {})
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	repos, err := repositories.NewStudentTestRepositories(db, auditCommand)
+	repos, err := NewStudentTestRepositories(db, auditCommand)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
@@ -149,7 +149,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	emailOutboxService := delivery.EmailOutbox
 	frontendURL := currentFactoryConfig().FrontendURL
 	parentsURL := currentFactoryConfig().ParentsURL
-	studentConsentService := repositories.NewStudentConsents(db)
+	studentConsentService := NewStudentConsents(db)
 	// The stored files live in the API layer, so a services-only graph binds
 	// no unlinker: the runtime skips the cleanup instead of guessing a path.
 	newStudentPhotos := func(broadcaster PhotoBroadcaster, unlinker peopleCompose.PhotoUnlinker) peopleCompose.StudentPhotoService {

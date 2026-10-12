@@ -81,17 +81,17 @@ type sessionRepositories struct {
 	lifecycle         lifecycleRepositories
 }
 
-func sessionRepositoriesOf(repos *repositories.Factory, organizations organizationtenancy.Query) sessionRepositories {
+func sessionRepositoriesOf(repos *repositories.Factory, organizations organizationtenancy.Query, authEvents auditModels.AuthEventRepository) sessionRepositories {
 	if repos == nil {
 		return sessionRepositories{}
 	}
 	lifecycle := lifecycleRepositories{
 		persons: repos.Person, staff: repos.Staff, teachers: repos.Teacher, students: repos.Student,
-		guardianProfiles: repos.GuardianProfile, studentGuardians: repos.StudentGuardian, authEvents: repos.AuthEvent,
+		guardianProfiles: repos.GuardianProfile, studentGuardians: repos.StudentGuardian, authEvents: authEvents,
 	}
 	return sessionRepositories{
 		schools: schoolDirectory{schools: organizations},
-		persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
+		persons: repos.Person, authEvents: authEvents, pushSubscriptions: repos.PushSubscription,
 		lifecycle: lifecycle,
 	}
 }

@@ -3,19 +3,20 @@ package repositories
 import (
 	"time"
 
-	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/uptrace/bun"
 )
 
+// StatisticsTestRepositories are the statistics suites' repositories;
+// AccessLog is filled by services.NewStatisticsTestRepositories.
 type StatisticsTestRepositories struct {
 	Timetable TimetableTestRepositories
 	CarePlan  careplan.StudentStatusDaysQuery
 	AccessLog auditModels.DataAccessLogRepository
 }
 
-func NewStatisticsTestRepositories(db *bun.DB, command auditModels.Command, clocks ...func() time.Time) (StatisticsTestRepositories, error) {
+func NewStatisticsTestRepositories(db *bun.DB, clocks ...func() time.Time) (StatisticsTestRepositories, error) {
 	timetable, err := NewTimetableTestRepositories(db, clocks...)
 	if err != nil {
 		return StatisticsTestRepositories{}, err
@@ -30,6 +31,5 @@ func NewStatisticsTestRepositories(db *bun.DB, command auditModels.Command, cloc
 	}
 	return StatisticsTestRepositories{
 		Timetable: timetable, CarePlan: carePlan,
-		AccessLog: dataAccessLogCommand{auditRepo.NewDataAccessLogRepository(newTestAuditRuntime(db)), command},
 	}, nil
 }

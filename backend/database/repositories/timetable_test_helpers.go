@@ -7,7 +7,6 @@ import (
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 
-	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -64,8 +63,10 @@ type TimetableTestRepositories struct {
 	StudentPickupNote       scheduleModels.StudentPickupNoteRepository
 	StudentStatusDay        *StudentStatusDayRepository
 	// CarePlan is the owner capability the schedule adapters above delegate to.
-	CarePlan              careplan.Capability
-	Room                  facilitiesModels.RoomRepository
+	CarePlan careplan.Capability
+	Room     facilitiesModels.RoomRepository
+	// DeviationEvent is filled by services.NewTimetableTestRepositories, the
+	// composition that owns Audit persistence (ADR 0049).
 	DeviationEvent        auditModels.DeviationEventRepository
 	ClassArrivalException scheduleModels.ClassArrivalExceptionRepository
 }
@@ -113,7 +114,6 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		ActiveGroup:           sessions,
 		GroupSupervisor:       sessions,
 		Room:                  facilitiesAdapter.New(),
-		DeviationEvent:        auditRepo.NewDeviationEventRepository(newTestAuditRuntime(db)),
 		ClassArrivalException: timetableCompose.NewClassArrivalExceptionRepository(db),
 		SubmissionRateLimit:   enrollmentCompose.New(),
 	}
@@ -166,7 +166,7 @@ func timetableTestRepositories(r *Factory) TimetableTestRepositories {
 		StudentArrivalNote: r.StudentArrivalNote, StudentPickupSchedule: r.StudentPickupSchedule,
 		StudentPickupException: r.StudentPickupException, StudentPickupNote: r.StudentPickupNote,
 		StudentStatusDay: r.StudentStatusDay, CarePlan: r.carePlan,
-		Room: r.Room, DeviationEvent: r.DeviationEvent,
+		Room:                  r.Room,
 		ClassArrivalException: r.ClassArrivalException,
 		enrollment:            r.SubmissionRateLimit, schoolCalendar: r.SchoolCalendar(), calendarPeriodUsage: r.CalendarPeriodUsage(),
 	}

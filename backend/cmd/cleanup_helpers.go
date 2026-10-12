@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/database"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -506,7 +505,7 @@ type recentDeletionRow struct {
 
 // queryRecentDeletions fetches recent deletion activity from the audit table.
 func queryRecentDeletions(ctx context.Context, db *bun.DB) ([]recentDeletionRow, error) {
-	summaries, err := repositories.ListRecentAuditRetentionSummaries(ctx, db, time.Now().AddDate(0, 0, -30), 10)
+	summaries, err := services.ListRecentAuditRetentionSummaries(ctx, db, time.Now().AddDate(0, 0, -30), 10)
 	if err != nil {
 		return nil, err
 	}

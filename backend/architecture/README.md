@@ -3242,6 +3242,21 @@ their suites, keep exactly that code's reach in the same scope. The
 shift-plan-sync workflow's points are created by the candidate and need no
 exception. Everything else stays forbidden.
 
+The repository Factory contraction has a two-permission path
+([ADR 0049](../../docs/adr/0049-owner-compositions-construct-audit-and-settings-persistence.md),
+#2743). In a reviewed epoch whose base classifies `database/repositories`
+exactly as `legacy-composition`/`compose`, production
+`legacy-composition`/`compose` may import `audit-platform`/`compose` and
+`settings-platform`/`compose` may import `settings-platform`/`postgres`.
+Epoch 36 registers them as `legacy-composition.to.audit-platform-compose`
+(temporary, #2747) and `settings-platform.compose.postgres`.
+`modules/auditlog/compose` builds the Audit persistence (`NewPersistence`)
+and `modules/settings/compose` the setting stores; `services` obtains them
+there instead of from Factory fields. The root package reaches the Audit
+composition only for the People Directory's audit seams until People
+Directory construction leaves it. Other roles, owners and scopes stay
+forbidden.
+
 The three existing student read projections have one fixed replacement path
 ([ADR 0025](../../docs/adr/0025-replace-student-read-projection-grants.md),
 [#3432](https://github.com/moto-nrw/project-phoenix/issues/3432)). In a reviewed

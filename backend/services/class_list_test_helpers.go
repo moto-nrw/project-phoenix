@@ -24,7 +24,7 @@ func NewClassListTestModule(db *bun.DB) (ClassListTestModule, error) {
 	if err != nil {
 		return ClassListTestModule{}, err
 	}
-	command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 	if err != nil {
 		return ClassListTestModule{}, err
 	}

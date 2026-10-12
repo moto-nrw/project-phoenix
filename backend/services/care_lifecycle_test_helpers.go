@@ -28,11 +28,11 @@ func NewCareLifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork) (CareLifecyc
 	if err != nil {
 		return CareLifecycleTestModule{}, err
 	}
-	command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 	if err != nil {
 		return CareLifecycleTestModule{}, err
 	}
-	r, err := repositories.NewCareLifecycleTestRepositories(db, command)
+	r, err := NewCareLifecycleTestRepositories(db, command)
 	if err != nil {
 		return CareLifecycleTestModule{}, err
 	}

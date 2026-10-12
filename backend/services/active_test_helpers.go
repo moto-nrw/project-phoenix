@@ -75,6 +75,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
+	r.TimetableTestRepositories = withTimetableTestAudit(db, r.TimetableTestRepositories)
 	approvedOfferings, err := NewApprovedOfferingTestProjection(db, r.Enrollment())
 	if err != nil {
 		return ActiveTestModule{}, err

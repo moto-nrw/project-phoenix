@@ -46,9 +46,9 @@ type (
 // database, recording into command; nil records into the test audit store.
 func NewStudentHTTPTestRows(db *bun.DB, command auditModels.Command) (StudentHTTPTestRows, error) {
 	if command == nil {
-		command = repositories.NewTestAuditStore(db)
+		command = NewTestAuditStore(db)
 	}
-	return repositories.NewStudentTestRepositories(db, command)
+	return NewStudentTestRepositories(db, command)
 }
 
 // NewStudentHTTPTestPeople is the People Directory owner over the test
@@ -75,7 +75,7 @@ type StudentHTTPTestConsents = *repositories.StudentConsents
 // NewStudentHTTPTestConsents binds the consent projection and the Audit
 // Platform trail over the test database.
 func NewStudentHTTPTestConsents(db *bun.DB) StudentHTTPTestConsents {
-	return repositories.NewStudentConsents(db)
+	return NewStudentConsents(db)
 }
 
 // NewStudentHTTPTestPickupReviewBlocks are the timetable blocks a pickup
@@ -102,7 +102,7 @@ type StudentHTTPTestCareLifecycle struct {
 // over the test database, recording care-end history through the owner's
 // change history.
 func NewStudentHTTPTestCareLifecycle(db *bun.DB, config StudentHTTPTestCareLifecycle) (careplan.CareLifecycle, error) {
-	repos, err := repositories.NewCareLifecycleTestRepositories(db, nil)
+	repos, err := NewCareLifecycleTestRepositories(db, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -147,7 +147,7 @@
       "declaration": "setupTestCleanupContextWithServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        69
+        70
       ],
       "tables": []
     },
@@ -506,7 +506,7 @@
       "declaration": "TestNewFactoryRetainsCarePlanForBookingConsistencyAudit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        18
+        20
       ],
       "tables": []
     },
@@ -895,31 +895,11 @@
     },
     {
       "scope": "test",
-      "file": "services/users/student_change_log_cleanup_service_test.go",
-      "declaration": "TestStudentChangeLogCleanup_DeletesOldEdits",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        91
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/student_change_log_cleanup_service_test.go",
-      "declaration": "TestStudentChangeLogCleanup_NoOpWhenNothingExpired",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        121
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/users/student_deletion_workflow_test.go",
       "declaration": "careWithdrawals",
       "target": "database/repositories.NewFactory",
       "lines": [
-        65
+        67
       ],
       "tables": []
     },
@@ -929,7 +909,7 @@
       "declaration": "companionLinks",
       "target": "database/repositories.NewFactory",
       "lines": [
-        45
+        47
       ],
       "tables": []
     },
@@ -939,7 +919,7 @@
       "declaration": "newDeletionFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        86
+        88
       ],
       "tables": []
     },
@@ -949,7 +929,7 @@
       "declaration": "studentPlans",
       "target": "database/repositories.NewFactory",
       "lines": [
-        59
+        61
       ],
       "tables": []
     },
@@ -17348,22 +17328,22 @@
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 46,
+          "line": 47,
           "declaration": "type AuthTestModule"
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 310,
+          "line": 316,
           "declaration": "IdentityAccessForTests"
         },
         {
           "file": "services/factory.go",
-          "line": 453,
+          "line": 455,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 503,
+          "line": 505,
           "declaration": "newFactory"
         },
         {
@@ -17375,11 +17355,6 @@
           "file": "services/factory_test_helpers.go",
           "line": 47,
           "declaration": "NewFactoryForTestsWithConfig"
-        },
-        {
-          "file": "services/mfa_composition.go",
-          "line": 37,
-          "declaration": "type mfaWiring"
         },
         {
           "file": "services/operator_authentication_composition.go",

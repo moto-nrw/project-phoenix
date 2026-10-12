@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -52,7 +54,7 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 	lockStaffShifts := workforceCompose.NewStaffShiftLock(db)
 	shifts := planning.NewStaffShiftService(shiftRows, repoFactory.Staff, shiftTypes, lockStaffShifts, slog.Default(),
 		planning.WithStaffShiftSeriesExceptions(exceptionRows),
-		planning.WithStaffShiftDeviationEvents(repoFactory.DeviationEvent),
+		planning.WithStaffShiftDeviationEvents(services.NewTestAuditPersistence(db, nil).DeviationEvent),
 	)
 	series := planning.NewStaffShiftSeriesService(
 		seriesRows, exceptionRows, shiftRows, repoFactory.Staff, planning.SchoolCalendarPeriods(dependencies.Calendar),

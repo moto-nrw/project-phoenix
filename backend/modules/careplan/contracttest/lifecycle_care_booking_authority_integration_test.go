@@ -36,7 +36,7 @@ func lockedBookingAuthorityService(t *testing.T, db *bun.DB) careplan.CareLifecy
 func newBookingAuthorityLifecycle(t *testing.T, db *bun.DB, authoritative bool, lock func(context.Context) error) careplan.CareLifecycle {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewCareLifecycleTestRepositories(db, nil)
+	repos, err := bookingFixtures.NewCareLifecycleTestRepositories(db, nil)
 	require.NoError(t, err)
 	svc, err := repos.NewCareLifecycle(repositories.CareLifecycleTestConfig{
 		Audit:                 bookingFixtures.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAudit(db)),

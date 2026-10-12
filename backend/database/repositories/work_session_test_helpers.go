@@ -3,7 +3,6 @@ package repositories
 import (
 	"time"
 
-	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -15,8 +14,9 @@ import (
 
 type WorkSessionTestRepositories struct {
 	TimetableTestRepositories
-	WorkSession       timerecords.WorkSessionRepository
-	WorkSessionBreak  timerecords.WorkSessionBreakRepository
+	WorkSession      timerecords.WorkSessionRepository
+	WorkSessionBreak timerecords.WorkSessionBreakRepository
+	// WorkSessionEdit is filled by services.NewWorkSessionTestRepositories.
 	WorkSessionEdit   auditModels.WorkSessionEditRepository
 	StaffAbsence      timerecords.StaffAbsenceRepository
 	StaffWorkSchedule configModels.StaffWorkScheduleRepository
@@ -47,7 +47,6 @@ func NewWorkSessionTestRepositories(db *bun.DB, clocks ...func() time.Time) (Wor
 	r := &Factory{db: db,
 		WorkSession:       workforceLegacy.NewWorkSessionRepository(workTime),
 		WorkSessionBreak:  workforceLegacy.NewWorkSessionBreakRepository(workTime),
-		WorkSessionEdit:   auditRepo.NewWorkSessionEditRepository(newTestAuditRuntime(db)),
 		StaffAbsence:      workforceLegacy.NewStaffAbsenceRepository(workTime),
 		StaffWorkSchedule: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(workTime),
 		WorkTimeModel:     workforceRepositoryAdapter.NewWorkTimeModelRepository(workTime),
@@ -55,5 +54,5 @@ func NewWorkSessionTestRepositories(db *bun.DB, clocks ...func() time.Time) (Wor
 	r.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	r.BindPeopleDirectory(people)
 	return WorkSessionTestRepositories{TimetableTestRepositories: tt, WorkSession: r.WorkSession, WorkSessionBreak: r.WorkSessionBreak,
-		WorkSessionEdit: r.WorkSessionEdit, StaffAbsence: r.StaffAbsence, StaffWorkSchedule: r.StaffWorkSchedule, WorkTimeModel: r.WorkTimeModel}, nil
+		StaffAbsence: r.StaffAbsence, StaffWorkSchedule: r.StaffWorkSchedule, WorkTimeModel: r.WorkTimeModel}, nil
 }

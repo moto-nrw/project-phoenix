@@ -133,6 +133,12 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 	if len(recovery) > 0 {
 		recoveryRepo = recovery[0]
 	}
+	// The deviation protocol's Audit trail writes through an Audit command,
+	// as the test service graph routes it.
+	audits, err := services.NewRoutedTestAuditPersistence(s.db)
+	if err != nil {
+		panic(err)
+	}
 	deps := compose.InstanceLifecycleDependencies{
 		StartConflicts:      lifecycleStartConflicts(s),
 		SubstituteConflicts: s.factory.TimetableData.Deviations,
@@ -154,7 +160,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		RecurrenceLock:      s.factory.TimetableData.RecurrenceLock,
 		CareDays:            lifecycleCareDays{query: s.factory.CareDay},
 		CareDayLocks:        s.repos.CarePlan(),
-		Protocol:            repositories.TimetableDeviationProtocol(s.repos.DeviationEvent),
+		Protocol:            repositories.TimetableDeviationProtocol(audits.DeviationEvent),
 		ContentHash:         securityruntime.Fingerprint,
 		DB:                  s.db,
 		Logger:              slog.Default(),

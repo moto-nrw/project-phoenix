@@ -382,6 +382,7 @@ func composeDecisions(
 	require.NoError(tb, err)
 	students, err := repositories.NewPeopleDirectory(db)
 	require.NoError(tb, err)
+	audits := services.NewTestAuditPersistence(db, nil)
 	return testutil.NewEnrollmentDecisions(testutil.EnrollmentDecisionSources{
 		Requests:               repoFactory.Enrollment(),
 		Children:               repoFactory.Enrollment(),
@@ -390,8 +391,8 @@ func composeDecisions(
 		CareOfferings:          testutil.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
 		Phases:                 repoFactory.Enrollment(),
 		Schemas:                repoFactory.Enrollment(),
-		OfferingAdjustments:    repoFactory.EnrollmentOfferingAdjustment,
-		Restorations:           repoFactory.EnrollmentRestorationAudit,
+		OfferingAdjustments:    audits.EnrollmentOfferingAdjustment,
+		Restorations:           audits.EnrollmentRestorationAudit,
 		Notifications:          testNotifications(repoFactory.Enrollment(), settings, nil),
 		Persons:                repoFactory.Person,
 		Staff:                  repoFactory.Staff,
@@ -430,7 +431,7 @@ func testBookingsAuthority(settings testutil.EnrollmentDecisionSettings) func(co
 // with its owners bound the way the production graph binds them. The care-end
 // history goes to the ordinary student audit unless the config names another.
 func newTestCareLifecycle(db *bun.DB, config repositories.CareLifecycleTestConfig) careplan.CareLifecycle {
-	repos, err := repositories.NewCareLifecycleTestRepositories(db, nil)
+	repos, err := services.NewCareLifecycleTestRepositories(db, nil)
 	if err != nil {
 		panic(err)
 	}

@@ -36,15 +36,15 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	r, err := repositories.NewAuthTestRepositories(db, command)
+	r, err := repositories.NewAuthTestRepositories(db)
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	g := repositories.NewGuardianTestRepositories(db, command)
+	g := NewGuardianTestRepositories(db, command)
 	people, photoRuntime, err := repositories.NewPeopleDirectoryWithPhotos(db)
 	if err != nil {
 		return GuardianTestModule{}, err

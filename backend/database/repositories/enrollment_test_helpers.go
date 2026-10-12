@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -10,6 +9,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// EnrollmentTestRepositories is the enrollment suites' repository graph;
+// DataAccessLog is filled by the composition that owns Audit persistence
+// (services.NewEnrollmentTestRepositories).
 type EnrollmentTestRepositories struct {
 	TimetableTestRepositories
 	School organizationtenancy.Capability
@@ -21,7 +23,7 @@ type EnrollmentTestRepositories struct {
 	DataAccessLog       auditModels.DataAccessLogRepository
 }
 
-func NewEnrollmentTestRepositories(db *bun.DB, command auditModels.Command) (EnrollmentTestRepositories, error) {
+func NewEnrollmentTestRepositories(db *bun.DB) (EnrollmentTestRepositories, error) {
 	tt, err := NewTimetableTestRepositories(db)
 	if err != nil {
 		return EnrollmentTestRepositories{}, err
@@ -49,6 +51,5 @@ func NewEnrollmentTestRepositories(db *bun.DB, command auditModels.Command) (Enr
 	return EnrollmentTestRepositories{TimetableTestRepositories: tt,
 		School:          r.School,
 		StudentGuardian: NewStudentGuardianRepository(db), GuardianProfile: NewGuardianProfileRepository(db), GuardianPhoneNumber: usersRepo.NewGuardianPhoneNumberRepository(peopleRuntime(db)),
-		Membership:    members.Membership,
-		DataAccessLog: dataAccessLogCommand{auditRepo.NewDataAccessLogRepository(newTestAuditRuntime(db)), command}}, nil
+		Membership: members.Membership}, nil
 }

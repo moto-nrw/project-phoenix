@@ -59,11 +59,11 @@ type BookingMaterializationTestModule struct {
 // NewBookingMaterializationTestModule composes the booking materialization
 // over the test database.
 func NewBookingMaterializationTestModule(db *bun.DB, unit tenant.UnitOfWork, options BookingMaterializationTestOptions) (BookingMaterializationTestModule, error) {
-	auditCommand, err := auditService.NewCommand(repositories.NewTestAuditStore(db), func(auditService.AppendObservation) {})
+	auditCommand, err := auditService.NewCommand(NewTestAuditStore(db), func(auditService.AppendObservation) {})
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	repos, err := repositories.NewStudentTestRepositories(db, auditCommand)
+	repos, err := NewStudentTestRepositories(db, auditCommand)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}

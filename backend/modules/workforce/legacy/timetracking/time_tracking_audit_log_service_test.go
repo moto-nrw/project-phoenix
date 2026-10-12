@@ -99,7 +99,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	for _, e := range edits {
 		e.SetTenantID(tenantID)
 	}
-	require.NoError(t, repos.WorkSessionEdit.CreateBatch(ctx, edits))
+	require.NoError(t, services.NewTestAuditPersistence(db, nil).WorkSessionEdit.CreateBatch(ctx, edits))
 
 	// Absence + status-transition audit row (actor = ACCOUNT id).
 	absence := &timerecords.StaffAbsence{
@@ -156,13 +156,13 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	// Delete staffB's adjustment through the real service path so the
 	// tombstone write is covered end to end.
 	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, nil, wtmIntSettings{accountStart: "2025-01-01"}, nil,
-		timetracking.WithAdjustmentDeletionAudit(services.NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion)))
+		timetracking.WithAdjustmentDeletionAudit(services.NewTimeTrackingDeletionAudit(services.NewTestAuditPersistence(db, nil).TimeTrackingDeletion)))
 	require.NoError(t, adjustSvc.DeleteAdjustment(ctx, staffB.ID, doomed.ID, admin.ID))
 
 	return &auditLogFixture{
 		tenantID: tenantID, staffA: staffA.ID, staffB: staffB.ID, admin: admin.ID,
 		repos: repos, db: db, ctx: ctx,
-		svc: timetracking.NewTimeTrackingAuditLogService(services.NewTimeTrackingAuditReader(repos.TimeTrackingAuditLog), services.StaffDisplayNames(repos.Staff), nil),
+		svc: timetracking.NewTimeTrackingAuditLogService(services.NewTimeTrackingAuditReader(services.NewTestAuditPersistence(db, nil).TimeTrackingAuditLog), services.StaffDisplayNames(repos.Staff), nil),
 	}
 }
 
@@ -303,7 +303,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 			9001: finalFraction,
 			9002: nextMidnight,
 		} {
-			require.NoError(t, f.repos.TimeTrackingDeletion.Create(f.ctx, &auditModels.TimeTrackingDeletion{
+			require.NoError(t, services.NewTestAuditPersistence(f.db, nil).TimeTrackingDeletion.Create(f.ctx, &auditModels.TimeTrackingDeletion{
 				StaffID:    f.staffA,
 				Source:     auditModels.TimeTrackingDeletionSourceAbsence,
 				SourceID:   sourceID,

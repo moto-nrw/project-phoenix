@@ -3,7 +3,6 @@ package repositories
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -14,6 +13,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// WorkforceTestRepositories is the Workforce suites' repository graph. The
+// audit repositories are filled by services.NewWorkforceTestRepositories,
+// the composition that owns Audit persistence (ADR 0049).
 type WorkforceTestRepositories struct {
 	WorkSessionTestRepositories
 	Membership                      schoolmembership.Capability
@@ -37,7 +39,7 @@ type WorkforceTestRepositories struct {
 	DataDeletion                    auditModels.DataDeletionRepository
 }
 
-func NewWorkforceTestRepositories(db *bun.DB, command auditModels.Command, clocks ...func() time.Time) (WorkforceTestRepositories, error) {
+func NewWorkforceTestRepositories(db *bun.DB, clocks ...func() time.Time) (WorkforceTestRepositories, error) {
 	sessions, err := NewWorkSessionTestRepositories(db, clocks...)
 	if err != nil {
 		return WorkforceTestRepositories{}, err
@@ -62,16 +64,12 @@ func NewWorkforceTestRepositories(db *bun.DB, command auditModels.Command, clock
 		StaffAbsenceType:   workTime,
 		StaffVacationQuota: workforceLegacy.NewStaffVacationQuotaRepository(workTime), StaffVacationOpening: workforceLegacy.NewStaffVacationOpeningRepository(workTime),
 		StaffBalanceAdjust: workforceLegacy.NewStaffBalanceAdjustmentRepository(workTime), StaffMonthSnapshot: workTime,
-		StaffAbsenceAudit: workforceLegacy.NewStaffAbsenceAuditRepository(workTime), TimeTrackingDeletion: audit.NewTimeTrackingDeletionRepository(newTestAuditRuntime(db)),
-		TimeTrackingAuditLog: audit.NewTimeTrackingAuditLogRepository(newTestAuditRuntime(db)),
-		StaffMasterData:      workforceLegacy.NewStaffMasterDataRepository(workTime), StaffQualification: workforceLegacy.NewStaffQualificationRepository(workTime),
-		StaffFinancialData: workforceLegacy.NewStaffFinancialDataRepository(workTime), PersonnelNumberChange: audit.NewPersonnelNumberChangeRepository(newTestAuditRuntime(db)),
-		StaffMasterDataChange: audit.NewStaffMasterDataChangeRepository(newTestAuditRuntime(db)), DataAccessLog: audit.NewDataAccessLogRepository(newTestAuditRuntime(db)),
-		DataDeletion: audit.NewDataDeletionRepository(newTestAuditRuntime(db)),
+		StaffAbsenceAudit: workforceLegacy.NewStaffAbsenceAuditRepository(workTime),
+		StaffMasterData:   workforceLegacy.NewStaffMasterDataRepository(workTime), StaffQualification: workforceLegacy.NewStaffQualificationRepository(workTime),
+		StaffFinancialData: workforceLegacy.NewStaffFinancialDataRepository(workTime),
 	}
 	r.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	r.BindPeopleDirectory(people)
-	r.RouteAuditWrites(command)
 	return WorkforceTestRepositories{WorkSessionTestRepositories: sessions,
 		Membership:                      membership,
 		StaffDocument:                   staffDocumentMembershipRepository{StaffDocumentRepository: workforceLegacy.NewStaffDocumentRepository(workTime), membership: func() schoolmembership.Capability { return membership }},
@@ -79,7 +77,6 @@ func NewWorkforceTestRepositories(db *bun.DB, command auditModels.Command, clock
 		StaffAbsenceTypeAllowance:       workforce.NewStaffAbsenceTypeAllowanceRepository(db),
 		StaffAbsenceTypeAllowanceChange: workforce.NewStaffAbsenceTypeAllowanceChangeRepository(db),
 		StaffVacationQuota:              r.StaffVacationQuota, StaffVacationOpening: r.StaffVacationOpening, StaffBalanceAdjust: r.StaffBalanceAdjust, StaffMonthSnapshot: r.StaffMonthSnapshot,
-		StaffAbsenceAudit: r.StaffAbsenceAudit, TimeTrackingDeletion: r.TimeTrackingDeletion, TimeTrackingAuditLog: r.TimeTrackingAuditLog,
-		StaffMasterData: r.StaffMasterData, StaffQualification: r.StaffQualification, StaffFinancialData: r.StaffFinancialData,
-		PersonnelNumberChange: r.PersonnelNumberChange, StaffMasterDataChange: r.StaffMasterDataChange, DataAccessLog: r.DataAccessLog, DataDeletion: r.DataDeletion}, nil
+		StaffAbsenceAudit: r.StaffAbsenceAudit,
+		StaffMasterData:   r.StaffMasterData, StaffQualification: r.StaffQualification, StaffFinancialData: r.StaffFinancialData}, nil
 }

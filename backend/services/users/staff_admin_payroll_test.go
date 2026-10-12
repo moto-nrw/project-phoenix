@@ -86,7 +86,7 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 func payrollAdminDeps(db *bun.DB, repos *repositories.Factory, staff userModels.StaffRepository) services.StaffAdminDependencies {
 	return services.StaffAdminDependencies{
 		DB: db, Staff: staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
-		MasterDataAudit: repos.StaffMasterDataChange, PersonnelNumber: repos.PersonnelNumberChange, DataAccessLog: repos.DataAccessLog,
+		MasterDataAudit: services.NewTestAuditPersistence(db, nil).StaffMasterDataChange, PersonnelNumber: services.NewTestAuditPersistence(db, nil).PersonnelNumberChange, DataAccessLog: services.NewTestAuditPersistence(db, nil).DataAccessLog,
 	}
 }
 
@@ -327,7 +327,7 @@ func TestUpdatePersonnelNumber_AppearsInAuditFeed(t *testing.T) {
 	_, err := s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &value, actor.ID, "Feed-Test")
 	require.NoError(t, err)
 
-	entries, err := s.repos.TimeTrackingAuditLog.ListEntries(s.ctx, auditModels.TimeTrackingAuditLogFilter{
+	entries, err := services.NewTestAuditPersistence(s.db, nil).TimeTrackingAuditLog.ListEntries(s.ctx, auditModels.TimeTrackingAuditLogFilter{
 		StaffID: staff.ID,
 		Sources: []string{auditModels.AuditLogSourcePersonnelNumber},
 	})

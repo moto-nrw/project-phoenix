@@ -15,7 +15,7 @@ func TestCustomAbsenceAllowanceIsTenantIsolated(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	tenantA := testpkg.NewTenantScope(t, db)
 	tenantB := testpkg.NewTenantScope(t, db)
-	repos, err := repositories.NewWorkforceTestRepositories(db, repositories.NewTestAuditStore(db))
+	repos, err := repositories.NewWorkforceTestRepositories(db)
 	require.NoError(t, err)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantA.TenantID, "Rena", "Mandant A")
 	admin := testpkg.CreateTestStaffForTenant(t, db, tenantA.TenantID, "Lea", "Mandant A")

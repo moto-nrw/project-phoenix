@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
@@ -113,7 +115,7 @@ func setupOfferingGuardRouterTest(
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos, repoErr := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
+	repos, repoErr := services.NewEnrollmentTestRepositories(db, services.NewTestAuditStore(db))
 	require.NoError(t, repoErr)
 	_, reviewer := testpkg.CreateTestStaffWithAccount(t, db, "Rita", "Pruefung")
 	phase := createOfferingGuardPhase(t, repos, ctx, selectionMode)

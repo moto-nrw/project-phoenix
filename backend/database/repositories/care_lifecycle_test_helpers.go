@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -18,7 +17,8 @@ import (
 
 // CareLifecycleTestRepositories is the repository graph the care-lifecycle
 // suites run on, with the lifecycle's owners bound the way the production
-// graph binds them.
+// graph binds them. StudentFieldEdit is filled by the composition that owns
+// Audit persistence (services.NewCareLifecycleTestRepositories).
 type CareLifecycleTestRepositories struct {
 	TimetableTestRepositories
 	CareWithdrawal   usersModels.CareWithdrawalCompletionRepository
@@ -27,7 +27,7 @@ type CareLifecycleTestRepositories struct {
 	sources          CareLifecycleOwnerSources
 }
 
-func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (CareLifecycleTestRepositories, error) {
+func NewCareLifecycleTestRepositories(db *bun.DB) (CareLifecycleTestRepositories, error) {
 	tt, err := NewTimetableTestRepositories(db)
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
@@ -48,7 +48,6 @@ func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (
 	return CareLifecycleTestRepositories{
 		TimetableTestRepositories: tt,
 		CareWithdrawal:            newCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
-		StudentFieldEdit:          studentFieldEditCommand{auditRepo.NewStudentFieldEditRepository(newTestAuditRuntime(db)), command},
 		db:                        db,
 		sources: CareLifecycleOwnerSources{
 			Students: tt.Student, Persons: tt.Person, Membership: membership,

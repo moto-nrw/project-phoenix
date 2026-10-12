@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
-	auditRepositories "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -82,11 +82,31 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 	return capability, photoRuntime, nil
 }
 
+// peopleDirectoryAudit builds the Audit Platform persistence behind the People
+// Directory's audit seams (note deletion audit, field audit, consent history).
+// During the #2743 cut the root composition reaches the Audit composition for
+// these seams only, until People Directory construction leaves this package
+// (ADR 0049). The repositories read and append through the Audit handoff on
+// the context, falling back to db.
+func peopleDirectoryAudit(db *bun.DB) peopleDirectoryAuditRepositories {
+	repositories := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db})
+	return peopleDirectoryAuditRepositories{
+		DataDeletion: repositories.DataDeletion, StudentFieldEdit: repositories.StudentFieldEdit,
+		StudentConsentChange: repositories.StudentConsentChange,
+	}
+}
+
+type peopleDirectoryAuditRepositories struct {
+	DataDeletion         auditModels.DataDeletionRepository
+	StudentFieldEdit     auditModels.StudentFieldEditRepository
+	StudentConsentChange auditModels.StudentConsentChangeRepository
+}
+
 // NewStudentNoteDeletionAudit binds the Audit Platform deletion ledger behind
 // the People Directory note command. The append uses the ambient tenant
 // transaction, so missing evidence rolls the note's soft deletion back.
 func NewStudentNoteDeletionAudit(db *bun.DB) peopleCompose.StudentNoteDeletionAudit {
-	return studentNoteDeletionAudit{repo: auditRepositories.NewDataDeletionRepository(auditRootRuntime(db))}
+	return studentNoteDeletionAudit{repo: peopleDirectoryAudit(db).DataDeletion}
 }
 
 type studentNoteDeletionAudit struct {
@@ -130,7 +150,7 @@ func MustNewPeopleDirectory(db *bun.DB) peopledirectory.Capability {
 // audit.student_field_edits; this is the composition seam that hands the
 // directory an append and a read of it.
 func NewStudentFieldAuditLog(db *bun.DB) peopleCompose.StudentFieldAuditLog {
-	return studentFieldAuditLog{repo: auditRepositories.NewStudentFieldEditRepository(auditRootRuntime(db))}
+	return studentFieldAuditLog{repo: peopleDirectoryAudit(db).StudentFieldEdit}
 }
 
 type studentFieldAuditLog struct {

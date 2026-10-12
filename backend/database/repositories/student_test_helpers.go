@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -11,6 +10,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// StudentTestRepositories is the student suites' repository graph. The audit
+// repositories are filled by services.NewStudentTestRepositories, the
+// composition that owns Audit persistence (ADR 0049).
 type StudentTestRepositories struct {
 	// CarePlan is the owner capability the legacy adapters below delegate to;
 	// Care Plan workflows composed by the test root share the same instance.
@@ -35,12 +37,12 @@ type StudentTestRepositories struct {
 	ParentMessage                usersModels.ParentMessageRepository
 }
 
-func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (StudentTestRepositories, error) {
-	enrollment, err := NewEnrollmentTestRepositories(db, command)
+func NewStudentTestRepositories(db *bun.DB) (StudentTestRepositories, error) {
+	enrollment, err := NewEnrollmentTestRepositories(db)
 	if err != nil {
 		return StudentTestRepositories{}, err
 	}
-	lifecycle, err := NewCareLifecycleTestRepositories(db, command)
+	lifecycle, err := NewCareLifecycleTestRepositories(db)
 	if err != nil {
 		return StudentTestRepositories{}, err
 	}
@@ -57,37 +59,23 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		return StudentTestRepositories{}, err
 	}
 	r := &Factory{db: db,
-		ParentRequestEvent:           usersRepo.NewParentRequestEventRepository(peopleRuntime(db)),
-		FamilyProtection:             usersRepo.NewFamilyProtectionEventRepository(peopleRuntime(db)),
-		EnrollmentOfferingAdjustment: auditRepo.NewEnrollmentOfferingAdjustmentRepository(newTestAuditRuntime(db)),
-		EnrollmentRestorationAudit:   auditRepo.NewEnrollmentRestorationRepository(newTestAuditRuntime(db)),
-		GuardianFinancialChange:      auditRepo.NewGuardianFinancialChangeRepository(newTestAuditRuntime(db)),
-		SubstitutionChange:           auditRepo.NewSubstitutionChangeRepository(newTestAuditRuntime(db)),
-		StudentDeletionAudit:         auditRepo.NewStudentDeletionRepository(newTestAuditRuntime(db)),
-		StudentConsentChange:         auditRepo.NewStudentConsentChangeRepository(newTestAuditRuntime(db)),
-		DataDeletion:                 auditRepo.NewDataDeletionRepository(newTestAuditRuntime(db)),
+		ParentRequestEvent: usersRepo.NewParentRequestEventRepository(peopleRuntime(db)),
+		FamilyProtection:   usersRepo.NewFamilyProtectionEventRepository(peopleRuntime(db)),
 	}
 	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)
 	r.BindAppointments(appointments)
-	r.RouteAuditWrites(command)
 	return StudentTestRepositories{
-		CarePlan:                     care,
-		ParentRequestShare:           usersRepo.NewParentRequestShareEventRepository(peopleRuntime(db)),
-		CareScheduleChangeRequest:    r.CareScheduleChangeRequest,
-		ExcusedAbsenceRequest:        r.ExcusedAbsenceRequest,
-		ParentRequestEvent:           r.ParentRequestEvent,
-		StudentDataChangeRequest:     r.StudentDataChangeRequest,
-		FamilyProtection:             r.FamilyProtection,
-		EnrollmentOfferingAdjustment: r.EnrollmentOfferingAdjustment,
-		EnrollmentRestorationAudit:   r.EnrollmentRestorationAudit,
-		GuardianFinancialChange:      r.GuardianFinancialChange,
-		SubstitutionChange:           r.SubstitutionChange,
-		EnrollmentTestRepositories:   enrollment,
-		CareWithdrawal:               lifecycle.CareWithdrawal,
-		StudentDeletionAudit:         r.StudentDeletionAudit, StudentFieldEdit: lifecycle.StudentFieldEdit,
-		StudentConsentChange: r.StudentConsentChange, DataDeletion: r.DataDeletion,
-		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, NewMessageableGuardianRepository(db)),
-		ParentMessage:       parentStore.NewParentMessageRepository(db),
+		CarePlan:                   care,
+		ParentRequestShare:         usersRepo.NewParentRequestShareEventRepository(peopleRuntime(db)),
+		CareScheduleChangeRequest:  r.CareScheduleChangeRequest,
+		ExcusedAbsenceRequest:      r.ExcusedAbsenceRequest,
+		ParentRequestEvent:         r.ParentRequestEvent,
+		StudentDataChangeRequest:   r.StudentDataChangeRequest,
+		FamilyProtection:           r.FamilyProtection,
+		EnrollmentTestRepositories: enrollment,
+		CareWithdrawal:             lifecycle.CareWithdrawal,
+		ParentMessageThread:        parentStore.NewParentMessageThreadRepository(db, NewMessageableGuardianRepository(db)),
+		ParentMessage:              parentStore.NewParentMessageRepository(db),
 	}, nil
 }

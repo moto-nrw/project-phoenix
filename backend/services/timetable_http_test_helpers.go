@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -34,7 +35,7 @@ type TimetableHTTPTestRows = repositories.TimetableTestRepositories
 // NewTimetableHTTPTestRows composes the retained repositories over the test
 // database.
 func NewTimetableHTTPTestRows(db *bun.DB, clocks ...func() time.Time) (TimetableHTTPTestRows, error) {
-	return repositories.NewTimetableTestRepositories(db, clocks...)
+	return NewTimetableTestRepositories(db, clocks...)
 }
 
 // TimetableHTTPTestCareOfferingInvalid is what Care Plan's care-offering
@@ -75,7 +76,7 @@ func NewTimetableHTTPTestModule(db *bun.DB, options TimetableHTTPTestOptions) (T
 	if options.Clock != nil {
 		clocks = append(clocks, options.Clock)
 	}
-	r, err := repositories.NewTimetableTestRepositories(db, clocks...)
+	r, err := NewTimetableTestRepositories(db, clocks...)
 	if err != nil {
 		return TimetableHTTPTestModule{}, err
 	}
@@ -138,7 +139,7 @@ func NewTimetableHTTPTestModule(db *bun.DB, options TimetableHTTPTestOptions) (T
 	corrections, err := timetableCompose.NewAttendanceCorrections(timetableCompose.AttendanceCorrectionDependencies{
 		Participants: r.InstanceStudent,
 		Instances:    r.ActivityInstance,
-		Trail:        repositories.TimetableAttendanceCorrectionTrail(repositories.NewAttendanceCorrectionRepository(trail)),
+		Trail:        repositories.TimetableAttendanceCorrectionTrail(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{Reads: trail}).AttendanceCorrection),
 		People:       r.Person,
 		Locks:        recovery,
 	})
@@ -303,7 +304,7 @@ func NewTimetableHTTPTestRecurrenceLock(db *bun.DB) (timetable.RecurrenceWriteLo
 // NewTimetableHTTPTestPeople serves the People port of the timetable routes
 // over the person, staff and student rows of the test database.
 func NewTimetableHTTPTestPeople(db *bun.DB) (TimetablePeople, error) {
-	r, err := repositories.NewTimetableTestRepositories(db)
+	r, err := NewTimetableTestRepositories(db)
 	if err != nil {
 		return TimetablePeople{}, err
 	}

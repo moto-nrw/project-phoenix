@@ -41,7 +41,7 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	admin, err := services.NewStaffAdmin(services.StaffAdminDependencies{
 		DB: db, Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
-		MasterDataAudit: repos.StaffMasterDataChange, PersonnelNumber: repos.PersonnelNumberChange, DataAccessLog: repos.DataAccessLog,
+		MasterDataAudit: services.NewTestAuditPersistence(db, nil).StaffMasterDataChange, PersonnelNumber: services.NewTestAuditPersistence(db, nil).PersonnelNumberChange, DataAccessLog: services.NewTestAuditPersistence(db, nil).DataAccessLog,
 	})
 	require.NoError(t, err)
 

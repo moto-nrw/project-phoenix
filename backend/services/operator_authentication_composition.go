@@ -48,12 +48,12 @@ type operatorRepositories struct {
 	students userModels.StudentRepository
 }
 
-func operatorRepositoriesOf(repos *repositories.Factory) operatorRepositories {
+func operatorRepositoriesOf(repos *repositories.Factory, auditLog platformModels.OperatorAuditLogRepository) operatorRepositories {
 	if repos == nil {
 		return operatorRepositories{}
 	}
 	return operatorRepositories{
-		auditLog: repos.OperatorAuditLog,
+		auditLog: auditLog,
 		persons:  repos.Person, staff: repos.Staff, teachers: repos.Teacher, students: repos.Student,
 	}
 }

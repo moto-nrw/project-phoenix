@@ -1,13 +1,8 @@
 package repositories
 
 import (
-	"context"
 	"fmt"
 
-	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -23,38 +18,20 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func auditRootRuntime(db *bun.DB) auditRepo.Runtime {
-	return func(ctx context.Context) (bun.IDB, int64) {
-		tenantID := auditModels.TenantIDFromContext(ctx)
-		if raw, ok := auditModels.TransactionFromContext(ctx); ok {
-			switch tx := raw.(type) {
-			case bun.Tx:
-				return tx, tenantID
-			case *bun.Tx:
-				if tx != nil {
-					return tx, tenantID
-				}
-			}
-		}
-		return db, tenantID
-	}
-}
-
 // AuthCleanupRepositories are the retained repositories the auth cleanup
 // CLI composes. The expired session sweep runs through Identity & Access,
 // which the composition binds to the school and person lookups here (#3251).
+// The auth event trail comes from the Audit composition (ADR 0049).
 type AuthCleanupRepositories struct {
 	School           organizationtenancy.Capability
 	Person           userModels.PersonRepository
-	AuthEvent        auditModels.AuthEventRepository
 	PushSubscription deliveryModels.PushSubscriptionRepository
 }
 
-func NewAuthCleanupRepositories(db *bun.DB, command auditModels.Command) AuthCleanupRepositories {
-	authEvents := auditRepo.NewAuthEventRepository(auditRootRuntime(db))
+func NewAuthCleanupRepositories(db *bun.DB) AuthCleanupRepositories {
 	return AuthCleanupRepositories{
 		School: mustNewOrganizationTenancy(db), Person: NewPersonRepository(db),
-		AuthEvent: RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
+		PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 	}
 }
 
@@ -89,45 +66,14 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 	}
 }
 
-type RetentionCleanupRepositories struct {
-	// Sessions are the Student Presence session and supervision records the
-	// stale-supervisor cleanup runs on.
-	Sessions studentpresence.SessionRecords
-	Deletion auditModels.DataDeletionRepository
-}
-
-func NewRetentionCleanupRepositories(db *bun.DB, command auditModels.Command) RetentionCleanupRepositories {
-	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
-	return RetentionCleanupRepositories{
-		Sessions: NewPresenceSessionRecords(db),
-		Deletion: RouteDataDeletionWrites(deletions, command),
-	}
-}
-
-// TimetableCleanupRepositories are the Audit Platform stores the Timetable
-// retention writes through: the per-child deletion records and the
-// Änderungsprotokoll it deletes in lockstep (#3551).
-type TimetableCleanupRepositories struct {
-	Deletion  auditModels.DataDeletionRepository
-	Deviation auditModels.DeviationEventRepository
-}
-
-func NewTimetableCleanupRepositories(db *bun.DB, command auditModels.Command) TimetableCleanupRepositories {
-	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
-	return TimetableCleanupRepositories{
-		Deletion:  RouteDataDeletionWrites(deletions, command),
-		Deviation: auditRepo.NewDeviationEventRepository(auditRootRuntime(db)),
-	}
-}
-
+// TimeTrackingCleanupRepositories are the Workforce records the time-tracking
+// retention deletes; the deletion ledger comes from the Audit composition.
 type TimeTrackingCleanupRepositories struct {
-	Session  timerecords.WorkSessionRepository
-	Absence  timerecords.StaffAbsenceRepository
-	Deletion auditModels.DataDeletionRepository
+	Session timerecords.WorkSessionRepository
+	Absence timerecords.StaffAbsenceRepository
 }
 
-func NewTimeTrackingCleanupRepositories(db *bun.DB, command auditModels.Command) TimeTrackingCleanupRepositories {
-	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
+func NewTimeTrackingCleanupRepositories(db *bun.DB) TimeTrackingCleanupRepositories {
 	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		panic(fmt.Sprintf("time tracking cleanup repositories: compose school membership: %v", err))
@@ -138,21 +84,5 @@ func NewTimeTrackingCleanupRepositories(db *bun.DB, command auditModels.Command)
 	}
 	return TimeTrackingCleanupRepositories{
 		Session: workforceLegacy.NewWorkSessionRepository(workTime), Absence: workforceLegacy.NewStaffAbsenceRepository(workTime),
-		Deletion: RouteDataDeletionWrites(deletions, command),
 	}
-}
-
-type CleanupSettingsRepositories struct {
-	Value configModels.SettingValueRepository
-	Audit configModels.SettingAuditRepository
-}
-
-func NewCleanupSettingsRepositories(db *bun.DB, runtime configRepo.Runtime) CleanupSettingsRepositories {
-	return CleanupSettingsRepositories{
-		Value: configRepo.NewSettingValueRepository(runtime), Audit: configRepo.NewSettingAuditRepository(runtime),
-	}
-}
-
-func NewSettingsCommandRepository(db *bun.DB) configModels.SettingValueRepository {
-	return configRepo.NewSettingValueRepository(configRepo.NewRuntime(db))
 }

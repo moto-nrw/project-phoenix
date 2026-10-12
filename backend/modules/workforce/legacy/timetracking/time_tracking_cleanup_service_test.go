@@ -40,7 +40,7 @@ func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := timetracking.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewTimeTrackingRetentionAudit(repos.DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
 	freshAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(20))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := timetracking.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewTimeTrackingRetentionAudit(repos.DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -112,7 +112,7 @@ func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
 	oldAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(900))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := timetracking.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewTimeTrackingRetentionAudit(repos.DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -140,7 +140,7 @@ func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
 	freshAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(10))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := timetracking.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewTimeTrackingRetentionAudit(repos.DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -170,7 +170,7 @@ func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := timetracking.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewTimeTrackingRetentionAudit(repos.DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -214,7 +214,7 @@ func TestTimeTrackingCleanup_UsesBusinessDatesNotCreatedAt(t *testing.T) {
 	oldBusinessAbsenceID := insertAbsenceWithBusinessDates(t, db, staff.ID, daysAgo(10), daysAgo(900), daysAgo(900))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := timetracking.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewTimeTrackingRetentionAudit(repos.DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)

@@ -13,11 +13,11 @@ import (
 type CalendarTestModule struct{ Calendar calendarCompose.Application }
 
 func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModule, error) {
-	command, err := auditService.NewCommand(repositories.NewTestAuditStore(db), func(auditService.AppendObservation) {})
+	command, err := auditService.NewCommand(NewTestAuditStore(db), func(auditService.AppendObservation) {})
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
-	repos, err := repositories.NewEnrollmentTestRepositories(db, command)
+	repos, err := NewEnrollmentTestRepositories(db, command)
 	if err != nil {
 		return CalendarTestModule{}, err
 	}

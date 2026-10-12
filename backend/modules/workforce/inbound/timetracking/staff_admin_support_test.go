@@ -52,7 +52,7 @@ func testIdentity(ctx context.Context) Identity {
 
 func newWorkforceTestRepositories(t *testing.T, db *bun.DB) repositories.WorkforceTestRepositories {
 	t.Helper()
-	repos, err := repositories.NewWorkforceTestRepositories(db, repositories.NewTestAuditStore(db))
+	repos, err := services.NewWorkforceTestRepositories(db, services.NewTestAuditStore(db))
 	require.NoError(t, err)
 	return repos
 }

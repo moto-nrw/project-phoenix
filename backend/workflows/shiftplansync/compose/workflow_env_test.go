@@ -50,7 +50,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 	}
 	today := timezone.CalendarDateClock(clocks...)
 
-	repos, err := repositories.NewTimetableTestRepositories(db, clocks...)
+	repos, err := services.NewTimetableTestRepositories(db, clocks...)
 	require.NoError(t, err)
 	timetable, err := services.NewTimetableTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
 	require.NoError(t, err)

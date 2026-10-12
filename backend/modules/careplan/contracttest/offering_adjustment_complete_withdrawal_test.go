@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -153,7 +155,7 @@ func (f *completeWithdrawalFixture) completeWithdrawal() *userModels.CareWithdra
 }
 
 func (f *completeWithdrawalFixture) assertCompletionAudit() {
-	rows, err := f.env.repos.EnrollmentOfferingAdjustment.ListByRequestChildID(f.ctx, f.childID)
+	rows, err := services.NewTestAuditPersistence(f.env.db, nil).EnrollmentOfferingAdjustment.ListByRequestChildID(f.ctx, f.childID)
 	require.NoError(f.t, err)
 	require.Len(f.t, rows, 2)
 	assert.True(f.t, rows[0].CompleteWithdrawalConfirmed)

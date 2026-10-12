@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/jobruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -77,14 +78,19 @@ func (p schedulerSettingsPort) BindSettingsSnapshot(ctx context.Context, snapsho
 	return bound.Bind(ctx), nil
 }
 
-// schedulerBookingConsistency binds the booking drift audit.
+// schedulerBookingConsistency binds the booking drift audit, which the legacy
+// composition builds over the graph's People Directory and Care Plan
+// (ADR 0049). A graph without them runs no audit.
 func schedulerBookingConsistency(graph *serveGraph) scheduler.BookingConsistencyAudit {
-	bookings := graph.repos.BookingConsistency
-	if bookings == nil {
+	if graph.services == nil || graph.repos == nil {
+		return nil
+	}
+	bookings, err := services.NewBookingConsistencyAudit(graph.db, graph.services.PeopleDirectory, graph.repos.CarePlan())
+	if err != nil {
 		return nil
 	}
 	return func(ctx context.Context, day calendar.Date) (*scheduler.BookingConsistencyReport, error) {
-		report, err := callOnDay(bookings.Audit, ctx, day)
+		report, err := callOnDay(bookings, ctx, day)
 		if err != nil || report == nil {
 			return nil, err
 		}

@@ -37,7 +37,7 @@ type TimetableTestModule struct {
 }
 
 func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (TimetableTestModule, error) {
-	r, err := repositories.NewTimetableTestRepositories(db, clocks...)
+	r, err := NewTimetableTestRepositories(db, clocks...)
 	if err != nil {
 		return TimetableTestModule{}, err
 	}

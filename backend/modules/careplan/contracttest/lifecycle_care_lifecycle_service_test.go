@@ -52,7 +52,7 @@ func newCareLifecycleServiceWithLockAt(
 ) careplan.CareLifecycle {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewCareLifecycleTestRepositories(db, nil)
+	repos, err := services.NewCareLifecycleTestRepositories(db, nil)
 	require.NoError(t, err)
 	svc, err := repos.NewCareLifecycle(repositories.CareLifecycleTestConfig{
 		Audit:                 services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAudit(db)),
@@ -94,7 +94,6 @@ func TestCareLifecycle_ConfirmAuditsOnlyCareEnd(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	svc := newCareLifecycleService(t, db)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Audit", "CareEnd", "2a")
 
@@ -125,7 +124,7 @@ func TestCareLifecycle_ConfirmAuditsOnlyCareEnd(t *testing.T) {
 		Reason:      careplan.CareExitReasonMovedAway,
 	})
 
-	edits, err := repos.StudentFieldEdit.GetByStudentID(ctx, student.ID)
+	edits, err := services.NewTestAuditPersistence(db, nil).StudentFieldEdit.GetByStudentID(ctx, student.ID)
 	require.NoError(t, err)
 	require.Len(t, edits, 1)
 	assert.Equal(t, auditModels.StudentFieldCareEnd, edits[0].FieldName)

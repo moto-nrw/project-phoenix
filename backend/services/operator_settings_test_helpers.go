@@ -38,7 +38,7 @@ func NewOperatorSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (Operator
 	if err != nil {
 		return OperatorSettingsTestModule{}, err
 	}
-	careRepos, err := repositories.NewCareLifecycleTestRepositories(db, repositories.NewTestAuditStore(db))
+	careRepos, err := NewCareLifecycleTestRepositories(db, NewTestAuditStore(db))
 	if err != nil {
 		return OperatorSettingsTestModule{}, err
 	}

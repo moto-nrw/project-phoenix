@@ -16,7 +16,7 @@ type ActivitiesTestModule struct {
 }
 
 func NewActivitiesTestModule(db *bun.DB) (ActivitiesTestModule, error) {
-	r, err := repositories.NewTimetableTestRepositories(db)
+	r, err := NewTimetableTestRepositories(db)
 	if err != nil {
 		return ActivitiesTestModule{}, err
 	}

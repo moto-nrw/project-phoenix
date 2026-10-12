@@ -78,7 +78,7 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 func newStudentDocuments(t *testing.T, db *bun.DB, userContext stubDocumentUserContext) careplan.StudentDocuments {
 	t.Helper()
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	documents, err := services.NewStudentDocumentsTestModule(db, repos.CarePlan(), repos.Student, userContext, repos.StudentFieldEdit, repos.DataAccessLog)
+	documents, err := services.NewStudentDocumentsTestModule(db, repos.CarePlan(), repos.Student, userContext, services.NewTestAuditPersistence(db, nil).StudentFieldEdit, services.NewTestAuditPersistence(db, nil).DataAccessLog)
 	require.NoError(t, err)
 	return documents
 }
@@ -429,12 +429,12 @@ func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	staff := stubDocumentUserContext{staff: &userModels.Staff{}}
 
-	unaudited, err := services.NewStudentDocumentsTestModule(db, repos.CarePlan(), repos.Student, staff, nil, repos.DataAccessLog)
+	unaudited, err := services.NewStudentDocumentsTestModule(db, repos.CarePlan(), repos.Student, staff, nil, services.NewTestAuditPersistence(db, nil).DataAccessLog)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refusing unaudited changes")
 	assert.Nil(t, unaudited)
 
-	unlogged, err := services.NewStudentDocumentsTestModule(db, repos.CarePlan(), repos.Student, staff, repos.StudentFieldEdit, nil)
+	unlogged, err := services.NewStudentDocumentsTestModule(db, repos.CarePlan(), repos.Student, staff, services.NewTestAuditPersistence(db, nil).StudentFieldEdit, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refusing unaudited changes")
 	assert.Nil(t, unlogged)

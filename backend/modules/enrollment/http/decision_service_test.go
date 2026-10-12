@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -4773,7 +4775,7 @@ func newPickupExcusal(t *testing.T, db *bun.DB, records careplan.Capability, bas
 // with its owners bound the way the production graph binds them. The care-end
 // history goes to the ordinary student audit unless the config names another.
 func newTestCareLifecycle(db *bun.DB, config repositories.CareLifecycleTestConfig) careplan.CareLifecycle {
-	repos, err := repositories.NewCareLifecycleTestRepositories(db, nil)
+	repos, err := services.NewCareLifecycleTestRepositories(db, nil)
 	if err != nil {
 		panic(err)
 	}

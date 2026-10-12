@@ -63,7 +63,7 @@ func NewPeopleRepositorySuiteSchoolStructure(db *bun.DB) (schoolstructure.Capabi
 // NewPeopleRepositorySuiteCareLifecycle composes the care lifecycle; a nil
 // command records into the test audit store.
 func NewPeopleRepositorySuiteCareLifecycle(db *bun.DB, command auditModels.Command) (repositories.CareLifecycleTestRepositories, error) {
-	return repositories.NewCareLifecycleTestRepositories(db, command)
+	return NewCareLifecycleTestRepositories(db, command)
 }
 
 // NewPeopleRepositorySuiteParentMessaging composes the parent messaging stores.

@@ -35,16 +35,16 @@ func NewTimetableScenarioTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks .
 	if err != nil {
 		return TimetableScenarioTestModule{}, err
 	}
-	r, err := repositories.NewTimetableTestRepositories(db, clocks...)
+	r, err := NewTimetableTestRepositories(db, clocks...)
 	if err != nil {
 		return TimetableScenarioTestModule{}, err
 	}
-	command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 	if err != nil {
 		return TimetableScenarioTestModule{}, err
 	}
 	cleanup, err := newTimetableCleanup(timetableRetentionInputs{
-		Owner: r.Timetable, Deletions: repositories.NewDataDeletionTestRepository(db, command),
+		Owner: r.Timetable, Deletions: NewDataDeletionTestRepository(db, command),
 		Deviations: r.DeviationEvent, Settings: live.Settings, Logger: slog.Default(), Clock: optionalClock(clocks),
 	})
 	if err != nil {

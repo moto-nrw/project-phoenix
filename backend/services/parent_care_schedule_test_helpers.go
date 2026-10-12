@@ -12,7 +12,7 @@ import (
 )
 
 func NewParentCareScheduleTestService(db *bun.DB, module StudentTestModule) (*parentService.Portal, error) {
-	repos, err := repositories.NewStudentTestRepositories(db, module.Audit)
+	repos, err := NewStudentTestRepositories(db, module.Audit)
 	if err != nil {
 		return nil, err
 	}

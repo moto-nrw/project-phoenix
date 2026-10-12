@@ -1,18 +1,27 @@
-package repositories
+package services
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	"github.com/uptrace/bun"
 )
 
-// NewOperatorAuditLogRepository serves the retained operator audit-log
-// contract over the Audit owner's platform ledger (#2720).
-func NewOperatorAuditLogRepository(entries auditModels.OperatorAuditLogRepository) platform.OperatorAuditLogRepository {
+// NewOperatorAuditLog composes the operator ledger over the Audit handoff on
+// the context, with the root database as the fallback, for the roots that
+// record operator actions.
+func NewOperatorAuditLog(db *bun.DB) platform.OperatorAuditLogRepository {
+	return newOperatorAuditLog(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).OperatorAuditLog)
+}
+
+// newOperatorAuditLog serves the retained operator audit-log contract over
+// the Audit owner's platform ledger (#2720), which the Audit composition
+// builds (ADR 0049).
+func newOperatorAuditLog(entries auditModels.OperatorAuditLogRepository) platform.OperatorAuditLogRepository {
 	if entries == nil {
 		panic("operator audit log repository: audit ledger is required")
 	}
@@ -62,9 +71,4 @@ func auditLogModels(entries []*auditModels.OperatorAuditEntry) []*platform.Opera
 		})
 	}
 	return result
-}
-
-// newOperatorAuditLog binds the Audit-owned operator ledger for the factory.
-func newOperatorAuditLog(runtime auditRepo.Runtime) platform.OperatorAuditLogRepository {
-	return NewOperatorAuditLogRepository(auditRepo.NewOperatorAuditLogRepository(runtime))
 }

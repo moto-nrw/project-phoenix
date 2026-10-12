@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -322,7 +324,7 @@ func TestStudentDeletionWorkflow_PreviewExcludesPreservedDeletionAudits(t *testi
 	f := newDeletionFixture(t, db)
 	target := testpkg.CreateTestStudent(t, db, "Preserved", "Audit", "1a")
 	priorAudit := auditModels.NewDataDeletion(target.ID, auditModels.DeletionTypeVisitRetention, 1, "system")
-	require.NoError(t, f.repos.DataDeletion.Create(ctx, priorAudit))
+	require.NoError(t, services.NewTestAuditPersistence(f.db, nil).DataDeletion.Create(ctx, priorAudit))
 	var accessLogID int64
 	require.NoError(t, db.NewRaw(`
 		INSERT INTO audit.data_access_log (tenant_id, actor_account_id, actor_role, resource_type, student_id, range_start, range_end)

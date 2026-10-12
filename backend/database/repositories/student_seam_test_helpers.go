@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	auditRepositories "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/uptrace/bun"
 )
 
@@ -12,12 +11,4 @@ import (
 // NewStudentAudit composes an unobserved owner behind the change-history seam.
 func NewStudentAudit(db *bun.DB) *StudentAudit {
 	return NewStudentAuditFor(MustNewPeopleDirectory(db))
-}
-
-// NewStudentConsents composes unobserved owners behind the consent seam.
-func NewStudentConsents(db *bun.DB) *StudentConsents {
-	return NewStudentConsentsFor(
-		MustNewPeopleDirectory(db),
-		auditRepositories.NewStudentConsentChangeRepository(auditRootRuntime(db)),
-	)
 }
