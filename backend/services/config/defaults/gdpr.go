@@ -131,15 +131,16 @@ func init() {
 
 	// --- Datenschutz-Einwilligung: Aufbewahrung der Besuchsdaten ---
 	//
-	// Standard-Aufbewahrungsfenster (Tage) für Besuchsdaten, wenn die
-	// Einwilligung eines Kindes keinen eigenen Wert hinterlegt hat.
+	// Aufbewahrungsfenster (Tage) für Besuchsdaten von Kindern ohne erteilte
+	// Einwilligung; eine erteilte Einwilligung bringt ihr eigenes Fenster mit.
+	// Der nächtliche Löschlauf liest diesen Wert (#3835).
 	// Issue #586 (Rule 12): Der frühere fest verdrahtete 30-Tage-Standard
 	// samt 1..31-Grenzen wurde aus dem PrivacyConsent-Modell in diese
 	// per-Schule konfigurierbare Einstellung verschoben.
 	config.Register(config.Definition{
 		Key:             config.KeyPrivacyConsentRetentionDays,
 		Label:           "Besuchsdaten aufbewahren (Tage)",
-		Description:     "So lange speichert moto, wann ein Kind in welchem Raum war. Gilt, wenn die Datenschutz-Einwilligung des Kindes keine eigene Dauer nennt. Danach löscht moto die Daten.",
+		Description:     "So lange speichert moto, wann ein Kind in welchem Raum war. Gilt für Kinder ohne Datenschutz-Einwilligung. Danach löscht moto die Daten.",
 		Type:            config.FieldNumber,
 		Default:         30,
 		ReadPermission:  "config:read",

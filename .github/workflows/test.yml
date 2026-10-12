@@ -287,7 +287,10 @@ jobs:
   seed-smoke:
     name: Seed & simulate smoke
     if: ${{ inputs.run-seed-smoke }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Database reads repeatedly stalled on the cached runner, including while
+    # Postgres reported an active query with no lock wait (run 38232330367).
+    # Use a fresh hosted VM without changing smoke coverage or read timeouts.
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
 

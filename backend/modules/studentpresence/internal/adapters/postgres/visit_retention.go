@@ -8,21 +8,35 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func expiredVisitsQuery(db bun.IDB, tenantID int64) *bun.SelectQuery {
+// retentionDaysExpr is the window a visit's child gets: the shortest accepted
+// consent window, otherwise the tenant default bound as the argument.
+const retentionDaysExpr = "COALESCE(cw.data_retention_days, ?)"
+
+// expiredVisitsQuery selects the tenant's completed visits past their child's
+// window. Children without an accepted consent fall back to defaultDays, so no
+// child's visits are kept forever (#3835).
+func expiredVisitsQuery(db bun.IDB, tenantID int64, defaultDays int) *bun.SelectQuery {
+	acceptedWindows := db.NewSelect().Table("users.privacy_consents").
+		ColumnExpr("student_id, MIN(data_retention_days) AS data_retention_days").
+		Where("tenant_id = ?", tenantID).Where("accepted = TRUE").Group("student_id")
 	return db.NewSelect().TableExpr("active.visits AS v").
-		Join("INNER JOIN users.privacy_consents AS pc ON pc.student_id = v.student_id AND pc.tenant_id = v.tenant_id").
+		Join("LEFT JOIN (?) AS cw ON cw.student_id = v.student_id", acceptedWindows).
 		Where("v.tenant_id = ?", tenantID).Where("v.exit_time IS NOT NULL").
-		Where("v.created_at < NOW() - make_interval(days => pc.data_retention_days)")
+		Where("v.created_at < NOW() - make_interval(days => "+retentionDaysExpr+")", defaultDays)
 }
 
-func (s *Store) ListVisitRetentionCounts(ctx context.Context) ([]ports.VisitRetentionCount, ports.Stats, error) {
+func (s *Store) ListVisitRetentionCounts(ctx context.Context, defaultDays int) ([]ports.VisitRetentionCount, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
 	rows := []visitRetentionCountRow{}
 	started := time.Now()
-	err = expiredVisitsQuery(db, tenantID).ColumnExpr("v.student_id, COUNT(*) AS visit_count").Group("v.student_id").Scan(ctx, &rows)
+	// cw (consent windows) holds one row per student, so grouping by its
+	// window keeps one row per student.
+	err = expiredVisitsQuery(db, tenantID, defaultDays).
+		ColumnExpr("v.student_id, COUNT(*) AS visit_count").ColumnExpr(retentionDaysExpr+" AS retention_days", defaultDays).
+		GroupExpr("v.student_id, cw.data_retention_days").OrderExpr("v.student_id").Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
 	result := make([]ports.VisitRetentionCount, 0, len(rows))
 	for _, row := range rows {
@@ -31,35 +45,35 @@ func (s *Store) ListVisitRetentionCounts(ctx context.Context) ([]ports.VisitRete
 	return result, stats, err
 }
 
-func (s *Store) CountExpiredVisits(ctx context.Context) (int64, ports.Stats, error) {
+func (s *Store) CountExpiredVisits(ctx context.Context, defaultDays int) (int64, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, ports.Stats{}, err
 	}
 	started := time.Now()
-	count, err := expiredVisitsQuery(db, tenantID).Count(ctx)
+	count, err := expiredVisitsQuery(db, tenantID, defaultDays).Count(ctx)
 	return int64(count), ports.Stats{Queries: 1, Rows: 1, StatementDuration: time.Since(started)}, err
 }
 
-func (s *Store) OldestExpiredVisitDate(ctx context.Context) (*time.Time, ports.Stats, error) {
+func (s *Store) OldestExpiredVisitDate(ctx context.Context, defaultDays int) (*time.Time, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
 	var oldest *time.Time
 	started := time.Now()
-	err = expiredVisitsQuery(db, tenantID).ColumnExpr("MIN(v.created_at)").Scan(ctx, &oldest)
+	err = expiredVisitsQuery(db, tenantID, defaultDays).ColumnExpr("MIN(v.created_at)").Scan(ctx, &oldest)
 	return oldest, ports.Stats{Queries: 1, Rows: 1, StatementDuration: time.Since(started)}, err
 }
 
-func (s *Store) ListExpiredVisitMonths(ctx context.Context) ([]ports.VisitMonthCount, ports.Stats, error) {
+func (s *Store) ListExpiredVisitMonths(ctx context.Context, defaultDays int) ([]ports.VisitMonthCount, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
 	rows := []visitMonthCountRow{}
 	started := time.Now()
-	err = expiredVisitsQuery(db, tenantID).ColumnExpr("TO_CHAR(v.created_at, 'YYYY-MM') AS month, COUNT(*) AS count").
+	err = expiredVisitsQuery(db, tenantID, defaultDays).ColumnExpr("TO_CHAR(v.created_at, 'YYYY-MM') AS month, COUNT(*) AS count").
 		GroupExpr("TO_CHAR(v.created_at, 'YYYY-MM')").Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
 	result := make([]ports.VisitMonthCount, 0, len(rows))

@@ -196,7 +196,7 @@ type Factory struct {
 	StaffDocuments            *workforceModule.StaffAdmin
 	StudentDocuments          careplan.StudentDocuments
 	FileStore                 *filestorageModule.Module
-	CaregiverCapability       users.CaregiverCapabilityService
+	CaregiverCapability       peopleCompose.CaregiverCapabilityService
 	Guardian                  *users.GuardianService
 	PeopleDirectory           peopledirectory.Capability
 	GuardianProfileLoader     *users.GuardianProfileLoader
@@ -1738,20 +1738,19 @@ func newFactory(
 
 	guardianInvitationService := GuardianInvitationCapability(identityAccess)
 
-	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
+	caregiverCapabilityService := peopleCompose.NewCaregiverCapabilityService(peopleCompose.CaregiverCapabilityServiceDependencies{
 		RequestActorScope:      requestActorScope,
 		Identity:               caregiverIdentity{identityAccess},
-		AuthEventRepo:          repos.AuthEvent,
+		Audit:                  newCaregiverCapabilityAudit(repos.AuthEvent),
 		PersonRepo:             repos.Person,
 		StaffRepo:              repos.Staff,
 		CaregiverBindingLock:   repos.CaregiverBindingLock,
 		TeacherRepo:            repos.Teacher,
 		GroupTeacherRepo:       repos.GroupTeacher,
 		GroupSubstitutionRepo:  repos.GroupSubstitution,
-		GroupSupervisorRepo:    repos.GroupSupervisor,
-		ActivitySupervisorRepo: repos.ActivitySupervisor,
+		GroupSupervisorRepo:    repositories.CaregiverSupervisionBlockers{Records: repos.GroupSupervisor},
+		ActivitySupervisorRepo: repositories.CaregiverPlannedSupervisionBlockers{Supervisors: repos.ActivitySupervisor},
 		RoleAssignments:        identityRoles,
-		DB:                     db,
 	})
 
 	// The Identity & Access caller context (#3501) resolves the caller's
@@ -1844,6 +1843,7 @@ func newFactory(
 		newStudentPresence(db, logger),
 		sessionSupervisors,
 		NewDeletionAudit(repos.DataDeletion),
+		PresenceSettings(settingsService),
 		today,
 	)
 	unregisteredTagScanService, err := auditService.NewUnregisteredTagScanService(

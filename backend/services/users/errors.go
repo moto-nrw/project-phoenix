@@ -44,7 +44,7 @@ func (e *GuardianStillLinkedError) Error() string {
 }
 
 // ValidationFailure returns the client-input failure inside err, if any: the
-// userscontract.ValidationError the guardian and caregiver services raise. The
+// userscontract.ValidationError the guardian service raises. The
 // root composition classifies on it but may not import that package.
 func ValidationFailure(err error) (error, bool) {
 	validation, ok := errors.AsType[*userscontract.ValidationError](err)

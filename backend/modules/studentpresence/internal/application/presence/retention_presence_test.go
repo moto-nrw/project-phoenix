@@ -69,7 +69,7 @@ func testRetentionRollback(t *testing.T, stage string) {
 		fault.afterAppend = injected
 	}
 	repos := repositories.NewRetentionCleanupRepositories(db, fault)
-	svc := activeService.NewCleanupService(deleteFault, sessionSupervisors(repos.Sessions), services.NewDeletionAudit(repos.Deletion))
+	svc := activeService.NewCleanupService(deleteFault, sessionSupervisors(repos.Sessions), services.NewDeletionAudit(repos.Deletion), visitRetentionSetting{days: 30})
 	consent := testpkg.CreateTestPrivacyConsent(t, db, "retention-rollback")
 	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
 	entry := time.Now().AddDate(0, 0, -45)
@@ -130,20 +130,20 @@ type failedRetentionRead struct {
 	oldestErr, monthlyErr error
 }
 
-func (*failedRetentionRead) CountExpiredVisits(context.Context) (int64, error) {
+func (*failedRetentionRead) CountExpiredVisits(context.Context, int) (int64, error) {
 	return 1, nil
 }
 
-func (*failedRetentionRead) ListVisitRetentionCounts(context.Context) ([]studentpresence.VisitRetentionCount, error) {
+func (*failedRetentionRead) ListVisitRetentionCounts(context.Context, int) ([]studentpresence.VisitRetentionCount, error) {
 	return []studentpresence.VisitRetentionCount{{StudentID: 1, Count: 1}}, nil
 }
 
-func (r *failedRetentionRead) OldestExpiredVisitDate(context.Context) (*time.Time, error) {
+func (r *failedRetentionRead) OldestExpiredVisitDate(context.Context, int) (*time.Time, error) {
 	oldest := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	return &oldest, r.oldestErr
 }
 
-func (r *failedRetentionRead) ListExpiredVisitMonths(context.Context) ([]studentpresence.VisitMonthCount, error) {
+func (r *failedRetentionRead) ListExpiredVisitMonths(context.Context, int) ([]studentpresence.VisitMonthCount, error) {
 	return nil, r.monthlyErr
 }
 
@@ -161,7 +161,7 @@ func TestRetentionReportsOwnerReadFailures(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			svc := activeService.NewCleanupService(tc.port, nil, nil)
+			svc := activeService.NewCleanupService(tc.port, nil, nil, visitRetentionSetting{days: 30})
 			if tc.preview {
 				result, err := svc.PreviewCleanup(context.Background())
 				require.ErrorIs(t, err, injected)

@@ -6,8 +6,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
-func (e engine) ListVisitRetentionCounts(ctx context.Context) ([]studentpresence.VisitRetentionCount, error) {
-	rows, err := e.Service.ListVisitRetentionCounts(ctx)
+func (e engine) ListVisitRetentionCounts(ctx context.Context, defaultDays int) ([]studentpresence.VisitRetentionCount, error) {
+	rows, err := e.Service.ListVisitRetentionCounts(ctx, defaultDays)
 	if err != nil {
 		return nil, err
 	}
@@ -17,8 +17,8 @@ func (e engine) ListVisitRetentionCounts(ctx context.Context) ([]studentpresence
 	}
 	return result, nil
 }
-func (e engine) ListExpiredVisitMonths(ctx context.Context) ([]studentpresence.VisitMonthCount, error) {
-	rows, err := e.Service.ListExpiredVisitMonths(ctx)
+func (e engine) ListExpiredVisitMonths(ctx context.Context, defaultDays int) ([]studentpresence.VisitMonthCount, error) {
+	rows, err := e.Service.ListExpiredVisitMonths(ctx, defaultDays)
 	if err != nil {
 		return nil, err
 	}

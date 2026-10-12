@@ -21531,17 +21531,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
     },
     {
-      "id": "people-directory.application.student-presence-public",
-      "description": "services/users declares its supervision-blocker port with the public Student Presence blocker record (#3422). Replaces the removed rule to the dissolved legacy row package.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "application",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
       "id": "timetable-activities.http.school-calendar-public",
       "description": "The calendar period and closing day routes drive the School Calendar owner's public contract (timetable planning dissolution, ADR 0038, #2732).",
       "scopes": [
