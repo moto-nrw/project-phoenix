@@ -1,15 +1,11 @@
 package users
 
-import (
-	"fmt"
-
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-)
+import "fmt"
 
 // CaregiverCapabilityBlockedError is returned when caregiver capability cannot
 // be removed safely because the account is still referenced operationally.
 type CaregiverCapabilityBlockedError struct {
-	Reasons []userModels.CaregiverCapabilityBlockerCode
+	Reasons []CaregiverCapabilityBlockerCode
 }
 
 func (e *CaregiverCapabilityBlockedError) Error() string {

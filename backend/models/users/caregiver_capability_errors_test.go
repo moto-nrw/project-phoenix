@@ -1,17 +1,13 @@
 package users
 
-import (
-	"testing"
-
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-)
+import "testing"
 
 func TestCaregiverCapabilityBlockedError_Error(t *testing.T) {
 	t.Parallel()
 
 	err := &CaregiverCapabilityBlockedError{
-		Reasons: []userModels.CaregiverCapabilityBlockerCode{
-			userModels.CaregiverCapabilityBlockerActiveGroupSupervisions,
+		Reasons: []CaregiverCapabilityBlockerCode{
+			CaregiverCapabilityBlockerActiveGroupSupervisions,
 		},
 	}
 

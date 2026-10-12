@@ -1,13 +1,12 @@
-package users
+package compose
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
-
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -107,7 +106,7 @@ func caregiverView(state *userModels.CaregiverCapabilityState, err error) (json.
 }
 
 func caregiverCapabilityError(err error) error {
-	if blocked, ok := errors.AsType[*CaregiverCapabilityBlockedError](err); ok {
+	if blocked, ok := errors.AsType[*userModels.CaregiverCapabilityBlockedError](err); ok {
 		var reasons []string
 		if blocked.Reasons != nil {
 			reasons = make([]string, 0, len(blocked.Reasons))
@@ -117,7 +116,7 @@ func caregiverCapabilityError(err error) error {
 		}
 		return caregiverBlockedError{error: blocked, chain: err, blockers: reasons}
 	}
-	if _, notAssigned := errors.AsType[*AccountNotAssignedToTenantError](err); notAssigned || errors.Is(err, userscontract.ErrAccountNotFound) {
+	if _, notAssigned := errors.AsType[*userModels.AccountNotAssignedToTenantError](err); notAssigned || errors.Is(err, userscontract.ErrAccountNotFound) {
 		return caregiverAccountMissingError{error: err}
 	}
 	if invalid, ok := errors.AsType[*userscontract.ValidationError](err); ok {

@@ -376,6 +376,24 @@ so they stay there, as the staff suites did in #3752. Eight rules that only allo
 the moved services and the `services/users/userstest` package are removed;
 ten baseline keys fall (206 → 196), none is added.
 
+#3754 (slice 5 of #2728) moved the caregiver capability out of
+`services/users` into `modules/peopledirectory/compose`; it stays with People
+Directory and does not move to Identity & Access (decided 28.09.2026). The
+capability lock already ran through the four owner ports of #2727, so the
+`database.direct-access` and `tables.unresolved` keys were gone before the
+move. What the compose package may not name became consumer-owned ports in
+`models/users` vocabulary: `CaregiverCapabilityAudit` (bound in `services` to
+the authentication audit trail, same event types and metadata),
+`SupervisionBlockers` and `PlannedSupervisionBlockers` (bound by
+`database/repositories` adapters over the same Student Presence and Timetable
+repositories, same errors). The two typed refusals moved into `models/users`
+beside `CaregiverCapabilityState`, so the caregiver suites, which stay in
+`services/users` for the same reason as the person suites, keep asserting
+on them; the views suite drives the moved views through their exported
+constructor. `services/users` now holds only the guardian cluster. The rule
+`people-directory.application.student-presence-public` allowed no import any
+more and is removed; two baseline keys fall (191 → 189), none is added.
+
 #3356 cuts the six owner edges `api/students` held besides its carrier's
 shared plumbing. The HTTP role may not import these owners' public packages,
 and PR mode refuses a new rule between points that already exist, so five of
@@ -2337,7 +2355,7 @@ code, error body or authorization check changed.
   target dependencies of that point (ADR 0031). The rest became
   consumer-owned ports the root binds: `Caregivers` (People Directory's
   caregiver capability as rendered JSON with behaviour-classified errors,
-  `services/users.CaregiverCapabilityViews`), `RoleGrants` (Security
+  `modules/peopledirectory/compose.CaregiverCapabilityViews` since #3754), `RoleGrants` (Security
   Runtime's grant decision, `services.RoleGrantPolicy`), the extended
   `UnitOfWork` (`modules/identityaccess/compose.TenantUnitOfWork`, handed
   out by `services.AccountRouteTenantRuntime`), the demo switch as a bool,

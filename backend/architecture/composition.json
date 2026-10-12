@@ -787,8 +787,8 @@
       "declaration": "TestCaregiverCapability_EnableCreatesOperationalProfile",
       "target": "database/repositories.NewFactory",
       "lines": [
-        304,
-        308
+        303,
+        307
       ],
       "tables": []
     },
@@ -798,7 +798,7 @@
       "declaration": "setupServiceFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        38
+        37
       ],
       "tables": []
     },

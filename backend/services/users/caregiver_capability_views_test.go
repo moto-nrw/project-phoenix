@@ -7,16 +7,16 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
-
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-var _ CaregiverCapabilityService = (*stubCaregiverCapabilityService)(nil)
+var _ peopleCompose.CaregiverCapabilityService = (*stubCaregiverCapabilityService)(nil)
 
 // stubCaregiverCapabilityService is a func-field double of People
 // Directory's caregiver capability; nil fields answer the zero value.
@@ -95,12 +95,12 @@ func TestCaregiverCapabilityViewsRenderStateAsJSON(t *testing.T) {
 		PersonID:    &personID,
 		HasUserRole: true,
 	}
-	views := CaregiverCapabilityViews{service: &stubCaregiverCapabilityService{
+	views := peopleCompose.NewCaregiverCapabilityViews(&stubCaregiverCapabilityService{
 		GetFn: func(_ context.Context, accountID int64) (*userModels.CaregiverCapabilityState, error) {
 			assert.Equal(t, int64(34), accountID)
 			return state, nil
 		},
-	}}
+	}, nil)
 
 	view, err := views.GetCaregiverCapability(context.Background(), 34)
 	require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestCaregiverCapabilityViewsRenderStateAsJSON(t *testing.T) {
 func TestCaregiverCapabilityViewsEnablePassesProfileInput(t *testing.T) {
 	t.Parallel()
 
-	views := CaregiverCapabilityViews{service: &stubCaregiverCapabilityService{
+	views := peopleCompose.NewCaregiverCapabilityViews(&stubCaregiverCapabilityService{
 		EnableFn: func(_ context.Context, accountID int64, input userModels.EnableCaregiverCapabilityInput) (*userModels.CaregiverCapabilityState, error) {
 			assert.Equal(t, int64(34), accountID)
 			assert.Equal(t, userModels.EnableCaregiverCapabilityInput{
@@ -126,7 +126,7 @@ func TestCaregiverCapabilityViewsEnablePassesProfileInput(t *testing.T) {
 			}, input)
 			return &userModels.CaregiverCapabilityState{AccountID: accountID, HasUserRole: true}, nil
 		},
-	}}
+	}, nil)
 
 	view, err := views.EnableCaregiverCapability(context.Background(), 34, "Ada", "Lovelace", "Springer")
 	require.NoError(t, err)
@@ -138,13 +138,13 @@ func TestCaregiverCapabilityViewsSchoolAccountRunsInSchoolAdminTx(t *testing.T) 
 
 	t.Run("get", func(t *testing.T) {
 		recorder := &adminRuntimeRecorder{}
-		views := CaregiverCapabilityViews{service: &stubCaregiverCapabilityService{
+		views := peopleCompose.NewCaregiverCapabilityViews(&stubCaregiverCapabilityService{
 			GetFn: func(ctx context.Context, accountID int64) (*userModels.CaregiverCapabilityState, error) {
 				assertInSchoolAdminTx(t, ctx, 12)
 				assert.Equal(t, int64(34), accountID)
 				return &userModels.CaregiverCapabilityState{AccountID: accountID, HasUserRole: true}, nil
 			},
-		}}
+		}, nil)
 
 		view, err := views.GetSchoolAccountCaregiverCapability(recorder.context(t), 12, 34)
 		require.NoError(t, err)
@@ -155,7 +155,7 @@ func TestCaregiverCapabilityViewsSchoolAccountRunsInSchoolAdminTx(t *testing.T) 
 
 	t.Run("enable", func(t *testing.T) {
 		recorder := &adminRuntimeRecorder{}
-		views := CaregiverCapabilityViews{service: &stubCaregiverCapabilityService{
+		views := peopleCompose.NewCaregiverCapabilityViews(&stubCaregiverCapabilityService{
 			EnableFn: func(ctx context.Context, accountID int64, input userModels.EnableCaregiverCapabilityInput) (*userModels.CaregiverCapabilityState, error) {
 				assertInSchoolAdminTx(t, ctx, 12)
 				assert.Equal(t, int64(34), accountID)
@@ -166,7 +166,7 @@ func TestCaregiverCapabilityViewsSchoolAccountRunsInSchoolAdminTx(t *testing.T) 
 				}, input)
 				return &userModels.CaregiverCapabilityState{AccountID: accountID, HasUserRole: true}, nil
 			},
-		}}
+		}, nil)
 
 		view, err := views.EnableSchoolAccountCaregiverCapability(recorder.context(t), 12, 34, "Ada", "Lovelace", "Springer")
 		require.NoError(t, err)
@@ -177,17 +177,17 @@ func TestCaregiverCapabilityViewsSchoolAccountRunsInSchoolAdminTx(t *testing.T) 
 
 	t.Run("disable failure fails the transaction", func(t *testing.T) {
 		recorder := &adminRuntimeRecorder{}
-		views := CaregiverCapabilityViews{service: &stubCaregiverCapabilityService{
+		views := peopleCompose.NewCaregiverCapabilityViews(&stubCaregiverCapabilityService{
 			DisableFn: func(ctx context.Context, accountID int64) (*userModels.CaregiverCapabilityState, error) {
 				assertInSchoolAdminTx(t, ctx, 12)
 				assert.Equal(t, int64(34), accountID)
-				return nil, &CaregiverCapabilityBlockedError{
+				return nil, &userModels.CaregiverCapabilityBlockedError{
 					Reasons: []userModels.CaregiverCapabilityBlockerCode{
 						userModels.CaregiverCapabilityBlockerActiveGroupSupervisions,
 					},
 				}
 			},
-		}}
+		}, nil)
 
 		view, err := views.DisableSchoolAccountCaregiverCapability(recorder.context(t), 12, 34)
 		require.Error(t, err)
@@ -243,30 +243,44 @@ func assertNoOtherCaregiverBehaviour(t *testing.T, err error, keep string) {
 	}
 }
 
+// classifyCaregiverError returns what the views make of source when the
+// capability fails with it.
+func classifyCaregiverError(t *testing.T, source error) error {
+	t.Helper()
+	views := peopleCompose.NewCaregiverCapabilityViews(&stubCaregiverCapabilityService{
+		GetFn: func(context.Context, int64) (*userModels.CaregiverCapabilityState, error) {
+			return nil, source
+		},
+	}, nil)
+	view, err := views.GetCaregiverCapability(context.Background(), 34)
+	assert.Nil(t, view)
+	return err
+}
+
 func TestCaregiverCapabilityErrorClassification(t *testing.T) {
 	t.Parallel()
 
 	t.Run("blocked keeps the blocked text and lists the reasons", func(t *testing.T) {
-		blockedErr := &CaregiverCapabilityBlockedError{
+		blockedErr := &userModels.CaregiverCapabilityBlockedError{
 			Reasons: []userModels.CaregiverCapabilityBlockerCode{
 				userModels.CaregiverCapabilityBlockerActiveGroupSupervisions,
 				userModels.CaregiverCapabilityBlockerGroupAssignments,
 			},
 		}
-		err := caregiverCapabilityError(fmt.Errorf("disable caregiver capability: %w", blockedErr))
+		err := classifyCaregiverError(t, fmt.Errorf("disable caregiver capability: %w", blockedErr))
 
 		blocked, ok := errors.AsType[caregiverBlockersBehaviour](err)
 		require.True(t, ok)
 		assert.Equal(t, blockedErr.Error(), err.Error(), "the routes render the blocked error's own text")
 		assert.Equal(t, []string{"active_group_supervisions", "group_assignments"}, blocked.CaregiverCapabilityBlockers())
-		chained, ok := errors.AsType[*CaregiverCapabilityBlockedError](err)
+		chained, ok := errors.AsType[*userModels.CaregiverCapabilityBlockedError](err)
 		require.True(t, ok)
 		assert.Same(t, blockedErr, chained)
 		assertNoOtherCaregiverBehaviour(t, err, "blocked")
 	})
 
 	t.Run("blocked without reasons reports nil blockers", func(t *testing.T) {
-		err := caregiverCapabilityError(&CaregiverCapabilityBlockedError{})
+		err := classifyCaregiverError(t, &userModels.CaregiverCapabilityBlockedError{})
 
 		blocked, ok := errors.AsType[caregiverBlockersBehaviour](err)
 		require.True(t, ok)
@@ -274,7 +288,7 @@ func TestCaregiverCapabilityErrorClassification(t *testing.T) {
 	})
 
 	t.Run("blocked with empty reasons reports empty blockers", func(t *testing.T) {
-		err := caregiverCapabilityError(&CaregiverCapabilityBlockedError{
+		err := classifyCaregiverError(t, &userModels.CaregiverCapabilityBlockedError{
 			Reasons: []userModels.CaregiverCapabilityBlockerCode{},
 		})
 
@@ -286,7 +300,7 @@ func TestCaregiverCapabilityErrorClassification(t *testing.T) {
 
 	t.Run("unknown account is missing", func(t *testing.T) {
 		source := fmt.Errorf("get caregiver capability: %w", userscontract.ErrAccountNotFound)
-		err := caregiverCapabilityError(source)
+		err := classifyCaregiverError(t, source)
 
 		missing, ok := errors.AsType[caregiverMissingBehaviour](err)
 		require.True(t, ok)
@@ -297,14 +311,14 @@ func TestCaregiverCapabilityErrorClassification(t *testing.T) {
 	})
 
 	t.Run("account outside the school is missing", func(t *testing.T) {
-		source := &AccountNotAssignedToTenantError{AccountID: 77, TenantID: 44}
-		err := caregiverCapabilityError(source)
+		source := &userModels.AccountNotAssignedToTenantError{AccountID: 77, TenantID: 44}
+		err := classifyCaregiverError(t, source)
 
 		missing, ok := errors.AsType[caregiverMissingBehaviour](err)
 		require.True(t, ok)
 		assert.True(t, missing.CaregiverAccountMissing())
 		assert.Equal(t, "account 77 is not assigned to tenant 44", err.Error())
-		chained, ok := errors.AsType[*AccountNotAssignedToTenantError](err)
+		chained, ok := errors.AsType[*userModels.AccountNotAssignedToTenantError](err)
 		require.True(t, ok)
 		assert.Same(t, source, chained)
 		assertNoOtherCaregiverBehaviour(t, err, "missing")
@@ -313,7 +327,7 @@ func TestCaregiverCapabilityErrorClassification(t *testing.T) {
 	t.Run("wrapped validation error is invalid", func(t *testing.T) {
 		validation := &userscontract.ValidationError{Err: errors.New("first_name is required")}
 		source := &userscontract.UsersError{Op: "enable caregiver capability", Err: validation}
-		err := caregiverCapabilityError(source)
+		err := classifyCaregiverError(t, source)
 
 		invalid, ok := errors.AsType[caregiverInvalidBehaviour](err)
 		require.True(t, ok)
@@ -327,7 +341,7 @@ func TestCaregiverCapabilityErrorClassification(t *testing.T) {
 	t.Run("other users error is a failure with its cause", func(t *testing.T) {
 		cause := errors.New("audit write failed")
 		source := &userscontract.UsersError{Op: "enable caregiver capability", Err: cause}
-		err := caregiverCapabilityError(source)
+		err := classifyCaregiverError(t, source)
 
 		failure, ok := errors.AsType[caregiverFailureBehaviour](err)
 		require.True(t, ok)
@@ -339,18 +353,18 @@ func TestCaregiverCapabilityErrorClassification(t *testing.T) {
 
 	t.Run("plain errors pass through", func(t *testing.T) {
 		source := errors.New("connection reset")
-		err := caregiverCapabilityError(source)
+		err := classifyCaregiverError(t, source)
 
 		assert.Same(t, source, err)
 		assertNoOtherCaregiverBehaviour(t, err, "")
 	})
 
 	t.Run("views classify service failures", func(t *testing.T) {
-		views := CaregiverCapabilityViews{service: &stubCaregiverCapabilityService{
+		views := peopleCompose.NewCaregiverCapabilityViews(&stubCaregiverCapabilityService{
 			GetFn: func(context.Context, int64) (*userModels.CaregiverCapabilityState, error) {
 				return nil, userscontract.ErrAccountNotFound
 			},
-		}}
+		}, nil)
 
 		view, err := views.GetCaregiverCapability(context.Background(), 34)
 		assert.Nil(t, view)

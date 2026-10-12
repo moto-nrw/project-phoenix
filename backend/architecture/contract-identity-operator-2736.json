@@ -98,7 +98,7 @@
       "backend/modules/settings/settings.go",
       "backend/modules/settings/compose/operator.go",
       "backend/api/operator/api.go",
-      "backend/services/users/caregiver_capability_views.go",
+      "backend/modules/peopledirectory/compose/caregiver_capability_views.go",
       "backend/api/testdata/middleware_table.golden"
     ],
     "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
