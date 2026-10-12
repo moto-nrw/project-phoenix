@@ -420,6 +420,12 @@ func TestSettingsBranches(t *testing.T) {
 	}
 	_, err = s.Prepare(ctx)
 	require.EqualError(t, err, "settings down")
+
+	// A resolver without the snapshot read skips the prefetch and keeps the
+	// request context.
+	unprepared, err := settings{settings: mock}.Prepare(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, ctx, unprepared)
 }
 
 func TestPresenceMapsVisitsAndAttendance(t *testing.T) {

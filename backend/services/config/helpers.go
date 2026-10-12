@@ -27,7 +27,8 @@ type stringResolver interface {
 }
 
 // SnapshotResolver resolves several settings of the request tenant in one
-// read. Consumers that prefetch a request snapshot check for it.
+// read. The Resolve*OrDefault helpers and consumers that prefetch a request
+// snapshot check for it.
 type SnapshotResolver interface {
 	ResolveMany(ctx context.Context, keys []string) (*SettingsSnapshot, error)
 }

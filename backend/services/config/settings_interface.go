@@ -183,8 +183,8 @@ type SettingsService interface {
 // intentionally expose only the single-value operations they consume.
 type BatchSettingsService interface {
 	SettingsService
+	SnapshotResolver
 
-	ResolveMany(ctx context.Context, keys []string) (*SettingsSnapshot, error)
 	ResolveManyForTenant(ctx context.Context, tenantID int64, keys []string) (*SettingsSnapshot, error)
 	ResolveManyForTenants(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*SettingsSnapshot, error)
 }
