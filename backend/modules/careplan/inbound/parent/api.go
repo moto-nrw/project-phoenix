@@ -28,7 +28,6 @@ import (
 	pwaService "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -44,7 +43,7 @@ type Resource struct {
 	RequestSharing        parentService.RequestSharingService
 	CalendarService       calendarService.Service
 	EnrollmentForms       EnrollmentForms
-	GuardianProfileLoader *usersService.GuardianProfileLoader
+	GuardianProfileLoader GuardianProfileLoader
 	SchoolService         SchoolDirectory
 	PushService           notificationsService.PushSubscriptionService
 	PreferenceService     notificationsService.PreferenceService
@@ -66,7 +65,7 @@ type ResourceConfig struct {
 	Calendar calendarService.Service
 	// Enrollment is the public form flow the composition root binds (#2734).
 	Enrollment            EnrollmentForms
-	GuardianProfileLoader *usersService.GuardianProfileLoader
+	GuardianProfileLoader GuardianProfileLoader
 	Schools               SchoolDirectory
 	// Push is the Web Push subscription service (#2003).
 	Push notificationsService.PushSubscriptionService

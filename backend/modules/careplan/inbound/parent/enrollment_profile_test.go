@@ -12,20 +12,16 @@ import (
 
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// guardianProfileRepoStub records whether the profile read happened at all.
-// Every other repository method panics through the embedded nil interface,
-// which would flag an unintended dependency.
-type guardianProfileRepoStub struct {
-	usersModels.GuardianProfileRepository
+// guardianProfileLoaderStub records whether the profile read happened at all.
+type guardianProfileLoaderStub struct {
 	called  bool
 	profile *usersModels.GuardianProfileWithChildren
 }
 
-func (s *guardianProfileRepoStub) LoadProfileWithChildren(context.Context, int64) (*usersModels.GuardianProfileWithChildren, error) {
+func (s *guardianProfileLoaderStub) LoadForTenant(context.Context, int64, int64) (*usersModels.GuardianProfileWithChildren, error) {
 	s.called = true
 	return s.profile, nil
 }
@@ -55,14 +51,14 @@ func TestGetEnrollmentProfile_HiddenSchoolIsUnreachableWithoutFamilyLink(t *test
 
 	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
-	repo := &guardianProfileRepoStub{}
+	repo := &guardianProfileLoaderStub{}
 	rs := &Resource{
 		// Linked as an account (e.g. staff, or a stale mapping) but with no
 		// guardian relationship — exactly the case ListEnrollable refuses.
 		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
 			Linked: true,
 		}},
-		GuardianProfileLoader: usersService.NewGuardianProfileLoader(repo, db, nil),
+		GuardianProfileLoader: repo,
 		SchoolService:         &parentSubmitSchoolStub{school: school},
 		db:                    db,
 	}
@@ -82,14 +78,14 @@ func TestGetEnrollmentProfile_HiddenSchoolLoadsForLinkedFamily(t *testing.T) {
 
 	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
-	repo := &guardianProfileRepoStub{}
+	repo := &guardianProfileLoaderStub{}
 	rs := &Resource{
 		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
-		GuardianProfileLoader: usersService.NewGuardianProfileLoader(repo, db, nil),
+		GuardianProfileLoader: repo,
 		SchoolService:         &parentSubmitSchoolStub{school: school},
 		db:                    db,
 	}
@@ -108,14 +104,14 @@ func TestGetEnrollmentProfile_InactiveSchoolIsUnreachable(t *testing.T) {
 
 	school := &EnrollmentSchool{Active: false}
 	school.ID = 1
-	repo := &guardianProfileRepoStub{}
+	repo := &guardianProfileLoaderStub{}
 	rs := &Resource{
 		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
-		GuardianProfileLoader: usersService.NewGuardianProfileLoader(repo, db, nil),
+		GuardianProfileLoader: repo,
 		SchoolService:         &parentSubmitSchoolStub{school: school},
 		db:                    db,
 	}

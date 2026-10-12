@@ -14,8 +14,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -226,7 +226,7 @@ func (r guardianInvitationReads) owner() (identityaccess.GuardianInvitations, er
 	return module, nil
 }
 
-func (r guardianInvitationReads) ListOpen(ctx context.Context, guardianProfileIDs []int64) ([]usersSvc.GuardianInvitationRecord, error) {
+func (r guardianInvitationReads) ListOpen(ctx context.Context, guardianProfileIDs []int64) ([]peopleCompose.GuardianInvitationRecord, error) {
 	module, err := r.owner()
 	if err != nil {
 		return nil, err
@@ -238,7 +238,7 @@ func (r guardianInvitationReads) ListOpen(ctx context.Context, guardianProfileID
 	return guardianListRecords(invitations), nil
 }
 
-func (r guardianInvitationReads) ListRedeemable(ctx context.Context) ([]usersSvc.GuardianInvitationRecord, error) {
+func (r guardianInvitationReads) ListRedeemable(ctx context.Context) ([]peopleCompose.GuardianInvitationRecord, error) {
 	module, err := r.owner()
 	if err != nil {
 		return nil, err
@@ -271,10 +271,10 @@ func (r guardianInvitationReads) ListByProfile(ctx context.Context, guardianProf
 	return result, nil
 }
 
-func guardianListRecords(invitations []identityaccess.GuardianInvitation) []usersSvc.GuardianInvitationRecord {
-	result := make([]usersSvc.GuardianInvitationRecord, 0, len(invitations))
+func guardianListRecords(invitations []identityaccess.GuardianInvitation) []peopleCompose.GuardianInvitationRecord {
+	result := make([]peopleCompose.GuardianInvitationRecord, 0, len(invitations))
 	for _, invitation := range invitations {
-		result = append(result, usersSvc.GuardianInvitationRecord{
+		result = append(result, peopleCompose.GuardianInvitationRecord{
 			ID: invitation.ID, TenantID: invitation.TenantID, Token: invitation.Token,
 			GuardianProfileID: invitation.GuardianProfileID, CreatedBy: invitation.CreatedBy,
 			ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, EmailSentAt: invitation.EmailSentAt,

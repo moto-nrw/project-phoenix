@@ -27,6 +27,15 @@ import (
 // school just gets claims-derived guardian fields and an empty
 // children list.
 //
+// GuardianProfileLoader is the consumer-owned port over People Directory's
+// enrollment autofill read: the guardian profile linked to the account in
+// one school, its primary phone and its active children. It answers
+// (nil, nil) when the account has no profile there. The composition root
+// binds it (#3755).
+type GuardianProfileLoader interface {
+	LoadForTenant(ctx context.Context, accountID, tenantID int64) (*usersModels.GuardianProfileWithChildren, error)
+}
+
 // Hidden-school gate (#1663): this is the third direct enrollment route, so it
 // applies the SAME enrollmentSchoolReachable check as bootstrap and submit.
 // Without it the hidden flag leaks twice over: the 200/404 split alone tells a

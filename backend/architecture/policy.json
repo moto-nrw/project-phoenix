@@ -1969,6 +1969,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/peopledirectory/contracttest",
+      "owner": "people-directory",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
+    },
+    {
       "path": "modules/peopledirectory/http",
       "owner": "inbound-users",
       "role": "http",
@@ -2582,13 +2589,6 @@
       "owner": "calendar-view",
       "role": "adapter",
       "internal_test_role": "adapter-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "services/users",
-      "owner": "people-directory",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -6785,25 +6785,25 @@
       "target_role": "test-support"
     },
     {
-      "id": "people-directory.module-behavior-test.workforce-time-records",
-      "description": "The retained staff offboarding behaviour tests seed the retained staff-absence rows (#3422).",
+      "id": "people-directory.contracttest.workforce.adapter",
+      "description": "The staff offboarding suite of the People Directory contract suite seeds the retained staff-absence rows (#3422, moved from services/users with #3755).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "people-directory",
-      "source_role": "module-behavior-test",
+      "source_role": "e2e-test",
       "target_owner": "workforce",
       "target_role": "adapter",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
     },
     {
-      "id": "people-directory.module-behavior-test.workforce-public",
-      "description": "The retained staff offboarding behaviour tests name the canonical absence values they seed (#3422).",
+      "id": "people-directory.contracttest.workforce.public",
+      "description": "The staff suites of the People Directory contract suite name the canonical absence values they seed (#3422, moved from services/users with #3755).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "people-directory",
-      "source_role": "module-behavior-test",
+      "source_role": "e2e-test",
       "target_owner": "workforce",
       "target_role": "public"
     },
@@ -18850,24 +18850,24 @@
       "target_role": "compose"
     },
     {
-      "id": "people-directory.module-behavior-test.offboarding.staff-offboarding.public",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "id": "people-directory.contracttest.staff-offboarding.public",
+      "description": "The People Directory contract suite wires the staff lifecycle owner workflow required by #2709 (moved from services/users with #3755).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "people-directory",
-      "source_role": "module-behavior-test",
+      "source_role": "e2e-test",
       "target_owner": "staff-offboarding",
       "target_role": "public"
     },
     {
-      "id": "people-directory.module-behavior-test.offboarding.staff-offboarding.compose",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "id": "people-directory.contracttest.staff-offboarding.compose",
+      "description": "The People Directory contract suite wires the staff lifecycle owner workflow required by #2709 (moved from services/users with #3755).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "people-directory",
-      "source_role": "module-behavior-test",
+      "source_role": "e2e-test",
       "target_owner": "staff-offboarding",
       "target_role": "compose"
     },
@@ -20099,24 +20099,24 @@
       "target_role": "compose"
     },
     {
-      "id": "people-directory.module-behavior-test.deletion.student-deletion.public",
-      "description": "Student Deletion integration tests use real owner composition and the outer tenant UnitOfWork (#2710).",
+      "id": "people-directory.contracttest.student-deletion.public",
+      "description": "The People Directory contract suite runs Student Deletion with real owner composition and the outer tenant UnitOfWork (#2710, moved from services/users with #3755).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "people-directory",
-      "source_role": "module-behavior-test",
+      "source_role": "e2e-test",
       "target_owner": "student-deletion",
       "target_role": "public"
     },
     {
-      "id": "people-directory.module-behavior-test.deletion.student-deletion.compose",
-      "description": "Student Deletion integration tests use real owner composition and the outer tenant UnitOfWork (#2710).",
+      "id": "people-directory.contracttest.student-deletion.compose",
+      "description": "The People Directory contract suite runs Student Deletion with real owner composition and the outer tenant UnitOfWork (#2710, moved from services/users with #3755).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "people-directory",
-      "source_role": "module-behavior-test",
+      "source_role": "e2e-test",
       "target_owner": "student-deletion",
       "target_role": "compose"
     },
@@ -21198,14 +21198,146 @@
       "target_role": "application"
     },
     {
-      "id": "people-directory.module-behavior-test.student-presence-public",
-      "description": "services/users/staff_offboarding_test.go records a concurrent supervision through the public GroupSupervision value (#3422).",
+      "id": "people-directory.contracttest.student-presence.public",
+      "description": "The staff offboarding suite of the People Directory contract suite records a concurrent supervision through the public GroupSupervision value (#3422, moved from services/users with #3755).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "people-directory",
-      "source_role": "module-behavior-test",
+      "source_role": "e2e-test",
       "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.contracttest.people-directory.public",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.contracttest.people-directory.compose",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "people-directory.contracttest.people-directory.domain",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "people-directory.contracttest.tenant-runtime.public",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.contracttest.legacy-shared.domain",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "people-directory.contracttest.security-runtime.application",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "people-directory.contracttest.security-runtime.contract",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "people-directory.contracttest.audit-platform.domain",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "people-directory.contracttest.settings-platform.domain",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "people-directory.contracttest.timetable-activities.domain",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "people-directory.contracttest.identity-access.adapter",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "people-directory.contracttest.delivery-platform.public",
+      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "e2e-test",
+      "target_owner": "delivery-platform",
       "target_role": "public"
     },
     {
