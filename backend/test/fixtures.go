@@ -22,11 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -130,16 +126,16 @@ func CreateAuditAdjustmentChild(tb testing.TB, db *bun.DB, requestID int64) int6
 // The package clone owns their row lifecycle; tests do not delete them.
 
 // CreateTestActivityCategory creates a real activity category in the database
-func CreateTestActivityCategory(tb testing.TB, db *bun.DB, name string) *activities.Category {
+func CreateTestActivityCategory(tb testing.TB, db *bun.DB, name string) *ActivityCategory {
 	tb.Helper()
 
 	// Make name unique to avoid conflicts with seeded data
 	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
-	category := &activities.Category{
+	category := &ActivityCategory{
 		Name:  uniqueName,
 		Color: "#CCCCCC",
 	}
-	category.SetTenantID(fixtureTenantID(tb))
+	category.TenantID = fixtureTenantID(tb)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -155,7 +151,7 @@ func CreateTestActivityCategory(tb testing.TB, db *bun.DB, name string) *activit
 
 // CreateTestActivityGroup creates a real activity group in the database
 // Activity groups require a category and creator, so this helper creates them automatically
-func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *activities.Group {
+func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *ActivityGroup {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -168,7 +164,7 @@ func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *activities
 	staff := CreateTestStaff(tb, db, "Creator", name)
 
 	// Create the activity group
-	group := &activities.Group{
+	group := &ActivityGroup{
 		Name:            name,
 		MaxParticipants: 20,
 		IsOpen:          true,
@@ -187,7 +183,7 @@ func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *activities
 }
 
 // CreateTestRoom creates a real room in the database
-func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room {
+func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *Room {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -196,12 +192,12 @@ func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room {
 	// Make room name unique by appending timestamp
 	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 
-	room := &facilities.Room{
+	room := &Room{
 		Name:     uniqueName,
 		Building: "Test Building",
 		Capacity: IntPtr(30),
 	}
-	room.SetTenantID(fixtureTenantID(tb))
+	room.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(room).
@@ -215,7 +211,7 @@ func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room {
 // CreateTestOpenRoom creates a room the OGS administration has permanently
 // released ("offener Raum", #3064/#3065): reachable for every caregiver,
 // whether or not anything runs in it.
-func CreateTestOpenRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room {
+func CreateTestOpenRoom(tb testing.TB, db *bun.DB, name string) *Room {
 	tb.Helper()
 
 	room := CreateTestRoom(tb, db, name)
@@ -236,7 +232,7 @@ func CreateTestOpenRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room
 }
 
 // CreateTestDevice creates a real IoT device in the database
-func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
+func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *Device {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -245,14 +241,14 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 	// Make device ID unique by appending timestamp if needed
 	uniqueDeviceID := fmt.Sprintf("%s-%d", deviceID, uniqueFixtureSuffix())
 
-	device := &iot.Device{
+	device := &Device{
 		DeviceID:   uniqueDeviceID,
 		DeviceType: "terminal",
 		Name:       StrPtr("Test Device"),
-		Status:     iot.DeviceStatusActive,
+		Status:     DeviceStatusActive,
 		APIKey:     StrPtr("test-api-key-" + uniqueDeviceID),
 	}
-	device.SetTenantID(fixtureTenantID(tb))
+	device.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
 		Model(device).
@@ -273,20 +269,20 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 // every test tenant, and the dozens of tests that delete their school with raw
 // SQL would then trip devices_tenant_id_fkey. Tests that exercise a web
 // check-in ask for it explicitly (#2419).
-func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
+func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *Device {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// Use upsert pattern to avoid race conditions
-	device := &iot.Device{
-		DeviceID:   iot.WebManualDeviceID,
-		DeviceType: iot.DeviceTypeVirtual,
+	device := &Device{
+		DeviceID:   WebManualDeviceID,
+		DeviceType: DeviceTypeVirtual,
 		Name:       StrPtr("Web-Portal (Manuell)"),
-		Status:     iot.DeviceStatusActive,
+		Status:     DeviceStatusActive,
 	}
-	device.SetTenantID(fixtureTenantID(tb))
+	device.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
 		Model(device).
@@ -296,11 +292,11 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 	require.NoError(tb, err, "Failed to ensure web manual device")
 
 	// Fetch the device (either just created or existing)
-	var existingDevice iot.Device
+	var existingDevice Device
 	err = db.NewSelect().
 		Model(&existingDevice).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where(`"device".device_id = ?`, iot.WebManualDeviceID).
+		Where(`"device".device_id = ?`, WebManualDeviceID).
 		Where(`"device".tenant_id = ?`, device.TenantID).
 		Where(`"device".archived_at IS NULL`).
 		Scan(ctx)
@@ -1837,7 +1833,7 @@ func CreateTestStudentForTenant(tb testing.TB, db *bun.DB, tenantID int64, first
 }
 
 // CreateTestRoomForTenant creates a room belonging to a specific tenant.
-func CreateTestRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *facilities.Room {
+func CreateTestRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *Room {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1845,12 +1841,12 @@ func CreateTestRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name str
 
 	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 
-	room := &facilities.Room{
+	room := &Room{
 		Name:     uniqueName,
 		Building: "Test Building",
 		Capacity: IntPtr(30),
 	}
-	room.SetTenantID(tenantID)
+	room.TenantID = tenantID
 
 	err := db.NewInsert().
 		Model(room).
@@ -1864,7 +1860,7 @@ func CreateTestRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name str
 // CreateTestOpenRoomForTenant creates a released room owned by a specific
 // tenant — the fixture that lets a test prove the shared view stops at the
 // tenant boundary.
-func CreateTestOpenRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *facilities.Room {
+func CreateTestOpenRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *Room {
 	tb.Helper()
 
 	room := CreateTestRoomForTenant(tb, db, tenantID, name)
@@ -1908,7 +1904,7 @@ func CreateTestEducationGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64
 }
 
 // CreateTestTimeframeForTenant creates a timeframe belonging to a specific tenant.
-func CreateTestTimeframeForTenant(tb testing.TB, db *bun.DB, tenantID int64, description string) *schedule.Timeframe {
+func CreateTestTimeframeForTenant(tb testing.TB, db *bun.DB, tenantID int64, description string) *Timeframe {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1920,13 +1916,13 @@ func CreateTestTimeframeForTenant(tb testing.TB, db *bun.DB, tenantID int64, des
 	startTime := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, now.Location())
 	endTime := time.Date(now.Year(), now.Month(), now.Day(), 16, 0, 0, 0, now.Location())
 
-	timeframe := &schedule.Timeframe{
+	timeframe := &Timeframe{
 		StartTime:   startTime,
 		EndTime:     &endTime,
 		IsActive:    true,
 		Description: uniqueDesc,
 	}
-	timeframe.SetTenantID(tenantID)
+	timeframe.TenantID = tenantID
 
 	err := db.NewInsert().
 		Model(timeframe).
@@ -1938,7 +1934,7 @@ func CreateTestTimeframeForTenant(tb testing.TB, db *bun.DB, tenantID int64, des
 }
 
 // CreateTestDeviceForTenant creates an IoT device belonging to a specific tenant.
-func CreateTestDeviceForTenant(tb testing.TB, db *bun.DB, tenantID int64, deviceID string) *iot.Device {
+func CreateTestDeviceForTenant(tb testing.TB, db *bun.DB, tenantID int64, deviceID string) *Device {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1946,14 +1942,14 @@ func CreateTestDeviceForTenant(tb testing.TB, db *bun.DB, tenantID int64, device
 
 	uniqueDeviceID := fmt.Sprintf("%s-%d", deviceID, uniqueFixtureSuffix())
 
-	device := &iot.Device{
+	device := &Device{
 		DeviceID:   uniqueDeviceID,
 		DeviceType: "terminal",
 		Name:       StrPtr("Test Device " + uniqueDeviceID),
-		Status:     iot.DeviceStatusActive,
+		Status:     DeviceStatusActive,
 		APIKey:     StrPtr("test-api-key-" + uniqueDeviceID),
 	}
-	device.SetTenantID(tenantID)
+	device.TenantID = tenantID
 
 	err := db.NewInsert().
 		Model(device).
@@ -2073,18 +2069,18 @@ func CreateTestClassTeacherForTenant(tb testing.TB, db *bun.DB, tenantID, staffI
 }
 
 // CreateTestActivityCategoryForTenant creates an activity category belonging to a specific tenant.
-func CreateTestActivityCategoryForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *activities.Category {
+func CreateTestActivityCategoryForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *ActivityCategory {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
-	category := &activities.Category{
+	category := &ActivityCategory{
 		Name:  uniqueName,
 		Color: "#CCCCCC",
 	}
-	category.SetTenantID(tenantID)
+	category.TenantID = tenantID
 
 	err := db.NewInsert().
 		Model(category).
@@ -2097,7 +2093,7 @@ func CreateTestActivityCategoryForTenant(tb testing.TB, db *bun.DB, tenantID int
 
 // CreateTestActivityGroupForTenant creates an activity group belonging to a specific tenant.
 // Automatically creates a category and staff (creator) for the tenant.
-func CreateTestActivityGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *activities.Group {
+func CreateTestActivityGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *ActivityGroup {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2106,7 +2102,7 @@ func CreateTestActivityGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 	category := CreateTestActivityCategoryForTenant(tb, db, tenantID, fmt.Sprintf("Cat-%s", name))
 	staff := CreateTestStaffForTenant(tb, db, tenantID, "Creator", name)
 
-	group := &activities.Group{
+	group := &ActivityGroup{
 		Name:            name,
 		MaxParticipants: 20,
 		IsOpen:          true,
@@ -2406,13 +2402,13 @@ func parseTimeHHMM(tb testing.TB, hhmm string) time.Time {
 // arrivalHHMM="" for a care day without its own time — the child's class
 // timetable supplies it then (#2414).
 // staffID must reference users.staff(id) — the schema's created_by FK.
-func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekday int, staffID int64, arrivalHHMM string) *schedule.StudentArrivalSchedule {
+func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekday int, staffID int64, arrivalHHMM string) *StudentArrivalSchedule {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &schedule.StudentArrivalSchedule{
+	row := &StudentArrivalSchedule{
 		StudentID: studentID,
 		Weekday:   weekday,
 		CreatedBy: staffID,
@@ -2432,15 +2428,15 @@ func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekd
 
 // CreateTestArrivalException inserts a date-specific arrival exception.
 // Pass arrivalHHMM="" to signal absence on that date (ExpectedArrival=NULL).
-func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date CalendarDate, staffID int64, arrivalHHMM, reason string) *schedule.StudentArrivalException {
+func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date CalendarDate, staffID int64, arrivalHHMM, reason string) *StudentArrivalException {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &schedule.StudentArrivalException{
+	row := &StudentArrivalException{
 		StudentID:     studentID,
-		ExceptionDate: schedule.Date(date.String()),
+		ExceptionDate: timezone.Date(date.String()),
 		CreatedBy:     staffID,
 	}
 	if arrivalHHMM != "" {
@@ -2461,13 +2457,13 @@ func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date
 }
 
 // CreateTestPickupSchedule inserts a weekly pickup schedule for a student.
-func CreateTestPickupSchedule(tb testing.TB, db *bun.DB, studentID int64, weekday int, staffID int64, pickupHHMM string) *schedule.StudentPickupSchedule {
+func CreateTestPickupSchedule(tb testing.TB, db *bun.DB, studentID int64, weekday int, staffID int64, pickupHHMM string) *StudentPickupSchedule {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &schedule.StudentPickupSchedule{
+	row := &StudentPickupSchedule{
 		StudentID:  studentID,
 		Weekday:    weekday,
 		PickupTime: parseTimeHHMM(tb, pickupHHMM),
@@ -2485,15 +2481,15 @@ func CreateTestPickupSchedule(tb testing.TB, db *bun.DB, studentID int64, weekda
 
 // CreateTestPickupException inserts a date-specific pickup exception.
 // Pass pickupHHMM="" for absence (PickupTime=NULL).
-func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date CalendarDate, staffID int64, pickupHHMM, reason string) *schedule.StudentPickupException {
+func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date CalendarDate, staffID int64, pickupHHMM, reason string) *StudentPickupException {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &schedule.StudentPickupException{
+	row := &StudentPickupException{
 		StudentID:     studentID,
-		ExceptionDate: schedule.Date(date.String()),
+		ExceptionDate: timezone.Date(date.String()),
 		CreatedBy:     staffID,
 	}
 	if pickupHHMM != "" {
@@ -2538,10 +2534,6 @@ func Date(year int, month time.Month, day int) timezone.Date {
 	return timezone.NewDate(year, month, day)
 }
 
-func ScheduleDate(year int, month time.Month, day int) schedule.Date {
-	return schedule.NewDate(year, month, day)
-}
-
 type CalendarDate interface {
 	String() string
 }
@@ -2561,7 +2553,7 @@ func WallClock(hour, minute int) time.Time {
 // CreateTestActivityInstance inserts a schedule.activity_instances row.
 // Activity group / active group / status default to a planned template-backed
 // instance; override via opts for lifecycle-edge tests.
-func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date CalendarDate, roomID int64, opts ActivityInstanceOpts) *schedule.ActivityInstance {
+func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date CalendarDate, roomID int64, opts ActivityInstanceOpts) *ActivityInstance {
 	tb.Helper()
 	return CreateTestActivityInstanceForTenant(tb, db, fixtureTenantID(tb), date, roomID, opts)
 }
@@ -2580,7 +2572,7 @@ func CreateTestCompletedInstanceWithStudentForTenant(tb testing.TB, db *bun.DB, 
 	instance := CreateTestActivityInstanceForTenant(tb, db, tenantID,
 		timezone.NewDate(2026, 4, 22), room.ID, ActivityInstanceOpts{
 			Title:  fmt.Sprintf("AC-Instance-%d", suffix),
-			Status: schedule.InstanceStatusCompleted,
+			Status: ScheduleInstanceStatusCompleted,
 		})
 	return instance.ID, student.ID
 }
@@ -2588,7 +2580,7 @@ func CreateTestCompletedInstanceWithStudentForTenant(tb testing.TB, db *bun.DB, 
 // CreateTestActivityInstanceForTenant stamps an explicit tenant instead of the
 // test's own. Tenant-isolation tests need a row that demonstrably belongs to
 // somebody else; every other caller wants CreateTestActivityInstance.
-func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int64, date CalendarDate, roomID int64, opts ActivityInstanceOpts) *schedule.ActivityInstance {
+func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int64, date CalendarDate, roomID int64, opts ActivityInstanceOpts) *ActivityInstance {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2596,11 +2588,11 @@ func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int
 
 	status := opts.Status
 	if status == "" {
-		status = schedule.InstanceStatusPlanned
+		status = ScheduleInstanceStatusPlanned
 		// A block bridged to a live group is running: since #2762 Student
 		// Presence owns that execution in active.activity_sessions.
 		if opts.ActiveGroupID != nil {
-			status = schedule.InstanceStatusActive
+			status = ScheduleInstanceStatusActive
 		}
 	}
 	startHHMM := opts.StartHHMM
@@ -2616,8 +2608,8 @@ func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int
 		title = fmt.Sprintf("Test Instance %d", uniqueFixtureSuffix())
 	}
 
-	row := &schedule.ActivityInstance{
-		Date:             schedule.Date(date.String()),
+	row := &ActivityInstance{
+		Date:             timezone.Date(date.String()),
 		ActivityGroupID:  opts.ActivityGroupID,
 		CalendarPeriodID: opts.CalendarPeriodID,
 		ActiveGroupID:    opts.ActiveGroupID,
@@ -2628,7 +2620,7 @@ func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int
 		Status:           status,
 		IsSpontaneous:    opts.IsSpontaneous,
 	}
-	row.SetTenantID(tenantID)
+	row.TenantID = tenantID
 
 	if !presenceStorageContracted(tb, db) {
 		// A migration test restored the old execution columns in its own
@@ -2651,17 +2643,17 @@ func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int
 // active-period invariants other tests rely on; callers that only need an id to
 // stamp on a materialized instance want exactly this. Names must be unique per
 // tenant — pass a suffixed one. The tenant-owned row dies with the clone.
-func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end CalendarDate) *schedule.CalendarPeriod {
+func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end CalendarDate) *CalendarPeriod {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &schedule.CalendarPeriod{
+	row := &CalendarPeriod{
 		Name:            name,
-		PeriodType:      schedule.PeriodTypeCustom,
-		StartDate:       schedule.Date(start.String()),
-		EndDate:         schedule.Date(end.String()),
+		PeriodType:      SchedulePeriodTypeCustom,
+		StartDate:       timezone.Date(start.String()),
+		EndDate:         timezone.Date(end.String()),
 		WeekCycleLength: 1,
 		IsActive:        false,
 	}
@@ -2679,7 +2671,7 @@ func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end
 // keeps the in-memory row in sync. Tests use it both to arm the active-period
 // invariant on a period from CreateTestCalendarPeriod (created inactive) and
 // to deactivate a period mid-test.
-func SetCalendarPeriodActive(tb testing.TB, db *bun.DB, period *schedule.CalendarPeriod, active bool) {
+func SetCalendarPeriodActive(tb testing.TB, db *bun.DB, period *CalendarPeriod, active bool) {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2695,22 +2687,22 @@ func SetCalendarPeriodActive(tb testing.TB, db *bun.DB, period *schedule.Calenda
 // (a TenantScope's), with a week cycle of cycleLength weeks anchored at anchor
 // (nil for none). Shift-series suites materialize over it. Names must be
 // unique per tenant; the tenant-owned row dies with the clone.
-func CreateTestWeekCyclePeriodForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string, start, end CalendarDate, cycleLength int, anchor CalendarDate) *schedule.CalendarPeriod {
+func CreateTestWeekCyclePeriodForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string, start, end CalendarDate, cycleLength int, anchor CalendarDate) *CalendarPeriod {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &schedule.CalendarPeriod{
+	row := &CalendarPeriod{
 		Name:            name,
-		PeriodType:      schedule.PeriodTypeCustom,
-		StartDate:       schedule.Date(start.String()),
-		EndDate:         schedule.Date(end.String()),
+		PeriodType:      SchedulePeriodTypeCustom,
+		StartDate:       timezone.Date(start.String()),
+		EndDate:         timezone.Date(end.String()),
 		WeekCycleLength: cycleLength,
 		IsActive:        true,
 	}
 	if anchor != nil {
-		value := schedule.Date(anchor.String())
+		value := timezone.Date(anchor.String())
 		row.WeekCycleAnchor = &value
 	}
 	row.TenantID = tenantID
@@ -2725,13 +2717,13 @@ func CreateTestWeekCyclePeriodForTenant(tb testing.TB, db *bun.DB, tenantID int6
 
 // CreateTestClosingDay inserts a schedule.closing_days row spanning
 // [start, end] for the test tenant. The tenant-owned row dies with the clone.
-func CreateTestClosingDay(tb testing.TB, db *bun.DB, start, end CalendarDate, reason string) *schedule.ClosingDay {
+func CreateTestClosingDay(tb testing.TB, db *bun.DB, start, end CalendarDate, reason string) *ClosingDay {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &schedule.ClosingDay{StartDate: schedule.Date(start.String()), EndDate: schedule.Date(end.String()), Reason: reason}
+	row := &ClosingDay{StartDate: timezone.Date(start.String()), EndDate: timezone.Date(end.String()), Reason: reason}
 	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
@@ -2744,13 +2736,13 @@ func CreateTestClosingDay(tb testing.TB, db *bun.DB, start, end CalendarDate, re
 
 // CreateTestDateframe inserts a schedule.dateframes row for the test tenant.
 // Dateframes are instants (TIMESTAMPTZ), so the bounds are passed as such.
-func CreateTestDateframe(tb testing.TB, db *bun.DB, name string, start, end time.Time) *schedule.Dateframe {
+func CreateTestDateframe(tb testing.TB, db *bun.DB, name string, start, end time.Time) *Dateframe {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &schedule.Dateframe{Name: name, StartDate: start, EndDate: end}
+	row := &Dateframe{Name: name, StartDate: start, EndDate: end}
 	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
@@ -2804,7 +2796,7 @@ type StaffShiftOpts struct {
 // CreateTestStaffShift inserts a Dienstplan shift (schedule.staff_shifts) for
 // the staff member on the given date, tenant 1. created_by is stamped with the
 // staff's own id. The tenant-owned row dies with the clone.
-func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date CalendarDate, opts StaffShiftOpts) *schedule.StaffShift {
+func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date CalendarDate, opts StaffShiftOpts) *StaffShift {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2819,9 +2811,9 @@ func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date Calenda
 		endHHMM = "16:00"
 	}
 
-	row := &schedule.StaffShift{
+	row := &StaffShift{
 		StaffID:     staffID,
-		Date:        schedule.Date(date.String()),
+		Date:        timezone.Date(date.String()),
 		StartTime:   parseTimeHHMM(tb, startHHMM),
 		EndTime:     parseTimeHHMM(tb, endHHMM),
 		Notes:       opts.Notes,
@@ -2862,11 +2854,11 @@ type InstanceStudentOpts struct {
 // CreateTestInstanceStudent inserts one instance_students row. Status defaults
 // to AttendanceStatusExpected when empty; opts is optional and only the first
 // entry is read.
-func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID int64, status string, opts ...InstanceStudentOpts) *schedule.InstanceStudent {
+func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID int64, status string, opts ...InstanceStudentOpts) *InstanceStudent {
 	tb.Helper()
 
 	if status == "" {
-		status = schedule.AttendanceStatusExpected
+		status = ScheduleAttendanceStatusExpected
 	}
 	var opt InstanceStudentOpts
 	if len(opts) > 0 {
@@ -2876,7 +2868,7 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &schedule.InstanceStudent{
+	row := &InstanceStudent{
 		InstanceID:         instanceID,
 		StudentID:          studentID,
 		Status:             status,
@@ -2948,20 +2940,20 @@ type InstanceStaffOpts struct {
 // CreateTestInstanceStaff inserts one schedule.instance_staff row. Defaults
 // yield a non-primary, non-substitute, non-absent assignment in the instance's
 // main room.
-func CreateTestInstanceStaff(tb testing.TB, db *bun.DB, instanceID, staffID int64, opts InstanceStaffOpts) *schedule.InstanceStaff {
+func CreateTestInstanceStaff(tb testing.TB, db *bun.DB, instanceID, staffID int64, opts InstanceStaffOpts) *InstanceStaff {
 	tb.Helper()
 	return CreateTestInstanceStaffForTenant(tb, db, fixtureTenantID(tb), instanceID, staffID, opts)
 }
 
 // CreateTestInstanceStaffForTenant is CreateTestInstanceStaff for an explicit
 // tenant, for multi-tenant isolation tests.
-func CreateTestInstanceStaffForTenant(tb testing.TB, db *bun.DB, tenantID, instanceID, staffID int64, opts InstanceStaffOpts) *schedule.InstanceStaff {
+func CreateTestInstanceStaffForTenant(tb testing.TB, db *bun.DB, tenantID, instanceID, staffID int64, opts InstanceStaffOpts) *InstanceStaff {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &schedule.InstanceStaff{
+	row := &InstanceStaff{
 		InstanceID:   instanceID,
 		StaffID:      staffID,
 		RoomID:       opts.RoomID,

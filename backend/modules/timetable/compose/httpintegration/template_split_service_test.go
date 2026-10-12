@@ -56,8 +56,8 @@ func futureMonday(offsetWeeks int) calendar.Date {
 // it for cleanup.
 func splitInsertInstance(t *testing.T, s *scenarioSetup, groupID *int64, date calendar.Date, status string, spontaneous bool, startHour int) int64 {
 	t.Helper()
-	row := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.Date(date),
+	row := &testpkg.ActivityInstance{
+		Date:            testpkg.ScheduleDate(date),
 		Title:           fmt.Sprintf("Split-%s-%d", status, time.Now().UnixNano()),
 		StartTime:       time.Date(1, 1, 1, startHour, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, startHour+1, 0, 0, 0, time.UTC),
@@ -66,7 +66,7 @@ func splitInsertInstance(t *testing.T, s *scenarioSetup, groupID *int64, date ca
 		IsSpontaneous:   spontaneous,
 		ActivityGroupID: groupID,
 	}
-	row.SetTenantID(s.tenantID)
+	row.TenantID = s.tenantID
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, row)
 	return row.ID
 }

@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -83,7 +82,7 @@ func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
 	assert.Equal(t, "moved", moved.Action)
 	assert.Equal(t, mensa.ID, moved.TargetInstanceID)
 
-	var rows []*scheduleModels.InstanceStaff
+	var rows []*testpkg.InstanceStaff
 	require.NoError(t, s.db.NewSelect().Model(&rows).
 		ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).
 		Where(`"instance_staff".id = ?`, row.ID).Scan(s.tenantCtx()))
@@ -113,7 +112,7 @@ func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	decodeResponse(t, rr, &moved)
 	assert.Equal(t, "assigned", moved.Action)
-	var mensaRows []*scheduleModels.InstanceStaff
+	var mensaRows []*testpkg.InstanceStaff
 	require.NoError(t, s.db.NewSelect().Model(&mensaRows).
 		ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).
 		Where(`"instance_staff".instance_id = ?`, mensa.ID).Scan(s.tenantCtx()))

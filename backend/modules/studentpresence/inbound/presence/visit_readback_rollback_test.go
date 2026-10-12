@@ -37,7 +37,7 @@ func TestVisitCreateReadbackFailureRollsBackAndCanBeRetried(t *testing.T) {
 			"student_id": student.ID, "active_group_id": group.ID, "check_in_time": time.Now(),
 		})
 		testutil.WithDeviceContext(device)(req)
-		testutil.WithStaffContext(staff)(req)
+		testutil.WithStaffContext(staff.ID, staff.TenantID)(req)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, testutil.AdminTestClaims(1), []string{permissions.GroupsCreate})
 		assert.NotContains(t, rr.Body.String(), "private readback failure")
 		return rr.Code

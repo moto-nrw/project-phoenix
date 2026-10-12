@@ -27,7 +27,7 @@ var editWindowStart = calendar.NewDate(2026, time.April, 20) // Monday
 
 // materializeSingleInstance runs the scenario's week and returns its one
 // planned instance, registering it for cleanup.
-func materializeSingleInstance(t *testing.T, s *scenarioSetup) *scheduleModels.ActivityInstance {
+func materializeSingleInstance(t *testing.T, s *scenarioSetup) *testpkg.ActivityInstance {
 	t.Helper()
 	_, err := s.svc.MaterializeForTenant(s.ctx, editWindowStart, editWindowStart.AddDays(6), timetable.MaterializationSourceManual)
 	require.NoError(t, err)
@@ -210,12 +210,12 @@ func TestDetectEditedInWindow_StudentRosterEdit(t *testing.T) {
 
 	// Add the expired-enrollment student (s.students[2]) directly onto the
 	// occurrence — the roster now diverges from the template's valid enrollments.
-	extra := &scheduleModels.InstanceStudent{
+	extra := &testpkg.InstanceStudent{
 		InstanceID: inst.ID,
 		StudentID:  s.students[2],
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	extra.SetTenantID(s.tenantID)
+	extra.TenantID = s.tenantID
 	testpkg.InsertInstanceStudentRow(t, s.ctx, s.db, extra)
 
 	edited := detect(t, s)

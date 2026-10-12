@@ -28,8 +28,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -54,7 +52,6 @@ type scenario struct {
 	previewCleanup func(context.Context) (*timetable.TimetableCleanupPreview, error)
 	cleanup        func(context.Context) (*timetable.TimetableCleanupResult, error)
 	router         timetableTestRouter
-	tokenAuth      *timetableTestTokenAuth
 	today          func() timezone.Date
 
 	primaryTenant   int64
@@ -62,17 +59,13 @@ type scenario struct {
 }
 
 // setupTimetableScenarioModule returns a ready-to-use scenario with real DB + timetable services
-// + fully mounted timetable router + JWT signer.
+// + fully mounted timetable router; tokens come from the seeded JWT configuration.
 func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *scenario {
 	t.Helper()
 
 	db, factory := testutil.SetupTimetableScenarioModule(t, clocks...)
 	primaryTenant := testpkg.Tenant(t)
 	secondaryTenant := testpkg.NewTenantScope(t, db).TenantID
-
-	// The package init below seeds the viper values NewTokenAuth reads.
-	ta, err := newTimetableTokenAuth()
-	require.NoError(t, err, "init JWT token auth")
 
 	resource := newTimetableTestResource(timetableTestDependencies{
 		CalendarPeriods:        factory.SchoolCalendar,
@@ -99,7 +92,6 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 		endVisit:        factory.Active.EndVisit,
 		previewCleanup:  factory.TimetableCleanup.PreviewExpiredTimetableData,
 		cleanup:         factory.TimetableCleanup.CleanupExpiredTimetableData,
-		tokenAuth:       ta,
 		today:           timezone.CalendarDateClock(clocks...),
 		primaryTenant:   primaryTenant,
 		secondaryTenant: secondaryTenant,
@@ -148,8 +140,7 @@ func (s *scenario) do(method, path string, body any, claims timetableTestClaims)
 		reader = bytes.NewBuffer(b)
 	}
 
-	token, err := s.tokenAuth.CreateJWT(claims)
-	require.NoError(s.t, err, "mint JWT")
+	token := testpkg.MintTestJWT(s.t, claims)
 
 	req := httptest.NewRequest(method, path, reader)
 	req = req.WithContext(testpkg.WithTestTenantRuntime(s.t, req.Context()))
@@ -220,13 +211,13 @@ func parseHHMM(t *testing.T, hhmm string) time.Time {
 
 // createActivePeriod creates an active calendar period spanning 1 year before
 // and 1 year after `anchor`.
-func (s *scenario) createActivePeriod(name string, anchor timezone.Date) *scheduleModels.CalendarPeriod {
+func (s *scenario) createActivePeriod(name string, anchor timezone.Date) *testpkg.CalendarPeriod {
 	s.t.Helper()
-	period := &scheduleModels.CalendarPeriod{
+	period := &testpkg.CalendarPeriod{
 		Name:            name,
-		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       scheduleModels.NewDate(anchor.Year()-1, 8, 1),
-		EndDate:         scheduleModels.NewDate(anchor.Year()+1, 7, 31),
+		PeriodType:      testpkg.SchedulePeriodTypeSchoolYear,
+		StartDate:       timezone.NewDate(anchor.Year()-1, 8, 1),
+		EndDate:         timezone.NewDate(anchor.Year()+1, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -236,7 +227,7 @@ func (s *scenario) createActivePeriod(name string, anchor timezone.Date) *schedu
 	}})
 	require.NoError(s.t, err)
 	period.ID = created.ID
-	period.SetTenantID(created.TenantID)
+	period.TenantID = created.TenantID
 	return period
 }
 
@@ -244,18 +235,18 @@ func (s *scenario) createActivePeriod(name string, anchor timezone.Date) *schedu
 // schedule.timeframes stores timezone-free SQL TIME values; the service layer
 // still normalises through timezone.NormalizeWallClock() so driver-specific date
 // anchors cannot affect comparisons.
-func (s *scenario) createTimeframeWithTimes(description, startHHMM, endHHMM string) *scheduleModels.Timeframe {
+func (s *scenario) createTimeframeWithTimes(description, startHHMM, endHHMM string) *testpkg.Timeframe {
 	s.t.Helper()
 	start := parseHHMM(s.t, startHHMM)
 	end := parseHHMM(s.t, endHHMM)
 
-	tf := &scheduleModels.Timeframe{
+	tf := &testpkg.Timeframe{
 		StartTime:   start,
 		EndTime:     &end,
 		IsActive:    true,
 		Description: description,
 	}
-	tf.SetTenantID(s.primaryTenant)
+	tf.TenantID = s.primaryTenant
 
 	_, err := s.db.NewInsert().
 		Model(tf).
@@ -286,9 +277,9 @@ type templateSpec struct {
 
 // templateFixture is the full bundle of rows behind one activity template.
 type templateFixture struct {
-	group        *activitiesModels.Group
-	schedule     *activitiesModels.Schedule
-	timeframe    *scheduleModels.Timeframe
+	group        *testpkg.ActivityGroup
+	schedule     *testpkg.ActivitySchedule
+	timeframe    *testpkg.Timeframe
 	enrollments  []int64
 	supervisors  []int64
 	roomID       int64
@@ -306,7 +297,7 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 
 	creator := testpkg.CreateTestStaff(s.t, s.db, "Creator", spec.name)
 
-	group := &activitiesModels.Group{
+	group := &testpkg.ActivityGroup{
 		Name:            spec.name,
 		MaxParticipants: 20,
 		IsOpen:          true,
@@ -315,7 +306,7 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 		PlannedRoomID:   &spec.roomID,
 		IsTemplate:      true,
 	}
-	group.SetTenantID(s.primaryTenant)
+	group.TenantID = s.primaryTenant
 	_, err := s.db.NewInsert().
 		Model(group).
 		ModelTableExpr(`activities.groups AS "group"`).
@@ -324,14 +315,14 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 
 	timeframe := s.createTimeframeWithTimes(spec.name+"-tf", spec.startHHMM, spec.endHHMM)
 
-	sched := &activitiesModels.Schedule{
+	sched := &testpkg.ActivitySchedule{
 		Weekday:          spec.weekday,
 		TimeframeID:      &timeframe.ID,
 		ActivityGroupID:  group.ID,
 		WeekPattern:      0,
 		CalendarPeriodID: spec.periodID,
 	}
-	sched.SetTenantID(s.primaryTenant)
+	sched.TenantID = s.primaryTenant
 	_, err = s.db.NewInsert().
 		Model(sched).
 		ModelTableExpr(`activities.schedules`).
@@ -342,22 +333,22 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 	if validFrom.IsZero() {
 		validFrom = s.today().AddDays(-30)
 	}
-	activityValidFrom := activitiesModels.Date(validFrom)
-	var activityValidUntil *activitiesModels.Date
+	activityValidFrom := testpkg.ActivityDate(validFrom)
+	var activityValidUntil *testpkg.ActivityDate
 	if spec.validUntil != nil {
-		value := activitiesModels.Date(*spec.validUntil)
+		value := testpkg.ActivityDate(*spec.validUntil)
 		activityValidUntil = &value
 	}
 
 	var enrollmentIDs []int64
 	for _, sid := range spec.studentIDs {
-		enroll := &activitiesModels.StudentEnrollment{
+		enroll := &testpkg.StudentEnrollment{
 			StudentID:       sid,
 			ActivityGroupID: group.ID,
 			ValidFrom:       activityValidFrom,
 			ValidUntil:      activityValidUntil,
 		}
-		enroll.SetTenantID(s.primaryTenant)
+		enroll.TenantID = s.primaryTenant
 		_, err := s.db.NewInsert().
 			Model(enroll).
 			ModelTableExpr(`activities.student_enrollments`).
@@ -367,14 +358,14 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 	}
 	var supervisorIDs []int64
 	for i, stid := range spec.staffIDs {
-		sup := &activitiesModels.SupervisorPlanned{
+		sup := &testpkg.ActivitySupervisor{
 			StaffID:    stid,
 			GroupID:    group.ID,
 			IsPrimary:  i == 0,
 			ValidFrom:  activityValidFrom,
 			ValidUntil: activityValidUntil,
 		}
-		sup.SetTenantID(s.primaryTenant)
+		sup.TenantID = s.primaryTenant
 		_, err := s.db.NewInsert().
 			Model(sup).
 			ModelTableExpr(`activities.supervisors`).

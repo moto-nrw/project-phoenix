@@ -2,7 +2,6 @@ package test
 
 import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -48,8 +47,6 @@ type (
 	QueryOptions                   = users.QueryOptions
 	QueryFilter                    = users.QueryFilter
 	RequestQueueFilters            = users.RequestQueueFilters
-	StudentEnrollment              = activities.StudentEnrollment
-	ActivityDate                   = activities.Date
 )
 
 const (
@@ -84,7 +81,6 @@ const (
 	GuardianRoleLegalGuardian              = authorize.GuardianRoleLegalGuardian
 	GuardianRolePickupOnly                 = authorize.GuardianRolePickupOnly
 	GuardianRoleSocialWorker               = authorize.GuardianRoleSocialWorker
-	WeekdaySunday                          = activities.WeekdaySunday
 )
 
 var (

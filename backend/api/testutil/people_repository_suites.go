@@ -6,7 +6,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
@@ -67,42 +66,28 @@ func NewPeopleRepositorySuiteParentMessaging(db *bun.DB) (services.PeopleReposit
 
 // NewPeopleRepositorySuiteAnnouncements is the parent announcement store over
 // the given Enrollment audience queries.
-func NewPeopleRepositorySuiteAnnouncements(db *bun.DB, audience services.PeopleRepositorySuiteAnnouncementAudience, clocks ...func() time.Time) usersModels.ParentAnnouncementRepository {
-	return services.NewPeopleRepositorySuiteAnnouncements(db, audience, clocks...)
-}
+var NewPeopleRepositorySuiteAnnouncements = services.NewPeopleRepositorySuiteAnnouncements
 
 // NewPeopleRepositorySuiteCaregiverBindingLocker is the caregiver binding
 // lock over the four owners that hold caregiver capability.
-func NewPeopleRepositorySuiteCaregiverBindingLocker(db *bun.DB) usersModels.CaregiverBindingLocker {
-	return services.NewPeopleRepositorySuiteCaregiverBindingLocker(db)
-}
+var NewPeopleRepositorySuiteCaregiverBindingLocker = services.NewPeopleRepositorySuiteCaregiverBindingLocker
 
 // NewPeopleRepositorySuiteCompanions is the companion store over Care Plan.
-func NewPeopleRepositorySuiteCompanions(capability services.PeopleRepositorySuiteCarePlan) usersModels.StudentCompanionRepository {
-	return services.NewPeopleRepositorySuiteCompanions(capability)
-}
+var NewPeopleRepositorySuiteCompanions = services.NewPeopleRepositorySuiteCompanions
 
 // NewPeopleRepositorySuiteCompanionEdge validates one companion edge.
-func NewPeopleRepositorySuiteCompanionEdge(studentID, companionID int64, weekday int) (*usersModels.StudentCompanion, error) {
-	return services.NewPeopleRepositorySuiteCompanionEdge(studentID, companionID, weekday)
-}
+var NewPeopleRepositorySuiteCompanionEdge = services.NewPeopleRepositorySuiteCompanionEdge
 
 // ReplacePeopleRepositorySuiteCompanions replaces a child's companion edges.
-func ReplacePeopleRepositorySuiteCompanions(ctx context.Context, links services.PeopleRepositorySuiteCompanionLinks, studentID int64, edges []*usersModels.StudentCompanion) error {
-	return services.ReplacePeopleRepositorySuiteCompanions(ctx, links, studentID, edges)
-}
+var ReplacePeopleRepositorySuiteCompanions = services.ReplacePeopleRepositorySuiteCompanions
 
 // NewPeopleRepositorySuiteRelationships is the relationship store with its
 // owners bound, as the composition root binds it.
-func NewPeopleRepositorySuiteRelationships(db *bun.DB) usersModels.StudentGuardianRepository {
-	return services.NewPeopleRepositorySuiteRelationships(db)
-}
+var NewPeopleRepositorySuiteRelationships = services.NewPeopleRepositorySuiteRelationships
 
 // NewPeopleRepositorySuiteGuardianProfiles is the guardian profile store as
 // the composition root binds it.
-func NewPeopleRepositorySuiteGuardianProfiles(db *bun.DB) usersModels.GuardianProfileRepository {
-	return services.NewPeopleRepositorySuiteGuardianProfiles(db)
-}
+var NewPeopleRepositorySuiteGuardianProfiles = services.NewPeopleRepositorySuiteGuardianProfiles
 
 // NewPeopleRepositorySuiteRecipients is the parent-message recipient lookup
 // as the composition root binds it.
@@ -112,21 +97,15 @@ func NewPeopleRepositorySuiteRecipients(db *bun.DB) *services.PeopleRepositorySu
 
 // NewPeopleRepositorySuiteRetainedPersons is the person store without the
 // account lookup.
-func NewPeopleRepositorySuiteRetainedPersons(db *bun.DB) usersModels.PersonRepository {
-	return services.NewPeopleRepositorySuiteRetainedPersons(db)
-}
+var NewPeopleRepositorySuiteRetainedPersons = services.NewPeopleRepositorySuiteRetainedPersons
 
 // NewPeopleRepositorySuiteRetainedGuardianProfiles is the guardian profile
 // store with only the given options bound.
-func NewPeopleRepositorySuiteRetainedGuardianProfiles(db *bun.DB, options ...services.PeopleRepositorySuiteGuardianProfileOption) usersModels.GuardianProfileRepository {
-	return services.NewPeopleRepositorySuiteRetainedGuardianProfiles(db, options...)
-}
+var NewPeopleRepositorySuiteRetainedGuardianProfiles = services.NewPeopleRepositorySuiteRetainedGuardianProfiles
 
 // NewPeopleRepositorySuiteRetainedRelationships is the relationship store
 // with only the given options bound.
-func NewPeopleRepositorySuiteRetainedRelationships(db *bun.DB, options ...services.PeopleRepositorySuiteRelationshipOption) usersModels.StudentGuardianRepository {
-	return services.NewPeopleRepositorySuiteRetainedRelationships(db, options...)
-}
+var NewPeopleRepositorySuiteRetainedRelationships = services.NewPeopleRepositorySuiteRetainedRelationships
 
 // NewPeopleRepositorySuiteRetainedRecipients is the recipient lookup over the
 // given membership lookup.

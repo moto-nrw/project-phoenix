@@ -37,7 +37,7 @@ func createRosterEnrollment(t *testing.T, ctx context.Context, db *bun.DB, stude
 		ActivityGroupID: activityGroupID,
 		ValidFrom:       testpkg.ActivityDate(validFrom),
 	}
-	enrollment.SetTenantID(testpkg.Tenant(t))
+	enrollment.TenantID = testpkg.Tenant(t)
 	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 	require.NoError(t, err)
 }

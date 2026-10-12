@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -70,13 +69,13 @@ func TestFlowA_PlanToReport(t *testing.T) {
 
 	// Find the created instance (for later asserts + start/complete).
 	instance := fetchOneInstance(t, s, tmpl.group.ID, target)
-	require.Equal(t, scheduleModel.InstanceStatusPlanned, instance.Status)
+	require.Equal(t, testpkg.ScheduleInstanceStatusPlanned, instance.Status)
 
 	// --- Step 2: assert DB baseline ---------------------------------------
 	instStudents := fetchInstanceStudents(t, s, instance.ID)
 	require.Len(t, instStudents, 3)
 	for _, is := range instStudents {
-		assert.Equal(t, scheduleModel.AttendanceStatusExpected, is.Status)
+		assert.Equal(t, testpkg.ScheduleAttendanceStatusExpected, is.Status)
 	}
 	require.Equal(t, 2, countInstanceStaff(t, s, instance.ID))
 
@@ -91,7 +90,7 @@ func TestFlowA_PlanToReport(t *testing.T) {
 		Warnings      []json.RawMessage `json:"warnings"`
 	}
 	decodeResponse(t, rr, &startResp)
-	assert.Equal(t, scheduleModel.InstanceStatusActive, startResp.Status)
+	assert.Equal(t, testpkg.ScheduleInstanceStatusActive, startResp.Status)
 	require.NotZero(t, startResp.ActiveGroupID, "active_group_id must be set")
 	assert.Empty(t, startResp.Warnings, "clean start should have no warnings")
 
@@ -101,23 +100,23 @@ func TestFlowA_PlanToReport(t *testing.T) {
 	// is exercised end-to-end (B10 side effect).
 	// Materialize a web-manual device so the visits have a deviceID to be
 	// attributed to, matching what the web check-in path does.
-	kiosk := testutil.WithDeviceActor(s.tenantCtx(), testpkg.EnsureWebManualDevice(t, s.db), staff1)
+	kiosk := testutil.WithDeviceActor(s.tenantCtx(), testpkg.EnsureWebManualDevice(t, s.db), staff1.ID)
 	checkInStudent(kiosk, t, s, student1.ID, startResp.ActiveGroupID)
 	checkInStudent(kiosk, t, s, student2.ID, startResp.ActiveGroupID)
 
 	// --- Step 5: assert attendance sync flipped instance_students ----------
 	instStudents = fetchInstanceStudents(t, s, instance.ID)
-	byStudent := map[int64]*scheduleModel.InstanceStudent{}
+	byStudent := map[int64]*testpkg.InstanceStudent{}
 	for i := range instStudents {
 		byStudent[instStudents[i].StudentID] = &instStudents[i]
 	}
 	require.Contains(t, byStudent, student1.ID)
 	require.Contains(t, byStudent, student2.ID)
-	assert.Equal(t, scheduleModel.AttendanceStatusPresent, byStudent[student1.ID].Status)
+	assert.Equal(t, testpkg.ScheduleAttendanceStatusPresent, byStudent[student1.ID].Status)
 	assert.NotNil(t, byStudent[student1.ID].CheckedInAt)
-	assert.Equal(t, scheduleModel.AttendanceStatusPresent, byStudent[student2.ID].Status)
+	assert.Equal(t, testpkg.ScheduleAttendanceStatusPresent, byStudent[student2.ID].Status)
 	assert.NotNil(t, byStudent[student2.ID].CheckedInAt)
-	assert.Equal(t, scheduleModel.AttendanceStatusExpected, byStudent[student3.ID].Status,
+	assert.Equal(t, testpkg.ScheduleAttendanceStatusExpected, byStudent[student3.ID].Status,
 		"third student never checked in, should still be expected pre-complete")
 
 	// --- Step 6: complete the instance ------------------------------------
@@ -130,20 +129,20 @@ func TestFlowA_PlanToReport(t *testing.T) {
 		CompletedAt string `json:"completed_at"`
 	}
 	decodeResponse(t, rr, &completeResp)
-	assert.Equal(t, scheduleModel.InstanceStatusCompleted, completeResp.Status)
+	assert.Equal(t, testpkg.ScheduleInstanceStatusCompleted, completeResp.Status)
 	require.NotEmpty(t, completeResp.CompletedAt)
 
 	// --- Step 7: assert complete marked the no-show absent -----------------
 	instStudents = fetchInstanceStudents(t, s, instance.ID)
-	byStudent = map[int64]*scheduleModel.InstanceStudent{}
+	byStudent = map[int64]*testpkg.InstanceStudent{}
 	for i := range instStudents {
 		byStudent[instStudents[i].StudentID] = &instStudents[i]
 	}
-	assert.Equal(t, scheduleModel.AttendanceStatusPresent, byStudent[student1.ID].Status,
+	assert.Equal(t, testpkg.ScheduleAttendanceStatusPresent, byStudent[student1.ID].Status,
 		"student1 stays present (B10 monotonicity)")
-	assert.Equal(t, scheduleModel.AttendanceStatusPresent, byStudent[student2.ID].Status,
+	assert.Equal(t, testpkg.ScheduleAttendanceStatusPresent, byStudent[student2.ID].Status,
 		"student2 stays present")
-	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, byStudent[student3.ID].Status,
+	assert.Equal(t, testpkg.ScheduleAttendanceStatusAbsent, byStudent[student3.ID].Status,
 		"student3 flips expected → absent on complete (B11 fix)")
 
 	// --- Step 8: student day report for each student ----------------------
@@ -168,12 +167,12 @@ func TestFlowA_PlanToReport(t *testing.T) {
 		require.Len(t, dayResp.Instances, 1, "student %d day: exactly one instance", studentID)
 		entry := dayResp.Instances[0]
 		assert.Equal(t, instance.ID, entry.ID)
-		assert.Equal(t, scheduleModel.InstanceStatusCompleted, entry.Status)
+		assert.Equal(t, testpkg.ScheduleInstanceStatusCompleted, entry.Status)
 		assert.False(t, entry.Attendance.IsUnplanned)
 
-		expected := scheduleModel.AttendanceStatusPresent
+		expected := testpkg.ScheduleAttendanceStatusPresent
 		if studentID == student3.ID {
-			expected = scheduleModel.AttendanceStatusAbsent
+			expected = testpkg.ScheduleAttendanceStatusAbsent
 		}
 		assert.Equal(t, expected, entry.Attendance.Status,
 			"student %d expected attendance=%s", studentID, expected)
@@ -186,7 +185,7 @@ func TestFlowA_PlanToReport(t *testing.T) {
 }
 
 // fetchOneInstance fetches the single materialized instance for (template, date).
-func fetchOneInstance(t *testing.T, s *scenario, templateID int64, date timezone.Date) *scheduleModel.ActivityInstance {
+func fetchOneInstance(t *testing.T, s *scenario, templateID int64, date timezone.Date) *testpkg.ActivityInstance {
 	t.Helper()
 	rows := testpkg.ActivityInstancesWhere(t, s.tenantCtx(), s.db,
 		`"activity_instance".activity_group_id = ? AND "activity_instance".date = ? AND "activity_instance".tenant_id = ?`,
@@ -196,11 +195,11 @@ func fetchOneInstance(t *testing.T, s *scenario, templateID int64, date timezone
 }
 
 // fetchInstanceStudents loads all instance_students rows for an instance.
-func fetchInstanceStudents(t *testing.T, s *scenario, instanceID int64) []scheduleModel.InstanceStudent {
+func fetchInstanceStudents(t *testing.T, s *scenario, instanceID int64) []testpkg.InstanceStudent {
 	t.Helper()
 	composed := testpkg.InstanceStudentsWhere(t, s.tenantCtx(), s.db,
 		`"instance_student".instance_id = ? AND "instance_student".tenant_id = ?`, instanceID, s.primaryTenant)
-	rows := make([]scheduleModel.InstanceStudent, 0, len(composed))
+	rows := make([]testpkg.InstanceStudent, 0, len(composed))
 	for _, row := range composed {
 		rows = append(rows, *row)
 	}
@@ -211,7 +210,7 @@ func fetchInstanceStudents(t *testing.T, s *scenario, instanceID int64) []schedu
 func countInstanceStaff(t *testing.T, s *scenario, instanceID int64) int {
 	t.Helper()
 	n, err := s.db.NewSelect().
-		Model((*scheduleModel.InstanceStaff)(nil)).
+		Model((*testpkg.InstanceStaff)(nil)).
 		ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).
 		Where(`"instance_staff".instance_id = ?`, instanceID).
 		Where(`"instance_staff".tenant_id = ?`, s.primaryTenant).

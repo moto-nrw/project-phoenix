@@ -73,7 +73,7 @@ func setupSupervisionFixture(t *testing.T) *supervisionFixture {
 }
 
 // todayInstance creates a planned block for today in its own room.
-func (f *supervisionFixture) todayInstance(t *testing.T, title string) *scheduleModel.ActivityInstance {
+func (f *supervisionFixture) todayInstance(t *testing.T, title string) *testpkg.ActivityInstance {
 	t.Helper()
 
 	room := testpkg.CreateTestRoomForTenant(t, f.db, f.tenantID, fmt.Sprintf("Raum-%s-%d", title, time.Now().UnixNano()))
@@ -329,15 +329,15 @@ func TestSchoolSupervisionsCrossTenant(t *testing.T) {
 	otherRoom := testpkg.CreateTestRoomForTenant(t, f.db, otherTenantID, fmt.Sprintf("Fremdraum-%d", time.Now().UnixNano()))
 	otherCtx := testpkg.TenantContext(otherTenantID)
 
-	foreign := &scheduleModel.ActivityInstance{
-		Date:      scheduleModel.NewDate(2026, 8, 24),
+	foreign := &testpkg.ActivityInstance{
+		Date:      testpkg.Date(2026, 8, 24),
 		Title:     "Fremde Schule",
 		StartTime: timezone.NormalizeWallClock(time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC)),
 		EndTime:   timezone.NormalizeWallClock(time.Date(2000, 1, 1, 11, 0, 0, 0, time.UTC)),
 		RoomID:    otherRoom.ID,
 		Status:    scheduleModel.InstanceStatusPlanned,
 	}
-	foreign.SetTenantID(otherTenantID)
+	foreign.TenantID = otherTenantID
 	testpkg.InsertActivityInstanceRow(t, otherCtx, f.db, foreign)
 
 	// Planting an assignment for this Lehrkraft at the OTHER school is not even

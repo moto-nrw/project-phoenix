@@ -222,7 +222,7 @@
       "declaration": "TestCalendarPeriodAdapter_CreateIfAbsentIsRaceFreePerTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        128
+        129
       ],
       "tables": []
     },
@@ -232,7 +232,7 @@
       "declaration": "TestCalendarPeriodAdapter_KeepsTheLegacyContracts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        27
+        28
       ],
       "tables": []
     },
@@ -242,7 +242,7 @@
       "declaration": "TestCalendarPeriodAdapter_OverlapFindersKeepTheDateSemantics",
       "target": "database/repositories.NewFactory",
       "lines": [
-        187
+        188
       ],
       "tables": []
     },
@@ -252,7 +252,7 @@
       "declaration": "TestCalendarPeriodAdapter_UsageCountsComeFromThePlanningTables",
       "target": "database/repositories.NewFactory",
       "lines": [
-        237
+        239
       ],
       "tables": [
         "activities.groups"
@@ -264,7 +264,7 @@
       "declaration": "TestCalendarPeriodAdapter_UsageCountsReturnDatabaseError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        266
+        268
       ],
       "tables": []
     },
@@ -274,7 +274,7 @@
       "declaration": "TestCapacityOccurrencesReadPeriodsThroughTheCalendarOwner",
       "target": "database/repositories.NewFactory",
       "lines": [
-        408
+        410
       ],
       "tables": []
     },
@@ -284,7 +284,7 @@
       "declaration": "TestClosingDayAdapter_KeepsTheLegacyContracts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        311
+        313
       ],
       "tables": []
     },
@@ -294,7 +294,7 @@
       "declaration": "TestDateframeAdapter_KeepsTheLegacyLookups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        373
+        375
       ],
       "tables": []
     },

@@ -374,8 +374,10 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff1.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
 	sickRow := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff2.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 	sickAbsenceID := sickRow.ID
-	sickRow.SickAbsenceID = &sickAbsenceID
-	require.NoError(t, mustTimetableTestRepositories(s.db).InstanceStaff.Update(s.ctx, sickRow))
+	storedSickRow, err := mustTimetableTestRepositories(s.db).InstanceStaff.FindByID(s.ctx, sickRow.ID)
+	require.NoError(t, err)
+	storedSickRow.SickAbsenceID = &sickAbsenceID
+	require.NoError(t, mustTimetableTestRepositories(s.db).InstanceStaff.Update(s.ctx, storedSickRow))
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, timetable.SlotAttendanceExpected)
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, timetable.SlotAttendancePresent)
 

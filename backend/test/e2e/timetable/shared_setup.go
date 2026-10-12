@@ -6,8 +6,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/spf13/viper"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // These aliases keep the existing production-scoped legacy imports in one
@@ -17,16 +17,13 @@ type (
 	timetableTestResource     = timetableAPI.Resource
 	timetableTestDependencies = timetableAPI.Dependencies
 	timetableTestRouter       = chi.Router
-	timetableTestTokenAuth    = jwt.TokenAuth
-	timetableTestClaims       = jwt.AppClaims
+	timetableTestClaims       = testpkg.Claims
 )
 
-var (
-	newTimetableTestResource = timetableAPI.NewResource
-	newTimetableTokenAuth    = configuredTimetableTokenAuth
-)
+var newTimetableTestResource = timetableAPI.NewResource
 
-// Seed the JWT values before the test-only scenario creates a TokenAuth.
+// Seed the JWT values before the scenario mints a token or mounts the
+// verifier; both resolve the signer from this configuration.
 func init() {
 	if viper.GetString("auth_jwt_secret") == "" {
 		viper.Set("auth_jwt_secret", "e2e-test-secret-abcdefghijklmnopqrstuvwxyz")
@@ -37,12 +34,4 @@ func init() {
 	if viper.GetDuration("auth_jwt_refresh_expiry") == 0 {
 		viper.Set("auth_jwt_refresh_expiry", time.Hour)
 	}
-}
-
-func configuredTimetableTokenAuth() (*jwt.TokenAuth, error) {
-	return jwt.NewTokenAuthWithDurations(
-		viper.GetString("auth_jwt_secret"),
-		viper.GetDuration("auth_jwt_expiry"),
-		viper.GetDuration("auth_jwt_refresh_expiry"),
-	)
 }
