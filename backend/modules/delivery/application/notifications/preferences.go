@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -123,9 +122,15 @@ type ConsentStore interface {
 	FilterNotOptedOut(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
 }
 
+// PreferenceSettings resolves the per-type feature gates of the current tenant.
+type PreferenceSettings interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveBools(ctx context.Context, keys []string) (map[string]bool, error)
+}
+
 type preferenceService struct {
 	consent        ConsentStore
-	settings       configService.SettingsService
+	settings       PreferenceSettings
 	db             *bun.DB
 	accountTenants GuardianSchools
 	tenantRuntime  *tenant.UnitOfWork
@@ -146,7 +151,7 @@ func (s *preferenceService) withTenantRuntime(ctx context.Context) context.Conte
 // needed only for the guardian portal, which is cross-tenant.
 func NewPreferenceService(
 	consent ConsentStore,
-	settings configService.SettingsService,
+	settings PreferenceSettings,
 	db *bun.DB,
 	accountTenants GuardianSchools,
 ) PreferenceService {

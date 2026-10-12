@@ -318,7 +318,7 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 | `email.Mailer` capture | `emailtest.CapturingMailer` (`email/emailtest`; alias `test.CapturingMailer`) |
 | `realtime.Broadcaster` recording fake | `realtimetest.RecordingBroadcaster` (`realtime/realtimetest`; alias `test.RecordingBroadcaster`) |
 | Repo mocks for `models/*` interfaces (School, Staff, suggestions) | `test/repo_mocks.go`, `test/suggestions_mocks.go` |
-| `config.SettingsService` | `configtest.Mock` (`services/config/configtest`) |
+| Consumer-owned settings ports (`Resolve{Bool,Bools,String,Int}`, their `ForTenant` variants, `HasTenantOverride`, `GetLoginImageURL`) | `configtest.Mock` (`services/config/configtest`); schema or snapshot reads get a local fake |
 | `identityaccess.AccountMFA` | a package-local func-field double; the behaviour suites keep theirs in `modules/identityaccess/behavior` |
 | Person-directory lookups of the acting account's staff identity | `test.StaffAccountPeople` (`test/repo_mocks.go`) |
 | API request/bootstrap helpers | `api/testutil` (`SetupAPITest`, `ExecuteWithAuth`, `ExecuteWithAuthPermissions`, `MintTestJWT`) |

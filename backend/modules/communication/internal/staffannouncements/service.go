@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // OutboxEnqueuer is the slice of the email outbox service this package needs:
@@ -192,7 +191,7 @@ type Service interface {
 // optional: nil delivery dependencies leave the in-app feed working.
 type ServiceConfig struct {
 	Repo       usersModels.ParentAnnouncementRepository
-	Settings   configService.SettingsService
+	Settings   Settings
 	Outbox     OutboxEnqueuer
 	PushOutbox PushOutboxCanceller
 	Notifier   notifications.Service
@@ -213,7 +212,7 @@ type ServiceConfig struct {
 
 type service struct {
 	repo             usersModels.ParentAnnouncementRepository
-	settings         configService.SettingsService
+	settings         Settings
 	outbox           OutboxEnqueuer
 	pushOutbox       PushOutboxCanceller
 	notifier         notifications.Service

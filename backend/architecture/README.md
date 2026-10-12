@@ -3304,8 +3304,17 @@ reaches for the tests that left the fixture package: the settings suite
 (`audit-platform`/`adapter-test`, external_test) to `enrollment/test-support`
 and `care-plan/test-support`. A wider scope, another role or another target
 stays a loosening. Epoch 35 registers five rules under it and seven keys fall
-(173 -> 166). `configtest` keeps `services/config`: the settings schema it
-returns carries `models/config` types no contract may expose.
+(173 -> 166). `configtest` kept `services/config` then: the settings schema it
+returned carries `models/config` types no contract may expose.
+[#3965](https://github.com/moto-nrw/project-phoenix/issues/3965) needed no
+rule either: no consumer read the schema, so `configtest.Mock` now carries
+only primitive-typed resolvers and imports no settings package. The consumers
+that took the full settings service declare narrow ports instead; the
+supervision dashboard's legacy adapter keeps it within its LOC budget, and its
+internal test supplies the snapshot read itself. Both `configtest` keys fall,
+and the now unused rules `delivery.application.settings` and
+`communication.parent-compatibility.application-settings-application` are
+deleted (166 -> 164).
 
 A reviewed epoch may also add the one owner-agnostic shared-kernel rule
 ([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),

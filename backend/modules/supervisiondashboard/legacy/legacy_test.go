@@ -137,6 +137,30 @@ func (m *mockArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Conte
 	return m.getBulkEffectiveArrivalTimesForDateFn(studentIDs, date)
 }
 
+// dashboardSettings is the retained settings service as the dashboard reads
+// it: the configured resolvers plus the optional snapshot read. The embedded
+// service stays nil, so a call to any other method fails the test loudly.
+type dashboardSettings struct {
+	configService.BatchSettingsService
+	resolvers     *configtest.Mock
+	resolveManyFn func(ctx context.Context, keys []string) (*configService.SettingsSnapshot, error)
+}
+
+func (s *dashboardSettings) ResolveBool(ctx context.Context, key string) (bool, error) {
+	return s.resolvers.ResolveBool(ctx, key)
+}
+
+func (s *dashboardSettings) ResolveString(ctx context.Context, key string) (string, error) {
+	return s.resolvers.ResolveString(ctx, key)
+}
+
+func (s *dashboardSettings) ResolveMany(ctx context.Context, keys []string) (*configService.SettingsSnapshot, error) {
+	if s.resolveManyFn == nil {
+		return nil, nil
+	}
+	return s.resolveManyFn(ctx, keys)
+}
+
 func fullSources() Sources {
 	return Sources{
 		Active:      &mockActiveService{},
@@ -144,7 +168,7 @@ func fullSources() Sources {
 		Education:   &mockEducationService{},
 		Schulhof:    &mockSchulhofService{},
 		Operations:  &mockOperationsService{},
-		Settings:    &configtest.Mock{},
+		Settings:    &dashboardSettings{resolvers: &configtest.Mock{}},
 		Pickups:     &mockPickupService{},
 		Arrivals:    &mockArrivalService{},
 	}
@@ -186,7 +210,7 @@ func TestCallerResolvesOverviewAndPermissions(t *testing.T) {
 		}
 		return configModel.OverviewScopeAdmins, nil
 	}}
-	a := access{settings: settings}
+	a := access{settings: &dashboardSettings{resolvers: settings}}
 
 	ctx := context.WithValue(adminContext(), jwt.CtxClaims, jwt.AppClaims{ID: 99, IsAdmin: true})
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{permissions.SchedulesRead})
@@ -349,7 +373,8 @@ func TestSettingsBranches(t *testing.T) {
 		ResolveBoolFn:   func(context.Context, string) (bool, error) { return true, nil },
 		ResolveStringFn: func(context.Context, string) (string, error) { return "", errors.New("boom") },
 	}
-	s := settings{settings: mock}
+	batch := &dashboardSettings{resolvers: mock}
+	s := settings{settings: batch}
 
 	_, err := s.TrackingIndicatorLabels(ctx)
 	require.Error(t, err)
@@ -394,7 +419,7 @@ func TestSettingsBranches(t *testing.T) {
 	require.ErrorContains(t, err, "spontaneous activities")
 
 	var preparedKeys []string
-	mock.ResolveManyFn = func(_ context.Context, keys []string) (*configService.SettingsSnapshot, error) {
+	batch.resolveManyFn = func(_ context.Context, keys []string) (*configService.SettingsSnapshot, error) {
 		preparedKeys = keys
 		return &configService.SettingsSnapshot{}, nil
 	}
@@ -402,7 +427,7 @@ func TestSettingsBranches(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, prepared)
 	assert.Contains(t, preparedKeys, configModel.KeyWeekendFollowsFriday)
-	mock.ResolveManyFn = func(context.Context, []string) (*configService.SettingsSnapshot, error) {
+	batch.resolveManyFn = func(context.Context, []string) (*configService.SettingsSnapshot, error) {
 		return nil, errors.New("settings down")
 	}
 	_, err = s.Prepare(ctx)

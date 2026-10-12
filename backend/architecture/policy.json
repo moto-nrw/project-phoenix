@@ -12603,17 +12603,6 @@
       "target_role": "domain"
     },
     {
-      "id": "delivery.application.settings",
-      "description": "Legacy notification and PWA applications read tenant settings through the settings service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "application",
-      "target_owner": "settings-platform",
-      "target_role": "application"
-    },
-    {
       "id": "delivery.application.tenant-runtime",
       "description": "Delivery applications join the ambient tenant transaction.",
       "scopes": [
@@ -13692,17 +13681,6 @@
       "source_role": "adapter",
       "target_owner": "people-directory",
       "target_role": "domain"
-    },
-    {
-      "id": "communication.parent-compatibility.application-settings-application",
-      "description": "The retained parent-announcement implementation resolves settings through the existing service until #2675.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "adapter",
-      "target_owner": "settings-platform",
-      "target_role": "application"
     },
     {
       "id": "communication.parent-compatibility.application-tenant-runtime",
