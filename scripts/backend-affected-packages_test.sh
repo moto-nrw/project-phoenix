@@ -300,7 +300,9 @@ assert_ci_gate() {
   actual=pass
   env ARCHITECTURE_REQUIRED=false BACKEND_LINT_REQUIRED=false FRONTEND_LINT_REQUIRED=false \
     BACKEND_TEST_REQUIRED=false FRONTEND_TEST_REQUIRED=false SEED_SMOKE_REQUIRED=false \
+    CI_SCRIPTS_REQUIRED=false ENV_CHECK_REQUIRED=false ERROR_CODES_REQUIRED=false \
     ARCHITECTURE_RESULT=skipped LINT_RESULT=skipped TEST_RESULT=skipped \
+    CI_SCRIPTS_RESULT=skipped ENV_CHECK_RESULT=skipped \
     "$@" bash -e -u -o pipefail <<<"$ci_gate_script" >/dev/null 2>&1 || actual=fail
   if [[ "$actual" != "$expected" ]]; then
     echo "ci-gate: expected $expected, got $actual for $*" >&2
@@ -311,7 +313,7 @@ assert_ci_gate() {
 assert_ci_gate pass
 assert_ci_gate pass ARCHITECTURE_REQUIRED=true ARCHITECTURE_RESULT=success
 assert_ci_gate fail ARCHITECTURE_REQUIRED=true
-for requirement in BACKEND_LINT_REQUIRED FRONTEND_LINT_REQUIRED; do
+for requirement in BACKEND_LINT_REQUIRED FRONTEND_LINT_REQUIRED ERROR_CODES_REQUIRED; do
   assert_ci_gate fail "$requirement=true"
   assert_ci_gate pass "$requirement=true" LINT_RESULT=success
 done
@@ -319,10 +321,14 @@ for requirement in BACKEND_TEST_REQUIRED FRONTEND_TEST_REQUIRED SEED_SMOKE_REQUI
   assert_ci_gate fail "$requirement=true"
   assert_ci_gate pass "$requirement=true" TEST_RESULT=success
 done
+assert_ci_gate fail CI_SCRIPTS_REQUIRED=true
+assert_ci_gate pass CI_SCRIPTS_REQUIRED=true CI_SCRIPTS_RESULT=success
+assert_ci_gate fail ENV_CHECK_REQUIRED=true
+assert_ci_gate pass ENV_CHECK_REQUIRED=true ENV_CHECK_RESULT=success
 # Failures/cancellations remain the alls-green action's responsibility. Do not
 # permit either outcome while allowing intentionally skipped reusable jobs.
 if ! grep -Fq 'jobs: ${{ toJSON(needs) }}' "$repo_root/.github/workflows/main.yml" ||
-   ! grep -Fq 'allowed-skips: lint, test, backend-architecture-ratchet' "$repo_root/.github/workflows/main.yml" ||
+   ! grep -Fq 'allowed-skips: lint, test, backend-architecture-ratchet, ci-scripts, env-sync-check' "$repo_root/.github/workflows/main.yml" ||
    grep -Eq 'allowed-failures:|allowed-cancelled:' "$repo_root/.github/workflows/main.yml"; then
   echo 'ci-gate must still pass all results to alls-green without allowing failures' >&2
   exit 1

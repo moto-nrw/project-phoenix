@@ -132,7 +132,7 @@ dotenv-linter diff frontend/.env.local frontend/.env.example
 dyff between --omit-header docker-compose.example.yml docker-compose.yml
 ```
 
-**Deployed environments** — CI `env-sync-check` job runs `scripts/env-check.sh` on every PR:
+**Deployed environments** — CI `env-sync-check` job runs `scripts/env-check.sh` on every PR that touches an input of the check (the `env` filter in `.github/workflows/main.yml`) and on every push:
 
 ```bash
 # Manual verification
