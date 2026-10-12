@@ -4,7 +4,7 @@ import (
 	"context"
 
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/services/users"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 )
 
 // EnrollmentGuardianAutofill binds the autofill profile the enrollment form
@@ -12,12 +12,12 @@ import (
 // the People Directory rows. It only translates them into Enrollment's
 // public values.
 type EnrollmentGuardianAutofill struct {
-	loader *users.GuardianProfileLoader
+	loader *peopleCompose.GuardianProfileLoader
 }
 
 // NewEnrollmentGuardianAutofill binds the retained loader; without one the
 // reader stays unbound and the route answers as not wired.
-func NewEnrollmentGuardianAutofill(loader *users.GuardianProfileLoader) enrollmentOwner.GuardianAutofillReader {
+func NewEnrollmentGuardianAutofill(loader *peopleCompose.GuardianProfileLoader) enrollmentOwner.GuardianAutofillReader {
 	if loader == nil {
 		return nil
 	}

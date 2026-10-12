@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -30,7 +30,7 @@ type deliveryProvider struct {
 }
 
 type guardianDisplayQuery interface {
-	GuardianDisplays(context.Context, []int64) ([]usersService.GuardianDisplay, error)
+	GuardianDisplays(context.Context, []int64) ([]peopleCompose.GuardianDisplay, error)
 }
 
 type pushSubscriptionCleaner interface {

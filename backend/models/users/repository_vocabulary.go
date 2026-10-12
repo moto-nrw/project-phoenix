@@ -38,4 +38,7 @@ var (
 	IsRepositoryNoRows  = base.IsNoRows
 	IsUniqueViolation   = base.IsUniqueViolation
 	IsUniqueViolationOn = base.IsUniqueViolationOn
+	// IsConstraintViolation also matches foreign-key and not-null
+	// violations, the refusal of a guardian delete that still has links.
+	IsConstraintViolation = base.IsConstraintViolation
 )

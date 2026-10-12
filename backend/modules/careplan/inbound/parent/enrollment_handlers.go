@@ -19,6 +19,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// GuardianProfileLoader is the consumer-owned port over People Directory's
+// enrollment autofill read: the guardian profile linked to the account in
+// one school, its primary phone and its active children. It answers
+// (nil, nil) when the account has no profile there. The composition root
+// binds it (#3755).
+type GuardianProfileLoader interface {
+	LoadForTenant(ctx context.Context, accountID, tenantID int64) (*usersModels.GuardianProfileWithChildren, error)
+}
+
 // getEnrollmentProfile returns guardian + linked-children data for the
 // calling parent within the requested tenant. Tenant comes from the
 // path slug (admin-tx resolves it); account from claims.ID. The

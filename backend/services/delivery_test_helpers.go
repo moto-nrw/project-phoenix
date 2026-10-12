@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/services/users"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -88,7 +88,7 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 		func(ctx context.Context, tenantID int64) (string, error) {
 			return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 		}, logger)
-	guardians := users.NewGuardianService(users.GuardianServiceDependencies{GuardianProfileRepo: repositories.NewGuardianProfileTestRepository(db), DB: db})
+	guardians := peopleCompose.NewGuardianService(peopleCompose.GuardianServiceDependencies{GuardianProfileRepo: repositories.NewGuardianProfileTestRepository(db), DB: db})
 	delivery, err := deliveryCompose.New(deliveryCompose.Dependencies{
 		DB: db, People: guardianDisplayResolver{query: guardians}, Observe: func(deliveryModule.Observation) {},
 		Provider: &deliveryProvider{registry: emailoutbox.NewTemplateRegistry(nil), mailer: email.NewMockMailer(), mailIdentity: identity,

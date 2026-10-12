@@ -394,6 +394,33 @@ constructor. `services/users` now holds only the guardian cluster. The rule
 `people-directory.application.student-presence-public` allowed no import any
 more and is removed; two baseline keys fall (191 → 189), none is added.
 
+#3755 (slice 6 of #2728) moved the guardian services into
+`modules/peopledirectory/compose` and deleted `services/users`. The guardian,
+payment and profile-loader services keep their API; what the compose package
+may not name became consumer-owned ports: `GuardianFinancialAudit` and
+`GuardianDataAccessLog` (bound in `services` to the guardian change trail and
+the data-access log, same field names and resource types) and
+`GuardianRolePresets` (bound to the Security Runtime's role presets, which
+store the same role and permissions as `authorize.ApplyStudentGuardianRole`).
+The unused mail dependencies of the guardian service are dropped. The
+authorize wrappers the root used (`GrantedGuardianPermissions`, the role
+classes, the legal-guardian promotion) moved into `services` over
+`securityruntime`, and the parents-portal enrollment profile route reads the
+autofill profile through its own `GuardianProfileLoader` port. The behaviour
+suites could not stay: no existing test point may import what they import.
+They moved into the People Directory contract suite
+`modules/peopledirectory/contracttest` (`people-directory`/`e2e-test`,
+test-only like the Care Plan and Workforce contract suites); the five tests
+of unexported helpers went to the compose package's internal tests. The
+seven `people-directory.module-behavior-test.*` rules that served only those
+suites moved to the new point, and twelve rules there keep the fixture reach
+the suites had in `services/users`, one per target. The suites left the roots
+the composition inventory scans, so 18 test calls of `repositories.NewFactory`
+leave `composition.json`; they still run in the contract suite. The last 22
+#2728 keys fall with the package, together with `services -> services/users`
+(#2747) and the two #3421 keys of the parents portal (164 → 139); none is
+added, and the composition surface stays at 490.
+
 #3356 cuts the six owner edges `api/students` held besides its carrier's
 shared plumbing. The HTTP role may not import these owners' public packages,
 and PR mode refuses a new rule between points that already exist, so five of
