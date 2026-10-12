@@ -3308,12 +3308,12 @@ stays a loosening. Epoch 35 registers five rules under it and seven keys fall
 returned carries `models/config` types no contract may expose.
 [#3965](https://github.com/moto-nrw/project-phoenix/issues/3965) needed no
 rule either: no consumer read the schema. Every consumer that took the full
-settings service declares a narrow port; the supervision dashboard's is
-`supervisiondashboard.Resolver` in its public ports, so the legacy tree stays
-within its LOC budget. Its snapshot prefetch checks for the module's own
-generic `SnapshotResolver[S]` port instead of the full batch service, and
-`grouplive/legacy` does the same with its own port; the settings service is
-compiled to satisfy the batch reads. Each test package keeps a local
+settings service declares a narrow port; the supervision dashboard's is the
+generic `supervisiondashboard.Resolver[S]` in its public ports, and the group
+live projection gets the same `grouplive.Resolver[S]`. Both include
+`ResolveMany`, so the legacy adapters prefetch their snapshot without a type
+check, the settings constructor returns the batch service, and both legacy
+trees shrink (710 -> 708, 548 -> 546). Each test package keeps a local
 func-field `settingsDouble` with only the resolvers its ports need; the
 dashboard's internal test names the snapshot as `modules/settings.Snapshot`.
 `configtest` is deleted with its package entry. Both `configtest` keys fall,

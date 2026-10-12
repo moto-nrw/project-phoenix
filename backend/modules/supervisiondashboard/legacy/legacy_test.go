@@ -136,19 +136,6 @@ func (m *mockArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Conte
 	return m.getBulkEffectiveArrivalTimesForDateFn(studentIDs, date)
 }
 
-// dashboardSettings adds the snapshot read Prepare looks for.
-type dashboardSettings struct {
-	*settingsDouble
-	resolveManyFn func(ctx context.Context, keys []string) (*settingsplatform.Snapshot, error)
-}
-
-func (s *dashboardSettings) ResolveMany(ctx context.Context, keys []string) (*settingsplatform.Snapshot, error) {
-	if s.resolveManyFn == nil {
-		return nil, nil
-	}
-	return s.resolveManyFn(ctx, keys)
-}
-
 func fullSources() Sources {
 	return Sources{
 		Active:      &mockActiveService{},
@@ -361,8 +348,7 @@ func TestSettingsBranches(t *testing.T) {
 		ResolveBoolFn:   func(context.Context, string) (bool, error) { return true, nil },
 		ResolveStringFn: func(context.Context, string) (string, error) { return "", errors.New("boom") },
 	}
-	batch := &dashboardSettings{settingsDouble: mock}
-	s := settings{settings: batch}
+	s := settings{settings: mock}
 
 	_, err := s.TrackingIndicatorLabels(ctx)
 	require.Error(t, err)
@@ -407,7 +393,7 @@ func TestSettingsBranches(t *testing.T) {
 	require.ErrorContains(t, err, "spontaneous activities")
 
 	var preparedKeys []string
-	batch.resolveManyFn = func(_ context.Context, keys []string) (*settingsplatform.Snapshot, error) {
+	mock.ResolveManyFn = func(_ context.Context, keys []string) (*settingsplatform.Snapshot, error) {
 		preparedKeys = keys
 		return &settingsplatform.Snapshot{}, nil
 	}
@@ -415,15 +401,15 @@ func TestSettingsBranches(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, prepared)
 	assert.Contains(t, preparedKeys, configModel.KeyWeekendFollowsFriday)
-	batch.resolveManyFn = func(context.Context, []string) (*settingsplatform.Snapshot, error) {
+	mock.ResolveManyFn = func(context.Context, []string) (*settingsplatform.Snapshot, error) {
 		return nil, errors.New("settings down")
 	}
 	_, err = s.Prepare(ctx)
 	require.EqualError(t, err, "settings down")
 
-	// A resolver without the snapshot read skips the prefetch and keeps the
-	// request context.
-	unprepared, err := settings{settings: mock}.Prepare(ctx)
+	// No snapshot keeps the request context unchanged.
+	mock.ResolveManyFn = nil
+	unprepared, err := s.Prepare(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, ctx, unprepared)
 }

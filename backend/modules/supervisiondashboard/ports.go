@@ -223,18 +223,13 @@ type Planning interface {
 	Arrivals(ctx context.Context, studentIDs []int64, date Date) (map[int64]Arrival, error)
 }
 
-// Resolver resolves one setting of the request tenant. The retained adapter
-// builds Settings and the caller's overview decision over it.
-type Resolver interface {
+// Resolver resolves the request tenant's settings. The retained adapter
+// builds Settings and the caller's overview decision over it and prefetches
+// one snapshot of type S per request. S is a type parameter because this
+// public package does not import the Settings Platform's snapshot type.
+type Resolver[S any] interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 	ResolveString(ctx context.Context, key string) (string, error)
-}
-
-// SnapshotResolver resolves several settings of the request tenant in one
-// read. The retained adapter prefetches one request snapshot of type S when
-// its settings source also offers this read. S is a type parameter because
-// this public package does not import the Settings Platform's snapshot type.
-type SnapshotResolver[S any] interface {
 	ResolveMany(ctx context.Context, keys []string) (S, error)
 }
 

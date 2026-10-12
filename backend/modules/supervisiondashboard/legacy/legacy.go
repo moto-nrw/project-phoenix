@@ -56,7 +56,7 @@ type Sources struct {
 	Education    educationService.GroupRoomsQuery
 	Schulhof     facilitiesService.SchulhofService
 	Operations   timetable.OperationQuery
-	Settings     supervisiondashboard.Resolver
+	Settings     supervisiondashboard.Resolver[*configService.SettingsSnapshot]
 	Pickups      careplan.BulkPickupTimes
 	Arrivals     careplan.BulkArrivalTimes
 	Now          func() time.Time
@@ -93,7 +93,7 @@ func New(sources Sources) (supervisiondashboard.Query, error) {
 }
 
 type access struct {
-	settings supervisiondashboard.Resolver
+	settings supervisiondashboard.Resolver[*configService.SettingsSnapshot]
 	CallerContext
 }
 
@@ -623,14 +623,12 @@ func wallClock(at *time.Time) *string {
 	return &formatted
 }
 
-type settings struct{ settings supervisiondashboard.Resolver }
+type settings struct {
+	settings supervisiondashboard.Resolver[*configService.SettingsSnapshot]
+}
 
 func (s settings) Prepare(ctx context.Context) (context.Context, error) {
-	batch, ok := s.settings.(supervisiondashboard.SnapshotResolver[*configService.SettingsSnapshot])
-	if !ok {
-		return ctx, nil
-	}
-	snapshot, err := batch.ResolveMany(ctx, []string{
+	snapshot, err := s.settings.ResolveMany(ctx, []string{
 		configModel.KeyOperationalOverviewScope,
 		configModel.KeyGroupMode,
 		configModel.KeyStudentPhotosEnabled,

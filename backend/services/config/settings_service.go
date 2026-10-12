@@ -47,10 +47,6 @@ type settingsService struct {
 	gradeCapGuard func(ctx context.Context) (int, error)
 }
 
-// Consumers that prefetch a request snapshot rely on the settings service
-// answering the batch reads.
-var _ BatchSettingsService = (*settingsService)(nil)
-
 // SettingsLookupObserver records bounded per-key lookup evidence. cache is
 // one of snapshot, hit, miss, or bypass; outcome is ok or error.
 type SettingsLookupObserver func(key, cache, outcome string, duration time.Duration)
@@ -163,7 +159,7 @@ func NewSettingsServiceWithHomeLayouts(
 	logger *slog.Logger,
 	homeLayouts *HomeLayoutService,
 	registries ...*config.Registry,
-) SettingsService {
+) BatchSettingsService {
 	return newSettingsService(valueRepo, auditRepo, schoolStore, runtime, logger, homeLayouts, registries...)
 }
 
@@ -175,7 +171,7 @@ func newSettingsService(
 	logger *slog.Logger,
 	homeLayouts *HomeLayoutService,
 	registries ...*config.Registry,
-) SettingsService {
+) BatchSettingsService {
 	registry := config.DefaultRegistry()
 	if len(registries) > 0 && registries[0] != nil {
 		registry = registries[0]

@@ -56,7 +56,7 @@ type Sources struct {
 	Substitutions     educationService.SubstitutionModule
 	UserContext       CallerContext
 	Active            studentpresence.Presence
-	Settings          configService.SettingsService
+	Settings          grouplive.Resolver[*configService.SettingsSnapshot]
 	Pickups           careplan.BulkPickupTimes
 	Arrivals          careplan.BulkArrivalTimes
 	PlannedStudentIDs func(context.Context, []int64, timezone.Date) ([]int64, error)
@@ -100,7 +100,7 @@ func New(sources Sources) (grouplive.Query, error) {
 }
 
 type access struct {
-	settings    configService.SettingsService
+	settings    grouplive.Resolver[*configService.SettingsSnapshot]
 	userContext CallerContext
 }
 
@@ -487,14 +487,12 @@ func (t transfers) GroupHandovers(ctx context.Context, groupID int64, date group
 	return result, nil
 }
 
-type settings struct{ settings configService.SettingsService }
+type settings struct {
+	settings grouplive.Resolver[*configService.SettingsSnapshot]
+}
 
 func (s settings) Prepare(ctx context.Context) (context.Context, error) {
-	batch, ok := s.settings.(grouplive.SnapshotResolver[*configService.SettingsSnapshot])
-	if !ok {
-		return ctx, nil
-	}
-	snapshot, err := batch.ResolveMany(ctx, []string{
+	snapshot, err := s.settings.ResolveMany(ctx, []string{
 		configModel.KeyOperationalOverviewScope,
 		configModel.KeyEnrollmentBookingsAuthoritative,
 		configModel.KeyPresenceMode,
