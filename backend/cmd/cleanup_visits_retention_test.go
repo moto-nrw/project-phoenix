@@ -30,8 +30,10 @@ func schoolSection(output string, tenantID int64) string {
 // run deletes exactly those with an audit row.
 func TestCleanupVisitsCLI_BackfillsChildWithoutConsent(t *testing.T) {
 	t.Parallel()
+	// The CLI sweeps every school, so parallel cleanup tests must not share
+	// this test's visits. Bind the private clone before building the service.
+	db := testpkg.SetupIsolatedTestDB(t)
 	cc := setupTestCleanupContext(t)
-	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 
