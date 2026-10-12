@@ -958,8 +958,8 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
 
 	// One occurrence is already materialized when the edit happens.
-	instance := &scheduleModels.ActivityInstance{
-		Date:             scheduleModels.Date(monday),
+	instance := &testpkg.ActivityInstance{
+		Date:             testpkg.ActivityDate(monday),
 		ActivityGroupID:  &result.TemplateID,
 		CalendarPeriodID: &s.period.ID,
 		Title:            name,
@@ -968,7 +968,7 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 		RoomID:           s.roomID,
 		Status:           scheduleModels.InstanceStatusPlanned,
 	}
-	instance.SetTenantID(s.tenantID)
+	instance.TenantID = s.tenantID
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, instance)
 	s.extraCleanups = append([]func(){func() {
 		_, _ = s.db.NewRaw(`DELETE FROM schedule.instance_students WHERE instance_id = ?`, instance.ID).Exec(s.ctx)
@@ -1034,8 +1034,8 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 
 	// One occurrence with the manual child is already materialized when the
 	// conversion happens.
-	instance := &scheduleModels.ActivityInstance{
-		Date:             scheduleModels.Date(monday),
+	instance := &testpkg.ActivityInstance{
+		Date:             testpkg.ActivityDate(monday),
 		ActivityGroupID:  &result.TemplateID,
 		CalendarPeriodID: &s.period.ID,
 		Title:            name,
@@ -1044,17 +1044,17 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 		RoomID:           s.roomID,
 		Status:           scheduleModels.InstanceStatusPlanned,
 	}
-	instance.SetTenantID(s.tenantID)
+	instance.TenantID = s.tenantID
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, instance)
 	s.extraCleanups = append([]func(){func() {
 		_, _ = s.db.NewRaw(`DELETE FROM schedule.instance_students WHERE instance_id = ?`, instance.ID).Exec(s.ctx)
 	}}, s.extraCleanups...)
-	instanceStudent := &scheduleModels.InstanceStudent{
+	instanceStudent := &testpkg.InstanceStudent{
 		InstanceID: instance.ID,
 		StudentID:  manualStudentID,
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
-	instanceStudent.SetTenantID(s.tenantID)
+	instanceStudent.TenantID = s.tenantID
 	testpkg.InsertInstanceStudentRow(t, s.ctx, s.db, instanceStudent)
 
 	// The offering has no enrolled children, so the new source covers nobody:

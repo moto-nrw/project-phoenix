@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/sessionrecordstest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -82,7 +81,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 		Status        string
 	}
 	decodeResponse(t, rr, &startResp)
-	require.Equal(t, scheduleModel.InstanceStatusActive, startResp.Status)
+	require.Equal(t, testpkg.ScheduleInstanceStatusActive, startResp.Status)
 	require.NotZero(t, startResp.ActiveGroupID)
 
 	// --- Step 3: /gaps — baseline should be empty --------------------------
@@ -130,7 +129,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	// is_substitute=true.
 	for _, instID := range []int64{inst1.ID, inst2.ID} {
 		rows := fetchInstanceStaff(t, s, instID)
-		var s1, s3 *scheduleModel.InstanceStaff
+		var s1, s3 *testpkg.InstanceStaff
 		for i := range rows {
 			switch rows[i].StaffID {
 			case staff1.ID:
@@ -194,26 +193,26 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	// queried."
 	startFixture := parseHHMMLocal(t, "16:00")
 	endFixture := parseHHMMLocal(t, "17:00")
-	gapInstance := &scheduleModel.ActivityInstance{
-		Date:          scheduleModel.Date(target),
+	gapInstance := &testpkg.ActivityInstance{
+		Date:          testpkg.ActivityDate(target),
 		Title:         "FlowC-Gap-Instance",
 		StartTime:     startFixture,
 		EndTime:       endFixture,
 		RoomID:        room.ID,
-		Status:        scheduleModel.InstanceStatusPlanned,
+		Status:        testpkg.ScheduleInstanceStatusPlanned,
 		IsSpontaneous: true,
 	}
-	gapInstance.SetTenantID(s.primaryTenant)
+	gapInstance.TenantID = s.primaryTenant
 	testpkg.InsertActivityInstanceRow(t, s.tenantCtx(), s.db, gapInstance)
 
 	// Both staff on this instance are absent → qualifies as a gap.
 	for _, stid := range []int64{staff1.ID, staff5.ID} {
-		row := &scheduleModel.InstanceStaff{
+		row := &testpkg.InstanceStaff{
 			InstanceID: gapInstance.ID,
 			StaffID:    stid,
 			IsAbsent:   true,
 		}
-		row.SetTenantID(s.primaryTenant)
+		row.TenantID = s.primaryTenant
 		_, err := s.db.NewInsert().Model(row).
 			ModelTableExpr(`schedule.instance_staff`).Exec(s.tenantCtx())
 		require.NoError(t, err, "insert absent instance_staff for gap instance")
@@ -246,7 +245,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	assert.Equal(t, 2, g.AssignedStaffCount,
 		"assigned_staff_count must reflect total assigned staff (PR #1303 contract); got 0 — see E2E_FINDINGS.md#E2E-C1")
 	assert.Equal(t, 2, g.AbsentStaffCount, "all two are absent")
-	assert.Equal(t, scheduleModel.InstanceStatusPlanned, g.Status)
+	assert.Equal(t, testpkg.ScheduleInstanceStatusPlanned, g.Status)
 
 	t.Logf("query-budget /gaps (with 1 gap over 3 instances): %d queries (TenantTxMiddleware overhead included; PR target ≤ 2 was handler-queries only)", gapsQueryCount2)
 
@@ -259,9 +258,9 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 }
 
 // fetchInstanceStaff returns all instance_staff rows for an instance.
-func fetchInstanceStaff(t *testing.T, s *scenario, instanceID int64) []scheduleModel.InstanceStaff {
+func fetchInstanceStaff(t *testing.T, s *scenario, instanceID int64) []testpkg.InstanceStaff {
 	t.Helper()
-	var rows []scheduleModel.InstanceStaff
+	var rows []testpkg.InstanceStaff
 	err := s.db.NewSelect().Model(&rows).
 		ModelTableExpr(`schedule.instance_staff AS "instance_staff"`).
 		Where(`"instance_staff".instance_id = ?`, instanceID).

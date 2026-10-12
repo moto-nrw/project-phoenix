@@ -81,7 +81,7 @@ func (k *kiosk) deviceRow(t *testing.T, name string) (testutil.RequestOption, in
 func (k *kiosk) staff(t *testing.T, first, last string) (testutil.RequestOption, int64, int64) {
 	t.Helper()
 	staff := testpkg.CreateTestStaff(t, k.db, first, last)
-	return testutil.WithStaffContext(staff), staff.ID, staff.PersonID
+	return testutil.WithStaffContext(staff.ID, staff.TenantID), staff.ID, staff.PersonID
 }
 
 // studentCard creates a student and links a fresh card; it returns the

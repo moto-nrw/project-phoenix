@@ -51,7 +51,7 @@ type lifecycleSetup struct {
 	student1 int64
 	student2 int64
 	tmplID   int64
-	period   *scheduleModels.CalendarPeriod
+	period   *testpkg.CalendarPeriod
 }
 
 // buildLifecycle prepares the minimum scaffold for instance-lifecycle tests:
@@ -285,10 +285,10 @@ func (b lifecycleRealtime) BroadcastToTenant(tenantID int64, event compose.Lifec
 
 // seedInstance inserts one planned activity_instance plus optional staff
 // and student rows. Returns the instance for the caller to act on.
-func seedInstance(t *testing.T, s *lifecycleSetup, withStaff bool, withStudents bool) *scheduleModels.ActivityInstance {
+func seedInstance(t *testing.T, s *lifecycleSetup, withStaff bool, withStudents bool) *testpkg.ActivityInstance {
 	t.Helper()
-	ai := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.NewDate(2026, 4, 20),
+	ai := &testpkg.ActivityInstance{
+		Date:            testpkg.ActivityDate(scheduleModels.NewDate(2026, 4, 20)),
 		ActivityGroupID: &s.tmplID,
 		Title:           "Lifecycle-Test",
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -297,7 +297,7 @@ func seedInstance(t *testing.T, s *lifecycleSetup, withStaff bool, withStudents 
 		Status:          scheduleModels.InstanceStatusPlanned,
 		IsSpontaneous:   false,
 	}
-	ai.SetTenantID(testpkg.Tenant(t))
+	ai.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, ai)
 
 	if withStaff {
@@ -308,18 +308,18 @@ func seedInstance(t *testing.T, s *lifecycleSetup, withStaff bool, withStudents 
 	}
 	if withStudents {
 		for _, sid := range []int64{s.student1, s.student2} {
-			row := &scheduleModels.InstanceStudent{InstanceID: ai.ID, StudentID: sid, Status: scheduleModels.AttendanceStatusExpected}
-			row.SetTenantID(testpkg.Tenant(t))
+			row := &testpkg.InstanceStudent{InstanceID: ai.ID, StudentID: sid, Status: scheduleModels.AttendanceStatusExpected}
+			row.TenantID = testpkg.Tenant(t)
 			testpkg.InsertInstanceStudentRow(t, s.ctx, s.db, row)
 		}
 	}
 	return ai
 }
 
-func seedSpontaneousInstance(t *testing.T, s *lifecycleSetup, withStaff bool) *scheduleModels.ActivityInstance {
+func seedSpontaneousInstance(t *testing.T, s *lifecycleSetup, withStaff bool) *testpkg.ActivityInstance {
 	t.Helper()
-	ai := &scheduleModels.ActivityInstance{
-		Date:          scheduleModels.NewDate(2026, 4, 20),
+	ai := &testpkg.ActivityInstance{
+		Date:          testpkg.ActivityDate(scheduleModels.NewDate(2026, 4, 20)),
 		Title:         "Lifecycle-Test-Spontaneous",
 		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -327,7 +327,7 @@ func seedSpontaneousInstance(t *testing.T, s *lifecycleSetup, withStaff bool) *s
 		Status:        scheduleModels.InstanceStatusPlanned,
 		IsSpontaneous: true,
 	}
-	ai.SetTenantID(testpkg.Tenant(t))
+	ai.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, ai)
 	if withStaff {
 		row := &scheduleModels.InstanceStaff{InstanceID: ai.ID, StaffID: s.staffID, IsPrimary: true}
@@ -365,8 +365,8 @@ func insertInstance(t *testing.T, s *lifecycleSetup, date calendar.Date, status 
 func insertInstanceAt(t *testing.T, s *lifecycleSetup, date calendar.Date, status string, spontaneous bool, startHour int) int64 {
 	t.Helper()
 	endHour := startHour + 1
-	row := &scheduleModels.ActivityInstance{
-		Date:          scheduleModels.Date(date),
+	row := &testpkg.ActivityInstance{
+		Date:          testpkg.ActivityDate(date),
 		Title:         fmt.Sprintf("Row-%s-%d", status, time.Now().UnixNano()),
 		StartTime:     time.Date(1, 1, 1, startHour, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, endHour, 0, 0, 0, time.UTC),
@@ -377,7 +377,7 @@ func insertInstanceAt(t *testing.T, s *lifecycleSetup, date calendar.Date, statu
 	if !spontaneous {
 		row.ActivityGroupID = &s.tmplID
 	}
-	row.SetTenantID(testpkg.Tenant(t))
+	row.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, row)
 	return row.ID
 }
@@ -423,7 +423,7 @@ func loadLifecycleExceptions(t *testing.T, s *lifecycleSetup) []*scheduleModels.
 
 // fetchAttendance loads a participant with its attendance by (instance_id,
 // student_id). The tests use it to assert status after lifecycle transitions.
-func fetchAttendance(t *testing.T, s *lifecycleSetup, instanceID, studentID int64) *scheduleModels.InstanceStudent {
+func fetchAttendance(t *testing.T, s *lifecycleSetup, instanceID, studentID int64) *testpkg.InstanceStudent {
 	t.Helper()
 	rows := testpkg.InstanceStudentsWhere(t, s.ctx, s.db,
 		`"instance_student".instance_id = ? AND "instance_student".student_id = ? AND "instance_student".tenant_id = ?`,

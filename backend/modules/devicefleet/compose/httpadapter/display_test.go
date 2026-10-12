@@ -343,7 +343,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 			t.Skip("too close to midnight for stable wall-clock offsets")
 		}
 		ctx := testpkg.TenantContext(tenantID)
-		instances := []*scheduleModels.ActivityInstance{
+		instances := []*testpkg.ActivityInstance{
 			buildInstance(tenantID, "Hausaufgaben", room.ID, future),
 			buildInstance(tenantID, "Frühsport", room.ID, past),
 		}
@@ -366,16 +366,16 @@ func TestDisplayDashboardPublic(t *testing.T) {
 	})
 }
 
-func buildInstance(tenantID int64, title string, roomID int64, start time.Time) *scheduleModels.ActivityInstance {
-	inst := &scheduleModels.ActivityInstance{
-		Date:      scheduleModels.DateFromTime(start),
+func buildInstance(tenantID int64, title string, roomID int64, start time.Time) *testpkg.ActivityInstance {
+	inst := &testpkg.ActivityInstance{
+		Date:      testpkg.ActivityDate(scheduleModels.DateFromTime(start)),
 		Title:     title,
 		StartTime: timezone.NormalizeWallClock(start.In(timezone.Berlin)),
 		EndTime:   timezone.NormalizeWallClock(start.In(timezone.Berlin).Add(45 * time.Minute)),
 		RoomID:    roomID,
 		Status:    scheduleModels.InstanceStatusPlanned,
 	}
-	inst.SetTenantID(tenantID)
+	inst.TenantID = tenantID
 	return inst
 }
 

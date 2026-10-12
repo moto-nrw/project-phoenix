@@ -67,7 +67,7 @@ func TestDeviceScanRuntimeEvidence(t *testing.T) {
 						command.RoomID = nil
 					}
 				}
-				req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", nil, testutil.WithDeviceContext(device), testutil.WithStaffContext(staff))
+				req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", nil, testutil.WithDeviceContext(device), testutil.WithStaffContext(staff.ID, staff.TenantID))
 				measuredCtx := counter.Context(req.Context())
 				if iteration == 5 {
 					deadlocksBefore = deadlocks()

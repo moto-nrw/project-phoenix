@@ -208,7 +208,7 @@ func TestDeviceRepository_Update(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates device status", func(t *testing.T) {
-		device := testpkg.CreateTestDevice(t, db, "update")
+		device := ownerDevice(testpkg.CreateTestDevice(t, db, "update"))
 
 		device.Status = iot.DeviceStatusInactive
 		err := repo.Update(ctx, device)
@@ -1044,4 +1044,25 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 		assert.True(t, foundVirtual, "tenant-managed virtual devices should still be listed")
 		assert.True(t, foundNormal, "normal device should not be excluded")
 	})
+}
+
+// ownerDevice carries a fixture row into the owner model the repository and
+// service write, field for field.
+func ownerDevice(row *testpkg.Device) *iot.Device {
+	return &iot.Device{
+		ID:                    row.ID,
+		CreatedAt:             row.CreatedAt,
+		UpdatedAt:             row.UpdatedAt,
+		TenantID:              row.TenantID,
+		DeviceID:              row.DeviceID,
+		DeviceType:            row.DeviceType,
+		Name:                  row.Name,
+		Status:                iot.DeviceStatus(row.Status),
+		APIKey:                row.APIKey,
+		LastSeen:              row.LastSeen,
+		RegisteredByID:        row.RegisteredByID,
+		RoomID:                row.RoomID,
+		ArchivedAt:            row.ArchivedAt,
+		TransferredToDeviceID: row.TransferredToDeviceID,
+	}
 }

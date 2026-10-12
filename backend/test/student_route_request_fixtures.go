@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -99,7 +98,7 @@ func InsertTestCareScheduleChangeRequest(tb testing.TB, db bun.IDB, request *Car
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &schedule.CareScheduleChangeRequest{
+	row := &careScheduleChangeRequestInsert{
 		StudentID:      request.StudentID,
 		SubmittedBy:    request.SubmittedBy,
 		RequestKind:    request.RequestKind,
@@ -111,8 +110,13 @@ func InsertTestCareScheduleChangeRequest(tb testing.TB, db bun.IDB, request *Car
 	}
 	require.NoError(tb, json.Unmarshal(request.Payload, &row.Payload), "care request payload must be a JSON object")
 	if len(request.DecisionSnapshot) > 0 {
-		row.DecisionSnapshot = &schedule.CareRequestDecisionSnapshot{}
-		require.NoError(tb, json.Unmarshal(request.DecisionSnapshot, row.DecisionSnapshot), "care request decision snapshot")
+		var snapshot struct {
+			Diff []map[string]any `json:"diff"`
+		}
+		require.NoError(tb, json.Unmarshal(request.DecisionSnapshot, &snapshot), "care request decision snapshot")
+		encoded, err := json.Marshal(snapshot)
+		require.NoError(tb, err, "care request decision snapshot")
+		row.DecisionSnapshot = encoded
 	}
 	row.ID = request.ID
 	row.TenantID = request.TenantID
@@ -154,4 +158,24 @@ func CreateTestGuardianProfileWithExactEmail(tb testing.TB, db bun.IDB, tenantID
 	_, err := db.NewInsert().Model(row).Exec(ctx)
 	require.NoError(tb, err, "Failed to create test guardian profile")
 	return row
+}
+
+// careScheduleChangeRequestInsert is the schedule.care_schedule_change_requests
+// row InsertTestCareScheduleChangeRequest writes.
+type careScheduleChangeRequestInsert struct {
+	bun.BaseModel    `bun:"table:schedule.care_schedule_change_requests,alias:care_schedule_change_request"`
+	ID               int64           `bun:"id,pk,autoincrement"`
+	CreatedAt        time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt        time.Time       `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	TenantID         int64           `bun:"tenant_id,notnull"`
+	StudentID        int64           `bun:"student_id,notnull"`
+	SubmittedBy      int64           `bun:"submitted_by,notnull"`
+	RequestKind      string          `bun:"request_kind,notnull,default:'weekly_schedule'"`
+	Payload          map[string]any  `bun:"payload,type:jsonb,notnull"`
+	Status           string          `bun:"status,notnull,default:'pending'"`
+	DecisionReason   *string         `bun:"decision_reason"`
+	ReviewedBy       *int64          `bun:"reviewed_by"`
+	ReviewedAt       *time.Time      `bun:"reviewed_at"`
+	AppliedAt        *time.Time      `bun:"applied_at"`
+	DecisionSnapshot json.RawMessage `bun:"decision_snapshot,type:jsonb,nullzero"`
 }

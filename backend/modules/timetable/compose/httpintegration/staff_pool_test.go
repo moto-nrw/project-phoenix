@@ -29,8 +29,8 @@ type poolSetup struct {
 	roomID    int64
 	staffID   int64 // planned on the source block by the tests that need it
 	otherID   int64 // free second staff member
-	source    *scheduleModels.ActivityInstance
-	target    *scheduleModels.ActivityInstance
+	source    *testpkg.ActivityInstance
+	target    *testpkg.ActivityInstance
 }
 
 // poolTestDate is a fixed Monday; the pool reads one day and its week.
@@ -45,17 +45,17 @@ func parsePoolClock(t *testing.T, hhmm string) time.Time {
 	return parsed
 }
 
-func createPoolInstance(t *testing.T, s *poolSetup, title, startHHMM, endHHMM, status string) *scheduleModels.ActivityInstance {
+func createPoolInstance(t *testing.T, s *poolSetup, title, startHHMM, endHHMM, status string) *testpkg.ActivityInstance {
 	t.Helper()
-	row := &scheduleModels.ActivityInstance{
-		Date:      scheduleModels.Date(poolTestDate()),
+	row := &testpkg.ActivityInstance{
+		Date:      testpkg.ActivityDate(poolTestDate()),
 		Title:     title,
 		StartTime: parsePoolClock(t, startHHMM),
 		EndTime:   parsePoolClock(t, endHHMM),
 		RoomID:    s.roomID,
 		Status:    status,
 	}
-	row.SetTenantID(s.tenantID)
+	row.TenantID = s.tenantID
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, row)
 	return row
 }

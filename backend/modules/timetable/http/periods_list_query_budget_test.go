@@ -48,7 +48,7 @@ func TestListPeriodsQueryBudget(t *testing.T) {
 		for range n {
 			year := 2040 + created
 			period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Budget-%d", created),
-				testpkg.ScheduleDate(year, time.August, 1), testpkg.ScheduleDate(year+1, time.July, 31))
+				testpkg.Date(year, time.August, 1), testpkg.Date(year+1, time.July, 31))
 			testpkg.CreateTestEnrollmentPhaseForCalendarPeriod(t, db, period.ID)
 			group := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Budget-AG-%d", created))
 			_, err := db.NewUpdate().TableExpr("activities.groups").

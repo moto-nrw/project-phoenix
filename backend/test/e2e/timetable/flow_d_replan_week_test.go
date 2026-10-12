@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -90,16 +89,16 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 	// --- Step 3: add a spontaneous instance (planned, is_spontaneous=true) -
 	startFixture := parseHHMMLocal(t, "16:00")
 	endFixture := parseHHMMLocal(t, "17:00")
-	spont := &scheduleModel.ActivityInstance{
-		Date:          scheduleModel.Date(target),
+	spont := &testpkg.ActivityInstance{
+		Date:          testpkg.ActivityDate(target),
 		Title:         "D-Spontaneous",
 		StartTime:     startFixture,
 		EndTime:       endFixture,
 		RoomID:        room.ID,
-		Status:        scheduleModel.InstanceStatusPlanned,
+		Status:        testpkg.ScheduleInstanceStatusPlanned,
 		IsSpontaneous: true,
 	}
-	spont.SetTenantID(s.primaryTenant)
+	spont.TenantID = s.primaryTenant
 	testpkg.InsertActivityInstanceRow(t, s.tenantCtx(), s.db, spont)
 
 	// Capture snapshots of the 4 preserved instances for post-replan compare.
@@ -108,10 +107,10 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 	beforeCancelled := reload(t, s, instCancelled.ID)
 	beforeSpont := reload(t, s, spont.ID)
 
-	require.Equal(t, scheduleModel.InstanceStatusActive, beforeActive.Status)
-	require.Equal(t, scheduleModel.InstanceStatusCompleted, beforeCompleted.Status)
-	require.Equal(t, scheduleModel.InstanceStatusCancelled, beforeCancelled.Status)
-	require.Equal(t, scheduleModel.InstanceStatusPlanned, beforeSpont.Status)
+	require.Equal(t, testpkg.ScheduleInstanceStatusActive, beforeActive.Status)
+	require.Equal(t, testpkg.ScheduleInstanceStatusCompleted, beforeCompleted.Status)
+	require.Equal(t, testpkg.ScheduleInstanceStatusCancelled, beforeCancelled.Status)
+	require.Equal(t, testpkg.ScheduleInstanceStatusPlanned, beforeSpont.Status)
 	require.True(t, beforeSpont.IsSpontaneous)
 
 	// --- Step 4: re-plan the week -----------------------------------------
@@ -145,7 +144,7 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 	newPlanned := fetchOneInstance(t, s, tmpls[3].group.ID, target)
 	assert.NotEqual(t, instPlanned.ID, newPlanned.ID,
 		"deleted-and-recreated gets a fresh ID")
-	assert.Equal(t, scheduleModel.InstanceStatusPlanned, newPlanned.Status)
+	assert.Equal(t, testpkg.ScheduleInstanceStatusPlanned, newPlanned.Status)
 
 	// --- Step 6: tenant isolation -----------------------------------------
 	// Secondary tenant re-plans their (empty) week. No primary data sees it,
@@ -163,7 +162,7 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 
 // reload fetches an activity_instance by ID, skipping a not-found error if
 // the row has been deleted (signalled by an empty struct return).
-func reload(t *testing.T, s *scenario, id int64) scheduleModel.ActivityInstance {
+func reload(t *testing.T, s *scenario, id int64) testpkg.ActivityInstance {
 	t.Helper()
 	rows := testpkg.ActivityInstancesWhere(t, s.tenantCtx(), s.db,
 		`"activity_instance".id = ? AND "activity_instance".tenant_id = ?`, id, s.primaryTenant)

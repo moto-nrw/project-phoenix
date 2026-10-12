@@ -51,7 +51,7 @@ func clockInput(scanned time.Time, addHours int) time.Time {
 	return time.Date(2000, 1, 1, scanned.Hour()+addHours, scanned.Minute(), scanned.Second(), 0, time.UTC)
 }
 
-func moveInput(s *scenarioSetup, inst *scheduleModels.ActivityInstance, date calendar.Date, startShiftHours int) timetable.UpdateInstanceInput {
+func moveInput(s *scenarioSetup, inst *testpkg.ActivityInstance, date calendar.Date, startShiftHours int) timetable.UpdateInstanceInput {
 	return timetable.UpdateInstanceInput{
 		Date:            date,
 		StartTime:       clockInput(inst.StartTime, startShiftHours),

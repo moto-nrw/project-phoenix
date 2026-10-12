@@ -133,7 +133,7 @@ func setupAutoExcusalHarnessWithExtensions(t *testing.T, withBaseline, withExten
 	}
 }
 
-func (h *autoExcusalHarness) attendance(t *testing.T, rowID int64) *scheduleModel.InstanceStudent {
+func (h *autoExcusalHarness) attendance(t *testing.T, rowID int64) *testpkg.InstanceStudent {
 	t.Helper()
 	return testpkg.InstanceStudentByIDContext(t, context.Background(), h.db, rowID)
 }

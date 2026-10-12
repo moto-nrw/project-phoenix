@@ -3266,6 +3266,10 @@ Epoch 24 registers the six `shared-fixtures.*` rules under it. Everything else
 the fixtures still import — the models, services and repositories other
 carriers are dissolving, the device authenticator, the legacy composition —
 stays exact debt on #2748 and falls with those carriers; a rule would hide it.
+The third cut of #2748 needed no rule: the fixtures map the device, room,
+activity and schedule rows they write themselves, the API helpers bind the
+kiosk staff principal from IDs and re-export the People Directory suite
+constructors from the legacy composition, and twelve keys fell (191 -> 179).
 
 A reviewed epoch may also add the one owner-agnostic shared-kernel rule
 ([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),

@@ -51,7 +51,7 @@ type attendanceSyncSetup struct {
 	roomID      int64
 	activityID  int64
 	activeGroup *testpkg.ActiveGroupRow
-	instance    *scheduleModels.ActivityInstance
+	instance    *testpkg.ActivityInstance
 }
 
 func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
@@ -69,8 +69,8 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 
 	// Create the instance and manually bridge to the active.group (simulating
 	// the post-Start state — we don't exercise the lifecycle service here).
-	instance := &scheduleModels.ActivityInstance{
-		Date:            scheduleModels.NewDate(2026, 4, 21),
+	instance := &testpkg.ActivityInstance{
+		Date:            testpkg.ActivityDate(scheduleModels.NewDate(2026, 4, 21)),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("AS-Instance-%d", suffix),
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -79,7 +79,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 		Status:          scheduleModels.InstanceStatusActive,
 		ActiveGroupID:   &activeGroup.ID,
 	}
-	instance.SetTenantID(testpkg.Tenant(t))
+	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	instanceStudentRepo := repoFactory.InstanceStudent

@@ -13,8 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -63,7 +61,7 @@ func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, "deviations body=%s", rr.Body.String())
 
 	// Edit the template as the "all occurrences" flow would: new title + new time.
-	_, err := s.db.NewUpdate().Model((*activitiesModel.Group)(nil)).
+	_, err := s.db.NewUpdate().Model((*testpkg.ActivityGroup)(nil)).
 		ModelTableExpr(`activities.groups AS "group"`).
 		Set(`name = ?`, "FlowH-Renamed").
 		Where(`"group".id = ?`, tmpl.group.ID).
@@ -72,7 +70,7 @@ func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
 	require.NoError(t, err, "rename template")
 	newStart := parseHHMM(t, "09:30")
 	newEnd := parseHHMM(t, "10:30")
-	_, err = s.db.NewUpdate().Model((*scheduleModel.Timeframe)(nil)).
+	_, err = s.db.NewUpdate().Model((*testpkg.Timeframe)(nil)).
 		ModelTableExpr(`schedule.timeframes`).
 		Set(`start_time = ?`, newStart).
 		Set(`end_time = ?`, newEnd).
@@ -96,7 +94,7 @@ func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
 	assert.True(t, newInst.UnderstaffedAck, "understaffed acknowledgement reapplied")
 	rows := fetchInstanceStaff(t, s, newInst.ID)
 	require.Len(t, rows, 2, "regenerated roster from the template")
-	byStaff := map[int64]scheduleModel.InstanceStaff{}
+	byStaff := map[int64]testpkg.InstanceStaff{}
 	for _, r := range rows {
 		byStaff[r.StaffID] = r
 	}
@@ -151,7 +149,7 @@ func TestFlowH_ReplanReappliesSubstitute(t *testing.T) {
 
 	newInst := fetchOneInstance(t, s, tmpl.group.ID, target)
 	rows := fetchInstanceStaff(t, s, newInst.ID)
-	byStaff := map[int64]scheduleModel.InstanceStaff{}
+	byStaff := map[int64]testpkg.InstanceStaff{}
 	for _, r := range rows {
 		byStaff[r.StaffID] = r
 	}
@@ -207,7 +205,7 @@ func TestFlowH_ClearPersistedAbsence(t *testing.T) {
 		map[string]any{"presences": []int64{staffA.ID}}, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "clear absence body=%s", rr.Body.String())
 
-	var staffARow *scheduleModel.InstanceStaff
+	var staffARow *testpkg.InstanceStaff
 	for _, r := range fetchInstanceStaff(t, s, inst.ID) {
 		if r.StaffID == staffA.ID {
 			row := r

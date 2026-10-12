@@ -271,8 +271,12 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 					return sc.rows.StaffShift.Create(writerCtx, &scheduleModels.StaffShift{StaffID: staff.ID, Date: scheduleModels.Date(testpkg.TodayDate().AddDays(1)), StartTime: testpkg.WallClock(8, 0), EndTime: testpkg.WallClock(12, 0), CreatedBy: staff.ID})
 				}
 				if operation == "move_history" {
-					instance.Date = scheduleModels.Date(testpkg.TodayDate().AddDays(1))
-					return sc.repos.ActivityInstance.Update(writerCtx, instance)
+					stored, err := sc.repos.ActivityInstance.FindByID(writerCtx, instance.ID)
+					if err != nil {
+						return err
+					}
+					stored.Date = scheduleModels.Date(testpkg.TodayDate().AddDays(1))
+					return sc.repos.ActivityInstance.Update(writerCtx, stored)
 				}
 				return sc.repos.InstanceStaff.Create(writerCtx, &scheduleModels.InstanceStaff{InstanceID: instance.ID, StaffID: staff.ID})
 			})

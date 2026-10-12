@@ -114,8 +114,7 @@ func (f cleanupFixture) exception(t *testing.T, templateID int64, daysAgo int) i
 
 func (f cleanupFixture) attachStudent(t *testing.T, instanceID, studentID int64, note *string) int64 {
 	t.Helper()
-	row := &scheduleModels.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Note: note}
-	row.SetTenantID(testpkg.Tenant(t))
+	row := &testpkg.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Note: note, TenantID: testpkg.Tenant(t)}
 	testpkg.InsertInstanceStudentRow(t, f.ctx, f.db, row)
 	return row.ID
 }

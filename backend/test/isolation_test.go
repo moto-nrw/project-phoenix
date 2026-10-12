@@ -532,7 +532,9 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 
 	t.Run("room update blocked", func(t *testing.T) {
 		repo := testRoomRepository(t, db)
-		err := repo.Update(ctxB, roomA)
+		stored, err := repo.FindByID(ctxA, roomA.ID)
+		require.NoError(t, err)
+		err = repo.Update(ctxB, stored)
 		require.Error(t, err, "cross-tenant room update must fail")
 	})
 

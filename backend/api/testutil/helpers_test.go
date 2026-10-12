@@ -15,9 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // =============================================================================
@@ -50,11 +47,10 @@ func TestWithPermissions(t *testing.T) {
 	opt(req)
 
 	// Verify permissions are in context
-	perms := req.Context().Value(jwt.CtxPermissions)
+	_, perms := testpkg.AuthenticationContext(req.Context())
 	require.NotNil(t, perms)
-	permSlice := perms.([]string)
-	assert.Contains(t, permSlice, "users:read")
-	assert.Contains(t, permSlice, "users:write")
+	assert.Contains(t, perms, "users:read")
+	assert.Contains(t, perms, "users:write")
 }
 
 func TestWithPermissions_Empty(t *testing.T) {
@@ -68,11 +64,8 @@ func TestWithPermissions_Empty(t *testing.T) {
 
 	// When called with no args, permissions should be empty slice or nil
 	// Either is valid for authorization checks
-	perms := req.Context().Value(jwt.CtxPermissions)
-	if perms != nil {
-		permSlice := perms.([]string)
-		assert.Empty(t, permSlice)
-	}
+	_, perms := testpkg.AuthenticationContext(req.Context())
+	assert.Empty(t, perms)
 	// If nil, that's also acceptable - means no permissions
 }
 
@@ -82,7 +75,7 @@ func TestWithClaims(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	tenantID := ptrtest.NewTenantID()
 
-	claims := jwt.AppClaims{
+	claims := testpkg.Claims{
 		ID:       42,
 		TenantID: tenantID,
 		Username: "testuser",
@@ -93,9 +86,7 @@ func TestWithClaims(t *testing.T) {
 	opt(req)
 
 	// Verify claims are in context
-	ctxClaims := req.Context().Value(jwt.CtxClaims)
-	require.NotNil(t, ctxClaims)
-	appClaims := ctxClaims.(jwt.AppClaims)
+	appClaims := testpkg.ClaimsFromContext(req.Context())
 	assert.Equal(t, 42, appClaims.ID)
 	assert.Equal(t, tenantID, appClaims.TenantID)
 	assert.Equal(t, "testuser", appClaims.Username)
@@ -107,10 +98,10 @@ func TestWithDeviceContext(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/test", nil)
 
-	device := &iot.Device{
+	device := &testpkg.Device{
 		DeviceID:   "device-123",
 		DeviceType: "rfid-reader",
-		Status:     iot.DeviceStatusActive,
+		Status:     testpkg.DeviceStatusActive,
 	}
 
 	opt := testutil.WithDeviceContext(device)
@@ -126,27 +117,11 @@ func TestWithStaffContext(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/test", nil)
 
-	staff := &users.Staff{
-		PersonID: 123,
-	}
-
-	opt := testutil.WithStaffContext(staff)
+	opt := testutil.WithStaffContext(123, ptrtest.NewTenantID())
 	opt(req)
 
 	// Verify staff is in context (just check it doesn't panic)
 	// The staff context key is not exported, so we just verify the option works
-	assert.NotNil(t, req.Context())
-}
-
-func TestWithStaffContext_NilStaff(t *testing.T) {
-	t.Parallel()
-
-	req := httptest.NewRequest("GET", "/test", nil)
-
-	// Should handle nil staff without panicking
-	opt := testutil.WithStaffContext(nil)
-	opt(req)
-
 	assert.NotNil(t, req.Context())
 }
 
@@ -171,13 +146,13 @@ func TestNewRequest_WithOptions(t *testing.T) {
 	tenantID := ptrtest.NewTenantID()
 	req := testutil.NewRequest("GET", "/api/test", nil,
 		testutil.WithPermissions("test:read"),
-		testutil.WithClaims(t, jwt.AppClaims{ID: 1, TenantID: tenantID}),
+		testutil.WithClaims(t, testpkg.Claims{ID: 1, TenantID: tenantID}),
 	)
 
 	assert.Equal(t, "GET", req.Method)
 
 	// Verify options were applied
-	perms := req.Context().Value(jwt.CtxPermissions)
+	_, perms := testpkg.AuthenticationContext(req.Context())
 	require.NotNil(t, perms)
 }
 
@@ -214,10 +189,9 @@ func TestNewAuthenticatedRequest_WithOptions(t *testing.T) {
 		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 	)
 
-	perms := req.Context().Value(jwt.CtxPermissions)
+	_, perms := testpkg.AuthenticationContext(req.Context())
 	require.NotNil(t, perms)
-	permSlice := perms.([]string)
-	assert.Contains(t, permSlice, "admin:*")
+	assert.Contains(t, perms, "admin:*")
 }
 
 func TestNewJSONRequest_WithBody(t *testing.T) {
@@ -282,22 +256,19 @@ func TestNewMultipartRequest_WithOptions(t *testing.T) {
 	req := testutil.NewMultipartRequest(t, "POST", "/api/upload",
 		"document", "data.json", `{"key": "value"}`,
 		testutil.WithPermissions("uploads:create"),
-		testutil.WithClaims(t, jwt.AppClaims{ID: 42, TenantID: tenantID}),
+		testutil.WithClaims(t, testpkg.Claims{ID: 42, TenantID: tenantID}),
 	)
 
 	assert.Equal(t, "POST", req.Method)
 	assert.Equal(t, "/api/upload", req.URL.Path)
 
 	// Verify options were applied
-	perms := req.Context().Value(jwt.CtxPermissions)
+	_, perms := testpkg.AuthenticationContext(req.Context())
 	require.NotNil(t, perms)
-	permSlice := perms.([]string)
-	assert.Contains(t, permSlice, "uploads:create")
+	assert.Contains(t, perms, "uploads:create")
 
 	// Verify claims were applied
-	ctxClaims := req.Context().Value(jwt.CtxClaims)
-	require.NotNil(t, ctxClaims)
-	appClaims := ctxClaims.(jwt.AppClaims)
+	appClaims := testpkg.ClaimsFromContext(req.Context())
 	assert.Equal(t, 42, appClaims.ID)
 	assert.Equal(t, tenantID, appClaims.TenantID)
 }
@@ -485,13 +456,13 @@ func TestClaimsFollowTheTestIntoItsOwnTenant(t *testing.T) {
 	// the shipped helpers keep working untouched.
 	req := httptest.NewRequest("GET", "/test", nil)
 	testutil.WithClaims(t, testutil.DefaultTestClaims())(req)
-	assert.Equal(t, own, req.Context().Value(jwt.CtxClaims).(jwt.AppClaims).TenantID,
+	assert.Equal(t, own, testpkg.ClaimsFromContext(req.Context()).TenantID,
 		"bootstrap-tenant claims must follow the test")
 
 	otherTenantID := ptrtest.NewTenantID()
 	require.NotEqual(t, own, otherTenantID)
 	other := httptest.NewRequest("GET", "/test", nil)
-	testutil.WithClaims(t, jwt.AppClaims{ID: 42, TenantID: otherTenantID})(other)
-	assert.Equal(t, otherTenantID, other.Context().Value(jwt.CtxClaims).(jwt.AppClaims).TenantID,
+	testutil.WithClaims(t, testpkg.Claims{ID: 42, TenantID: otherTenantID})(other)
+	assert.Equal(t, otherTenantID, testpkg.ClaimsFromContext(other.Context()).TenantID,
 		"an explicitly named tenant must survive untouched")
 }
