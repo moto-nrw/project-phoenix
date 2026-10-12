@@ -212,7 +212,8 @@ func TestCalendarPeriodAdapter_OverlapFindersKeepTheDateSemantics(t *testing.T) 
 	require.Len(t, boundary, 1, "the inclusive boundary day counts as overlap")
 	assert.Equal(t, active.ID, boundary[0].ID)
 
-	self, err := repo.FindActiveOverlapping(ctx, "2031-08-01", "2032-07-31", adjacent.ID)
+	storedAdjacent := readBack(t, ctx, repo.FindByID, adjacent.ID)
+	self, err := repo.FindActiveOverlapping(ctx, storedAdjacent.StartDate, storedAdjacent.EndDate, adjacent.ID)
 	require.NoError(t, err)
 	assert.Empty(t, self, "adjacent ranges do not overlap and the period itself is excluded")
 

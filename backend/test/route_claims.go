@@ -152,6 +152,14 @@ func TestTokenAuth(tb testing.TB) *jwt.TokenAuth {
 	return tokenAuth
 }
 
+// PermissionsFromContext returns the permission set a request option or the
+// auth middleware put on ctx, without falling back to the claims; nil when
+// none was put there.
+func PermissionsFromContext(ctx context.Context) []string {
+	permissions, _ := ctx.Value(jwt.CtxPermissions).([]string)
+	return permissions
+}
+
 // ClaimsFromContext returns the claims the auth middleware put on ctx.
 func ClaimsFromContext(ctx context.Context) Claims {
 	return jwt.ClaimsFromCtx(ctx)

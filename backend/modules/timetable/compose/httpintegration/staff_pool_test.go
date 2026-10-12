@@ -48,7 +48,7 @@ func parsePoolClock(t *testing.T, hhmm string) time.Time {
 func createPoolInstance(t *testing.T, s *poolSetup, title, startHHMM, endHHMM, status string) *testpkg.ActivityInstance {
 	t.Helper()
 	row := &testpkg.ActivityInstance{
-		Date:      testpkg.ActivityDate(poolTestDate()),
+		Date:      testpkg.ScheduleDate(poolTestDate()),
 		Title:     title,
 		StartTime: parsePoolClock(t, startHHMM),
 		EndTime:   parsePoolClock(t, endHHMM),

@@ -68,7 +68,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	// Old exception (template-scoped cleanup).
 	oldExc := &testpkg.ActivityException{
 		ActivityGroupID: 0, // doesn't reference a real template; tenant-scope + date drive the delete
-		ExceptionDate:   testpkg.ActivityDate(oldExceptionDate),
+		ExceptionDate:   testpkg.ScheduleDate(oldExceptionDate),
 		ExceptionType:   testpkg.ScheduleExceptionCancelled,
 	}
 	oldExc.TenantID = s.primaryTenant

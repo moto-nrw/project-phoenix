@@ -89,7 +89,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	// Create an instance bridged to the active.group and an instance_students
 	// row in 'expected' — exactly what the syncer is designed to flip.
 	instance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(scheduleModels.NewDate(2026, 4, 21)),
+		Date:            testpkg.Date(2026, 4, 21),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("E2E-Inst-%d", suffix),
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -148,7 +148,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
 
 	targetInstance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(scheduleModels.NewDate(2026, 4, 21)),
+		Date:            testpkg.Date(2026, 4, 21),
 		ActivityGroupID: &targetActivity.ID,
 		Title:           fmt.Sprintf("E2E-Target-Inst-%d", suffix),
 		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),

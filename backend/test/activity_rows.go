@@ -18,7 +18,7 @@ const WeekdaySunday = 7
 // ActivityGroupTypeCare is the type of a care activity group.
 const ActivityGroupTypeCare = "care"
 
-// ActivityDate is the calendar day of an activity or schedule row.
+// ActivityDate is the calendar day of an activity row.
 type ActivityDate = timezone.Date
 
 // ActivityCategory is one activities.categories row.

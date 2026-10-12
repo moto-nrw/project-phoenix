@@ -319,7 +319,7 @@ func TestScheduleSubstitutionExternalInterfacePermissionAndTenantIsolation(t *te
 	foreignRoom := testpkg.CreateTestRoomForTenant(t, db, foreignTenant, "Fremder Raum")
 	foreignAbsent := testpkg.CreateTestStaffForTenant(t, db, foreignTenant, "Fremde", "Person")
 	foreignInstance := &testpkg.ActivityInstance{
-		Date: testpkg.ActivityDate(date), Title: "Fremder Termin", RoomID: foreignRoom.ID,
+		Date: testpkg.ScheduleDate(date), Title: "Fremder Termin", RoomID: foreignRoom.ID,
 		StartTime: time.Date(2000, time.January, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(2000, time.January, 1, 15, 0, 0, 0, time.UTC),
 		Status:    scheduleModels.InstanceStatusPlanned,

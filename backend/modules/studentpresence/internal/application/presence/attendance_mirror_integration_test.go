@@ -70,7 +70,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	// Create the instance and manually bridge to the active.group (simulating
 	// the post-Start state — we don't exercise the lifecycle service here).
 	instance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(scheduleModels.NewDate(2026, 4, 21)),
+		Date:            testpkg.Date(2026, 4, 21),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("AS-Instance-%d", suffix),
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),

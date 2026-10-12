@@ -90,7 +90,7 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 	startFixture := parseHHMMLocal(t, "16:00")
 	endFixture := parseHHMMLocal(t, "17:00")
 	spont := &testpkg.ActivityInstance{
-		Date:          testpkg.ActivityDate(target),
+		Date:          testpkg.ScheduleDate(target),
 		Title:         "D-Spontaneous",
 		StartTime:     startFixture,
 		EndTime:       endFixture,

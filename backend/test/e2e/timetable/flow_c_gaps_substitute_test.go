@@ -194,7 +194,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	startFixture := parseHHMMLocal(t, "16:00")
 	endFixture := parseHHMMLocal(t, "17:00")
 	gapInstance := &testpkg.ActivityInstance{
-		Date:          testpkg.ActivityDate(target),
+		Date:          testpkg.ScheduleDate(target),
 		Title:         "FlowC-Gap-Instance",
 		StartTime:     startFixture,
 		EndTime:       endFixture,

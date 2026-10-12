@@ -288,7 +288,7 @@ func (b lifecycleRealtime) BroadcastToTenant(tenantID int64, event compose.Lifec
 func seedInstance(t *testing.T, s *lifecycleSetup, withStaff bool, withStudents bool) *testpkg.ActivityInstance {
 	t.Helper()
 	ai := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(scheduleModels.NewDate(2026, 4, 20)),
+		Date:            testpkg.Date(2026, 4, 20),
 		ActivityGroupID: &s.tmplID,
 		Title:           "Lifecycle-Test",
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -319,7 +319,7 @@ func seedInstance(t *testing.T, s *lifecycleSetup, withStaff bool, withStudents 
 func seedSpontaneousInstance(t *testing.T, s *lifecycleSetup, withStaff bool) *testpkg.ActivityInstance {
 	t.Helper()
 	ai := &testpkg.ActivityInstance{
-		Date:          testpkg.ActivityDate(scheduleModels.NewDate(2026, 4, 20)),
+		Date:          testpkg.Date(2026, 4, 20),
 		Title:         "Lifecycle-Test-Spontaneous",
 		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -366,7 +366,7 @@ func insertInstanceAt(t *testing.T, s *lifecycleSetup, date calendar.Date, statu
 	t.Helper()
 	endHour := startHour + 1
 	row := &testpkg.ActivityInstance{
-		Date:          testpkg.ActivityDate(date),
+		Date:          testpkg.ScheduleDate(date),
 		Title:         fmt.Sprintf("Row-%s-%d", status, time.Now().UnixNano()),
 		StartTime:     time.Date(1, 1, 1, startHour, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, endHour, 0, 0, 0, time.UTC),

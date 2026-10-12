@@ -1232,7 +1232,7 @@ func TestInstance_Start_StaffSameRoomIsNotAConflict(t *testing.T) {
 func seedBridgedActiveInstance(t *testing.T, s *lifecycleSetup, group *studentpresence.LiveGroup, staffID int64, overrideRoomID *int64, withStaffRow bool) {
 	t.Helper()
 	ai := &testpkg.ActivityInstance{
-		Date:          testpkg.ActivityDate(scheduleModels.NewDate(2026, 4, 20)),
+		Date:          testpkg.Date(2026, 4, 20),
 		Title:         "Lifecycle-Bridged",
 		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -1434,7 +1434,7 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 	// (is_spontaneous=false) but has no template — materialization could never
 	// recreate it, so a whole-grid re-plan must not delete it.
 	plannedManual := &testpkg.ActivityInstance{
-		Date:      testpkg.ActivityDate(from.AddDays(1)),
+		Date:      testpkg.ScheduleDate(from.AddDays(1)),
 		Title:     fmt.Sprintf("Row-manual-%d", time.Now().UnixNano()),
 		StartTime: time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
@@ -1492,7 +1492,7 @@ func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {
 
 	mine := insertInstance(t, s, from, scheduleModels.InstanceStatusPlanned, false)
 	other := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(from.AddDays(1)),
+		Date:            testpkg.ScheduleDate(from.AddDays(1)),
 		Title:           fmt.Sprintf("Row-other-%d", time.Now().UnixNano()),
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),

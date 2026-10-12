@@ -367,7 +367,7 @@ func buildMensaFixtureOn(t *testing.T, db *bun.DB) *mensaFixture {
 	listKind := activitiesModels.ListKindMensa
 
 	instance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(listDate),
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 11, 30, 0, 0, time.UTC),
@@ -498,7 +498,7 @@ func TestBuildList_ManualAbsenceOverridesStaleVisit(t *testing.T) {
 	listKind := activitiesModels.ListKindMensa
 
 	instance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(listDate),
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-Man %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 11, 30, 0, 0, time.UTC),
@@ -569,7 +569,7 @@ func TestBuildList_VisitOutsideNominalWindowCountsPresent(t *testing.T) {
 	listKind := activitiesModels.ListKindMensa
 
 	instance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(listDate),
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa spät %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 11, 30, 0, 0, time.UTC),
@@ -700,7 +700,7 @@ func TestBuildList_CancelledManualAttendanceExcluded(t *testing.T) {
 	// Cancelled AFTER it ran: ActiveGroupID and the visit are preserved, exactly
 	// the state InstanceService.Cancel leaves behind for an already-active slot.
 	instance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(listDate),
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-CxlMan %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 11, 30, 0, 0, time.UTC),
@@ -756,7 +756,7 @@ func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, f.db, fmt.Sprintf("SL-Other-Act-%d", suffix))
 	listKind := activitiesModels.ListKindLearningTime
 	otherInstance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(listDate),
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Lernzeit %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 13, 30, 0, 0, time.UTC),
@@ -1327,7 +1327,7 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-ExAct-%d", suffix))
 
 	instance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(listDate),
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -1412,7 +1412,7 @@ func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) 
 
 	// A completed instance: the block already ran and ended.
 	instance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(listDate),
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2000,7 +2000,7 @@ func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-EndAct-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
 	instance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(listDate),
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2066,7 +2066,7 @@ func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "SL-UnbookedStaff", fmt.Sprintf("US-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
 	instance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(listDate),
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2150,7 +2150,7 @@ func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "SL-UpStaff", fmt.Sprintf("UP-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
 	instance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(listDate),
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2241,7 +2241,7 @@ func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing
 	staff := testpkg.CreateTestStaff(t, db, "SL-CxaStaff", fmt.Sprintf("CXA-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
 	instance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(listDate),
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2343,7 +2343,7 @@ func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCoun
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	listKind := activitiesModels.ListKindMensa
 	instance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(listDate),
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2448,7 +2448,7 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "SL-SdStaff", fmt.Sprintf("SDS-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
 	instance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(listDate),
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2547,7 +2547,7 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 	// pickupNow is 12:00 on pickupDate (Wednesday, ISO 3); this occurrence starts
 	// at 15:00 → not yet started, so the reconciliation reaches it deferred.
 	future := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(pickupDate),
+		Date:            testpkg.ScheduleDate(pickupDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-Future %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -2644,7 +2644,7 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "SL-CxStaff", fmt.Sprintf("CXS-%d", suffix))
 	listKind := activitiesModels.ListKindMensa
 	instance := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(listDate),
+		Date:            testpkg.ScheduleDate(listDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
@@ -2730,7 +2730,7 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 
 	// pickupNow is 12:00; this occurrence starts at 15:00 → not yet started.
 	future := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(pickupDate),
+		Date:            testpkg.ScheduleDate(pickupDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-Future %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -2779,7 +2779,7 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 	// A slot that has already started (start 09:00 < 12:00) with no presence
 	// evidence does reconcile — its expected no-show is a genuine "Fehlt".
 	started := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(pickupDate),
+		Date:            testpkg.ScheduleDate(pickupDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-Started %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
@@ -2833,7 +2833,7 @@ func TestBuildList_SlotReconciliationKeepsRegisteredAbsenceBeforeStart(t *testin
 	// pickupNow is 12:00; this occurrence starts at 15:00 → not yet started, so
 	// the reconciliation reaches it deferred (no active group yet).
 	future := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(pickupDate),
+		Date:            testpkg.ScheduleDate(pickupDate),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("Mensa-Future %d", suffix),
 		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),

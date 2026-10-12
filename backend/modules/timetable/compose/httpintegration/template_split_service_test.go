@@ -57,7 +57,7 @@ func futureMonday(offsetWeeks int) calendar.Date {
 func splitInsertInstance(t *testing.T, s *scenarioSetup, groupID *int64, date calendar.Date, status string, spontaneous bool, startHour int) int64 {
 	t.Helper()
 	row := &testpkg.ActivityInstance{
-		Date:            testpkg.ActivityDate(date),
+		Date:            testpkg.ScheduleDate(date),
 		Title:           fmt.Sprintf("Split-%s-%d", status, time.Now().UnixNano()),
 		StartTime:       time.Date(1, 1, 1, startHour, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, startHour+1, 0, 0, 0, time.UTC),

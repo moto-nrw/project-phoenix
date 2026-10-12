@@ -47,7 +47,7 @@ func TestWithPermissions(t *testing.T) {
 	opt(req)
 
 	// Verify permissions are in context
-	_, perms := testpkg.AuthenticationContext(req.Context())
+	perms := testpkg.PermissionsFromContext(req.Context())
 	require.NotNil(t, perms)
 	assert.Contains(t, perms, "users:read")
 	assert.Contains(t, perms, "users:write")
@@ -64,7 +64,7 @@ func TestWithPermissions_Empty(t *testing.T) {
 
 	// When called with no args, permissions should be empty slice or nil
 	// Either is valid for authorization checks
-	_, perms := testpkg.AuthenticationContext(req.Context())
+	perms := testpkg.PermissionsFromContext(req.Context())
 	assert.Empty(t, perms)
 	// If nil, that's also acceptable - means no permissions
 }
@@ -152,7 +152,7 @@ func TestNewRequest_WithOptions(t *testing.T) {
 	assert.Equal(t, "GET", req.Method)
 
 	// Verify options were applied
-	_, perms := testpkg.AuthenticationContext(req.Context())
+	perms := testpkg.PermissionsFromContext(req.Context())
 	require.NotNil(t, perms)
 }
 
@@ -189,7 +189,7 @@ func TestNewAuthenticatedRequest_WithOptions(t *testing.T) {
 		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 	)
 
-	_, perms := testpkg.AuthenticationContext(req.Context())
+	perms := testpkg.PermissionsFromContext(req.Context())
 	require.NotNil(t, perms)
 	assert.Contains(t, perms, "admin:*")
 }
@@ -263,7 +263,7 @@ func TestNewMultipartRequest_WithOptions(t *testing.T) {
 	assert.Equal(t, "/api/upload", req.URL.Path)
 
 	// Verify options were applied
-	_, perms := testpkg.AuthenticationContext(req.Context())
+	perms := testpkg.PermissionsFromContext(req.Context())
 	require.NotNil(t, perms)
 	assert.Contains(t, perms, "uploads:create")
 

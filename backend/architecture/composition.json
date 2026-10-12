@@ -252,7 +252,7 @@
       "declaration": "TestCalendarPeriodAdapter_UsageCountsComeFromThePlanningTables",
       "target": "database/repositories.NewFactory",
       "lines": [
-        238
+        239
       ],
       "tables": [
         "activities.groups"
@@ -264,7 +264,7 @@
       "declaration": "TestCalendarPeriodAdapter_UsageCountsReturnDatabaseError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        267
+        268
       ],
       "tables": []
     },
@@ -274,7 +274,7 @@
       "declaration": "TestCapacityOccurrencesReadPeriodsThroughTheCalendarOwner",
       "target": "database/repositories.NewFactory",
       "lines": [
-        409
+        410
       ],
       "tables": []
     },
@@ -284,7 +284,7 @@
       "declaration": "TestClosingDayAdapter_KeepsTheLegacyContracts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        312
+        313
       ],
       "tables": []
     },
@@ -294,7 +294,7 @@
       "declaration": "TestDateframeAdapter_KeepsTheLegacyLookups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        374
+        375
       ],
       "tables": []
     },

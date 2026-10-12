@@ -959,7 +959,7 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 
 	// One occurrence is already materialized when the edit happens.
 	instance := &testpkg.ActivityInstance{
-		Date:             testpkg.ActivityDate(monday),
+		Date:             testpkg.ScheduleDate(monday),
 		ActivityGroupID:  &result.TemplateID,
 		CalendarPeriodID: &s.period.ID,
 		Title:            name,
@@ -1035,7 +1035,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 	// One occurrence with the manual child is already materialized when the
 	// conversion happens.
 	instance := &testpkg.ActivityInstance{
-		Date:             testpkg.ActivityDate(monday),
+		Date:             testpkg.ScheduleDate(monday),
 		ActivityGroupID:  &result.TemplateID,
 		CalendarPeriodID: &s.period.ID,
 		Title:            name,

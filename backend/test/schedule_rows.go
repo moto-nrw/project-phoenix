@@ -30,6 +30,9 @@ const (
 	ScheduleWeekdayMonday            = 1
 )
 
+// ScheduleDate is the calendar day of a schedule row.
+type ScheduleDate = timezone.Date
+
 // ActivityInstance is one schedule.activity_instances row.
 type ActivityInstance struct {
 	bun.BaseModel          `bun:"table:schedule.activity_instances,alias:activity_instance"`

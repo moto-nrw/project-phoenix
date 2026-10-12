@@ -110,9 +110,7 @@ func InsertTestCareScheduleChangeRequest(tb testing.TB, db bun.IDB, request *Car
 	}
 	require.NoError(tb, json.Unmarshal(request.Payload, &row.Payload), "care request payload must be a JSON object")
 	if len(request.DecisionSnapshot) > 0 {
-		var snapshot struct {
-			Diff []map[string]any `json:"diff"`
-		}
+		var snapshot careRequestDecisionSnapshot
 		require.NoError(tb, json.Unmarshal(request.DecisionSnapshot, &snapshot), "care request decision snapshot")
 		encoded, err := json.Marshal(snapshot)
 		require.NoError(tb, err, "care request decision snapshot")
@@ -178,4 +176,19 @@ type careScheduleChangeRequestInsert struct {
 	ReviewedAt       *time.Time      `bun:"reviewed_at"`
 	AppliedAt        *time.Time      `bun:"applied_at"`
 	DecisionSnapshot json.RawMessage `bun:"decision_snapshot,type:jsonb,nullzero"`
+}
+
+// careRequestDecisionSnapshot is the stored shape of a care request's
+// decision snapshot; decoding into it validates and normalizes the arranged
+// JSON the way the owner model does.
+type careRequestDecisionSnapshot struct {
+	Diff []struct {
+		Label    string   `json:"label"`
+		Old      string   `json:"old,omitempty"`
+		New      string   `json:"new,omitempty"`
+		Weekday  int      `json:"weekday,omitempty"`
+		CareKind string   `json:"care_kind,omitempty"`
+		OldModes []string `json:"old_modes,omitempty"`
+		NewMode  string   `json:"new_mode,omitempty"`
+	} `json:"diff"`
 }

@@ -77,7 +77,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	// --- Step 2: insert cancelled exception --------------------------------
 	cancelledExc := &testpkg.ActivityException{
 		ActivityGroupID: tmpl.group.ID,
-		ExceptionDate:   testpkg.ActivityDate(target),
+		ExceptionDate:   testpkg.ScheduleDate(target),
 		ExceptionType:   testpkg.ScheduleExceptionCancelled,
 		Reason:          testpkg.StrPtr("Heizung kaputt"),
 	}
@@ -164,7 +164,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	modifiedStart := parseHHMM(t, "12:30")
 	modifiedExc := &testpkg.ActivityException{
 		ActivityGroupID: tmpl.group.ID,
-		ExceptionDate:   testpkg.ActivityDate(target),
+		ExceptionDate:   testpkg.ScheduleDate(target),
 		ExceptionType:   testpkg.ScheduleExceptionModified,
 		StartTime:       &modifiedStart,
 		Reason:          testpkg.StrPtr("Fruehschluss"),
