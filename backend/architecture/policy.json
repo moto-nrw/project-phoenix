@@ -1066,6 +1066,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "auth/device/devicetest",
+      "owner": "device-fleet",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/identityaccess/legacy/jwt",
       "owner": "identity-access",
       "role": "adapter",
@@ -1083,6 +1090,13 @@
       "path": "auth/userpass",
       "owner": "security-runtime",
       "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "auth/userpass/userpasstest",
+      "owner": "security-runtime",
+      "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1230,6 +1244,13 @@
       "path": "email",
       "owner": "delivery-platform",
       "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "email/emailtest",
+      "owner": "delivery-platform",
+      "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1594,6 +1615,13 @@
       "path": "realtime",
       "owner": "delivery-platform",
       "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "realtime/realtimetest",
+      "owner": "delivery-platform",
+      "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -16797,6 +16825,83 @@
       "source_role": "test-support",
       "target_owner": "device-fleet",
       "target_role": "http"
+    },
+    {
+      "id": "delivery-platform.test-support.adapter",
+      "description": "The mail test doubles in email/emailtest capture and stub the transport contract of the email package (#3944).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "test-support",
+      "target_owner": "delivery-platform",
+      "target_role": "adapter"
+    },
+    {
+      "id": "delivery-platform.test-support.public",
+      "description": "The recording broadcaster in realtime/realtimetest implements realtime.Broadcaster and asserts on its events (#3944).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "test-support",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "security-runtime.test-support.domain",
+      "description": "auth/userpass/userpasstest sets and uses the cheap Argon2id profile of the hashing package (#3944).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "security-runtime",
+      "source_role": "test-support",
+      "target_owner": "security-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "device-fleet.test-support.adapter",
+      "description": "auth/device/devicetest binds the principals the device authentication middleware binds (#3944).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "test-support",
+      "target_owner": "device-fleet",
+      "target_role": "adapter"
+    },
+    {
+      "id": "test-support.to.delivery-platform-support",
+      "description": "The shared fixtures re-export the Delivery Platform's mail and broadcaster test doubles (#3944).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "delivery-platform",
+      "target_role": "test-support"
+    },
+    {
+      "id": "test-support.to.security-runtime-support",
+      "description": "The shared fixtures hash throwaway credentials with the Security Runtime's cheap Argon2id profile (#3944).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "security-runtime",
+      "target_role": "test-support"
+    },
+    {
+      "id": "test-support.to.device-fleet-support",
+      "description": "API test helpers bind kiosk principals through the Device Fleet's test support (#3944).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "device-fleet",
+      "target_role": "test-support"
     },
     {
       "id": "class-day-view.public.timetable-domain",

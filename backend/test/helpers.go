@@ -54,19 +54,6 @@ func NewGuardianFinancialChangeCommand(repo audit.GuardianFinancialChangeCreator
 	return guardianFinancialChangeCommand{repo: repo}
 }
 
-func NewAuditAuthEvent(accountID int64, ipAddress string) any {
-	return audit.NewAuthEvent(accountID, audit.EventTypeLogin, true, ipAddress)
-}
-
-func SetAuditEventTenant(event any, tenantID int64) {
-	event.(*audit.AuthEvent).SetTenantID(tenantID)
-}
-
-func AuditEventIdentity(event any) (tenantID, eventID, accountID int64) {
-	authEvent := event.(*audit.AuthEvent)
-	return authEvent.TenantID, authEvent.ID, authEvent.AccountID
-}
-
 // Database aliases and constructors keep migration tests on the shared test
 // support boundary instead of adding test-only dependencies to production
 // migration files.
