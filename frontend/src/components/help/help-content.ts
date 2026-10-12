@@ -3017,6 +3017,20 @@ function createStudentTopic(): HelpTopic {
           "Wählen Sie unten den grünen Knopf, zum Beispiel `12 Kinder importieren`.",
         ],
       },
+      {
+        title: "Kinder aus iServ übernehmen",
+        description:
+          "Aus iServ kommen nur Name, Klasse und Geburtstag. Erziehungsberechtigte tragen Sie danach selbst ein.",
+        steps: [
+          "Öffnen Sie in iServ die Benutzerverwaltung.",
+          "Lassen Sie dort die Spalten `Benutzertyp`, `Klasse/Information` und `Geburtsdatum` anzeigen.",
+          "Wählen Sie in iServ `Exportieren`.",
+          "Öffnen Sie in moto `Kinderdaten` und wählen Sie oben `Importieren`.",
+          "Ziehen Sie die Datei aus iServ unter `Schritt 3: Datei hochladen` in das Feld.",
+          "Wählen Sie unter `Welche iServ-Benutzer sind Kinder?` die passenden Benutzertypen.",
+          "Prüfen Sie die `Datenvorschau` und wählen Sie unten den grünen Knopf.",
+        ],
+      },
     ],
     result:
       "Ein einzeln angelegtes Kind steht sofort unter `Kinderdaten`. Nach einem Import meldet moto, wie viele Kinder angelegt und wie viele aktualisiert wurden.",

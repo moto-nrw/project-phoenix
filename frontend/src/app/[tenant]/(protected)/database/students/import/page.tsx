@@ -14,6 +14,11 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
+import {
+  IServUserTypes,
+  selectedIServUserTypes,
+  type IServSummary,
+} from "~/components/import/iserv-user-types";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
   IMPORT_MODE_HINTS,
@@ -96,6 +101,8 @@ interface ImportResult {
   DryRun: boolean;
   /** Nur in der Vorschau einer Schule mit Kinderkontingent (#3571). */
   child_quota?: ImportChildQuota;
+  /** Nur in der Vorschau eines iServ-Benutzerexports (#1446). */
+  iserv?: IServSummary;
 }
 
 // Status types for display
@@ -185,6 +192,11 @@ export default function StudentImportPage() {
   const latestImportRef = useRef<() => void>(() => undefined);
   const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("xlsx");
   const [mode, setMode] = useState<ImportMode>("create");
+  // Die Auswahl der iServ-Benutzertypen gilt für Vorschau und Import. null
+  // heißt: noch keine Wahl, moto wählt die Schülertypen vor.
+  const [iservUserTypes, setIServUserTypes] = useState<string[] | null>(null);
+  // Bleibt stehen, während die Vorschau nach einer neuen Wahl lädt.
+  const [iservSummary, setIServSummary] = useState<IServSummary | null>(null);
 
   const { data: session, status } = useSession({
     required: true,
@@ -205,6 +217,8 @@ export default function StudentImportPage() {
     setImportComplete(false);
     setImportInterrupted(false);
     setImportResult(null);
+    setIServUserTypes(null);
+    setIServSummary(null);
     importErrors.clear();
     setBatchNotice(null);
   }, [importErrors]);
@@ -234,7 +248,11 @@ export default function StudentImportPage() {
 
   // Handle file upload and preview via backend API
   const handleFileUpload = useCallback(
-    async (file: File, importMode: ImportMode = mode) => {
+    async (
+      file: File,
+      importMode: ImportMode = mode,
+      userTypes: string[] | null = iservUserTypes,
+    ) => {
       const generation = ++previewGeneration.current;
       setUploadedFile(file);
       importErrors.clear();
@@ -248,6 +266,9 @@ export default function StudentImportPage() {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("mode", importMode);
+        if (userTypes) {
+          formData.append("iserv_user_types", JSON.stringify(userTypes));
+        }
 
         const response = await postImportFile(
           "/api/import/students/preview",
@@ -327,6 +348,10 @@ export default function StudentImportPage() {
         if (generation !== previewGeneration.current) return;
         setPreviewData(displayData);
         setImportResult(importData);
+        setIServSummary(importData.iserv ?? null);
+        setIServUserTypes(
+          importData.iserv ? selectedIServUserTypes(importData.iserv) : null,
+        );
       } catch (err) {
         logger.error("student_preview_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -334,15 +359,27 @@ export default function StudentImportPage() {
         if (generation !== previewGeneration.current) return;
         void importErrors.show(err, {
           object: "die Datei",
-          retry: () => void handleFileUpload(file, importMode),
+          retry: () => void handleFileUpload(file, importMode, userTypes),
         });
         setPreviewData([]);
       } finally {
         if (generation === previewGeneration.current) setIsLoading(false);
       }
     },
-    [session, mode, importErrors],
+    [session, mode, iservUserTypes, importErrors],
   );
+
+  // A new file starts without a choice of IServ user types.
+  const handleNewFile = (file: File) => {
+    setIServSummary(null);
+    void handleFileUpload(file, mode, null);
+  };
+
+  // Another choice of IServ user types changes which rows the preview holds.
+  const handleIServUserTypesChange = (next: string[]) => {
+    setIServUserTypes(next);
+    if (uploadedFile) void handleFileUpload(uploadedFile, mode, next);
+  };
 
   // A new mode changes what the preview means, so the uploaded file is
   // checked again right away.
@@ -366,6 +403,9 @@ export default function StudentImportPage() {
       const formData = new FormData();
       formData.append("file", uploadedFile);
       formData.append("mode", mode);
+      if (iservUserTypes) {
+        formData.append("iserv_user_types", JSON.stringify(iservUserTypes));
+      }
 
       const response = await postImportFile(
         "/api/import/students/import",
@@ -478,7 +518,7 @@ export default function StudentImportPage() {
           file.name.endsWith(".csv") ||
           file.name.endsWith(".xlsx"))
       ) {
-        void handleFileUpload(file);
+        handleNewFile(file);
       } else {
         importErrors.invalid(
           "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
@@ -557,6 +597,11 @@ export default function StudentImportPage() {
           <li>Speichern Sie die ausgefüllte Datei</li>
           <li>Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau</li>
           <li>Bestätigen Sie den Import</li>
+          <li>
+            Sie können auch den Benutzer-Export aus iServ hochladen. moto
+            übernimmt daraus Name, Klasse und Geburtstag. Eltern tragen Sie
+            danach selbst ein
+          </li>
         </ul>
       </SectionCard>
 
@@ -659,8 +704,22 @@ export default function StudentImportPage() {
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        onFileSelect={(file) => void handleFileUpload(file)}
+        onFileSelect={handleNewFile}
       />
+
+      {iservSummary && !importComplete && (
+        <IServUserTypes
+          summary={{
+            ...iservSummary,
+            user_types: iservSummary.user_types.map((userType) => ({
+              ...userType,
+              selected: iservUserTypes?.includes(userType.value) ?? false,
+            })),
+          }}
+          disabled={isLoading || isImporting}
+          onChange={handleIServUserTypesChange}
+        />
+      )}
 
       {/* Preview Section */}
       {(previewData.length > 0 || importInterrupted) && !importComplete && (

@@ -1602,4 +1602,104 @@ describe("StudentImportPage", () => {
       expect(screen.getByTestId("stat-new")).toHaveTextContent("50");
     });
   });
+
+  describe("IServ user export (#1446)", () => {
+    function iservPreview(selected: string[], total: number) {
+      return {
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              TotalRows: total,
+              CreatedCount: total,
+              UpdatedCount: 0,
+              ErrorCount: 0,
+              Errors: [],
+              iserv: {
+                user_types: [
+                  {
+                    value: "Schüler(innen)",
+                    count: 2,
+                    selected: selected.includes("Schüler(innen)"),
+                  },
+                  { value: "", count: 1, selected: selected.includes("") },
+                ],
+                deactivated_count: 3,
+              },
+            },
+          }),
+      };
+    }
+
+    function sentChoice(call: number): unknown {
+      const init = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[
+        call
+      ]?.[1] as RequestInit;
+      const raw = (init.body as FormData).get("iserv_user_types");
+      return raw === null ? null : JSON.parse(raw as string);
+    }
+
+    it("lets the person choose which user types are children", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(iservPreview(["Schüler(innen)"], 2))
+        .mockResolvedValueOnce(iservPreview(["Schüler(innen)", ""], 3))
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                TotalRows: 3,
+                CreatedCount: 3,
+                UpdatedCount: 0,
+                ErrorCount: 0,
+                Errors: [],
+              },
+            }),
+        });
+
+      render(<StudentImportPage />);
+      fireEvent.click(screen.getByTestId("file-select-trigger"));
+
+      const pupils = await screen.findByRole("checkbox", {
+        name: /Schüler\(innen\)/,
+      });
+      expect(sentChoice(0)).toBeNull();
+      expect(pupils).toBeChecked();
+      expect(
+        screen.getByText("3 gesperrte iServ-Konten werden nicht übernommen."),
+      ).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Ohne Benutzertyp/ }),
+      );
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+      });
+      expect(sentChoice(1)).toEqual(["Schüler(innen)", ""]);
+
+      const importButton = await screen.findByRole("button", {
+        name: "3 Kinder importieren",
+      });
+      fireEvent.click(importButton);
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledTimes(3);
+      });
+      expect(sentChoice(2)).toEqual(["Schüler(innen)", ""]);
+    });
+
+    it("asks for a choice when no user type is chosen", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        iservPreview([], 0),
+      );
+
+      render(<StudentImportPage />);
+      fireEvent.click(screen.getByTestId("file-select-trigger"));
+
+      expect(
+        await screen.findByText(
+          "Noch nichts gewählt. Wählen Sie mindestens einen Benutzertyp.",
+        ),
+      ).toBeInTheDocument();
+    });
+  });
 });
