@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/userpass"
+	"github.com/moto-nrw/project-phoenix/auth/userpass/userpasstest"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -855,7 +855,7 @@ func hashPassword(password string) (string, error) {
 // credentials, and the params travel inside the encoded hash, so
 // verification still works.
 func hashPasswordUncached(password string) (string, error) {
-	return userpass.HashPassword(password, cheapArgon2Params)
+	return userpasstest.Hash(password)
 }
 
 // CreateTestPersonWithAccount creates a person linked to an account.

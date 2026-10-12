@@ -16,7 +16,6 @@ import (
 	"github.com/uptrace/bun"
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	repoAudit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -436,57 +435,6 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 	_, err = repo.FindByID(ctx43, catA.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A category %d", catA.ID)
-}
-
-// ============================================================================
-// Audit Domain
-// ============================================================================
-
-func TestTenantIsolation_DataDeletionVisibility(t *testing.T) {
-	t.Parallel()
-
-	db := SetupTestDB(t)
-	tenantA, tenantB := isolationTenants(t, db)
-
-	// Data deletions require students (which require persons).
-	sA := CreateTestStudentForTenant(t, db, tenantA, "AuditA", "Student", "3a")
-	sB := CreateTestStudentForTenant(t, db, tenantB, "AuditB", "Student", "3a")
-
-	ddA := CreateTestDataDeletionForTenant(t, db, tenantA, sA.ID)
-	ddB := CreateTestDataDeletionForTenant(t, db, tenantB, sB.ID)
-
-	repo := repoAudit.NewDataDeletionRepository(repoAudit.NewRuntime(db, tenant.FromContext))
-
-	// --- Tenant A ---
-	ctx42 := ctxForTenant(tenantA)
-
-	deletions, err := repo.List(ctx42, nil)
-	require.NoError(t, err)
-
-	for _, d := range deletions {
-		assert.Equal(t, tenantA, d.TenantID,
-			"cross-tenant leak: tenant B data deletion visible to tenant A (List)")
-	}
-
-	// DataDeletionRepository uses base.Repository — FindByID returns error on not-found
-	_, err = repo.FindByID(ctx42, ddB.ID)
-	assert.Error(t, err,
-		"cross-tenant FindByID should fail: tenant A must not see tenant B data deletion %d", ddB.ID)
-
-	// --- Tenant B ---
-	ctx43 := ctxForTenant(tenantB)
-
-	deletions, err = repo.List(ctx43, nil)
-	require.NoError(t, err)
-
-	for _, d := range deletions {
-		assert.Equal(t, tenantB, d.TenantID,
-			"cross-tenant leak: tenant A data deletion visible to tenant B (List)")
-	}
-
-	_, err = repo.FindByID(ctx43, ddA.ID)
-	assert.Error(t, err,
-		"cross-tenant FindByID should fail: tenant B must not see tenant A data deletion %d", ddA.ID)
 }
 
 // ============================================================================

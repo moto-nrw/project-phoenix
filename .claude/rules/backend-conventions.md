@@ -315,8 +315,8 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 |---|---|
 | DB fixtures (`CreateTest*` / `Cleanup*`) | `test/fixtures*.go` (the mandated catalog) |
 | Pointer helpers (`StrPtr`, `IntPtr`, `Int64Ptr`, `TimePtr`) | `test/helpers.go` |
-| `email.Mailer` capture | `test.CapturingMailer` (`test/mailers.go`) |
-| `realtime.Broadcaster` recording fake | `test.RecordingBroadcaster` (`test/broadcaster.go`) |
+| `email.Mailer` capture | `emailtest.CapturingMailer` (`email/emailtest`; alias `test.CapturingMailer`) |
+| `realtime.Broadcaster` recording fake | `realtimetest.RecordingBroadcaster` (`realtime/realtimetest`; alias `test.RecordingBroadcaster`) |
 | Repo mocks for `models/*` interfaces (School, Staff, suggestions) | `test/repo_mocks.go`, `test/suggestions_mocks.go` |
 | `config.SettingsService` | `configtest.Mock` (`services/config/configtest`) |
 | `identityaccess.AccountMFA` | a package-local func-field double; the behaviour suites keep theirs in `modules/identityaccess/behavior` |

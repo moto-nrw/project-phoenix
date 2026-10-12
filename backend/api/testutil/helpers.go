@@ -39,7 +39,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/auth/device/devicetest"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
@@ -387,7 +387,7 @@ func SetupActivitiesModule(t *testing.T) (*bun.DB, services.ActivitiesTestModule
 // DeviceIdentity exposes the authenticated principal facts to HTTP adapter
 // runtimes without making each adapter test import the device middleware.
 func DeviceIdentity(ctx context.Context) (int64, string, bool) {
-	principal := device.DeviceFromCtx(ctx)
+	principal := devicetest.DeviceFromContext(ctx)
 	if principal == nil {
 		return 0, "", false
 	}
@@ -420,11 +420,11 @@ func AuthenticatedDeviceID(ctx context.Context) (string, bool) {
 // DevicePrincipal converts a device row into the principal the device auth
 // middleware binds to a request, so handler tests see exactly what
 // production handlers see. It never copies the API key.
-func DevicePrincipal(d *testpkg.Device) *device.AuthenticatedDevice {
+func DevicePrincipal(d *testpkg.Device) *devicetest.Principal {
 	if d == nil {
 		return nil
 	}
-	return &device.AuthenticatedDevice{
+	return &devicetest.Principal{
 		ID:         d.ID,
 		TenantID:   d.TenantID,
 		DeviceID:   d.DeviceID,
@@ -440,8 +440,7 @@ func DevicePrincipal(d *testpkg.Device) *device.AuthenticatedDevice {
 // a presence capability directly as that actor without naming the auth
 // context keys itself. The staff member belongs to the device's school.
 func WithDeviceActor(ctx context.Context, d *testpkg.Device, staffID int64) context.Context {
-	ctx = context.WithValue(ctx, device.CtxDevice, DevicePrincipal(d))
-	return context.WithValue(ctx, device.CtxStaff, &device.AuthenticatedStaff{ID: staffID, TenantID: d.TenantID})
+	return devicetest.WithStaff(devicetest.WithDevice(ctx, DevicePrincipal(d)), staffID, d.TenantID)
 }
 
 // WithDeviceContext adds an IoT device to the request context.
@@ -450,7 +449,7 @@ func WithDeviceActor(ctx context.Context, d *testpkg.Device, staffID int64) cont
 // a tenant-scoped transaction (mirrors production device auth middleware).
 func WithDeviceContext(d *testpkg.Device) RequestOption {
 	return func(req *http.Request) {
-		ctx := context.WithValue(req.Context(), device.CtxDevice, DevicePrincipal(d))
+		ctx := devicetest.WithDevice(req.Context(), DevicePrincipal(d))
 		if tid := d.TenantID; tid != 0 {
 			ctx = tenant.WithTenantID(ctx, tid)
 		}
@@ -462,8 +461,8 @@ func WithDeviceContext(d *testpkg.Device) RequestOption {
 // that do not need a persisted device or a tenant transaction.
 func WithDeviceIdentity(id int64, deviceID string) RequestOption {
 	return func(req *http.Request) {
-		principal := &device.AuthenticatedDevice{ID: id, DeviceID: deviceID}
-		*req = *req.WithContext(context.WithValue(req.Context(), device.CtxDevice, principal))
+		principal := &devicetest.Principal{ID: id, DeviceID: deviceID}
+		*req = *req.WithContext(devicetest.WithDevice(req.Context(), principal))
 	}
 }
 
@@ -476,7 +475,7 @@ func RollbackRequested(ctx context.Context) bool             { return tenant.Rol
 // device middleware does, so services authorize through the device session.
 func WithIoTDeviceRequest() RequestOption {
 	return func(req *http.Request) {
-		*req = *req.WithContext(context.WithValue(req.Context(), device.CtxIsIoTDevice, true))
+		*req = *req.WithContext(devicetest.WithIoTDevice(req.Context()))
 	}
 }
 
@@ -485,7 +484,6 @@ func WithIoTDeviceRequest() RequestOption {
 // that require staff authentication.
 func WithStaffContext(staffID, tenantID int64) RequestOption {
 	return func(req *http.Request) {
-		ctx := context.WithValue(req.Context(), device.CtxStaff, &device.AuthenticatedStaff{ID: staffID, TenantID: tenantID})
-		*req = *req.WithContext(ctx)
+		*req = *req.WithContext(devicetest.WithStaff(req.Context(), staffID, tenantID))
 	}
 }
