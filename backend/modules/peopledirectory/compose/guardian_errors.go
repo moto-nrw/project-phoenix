@@ -21,6 +21,11 @@ var (
 	// to admins.
 	ErrGuardianForceDeleteRequiresAdmin = errors.New("only administrators can fully delete a guardian linked to students")
 
+	// errGuardianRolePresetsUnbound refuses a role assignment while the
+	// composition root has not bound the role presets; nothing falls back to
+	// a role of its own.
+	errGuardianRolePresetsUnbound = errors.New("guardian role presets are not wired; refusing role assignment")
+
 	// ErrPayerRemovalRequiresFinancial refuses to unlink a guardian who is the
 	// child's payer when the caller lacks guardians:financial (#2608). Clearing
 	// the payer mark changes who is charged for the child; that decision is

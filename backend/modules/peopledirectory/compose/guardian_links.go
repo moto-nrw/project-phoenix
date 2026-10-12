@@ -141,6 +141,9 @@ func (s *GuardianService) LinkGuardianToStudent(ctx context.Context, req Student
 		return nil, fmt.Errorf("student not found: %w", err)
 	}
 
+	if s.RolePresets == nil {
+		return nil, errGuardianRolePresetsUnbound
+	}
 	role := req.GuardianRole
 	if strings.TrimSpace(role) == "" {
 		role = s.RolePresets.DefaultRole(req.RelationshipType, req.IsPrimary, req.IsEmergencyContact, req.CanPickup)
@@ -220,6 +223,9 @@ func (s *GuardianService) UpdateStudentGuardianRelationship(ctx context.Context,
 		relationship.RelationshipType = *req.RelationshipType
 	}
 	if req.GuardianRole != nil {
+		if s.RolePresets == nil {
+			return errGuardianRolePresetsUnbound
+		}
 		s.applyRolePreset(relationship, *req.GuardianRole)
 	}
 	if req.IsPrimary != nil {

@@ -19,14 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// getEnrollmentProfile returns guardian + linked-children data for the
-// calling parent within the requested tenant. Tenant comes from the
-// path slug (admin-tx resolves it); account from claims.ID. The
-// repository call runs under WithTenantTx via the loader so RLS
-// narrows reads to that tenant — a parent who has no profile in this
-// school just gets claims-derived guardian fields and an empty
-// children list.
-//
 // GuardianProfileLoader is the consumer-owned port over People Directory's
 // enrollment autofill read: the guardian profile linked to the account in
 // one school, its primary phone and its active children. It answers
@@ -36,6 +28,14 @@ type GuardianProfileLoader interface {
 	LoadForTenant(ctx context.Context, accountID, tenantID int64) (*usersModels.GuardianProfileWithChildren, error)
 }
 
+// getEnrollmentProfile returns guardian + linked-children data for the
+// calling parent within the requested tenant. Tenant comes from the
+// path slug (admin-tx resolves it); account from claims.ID. The
+// repository call runs under WithTenantTx via the loader so RLS
+// narrows reads to that tenant — a parent who has no profile in this
+// school just gets claims-derived guardian fields and an empty
+// children list.
+//
 // Hidden-school gate (#1663): this is the third direct enrollment route, so it
 // applies the SAME enrollmentSchoolReachable check as bootstrap and submit.
 // Without it the hidden flag leaks twice over: the 200/404 split alone tells a
