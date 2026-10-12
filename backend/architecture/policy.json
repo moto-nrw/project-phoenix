@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 34,
+  "policy_epoch": 35,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -6824,17 +6824,6 @@
       "source_role": "postgres",
       "target_owner": "enrollment",
       "target_role": "public"
-    },
-    {
-      "id": "test-support.e2e.enrollment-support",
-      "description": "Cross-owner audit tests compose Enrollment through owner test support.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "test-support",
-      "source_role": "e2e-test",
-      "target_owner": "enrollment",
-      "target_role": "test-support"
     },
     {
       "id": "care-plan.postgres.enrollment-query",
@@ -14900,28 +14889,6 @@
       "target_role": "compose"
     },
     {
-      "id": "test-support.to.care-plan-public",
-      "description": "Cross-owner audit tests bind Care Plan projections through its public capability.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "test-support",
-      "source_role": "e2e-test",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "test-support.to.care-plan-support",
-      "description": "Cross-owner audit tests compose Care Plan through its test support.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "test-support",
-      "source_role": "e2e-test",
-      "target_owner": "care-plan",
-      "target_role": "test-support"
-    },
-    {
       "id": "test-support.to.enrollment-support",
       "description": "Shared enrollment fixtures create owner records through Enrollment test support instead of legacy ORM models.",
       "scopes": [
@@ -22609,6 +22576,61 @@
       "source_role": "e2e-test",
       "target_owner": "security-runtime",
       "target_role": "contract"
+    },
+    {
+      "id": "shared-fixtures.security-runtime-public",
+      "description": "The shared fixtures apply the guardian role presets and decide student updates through the Security Runtime contract (ADR 0047).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "shared-fixtures.e2e.settings-platform-public",
+      "description": "The shared end-to-end suites store tenant settings under the Settings Platform contract's keys and values (ADR 0047).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "settings-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "settings-platform.internal-test.security-runtime-public",
+      "description": "The settings suite proves the overview scope stays in its tenant through the Security Runtime's overview decision (ADR 0047).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "module-internal-test",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.adapter-test.enrollment-support",
+      "description": "The Audit integration suite composes the booking consistency audit with the Enrollment test support (ADR 0047).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "adapter-test",
+      "target_owner": "enrollment",
+      "target_role": "test-support"
+    },
+    {
+      "id": "audit-platform.adapter-test.care-plan-support",
+      "description": "The Audit integration suite composes the booking consistency audit with the Care Plan test support (ADR 0047).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "adapter-test",
+      "target_owner": "care-plan",
+      "target_role": "test-support"
     },
     {
       "id": "people-directory.postgres.guardian-link-view",

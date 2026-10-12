@@ -1,20 +1,22 @@
-package test
+package integration_test
 
 import (
 	"context"
 	"testing"
 
+	"github.com/uptrace/bun"
+
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	"github.com/uptrace/bun"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func bookingConsistencyAuditTestRepository(t *testing.T) any {
 	t.Helper()
-	db := SetupTestDB(t)
-	repo := auditRepo.NewBookingConsistencyRepository(auditRepo.NewRuntime(db, AuditTenantIDFromContext), bookingAuditEnrollment{Module: enrollmentTest.New(), bookings: carePlanTest.NewOfferingBookings()})
+	db := testpkg.SetupTestDB(t)
+	repo := auditRepo.NewBookingConsistencyRepository(auditRepo.NewRuntime(db, testpkg.AuditTenantIDFromContext), bookingAuditEnrollment{Module: enrollmentTest.New(), bookings: carePlanTest.NewOfferingBookings()})
 	// The audit reads the alumnus exclusion through the People Directory port
 	// (#2662); this package serves it straight from the table it may read.
 	repo.(interface {
@@ -100,26 +102,26 @@ func (d rawStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) 
 func TestBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.T) {
 	t.Parallel()
 
-	db := SetupTestDB(t)
-	verifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t, db, bookingConsistencyAuditTestRepository(t))
+	db := testpkg.SetupTestDB(t)
+	testpkg.VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t, db, bookingConsistencyAuditTestRepository(t))
 }
 
 func TestBookingConsistencyAuditRequiresDateAndTenant(t *testing.T) {
 	t.Parallel()
 
-	verifyBookingConsistencyAuditRequiresDateAndTenant(t, bookingConsistencyAuditTestRepository(t))
+	testpkg.VerifyBookingConsistencyAuditRequiresDateAndTenant(t, bookingConsistencyAuditTestRepository(t))
 }
 
 func TestBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T) {
 	t.Parallel()
 
-	db := SetupTestDB(t)
-	verifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t, db, bookingConsistencyAuditTestRepository(t))
+	db := testpkg.SetupTestDB(t)
+	testpkg.VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t, db, bookingConsistencyAuditTestRepository(t))
 }
 
 func TestBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing.T) {
 	t.Parallel()
 
-	db := SetupTestDB(t)
-	verifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t, db, bookingConsistencyAuditTestRepository(t))
+	db := testpkg.SetupTestDB(t)
+	testpkg.VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t, db, bookingConsistencyAuditTestRepository(t))
 }
