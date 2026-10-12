@@ -83,11 +83,12 @@ func attachSupervisionPersons(ctx context.Context, query peopledirectory.Query, 
 	}
 	for _, member := range staff {
 		if person, found := persons[member.PersonID]; found {
-			value := toLegacyPerson(person)
+			// The birthday stays with the owner; no supervision reader
+			// renders it.
 			member.Person = &presenceCompose.SessionStaffPerson{
-				ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
-				FirstName: value.FirstName, LastName: value.LastName, Birthday: value.Birthday,
-				TagID: value.TagID, AccountID: value.AccountID,
+				ID: person.ID, TenantID: person.TenantID, CreatedAt: person.CreatedAt, UpdatedAt: person.UpdatedAt,
+				FirstName: person.FirstName, LastName: person.LastName,
+				TagID: person.TagID, AccountID: person.AccountID,
 			}
 		}
 	}

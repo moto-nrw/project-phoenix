@@ -3,14 +3,17 @@ package repositories
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
+// SessionActivityRecords are the Timetable activity group reads, in the
+// owner's public vocabulary, the session records project activities from
+// (timetableCompose.TimetableGroupReads).
 type SessionActivityRecords interface {
-	FindByID(context.Context, any) (*activities.Group, error)
-	FindByIDs(context.Context, []int64) ([]*activities.Group, error)
-	ListWithCategory(context.Context, *activities.GroupListQuery) ([]*activities.Group, error)
+	FindByID(context.Context, any) (*timetable.Group, error)
+	FindByIDs(context.Context, []int64) ([]*timetable.Group, error)
+	ListWithCategory(context.Context) ([]*timetable.Group, error)
 }
 
 type SessionActivities struct{ records SessionActivityRecords }
@@ -30,11 +33,11 @@ func (r *SessionActivities) FindByIDs(ctx context.Context, ids []int64) ([]*pres
 }
 
 func (r *SessionActivities) ListSessionActivities(ctx context.Context) ([]*presenceCompose.SessionActivity, error) {
-	rows, err := r.records.ListWithCategory(ctx, nil)
+	rows, err := r.records.ListWithCategory(ctx)
 	return sessionActivities(rows), err
 }
 
-func sessionActivities(rows []*activities.Group) []*presenceCompose.SessionActivity {
+func sessionActivities(rows []*timetable.Group) []*presenceCompose.SessionActivity {
 	if rows == nil {
 		return nil
 	}
@@ -45,7 +48,7 @@ func sessionActivities(rows []*activities.Group) []*presenceCompose.SessionActiv
 	return result
 }
 
-func sessionActivity(row *activities.Group) *presenceCompose.SessionActivity {
+func sessionActivity(row *timetable.Group) *presenceCompose.SessionActivity {
 	if row == nil {
 		return nil
 	}

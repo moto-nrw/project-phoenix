@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -60,7 +61,7 @@ type (
 type PeopleRepositorySuiteFactory struct {
 	repositories.MembershipTestRepositories
 	repositories.CareScheduleRepositories
-	repositories.SchoolCalendarRepositories
+	timetableCompose.SchoolCalendarRepositories
 	repositories.ParentPortalRepositories
 	GuardianPhoneNumber   usersModels.GuardianPhoneNumberRepository
 	GuardianFinancialData usersModels.GuardianFinancialDataRepository
@@ -162,7 +163,7 @@ func newPeopleRepositorySuiteFactory(db *bun.DB, deps repositories.TimetableDepe
 	return &PeopleRepositorySuiteFactory{
 		MembershipTestRepositories: members,
 		CareScheduleRepositories:   repositories.NewCareScheduleRepositories(carePlan),
-		SchoolCalendarRepositories: repositories.NewSchoolCalendarRepositories(calendar, repositories.NewCalendarPeriodUsage(enrollmentCompose.New(), deps.Capability)),
+		SchoolCalendarRepositories: timetableCompose.NewSchoolCalendarRepositories(calendar, timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), deps.Capability)),
 		ParentPortalRepositories: repositories.NewParentPortalRepositories(db, repositories.ParentPortalOwners{
 			People: deps.Students, Groups: deps.Groups, Membership: deps.Membership, Persons: NewPersonRepository(db),
 			Identity: newPeopleIdentityAccess(db, IdentityAccessObserver(deps.ObserveIdentityAccess)), Enrollment: enrollment, Now: now,

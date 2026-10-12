@@ -201,6 +201,29 @@ func (r TimetableGroupReads) FindByIDs(ctx context.Context, ids []int64) ([]*tim
 	return result, nil
 }
 
+// FindByID returns the group with the given ID.
+func (r TimetableGroupReads) FindByID(ctx context.Context, id any) (*timetable.Group, error) {
+	row, err := r.groups.FindByID(ctx, id)
+	return publicGroup(row), err
+}
+
+// ListWithCategory returns every group with its category.
+func (r TimetableGroupReads) ListWithCategory(ctx context.Context) ([]*timetable.Group, error) {
+	rows, err := r.groups.ListWithCategory(ctx, nil)
+	return publicGroups(rows), err
+}
+
+func publicGroups(rows []*activitiesModels.Group) []*timetable.Group {
+	if rows == nil {
+		return nil
+	}
+	result := make([]*timetable.Group, len(rows))
+	for index, row := range rows {
+		result[index] = publicGroup(row)
+	}
+	return result
+}
+
 func publicGroup(group *activitiesModels.Group) *timetable.Group {
 	if group == nil {
 		return nil

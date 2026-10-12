@@ -59,7 +59,7 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 	}
 	sessions := newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{
 		DB: db, Devices: activeDeviceDirectory{devices: fleet}, Rooms: &activeRoomDirectory{rooms: rooms},
-		Activities: NewSessionActivities(timetableCompose.NewActivityGroupRecords(timetableCapability)),
+		Activities: NewSessionActivities(timetableCompose.NewTimetableGroupReads(timetableCompose.NewActivityGroupRecords(timetableCapability))),
 	})
 	return SessionCleanupRepositories{
 		Sessions: sessions, Device: device,

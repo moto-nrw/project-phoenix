@@ -581,7 +581,7 @@ func newFactory(
 	})
 	groupSupervisions := repositories.NewGroupSupervisionRecords(sessionRecords, groups)
 	staffAbsences := repositories.NewStaffAbsenceRepository(workTime, membership, persons)
-	calendarPeriods := repositories.NewCalendarPeriodRepository(calendar, repositories.NewCalendarPeriodUsage(enrollmentModule, timetableCapability))
+	calendarPeriods := arrivalTimetable.NewCalendarPeriodRepository(calendar, arrivalTimetable.NewPlanningCalendarPeriodUsage(enrollmentModule, timetableCapability))
 	statusDays := repositories.NewStudentStatusDayRepository(carePlan)
 	parentPortal := repositories.NewParentPortalRepositories(db, repositories.ParentPortalOwners{
 		People: persons, Groups: groups, Membership: membership, Persons: personRepository,
@@ -1220,7 +1220,7 @@ func newFactory(
 		StaffRepo:                NewAttendanceStaffDirectory(staffRepository),
 		RoomRepo:                 NewAttendanceRooms(roomRepository),
 		YardRoomColor:            yardRoomColorQuery(rooms),
-		ActivityGroupRepo:        repositories.NewSessionActivities(timetableRepos.ActivityGroup),
+		ActivityGroupRepo:        repositories.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:          NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo:       NewAttendanceEducationGroups(groupRepository, studentRepository),
 		DeviceRepo:               NewSessionDeviceDirectory(legacyDevices, settingsService, activeLogger),

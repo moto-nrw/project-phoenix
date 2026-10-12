@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -21,7 +20,7 @@ func sessionStaff(member schoolmembership.Staff) *presenceCompose.SessionStaff {
 	return &presenceCompose.SessionStaff{
 		ID: member.ID, TenantID: member.TenantID, CreatedAt: member.CreatedAt, UpdatedAt: member.UpdatedAt,
 		PersonID: member.PersonID, StaffNotes: member.StaffNotes, EmploymentType: member.EmploymentType,
-		WorkTimeModelID: member.WorkTimeModelID, RotationAnchorDate: usersRepo.ParseCalendarDate(member.RotationAnchorDate),
+		WorkTimeModelID: member.WorkTimeModelID, RotationAnchorDate: peopleCompose.ParseRetainedCalendarDate(member.RotationAnchorDate),
 		BirthdayDisplayOptOut: member.BirthdayDisplayOptOut,
 	}
 }

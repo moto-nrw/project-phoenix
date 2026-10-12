@@ -6,29 +6,16 @@ import (
 	"log/slog"
 	"time"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
-
-// presenceRecordErrors keeps the retained repository error shape on the
-// Student Presence session records: a missing row stays both a repository and
-// an SQL not-found error.
-type presenceRecordErrors struct{}
-
-func (presenceRecordErrors) WrapRecordError(operation string, err error) error {
-	return usersRepo.WrapError(operation, err)
-}
-
-func (presenceRecordErrors) MissingRecordError(operation string) error {
-	return usersRepo.NotFoundError(operation)
-}
 
 func presenceObservation(observation presenceCompose.Observation) {
 	if observation.Err != nil {
@@ -53,7 +40,7 @@ func NewPresenceSessionRecords(db *bun.DB, clocks ...func() time.Time) *presence
 
 func newPresenceSessionRecords(deps presenceCompose.SessionRecordDependencies) *presenceCompose.SessionRecords {
 	deps.Observe = presenceObservation
-	deps.Errors = presenceRecordErrors{}
+	deps.Errors = peopleCompose.RetainedRecordErrors{}
 	records, err := presenceCompose.NewSessionRecords(deps)
 	if err != nil {
 		panic(fmt.Sprintf("repository factory: compose presence session records: %v", err))
@@ -79,7 +66,7 @@ type SessionRecordOwners struct {
 func NewSessionRecords(db *bun.DB, owners SessionRecordOwners) *presenceCompose.SessionRecords {
 	deps := presenceCompose.SessionRecordDependencies{
 		DB: db, Now: owners.Now, Rooms: activeRoomDirectory{rooms: owners.Rooms},
-		Activities: NewSessionActivities(timetableCompose.NewActivityGroupRecords(owners.Timetable)),
+		Activities: NewSessionActivities(timetableCompose.NewTimetableGroupReads(timetableCompose.NewActivityGroupRecords(owners.Timetable))),
 		Staff:      presenceSupervisionStaff{membership: owners.Membership, persons: owners.Persons},
 	}
 	if owners.Devices != nil {

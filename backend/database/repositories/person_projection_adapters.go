@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
@@ -34,20 +33,4 @@ func personsByID(ctx context.Context, query peopledirectory.Query, ids []int64) 
 		result[value.ID] = value
 	}
 	return result, nil
-}
-
-// toLegacyPerson projects an owner value onto the legacy model that the
-// wrapped repositories still hand to their callers. The projection carries
-// the display and link fields those callers read; the birthday stays with
-// the owner (no wrapped caller renders it).
-func toLegacyPerson(value peopledirectory.Person) *usersModels.Person {
-	person := &usersModels.Person{
-		FirstName: value.FirstName, LastName: value.LastName,
-		TagID: value.TagID, AccountID: value.AccountID, DeletedAt: value.DeletedAt,
-	}
-	person.ID = value.ID
-	person.CreatedAt = value.CreatedAt
-	person.UpdatedAt = value.UpdatedAt
-	person.SetTenantID(value.TenantID)
-	return person
 }

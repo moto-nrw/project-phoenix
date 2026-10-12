@@ -18,5 +18,5 @@ func NewEnrollmentBookings() repositories.EnrollmentBookingProjection {
 // per-period reference counts from Enrollment's phases and the planning
 // owner's tables, one statement each (#3124).
 func NewCalendarPeriodUsage(planning timetable.Capability) *timetableCompose.CalendarPeriodUsageRepository {
-	return repositories.NewCalendarPeriodUsage(enrollmentCompose.New(), planning)
+	return timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), planning)
 }

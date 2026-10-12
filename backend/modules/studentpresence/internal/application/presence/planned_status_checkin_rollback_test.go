@@ -122,7 +122,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 		SchoolPresence: presence, StudentRepo: students, StudentStatusRepo: statuses,
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student), GroupRepo: groupFault, DeviceRepo: deviceFault,
-		RoomRepo: services.NewAttendanceRooms(repos.Room), ActivityGroupRepo: repositories.NewSessionActivities(repos.ActivityGroup),
+		RoomRepo: services.NewAttendanceRooms(repos.Room), ActivityGroupRepo: repositories.NewSessionActivities(repos.GroupReads()),
 		DB: db, Broadcaster: broadcaster,
 	})
 	activeService.ConfigureForTest(svc, activeService.WithTenantRuntime(testpkg.TenantRuntime(t, db)))

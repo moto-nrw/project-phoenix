@@ -66,7 +66,7 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork, publishers ...realt
 		StaffNames:      NewAttendanceStaffNames(tt.Staff, persons), GroupRepo: sessionGroups, SupervisorRepo: sessionSupervisors,
 		StudentRepo: PresenceStudents(db, tt.Student), StaffRepo: NewAttendanceStaffDirectory(tt.Staff), RoomRepo: NewAttendanceRooms(tt.Room),
 		EducationGroupRepo: NewAttendanceEducationGroups(tt.Group, tt.Student),
-		ActivityGroupRepo:  repositories.NewSessionActivities(tt.ActivityGroup), DB: db, Logger: slog.Default(),
+		ActivityGroupRepo:  repositories.NewSessionActivities(tt.GroupReads()), DB: db, Logger: slog.Default(),
 		SchoolPresence: newStudentPresence(db, slog.Default()),
 	})
 

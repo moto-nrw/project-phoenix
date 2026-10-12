@@ -17,7 +17,7 @@ func TestSessionActivitiesPreserveTimetableWireProjection(t *testing.T) {
 	repos, err := repositories.NewActiveTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
-	directory := repositories.NewSessionActivities(repos.ActivityGroup)
+	directory := repositories.NewSessionActivities(repos.GroupReads())
 	want, err := repos.ActivityGroup.FindByID(ctx, fixture.ID)
 	require.NoError(t, err)
 	got, err := directory.FindByID(ctx, fixture.ID)

@@ -106,13 +106,13 @@ func NewTimetableTestRepositories(db *bun.DB, members MembershipTestRepositories
 		return TimetableTestRepositories{}, err
 	}
 	enrollment := enrollmentCompose.New()
-	usage := NewCalendarPeriodUsage(enrollmentCompose.New(), bookings)
+	usage := timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), bookings)
 	room := facilitiesAdapter.New()
 	room.Bind(rooms)
 	result := TimetableTestRepositories{
 		Repositories:   adapters,
-		CalendarPeriod: NewCalendarPeriodRepository(calendar, usage),
-		ClosingDay:     NewClosingDayRepository(calendar), Dateframe: NewDateframeRepository(calendar),
+		CalendarPeriod: timetableCompose.NewCalendarPeriodRepository(calendar, usage),
+		ClosingDay:     timetableCompose.NewClosingDayRepository(calendar), Dateframe: timetableCompose.NewDateframeRepository(calendar),
 		Staff: members.Staff, Teacher: members.Teacher, ClassTeacher: members.ClassTeacher, GroupTeacher: members.GroupTeacher,
 		Person: members.Person, Student: members.Student, Group: members.Group,
 		ActiveGroup: sessions, GroupSupervisor: NewGroupSupervisionRecords(sessions, groups),
