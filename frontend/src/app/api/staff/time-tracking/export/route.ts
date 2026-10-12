@@ -5,6 +5,7 @@ import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "StaffTimeExportRoute" });
 
@@ -18,7 +19,7 @@ async function GETHandler(request: NextRequest) {
   const session = await auth();
 
   if (!session?.user?.token) {
-    return new Response("Unauthorized", { status: 401 });
+    return problemResponse(401, "Unauthorized");
   }
 
   try {
@@ -36,7 +37,7 @@ async function GETHandler(request: NextRequest) {
     if (!backendResponse.ok) return forwardBackendResponse(backendResponse);
 
     if (!backendResponse.body) {
-      return new Response("No response body from backend", { status: 502 });
+      return problemResponse(502, "No response body from backend");
     }
 
     const headers = new Headers();
@@ -57,7 +58,7 @@ async function GETHandler(request: NextRequest) {
     logger.error("staff time export proxy error", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return new Response("Internal server error", { status: 500 });
+    return problemResponse(500, "Internal server error");
   }
 }
 

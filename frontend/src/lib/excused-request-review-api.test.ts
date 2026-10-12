@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { ApiError } from "./api-error";
 
 import {
   decideExcusedAbsenceRequest,
-  ExcusedRequestApiError,
   type StaffExcusedRequest,
 } from "./excused-request-review-api";
 
@@ -118,10 +118,8 @@ describe("decideExcusedAbsenceRequest", () => {
     const err = await decideExcusedAbsenceRequest("r1", true).catch(
       (e: unknown) => e,
     );
-    expect(err).toBeInstanceOf(ExcusedRequestApiError);
-    expect((err as ExcusedRequestApiError).code).toBe(
-      "students.change_request_not_pending",
-    );
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).code).toBe("students.change_request_not_pending");
   });
 
   it("falls back to the German decision message on a non-JSON error", async () => {
@@ -129,7 +127,7 @@ describe("decideExcusedAbsenceRequest", () => {
     const err = await decideExcusedAbsenceRequest("r1", false).catch(
       (e: unknown) => e,
     );
-    expect((err as ExcusedRequestApiError).message).toBe(
+    expect((err as ApiError).message).toBe(
       "Entscheidung konnte nicht gespeichert werden",
     );
   });

@@ -47,7 +47,7 @@ func (rs *MFAResource) requireMFA(w http.ResponseWriter, r *http.Request) bool {
 
 // operatorMFAError is an operator error body that also carries its code.
 func operatorMFAError(status int, message, code string) render.Renderer {
-	return &common.ErrResponse{HTTPStatusCode: status, Status: "error", ErrorText: message, Code: code}
+	return &common.ErrResponse{HTTPStatusCode: status, Detail: message, Code: code}
 }
 
 // mapOperatorMFAError translates known MFA-service errors into HTTP responses.
@@ -284,7 +284,9 @@ func (rs *MFAResource) completeMFAExchange(w http.ResponseWriter, r *http.Reques
 		case errors.Is(err, ErrOperatorInactive):
 			common.RenderError(w, r, operatorInactive("Operator account is inactive"))
 		case errors.Is(err, ErrOperatorNotFound):
-			common.RenderError(w, r, common.OperatorUnauthorized())
+			// Reached after a correct second factor: a refused credential
+			// like the tenant exchange, not an expired session.
+			common.RenderError(w, r, common.OperatorRejection(http.StatusUnauthorized, common.CodeIdentityInvalidCredentials, "Unauthorized"))
 		default:
 			common.RenderError(w, r, common.OperatorInternal("Failed to issue tokens"))
 		}

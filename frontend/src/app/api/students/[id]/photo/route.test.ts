@@ -65,7 +65,7 @@ describe("DELETE /api/students/[id]/photo — 401 retry", () => {
 
     // First call: stale-token → 401. Second call: fresh-token → 200.
     mockFetch
-      .mockResolvedValueOnce(jsonResponse(401, { error: "expired" }))
+      .mockResolvedValueOnce(jsonResponse(401, { detail: "expired" }))
       .mockResolvedValueOnce(
         jsonResponse(200, { status: "success", data: null }),
       );
@@ -96,7 +96,7 @@ describe("DELETE /api/students/[id]/photo — 401 retry", () => {
     // also expired). We must fall through and surface the original error
     // instead of looping the same request indefinitely.
     mockUncachedAuth.mockResolvedValue(defaultSession);
-    mockFetch.mockResolvedValueOnce(jsonResponse(401, { error: "expired" }));
+    mockFetch.mockResolvedValueOnce(jsonResponse(401, { detail: "expired" }));
 
     const { DELETE } = await import("./route");
     const response = await DELETE(createDeleteRequest("42"), {
@@ -150,7 +150,7 @@ describe("DELETE /api/students/[id]/photo — backend status preservation", () =
     },
   );
 
-  it("forwards an empty backend body without inventing a message", async () => {
+  it("answers an empty backend body with the envelope, without inventing a message", async () => {
     mockAuth.mockResolvedValue(defaultSession);
     mockFetch.mockResolvedValueOnce(new Response("", { status: 502 }));
 
@@ -160,7 +160,11 @@ describe("DELETE /api/students/[id]/photo — backend status preservation", () =
     });
 
     expect(response.status).toBe(502);
-    expect(await response.text()).toBe("");
+    expect(await response.json()).toMatchObject({
+      status: 502,
+      detail: "Bad Gateway",
+      code: "general.unavailable",
+    });
   });
 
   it("forwards a 409 problem body with all structured fields", async () => {
@@ -294,7 +298,7 @@ describe("POST /api/students/[id]/photo — body callback branches", () => {
     mockAuth.mockResolvedValue(defaultSession);
     mockUncachedAuth.mockResolvedValue(refreshedSession);
     mockFetch
-      .mockResolvedValueOnce(jsonResponse(401, { error: "expired" }))
+      .mockResolvedValueOnce(jsonResponse(401, { detail: "expired" }))
       .mockResolvedValueOnce(
         jsonResponse(200, {
           status: "success",

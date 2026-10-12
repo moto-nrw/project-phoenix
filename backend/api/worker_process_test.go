@@ -43,7 +43,7 @@ func TestWorkerProbesGateReadinessOnTheLease(t *testing.T) {
 
 	code, body := probe(t, handler, "/ready", "")
 	assert.Equal(t, http.StatusServiceUnavailable, code, "a standby is alive but not ready")
-	assert.Equal(t, "standby", body)
+	assert.JSONEq(t, `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-gerade-nicht-erreichbar","title":"Service Unavailable","status":503,"detail":"standby","instance":"","code":"general.unavailable"}`, body)
 	code, _ = probe(t, handler, "/health", "")
 	assert.Equal(t, http.StatusOK, code)
 

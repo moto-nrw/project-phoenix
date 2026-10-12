@@ -186,8 +186,8 @@ describe("POST /api/auth/accounts", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(401);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toBe("Unauthorized");
+    const json = (await response.json()) as { detail: string };
+    expect(json.detail).toBe("Unauthorized");
   });
 
   it("updates an account via PUT", async () => {
@@ -233,8 +233,9 @@ describe("POST /api/auth/accounts", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toBe("Failed to update account");
+    const json = (await response.json()) as { detail: string };
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Failed to update account");
     expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {});
   });
 
@@ -275,7 +276,11 @@ describe("POST /api/auth/accounts", () => {
     );
 
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: "Invalid JSON" });
+    expect(await response.json()).toMatchObject({
+      status: 400,
+      detail: "Invalid JSON",
+      code: "general.input",
+    });
     expect(mockApiPut).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });

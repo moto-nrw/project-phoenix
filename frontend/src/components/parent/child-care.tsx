@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { ApiError } from "~/lib/api-error";
 import { useLocale, useTranslations } from "next-intl";
 import { Loader2, Trash2 } from "lucide-react";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
@@ -29,7 +30,6 @@ import {
   type ChildToday,
   type ExcusedRequest,
   type PickupChangeRequest,
-  ParentApiError,
   type StatusDay,
   type StudentStatusKind,
   deleteCareException,
@@ -686,10 +686,7 @@ function knownSickErrorKey(err: unknown): string | null {
   if (err instanceof ChildCareRefreshError) {
     return "sick.submittedButRefreshFailed";
   }
-  if (
-    err instanceof ParentApiError &&
-    err.code === "care.excused_request_overlap"
-  ) {
+  if (err instanceof ApiError && err.code === "care.excused_request_overlap") {
     return "sick.overlapError";
   }
   return null;
@@ -1076,7 +1073,7 @@ export function PickupTimeModal({
   // name, the school's cutoff time). Every other failure goes through the
   // shared error path, which never shows the backend's sentence.
   const knownPickupError = (err: unknown): string | null => {
-    if (err instanceof ParentApiError) {
+    if (err instanceof ApiError) {
       switch (err.code) {
         case "care.pickup_change_disabled":
           return t("pickup.errorDisabled");
@@ -1201,7 +1198,7 @@ export function PickupTimeModal({
       onClose();
     } catch (err) {
       if (
-        err instanceof ParentApiError &&
+        err instanceof ApiError &&
         err.code === "students.change_request_stale"
       ) {
         form.invalid(t("pickup.staleError"));

@@ -1,4 +1,8 @@
-import { apiErrorFromText, type ApiError } from "~/lib/api-error";
+import {
+  apiErrorFromText,
+  problemDetail,
+  type ApiError,
+} from "~/lib/api-error";
 
 type EnrollmentErrorLogger = {
   error: (message: string, context?: Record<string, unknown>) => void;
@@ -8,9 +12,7 @@ type EnrollmentErrorLogger = {
 /** The backend sentence, kept for the log only (ADR 0006: never shown). */
 function backendDiagnosis(text: string): string | undefined {
   try {
-    const body = JSON.parse(text) as { error?: unknown; message?: unknown };
-    const raw = body.error ?? body.message;
-    return typeof raw === "string" ? raw : undefined;
+    return problemDetail(JSON.parse(text));
   } catch {
     return text || undefined;
   }
@@ -33,11 +35,10 @@ export async function readEnrollmentError(
   } catch {
     // Body already consumed or the stream broke: the status still classifies.
   }
-  const error = apiErrorFromText(
-    `${fallback} (HTTP ${response.status})`,
-    response.status,
-    text,
-  );
+  const message = `${fallback} (HTTP ${response.status})`;
+  const error = apiErrorFromText(message, response.status, text);
+  // The backend sentence stays in the log context below, not in the message.
+  error.message = message;
   const context = {
     status: response.status,
     code: error.code,

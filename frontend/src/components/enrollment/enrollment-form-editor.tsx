@@ -31,6 +31,7 @@ import {
   TextCursorInput,
   Trash2,
 } from "lucide-react";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   useApiErrorDisplay,
@@ -240,17 +241,6 @@ function fieldErrorProps(
   } as const;
 }
 
-function FieldErrorHint({
-  id,
-  message,
-}: Readonly<{ id: string; message: string | undefined }>) {
-  if (!message) return null;
-  return (
-    <p id={id} className="text-moto-red-strong mt-1 text-xs">
-      {message}
-    </p>
-  );
-}
 type EditorMode = "overview" | "builder" | "detail";
 type PendingNavigation = "overview" | "new" | "preview";
 
@@ -435,7 +425,7 @@ export function EnrollmentFormEditor({
     clear: clearSaveError,
   } = useApiFormError(builderRef);
   const deleteErrors = useApiFormError();
-  const { show: showActionError } = useApiErrorDisplay();
+  const { show: showActionError, showMessage } = useApiErrorDisplay();
   const [mode, setMode] = useState<EditorMode>("overview");
   const [pendingNavigation, setPendingNavigation] =
     useState<PendingNavigation | null>(null);
@@ -982,7 +972,7 @@ export function EnrollmentFormEditor({
 
   const requestBackToOverview = () => {
     if (hasPendingLegalDocumentUpload) {
-      toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+      showMessage(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
       return;
     }
     if (hasUnsavedChanges) {
@@ -994,7 +984,7 @@ export function EnrollmentFormEditor({
 
   const requestStartNew = () => {
     if (hasPendingLegalDocumentUpload) {
-      toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+      showMessage(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
       return;
     }
     if (hasUnsavedChanges) {
@@ -1014,7 +1004,7 @@ export function EnrollmentFormEditor({
 
   const requestExternalPreview = () => {
     if (hasPendingLegalDocumentUpload) {
-      toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+      showMessage(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
       return;
     }
     if (!hasUnsavedChanges && currentSchema) {
@@ -2329,7 +2319,7 @@ function LegalBlocksSection({
   onUploadEnd: () => void;
 }>) {
   const toast = useToast();
-  const { show: showActionError } = useApiErrorDisplay();
+  const { show: showActionError, showMessage } = useApiErrorDisplay();
   const fieldError = useContext(FieldErrorContext);
   const [editingStandardKeys, setEditingStandardKeys] = useState<string[]>([]);
   const [uploadingDocumentKey, setUploadingDocumentKey] = useState<
@@ -2379,11 +2369,11 @@ function LegalBlocksSection({
       file.type !== "application/pdf" &&
       !file.name.toLowerCase().endsWith(".pdf")
     ) {
-      toast.error("Bitte wählen Sie eine PDF-Datei aus.");
+      showMessage("Bitte wählen Sie eine PDF-Datei aus.");
       return;
     }
     if (file.size > MAX_LEGAL_DOCUMENT_BYTES) {
-      toast.error(
+      showMessage(
         "Die Datei ist größer als 10 MB. Bitte wählen Sie eine kleinere Datei.",
       );
       return;

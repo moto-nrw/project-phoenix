@@ -146,6 +146,10 @@ func (rs *Resource) getDashboard(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, NewDashboardResponse(payload))
 }
 
+// ErrFeatureDisabled refuses every display route of a school that has not
+// enabled the display; the root answers it with its registered code.
+var ErrFeatureDisabled = errors.New("feature_disabled")
+
 // featureEnabled reports whether the info-point dashboard is enabled for the
 // current tenant, rendering the failure and returning false when it is not.
 // The feature is opt-in (defaults off), unlike the meal plan's opt-out.
@@ -162,7 +166,7 @@ func (rs *Resource) featureEnabled(w http.ResponseWriter, r *http.Request) bool 
 	if enabled {
 		return true
 	}
-	rs.runtime.Failure(w, r, FailureForbidden, errors.New("feature_disabled"), "")
+	rs.runtime.Failure(w, r, FailureForbidden, ErrFeatureDisabled, "")
 	return false
 }
 

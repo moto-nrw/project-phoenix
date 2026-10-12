@@ -8,19 +8,13 @@ import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import {
+  createTokenExpiredResponse,
   createUnauthorizedResponse,
   encodePathSegment,
   extractParams,
   isStringParam,
   type RouteContext,
 } from "~/lib/route-wrapper-utils.server";
-
-function createTokenExpiredResponse(): NextResponse {
-  return NextResponse.json(
-    { error: "Token expired", code: "TOKEN_EXPIRED" },
-    { status: 401 },
-  );
-}
 
 /**
  * PUT handler for updating a supervisor's role for an activity (primarily is_primary status)

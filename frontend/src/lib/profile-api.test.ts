@@ -176,7 +176,10 @@ describe("profile-api", () => {
       });
       global.fetch = mockFetch;
 
-      await expect(fetchProfile()).rejects.toThrow("Failed to fetch profile");
+      await expect(fetchProfile()).rejects.toMatchObject({
+        status: 404,
+        code: "general.input",
+      });
       expect(consoleErrorSpy).toHaveBeenCalledWith("failed to fetch profile", {
         error: expect.stringContaining("HTTP error! status: 404") as unknown,
       });
@@ -194,7 +197,11 @@ describe("profile-api", () => {
       });
       global.fetch = mockFetch;
 
-      await expect(fetchProfile()).rejects.toThrow("Failed to fetch profile");
+      await expect(fetchProfile()).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+        message: "Profile not found",
+      });
     });
 
     it("throws error when response success is false with no message", async () => {
@@ -215,7 +222,7 @@ describe("profile-api", () => {
       const mockFetch = vi.fn().mockRejectedValue(new Error("Network error"));
       global.fetch = mockFetch;
 
-      await expect(fetchProfile()).rejects.toThrow("Failed to fetch profile");
+      await expect(fetchProfile()).rejects.toThrow("Network error");
       expect(consoleErrorSpy).toHaveBeenCalledWith("failed to fetch profile", {
         error: expect.stringContaining("Network error") as unknown,
       });
@@ -367,7 +374,7 @@ describe("profile-api", () => {
         ok: false,
         status: 400,
         text: () =>
-          Promise.resolve(JSON.stringify({ error: "File too large" })),
+          Promise.resolve(JSON.stringify({ detail: "File too large" })),
       });
       global.fetch = mockFetch;
 
@@ -378,7 +385,7 @@ describe("profile-api", () => {
         code: "general.input",
       });
       expect(consoleErrorSpy).toHaveBeenCalledWith("failed to upload avatar", {
-        error: expect.stringContaining("HTTP error! status: 400") as unknown,
+        error: expect.stringContaining("File too large") as unknown,
       });
     });
 
@@ -474,7 +481,10 @@ describe("profile-api", () => {
       });
       global.fetch = mockFetch;
 
-      await expect(deleteAvatar()).rejects.toThrow("Failed to delete avatar");
+      await expect(deleteAvatar()).rejects.toMatchObject({
+        status: 404,
+        code: "general.input",
+      });
       expect(consoleErrorSpy).toHaveBeenCalledWith("failed to delete avatar", {
         error: expect.stringContaining("HTTP error! status: 404") as unknown,
       });
@@ -492,7 +502,11 @@ describe("profile-api", () => {
       });
       global.fetch = mockFetch;
 
-      await expect(deleteAvatar()).rejects.toThrow("Failed to delete avatar");
+      await expect(deleteAvatar()).rejects.toMatchObject({
+        status: 500,
+        code: "general.server",
+        message: "Delete failed",
+      });
     });
 
     it("throws error when response success is false with no message", async () => {
@@ -513,7 +527,7 @@ describe("profile-api", () => {
       const mockFetch = vi.fn().mockRejectedValue(new Error("Network error"));
       global.fetch = mockFetch;
 
-      await expect(deleteAvatar()).rejects.toThrow("Failed to delete avatar");
+      await expect(deleteAvatar()).rejects.toThrow("Network error");
       expect(consoleErrorSpy).toHaveBeenCalledWith("failed to delete avatar", {
         error: expect.stringContaining("Network error") as unknown,
       });

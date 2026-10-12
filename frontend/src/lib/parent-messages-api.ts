@@ -54,7 +54,6 @@ interface ApiResponse<T> {
   status?: string;
   success?: boolean;
   data?: T;
-  error?: string;
 }
 
 /**
@@ -74,14 +73,7 @@ async function throwApiError(
   } catch {
     // Body unreadable: the status still classifies the error.
   }
-  let message = fallback;
-  try {
-    const body = (text ? JSON.parse(text) : {}) as { error?: string };
-    if (body.error) message = body.error;
-  } catch {
-    // Body was not JSON — keep the German fallback.
-  }
-  throw apiErrorFromText(message, response.status, text);
+  throw apiErrorFromText(fallback, response.status, text);
 }
 
 /** A success response without the expected payload. */

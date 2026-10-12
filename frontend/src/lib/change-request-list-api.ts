@@ -1,8 +1,4 @@
-import {
-  ApiError,
-  apiErrorFromResponse,
-  transportFetch,
-} from "~/lib/api-error";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import type {
   StaffCareRequest,
@@ -301,24 +297,6 @@ export function listAggregatedRequestHistory(
   return fetchPage<AggregatedHistoryRequest>("history", params);
 }
 
-/**
- * Die Anfrage wurde geändert, seit die Liste sie geladen hat (409
- * `students.change_request_stale`). Eigener Fehlertyp, damit die Oberfläche neu laden
- * kann, statt die Person eine verlorene Entscheidung wiederholen zu lassen
- * (#2267). Den Text liefert der Katalog über den Code (#2513).
- */
-export class ChangeRequestStaleError extends ApiError {
-  constructor(source?: ApiError) {
-    super("change request stale", source?.status ?? 409, {
-      code: "students.change_request_stale",
-      details: source?.details,
-      errors: source?.errors,
-      instance: source?.instance,
-    });
-    this.name = "ChangeRequestStaleError";
-  }
-}
-
 /** Die vier Arten, die über den gemeinsamen Lebenszyklus entschieden werden. */
 export type ParentRequestKind =
   "master_data" | "care_schedule" | "offering" | "excused";
@@ -330,18 +308,18 @@ export interface BulkApproveRequestRef {
 }
 
 /**
- * Liest die Fehlerantwort einer schreibenden Anfrage. Eine veraltete Version
- * wird zum eigenen Fehlertyp; alles andere bleibt ein ApiError mit Code, den
- * der gemeinsame Fehlerweg übersetzt (#2513).
+ * Liest die Fehlerantwort einer schreibenden Anfrage als ApiError mit Code,
+ * den der gemeinsame Fehlerweg übersetzt (#2513). Eine veraltete Version
+ * (409 `students.change_request_stale`, #2267) erkennt die Oberfläche am
+ * Code und lädt neu, statt die Person eine verlorene Entscheidung
+ * wiederholen zu lassen.
  */
 async function throwWriteError(
   response: Response,
   message: string,
 ): Promise<never> {
   const error = await apiErrorFromResponse(response, message);
-  if (error.code === "students.change_request_stale") {
-    throw new ChangeRequestStaleError(error);
-  }
+  if (error.code === "students.change_request_stale") throw error;
   logger.warn("change_request_write_failed", {
     status: response.status,
     ...(error.code ? { code: error.code } : {}),

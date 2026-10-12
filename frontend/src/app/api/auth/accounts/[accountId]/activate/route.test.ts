@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { PUT } from "./route";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 
 // ============================================================================
 // Types
@@ -122,7 +123,7 @@ describe("PUT /api/auth/accounts/[accountId]/activate", () => {
 
   it("handles API errors gracefully", async () => {
     mockApiPut.mockRejectedValueOnce(
-      new Error("API error (404): Account not found"),
+      new ApiResponseError(404, "Account not found"),
     );
 
     const request = createMockRequest("/api/auth/accounts/999/activate", {
@@ -134,14 +135,13 @@ describe("PUT /api/auth/accounts/[accountId]/activate", () => {
     );
 
     expect(response.status).toBe(404);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Account not found");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Not Found");
+    expect(JSON.stringify(json)).not.toContain("Account not found");
   });
 
   it("handles unauthorized activation attempts", async () => {
-    mockApiPut.mockRejectedValueOnce(
-      new Error("API error (401): Unauthorized"),
-    );
+    mockApiPut.mockRejectedValueOnce(new ApiResponseError(401, "Unauthorized"));
 
     const request = createMockRequest("/api/auth/accounts/456/activate", {
       method: "PUT",
@@ -151,12 +151,12 @@ describe("PUT /api/auth/accounts/[accountId]/activate", () => {
       createMockContext({ accountId: "456" }),
     );
 
-    // route-wrapper intercepts 401 errors, attempts token refresh, and returns TOKEN_EXPIRED
+    // route-wrapper intercepts 401 errors, attempts token refresh, and answers 401 with the error envelope
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string; code?: string }>(
+    const json = await parseJsonResponse<{ detail: string; code?: string }>(
       response,
     );
-    expect(json.error).toBe("Token expired");
-    expect(json.code).toBe("TOKEN_EXPIRED");
+    expect(json.detail).toBe("Token expired");
+    expect(json.code).toBe("general.permission");
   });
 });

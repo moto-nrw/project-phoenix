@@ -200,14 +200,11 @@ async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // Stream broke: the status still classifies the error.
     }
-    let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
-    try {
-      const body = JSON.parse(text) as { error?: unknown } | null;
-      if (typeof body?.error === "string" && body.error) message = body.error;
-    } catch {
-      // Not JSON: keep the generic diagnostic.
-    }
-    throw apiErrorFromText(message, response.status, text);
+    throw apiErrorFromText(
+      `Anfrage fehlgeschlagen (HTTP ${response.status})`,
+      response.status,
+      text,
+    );
   }
   if (response.status === 204) return undefined as T;
 

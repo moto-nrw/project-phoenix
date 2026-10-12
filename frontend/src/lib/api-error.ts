@@ -91,6 +91,74 @@ export async function transportFetch(
   }
 }
 
+/**
+ * The RFC 9457 error body every API answer carries (ADR 0006). `status` is the
+ * HTTP status number, `detail` is developer diagnostics and never shown; the
+ * user reads the catalog text for `code`.
+ */
+export interface ProblemBody {
+  type?: string;
+  title?: string;
+  status: number;
+  detail: string;
+  instance?: string;
+  code: ErrorCode;
+  errors?: { field: string; reason: string }[];
+  details?: Record<string, unknown>;
+  /** Companion-plan 409 of the student PUT (CompanionPlanConflictError). */
+  conflicts?: unknown[];
+}
+
+/**
+ * Builds the envelope for an error that starts in the frontend's own server
+ * layer, so the browser reads it like a backend answer. Without a code the
+ * error carries the code of its class.
+ */
+export function problemBody(
+  status: number,
+  detail: string,
+  extra: Omit<Partial<ProblemBody>, "status" | "detail"> = {},
+): ProblemBody {
+  return {
+    type: "about:blank",
+    title: problemTitle(status),
+    ...extra,
+    status,
+    detail,
+    code: wireErrorCode(extra.code) ?? errorClassCode(status),
+  };
+}
+
+export function problemTitle(status: number): string {
+  const titles: Record<number, string> = {
+    400: "Bad Request",
+    401: "Unauthorized",
+    403: "Forbidden",
+    404: "Not Found",
+    405: "Method Not Allowed",
+    409: "Conflict",
+    413: "Content Too Large",
+    422: "Unprocessable Content",
+    429: "Too Many Requests",
+    500: "Internal Server Error",
+    502: "Bad Gateway",
+    503: "Service Unavailable",
+    504: "Gateway Timeout",
+  };
+  return titles[status] ?? (status >= 500 ? "Server Error" : "Client Error");
+}
+
+/** The diagnostic `detail` of an error body, for logs and error messages. */
+export function problemDetail(body: unknown): string | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const detail = (body as { detail?: unknown }).detail;
+  return typeof detail === "string" && detail.trim() ? detail : undefined;
+}
+
+/**
+ * Turns an error body into an ApiError. The message is the envelope's
+ * diagnostic `detail`; `message` is the fallback for a body without one.
+ */
 export function apiErrorFromBody(
   message: string,
   status: number,
@@ -113,7 +181,7 @@ export function apiErrorFromBody(
           typeof entry.reason === "string",
       )
     : undefined;
-  return new ApiError(message, status, {
+  return new ApiError(problemDetail(data) ?? message, status, {
     code: typeof data.code === "string" && data.code ? data.code : undefined,
     details,
     errors,

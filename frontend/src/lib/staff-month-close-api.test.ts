@@ -40,7 +40,7 @@ function errorResponse(code: string, message = "backend error"): Response {
   return {
     ok: false,
     status: 409,
-    text: () => Promise.resolve(JSON.stringify({ code, error: message })),
+    text: () => Promise.resolve(JSON.stringify({ code, detail: message })),
   } as Response;
 }
 

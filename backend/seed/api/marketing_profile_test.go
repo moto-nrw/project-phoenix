@@ -370,13 +370,13 @@ func (m *marketingProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, 
 	auth := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if r.URL.Path == "/auth/switch-tenant" && auth == marketingMockAdminToken {
 		w.WriteHeader(seedHTTPStatusUnauthorized)
-		_, _ = fmt.Fprint(w, `{"status":"error","error":"tenant access denied"}`)
+		_, _ = fmt.Fprint(w, `{"status":401,"detail":"tenant access denied","code":"general.permission"}`)
 		return true
 	}
 	data, status := m.respond(t, r, body)
 	if status != 0 {
 		w.WriteHeader(status)
-		_, _ = fmt.Fprint(w, `{"status":"error","error":"rejected by fake"}`)
+		_, _ = fmt.Fprintf(w, `{"status":%d,"detail":"rejected by fake","code":"general.input"}`, status)
 		return true
 	}
 	if token, ok := data.(marketingMockToken); ok {

@@ -158,7 +158,7 @@ describe("notification preferences API client", () => {
 
   it("surfaces the backend's message on failure", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ error: "unknown notification type" }, 400),
+      jsonResponse({ detail: "unknown notification type" }, 400),
     );
 
     await expect(setNotificationPreference("nope", true)).rejects.toThrow(

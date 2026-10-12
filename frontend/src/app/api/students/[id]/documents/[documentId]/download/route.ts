@@ -11,6 +11,7 @@ import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "StudentDocumentDownloadRoute" });
 
@@ -23,7 +24,7 @@ async function GETHandler(
   const session = await auth();
   const token = session?.user?.token;
   if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return problemResponse(401, "Unauthorized");
   }
 
   const backendUrl = `${getServerApiUrl()}/api/students/${encodeURIComponent(id)}/documents/${encodeURIComponent(documentId)}/download`;

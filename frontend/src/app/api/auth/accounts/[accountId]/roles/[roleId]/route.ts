@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const path = (
   _request: Request,
@@ -12,10 +13,7 @@ const path = (
     typeof roleId !== "string" ||
     !roleId
   ) {
-    return NextResponse.json(
-      { error: "Account ID and Role ID are required" },
-      { status: 400 },
-    );
+    return problemResponse(400, "Account ID and Role ID are required");
   }
   return `/auth/accounts/${encodeURIComponent(accountId)}/roles/${encodeURIComponent(roleId)}`;
 };

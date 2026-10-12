@@ -123,9 +123,9 @@ describe("operatorServerFetch", () => {
   it("throws on 401 error", async () => {
     mockFetch.mockResolvedValue(new Response("Unauthorized", { status: 401 }));
 
-    await expect(operatorApiGet("/api/test", "old-token")).rejects.toThrow(
-      "API error (401)",
-    );
+    await expect(
+      operatorApiGet("/api/test", "old-token"),
+    ).rejects.toMatchObject({ status: 401 });
   });
 
   it("throws on non-401 error", async () => {
@@ -133,8 +133,8 @@ describe("operatorServerFetch", () => {
       new Response("Internal Server Error", { status: 500 }),
     );
 
-    await expect(operatorApiGet("/api/test", "my-token")).rejects.toThrow(
-      "API error (500)",
+    await expect(operatorApiGet("/api/test", "my-token")).rejects.toMatchObject(
+      { status: 500 },
     );
 
     // Only one fetch call (no retry)
@@ -396,8 +396,9 @@ describe("createOperatorProxyPostHandler", () => {
     const response = await handler(request, mockContext);
 
     expect(response.status).toBe(401);
-    const json = (await response.json()) as { error?: string };
-    expect(json.error).toBe("Unauthorized");
+    const json = (await response.json()) as { detail?: string; code?: string };
+    expect(json.detail).toBe("Unauthorized");
+    expect(json.code).toBe("general.permission");
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
@@ -483,7 +484,11 @@ describe("createOperatorProxyPostHandler", () => {
         ok: false,
         status: 401,
         headers: new Headers({ "content-type": "application/json" }),
-        json: async () => ({ error: "Unauthorized" }),
+        json: async () => ({
+          status: 401,
+          detail: "Unauthorized",
+          code: "general.permission",
+        }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -510,7 +515,11 @@ describe("createOperatorProxyPostHandler", () => {
       ok: false,
       status: 401,
       headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ error: "Unauthorized" }),
+      json: async () => ({
+        status: 401,
+        detail: "Unauthorized",
+        code: "general.permission",
+      }),
     });
 
     const handler = createOperatorProxyPostHandler(
@@ -592,10 +601,13 @@ describe("createOperatorProxyPostHandler", () => {
     const response = await handler(request, mockContext);
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { status?: string; error?: string };
-    expect(json).toEqual({
-      status: "error",
-      error: "Invalid JSON request body",
+    const json = (await response.json()) as {
+      status?: number;
+      detail?: string;
+    };
+    expect(json).toMatchObject({
+      status: 400,
+      detail: "Invalid JSON request body",
       code: "general.input",
     });
     expect(mockFetch).not.toHaveBeenCalled();
@@ -639,10 +651,13 @@ describe("createOperatorPublicProxyPostHandler", () => {
     const response = await handler(request);
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { status?: string; error?: string };
-    expect(json).toEqual({
-      status: "error",
-      error: "Invalid JSON request body",
+    const json = (await response.json()) as {
+      status?: number;
+      detail?: string;
+    };
+    expect(json).toMatchObject({
+      status: 400,
+      detail: "Invalid JSON request body",
       code: "general.input",
     });
     expect(mockFetch).not.toHaveBeenCalled();
@@ -742,8 +757,8 @@ describe("createOperatorPublicProxyPostHandler", () => {
       status: 429,
       headers: new Headers({ "content-type": "application/json" }),
       json: async () => ({
-        status: "error",
-        error: "Zu viele Einladungen. Bitte warte eine Stunde.",
+        status: 429,
+        detail: "too many invitations",
         code: "general.unavailable",
       }),
     });
@@ -751,10 +766,10 @@ describe("createOperatorPublicProxyPostHandler", () => {
     const response = await handler(makePublicRequest({ token: "abc" }));
 
     expect(response.status).toBe(429);
-    const json = (await response.json()) as { error?: string; code?: string };
+    const json = (await response.json()) as { detail?: string; code?: string };
     expect(json).toEqual({
-      status: "error",
-      error: "Zu viele Einladungen. Bitte warte eine Stunde.",
+      status: 429,
+      detail: "too many invitations",
       code: "general.unavailable",
     });
   });
@@ -795,10 +810,13 @@ describe("createOperatorPublicProxyPostHandler", () => {
     const response = await handler(makePublicRequest({ token: "abc" }));
 
     expect(response.status).toBe(503);
-    const json = (await response.json()) as { status?: string; error?: string };
-    expect(json).toEqual({
-      status: "error",
-      error: "Backend request failed",
+    const json = (await response.json()) as {
+      status?: number;
+      detail?: string;
+    };
+    expect(json).toMatchObject({
+      status: 503,
+      detail: "Service Unavailable",
       code: "general.unavailable",
     });
   });
@@ -841,26 +859,26 @@ describe("createOperatorProxyMethodHandler", () => {
     mockAuth.mockResolvedValue(mockSession);
   });
 
-  it("returns 401 TOKEN_EXPIRED envelope when no session", async () => {
+  it("returns the 401 envelope when no session", async () => {
     mockAuth.mockResolvedValue(null);
 
     const response = await deleteHandler(makeAuthRequest(), makeContext());
 
     expect(response.status).toBe(401);
-    const json = (await response.json()) as { error?: string; code?: string };
-    expect(json.code).toBe("TOKEN_EXPIRED");
-    expect(json.error).toBe("Unauthorized");
+    const json = (await response.json()) as { detail?: string; code?: string };
+    expect(json.code).toBe("general.permission");
+    expect(json.detail).toBe("Token expired");
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("returns 401 TOKEN_EXPIRED envelope when session token is null", async () => {
+  it("returns the 401 envelope when session token is null", async () => {
     mockAuth.mockResolvedValue({ user: { token: null } });
 
     const response = await deleteHandler(makeAuthRequest(), makeContext());
 
     expect(response.status).toBe(401);
     const json = (await response.json()) as { code?: string };
-    expect(json.code).toBe("TOKEN_EXPIRED");
+    expect(json.code).toBe("general.permission");
   });
 
   it("proxies DELETE with Authorization, Content-Type, and client headers", async () => {
@@ -942,7 +960,11 @@ describe("createOperatorProxyMethodHandler", () => {
         ok: false,
         status: 401,
         headers: new Headers({ "content-type": "application/json" }),
-        json: async () => ({ error: "Unauthorized" }),
+        json: async () => ({
+          status: 401,
+          detail: "Unauthorized",
+          code: "general.permission",
+        }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -964,21 +986,25 @@ describe("createOperatorProxyMethodHandler", () => {
     );
   });
 
-  it("returns TOKEN_EXPIRED envelope when refresh returns the same token", async () => {
+  it("returns the 401 envelope when refresh returns the same token", async () => {
     mockAuth.mockResolvedValue(mockSession);
     mockFetch.mockResolvedValue({
       ok: false,
       status: 401,
       headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ error: "Unauthorized" }),
+      json: async () => ({
+        status: 401,
+        detail: "Unauthorized",
+        code: "general.permission",
+      }),
     });
 
     const response = await deleteHandler(makeAuthRequest(), makeContext());
 
     expect(response.status).toBe(401);
-    const json = (await response.json()) as { error?: string; code?: string };
-    expect(json.code).toBe("TOKEN_EXPIRED");
-    expect(json.error).toBe("Token expired");
+    const json = (await response.json()) as { detail?: string; code?: string };
+    expect(json.code).toBe("general.permission");
+    expect(json.detail).toBe("Token expired");
   });
 
   it("returns empty-body 204 when backend returns 204", async () => {

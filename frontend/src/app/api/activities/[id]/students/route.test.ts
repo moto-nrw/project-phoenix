@@ -170,8 +170,9 @@ describe("GET /api/activities/[id]/students", () => {
     const response = await GET(request, createMockContext({ id: "5" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Backend error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Backend error");
   });
 });
 
@@ -263,8 +264,9 @@ describe("POST /api/activities/[id]/students", () => {
     const response = await POST(request, createMockContext({ id: "5" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Failed to update enrollments");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Failed to update enrollments");
   });
 
   it("throws error when single enrollment fails", async () => {
@@ -277,8 +279,9 @@ describe("POST /api/activities/[id]/students", () => {
     const response = await POST(request, createMockContext({ id: "5" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Failed to enroll student");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Failed to enroll student");
   });
 
   it("throws error when neither student_id nor student_ids provided", async () => {
@@ -289,8 +292,11 @@ describe("POST /api/activities/[id]/students", () => {
     const response = await POST(request, createMockContext({ id: "5" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("must provide student_id or student_ids");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain(
+      "must provide student_id or student_ids",
+    );
   });
 });
 
@@ -352,8 +358,9 @@ describe("PUT /api/activities/[id]/students", () => {
     const response = await PUT(request, createMockContext({ id: "5" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("student_ids array is required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("student_ids array is required");
   });
 
   it("throws error when student_ids is not an array", async () => {

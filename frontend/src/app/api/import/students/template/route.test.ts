@@ -170,8 +170,8 @@ describe("GET /api/import/students/template", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal server error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 
   it("uses default headers when backend doesn't provide them", async () => {

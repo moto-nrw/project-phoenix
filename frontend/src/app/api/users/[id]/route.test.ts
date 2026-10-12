@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET, PUT, DELETE } from "./route";
 
 // ============================================================================
@@ -32,18 +33,9 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
   apiPost: vi.fn(),
   apiPut: mockApiPut,
   apiDelete: mockApiDelete,
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : message.includes("(403)")
-          ? 403
-          : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
+  handleApiError: vi.fn(
+    (await import("~/test/helpers/handle-api-error")).mockHandleApiError,
+  ),
 }));
 
 // ============================================================================
@@ -144,8 +136,9 @@ describe("GET /api/users/[id]", () => {
     const response = await GET(request, createMockContext({ id: "1" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Person not found");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Person not found");
   });
 
   it("throws error when ID is missing", async () => {
@@ -153,8 +146,9 @@ describe("GET /api/users/[id]", () => {
     const response = await GET(request, createMockContext({}));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Person ID is required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Person ID is required");
   });
 });
 
@@ -213,8 +207,9 @@ describe("PUT /api/users/[id]", () => {
     const response = await PUT(request, createMockContext({ id: "1" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("First name cannot be blank");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("First name cannot be blank");
   });
 
   it("throws error when last_name is blank", async () => {
@@ -225,12 +220,22 @@ describe("PUT /api/users/[id]", () => {
     const response = await PUT(request, createMockContext({ id: "1" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Last name cannot be blank");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Last name cannot be blank");
   });
 
   it("throws error when permission denied", async () => {
-    mockApiPut.mockRejectedValueOnce(new Error("Forbidden (403)"));
+    mockApiPut.mockRejectedValueOnce(
+      new ApiResponseError(
+        403,
+        JSON.stringify({
+          status: 403,
+          detail: "users:update permission required",
+          code: "general.permission",
+        }),
+      ),
+    );
 
     const request = createMockRequest("/api/users/1", {
       method: "PUT",
@@ -238,13 +243,22 @@ describe("PUT /api/users/[id]", () => {
     });
     const response = await PUT(request, createMockContext({ id: "1" }));
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Permission denied");
+    expect(response.status).toBe(403);
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toContain("users:update permission required");
   });
 
   it("throws error when user not found", async () => {
-    mockApiPut.mockRejectedValueOnce(new Error("person not found (400)"));
+    mockApiPut.mockRejectedValueOnce(
+      new ApiResponseError(
+        404,
+        JSON.stringify({
+          status: 404,
+          detail: "person not found",
+          code: "general.input",
+        }),
+      ),
+    );
 
     const request = createMockRequest("/api/users/1", {
       method: "PUT",
@@ -252,9 +266,9 @@ describe("PUT /api/users/[id]", () => {
     });
     const response = await PUT(request, createMockContext({ id: "1" }));
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Person not found");
+    expect(response.status).toBe(404);
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toContain("person not found");
   });
 });
 
@@ -284,24 +298,42 @@ describe("DELETE /api/users/[id]", () => {
   });
 
   it("throws error when permission denied", async () => {
-    mockApiDelete.mockRejectedValueOnce(new Error("Forbidden (403)"));
+    mockApiDelete.mockRejectedValueOnce(
+      new ApiResponseError(
+        403,
+        JSON.stringify({
+          status: 403,
+          detail: "users:delete permission required",
+          code: "general.permission",
+        }),
+      ),
+    );
 
     const request = createMockRequest("/api/users/1", { method: "DELETE" });
     const response = await DELETE(request, createMockContext({ id: "1" }));
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Permission denied");
+    expect(response.status).toBe(403);
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toContain("users:delete permission required");
   });
 
   it("throws error when user not found", async () => {
-    mockApiDelete.mockRejectedValueOnce(new Error("Not Found (404)"));
+    mockApiDelete.mockRejectedValueOnce(
+      new ApiResponseError(
+        404,
+        JSON.stringify({
+          status: 404,
+          detail: "person not found",
+          code: "general.input",
+        }),
+      ),
+    );
 
     const request = createMockRequest("/api/users/1", { method: "DELETE" });
     const response = await DELETE(request, createMockContext({ id: "1" }));
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Person not found");
+    expect(response.status).toBe(404);
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toContain("person not found");
   });
 });

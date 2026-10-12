@@ -14,28 +14,27 @@ var (
 	ErrInvalidAccessToken = errors.New("invalid access token")
 )
 
-// ErrResponse renderer type for handling all sorts of errors.
+// ErrResponse is the shared error envelope (ADR 0006) of a refused token;
+// ProblemResponseMiddleware adds type, title and instance. This package may
+// not import api/common, so it names the registered class code itself.
 type ErrResponse struct {
-	Err            error `json:"-"` // low-level runtime error
-	HTTPStatusCode int   `json:"-"` // http response status code
-
-	StatusText string `json:"status"`          // user-level status message
-	AppCode    int64  `json:"code,omitempty"`  // application-specific error code
-	ErrorText  string `json:"error,omitempty"` // application-level error message, for debugging
+	Err            error  `json:"-"` // low-level runtime error
+	HTTPStatusCode int    `json:"-"` // http response status code
+	Status         int    `json:"status"`
+	Detail         string `json:"detail"`
+	Code           string `json:"code"`
 }
 
-// Render sets the application-specific error code in AppCode.
+const codeGeneralPermission = "general.permission"
+
+// Render sets the response status.
 func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
+	e.Status = e.HTTPStatusCode
 	render.Status(r, e.HTTPStatusCode)
 	return nil
 }
 
 // ErrUnauthorized renders status 401 Unauthorized with custom error message.
 func ErrUnauthorized(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusUnauthorized,
-		StatusText:     "error",
-		ErrorText:      err.Error(),
-	}
+	return &ErrResponse{Err: err, HTTPStatusCode: http.StatusUnauthorized, Detail: err.Error(), Code: codeGeneralPermission}
 }

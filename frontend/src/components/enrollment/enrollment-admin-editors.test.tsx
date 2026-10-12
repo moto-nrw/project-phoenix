@@ -885,7 +885,8 @@ describe("CareOfferingsEditor", () => {
     }
     await chooseOption("Regeltermin", /Lernzeit/);
 
-    // Der Hinweis steht als Kit-Alert am Feld (Bauart 2 Regel 5, #3113).
+    // Der Hinweis steht am Feld und wird sofort vorgelesen (Bauart 2
+    // Regel 5, #3113).
     expect(screen.getByRole("alert")).toHaveTextContent(
       /Regeltermin deckt die Angebotstage Di, Mi, Do, Fr nicht ab/,
     );

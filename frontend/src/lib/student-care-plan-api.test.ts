@@ -129,15 +129,6 @@ describe("student-care-plan-api", () => {
       );
     });
 
-    it("throws the backend error message on an error envelope", async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        mockResponse(true, { status: "error", error: "forbidden" }),
-      );
-      await expect(fetchStudentCarePlanDay("1", "2026-07-21")).rejects.toThrow(
-        "forbidden",
-      );
-    });
-
     it("throws the fallback when the envelope carries no data", async () => {
       vi.mocked(fetch).mockResolvedValueOnce(
         mockResponse(true, { status: "success" }),

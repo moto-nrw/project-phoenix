@@ -8,6 +8,10 @@
  */
 
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  isApiResponseError,
+  problemResponse,
+} from "~/lib/api-response-error.server";
 import type { Session } from "next-auth";
 import { parseRequestBody } from "~/lib/route-wrapper-utils.server";
 import { validateSessionToken } from "~/server/auth/token-validation";
@@ -68,7 +72,7 @@ export async function ingestClientLogs(
   portal: ClientLogPortal,
 ): Promise<NextResponse> {
   if (!session?.user?.token || session.error) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return problemResponse(401, "Unauthorized");
   }
   if (!takeBudget("global", 1000)) return rateLimited();
   const identity = await validateSessionToken(session.user.token, portal);
@@ -77,18 +81,15 @@ export async function ingestClientLogs(
     identity.read_only ||
     String(identity.id) !== session.user.id
   ) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return problemResponse(401, "Unauthorized");
   }
   if (!takeBudget(`actor:${portal}:${identity.id}`, 20)) return rateLimited();
   let body: unknown;
   try {
     body = await parseRequestBody<unknown>(request, 64 * 1024);
   } catch (error) {
-    const status =
-      error instanceof Error && error.message.includes("API error (413)")
-        ? 413
-        : 400;
-    return NextResponse.json({ error: "Invalid log payload" }, { status });
+    const status = isApiResponseError(error, 413) ? 413 : 400;
+    return problemResponse(status, "Invalid log payload");
   }
   const entries =
     body && typeof body === "object" && "entries" in body
@@ -100,7 +101,7 @@ export async function ingestClientLogs(
     entries.length > 50 ||
     !entries.every(validEntry)
   ) {
-    return NextResponse.json({ error: "Invalid log payload" }, { status: 400 });
+    return problemResponse(400, "Invalid log payload");
   }
   for (const entry of entries) {
     console.log(
@@ -122,8 +123,10 @@ export async function ingestClientLogs(
 }
 
 function rateLimited() {
-  return NextResponse.json(
-    { error: "Rate limit exceeded" },
-    { status: 429, headers: { "Retry-After": "60" } },
+  return problemResponse(
+    429,
+    "Rate limit exceeded",
+    {},
+    { "Retry-After": "60" },
   );
 }

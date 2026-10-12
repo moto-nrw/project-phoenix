@@ -2,7 +2,12 @@
 import { isBrowserContext } from "./api-url";
 import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "~/lib/logger";
-import { ApiError, apiErrorFromBody, unavailableApiError } from "./api-error";
+import {
+  ApiError,
+  apiErrorFromBody,
+  unavailableApiError,
+  type ProblemBody,
+} from "./api-error";
 
 // Logger instance for API helpers
 const logger = createLogger({ component: "ApiHelpers" });
@@ -16,112 +21,33 @@ export interface ApiResponse<T> {
   data: T;
 }
 
-/**
- * Type for error response
- */
-export interface ApiErrorResponse {
-  error: string;
-  status?: number;
-  code?: string;
-  // Structured payload mirrored from the backend's ErrResponse.details.
-  // Forwarded through the proxy so codes like reopen_status_conflict can
-  // carry identifying fields (session_id, existing_status, …) to the UI.
-  details?: Record<string, unknown>;
-  errors?: { field: string; reason: string }[];
-  instance?: string;
-}
+/** The error body of an API answer: the RFC 9457 envelope (ADR 0006). */
+export type ApiErrorResponse = ProblemBody;
 
 /**
- * Typed error thrown by serverFetchWithRetry / clientAxiosRequest for non-OK
- * backend responses. Carries the HTTP status and the raw body so callers can
- * branch on either without re-parsing `.message` strings. The `message`
- * intentionally keeps the legacy `"API error (<status>): <body>"` shape so
- * existing string-based parsers (handleApiError, handleDomainApiError) and
- * any caller catching it as a plain Error continue to work unchanged.
- */
-export class ApiResponseError extends ApiError {
-  readonly status: number;
-  readonly bodyText: string;
-  // Memoized parse result — `null` means "not JSON".
-  private parsedBody: unknown | undefined;
-  private parseAttempted = false;
-
-  constructor(status: number, bodyText: string, _options?: ErrorOptions) {
-    super(`API error (${status}): ${bodyText}`, status);
-    this.cause = _options?.cause;
-    this.name = "ApiResponseError";
-    this.status = status;
-    this.bodyText = bodyText;
-    try {
-      const parsed: unknown = JSON.parse(bodyText);
-      this.parsedBody = parsed;
-      this.parseAttempted = true;
-      const structured = apiErrorFromBody(this.message, status, parsed);
-      this.code = structured.code;
-      this.details = structured.details;
-      this.errors = structured.errors;
-      this.instance = structured.instance;
-      this.requestId = structured.requestId;
-    } catch {
-      this.parsedBody = null;
-      this.parseAttempted = true;
-      // A text body still has a status-derived class code.
-    }
-  }
-
-  /**
-   * Returns the parsed JSON body, or `null` if the body isn't valid JSON.
-   * Use this instead of grepping `error.message` for backend error codes.
-   */
-  body<T = unknown>(): T | null {
-    if (!this.parseAttempted) {
-      this.parseAttempted = true;
-      try {
-        this.parsedBody = JSON.parse(this.bodyText);
-      } catch {
-        this.parsedBody = null;
-      }
-    }
-    return (this.parsedBody ?? null) as T | null;
-  }
-}
-
-/**
- * Generic domain API error handler
- * Parses API errors and throws standardized error objects with status codes
+ * Generic domain API error handler: every failure leaves as an ApiError, so
+ * the shared display path reads its status and code. An Axios failure keeps
+ * the envelope of its response; anything without a response is a server
+ * fault.
  * @param error - The caught error
  * @param context - Description of the failed operation
- * @param domain - API domain name for error code prefix (e.g., "STUDENT", "ACTIVITY")
  */
-export function handleDomainApiError(
-  error: unknown,
-  context: string,
-  domain: string,
-): never {
-  // If we have a structured error message with status code
-  if (error instanceof Error) {
-    const regex = /API error \((\d+)\):/;
-    const match = regex.exec(error.message);
-    if (match?.[1]) {
-      const status = Number.parseInt(match[1], 10);
-      const errorMessage = `Failed to ${context}: ${error.message}`;
-      throw new Error(
-        JSON.stringify({
-          status,
-          message: errorMessage,
-          code: `${domain}_API_ERROR_${status}`,
-        }),
-      );
-    }
+export function handleDomainApiError(error: unknown, context: string): never {
+  if (error instanceof ApiError) throw error;
+  const response =
+    error !== null && typeof error === "object" && "response" in error
+      ? (error as { response?: { status?: unknown; data?: unknown } }).response
+      : undefined;
+  if (response && typeof response.status === "number") {
+    throw apiErrorFromBody(
+      `Failed to ${context}`,
+      response.status,
+      response.data,
+    );
   }
-
-  // Default error response
-  throw new Error(
-    JSON.stringify({
-      status: 500,
-      message: `Failed to ${context}: ${error instanceof Error ? error.message : "Unknown error"}`,
-      code: `${domain}_API_ERROR_UNKNOWN`,
-    }),
+  throw new ApiError(
+    `Failed to ${context}: ${error instanceof Error ? error.message : "Unknown error"}`,
+    500,
   );
 }
 

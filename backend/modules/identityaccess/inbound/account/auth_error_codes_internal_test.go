@@ -88,6 +88,7 @@ func TestPasskeyLoginRefusalsShareOneCode(t *testing.T) {
 		identityaccess.ErrPasskeySessionInvalid,
 		identityaccess.ErrAccountNotFound,
 		identityaccess.ErrTenantAccessDenied,
+		identityaccess.ErrPasskeyOriginInvalid,
 	} {
 		t.Run(err.Error(), func(t *testing.T) {
 			t.Parallel()

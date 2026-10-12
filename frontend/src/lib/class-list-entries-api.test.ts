@@ -73,18 +73,18 @@ describe("fetchClassListEntries", () => {
 
   it("surfaces the backend error field verbatim", async () => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse({ error: "Ein Eintrag existiert bereits" }, false, 400),
+      jsonResponse({ detail: "Ein Eintrag existiert bereits" }, false, 400),
     );
     await expect(fetchClassListEntries()).rejects.toThrow(
       "Ein Eintrag existiert bereits",
     );
   });
 
-  it("falls back to message, then to the status code", async () => {
+  it("falls back to the status code without a detail", async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({ message: "Nicht gefunden" }, false, 404),
     );
-    await expect(fetchClassListEntries()).rejects.toThrow("Nicht gefunden");
+    await expect(fetchClassListEntries()).rejects.toThrow("API error (404)");
 
     mockFetch.mockResolvedValueOnce({
       ok: false,
@@ -98,7 +98,7 @@ describe("fetchClassListEntries", () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse(
         {
-          error: "forbidden",
+          detail: "forbidden",
           code: "general.permission",
           instance: "req-cle",
         },

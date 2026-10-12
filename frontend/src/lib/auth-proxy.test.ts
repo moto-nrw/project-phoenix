@@ -132,7 +132,11 @@ describe("forwardJsonPost", () => {
   it("passes backend HTTP status through unchanged", async () => {
     globalThis.fetch = mockFetchResponse({
       status: 401,
-      body: { error: "Invalid credentials" },
+      body: {
+        status: 401,
+        detail: "Invalid credentials",
+        code: "identity.invalid_credentials",
+      },
     });
 
     const res = await forwardJsonPost(
@@ -141,7 +145,11 @@ describe("forwardJsonPost", () => {
     );
 
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: "Invalid credentials" });
+    expect(await res.json()).toEqual({
+      status: 401,
+      detail: "Invalid credentials",
+      code: "identity.invalid_credentials",
+    });
   });
 
   it("forwards non-JSON bodies unchanged", async () => {
@@ -197,7 +205,11 @@ describe("forwardJsonPost", () => {
     );
 
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: "Internal Server Error" });
+    expect(await res.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
     expect(consoleError).toHaveBeenCalledWith(
       "proxy_failed",
       expect.objectContaining({ path: "/api/auth/login" }),

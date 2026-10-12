@@ -54,7 +54,7 @@ func TestPublicFeedUsesUniformNotFoundResponse(t *testing.T) {
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/revoked-token", nil))
 
 	assert.Equal(t, http.StatusNotFound, recorder.Code)
-	assert.Equal(t, "Not Found\n", recorder.Body.String())
+	assert.JSONEq(t, `{"status":404,"detail":"Not Found","code":"general.input"}`, recorder.Body.String())
 }
 
 func TestPublicFeedDisablesCaching(t *testing.T) {

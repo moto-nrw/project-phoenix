@@ -75,7 +75,11 @@ describe("POST /api/auth/logout", () => {
 
     expect(response.status).toBe(401);
     const text = await response.text();
-    expect(JSON.parse(text)).toEqual({ error: "No active session" });
+    expect(JSON.parse(text)).toMatchObject({
+      status: 401,
+      detail: "No active session",
+      code: "general.permission",
+    });
   });
 
   it("returns 401 when session has no refresh token", async () => {

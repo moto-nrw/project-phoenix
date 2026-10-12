@@ -105,37 +105,21 @@ type PersonRequest struct {
 	AccountID int64  `json:"account_id,omitempty"`
 }
 
-// Bind reports every blank name as its own field (#2511). The text stays the
-// first missing name's sentence, which clients not yet on the error code
-// path still compare against until #2520.
+// Bind reports every blank name as its own field (#2511); the shared error
+// envelope lists them in `errors`. The text is diagnostics (#2520).
 func (request *PersonRequest) Bind(*http.Request) error {
 	missing := validation.Errors{}
-	text := ""
 	if request.FirstName == "" {
 		missing["first_name"] = errors.New("is required")
-		text = "first name is required"
 	}
 	if request.LastName == "" {
 		missing["last_name"] = errors.New("is required")
-		if text == "" {
-			text = "last name is required"
-		}
 	}
 	if len(missing) == 0 {
 		return nil
 	}
-	return &missingNamesError{text: text, fields: missing}
+	return missing
 }
-
-// missingNamesError keeps the legacy diagnostic text and carries the fields
-// for the shared error envelope, which reads them through errors.As.
-type missingNamesError struct {
-	text   string
-	fields validation.Errors
-}
-
-func (e *missingNamesError) Error() string { return e.text }
-func (e *missingNamesError) Unwrap() error { return e.fields }
 
 func (rs *Resource) listPersons(w http.ResponseWriter, r *http.Request) {
 	page, pageSize := rs.runtime.ParsePagination(r)

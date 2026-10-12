@@ -1,5 +1,4 @@
 import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
@@ -9,7 +8,11 @@ import type { RouteContext } from "~/lib/route-wrapper-utils.server";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { operatorAuth, uncachedOperatorAuth } from "~/server/auth/operator";
 import { withOperatorAuth } from "~/server/auth/operator-route";
-import { ApiResponseError, handleApiError } from "~/lib/api-helpers.server";
+import { handleApiError } from "~/lib/api-helpers.server";
+import {
+  ApiResponseError,
+  problemResponse,
+} from "~/lib/api-response-error.server";
 import { captureBffException } from "~/lib/sentry-bff.server";
 
 type JsonMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -97,12 +100,9 @@ async function proxyJsonRequest(
       } catch {
         if (invalidJsonResponse) return invalidJsonResponse();
         if (invalidJsonMessage) {
-          return NextResponse.json(
-            { error: invalidJsonMessage },
-            { status: 400 },
-          );
+          return problemResponse(400, invalidJsonMessage);
         }
-        return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+        return problemResponse(400, "Invalid JSON");
       }
       requestBody = JSON.stringify(mapJsonBody ? mapJsonBody(parsed) : parsed);
     } else if (body === "optional-json") {
@@ -166,14 +166,11 @@ async function proxyJsonRequest(
       error: error instanceof Error ? error.message : String(error),
     });
     if (networkErrorResponse) return networkErrorResponse(error);
-    return NextResponse.json(
-      {
-        error:
-          networkErrorFromException && error instanceof Error
-            ? error.message
-            : networkErrorMessage,
-      },
-      { status: 500 },
+    return problemResponse(
+      500,
+      networkErrorFromException && error instanceof Error
+        ? error.message
+        : networkErrorMessage,
     );
   }
 }
@@ -183,10 +180,7 @@ export function createTenantJsonProxy(options: JsonProxyOptions) {
   return withTenantAuth(async (request: NextRequest, context: RouteContext) => {
     const session = await auth();
     if (!session?.user?.token) {
-      return NextResponse.json(
-        { error: options.unauthorizedError ?? "Unauthorized" },
-        { status: 401 },
-      );
+      return problemResponse(401, options.unauthorizedError ?? "Unauthorized");
     }
     return proxyJsonRequest(
       request,
@@ -220,7 +214,7 @@ export function createOperatorJsonProxy(options: JsonProxyOptions) {
     async (request: NextRequest, context: RouteContext) => {
       const session = await operatorAuth();
       if (!session?.user?.token) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        return problemResponse(401, "Unauthorized");
       }
       return proxyJsonRequest(
         request,
@@ -249,7 +243,7 @@ export function createTenantApiAdapter(
     try {
       const session = await auth();
       if (!session?.user?.token) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        return problemResponse(401, "Unauthorized");
       }
       return await handler(request, session.user.token, context);
     } catch (error) {

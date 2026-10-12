@@ -238,7 +238,13 @@ describe("createFileExportRoute", () => {
     const response = await route(request);
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: "connect ECONNREFUSED" });
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
+    expect(body).not.toContain("ECONNREFUSED");
     expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {
       tags: { request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10" },
     });

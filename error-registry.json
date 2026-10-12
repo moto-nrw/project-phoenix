@@ -1,6 +1,12 @@
 {
   "codes": [
     {
+      "code": "attendance.log_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "attendance.log_disabled"
+    },
+    {
       "code": "attendance.web_disabled",
       "class": "permission",
       "parameters": [],
@@ -517,6 +523,12 @@
       "legacy": "system_announcement_immutable"
     },
     {
+      "code": "display.disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "display.disabled"
+    },
+    {
       "code": "enrollment.approval_care_offering_exactly_one",
       "class": "business_rejection",
       "parameters": [],
@@ -787,6 +799,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.window_closed"
+    },
+    {
+      "code": "feedback.disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "feedback.disabled"
     },
     {
       "code": "files.announcement_published",
@@ -1759,6 +1777,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "companion_lock_busy"
+    },
+    {
+      "code": "students.companion_plan_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.companion_plan_conflict"
     },
     {
       "code": "students.companion_would_lose_departure",

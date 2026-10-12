@@ -163,6 +163,7 @@ import type {
   SubmitEnrollmentPayload,
   SubmitEnrollmentResult,
 } from "~/lib/enrollment-submission-api";
+import { Alert } from "~/components/ui/alert";
 
 interface Props {
   readonly phaseID?: string;
@@ -2419,12 +2420,7 @@ export function EnrollmentForm({
         </section>
       )}
       {!skipCaptcha && captchaConfig?.enabled && !captchaConfig.site_key && (
-        <div
-          role="alert"
-          className="border-moto-red/30 bg-moto-red/5 text-moto-red-strong rounded-md border p-3 text-sm"
-        >
-          {tr("captchaMisconfigured")}
-        </div>
+        <Alert type="warning" message={tr("captchaMisconfigured")} />
       )}
 
       <button

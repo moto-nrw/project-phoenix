@@ -6,7 +6,8 @@ vi.mock("./session-cache", () => ({
   sessionFetch: mockSessionFetch,
 }));
 
-import { shiftTypeService, ShiftTypeApiError } from "./shift-type-api";
+import { ApiError } from "./api-error";
+import { shiftTypeService } from "./shift-type-api";
 
 const backendShiftType = {
   id: 12,
@@ -209,7 +210,7 @@ describe("shiftTypeService errors", () => {
 
   it("preserves status and backend detail from JSON error bodies", async () => {
     mockSessionFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "name already exists" }), {
+      new Response(JSON.stringify({ detail: "name already exists" }), {
         status: 409,
         headers: { "content-type": "application/json" },
       }),
@@ -222,14 +223,14 @@ describe("shiftTypeService errors", () => {
         description: "",
         isActive: true,
       }),
-    ).rejects.toMatchObject({ status: 409, detail: "name already exists" });
+    ).rejects.toMatchObject({ status: 409, message: "name already exists" });
   });
 
   it("keeps the 409 problem fields in a domain error", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
-          error: "name already exists",
+          detail: "name already exists",
           code: "workforce.shift_type_name_taken",
           details: { existing_id: "12" },
           errors: [{ field: "name", reason: "duplicate" }],
@@ -250,7 +251,7 @@ describe("shiftTypeService errors", () => {
         isActive: true,
       }),
     ).rejects.toMatchObject({
-      name: "ShiftTypeApiError",
+      name: "ApiError",
       code: "workforce.shift_type_name_taken",
       details: { existing_id: "12" },
       errors: [{ field: "name", reason: "duplicate" }],
@@ -258,14 +259,14 @@ describe("shiftTypeService errors", () => {
     });
   });
 
-  it("reads text error bodies for non-JSON responses", async () => {
+  it("classifies non-JSON error bodies by their status", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       new Response("database timeout", { status: 500 }),
     );
 
     await expect(shiftTypeService.getShiftTypes()).rejects.toMatchObject({
       status: 500,
-      detail: "database timeout",
+      code: "general.server",
     });
   });
 
@@ -286,7 +287,7 @@ describe("shiftTypeService errors", () => {
       }),
     ).rejects.toMatchObject({
       status: 400,
-      detail: "Schichtart konnte nicht gespeichert werden",
+      message: "Schichtart konnte nicht gespeichert werden",
     });
   });
 
@@ -300,7 +301,7 @@ describe("shiftTypeService errors", () => {
 
     await expect(shiftTypeService.getShiftTypes()).rejects.toMatchObject({
       status: 422,
-      detail: "Schichtarten konnten nicht geladen werden",
+      message: "Schichtarten konnten nicht geladen werden",
     });
   });
 
@@ -309,7 +310,7 @@ describe("shiftTypeService errors", () => {
 
     await expect(shiftTypeService.deleteShiftType("12")).rejects.toMatchObject({
       status: 403,
-      detail: "Schichtart konnte nicht gelöscht werden",
+      message: "Schichtart konnte nicht gelöscht werden",
     });
   });
 
@@ -319,13 +320,7 @@ describe("shiftTypeService errors", () => {
     );
 
     await expect(shiftTypeService.createDefaults()).rejects.toBeInstanceOf(
-      ShiftTypeApiError,
+      ApiError,
     );
-  });
-
-  it("exposes a readable message on the error instance", () => {
-    const err = new ShiftTypeApiError(404, "not found");
-    expect(err.name).toBe("ShiftTypeApiError");
-    expect(err.message).toBe("HTTP 404: not found");
   });
 });

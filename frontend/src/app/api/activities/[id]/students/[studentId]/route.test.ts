@@ -25,22 +25,17 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: vi.fn(),
-  apiDelete: mockApiDelete,
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: mockApiGet,
+    apiPost: vi.fn(),
+    apiPut: vi.fn(),
+    apiDelete: mockApiDelete,
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 // ============================================================================
 // Test Helpers
@@ -147,8 +142,9 @@ describe("GET /api/activities/[id]/students/[studentId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toMatch(
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toMatch(
       /Activity ID and Student ID are required|Cannot read properties/,
     );
   });
@@ -161,8 +157,11 @@ describe("GET /api/activities/[id]/students/[studentId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Activity ID and Student ID are required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain(
+      "Activity ID and Student ID are required",
+    );
   });
 
   it("returns 500 when student not found in enrollment", async () => {
@@ -176,8 +175,11 @@ describe("GET /api/activities/[id]/students/[studentId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Student with ID 100 is not enrolled");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain(
+      "Student with ID 100 is not enrolled",
+    );
   });
 
   it("handles errors from getEnrolledStudents", async () => {
@@ -190,8 +192,9 @@ describe("GET /api/activities/[id]/students/[studentId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("API error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("API error");
   });
 });
 
@@ -249,8 +252,9 @@ describe("DELETE /api/activities/[id]/students/[studentId]", () => {
 
     // Will get ID extracted from URL and proceed with deletion, which fails
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Invalid ID");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Invalid ID");
   });
 
   it("returns 500 when studentId is missing", async () => {
@@ -263,8 +267,11 @@ describe("DELETE /api/activities/[id]/students/[studentId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Activity ID and Student ID are required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain(
+      "Activity ID and Student ID are required",
+    );
   });
 
   it("handles deletion errors", async () => {
@@ -279,7 +286,8 @@ describe("DELETE /api/activities/[id]/students/[studentId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Student not found");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Student not found");
   });
 });

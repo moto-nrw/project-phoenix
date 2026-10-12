@@ -102,8 +102,8 @@ describe("POST /api/auth/link-to-tenant", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Nicht authentifiziert");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Nicht authentifiziert");
   });
 
   it("forwards request with auth token to backend", async () => {
@@ -139,13 +139,10 @@ describe("POST /api/auth/link-to-tenant", () => {
     mockAuth.mockResolvedValueOnce(defaultSession);
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ status: "error", error: "account not found" }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        },
-      ),
+      new Response(JSON.stringify({ detail: "account not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      }),
     );
 
     const request = createMockRequest("/api/auth/link-to-tenant", {
@@ -187,7 +184,7 @@ describe("POST /api/auth/link-to-tenant", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 });

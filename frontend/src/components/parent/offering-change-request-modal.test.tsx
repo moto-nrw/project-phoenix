@@ -16,7 +16,6 @@ import {
   getRequestSharingOptions,
   listParentRequestEvents,
   updateOfferingChangeRequest,
-  ParentApiError,
   type OfferingCatalog,
 } from "~/lib/parent-api";
 
@@ -202,11 +201,9 @@ describe("OfferingChangeRequestModal", () => {
     const onSubmit = vi
       .fn()
       .mockRejectedValueOnce(
-        new ParentApiError(
-          "confirmation required",
-          409,
-          "enrollment.complete_withdrawal_confirmation_required",
-        ),
+        new ApiError("confirmation required", 409, {
+          code: "enrollment.complete_withdrawal_confirmation_required",
+        }),
       )
       .mockResolvedValueOnce(undefined);
     render(
@@ -535,7 +532,7 @@ describe("OfferingChangeRequestModal", () => {
     const onSubmit = vi
       .fn()
       .mockRejectedValue(
-        new ParentApiError("backend sentence", 500, "general.server"),
+        new ApiError("backend sentence", 500, { code: "general.server" }),
       );
     render(
       <OfferingChangeRequestModal
@@ -558,15 +555,11 @@ describe("OfferingChangeRequestModal", () => {
   });
 
   it("tells parents to contact the school when the enrollment is gone", async () => {
-    const onSubmit = vi
-      .fn()
-      .mockRejectedValue(
-        new ParentApiError(
-          "no enrollment",
-          403,
-          "students.offering_changes_no_enrollment",
-        ),
-      );
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError("no enrollment", 403, {
+        code: "students.offering_changes_no_enrollment",
+      }),
+    );
     render(
       <OfferingChangeRequestModal
         studentId="42"
@@ -586,15 +579,11 @@ describe("OfferingChangeRequestModal", () => {
   });
 
   it("asks parents to choose another offering when one is full", async () => {
-    const onSubmit = vi
-      .fn()
-      .mockRejectedValue(
-        new ParentApiError(
-          "full",
-          409,
-          "students.offering_change_capacity_full",
-        ),
-      );
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError("full", 409, {
+        code: "students.offering_change_capacity_full",
+      }),
+    );
     render(
       <OfferingChangeRequestModal
         studentId="42"

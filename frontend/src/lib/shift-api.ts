@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, problemDetail } from "./api-error";
 // API clients for planned staff shifts (Dienstplan, #1376 core slice).
 // Admin CRUD goes through /api/staff/shifts (backend /api/staff-shifts,
 // time_tracking:manage); staff read their own shifts via
@@ -198,18 +198,6 @@ function mapSeriesRule(data: BackendSeriesRule): SeriesRule {
   };
 }
 
-export class ShiftApiError extends ApiError {
-  readonly status: number;
-  readonly detail: string;
-
-  constructor(status: number, detail: string) {
-    super(`HTTP ${status}: ${detail}`, status);
-    this.name = "ShiftApiError";
-    this.status = status;
-    this.detail = detail;
-  }
-}
-
 function toBackendBody(payload: ShiftPayload) {
   // The flexible-change fields are only sent when they carry meaning, so a
   // plain create/edit stays byte-for-byte the classic Dienstplan body (#1841):
@@ -241,14 +229,14 @@ function toBackendBody(payload: ShiftPayload) {
 async function readShiftError(
   response: Response,
   fallback: string,
-): Promise<ShiftApiError> {
+): Promise<ApiError> {
   let detail = "";
   let payload: unknown;
   const contentType = response.headers.get("content-type") ?? "";
   if (contentType.includes("json")) {
     try {
-      const body = (await response.json()) as { error?: string };
-      detail = body.error ?? "";
+      const body: unknown = await response.json();
+      detail = problemDetail(body) ?? "";
       payload = body;
     } catch {
       detail = "";
@@ -257,7 +245,7 @@ async function readShiftError(
     detail = await response.text();
   }
   return enrichApiError(
-    new ShiftApiError(response.status, detail || fallback),
+    new ApiError(detail || fallback, response.status),
     payload,
   );
 }

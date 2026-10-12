@@ -110,7 +110,7 @@ describe("GET /api/operator/provisioning/organizations/summaries", () => {
   it("forwards a backend 500 with the same status code", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "summaries failed" }), {
+      new Response(JSON.stringify({ detail: "summaries failed" }), {
         status: 500,
         headers: { "Content-Type": "application/json" },
       }),
@@ -122,10 +122,10 @@ describe("GET /api/operator/provisioning/organizations/summaries", () => {
     const response = await GET(request, mockContext);
 
     expect(response.status).toBe(500);
-    const json = (await response.json()) as { error?: string };
+    const json = (await response.json()) as { detail?: string };
     // handleApiError extracts the inner backend error and surfaces it,
     // dropping the "API error (500): " wrapper from the proxy layer.
-    expect(json.error).toBe("summaries failed");
+    expect(json.detail).toBe("summaries failed");
   });
 
   it("forwards a backend 503 with the same status code", async () => {

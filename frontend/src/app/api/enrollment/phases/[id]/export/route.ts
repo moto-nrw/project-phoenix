@@ -6,6 +6,7 @@ import { withTenantAuth } from "~/server/auth/tenant-route";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "EnrollmentPhaseExportRoute" });
 
@@ -49,7 +50,7 @@ async function POSTHandler(request: NextRequest, context: RouteContext) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return problemResponse(401, "Unauthorized");
     }
 
     const { id } = await context.params;
@@ -69,7 +70,7 @@ async function POSTHandler(request: NextRequest, context: RouteContext) {
     captureBffException(error, request);
     const message = error instanceof Error ? error.message : "Export failed";
     logger.error("enrollment_phase_export_route_failed", { error: message });
-    return NextResponse.json({ error: message }, { status: 500 });
+    return problemResponse(500, message);
   }
 }
 

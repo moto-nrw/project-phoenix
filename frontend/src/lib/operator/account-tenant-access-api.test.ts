@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  AccountTenantAccessApiError,
-  accountTenantAccessService,
-} from "./account-tenant-access-api";
+import { ApiError } from "../api-error";
+import { accountTenantAccessService } from "./account-tenant-access-api";
 
 const mockFetch = vi.fn();
 
@@ -148,7 +146,7 @@ describe("accountTenantAccessService", () => {
       jsonResponse(
         {
           status: "error",
-          error: "Diese Rolle existiert an der Zielschule nicht",
+          detail: "Diese Rolle existiert an der Zielschule nicht",
         },
         400,
       ),
@@ -157,18 +155,15 @@ describe("accountTenantAccessService", () => {
     await expect(
       accountTenantAccessService.updateRole("42", "7", "1"),
     ).rejects.toThrowError(
-      new AccountTenantAccessApiError(
-        "Diese Rolle existiert an der Zielschule nicht",
-        400,
-      ),
+      new ApiError("Diese Rolle existiert an der Zielschule nicht", 400),
     );
   });
 
   it("throws the backend error of an unauthorized request", async () => {
-    mockFetch.mockResolvedValue(jsonResponse({ error: "Unauthorized" }, 401));
+    mockFetch.mockResolvedValue(jsonResponse({ detail: "Unauthorized" }, 401));
 
     await expect(accountTenantAccessService.list("42")).rejects.toThrowError(
-      new AccountTenantAccessApiError("Unauthorized", 401),
+      new ApiError("Unauthorized", 401),
     );
   });
 
@@ -178,10 +173,7 @@ describe("accountTenantAccessService", () => {
     );
 
     await expect(accountTenantAccessService.list("42")).rejects.toThrowError(
-      new AccountTenantAccessApiError(
-        "Die Anfrage ist fehlgeschlagen (504).",
-        504,
-      ),
+      new ApiError("school access request failed (504)", 504),
     );
   });
 

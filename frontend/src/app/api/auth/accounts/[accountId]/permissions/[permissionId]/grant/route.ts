@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { apiPost } from "~/lib/api-helpers.server";
+import { apiPost, problemResponse } from "~/lib/api-helpers.server";
 import { createTenantApiAdapter } from "~/lib/backend-proxy-route.server";
 
 export const POST = createTenantApiAdapter(async (_request, token, context) => {
@@ -12,10 +12,7 @@ export const POST = createTenantApiAdapter(async (_request, token, context) => {
     typeof permissionId !== "string" ||
     !permissionId
   ) {
-    return NextResponse.json(
-      { error: "Account ID and Permission ID are required" },
-      { status: 400 },
-    );
+    return problemResponse(400, "Account ID and Permission ID are required");
   }
   await apiPost(
     `/auth/accounts/${accountId}/permissions/${permissionId}/grant`,

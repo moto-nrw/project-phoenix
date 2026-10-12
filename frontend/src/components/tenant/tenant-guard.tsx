@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import { clearSessionCache } from "~/lib/session-cache";
-import { TenantSwitchError, performTenantSwitch } from "~/lib/tenant-api";
+import { performTenantSwitch } from "~/lib/tenant-api";
+import { ApiError } from "~/lib/api-error";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { useTenant } from "~/lib/tenant-context";
 import { isDemoEntryPath } from "~/lib/demo-access";
@@ -255,8 +256,8 @@ function GuardedTenant({
         });
 
         if (
-          err instanceof TenantSwitchError &&
-          err.reason === "access_denied"
+          err instanceof ApiError &&
+          err.code === "identity.tenant_access_denied"
         ) {
           try {
             await signOut({ callbackUrl: "/" });

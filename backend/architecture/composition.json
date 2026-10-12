@@ -66,7 +66,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        227
+        228
       ],
       "tables": []
     },
@@ -17061,7 +17061,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 673,
+          "line": 674,
           "declaration": "type serveGraph"
         }
       ]
@@ -17096,7 +17096,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 672,
+          "line": 673,
           "declaration": "type serveGraph"
         },
         {

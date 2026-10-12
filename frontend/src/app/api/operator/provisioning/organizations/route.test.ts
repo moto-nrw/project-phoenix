@@ -53,7 +53,7 @@ describe("GET /api/operator/provisioning/organizations", () => {
     expect(response.status).toBe(200);
     const json = (await response.json()) as {
       data?: unknown;
-      error?: string;
+      detail?: string;
     };
     expect(json.data).toEqual(organizations);
     expect(mockFetch).toHaveBeenCalledWith(
@@ -73,9 +73,9 @@ describe("GET /api/operator/provisioning/organizations", () => {
     expect(response.status).toBe(401);
     const json = (await response.json()) as {
       data?: unknown;
-      error?: string;
+      detail?: string;
     };
-    expect(json.error).toBe("Unauthorized");
+    expect(json.detail).toBe("Unauthorized");
   });
 });
 
@@ -108,7 +108,7 @@ describe("POST /api/operator/provisioning/organizations", () => {
     expect(response.status).toBe(200);
     const json = (await response.json()) as {
       data?: unknown;
-      error?: string;
+      detail?: string;
     };
     expect(json.data).toEqual(createdOrg);
     expect(mockFetch).toHaveBeenCalledWith(
@@ -138,7 +138,7 @@ describe("POST /api/operator/provisioning/organizations", () => {
   it("handles backend validation errors", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "slug already exists" }), {
+      new Response(JSON.stringify({ detail: "slug already exists" }), {
         status: 409,
         headers: { "Content-Type": "application/json" },
       }),

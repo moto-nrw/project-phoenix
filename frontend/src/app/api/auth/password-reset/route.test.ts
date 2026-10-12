@@ -100,7 +100,7 @@ describe("POST /api/auth/password-reset", () => {
     });
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "Too many requests" }), {
+      new Response(JSON.stringify({ detail: "Too many requests" }), {
         status: 429,
         headers: backendHeaders,
       }),
@@ -112,15 +112,15 @@ describe("POST /api/auth/password-reset", () => {
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBe("120");
 
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Too many requests");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Too many requests");
   });
 
   it("handles backend error with JSON response", async () => {
     const requestBody = { email: "notfound@example.com" };
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "User not found" }), {
+      new Response(JSON.stringify({ detail: "User not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
       }),
@@ -130,8 +130,8 @@ describe("POST /api/auth/password-reset", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(404);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("User not found");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("User not found");
   });
 
   it("handles backend error with message field", async () => {
@@ -215,7 +215,7 @@ describe("POST /api/auth/password-reset", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 });

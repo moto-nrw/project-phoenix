@@ -212,6 +212,10 @@ func (rs *Resource) getMinimalStaffProfile(w http.ResponseWriter, r *http.Reques
 // serveStaffAvatar streams the avatar of the account behind a staff member.
 // Every miss along the chain is a plain 404, as before — the image tag on the
 // staff screens has no other error handling.
+// errStaffAvatarNotFound answers every avatar lookup that does not lead to an
+// image with the same 404, so the reason stays out of the response.
+var errStaffAvatarNotFound = errors.New("staff avatar not found")
+
 func (rs *Resource) serveStaffAvatar(w http.ResponseWriter, r *http.Request) {
 	id, ok := rs.parseStaffID(w, r)
 	if !ok {
@@ -220,21 +224,21 @@ func (rs *Resource) serveStaffAvatar(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	staff, findErr := rs.membership.FindStaff(ctx, id)
 	if findErr != nil {
-		http.NotFound(w, r)
+		rs.runtime.Failure(w, r, FailureNotFound, errStaffAvatarNotFound)
 		return
 	}
 	person, personErr := rs.personFor(ctx, staff)
 	if personErr != nil {
-		http.NotFound(w, r)
+		rs.runtime.Failure(w, r, FailureNotFound, errStaffAvatarNotFound)
 		return
 	}
 	if person == nil || person.AccountID == nil {
-		http.NotFound(w, r)
+		rs.runtime.Failure(w, r, FailureNotFound, errStaffAvatarNotFound)
 		return
 	}
 	avatars, avatarErr := rs.runtime.AccountAvatars(ctx, []int64{*person.AccountID})
 	if avatarErr != nil || avatars[*person.AccountID] == "" {
-		http.NotFound(w, r)
+		rs.runtime.Failure(w, r, FailureNotFound, errStaffAvatarNotFound)
 		return
 	}
 	rs.runtime.ServeAvatar(w, r, avatars[*person.AccountID])

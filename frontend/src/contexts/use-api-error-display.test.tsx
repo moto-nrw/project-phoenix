@@ -15,6 +15,7 @@ import {
 } from "~/contexts/ToastContext";
 import { clientEnv } from "~/env.client";
 import { ApiError } from "~/lib/api-error";
+import { releaseFakeTimers } from "~/test/clock";
 
 function TestForm({ error }: { error: ApiError }) {
   const display = useApiErrorDisplay();
@@ -33,6 +34,39 @@ function TestForm({ error }: { error: ApiError }) {
 }
 
 describe("useApiErrorDisplay", () => {
+  it("shows a message the screen found itself as a lasting error toast", async () => {
+    vi.useFakeTimers();
+    try {
+      function TestAction() {
+        const display = useApiErrorDisplay();
+        return (
+          <button
+            type="button"
+            onClick={() =>
+              display.showMessage("Der Link konnte nicht kopiert werden.")
+            }
+          >
+            Kopieren
+          </button>
+        );
+      }
+      render(
+        <ToastProvider>
+          <TestAction />
+        </ToastProvider>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Kopieren" }));
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Der Link konnte nicht kopiert werden.",
+      );
+    } finally {
+      releaseFakeTimers();
+    }
+  });
+
   it("shows field errors at fields and focuses the first failed field", async () => {
     const error = new ApiError("backend diagnostic", 422, {
       code: "general.input",

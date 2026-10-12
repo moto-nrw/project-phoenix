@@ -1,0 +1,237 @@
+import { NextResponse } from "next/server";
+import { createLogger } from "~/lib/logger";
+import { captureBffException } from "~/lib/sentry-bff.server";
+import {
+  ApiError,
+  problemBody,
+  problemTitle,
+  type ProblemBody,
+} from "./api-error";
+
+const logger = createLogger({ component: "ApiHelpers" });
+
+type JsonBody = Record<string, unknown> | unknown[] | string | number | boolean;
+
+/**
+ * Typed error thrown by serverFetchWithRetry for non-OK backend responses and
+ * by the route wrappers for failures they detect themselves. Carries the HTTP
+ * status and the raw body so callers branch on the status or the envelope's
+ * code, never on the message.
+ */
+export class ApiResponseError extends Error {
+  readonly status: number;
+  readonly bodyText: string;
+  readonly retryAfter: string | null;
+  readonly contentType: string | null;
+  // Memoized parse result — `null` means "not JSON". Lazy so callers that
+  // only check status never pay the JSON.parse cost.
+  private parsedBody: JsonBody | null = null;
+  private parseAttempted = false;
+
+  constructor(
+    status: number,
+    bodyText: string,
+    options?: ErrorOptions & {
+      retryAfter?: string | null;
+      contentType?: string | null;
+    },
+  ) {
+    super(`API error (${status}): ${bodyText}`, options);
+    this.name = "ApiResponseError";
+    this.status = status;
+    this.bodyText = bodyText;
+    this.retryAfter = options?.retryAfter ?? null;
+    this.contentType = options?.contentType ?? null;
+  }
+
+  /** Returns the parsed JSON body, or `null` if the body isn't valid JSON. */
+  body<T = unknown>(): T | null {
+    if (!this.parseAttempted) {
+      this.parseAttempted = true;
+      try {
+        this.parsedBody = JSON.parse(this.bodyText) as JsonBody;
+      } catch {
+        this.parsedBody = null;
+      }
+    }
+    return (this.parsedBody ?? null) as T | null;
+  }
+}
+
+export function isApiResponseError(
+  error: unknown,
+  status?: number,
+): error is ApiResponseError {
+  return (
+    error instanceof ApiResponseError &&
+    (status === undefined || error.status === status)
+  );
+}
+
+/**
+ * A failure the frontend's server layer detects itself (bad JSON, oversized
+ * body, missing session). It carries the same envelope as a backend answer,
+ * so handleApiError forwards it unchanged.
+ */
+export function bffError(
+  status: number,
+  detail: string,
+  extra?: Omit<Partial<ProblemBody>, "status" | "detail">,
+): ApiResponseError {
+  // Same rule as problemResponse: a 5xx keeps its cause on the server.
+  const publicDetail = status >= 500 ? problemTitle(status) : detail;
+  return new ApiResponseError(
+    status,
+    JSON.stringify(problemBody(status, publicDetail, extra)),
+    { contentType: "application/problem+json" },
+  );
+}
+
+/** Preserve a direct fetch's error body for the shared route wrappers. */
+export async function backendResponseError(
+  response: Response,
+): Promise<ApiResponseError> {
+  return new ApiResponseError(response.status, await response.text(), {
+    contentType: response.headers.get("Content-Type"),
+    retryAfter: response.headers.get("Retry-After"),
+  });
+}
+
+/**
+ * Answers with the error envelope for a failure that starts in the frontend's
+ * own API route, so the browser reads it like a backend answer. A 5xx never
+ * sends its cause to the browser: an exception message can carry hostnames,
+ * stack details or upstream text, so the detail is the status title and the
+ * caller logs the real cause server-side.
+ */
+export function problemResponse(
+  status: number,
+  detail: string,
+  extra?: Omit<Partial<ProblemBody>, "status" | "detail">,
+  headers?: HeadersInit,
+): NextResponse<ProblemBody> {
+  const responseHeaders = new Headers(headers);
+  responseHeaders.set("Content-Type", "application/problem+json");
+  const publicDetail = status >= 500 ? problemTitle(status) : detail;
+  return NextResponse.json(problemBody(status, publicDetail, extra), {
+    status,
+    headers: responseHeaders,
+  });
+}
+
+/**
+ * Answers a failed API route with the error envelope. A backend failure is
+ * forwarded unchanged; a frontend failure gets an envelope of its own.
+ * @param error Error object
+ * @returns Response with the error envelope and status
+ */
+export function handleApiError(
+  error: unknown,
+  request?: Request,
+): NextResponse<ProblemBody> {
+  if (error instanceof ApiResponseError) {
+    const parsed = error.body<Partial<ProblemBody>>();
+    const isEnvelope =
+      parsed !== null && typeof parsed === "object" && !Array.isArray(parsed);
+    logApiRouteError(
+      error.status,
+      parsed === null
+        ? error.bodyText
+        : JSON.stringify(redactSensitiveApiErrorValue(parsed)),
+      isEnvelope ? parsed.code : undefined,
+    );
+    const headers = new Headers();
+    if (error.retryAfter) headers.set("Retry-After", error.retryAfter);
+    if (!isEnvelope) {
+      // A proxy or gateway answered with plain text or HTML. The body is
+      // logged above and never forwarded: the browser gets an envelope with
+      // the status title and the class code of the status.
+      return problemResponse(
+        error.status,
+        problemTitle(error.status),
+        {},
+        headers,
+      );
+    }
+    if (error.contentType) headers.set("Content-Type", error.contentType);
+    return new NextResponse<ProblemBody>(error.bodyText, {
+      status: error.status,
+      headers,
+    });
+  }
+
+  if (error instanceof ApiError && error.status !== undefined) {
+    // The message is diagnostics from this server: it is logged, the browser
+    // reads the code.
+    logApiRouteError(error.status, error.message, error.code);
+    return problemResponse(error.status, problemTitle(error.status), {
+      code: error.code,
+      errors: error.errors,
+      details: error.details,
+      instance: error.instance,
+    });
+  }
+
+  // Unknown errors are logged as errors and return 500
+  captureBffException(error, request);
+  logger.error("api route error without status", {
+    error: error instanceof Error ? error.message : String(error),
+  });
+  return problemResponse(500, "internal error");
+}
+
+function logApiRouteError(
+  status: number,
+  safeErrorMessage: string,
+  errorCode: string | undefined,
+): void {
+  // Only log server errors (5xx) to avoid Next.js error overlay for expected 4xx.
+  // Backend 5xx responses stay in logs; the backend owns their Sentry event.
+  if (status >= 500) {
+    logger.error("api route error", {
+      status,
+      error: safeErrorMessage,
+      ...(errorCode && { error_code: errorCode }),
+    });
+    return;
+  }
+
+  if (status === 429) {
+    logger.warn("api route rate limited", {
+      status,
+      error: safeErrorMessage,
+      rate_limited: true,
+    });
+    return;
+  }
+
+  logger.warn("api route error", {
+    status,
+    error: safeErrorMessage,
+  });
+}
+
+/**
+ * JSON keys whose free-text values must not appear in server logs, even when
+ * a 4xx body still carries them (sick-note content).
+ */
+const SENSITIVE_API_ERROR_KEYS = new Set(["note"]);
+
+function redactSensitiveApiErrorValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => redactSensitiveApiErrorValue(entry));
+  }
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+
+  const redacted: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (SENSITIVE_API_ERROR_KEYS.has(key) && entry != null && entry !== "") {
+      redacted[key] = "[REDACTED]";
+      continue;
+    }
+    redacted[key] = redactSensitiveApiErrorValue(entry);
+  }
+  return redacted;
+}

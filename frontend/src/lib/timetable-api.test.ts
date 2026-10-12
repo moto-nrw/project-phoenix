@@ -127,8 +127,8 @@ describe("timetableService", () => {
     await expect(
       timetableService.getWeek("2026-05-04", "2026-05-08"),
     ).rejects.toMatchObject({
-      httpStatus: 401,
-      code: "UNAUTHENTICATED",
+      status: 401,
+      code: "general.permission",
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -884,14 +884,14 @@ describe("timetableService", () => {
   it("uses backend error payloads and generic messages for failed responses", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
-        { error: "Zeitraum ungueltig", code: "INVALID_RANGE" },
+        { detail: "Zeitraum ungueltig", code: "INVALID_RANGE" },
         { status: 400 },
       ),
     );
 
     await expect(timetableService.materialize("x", "y")).rejects.toMatchObject({
       message: "Zeitraum ungueltig",
-      httpStatus: 400,
+      status: 400,
       code: "INVALID_RANGE",
     });
 
@@ -903,7 +903,7 @@ describe("timetableService", () => {
     );
     await expect(timetableService.cancel("42")).rejects.toMatchObject({
       message: "Anfrage fehlgeschlagen (HTTP 502)",
-      httpStatus: 502,
+      status: 502,
     });
   });
 
@@ -1516,7 +1516,7 @@ describe("timetableService.applyBulkSubstitution (#2284)", () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
         {
-          error:
+          detail:
             "18.08.2026: die Ersatzperson ist am 18.08.2026 selbst abwesend",
         },
         { status: 400 },
@@ -1595,13 +1595,13 @@ describe("instance participants (#2283)", () => {
   it("surfaces backend errors via TimetableApiError", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
-        { error: "Zugriff verweigert", code: "FORBIDDEN" },
+        { detail: "Zugriff verweigert", code: "FORBIDDEN" },
         { status: 403 },
       ),
     );
 
     await expect(
       timetableService.getInstanceParticipants("42"),
-    ).rejects.toMatchObject({ httpStatus: 403, code: "FORBIDDEN" });
+    ).rejects.toMatchObject({ status: 403, code: "FORBIDDEN" });
   });
 });

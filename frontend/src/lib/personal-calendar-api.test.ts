@@ -363,7 +363,7 @@ describe("personal calendar API", () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
         {
-          error: "calendar access forbidden",
+          detail: "calendar access forbidden",
           code: "general.permission",
           errors: [{ field: "title", reason: "required" }],
           instance: "req-42",

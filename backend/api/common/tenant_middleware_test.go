@@ -174,8 +174,8 @@ func TestTenantTxMiddlewareDiscardsSuccessWhenCommitFails(t *testing.T) {
 	handler.ServeHTTP(recorder, request.WithContext(ctx))
 
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
-	assert.Equal(t, "text/plain; charset=utf-8", recorder.Header().Get("Content-Type"))
-	assert.NotContains(t, recorder.Body.String(), `"ok":true`)
+	assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+	assert.JSONEq(t, `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler","title":"Internal Server Error","status":500,"detail":"Internal Server Error","instance":"","code":"general.server"}`, recorder.Body.String())
 }
 
 type failingTenantResponseWriter struct{ header http.Header }

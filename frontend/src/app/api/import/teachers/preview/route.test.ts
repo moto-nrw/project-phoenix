@@ -107,7 +107,7 @@ describe("POST /api/import/teachers/preview", () => {
 
   it("handles backend server errors", async () => {
     mockFetch.mockResolvedValueOnce(
-      Response.json({ error: "Database connection failed" }, { status: 500 }),
+      Response.json({ detail: "Database connection failed" }, { status: 500 }),
     );
 
     const formData = new FormData();
@@ -126,7 +126,7 @@ describe("POST /api/import/teachers/preview", () => {
     const response = await POST(createMockRequest(formData));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal server error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 });

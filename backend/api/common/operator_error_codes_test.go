@@ -38,6 +38,6 @@ func TestOperatorInvalidInputHidesCauseText(t *testing.T) {
 
 	resp, ok := common.OperatorInvalidInput(errors.New("pq: secret"), "invalid input data").(*common.ErrResponse)
 	require.True(t, ok)
-	assert.Equal(t, "invalid input data", resp.ErrorText)
+	assert.Equal(t, "invalid input data", resp.Detail)
 	assert.Empty(t, resp.Errors)
 }

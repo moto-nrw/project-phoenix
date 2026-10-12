@@ -99,9 +99,9 @@ func (response) Render(http.ResponseWriter, *http.Request) error { return nil }
 
 type errorResponse struct {
 	StatusCode int    `json:"-"`
-	Status     string `json:"status"`
+	Status     int    `json:"status"`
 	Kind       string `json:"kind"`
-	Error      string `json:"error"`
+	Detail     string `json:"detail"`
 }
 
 func (e errorResponse) Render(_ http.ResponseWriter, r *http.Request) error {
@@ -157,7 +157,7 @@ func newHarness(t *testing.T) *harness {
 			_ = render.Render(w, r, response{Status: "success", Data: payload, Message: message})
 		},
 		Failure: func(w http.ResponseWriter, r *http.Request, kind classListHTTP.FailureKind, err error) {
-			_ = render.Render(w, r, errorResponse{StatusCode: classListHTTP.StatusOf(kind), Status: "error", Kind: string(kind), Error: err.Error()})
+			_ = render.Render(w, r, errorResponse{StatusCode: classListHTTP.StatusOf(kind), Status: classListHTTP.StatusOf(kind), Kind: string(kind), Detail: err.Error()})
 		},
 		ObserveResponse: func(status int, code string) {
 			h.observed = append(h.observed, http.StatusText(status)+"/"+code)

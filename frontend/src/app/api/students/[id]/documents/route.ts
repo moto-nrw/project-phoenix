@@ -1,4 +1,4 @@
-import { backendResponseError } from "~/lib/api-helpers.server";
+import { backendResponseError } from "~/lib/api-response-error.server";
 // Child documents (#777): list + multipart upload proxy. The backend owns the
 // authoritative magic-number validation and the per-category permission
 // checks; this route mirrors the size/MIME gate so oversized or obviously

@@ -42,7 +42,11 @@ describe("/api/operator/accounts/[accountId]/tenants/[tenantId]", () => {
     );
 
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: "Invalid JSON body" });
+    expect(await response.json()).toMatchObject({
+      status: 400,
+      detail: "Invalid JSON body",
+      code: "general.input",
+    });
     expect(mockFetch).not.toHaveBeenCalled();
   });
 });

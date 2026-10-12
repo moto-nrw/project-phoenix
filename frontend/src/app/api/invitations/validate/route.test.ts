@@ -45,8 +45,8 @@ describe("GET /api/invitations/validate", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Missing invitation token");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Missing invitation token");
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
@@ -71,7 +71,7 @@ describe("GET /api/invitations/validate", () => {
 
   it("handles invalid token (404)", async () => {
     mockFetch.mockResolvedValueOnce(
-      Response.json({ error: "Invitation not found" }, { status: 404 }),
+      Response.json({ detail: "Invitation not found" }, { status: 404 }),
     );
 
     const request = createMockRequest(
@@ -80,13 +80,13 @@ describe("GET /api/invitations/validate", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(404);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Invitation not found");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Invitation not found");
   });
 
   it("handles expired token (410)", async () => {
     mockFetch.mockResolvedValueOnce(
-      Response.json({ error: "Invitation expired" }, { status: 410 }),
+      Response.json({ detail: "Invitation expired" }, { status: 410 }),
     );
 
     const request = createMockRequest(
@@ -95,8 +95,8 @@ describe("GET /api/invitations/validate", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(410);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Invitation expired");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Invitation expired");
   });
 
   it("handles non-JSON response from backend", async () => {
@@ -136,8 +136,8 @@ describe("GET /api/invitations/validate", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 
   it("encodes special characters in token", async () => {

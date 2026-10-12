@@ -48,7 +48,11 @@ describe("/api/operator/provisioning/schools/[id]/accounts/[accountId]/caregiver
     );
 
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
+    await expect(response.json()).resolves.toMatchObject({
+      status: 401,
+      detail: "Unauthorized",
+      code: "general.permission",
+    });
   });
 
   it("returns 400 when school or account params are invalid", async () => {
@@ -66,8 +70,10 @@ describe("/api/operator/provisioning/schools/[id]/accounts/[accountId]/caregiver
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
-      status: "error",
-      error: "Invalid school or account parameter",
+      type: "about:blank",
+      title: "Bad Request",
+      status: 400,
+      detail: "Invalid school or account parameter",
       code: "general.input",
     });
   });
@@ -102,7 +108,10 @@ describe("/api/operator/provisioning/schools/[id]/accounts/[accountId]/caregiver
     });
     mockFetch
       .mockResolvedValueOnce(
-        Response.json({ error: "expired" }, { status: 401 }),
+        Response.json(
+          { status: 401, detail: "expired", code: "general.permission" },
+          { status: 401 },
+        ),
       )
       .mockResolvedValueOnce(Response.json({ deleted: true }));
 

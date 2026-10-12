@@ -4,6 +4,7 @@
  * Arten und der Umgang mit einer zwischenzeitlich geänderten Anfrage.
  */
 
+import { ApiError } from "~/lib/api-error";
 import {
   fireEvent,
   render as renderComponent,
@@ -18,7 +19,6 @@ import {
 } from "~/components/students/aggregated-request-list";
 import {
   bulkApproveParentRequests,
-  ChangeRequestStaleError,
   listAggregatedOpenRequests,
   listAggregatedRequestHistory,
   listEnrollmentChangeRequests,
@@ -242,7 +242,11 @@ describe("Anfragen: Liste und Detail", () => {
         item("2", "10", "Mia Muster"),
       ] as never,
     });
-    mockBulkApprove.mockRejectedValue(new ChangeRequestStaleError());
+    mockBulkApprove.mockRejectedValue(
+      new ApiError("change request stale", 409, {
+        code: "students.change_request_stale",
+      }),
+    );
 
     render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
 

@@ -1,3 +1,4 @@
+import { ApiError } from "./api-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -27,7 +28,6 @@ import {
   isPasskeyCeremonyIncompleteError,
   listPasskeys,
   loginWithPasskey,
-  PasskeyApiError,
   registerPasskey,
   revokePasskey,
   startPasskeyEnrollment,
@@ -81,11 +81,12 @@ describe("passkey-api", () => {
         ),
       ),
     ).toBe(true);
+    // The ceremony is identified by the error name, never by its text.
     expect(
       isPasskeyCeremonyIncompleteError(
         new Error("The operation either timed out or was not allowed."),
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       isPasskeyCeremonyIncompleteError(
         new Error("Passkey-Anfrage fehlgeschlagen."),
@@ -294,10 +295,10 @@ describe("passkey-api", () => {
   });
 
   it.each([
-    [{ error: "Direkter Fehler" }, "Direkter Fehler"],
-    [{ message: "Backend-Nachricht" }, "Backend-Nachricht"],
-    [{ error_text: "Legacy-Fehler" }, "Legacy-Fehler"],
-  ])("uses backend error messages from %j", async (body, expected) => {
+    [{ detail: "Direkter Fehler" }, "Direkter Fehler"],
+    [{ message: "Backend-Nachricht" }, "Passkey-Anfrage fehlgeschlagen (403)."],
+    [{ error_text: "Legacy-Fehler" }, "Passkey-Anfrage fehlgeschlagen (403)."],
+  ])("takes the diagnostic only from detail: %j", async (body, expected) => {
     mockAuthenticatedSession();
     vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse(403, body));
 
@@ -311,7 +312,7 @@ describe("passkey-api", () => {
     mockAuthenticatedSession();
     vi.mocked(global.fetch).mockResolvedValueOnce(
       jsonResponse(403, {
-        error: "school portal accounts must log in at the school portal",
+        detail: "school portal accounts must log in at the school portal",
         code: "identity.use_school_portal",
       }),
     );
@@ -329,7 +330,7 @@ describe("passkey-api", () => {
     );
 
     const promise = startPasskeyEnrollment("tenant");
-    await expect(promise).rejects.toBeInstanceOf(PasskeyApiError);
+    await expect(promise).rejects.toBeInstanceOf(ApiError);
     await expect(promise).rejects.toMatchObject({
       status: 502,
       message: "Passkey-Anfrage fehlgeschlagen (502).",

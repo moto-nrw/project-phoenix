@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeAttendanceLogDisabled                            = "attendance.log_disabled"
 	CodeAttendanceWebDisabled                            = "attendance.web_disabled"
 	CodeBillingInvalidKeyDay                             = "billing.invalid_key_day"
 	CodeCareAnnouncementAckNotRequired                   = "care.announcement_ack_not_required"
@@ -92,6 +93,7 @@ const (
 	CodeCommunicationSystemAnnouncementImmutable         = "communication.system_announcement_immutable"
 	CodeDevicesTagScanAlreadyResolved                    = "devices.tag_scan_already_resolved"
 	CodeDevicesTagScanNotFound                           = "devices.tag_scan_not_found"
+	CodeDisplayDisabled                                  = "display.disabled"
 	CodeEnrollmentApprovalCareOfferingExactlyOne         = "enrollment.approval_care_offering_exactly_one"
 	CodeEnrollmentApprovalCareOfferingMissing            = "enrollment.approval_care_offering_missing"
 	CodeEnrollmentApprovalDataInvalid                    = "enrollment.approval_data_invalid"
@@ -202,6 +204,7 @@ const (
 	CodeEnrollmentWaitlistDisabled                       = "enrollment.waitlist_disabled"
 	CodeEnrollmentWindowClosed                           = "enrollment.window_closed"
 	CodeEnrollmentWithdrawNotAllowed                     = "enrollment.withdraw_not_allowed"
+	CodeFeedbackDisabled                                 = "feedback.disabled"
 	CodeFilesAnnouncementPublished                       = "files.announcement_published"
 	CodeFilesAttachmentLimitReached                      = "files.attachment_limit_reached"
 	CodeFilesFileMissing                                 = "files.file_missing"
@@ -407,6 +410,7 @@ const (
 	CodeStudentsClassListEntryStudentExists              = "students.class_list_entry_student_exists"
 	CodeStudentsClassListEntryStudentNotFound            = "students.class_list_entry_student_not_found"
 	CodeStudentsCompanionLockBusy                        = "students.companion_lock_busy"
+	CodeStudentsCompanionPlanConflict                    = "students.companion_plan_conflict"
 	CodeStudentsCompanionWouldLoseDeparture              = "students.companion_would_lose_departure"
 	CodeStudentsCompanionsChanged                        = "students.companions_changed"
 	CodeStudentsConflictKindUnsupported                  = "students.conflict_kind_unsupported"
@@ -663,6 +667,7 @@ const (
 )
 
 var errorClassByCode = map[string]string{
+	"attendance.log_disabled":                              "permission",
 	"attendance.web_disabled":                              "permission",
 	"billing.invalid_key_day":                              "input",
 	"care.announcement_ack_not_required":                   "input",
@@ -753,6 +758,7 @@ var errorClassByCode = map[string]string{
 	"communication.system_announcement_immutable":          "business_rejection",
 	"devices.tag_scan_already_resolved":                    "business_rejection",
 	"devices.tag_scan_not_found":                           "business_rejection",
+	"display.disabled":                                     "permission",
 	"enrollment.approval_care_offering_exactly_one":        "business_rejection",
 	"enrollment.approval_care_offering_missing":            "business_rejection",
 	"enrollment.approval_data_invalid":                     "input",
@@ -863,6 +869,7 @@ var errorClassByCode = map[string]string{
 	"enrollment.waitlist_disabled":                         "business_rejection",
 	"enrollment.window_closed":                             "business_rejection",
 	"enrollment.withdraw_not_allowed":                      "permission",
+	"feedback.disabled":                                    "permission",
 	"files.announcement_published":                         "business_rejection",
 	"files.attachment_limit_reached":                       "business_rejection",
 	"files.file_missing":                                   "input",
@@ -1068,6 +1075,7 @@ var errorClassByCode = map[string]string{
 	"students.class_list_entry_student_exists":             "business_rejection",
 	"students.class_list_entry_student_not_found":          "business_rejection",
 	"students.companion_lock_busy":                         "business_rejection",
+	"students.companion_plan_conflict":                     "business_rejection",
 	"students.companion_would_lose_departure":              "input",
 	"students.companions_changed":                          "business_rejection",
 	"students.conflict_kind_unsupported":                   "input",

@@ -10,6 +10,7 @@ import {
   getOriginalRequestHost,
   hostnameFromAuthority,
 } from "~/lib/client-headers.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "EnrollmentFormBootstrapRoute" });
 
@@ -42,10 +43,7 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
       getOriginalRequestHost(request),
     );
     if (!requestHostname) {
-      return NextResponse.json(
-        { error: "Invalid request host" },
-        { status: 400 },
-      );
+      return problemResponse(400, "Invalid request host");
     }
     const isParentPortal = requestHostname === parentsHostname;
     const lateInvite = request.nextUrl.searchParams.get("late_invite")?.trim();
@@ -121,10 +119,7 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
     logger.error("form_bootstrap_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
+    return problemResponse(500, "Internal Server Error");
   }
 }
 

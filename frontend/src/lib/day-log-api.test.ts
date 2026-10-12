@@ -95,7 +95,7 @@ describe("fetchDayLog", () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
         {
-          error: "feature_disabled",
+          detail: "feature_disabled",
           code: "students.day_log_disabled",
           details: { setting: "day_log" },
           errors: [{ field: "date", reason: "unavailable" }],
@@ -112,7 +112,8 @@ describe("fetchDayLog", () => {
       details: { setting: "day_log" },
       errors: [{ field: "date", reason: "unavailable" }],
       requestId: "request-day-log-403",
-      message: "day log request failed (403)",
+      // The diagnostic is the envelope's detail, never shown to the user.
+      message: "feature_disabled",
     });
   });
 
@@ -120,13 +121,13 @@ describe("fetchDayLog", () => {
     fetchMock
       .mockResolvedValueOnce(
         jsonResponse(
-          { error: "no_permitted_groups", code: "students.day_log_no_groups" },
+          { detail: "no_permitted_groups", code: "students.day_log_no_groups" },
           { status: 403 },
         ),
       )
       .mockResolvedValueOnce(
         // A text alone no longer selects a state: it is the class code.
-        jsonResponse({ error: "feature_disabled" }, { status: 403 }),
+        jsonResponse({ detail: "feature_disabled" }, { status: 403 }),
       );
 
     await expect(fetchDayLog("2026-07-24")).rejects.toMatchObject({

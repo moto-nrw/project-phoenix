@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { problemResponse } from "./api-response-error.server";
 import { NextResponse } from "next/server";
 import { auth } from "../server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
@@ -158,7 +159,7 @@ export function createFileUploadHandler<T>(
         const session = await auth();
 
         if (!session?.user?.token) {
-          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+          return problemResponse(401, "Unauthorized");
         }
 
         // Extract parameters
@@ -191,9 +192,9 @@ export function createFileUploadHandler<T>(
           }
         } catch (validationError) {
           if (validationError instanceof FileValidationError) {
-            return NextResponse.json(
-              { error: validationError.message },
-              { status: validationError.status },
+            return problemResponse(
+              validationError.status,
+              validationError.message,
             );
           }
           throw validationError;
@@ -215,10 +216,7 @@ export function createFileUploadHandler<T>(
         return NextResponse.json(response);
       } catch (error) {
         if (error instanceof FileValidationError) {
-          return NextResponse.json(
-            { error: error.message },
-            { status: error.status },
-          );
+          return problemResponse(error.status, error.message);
         }
         return handleApiError(error, request);
       }

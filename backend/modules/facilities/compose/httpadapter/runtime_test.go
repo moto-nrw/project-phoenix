@@ -558,10 +558,10 @@ func TestGetRoomHistory_FeatureDisabled(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, rr.Code, "Expected 403 when feature is disabled. Body: %s", rr.Body.String())
 
 	var body struct {
-		Error string `json:"error"`
+		Code string `json:"code"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body), "response body must be JSON-decodable: %s", rr.Body.String())
-	assert.Equal(t, "feature_disabled", body.Error, "the `error` field must literally equal `feature_disabled` — the frontend proxy matches this exact string to translate the 403 into a UI-hides-section signal")
+	assert.Equal(t, "attendance.log_disabled", body.Code, "the code tells the frontend proxy to hide the section instead of showing an error (#1425)")
 }
 
 // TestGetRoomHistory_StaffScope — the room history is gated on caller identity

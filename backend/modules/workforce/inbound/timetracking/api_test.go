@@ -558,13 +558,13 @@ func TestCheckIn_PlannedStartNotReached(t *testing.T) {
 	require.Equal(t, http.StatusConflict, w.Code)
 
 	var resp struct {
-		Status  string         `json:"status"`
+		Status  int            `json:"status"`
 		Code    string         `json:"code"`
-		Error   string         `json:"error"`
+		Detail  string         `json:"detail"`
 		Details map[string]any `json:"details"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, "error", resp.Status)
+	assert.Equal(t, http.StatusConflict, resp.Status)
 	assert.Equal(t, "iot.planned_start_not_reached", resp.Code)
 	require.NotNil(t, resp.Details)
 	assert.Equal(t, "09:00", resp.Details["planned_start_time"])
@@ -1784,7 +1784,7 @@ func TestClassifyAbsenceError(t *testing.T) {
 		err := render.Render(w, r, renderer)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusForbidden, w.Code)
-		assert.JSONEq(t, `{"status":"error","error":"absence type is manager-controlled","code":"workforce.manager_controlled_absence","type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Forbidden","detail":"absence type is manager-controlled","instance":""}`, w.Body.String())
+		assert.JSONEq(t, `{"status":403,"code":"workforce.manager_controlled_absence","type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Forbidden","detail":"absence type is manager-controlled","instance":""}`, w.Body.String())
 	})
 
 	t.Run("allowance booking overlap returns conflict", func(t *testing.T) {
@@ -1798,7 +1798,7 @@ func TestClassifyAbsenceError(t *testing.T) {
 		renderErr := render.Render(w, r, renderer)
 		require.NoError(t, renderErr)
 		require.Equal(t, http.StatusConflict, w.Code)
-		assert.JSONEq(t, `{"status":"error","error":"Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein.","code":"workforce.absence_overlap","type":"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich","title":"Conflict","detail":"Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein.","instance":""}`, w.Body.String())
+		assert.JSONEq(t, `{"status":409,"code":"workforce.absence_overlap","type":"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich","title":"Conflict","detail":"Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein.","instance":""}`, w.Body.String())
 	})
 
 }
@@ -1990,12 +1990,12 @@ func TestCheckIn_DeviationReasonRequired(t *testing.T) {
 	require.Equal(t, http.StatusConflict, w.Code)
 
 	var resp struct {
-		Status  string         `json:"status"`
+		Status  int            `json:"status"`
 		Code    string         `json:"code"`
 		Details map[string]any `json:"details"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, "error", resp.Status)
+	assert.Equal(t, http.StatusConflict, resp.Status)
 	assert.Equal(t, "iot.deviation_reason_required", resp.Code)
 	require.NotNil(t, resp.Details)
 	assert.Equal(t, "check_in", resp.Details["action"])

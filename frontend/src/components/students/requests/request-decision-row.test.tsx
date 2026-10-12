@@ -5,10 +5,7 @@ import { RequestDecisionRow } from "./request-decision-row";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { AggregatedOpenRequest } from "~/lib/change-request-list-api";
-import {
-  ChangeRequestStaleError,
-  markRequestDone,
-} from "~/lib/change-request-list-api";
+import { markRequestDone } from "~/lib/change-request-list-api";
 
 vi.mock("~/lib/change-request-list-api", async () => {
   const actual = await vi.importActual<
@@ -156,7 +153,11 @@ describe("RequestDecisionRow", () => {
 
   it("lädt bei einer veralteten Anfrage neu und meldet den Code-Text", async () => {
     const onStale = vi.fn();
-    mockMarkDone.mockRejectedValueOnce(new ChangeRequestStaleError());
+    mockMarkDone.mockRejectedValueOnce(
+      new ApiError("change request stale", 409, {
+        code: "students.change_request_stale",
+      }),
+    );
     renderRow(item({ past: true, bulk_eligible: false }), { onStale });
 
     fireEvent.click(

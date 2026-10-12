@@ -17,22 +17,17 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: mockApiGet,
-  apiPost: mockApiPost,
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: mockApiGet,
+    apiPost: mockApiPost,
+    apiPut: vi.fn(),
+    apiDelete: vi.fn(),
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 function createMockRequest(
   path: string,
@@ -134,8 +129,9 @@ describe("GET /api/activities/[id]/supervisors", () => {
     const response = await GET(request, createMockContext({ id: "" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Activity ID is required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Activity ID is required");
   });
 });
 
@@ -232,8 +228,9 @@ describe("POST /api/activities/[id]/supervisors", () => {
     const response = await POST(request, createMockContext({ id: "" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Activity ID is required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Activity ID is required");
   });
 
   it("throws error when staff_id is missing", async () => {
@@ -244,8 +241,9 @@ describe("POST /api/activities/[id]/supervisors", () => {
     const response = await POST(request, createMockContext({ id: "5" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Staff ID is required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Staff ID is required");
   });
 
   it("throws error when assignment fails", async () => {
@@ -258,7 +256,8 @@ describe("POST /api/activities/[id]/supervisors", () => {
     const response = await POST(request, createMockContext({ id: "5" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Failed to assign supervisor");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Failed to assign supervisor");
   });
 });

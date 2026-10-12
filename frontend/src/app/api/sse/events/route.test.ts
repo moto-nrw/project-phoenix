@@ -64,7 +64,7 @@ describe("GET /api/sse/events", () => {
 
     expect(response.status).toBe(401);
     const text = await response.text();
-    expect(text).toBe("Unauthorized");
+    expect(JSON.parse(text)).toMatchObject({ detail: "Unauthorized" });
   });
 
   it("returns 401 when session has no token", async () => {

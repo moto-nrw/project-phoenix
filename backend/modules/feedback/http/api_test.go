@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
@@ -56,8 +58,9 @@ func (response) Render(http.ResponseWriter, *http.Request) error { return nil }
 
 type errorResponse struct {
 	StatusCode int    `json:"-"`
-	Status     string `json:"status"`
-	Error      string `json:"error"`
+	Status     int    `json:"status"`
+	Detail     string `json:"detail"`
+	Code       string `json:"code"`
 }
 
 func (e *errorResponse) Render(http.ResponseWriter, *http.Request) error { return nil }
@@ -80,7 +83,7 @@ func testResourceWithObserver(e engine, observe func(int, string)) *feedbackHTTP
 		},
 		Failure: func(w http.ResponseWriter, r *http.Request, failure feedbackHTTP.Failure) {
 			render.Status(r, failure.Status)
-			require.NoError(testingT(r.Context()), render.Render(w, r, &errorResponse{StatusCode: failure.Status, Status: "error", Error: failure.Err.Error()}))
+			require.NoError(testingT(r.Context()), render.Render(w, r, &errorResponse{StatusCode: failure.Status, Status: failure.Status, Detail: failure.Err.Error(), Code: routetest.ClassCode(failure.Status)}))
 		},
 		ObserveResponse: observe,
 	})
@@ -139,11 +142,11 @@ func TestStaffErrorStatusesStayStable(t *testing.T) {
 		code int
 		body string
 	}{
-		{"not found", feedbackModule.ErrEntryNotFound, 404, `{"status":"error","error":"feedback entry not found"}`},
-		{"invalid", feedbackModule.ErrInvalidEntryData, 400, `{"status":"error","error":"invalid feedback entry data"}`},
-		{"range", feedbackModule.ErrInvalidDateRange, 400, `{"status":"error","error":"invalid date range"}`},
-		{"student", feedbackModule.ErrStudentNotFound, 404, `{"status":"error","error":"student not found"}`},
-		{"internal", errors.New("boom"), 500, `{"status":"error","error":"boom"}`},
+		{"not found", feedbackModule.ErrEntryNotFound, 404, `{"status":404,"detail":"feedback entry not found","code":"general.input"}`},
+		{"invalid", feedbackModule.ErrInvalidEntryData, 400, `{"status":400,"detail":"invalid feedback entry data","code":"general.input"}`},
+		{"range", feedbackModule.ErrInvalidDateRange, 400, `{"status":400,"detail":"invalid date range","code":"general.input"}`},
+		{"student", feedbackModule.ErrStudentNotFound, 404, `{"status":404,"detail":"student not found","code":"general.input"}`},
+		{"internal", errors.New("boom"), 500, `{"status":500,"detail":"boom","code":"general.server"}`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

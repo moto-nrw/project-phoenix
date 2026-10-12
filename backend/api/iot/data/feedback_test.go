@@ -178,7 +178,7 @@ func TestSubmitFeedback_StudentNotFound(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertNotFound(t, rr)
-	assert.Equal(t, `{"status":"error","error":"student not found"}`+"\n", rr.Body.String())
+	assert.Equal(t, `{"status":404,"detail":"student not found","code":"general.input"}`+"\n", rr.Body.String())
 }
 
 // A graduated (alumnus) student is soft-deleted and gone from every kiosk and

@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { proxyPut } from "~/lib/school/route-wrapper.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const VALID_TYPE_PATTERN = /^[a-z0-9_]{1,64}$/;
 
@@ -12,12 +12,7 @@ const forward = proxyPut<null, { enabled: boolean }>(
 export const PUT: typeof forward = (request, context) => {
   const type = request.nextUrl.pathname.split("/").at(-1) ?? "";
   if (!VALID_TYPE_PATTERN.test(type)) {
-    return Promise.resolve(
-      NextResponse.json(
-        { error: "invalid notification type" },
-        { status: 400 },
-      ),
-    );
+    return Promise.resolve(problemResponse(400, "invalid notification type"));
   }
   return forward(request, context);
 };

@@ -20,7 +20,7 @@ function jsonResponse(data: unknown): Response {
 function errorResponse(code: string, message = "backend error"): Response {
   return {
     ok: false,
-    text: () => Promise.resolve(JSON.stringify({ code, error: message })),
+    text: () => Promise.resolve(JSON.stringify({ code, detail: message })),
   } as Response;
 }
 

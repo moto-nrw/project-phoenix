@@ -49,30 +49,9 @@ vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: vi.fn(() => true),
 }));
 
-vi.mock("~/lib/tenant-api", async () => {
-  const { ApiError } = await import("~/lib/api-error");
-  return {
-    performTenantSwitch: mockPerformTenantSwitch,
-    TenantSwitchError: class TenantSwitchError extends ApiError {
-      reason: "access_denied" | "unknown";
-
-      constructor(
-        message: string,
-        status: number,
-        reason: "access_denied" | "unknown" = "unknown",
-      ) {
-        super(message, status, {
-          code:
-            reason === "access_denied"
-              ? "identity.tenant_access_denied"
-              : undefined,
-        });
-        this.name = "TenantSwitchError";
-        this.reason = reason;
-      }
-    },
-  };
-});
+vi.mock("~/lib/tenant-api", () => ({
+  performTenantSwitch: mockPerformTenantSwitch,
+}));
 
 // "Neu anmelden" ist eine Aktion ohne Formular: ein Fehler dabei kommt als
 // Toast (#2517). Der Grund eines gescheiterten Wechsels läuft über den echten
@@ -92,7 +71,6 @@ vi.mock("~/lib/session-cache", () => ({
 }));
 
 import { TenantGuard } from "./tenant-guard";
-import { TenantSwitchError } from "~/lib/tenant-api";
 
 // ============================================================================
 // Test Data
@@ -303,11 +281,9 @@ describe("TenantGuard", () => {
       tenant: tenantB,
     });
     mockPerformTenantSwitch.mockRejectedValue(
-      new TenantSwitchError(
-        "account does not have access to this tenant",
-        401,
-        "access_denied",
-      ),
+      new ApiError("account does not have access to this tenant", 401, {
+        code: "identity.tenant_access_denied",
+      }),
     );
 
     render(
@@ -332,11 +308,9 @@ describe("TenantGuard", () => {
       tenant: tenantB,
     });
     mockPerformTenantSwitch.mockRejectedValue(
-      new TenantSwitchError(
-        "account does not have access to this tenant",
-        401,
-        "access_denied",
-      ),
+      new ApiError("account does not have access to this tenant", 401, {
+        code: "identity.tenant_access_denied",
+      }),
     );
     mockSignOut.mockRejectedValue(new Error("sign-out failed"));
 

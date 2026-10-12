@@ -20,7 +20,7 @@ func TestProvisioningErrorRendererMapsInvitationValidationErrors(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 409, resp.HTTPStatusCode)
-	require.Equal(t, organizationtenancy.ErrAccountEmailExists.Error(), resp.ErrorText)
+	require.Equal(t, organizationtenancy.ErrAccountEmailExists.Error(), resp.Detail)
 }
 
 func TestProvisioningErrorRendererMapsInvalidInvitationInputErrors(t *testing.T) {
@@ -34,7 +34,7 @@ func TestProvisioningErrorRendererMapsInvalidInvitationInputErrors(t *testing.T)
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 400, resp.HTTPStatusCode)
-	require.Equal(t, "invalid email address", resp.ErrorText)
+	require.Equal(t, "invalid email address", resp.Detail)
 }
 
 func TestProvisioningErrorRendererMapsInvitationNameRequired(t *testing.T) {
@@ -48,7 +48,7 @@ func TestProvisioningErrorRendererMapsInvitationNameRequired(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 400, resp.HTTPStatusCode)
-	require.Equal(t, organizationtenancy.ErrInvitationNameRequired.Error(), resp.ErrorText)
+	require.Equal(t, organizationtenancy.ErrInvitationNameRequired.Error(), resp.Detail)
 }
 
 func TestProvisioningErrorRendererMapsPasswordMismatch(t *testing.T) {
@@ -62,7 +62,7 @@ func TestProvisioningErrorRendererMapsPasswordMismatch(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 400, resp.HTTPStatusCode)
-	require.Equal(t, organizationtenancy.ErrPasswordMismatch.Error(), resp.ErrorText)
+	require.Equal(t, organizationtenancy.ErrPasswordMismatch.Error(), resp.Detail)
 }
 
 func TestProvisioningErrorRendererMapsPasswordTooWeak(t *testing.T) {
@@ -76,7 +76,7 @@ func TestProvisioningErrorRendererMapsPasswordTooWeak(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 400, resp.HTTPStatusCode)
-	require.Equal(t, organizationtenancy.ErrPasswordTooWeak.Error(), resp.ErrorText)
+	require.Equal(t, organizationtenancy.ErrPasswordTooWeak.Error(), resp.Detail)
 }
 
 func TestProvisioningErrorRendererMapsAuthErrorWithNilErr(t *testing.T) {
@@ -107,7 +107,7 @@ func TestProvisioningErrorRendererMapsAuthErrorDefault(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 500, resp.HTTPStatusCode)
-	require.Equal(t, "An error occurred", resp.ErrorText)
+	require.Equal(t, "An error occurred", resp.Detail)
 }
 
 func TestProvisioningErrorRendererMapsConflictErrors(t *testing.T) {
@@ -120,7 +120,7 @@ func TestProvisioningErrorRendererMapsConflictErrors(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 409, resp.HTTPStatusCode)
-	require.Equal(t, "school subdomain already exists", resp.ErrorText)
+	require.Equal(t, "school subdomain already exists", resp.Detail)
 }
 
 func TestProvisioningErrorRendererMapsProvisioningConflictErrors(t *testing.T) {
@@ -133,7 +133,7 @@ func TestProvisioningErrorRendererMapsProvisioningConflictErrors(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 409, resp.HTTPStatusCode)
-	require.Equal(t, "school subdomain already exists", resp.ErrorText)
+	require.Equal(t, "school subdomain already exists", resp.Detail)
 }
 
 // storeFailureError behaves like the retained repositories' database error.

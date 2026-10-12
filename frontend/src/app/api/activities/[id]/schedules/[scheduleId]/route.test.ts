@@ -45,23 +45,18 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: mockApiPut,
-  apiDelete: mockApiDelete,
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
+    apiGet: mockApiGet,
+    apiPost: vi.fn(),
+    apiPut: mockApiPut,
+    apiDelete: mockApiDelete,
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 vi.mock("~/lib/activity-helpers", () => ({
   mapActivityScheduleResponse: mockMapActivityScheduleResponse,
@@ -171,8 +166,9 @@ describe("GET /api/activities/[id]/schedules/[scheduleId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Unexpected response structure");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Unexpected response structure");
   });
 
   it("handles API errors", async () => {
@@ -185,8 +181,9 @@ describe("GET /api/activities/[id]/schedules/[scheduleId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Failed to fetch schedule");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Failed to fetch schedule");
   });
 });
 
@@ -266,8 +263,9 @@ describe("PUT /api/activities/[id]/schedules/[scheduleId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Unexpected response structure");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Unexpected response structure");
   });
 
   it("handles update errors", async () => {
@@ -283,8 +281,9 @@ describe("PUT /api/activities/[id]/schedules/[scheduleId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Failed to update schedule");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Failed to update schedule");
   });
 });
 
@@ -344,7 +343,8 @@ describe("DELETE /api/activities/[id]/schedules/[scheduleId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Failed to delete schedule");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Failed to delete schedule");
   });
 });

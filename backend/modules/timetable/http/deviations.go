@@ -250,8 +250,7 @@ func deviationRefusal(de *timetable.DeviationError) render.Renderer {
 	resp := &common.ErrResponse{
 		Err:            errors.New(de.ClientMsg),
 		HTTPStatusCode: de.Status,
-		Status:         "error",
-		ErrorText:      de.ClientMsg,
+		Detail:         de.ClientMsg,
 		Code:           de.Code,
 		Details:        refusalDetails(de.Details),
 	}

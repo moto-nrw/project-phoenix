@@ -25,13 +25,12 @@ async function expectErrorToast(expected: RegExp | string) {
 
 import { CareRequestReviewItem } from "./care-request-review-item";
 import {
-  CareRequestApiError,
   decideCareScheduleChangeRequest,
   type StaffCareRequest,
 } from "~/lib/care-request-review-api";
 
-// Mock only the network function; keep the real CareRequestApiError so the
-// component's `err instanceof CareRequestApiError` code-branch resolves against
+// Mock only the network function; keep the real ApiError so the
+// component's `err instanceof ApiError` code-branch resolves against
 // the actual class instead of an undefined stub.
 vi.mock("~/lib/care-request-review-api", async (importActual) => {
   const actual =
@@ -336,10 +335,9 @@ describe("CareRequestReviewItem", () => {
 
   it("asks for a reload when the pickup impact changed", async () => {
     mockDecide.mockRejectedValueOnce(
-      new CareRequestApiError(
-        "changed",
-        "students.pickup_change_impact_changed",
-      ),
+      new ApiError("changed", 409, {
+        code: "students.pickup_change_impact_changed",
+      }),
     );
     render(<CareRequestReviewItem row={pickupRow()} onDecided={vi.fn()} />);
 
@@ -353,10 +351,9 @@ describe("CareRequestReviewItem", () => {
 
   it("surfaces the recovery action when approval is blocked by pickup_change_conflict", async () => {
     mockDecide.mockRejectedValueOnce(
-      new CareRequestApiError(
-        "schedule: pickup change conflict",
-        "students.pickup_change_conflict",
-      ),
+      new ApiError("schedule: pickup change conflict", 409, {
+        code: "students.pickup_change_conflict",
+      }),
     );
     const onDecided = vi.fn();
 
@@ -378,9 +375,10 @@ describe("CareRequestReviewItem", () => {
 
   it("directs booking-managed care days to the offering change flow", async () => {
     mockDecide.mockRejectedValueOnce(
-      new CareRequestApiError(
+      new ApiError(
         "schedule: care day is managed by an offering booking",
-        "students.care_day_managed_by_booking",
+        409,
+        { code: "students.care_day_managed_by_booking" },
       ),
     );
 

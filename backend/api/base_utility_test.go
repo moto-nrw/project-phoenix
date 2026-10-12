@@ -36,7 +36,7 @@ func TestMealPlanErrorRendererContracts(t *testing.T) {
 		err                                                        error
 		status                                                     int
 	}{
-		{name: "disabled", targetCode: "meal_plan_disabled", status: http.StatusForbidden, errorText: "feature_disabled", code: "general.permission", anchor: "anleitung-zugriff-pruefen"},
+		{name: "disabled", targetCode: "meal_plan_disabled", status: http.StatusForbidden, errorText: "feature_disabled", code: "meals.plan_disabled", anchor: "anleitung-zugriff-pruefen"},
 		{name: "invalid date", targetCode: "invalid_meal_date", status: http.StatusBadRequest, errorText: "meal plan covers weekdays only (Monday-Friday)", code: "general.input", anchor: "anleitung-eingabe-pruefen"},
 		{name: "invalid dishes", targetCode: "invalid_dishes", status: http.StatusBadRequest, errorText: "invalid_dishes", code: "general.input", anchor: "anleitung-eingabe-pruefen"},
 		{name: "internal", err: errors.New("database unavailable"), status: http.StatusInternalServerError, internalMessage: "failed to load meal plan", errorText: "failed to load meal plan", code: "general.server", anchor: "anleitung-unerwarteter-fehler"},
@@ -64,8 +64,7 @@ func TestMealPlanErrorRendererContracts(t *testing.T) {
 			var body map[string]any
 			require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
 			assert.Equal(t, map[string]any{
-				"status":   "error",
-				"error":    test.errorText,
+				"status":   float64(test.status),
 				"code":     test.code,
 				"type":     "https://moto-app.de/help/fehlermeldungen#" + test.anchor,
 				"title":    http.StatusText(test.status),

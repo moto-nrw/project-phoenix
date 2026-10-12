@@ -2066,6 +2066,7 @@
     },
     "codes": {
       "attendance": {
+        "log_disabled": "Der Anwesenheitsverlauf ist an dieser Schule ausgeschaltet.",
         "web_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson."
       },
       "care": {
@@ -2471,6 +2472,7 @@
         "class_list_entry_student_exists": "Ein Kind mit diesem Namen ist in dieser Klasse schon in moto angelegt.",
         "class_list_entry_student_not_found": "Das gewählte Kind gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "companion_lock_busy": "Gerade ändert jemand anderes die Laufgemeinschaft. Bitte versuchen Sie es gleich noch einmal.",
+        "companion_plan_conflict": "Ein verknüpftes Kind darf an diesen Tagen noch nicht mitgehen. Bitte prüfen Sie die Laufgemeinschaft.",
         "companion_would_lose_departure": "Ein verknüpftes Kind hätte dann keinen Heimweg mehr. Bitte passen Sie zuerst dessen Heimweg an.",
         "companions_changed": "Die Laufgemeinschaft wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
         "conflict_kind_unsupported": "Diese Anfragen lassen sich nicht gemeinsam entscheiden. Bitte entscheiden Sie sie einzeln.",
@@ -2772,6 +2774,12 @@
       },
       "billing": {
         "invalid_key_day": "Der Stichtag muss zwischen dem 1. und dem 28. des Monats liegen. Bitte wählen Sie einen dieser Tage."
+      },
+      "display": {
+        "disabled": "Die Anzeigetafel ist an dieser Schule ausgeschaltet."
+      },
+      "feedback": {
+        "disabled": "Rückmeldungen sind an dieser Schule ausgeschaltet."
       }
     },
     "actions": {

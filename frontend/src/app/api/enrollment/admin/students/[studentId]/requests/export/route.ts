@@ -7,6 +7,7 @@ import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({
   component: "EnrollmentStudentRequestsExportRoute",
@@ -53,7 +54,7 @@ async function POSTHandler(request: NextRequest, context: RouteContext) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return problemResponse(401, "Unauthorized");
     }
 
     const { studentId } = await context.params;
@@ -75,7 +76,7 @@ async function POSTHandler(request: NextRequest, context: RouteContext) {
     logger.error("student_enrollment_requests_export_failed", {
       error: message,
     });
-    return NextResponse.json({ error: message }, { status: 500 });
+    return problemResponse(500, message);
   }
 }
 

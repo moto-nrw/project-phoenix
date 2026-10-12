@@ -6,6 +6,7 @@ import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({
   component: "EnrollmentClassRosterReportExportRoute",
@@ -47,7 +48,7 @@ async function POSTHandler(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return problemResponse(401, "Unauthorized");
     }
 
     const body = await request.text();
@@ -66,7 +67,7 @@ async function POSTHandler(request: NextRequest) {
     captureBffException(error, request);
     const message = error instanceof Error ? error.message : "Export failed";
     logger.error("class_roster_report_export_failed", { error: message });
-    return NextResponse.json({ error: message }, { status: 500 });
+    return problemResponse(500, message);
   }
 }
 

@@ -1,4 +1,4 @@
-import { backendResponseError } from "~/lib/api-helpers.server";
+import { backendResponseError } from "~/lib/api-response-error.server";
 // Student photo upload + delete proxy. Mirrors /api/me/profile/avatar
 // (magic-byte + MIME + size validation). On 401 we refresh the access
 // token via uncachedAuth() and retry once.
@@ -59,8 +59,7 @@ export const POST = createFileUploadHandler<UploadResult>(
       // 415 Unsupported Media Type — the file's MIME header lied. Throwing
       // FileValidationError (rather than a plain Error) keeps the status
       // code intact through the wrapper instead of getting rewritten to
-      // 500 by handleApiError, which only extracts status codes from
-      // strings prefixed with "API error (XXX):".
+      // 500 by handleApiError.
       throw new FileValidationError(
         "Ungültiges Bildformat. Bitte JPEG, PNG oder WebP hochladen.",
         415,

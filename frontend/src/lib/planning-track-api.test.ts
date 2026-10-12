@@ -58,11 +58,11 @@ describe("planningTrackService", () => {
 
   it("uses the backend message when loading fails", async () => {
     sessionFetch.mockResolvedValueOnce(
-      response({ error: "Lesen nicht erlaubt" }, 403),
+      response({ detail: "Lesen nicht erlaubt" }, 403),
     );
 
     await expect(planningTrackService.list()).rejects.toMatchObject({
-      name: "PlanningTrackApiError",
+      name: "ApiError",
       message: "Lesen nicht erlaubt",
       status: 403,
     });
@@ -211,7 +211,7 @@ describe("planningTrackService", () => {
 
   it("reports restore failures with the backend message", async () => {
     sessionFetch.mockResolvedValueOnce(
-      response({ error: "Name bereits vergeben" }, 409),
+      response({ detail: "Name bereits vergeben" }, 409),
     );
 
     await expect(planningTrackService.restore("5")).rejects.toMatchObject({

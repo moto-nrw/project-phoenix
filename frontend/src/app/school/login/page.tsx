@@ -5,29 +5,32 @@
 // Passkeys und Eltern-Weiche: der Backend-Login pinnt selbst die Schule, an
 // der das Konto eine Schul-Portal-Rolle hält.
 
-import { useEffect, useRef, useState, Suspense } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, Suspense } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import {
+  AuthFieldError,
   AuthShell,
   MotoBrand,
-  authInputClassName,
+  authInputClass,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
+import {
+  credentialError,
+  LOGIN_REFUSALS,
+} from "~/components/auth/credential-error";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { Alert } from "~/components/ui/alert";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { requestSchoolPasswordReset } from "~/lib/auth-api";
 import { schoolPath } from "~/lib/school-url";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
-import {
-  login as loginApi,
-  germanMFAErrorMessage,
-  MFAApiError,
-  type MFATokenResponse,
-} from "~/lib/mfa-api";
+import { login as loginApi, type MFATokenResponse } from "~/lib/mfa-api";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 
@@ -63,7 +66,16 @@ function clearSessionErrorFromUrl() {
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  // Ein Hinweis, kein Fehler: die Sitzung ist abgelaufen (aus der URL).
+  const [sessionExpired, setSessionExpired] = useState(false);
+  // Fehler laufen über den gemeinsamen Weg: Katalogtext je Code im
+  // Fehlerkasten des Formulars, Feldfehler am Feld.
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { clear: clearFormError } = formErrors;
+  const latestSubmitRef = useRef<() => void>(() => undefined);
+  const resetFormRef = useRef<HTMLFormElement>(null);
+  const resetErrors = useApiFormError(resetFormRef);
   const [noPortalRole, setNoPortalRole] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -128,9 +140,7 @@ function LoginForm() {
         // sessionStorage unavailable
       }
       if (!deliberate) {
-        setError(
-          "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
-        );
+        setSessionExpired(true);
       }
       clearSessionErrorFromUrl();
     }
@@ -151,8 +161,11 @@ function LoginForm() {
       refreshToken: tokens.refresh_token,
     });
     if (result?.error) {
-      setError("Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.");
       logger.error("session_seed_failed", { error: result.error });
+      // Kein ApiError: der Weg zeigt den allgemeinen Text für die Anmeldung.
+      void formErrors.show(new Error(result.error), {
+        object: "die Anmeldung",
+      });
       return;
     }
     setAwaitingRedirect(true);
@@ -164,10 +177,10 @@ function LoginForm() {
     setMfaStep(null);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async () => {
     setIsLoading(true);
-    setError("");
+    formErrors.clear();
+    setSessionExpired(false);
     setNoPortalRole(false);
 
     try {
@@ -204,28 +217,20 @@ function LoginForm() {
       // Ablehnung kommt von der Rolle — die spezifische Meldung verrät
       // also nichts über fremde Konten und erspart Passwort-Reset-Schleifen.
       if (
-        err instanceof MFAApiError &&
+        err instanceof ApiError &&
         err.code === "school.no_school_portal_role"
       ) {
         setNoPortalRole(true);
         return;
       }
 
-      // Ausgeschaltetes Konto: gleiche Begründung wie oben, das Passwort war
-      // korrekt. Die generische 401-Meldung schickt sonst in eine
-      // Passwort-Reset-Schleife, die nichts ändern kann (#3376).
-      if (
-        err instanceof MFAApiError &&
-        err.code === "identity.session_account_inactive"
-      ) {
-        setError(
-          "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die OGS-Leitung.",
-        );
-      } else if (err instanceof MFAApiError && err.status === 401) {
-        setError("Ungültige E-Mail oder Passwort");
-      } else {
-        setError(germanMFAErrorMessage(err));
-      }
+      // Ein falsches Passwort, ein ausgeschaltetes Konto oder zu viele
+      // Versuche haben eigene Katalogtexte (#3376). Vor der Anmeldung heißt
+      // 401 "abgelehnt", nicht "Sitzung abgelaufen".
+      void formErrors.show(credentialError(err, LOGIN_REFUSALS), {
+        object: "die Anmeldung",
+        retry: () => latestSubmitRef.current(),
+      });
       logger.error("school login failed", {
         error: err instanceof Error ? err.message : String(err),
         status: errorStatus(err),
@@ -233,6 +238,16 @@ function LoginForm() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // „Wiederholen“ sendet den Stand, der dann im Formular steht.
+  useLayoutEffect(() => {
+    latestSubmitRef.current = () => void submit();
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submit();
   };
 
   return (
@@ -267,7 +282,7 @@ function LoginForm() {
               onSuccess={handleMFASuccess}
               onCancel={() => {
                 setMfaStep(null);
-                setError("");
+                clearFormError();
                 setPassword("");
               }}
             />
@@ -278,7 +293,7 @@ function LoginForm() {
               userEmail={enrollmentStep.email}
               onExit={() => {
                 setEnrollmentStep(null);
-                setError("");
+                clearFormError();
                 setPassword("");
               }}
               onComplete={async (tokens) => {
@@ -290,15 +305,25 @@ function LoginForm() {
               }}
             />
           ) : (
-            <form onSubmit={handleSubmit} noValidate className="space-y-6">
+            <form
+              ref={formRef}
+              onSubmit={handleSubmit}
+              noValidate
+              className="space-y-6"
+            >
               {noPortalRole ? (
                 <Alert
                   type="info"
                   message="Dieses Konto hat keinen Zugang zum Schul-Portal. Bitte wenden Sie sich an Ihre OGS-Verwaltung."
                 />
-              ) : (
-                error && <Alert type="error" message={error} />
-              )}
+              ) : formErrors.error ? (
+                <FormErrorAlert message={formErrors.error} />
+              ) : sessionExpired ? (
+                <Alert
+                  type="info"
+                  message="Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
+                />
+              ) : null}
 
               <div className="space-y-4">
                 <div className="text-left">
@@ -318,7 +343,17 @@ function LoginForm() {
                     disabled={isSubmitting}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className={authInputClassName}
+                    aria-invalid={Boolean(formErrors.fieldError("email"))}
+                    aria-describedby={
+                      formErrors.fieldError("email") ? "email-error" : undefined
+                    }
+                    className={authInputClass(
+                      Boolean(formErrors.fieldError("email")),
+                    )}
+                  />
+                  <AuthFieldError
+                    id="email-error"
+                    message={formErrors.fieldError("email")}
                   />
                 </div>
 
@@ -340,13 +375,23 @@ function LoginForm() {
                       disabled={isSubmitting}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className={`${authInputClassName} pr-10`}
+                      aria-invalid={Boolean(formErrors.fieldError("password"))}
+                      aria-describedby={
+                        formErrors.fieldError("password")
+                          ? "password-error"
+                          : undefined
+                      }
+                      className={`${authInputClass(Boolean(formErrors.fieldError("password")))} pr-10`}
                     />
                     <PasswordToggleButton
                       showPassword={showPassword}
                       onToggle={() => setShowPassword(!showPassword)}
                     />
                   </div>
+                  <AuthFieldError
+                    id="password-error"
+                    message={formErrors.fieldError("password")}
+                  />
                 </div>
 
                 <div className="text-center">
@@ -381,6 +426,8 @@ function LoginForm() {
         isOpen={isResetModalOpen}
         onClose={() => setIsResetModalOpen(false)}
         onRequestReset={requestSchoolPasswordReset}
+        errorPath={resetErrors}
+        formRef={resetFormRef}
       />
     </>
   );

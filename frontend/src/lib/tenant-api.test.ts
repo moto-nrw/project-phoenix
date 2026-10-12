@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { TenantSwitchError } from "./tenant-api";
 
 // ============================================================================
 // Mocks
@@ -707,8 +706,8 @@ describe("tenant-api", () => {
       mockSessionFetch.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            status: "error",
-            error: "account does not have access to this tenant",
+            status: 401,
+            detail: "account does not have access to this tenant",
             code: "identity.tenant_access_denied",
           }),
           {
@@ -719,36 +718,36 @@ describe("tenant-api", () => {
       );
 
       await expect(switchTenant("nonexistent")).rejects.toMatchObject({
-        name: "TenantSwitchError",
+        name: "ApiError",
         message: "account does not have access to this tenant",
         status: 401,
-        reason: "access_denied",
         code: "identity.tenant_access_denied",
-      } satisfies Partial<TenantSwitchError>);
+      });
     });
 
     it("classifies by the code, not by the diagnostic text", async () => {
       mockSessionFetch.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            error: "account does not have access to this tenant",
+            detail: "account does not have access to this tenant",
           }),
           { status: 401, headers: { "Content-Type": "application/json" } },
         ),
       );
 
       await expect(switchTenant("school-b")).rejects.toMatchObject({
-        name: "TenantSwitchError",
-        reason: "unknown",
-      } satisfies Partial<TenantSwitchError>);
+        name: "ApiError",
+        status: 401,
+        code: "general.permission",
+      });
     });
 
     it("preserves the school portal handoff code", async () => {
       mockSessionFetch.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            status: "error",
-            error: "school portal accounts must log in at the school portal",
+            status: 403,
+            detail: "school portal accounts must log in at the school portal",
             code: "identity.use_school_portal",
           }),
           {
@@ -759,38 +758,37 @@ describe("tenant-api", () => {
       );
 
       await expect(switchTenant("school-b")).rejects.toMatchObject({
-        name: "TenantSwitchError",
+        name: "ApiError",
         status: 403,
-        reason: "use_school_portal",
         code: "identity.use_school_portal",
-      } satisfies Partial<TenantSwitchError>);
+      });
     });
 
     it("throws generic error when response body is empty", async () => {
       mockSessionFetch.mockResolvedValueOnce(new Response("", { status: 500 }));
 
       await expect(switchTenant("bad")).rejects.toMatchObject({
-        name: "TenantSwitchError",
+        name: "ApiError",
         message: "Failed to switch tenant",
         status: 500,
-        reason: "unknown",
-      } satisfies Partial<TenantSwitchError>);
+        code: "general.server",
+      });
     });
 
-    it("falls back to raw text when response body is not JSON", async () => {
+    it("keeps the fallback diagnostic when the body is not JSON", async () => {
       mockSessionFetch.mockResolvedValueOnce(
         new Response("plain text error", { status: 503 }),
       );
 
       await expect(switchTenant("bad")).rejects.toMatchObject({
-        name: "TenantSwitchError",
-        message: "plain text error",
+        name: "ApiError",
+        message: "Failed to switch tenant",
         status: 503,
-        reason: "unknown",
-      } satisfies Partial<TenantSwitchError>);
+        code: "general.unavailable",
+      });
     });
 
-    it("uses message field when error field is missing", async () => {
+    it("does not read a legacy message field as the diagnostic", async () => {
       mockSessionFetch.mockResolvedValueOnce(
         new Response(JSON.stringify({ message: "something went wrong" }), {
           status: 400,
@@ -799,14 +797,14 @@ describe("tenant-api", () => {
       );
 
       await expect(switchTenant("bad")).rejects.toMatchObject({
-        name: "TenantSwitchError",
-        message: "something went wrong",
+        name: "ApiError",
+        message: "Failed to switch tenant",
         status: 400,
-        reason: "unknown",
-      } satisfies Partial<TenantSwitchError>);
+        code: "general.input",
+      });
     });
 
-    it("falls back to raw text when JSON has no error or message field", async () => {
+    it("keeps the fallback diagnostic when JSON has no detail", async () => {
       mockSessionFetch.mockResolvedValueOnce(
         new Response(JSON.stringify({ foo: "bar" }), {
           status: 422,
@@ -815,11 +813,11 @@ describe("tenant-api", () => {
       );
 
       await expect(switchTenant("bad")).rejects.toMatchObject({
-        name: "TenantSwitchError",
-        message: '{"foo":"bar"}',
+        name: "ApiError",
+        message: "Failed to switch tenant",
         status: 422,
-        reason: "unknown",
-      } satisfies Partial<TenantSwitchError>);
+        code: "general.business_rejection",
+      });
     });
   });
 
@@ -916,11 +914,11 @@ describe("tenant-api", () => {
       ]);
     });
 
-    it("propagates TenantSwitchError when backend rejects", async () => {
+    it("propagates the ApiError when backend rejects", async () => {
       mockSessionFetch.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            error: "account does not have access to this tenant",
+            detail: "account does not have access to this tenant",
             code: "identity.tenant_access_denied",
           }),
           {
@@ -933,8 +931,8 @@ describe("tenant-api", () => {
       await expect(
         performTenantSwitch("bad-tenant", mockSignIn, mockSwrMutate),
       ).rejects.toMatchObject({
-        name: "TenantSwitchError",
-        reason: "access_denied",
+        name: "ApiError",
+        code: "identity.tenant_access_denied",
       });
 
       // Should NOT have called signIn or cache clearing

@@ -13,7 +13,8 @@ const { mockAuth, mockApiGet } = vi.hoisted(() => ({
 }));
 
 vi.mock("~/server/auth", () => ({ auth: mockAuth }));
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: mockApiGet,
   handleApiError: vi.fn((error: unknown) => {
     const message =
@@ -64,7 +65,7 @@ describe("GET /api/platform/announcements/unread", () => {
     const response = await GET(request, mockContext);
 
     expect(response.status).toBe(200);
-    const json = (await response.json()) as { data?: unknown; error?: string };
+    const json = (await response.json()) as { data?: unknown; detail?: string };
     expect(json.data).toEqual(announcements);
     expect(mockApiGet).toHaveBeenCalledWith(
       "/api/platform/announcements/unread",
@@ -81,8 +82,8 @@ describe("GET /api/platform/announcements/unread", () => {
     const response = await GET(request, mockContext);
 
     expect(response.status).toBe(401);
-    const json = (await response.json()) as { error?: string; data?: unknown };
-    expect(json.error).toBe("Unauthorized");
+    const json = (await response.json()) as { detail?: string; data?: unknown };
+    expect(json.detail).toBe("Unauthorized");
   });
 
   it("returns empty array when no unread announcements", async () => {
@@ -95,7 +96,7 @@ describe("GET /api/platform/announcements/unread", () => {
     const response = await GET(request, mockContext);
 
     expect(response.status).toBe(200);
-    const json = (await response.json()) as { data?: unknown; error?: string };
+    const json = (await response.json()) as { data?: unknown; detail?: string };
     expect(json.data).toEqual([]);
   });
 });

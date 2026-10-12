@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { createPublicJsonProxy } from "~/lib/backend-proxy-route.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 export const GET = createPublicJsonProxy({
   method: "GET",
@@ -11,10 +11,7 @@ export const GET = createPublicJsonProxy({
       typeof phaseId !== "string" ||
       !phaseId
     ) {
-      return NextResponse.json(
-        { error: "tenant slug and phaseId are required" },
-        { status: 400 },
-      );
+      return problemResponse(400, "tenant slug and phaseId are required");
     }
     const path = `/api/enrollment/schema/public/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(phaseId)}`;
     const lateInvite = request.nextUrl.searchParams.get("late_invite")?.trim();

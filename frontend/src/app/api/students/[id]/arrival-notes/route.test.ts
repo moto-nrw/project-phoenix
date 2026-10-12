@@ -16,21 +16,14 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-helpers.server", () => ({
+vi.mock("@/lib/api-helpers.server", async () => ({
   apiGet: vi.fn(),
   apiPost: mockApiPost,
   apiPut: vi.fn(),
   apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
+  handleApiError: vi.fn(
+    (await import("~/test/helpers/handle-api-error")).mockHandleApiError,
+  ),
 }));
 
 function createMockRequest(

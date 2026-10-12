@@ -35,7 +35,7 @@ type renderedError struct {
 	Code    string           `json:"code"`
 	Errors  []fieldErrorBody `json:"errors"`
 	Details map[string]any   `json:"details"`
-	Error   string           `json:"error"`
+	Detail  string           `json:"detail"`
 }
 
 func renderError(t *testing.T, renderer render.Renderer) renderedError {
@@ -383,7 +383,7 @@ func TestDeviationRefusalCodes(t *testing.T) {
 	assert.Equal(t, "timetable.substitute_absent_on_date", body.Code)
 	assert.Equal(t, map[string]any{"date": "2026-10-06"}, body.Details)
 	assert.Equal(t, []string{"substitute_staff_id"}, fieldNames(body.Errors))
-	assert.Equal(t, "die Ersatzperson ist am 06.10.2026 selbst abwesend", body.Error)
+	assert.Equal(t, "die Ersatzperson ist am 06.10.2026 selbst abwesend", body.Detail)
 
 	assertRecorded(t, []recordedCase{
 		{"not found", renderErr(timetable.DeviationNotFound("der Termin wurde nicht gefunden").WithCode(timetable.CodeDeviationInstanceNotFound)),

@@ -181,7 +181,7 @@ describe("deleteAnnouncement", () => {
 
   it("surfaces the backend error message on a failed delete", async () => {
     mockFetch(async () =>
-      jsonResponse({ error: "veröffentlichte Mitteilung" }, { status: 409 }),
+      jsonResponse({ detail: "veröffentlichte Mitteilung" }, { status: 409 }),
     );
     await expect(deleteAnnouncement("7")).rejects.toThrow(
       "veröffentlichte Mitteilung",
@@ -280,7 +280,7 @@ describe("fetchAnnouncementRecipients", () => {
 describe("error handling", () => {
   it("prefers the backend error message over the German fallback", async () => {
     mockFetch(async () =>
-      jsonResponse({ error: "Titel fehlt" }, { status: 400 }),
+      jsonResponse({ detail: "Titel fehlt" }, { status: 400 }),
     );
     await expect(fetchAnnouncements()).rejects.toThrow("Titel fehlt");
   });
@@ -465,7 +465,7 @@ describe("error identity", () => {
     mockFetch(async () =>
       jsonResponse(
         {
-          error: "title is required",
+          detail: "title is required",
           code: "general.input",
           errors: [{ field: "title", reason: "required" }],
           instance: "req-42",

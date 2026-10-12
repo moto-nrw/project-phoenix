@@ -53,7 +53,7 @@ describe("GET /api/operator/provisioning/devices", () => {
     expect(response.status).toBe(200);
     const json = (await response.json()) as {
       data?: unknown;
-      error?: string;
+      detail?: string;
     };
     expect(json.data).toEqual(devices);
     expect(mockFetch).toHaveBeenCalledWith(
@@ -73,9 +73,9 @@ describe("GET /api/operator/provisioning/devices", () => {
     expect(response.status).toBe(401);
     const json = (await response.json()) as {
       data?: unknown;
-      error?: string;
+      detail?: string;
     };
-    expect(json.error).toBe("Unauthorized");
+    expect(json.detail).toBe("Unauthorized");
   });
 });
 
@@ -110,7 +110,7 @@ describe("POST /api/operator/provisioning/devices", () => {
     expect(response.status).toBe(200);
     const json = (await response.json()) as {
       data?: unknown;
-      error?: string;
+      detail?: string;
     };
     expect(json.data).toEqual(device);
     expect(mockFetch).toHaveBeenCalledWith(
@@ -134,8 +134,8 @@ describe("POST /api/operator/provisioning/devices", () => {
     expect(response.status).toBe(401);
     const json = (await response.json()) as {
       data?: unknown;
-      error?: string;
+      detail?: string;
     };
-    expect(json.error).toBe("Unauthorized");
+    expect(json.detail).toBe("Unauthorized");
   });
 });

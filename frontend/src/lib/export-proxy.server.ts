@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { problemResponse } from "~/lib/api-response-error.server";
 import { NextResponse } from "next/server";
 
 import { auth, uncachedAuth } from "~/server/auth";
@@ -65,7 +66,7 @@ export function createFileExportRoute(options: {
     try {
       const session = await auth();
       if (!session?.user?.token) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        return problemResponse(401, "Unauthorized");
       }
 
       let body = await request.text();
@@ -75,10 +76,7 @@ export function createFileExportRoute(options: {
             options.normalizeBody(body ? JSON.parse(body) : {}),
           );
         } catch {
-          return NextResponse.json(
-            { error: "Ungültiger Anfrage-Text." },
-            { status: 400 },
-          );
+          return problemResponse(400, "request body is not valid JSON");
         }
       }
 
@@ -99,7 +97,7 @@ export function createFileExportRoute(options: {
       captureBffException(error, request);
       const message = error instanceof Error ? error.message : "Export failed";
       logger.error("file_export_route_failed", { error: message });
-      return NextResponse.json({ error: message }, { status: 500 });
+      return problemResponse(500, message);
     }
   };
 }

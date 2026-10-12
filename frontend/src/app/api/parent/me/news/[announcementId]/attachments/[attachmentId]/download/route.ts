@@ -12,6 +12,7 @@ import { parentAuth, uncachedParentAuth } from "~/server/auth/parent";
 import { withParentAuth } from "~/server/auth/parent-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "ParentAttachmentDownload" });
 
@@ -26,7 +27,7 @@ async function GETHandler(
   const session = await parentAuth();
   const token = session?.user?.token;
   if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return problemResponse(401, "Unauthorized");
   }
 
   const inline = request.nextUrl.searchParams.get("inline") === "1";

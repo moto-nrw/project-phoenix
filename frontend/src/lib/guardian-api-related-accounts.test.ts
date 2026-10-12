@@ -88,13 +88,6 @@ describe("guardian-api related accounts", () => {
       });
     });
 
-    it("throws the backend error message on an error status", async () => {
-      mockFetch(okJson({ status: "error", error: "boom" }));
-      await expect(inviteGuardianToStudent("5", "a@b.de")).rejects.toThrow(
-        "boom",
-      );
-    });
-
     it("throws when the success payload has no data", async () => {
       mockFetch(okJson({ status: "success" }));
       await expect(inviteGuardianToStudent("5", "a@b.de")).rejects.toThrow(
@@ -103,7 +96,7 @@ describe("guardian-api related accounts", () => {
     });
 
     it("throws the error from a non-ok response body", async () => {
-      mockFetch(errStatus(400, { error: "Ungültige E-Mail" }));
+      mockFetch(errStatus(400, { detail: "Ungültige E-Mail" }));
       await expect(inviteGuardianToStudent("5", "x")).rejects.toThrow(
         "Ungültige E-Mail",
       );
@@ -210,13 +203,8 @@ describe("guardian-api related accounts", () => {
       expect(await listPendingApprovals()).toEqual([]);
     });
 
-    it("throws on an error status", async () => {
-      mockFetch(okJson({ status: "error", error: "nope" }));
-      await expect(listPendingApprovals()).rejects.toThrow("nope");
-    });
-
     it("throws on a non-ok response", async () => {
-      mockFetch(errStatus(403, { error: "Keine Berechtigung" }));
+      mockFetch(errStatus(403, { detail: "Keine Berechtigung" }));
       await expect(listPendingApprovals()).rejects.toThrow(
         "Keine Berechtigung",
       );
@@ -242,13 +230,8 @@ describe("guardian-api related accounts", () => {
       expect(cap.init?.method).toBe("POST");
     });
 
-    it("throws when the action status is error", async () => {
-      mockFetch(okJson({ status: "error", error: "cannot" }));
-      await expect(approveGuardianInvitation("7")).rejects.toThrow("cannot");
-    });
-
     it("throws when the action response is not ok", async () => {
-      mockFetch(errStatus(404, { error: "not found" }));
+      mockFetch(errStatus(404, { detail: "not found" }));
       await expect(rejectGuardianInvitation("7")).rejects.toThrow("not found");
     });
   });

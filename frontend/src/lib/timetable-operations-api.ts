@@ -1,4 +1,9 @@
-import { ApiError, enrichApiError, transportFetch } from "./api-error";
+import {
+  ApiError,
+  apiErrorFromBody,
+  transportFetch,
+  wireErrorCode,
+} from "./api-error";
 import type {
   AttendancePatchBody,
   BackendStartOperationResult,
@@ -36,50 +41,23 @@ export interface SpontaneousStartBody {
   staff_ids?: string[];
 }
 
-export class TimetableOperationsApiError extends ApiError {
-  readonly httpStatus: number;
-
-  constructor(message: string, httpStatus: number, code?: string) {
-    super(message, httpStatus, { code });
-    this.name = "TimetableOperationsApiError";
-    this.httpStatus = httpStatus;
-  }
-}
-
 // Terminal reopen failures discard the five-minute undo banner. Room,
 // capacity, and concurrent-check-in conflicts also arrive as HTTP 409, but
 // those can clear while the window is still open.
 export function isReopenUnavailableError(err: unknown): boolean {
-  if (err instanceof TimetableOperationsApiError) {
-    return (
-      err.httpStatus === 403 || err.code === "timetable.invalid_transition"
-    );
-  }
   return (
-    err instanceof Error &&
-    /reopen window|invalid instance transition|snapshot missing/i.test(
-      err.message,
-    )
+    err instanceof ApiError &&
+    (err.status === 403 ||
+      wireErrorCode(err.code) === "timetable.invalid_transition")
   );
 }
 
 async function unwrap<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
-    let code: string | undefined;
-    let payload: unknown;
-    try {
-      const body = (await response.json()) as { error?: string; code?: string };
-      payload = body;
-      if (body.error) message = body.error;
-      code = body.code;
-    } catch {
-      // Keep generic error.
-    }
-    throw enrichApiError(
-      new TimetableOperationsApiError(message, response.status, code),
-      payload,
+    throw apiErrorFromBody(
+      `Anfrage fehlgeschlagen (HTTP ${response.status})`,
       response.status,
+      await response.json().catch(() => undefined),
     );
   }
   const envelope = (await response.json()) as ApiEnvelope<T>;

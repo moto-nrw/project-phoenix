@@ -16,14 +16,14 @@ vi.mock("../server/auth", () => ({
   uncachedAuth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiPost: mockApiPost,
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    return new Response(JSON.stringify({ error: message }), { status: 500 });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiPost: mockApiPost,
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 import { POST } from "./route";
 

@@ -494,7 +494,7 @@ describe("PickupTimeModal — Änderung zurücknehmen", () => {
     const onRemove = vi
       .fn()
       .mockRejectedValue(
-        new parentApi.ParentApiError("x", 409, "students.care_exception_raced"),
+        new ApiError("x", 409, { code: "students.care_exception_raced" }),
       );
     const { onClose, dialog } = openResetDialog({ onRemove });
 
@@ -669,11 +669,7 @@ describe("PickupTimeModal — Änderungsfrist für heute", () => {
     const onSubmit = vi
       .fn()
       .mockRejectedValue(
-        new parentApi.ParentApiError(
-          "x",
-          409,
-          "care.pickup_change_cutoff_passed",
-        ),
+        new ApiError("x", 409, { code: "care.pickup_change_cutoff_passed" }),
       );
     const { pickupInput, reasonInput } = renderModal({
       cutoffTime: "11:00",
@@ -1656,7 +1652,7 @@ describe("Fehlerweg der Dialoge (#2518)", () => {
     const onSubmit = vi
       .fn()
       .mockRejectedValue(
-        new parentApi.ParentApiError("backend sentence", 500, "general.server"),
+        new ApiError("backend sentence", 500, { code: "general.server" }),
       );
     render(<SickNoteModal onClose={vi.fn()} onSubmit={onSubmit} />);
 
@@ -1681,11 +1677,7 @@ describe("Fehlerweg der Dialoge (#2518)", () => {
     const onSubmit = vi
       .fn()
       .mockRejectedValue(
-        new parentApi.ParentApiError(
-          "overlap",
-          409,
-          "care.excused_request_overlap",
-        ),
+        new ApiError("overlap", 409, { code: "care.excused_request_overlap" }),
       );
     render(<SickNoteModal onClose={vi.fn()} onSubmit={onSubmit} />);
 

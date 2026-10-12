@@ -83,8 +83,8 @@ describe("POST /api/auth/password", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Nicht authentifiziert");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Unauthenticated");
   });
 
   it("returns 400 when currentPassword is missing", async () => {
@@ -95,8 +95,8 @@ describe("POST /api/auth/password", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Alle Passwortfelder sind erforderlich");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("all password fields are required");
   });
 
   it("returns 400 when newPassword is missing", async () => {
@@ -107,8 +107,8 @@ describe("POST /api/auth/password", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Alle Passwortfelder sind erforderlich");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("all password fields are required");
   });
 
   it("returns 400 when passwords do not match", async () => {
@@ -120,8 +120,8 @@ describe("POST /api/auth/password", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Die neuen Passwörter stimmen nicht überein");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("new passwords do not match");
   });
 
   it("successfully changes password", async () => {
@@ -171,7 +171,7 @@ describe("POST /api/auth/password", () => {
     mockApiPost.mockRejectedValueOnce(
       new ApiResponseError(
         400,
-        JSON.stringify({ error: "Passwort zu schwach" }),
+        JSON.stringify({ detail: "Passwort zu schwach" }),
         { contentType: "application/json" },
       ),
     );
@@ -184,8 +184,8 @@ describe("POST /api/auth/password", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Passwort zu schwach");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Passwort zu schwach");
   });
 
   it("returns 500 on unexpected error", async () => {
@@ -199,14 +199,20 @@ describe("POST /api/auth/password", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Unexpected error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Unexpected error");
   });
 
   it("parses serverFetchWithRetry error with JSON body", async () => {
     mockApiPost.mockRejectedValueOnce(
-      new Error(
-        'API error (401): {"status":"error","error":"invalid username or password"}',
+      new ApiResponseError(
+        401,
+        JSON.stringify({
+          status: 401,
+          detail: "invalid username or password",
+          code: "general.permission",
+        }),
       ),
     );
 
@@ -218,14 +224,19 @@ describe("POST /api/auth/password", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("invalid username or password");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("invalid username or password");
   });
 
   it("parses serverFetchWithRetry error with complexity message", async () => {
     mockApiPost.mockRejectedValueOnce(
-      new Error(
-        'API error (400): {"status":"error","error":"password doesn\'t meet complexity requirements"}',
+      new ApiResponseError(
+        400,
+        JSON.stringify({
+          status: 400,
+          detail: "password doesn't meet complexity requirements",
+          code: "general.input",
+        }),
       ),
     );
 
@@ -237,11 +248,11 @@ describe("POST /api/auth/password", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("password doesn't meet complexity requirements");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("password doesn't meet complexity requirements");
   });
 
-  it("forwards a non-JSON backend error body unchanged", async () => {
+  it("wraps a non-JSON backend error body in the error envelope", async () => {
     mockApiPost.mockRejectedValueOnce(
       new ApiResponseError(500, "Internal Server Error", {
         contentType: "text/plain",
@@ -256,7 +267,13 @@ describe("POST /api/auth/password", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    expect(response.headers.get("Content-Type")).toBe("text/plain");
-    expect(await response.text()).toBe("Internal Server Error");
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/problem+json",
+    );
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 });

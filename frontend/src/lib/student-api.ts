@@ -1,8 +1,8 @@
 import {
   ApiError,
+  apiErrorFromBody,
   apiErrorFromResponse,
   apiErrorFromText,
-  enrichApiError,
   unavailableApiError,
   transportFetch,
 } from "./api-error";
@@ -109,7 +109,7 @@ function handleStudentApiError(error: unknown, context: string): never {
   // A structured failure keeps code, fields and request ID for the shared
   // error path (#2513); only untyped errors get the legacy wrapping.
   if (error instanceof ApiError) throw error;
-  handleDomainApiError(error, context, "STUDENT");
+  handleDomainApiError(error, context);
 }
 
 // Helper: Build URL with optional query params
@@ -621,65 +621,13 @@ export interface DeleteStudentWithDataInput {
   acknowledged: true;
 }
 
-export class StudentDeletionApiError extends ApiError {
-  readonly status: number;
-
-  constructor(status: number, message: string, code?: string) {
-    super(message, status, { code });
-    this.name = "StudentDeletionApiError";
-    this.status = status;
-  }
-}
-
-interface StudentDeletionErrorPayload {
-  readonly error?: unknown;
-  readonly message?: unknown;
-  readonly code?: unknown;
-}
-
-function studentDeletionErrorDetails(payload: unknown, fallback: string) {
-  if (!payload || typeof payload !== "object") {
-    return { message: fallback, code: undefined };
-  }
-  const candidate = payload as StudentDeletionErrorPayload;
-  const raw =
-    typeof candidate.error === "string"
-      ? candidate.error
-      : typeof candidate.message === "string"
-        ? candidate.message
-        : "";
-  const embedded = raw.match(/\{.*\}$/)?.[0];
-  if (embedded) {
-    try {
-      return studentDeletionErrorDetails(JSON.parse(embedded), fallback);
-    } catch {
-      // Keep the proxy's text when it did not embed a complete JSON object.
-    }
-  }
-  if (!raw) {
-    return {
-      message: fallback,
-      code: typeof candidate.code === "string" ? candidate.code : undefined,
-    };
-  }
-
-  return {
-    message: raw,
-    code: typeof candidate.code === "string" ? candidate.code : undefined,
-  };
-}
-
 async function studentDeletionResponse<T>(
   response: Response,
   fallbackError: string,
 ): Promise<T> {
   const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
-    const error = studentDeletionErrorDetails(payload, fallbackError);
-    throw enrichApiError(
-      new StudentDeletionApiError(response.status, error.message, error.code),
-      payload,
-    );
+    throw apiErrorFromBody(fallbackError, response.status, payload);
   }
   if (payload && typeof payload === "object" && "data" in payload) {
     return (payload as { data: T }).data;

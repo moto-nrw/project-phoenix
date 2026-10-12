@@ -99,7 +99,7 @@ describe("POST /api/parent/auth/password-reset/confirm", () => {
   it("propagates a 400 for an invalid or expired token", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
       new Response(
-        JSON.stringify({ error: "invalid or expired reset token" }),
+        JSON.stringify({ detail: "invalid or expired reset token" }),
         {
           status: 400,
           headers: { "Content-Type": "application/json" },
@@ -114,8 +114,8 @@ describe("POST /api/parent/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("invalid or expired reset token");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("invalid or expired reset token");
   });
 
   it("falls back to the message field when error is absent", async () => {
@@ -208,7 +208,7 @@ describe("POST /api/parent/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 });

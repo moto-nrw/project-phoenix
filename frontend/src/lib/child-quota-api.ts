@@ -3,6 +3,8 @@
  * Zahlen tragen die Namen der 409-Details (students.child_quota_reached).
  */
 
+import { apiErrorFromResponse } from "~/lib/api-error";
+
 /** Kinderkontingent (booked) und Kontingentzahl (occupied) der Schule. */
 export interface ChildQuota {
   readonly booked: number;
@@ -39,7 +41,10 @@ export async function fetchChildQuota(): Promise<ChildQuota | null> {
     cache: "no-store",
   });
   if (!response.ok) {
-    throw new Error(`Child quota failed: ${response.status}`);
+    throw await apiErrorFromResponse(
+      response,
+      `Child quota failed: ${response.status}`,
+    );
   }
   const json = (await response.json()) as { data?: ChildQuotaResponse };
   return mapChildQuota(json.data);

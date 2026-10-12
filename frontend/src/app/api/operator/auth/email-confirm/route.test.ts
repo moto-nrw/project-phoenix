@@ -56,10 +56,15 @@ describe("POST /api/operator/auth/email-confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { status?: string; error?: string };
+    const json = (await response.json()) as {
+      status?: string;
+      detail?: string;
+    };
     expect(json).toEqual({
-      status: "error",
-      error: "Invalid JSON request body",
+      type: "about:blank",
+      title: "Bad Request",
+      status: 400,
+      detail: "Invalid JSON request body",
       code: "general.input",
     });
     expect(mockFetch).not.toHaveBeenCalled();
@@ -126,7 +131,11 @@ describe("POST /api/operator/auth/email-confirm", () => {
   it("proxies backend error JSON with original status code", async () => {
     mockFetch.mockResolvedValue(
       Response.json(
-        { status: "error", error: "Ungültiger oder abgelaufener Token" },
+        {
+          status: 400,
+          detail: "Ungültiger oder abgelaufener Token",
+          code: "general.input",
+        },
         { status: 400 },
       ),
     );
@@ -135,8 +144,8 @@ describe("POST /api/operator/auth/email-confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { error?: string };
-    expect(json.error).toBe("Ungültiger oder abgelaufener Token");
+    const json = (await response.json()) as { detail?: string };
+    expect(json.detail).toBe("Ungültiger oder abgelaufener Token");
   });
 
   it("returns 503 general.unavailable on fetch error", async () => {
@@ -146,10 +155,15 @@ describe("POST /api/operator/auth/email-confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(503);
-    const json = (await response.json()) as { status?: string; error?: string };
+    const json = (await response.json()) as {
+      status?: string;
+      detail?: string;
+    };
     expect(json).toEqual({
-      status: "error",
-      error: "Backend request failed",
+      type: "about:blank",
+      title: "Service Unavailable",
+      status: 503,
+      detail: "Service Unavailable",
       code: "general.unavailable",
     });
   });

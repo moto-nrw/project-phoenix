@@ -138,7 +138,7 @@ describe("invitation-api", () => {
         ok: false,
         status: 404,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: async () => ({ error: "Invitation not found" }),
+        json: async () => ({ detail: "Invitation not found" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -186,7 +186,7 @@ describe("invitation-api", () => {
           "Content-Type": "application/json",
           "Retry-After": "60",
         }),
-        json: async () => ({ error: "Too many requests" }),
+        json: async () => ({ detail: "Too many requests" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -214,7 +214,7 @@ describe("invitation-api", () => {
           "Content-Type": "application/json",
           "Retry-After": futureDate.toUTCString(),
         }),
-        json: async () => ({ error: "Rate limited" }),
+        json: async () => ({ detail: "Rate limited" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -236,7 +236,7 @@ describe("invitation-api", () => {
         headers: new Headers({
           "Retry-After": "-10",
         }),
-        json: async () => ({ error: "Error" }),
+        json: async () => ({ detail: "Error" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -259,7 +259,7 @@ describe("invitation-api", () => {
         headers: new Headers({
           "Retry-After": pastDate.toUTCString(),
         }),
-        json: async () => ({ error: "Error" }),
+        json: async () => ({ detail: "Error" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -280,7 +280,7 @@ describe("invitation-api", () => {
         headers: new Headers({
           "Retry-After": "not-a-number-or-date",
         }),
-        json: async () => ({ error: "Error" }),
+        json: async () => ({ detail: "Error" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -322,7 +322,7 @@ describe("invitation-api", () => {
       );
     });
 
-    it("extracts message field from JSON error response", async () => {
+    it("does not read a legacy message field as the diagnostic", async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -333,7 +333,7 @@ describe("invitation-api", () => {
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
       await expect(validateInvitation("test-token")).rejects.toThrow(
-        "Invalid token format",
+        "Einladung konnte nicht geprüft werden.",
       );
     });
   });
@@ -389,7 +389,7 @@ describe("invitation-api", () => {
         ok: false,
         status: 409,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: async () => ({ error: "Account already exists" }),
+        json: async () => ({ detail: "Account already exists" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -461,7 +461,7 @@ describe("invitation-api", () => {
         ok: false,
         status: 409,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: async () => ({ error: "Email already has pending invitation" }),
+        json: async () => ({ detail: "Email already has pending invitation" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -533,7 +533,7 @@ describe("invitation-api", () => {
         ok: false,
         status: 403,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: async () => ({ error: "Forbidden" }),
+        json: async () => ({ detail: "Forbidden" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -577,7 +577,7 @@ describe("invitation-api", () => {
         ok: false,
         status: 404,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: async () => ({ error: "Invitation not found" }),
+        json: async () => ({ detail: "Invitation not found" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -623,7 +623,7 @@ describe("invitation-api", () => {
         ok: false,
         status: 404,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: async () => ({ error: "Invitation not found" }),
+        json: async () => ({ detail: "Invitation not found" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -671,7 +671,7 @@ describe("invitation-api", () => {
         status: 400,
         headers: new Headers({ "Content-Type": "application/json" }),
         json: async () => ({
-          error: "Primary error message",
+          detail: "Primary error message",
           message: "Secondary message",
         }),
       });
@@ -703,7 +703,7 @@ describe("invitation-api", () => {
         ok: false,
         status: 418,
         headers: new Headers({ "Content-Type": "application/json" }),
-        json: async () => ({ error: "I'm a teapot" }),
+        json: async () => ({ detail: "I'm a teapot" }),
       });
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);

@@ -26,7 +26,6 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
   getChildOfferingCatalog,
-  ParentApiError,
   updateOfferingChangeRequest,
   type OfferingCatalog,
   type OfferingCatalogItem,
@@ -328,14 +327,14 @@ export function OfferingChangeRequestModal({
       onClose();
     } catch (err) {
       if (
-        err instanceof ParentApiError &&
+        err instanceof ApiError &&
         err.code === "enrollment.complete_withdrawal_confirmation_required"
       ) {
         setConfirmCompleteWithdrawal(true);
         return;
       }
       if (
-        err instanceof ParentApiError &&
+        err instanceof ApiError &&
         err.code === "students.change_request_stale"
       ) {
         form.invalid(t("careOfferingsModal.staleError"));

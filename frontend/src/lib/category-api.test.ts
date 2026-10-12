@@ -6,7 +6,8 @@ vi.mock("./session-cache", () => ({
   sessionFetch: mockSessionFetch,
 }));
 
-import { categoryService, CategoryApiError } from "./category-api";
+import { ApiError } from "./api-error";
+import { categoryService } from "./category-api";
 
 // The proxy routes already map to the frontend shape, so the client passes
 // `data` through untouched.
@@ -124,7 +125,7 @@ describe("categoryService error handling", () => {
   it("surfaces the backend message from a JSON error body", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       Response.json(
-        { error: "Eine Kategorie mit diesem Namen existiert bereits" },
+        { detail: "Eine Kategorie mit diesem Namen existiert bereits" },
         { status: 409 },
       ),
     );
@@ -132,19 +133,19 @@ describe("categoryService error handling", () => {
     await expect(categoryService.createCategory(payload)).rejects.toMatchObject(
       {
         status: 409,
-        detail: "Eine Kategorie mit diesem Namen existiert bereits",
+        message: "Eine Kategorie mit diesem Namen existiert bereits",
       },
     );
   });
 
-  it("falls back to the plain text body when the error is not JSON", async () => {
+  it("classifies a plain text error body by its status", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       new Response("upstream exploded", { status: 500 }),
     );
 
     await expect(categoryService.getManagedCategories()).rejects.toMatchObject({
       status: 500,
-      detail: "upstream exploded",
+      code: "general.server",
     });
   });
 
@@ -162,7 +163,7 @@ describe("categoryService error handling", () => {
       categoryService.updateCategory("7", payload),
     ).rejects.toMatchObject({
       status: 502,
-      detail: "Kategorie konnte nicht gespeichert werden",
+      message: "Kategorie konnte nicht gespeichert werden",
     });
   });
 
@@ -171,28 +172,28 @@ describe("categoryService error handling", () => {
 
     await expect(categoryService.archiveCategory("7")).rejects.toMatchObject({
       status: 403,
-      detail: "Kategorie konnte nicht archiviert werden",
+      message: "Kategorie konnte nicht archiviert werden",
     });
   });
 
   it("reports a failed restore", async () => {
     mockSessionFetch.mockResolvedValueOnce(
-      Response.json({ error: "" }, { status: 409 }),
+      Response.json({ detail: "" }, { status: 409 }),
     );
 
     await expect(categoryService.restoreCategory("7")).rejects.toMatchObject({
       status: 409,
-      detail: "Kategorie konnte nicht wiederhergestellt werden",
+      message: "Kategorie konnte nicht wiederhergestellt werden",
     });
   });
 
-  it("throws a CategoryApiError instance so callers can narrow", async () => {
+  it("throws an ApiError so callers can narrow", async () => {
     mockSessionFetch.mockResolvedValueOnce(
-      Response.json({ error: "nope" }, { status: 400 }),
+      Response.json({ detail: "nope" }, { status: 400 }),
     );
 
     await expect(categoryService.getManagedCategories()).rejects.toBeInstanceOf(
-      CategoryApiError,
+      ApiError,
     );
   });
 });

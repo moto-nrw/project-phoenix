@@ -9,7 +9,8 @@ import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ErrorCode } from "~/lib/error-codes.generated";
-import { ShiftApiError, staffShiftService } from "~/lib/shift-api";
+import { ApiError } from "~/lib/api-error";
+import { staffShiftService } from "~/lib/shift-api";
 import { catalogText } from "~/test/error-catalog-text";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
@@ -28,8 +29,8 @@ vi.mock("~/lib/hooks/use-closing-days", () => ({
   useClosingDaysState: mockUseClosingDaysState,
 }));
 
-// Spy on the CRUD service while keeping the real ShiftApiError class (the
-// client throws it with the wire code). vitest hoists this above the imports,
+// Spy on the CRUD service; the client throws an ApiError with the wire
+// code. vitest hoists this above the imports,
 // so `staffShiftService` above is the mocked singleton.
 vi.mock("~/lib/shift-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/shift-api")>();
@@ -117,11 +118,8 @@ function shiftError(
   detail: string,
   code: ErrorCode,
   instance?: string,
-): ShiftApiError {
-  const error = new ShiftApiError(status, detail);
-  error.code = code;
-  error.requestId = instance;
-  return error;
+): ApiError {
+  return new ApiError(detail, status, { code, instance });
 }
 
 function selectPerson(comboboxName: string, optionName: string) {

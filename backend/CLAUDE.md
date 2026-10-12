@@ -113,7 +113,7 @@ repoint both to the successor. Materialization/replans never touch dates
 - Two-layer auth: Device API key (`Authorization: Bearer`) + Staff PIN (`X-Staff-PIN`); devices authenticate without tenant JWTs but are scoped to one school (hence `Resolve*ForTenant` in device auth)
 - The `X-Staff-PIN` header is checked against the per-tenant `security.ogs_device_pin` setting via constant-time compare. It is the shared device PIN of the school; there is no personal staff PIN (#3310). The `X-Staff-ID` header PyrePortal sends is caller-controlled and ignored, so kiosk writes stay attributed to the authenticated device
 - Real-time location comes from `active.visits` + `active.attendance`; scheduled statuses (sick/excused/class trip) in `active.student_status_days`
-- **Error strings returned by `/api/iot/*` are a cross-repo contract** — PyrePortal maps them to German UI text (see `docs/agents/contracts.md` Ecosystem and IoT)
+- **Error codes returned by `/api/iot/*` are a cross-repo contract** — PyrePortal maps them to German UI text; the `detail` text is diagnostics (see `docs/agents/contracts.md` Ecosystem and IoT)
 
 ### GDPR/Privacy Patterns
 - Student data visibility is permission-scoped: admins and verified staff see full data for every child of the tenant (#2329 removed the per-group scope); guest/guardian accounts stay redacted. The wire keeps separate `has_full_access` (read) vs `has_write_access` (write) flags

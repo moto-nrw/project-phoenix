@@ -320,10 +320,10 @@ func checkEnrollmentChangeRequestDialogueGolden(t *testing.T, api *serveGraph, d
 	require.Equal(t, http.StatusBadRequest, early.Code, early.Body.String())
 	var earlyProblem map[string]any
 	require.NoError(t, json.Unmarshal(early.Body.Bytes(), &earlyProblem))
-	require.Equal(t, "error", earlyProblem["status"])
-	require.Equal(t, "enrollment change request has invalid status", earlyProblem["error"])
+	require.Equal(t, float64(http.StatusBadRequest), earlyProblem["status"])
+	require.Equal(t, "enrollment change request has invalid status", earlyProblem["detail"])
 	require.Equal(t, "enrollment.change_request_status_changed", earlyProblem["code"])
-	require.Equal(t, earlyProblem["error"], earlyProblem["detail"])
+	require.NotContains(t, earlyProblem, "error")
 	require.Equal(t, "Bad Request", earlyProblem["title"])
 	require.Equal(t, "https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich", earlyProblem["type"])
 	require.NotEmpty(t, earlyProblem["instance"])

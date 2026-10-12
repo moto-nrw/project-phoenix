@@ -22,6 +22,8 @@ export const ERROR_CATALOG = {
       fieldCheck: "Bitte prüfen Sie dieses Feld.",
     },
     codes: {
+      "attendance.log_disabled":
+        "Der Anwesenheitsverlauf ist an dieser Schule ausgeschaltet.",
       "attendance.web_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "care.announcement_stale":
@@ -137,6 +139,8 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.staff_notice_outdated":
         "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "display.disabled":
+        "Die Anzeigetafel ist an dieser Schule ausgeschaltet.",
       "enrollment.approval_care_offering_exactly_one":
         "Für dieses Kind muss genau ein Betreuungsangebot gebucht sein. Die Familie muss die Auswahl ändern.",
       "enrollment.approval_care_offering_missing":
@@ -221,6 +225,7 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "enrollment.window_closed":
         "Die Anmeldefrist ist vorbei oder hat noch nicht begonnen. Bitte wenden Sie sich an die Schule.",
+      "feedback.disabled": "Rückmeldungen sind an dieser Schule ausgeschaltet.",
       "files.announcement_published":
         "Die Mitteilung ist schon veröffentlicht. Ihre Anhänge lassen sich nicht mehr ändern.",
       "files.attachment_limit_reached":
@@ -438,6 +443,8 @@ export const ERROR_CATALOG = {
         "Das Kinderkontingent Ihrer Schule ist voll ({occupied_places} von {booked_places} Kindern). Bitte melden Sie sich beim moto-Team.",
       "students.companion_lock_busy":
         "Gerade ändert jemand anderes die Laufgemeinschaft. Bitte versuchen Sie es gleich noch einmal.",
+      "students.companion_plan_conflict":
+        "Ein verknüpftes Kind darf an diesen Tagen noch nicht mitgehen. Bitte prüfen Sie die Laufgemeinschaft.",
       "students.companion_would_lose_departure":
         "Ein verknüpftes Kind hätte dann keinen Heimweg mehr. Bitte passen Sie zuerst dessen Heimweg an.",
       "students.companions_changed":

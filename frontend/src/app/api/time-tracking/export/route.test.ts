@@ -39,7 +39,7 @@ describe("GET /api/time-tracking/export", () => {
 
     expect(response.status).toBe(401);
     const text = await response.text();
-    expect(text).toBe("Unauthorized");
+    expect(JSON.parse(text)).toMatchObject({ detail: "Unauthorized" });
   });
 
   it("streams export file from backend with correct headers", async () => {
@@ -104,7 +104,9 @@ describe("GET /api/time-tracking/export", () => {
 
     expect(response.status).toBe(502);
     const text = await response.text();
-    expect(text).toBe("No response body from backend");
+    expect(JSON.parse(text)).toMatchObject({
+      detail: "Bad Gateway",
+    });
   });
 
   it("handles network errors", async () => {
@@ -115,6 +117,6 @@ describe("GET /api/time-tracking/export", () => {
 
     expect(response.status).toBe(500);
     const text = await response.text();
-    expect(text).toBe("Internal server error");
+    expect(JSON.parse(text)).toMatchObject({ detail: "Internal Server Error" });
   });
 });

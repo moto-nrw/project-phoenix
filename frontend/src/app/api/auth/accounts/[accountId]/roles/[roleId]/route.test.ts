@@ -111,8 +111,8 @@ describe("POST /api/auth/accounts/[accountId]/roles/[roleId]", () => {
     );
 
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Unauthorized");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Unauthorized");
   });
 
   it("assigns role and returns success on 204 response", async () => {
@@ -210,8 +210,9 @@ describe("POST /api/auth/accounts/[accountId]/roles/[roleId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Network error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Network error");
   });
 });
 
@@ -233,8 +234,8 @@ describe("DELETE /api/auth/accounts/[accountId]/roles/[roleId]", () => {
     );
 
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Unauthorized");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Unauthorized");
   });
 
   it("removes role and returns success on 204 response", async () => {
@@ -332,7 +333,8 @@ describe("DELETE /api/auth/accounts/[accountId]/roles/[roleId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Network error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Network error");
   });
 });

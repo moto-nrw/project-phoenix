@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET, PUT, DELETE } from "./route";
 
 // ============================================================================
@@ -32,18 +33,9 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
   apiPost: vi.fn(),
   apiPut: mockApiPut,
   apiDelete: mockApiDelete,
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : message.includes("(403)")
-          ? 403
-          : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
+  handleApiError: vi.fn(
+    (await import("~/test/helpers/handle-api-error")).mockHandleApiError,
+  ),
 }));
 
 // ============================================================================
@@ -322,7 +314,7 @@ describe("PUT /api/staff/[id]", () => {
   });
 
   it("throws error when permission denied", async () => {
-    mockApiPut.mockRejectedValueOnce(new Error("Forbidden (403)"));
+    mockApiPut.mockRejectedValueOnce(new ApiResponseError(403, "Forbidden"));
 
     const request = createMockRequest("/api/staff/1", {
       method: "PUT",
@@ -330,15 +322,17 @@ describe("PUT /api/staff/[id]", () => {
     });
     const response = await PUT(request, createMockContext({ id: "1" }));
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe(
-      "Sie dürfen Mitarbeiterdaten nicht ändern. Bitte wenden Sie sich an Ihre OGS-Leitung.",
-    );
+    // The backend's 403 reaches the browser unchanged; the catalog text of
+    // its code tells the reader why.
+    expect(response.status).toBe(403);
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toContain("Forbidden");
   });
 
   it("throws error when staff member not found", async () => {
-    mockApiPut.mockRejectedValueOnce(new Error("staff member not found (400)"));
+    mockApiPut.mockRejectedValueOnce(
+      new ApiResponseError(400, "staff member not found"),
+    );
 
     const request = createMockRequest("/api/staff/1", {
       method: "PUT",
@@ -346,9 +340,10 @@ describe("PUT /api/staff/[id]", () => {
     });
     const response = await PUT(request, createMockContext({ id: "1" }));
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Staff member not found");
+    expect(response.status).toBe(400);
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Bad Request");
+    expect(JSON.stringify(json)).not.toContain("staff member not found");
   });
 });
 
@@ -378,24 +373,24 @@ describe("DELETE /api/staff/[id]", () => {
   });
 
   it("throws error when permission denied", async () => {
-    mockApiDelete.mockRejectedValueOnce(new Error("Forbidden (403)"));
+    mockApiDelete.mockRejectedValueOnce(new ApiResponseError(403, "Forbidden"));
 
     const request = createMockRequest("/api/staff/1", { method: "DELETE" });
     const response = await DELETE(request, createMockContext({ id: "1" }));
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Permission denied");
+    expect(response.status).toBe(403);
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toContain("Forbidden");
   });
 
   it("throws error when staff member not found", async () => {
-    mockApiDelete.mockRejectedValueOnce(new Error("Not Found (404)"));
+    mockApiDelete.mockRejectedValueOnce(new ApiResponseError(404, "Not Found"));
 
     const request = createMockRequest("/api/staff/1", { method: "DELETE" });
     const response = await DELETE(request, createMockContext({ id: "1" }));
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Staff member not found");
+    expect(response.status).toBe(404);
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toContain("Not Found");
   });
 });

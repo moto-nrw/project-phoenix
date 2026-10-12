@@ -975,14 +975,14 @@ func ObserveMealPlanOperation(operation string, duration time.Duration, queries,
 	}
 }
 
-func ObserveFeedbackOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+func ObserveFeedbackOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, codeLabel string, err error) {
 	outcome := "success"
 	if err == nil {
-		code = "none"
+		codeLabel = "none"
 	} else {
 		outcome = "error"
 	}
-	feedbackOperations.WithLabelValues(sanitizeLabel(operation), outcome, sanitizeLabel(code)).Inc()
+	feedbackOperations.WithLabelValues(sanitizeLabel(operation), outcome, sanitizeLabel(codeLabel)).Inc()
 	feedbackDuration.WithLabelValues(sanitizeLabel(operation)).Observe(duration.Seconds())
 	if queries > 0 {
 		feedbackQueries.WithLabelValues(sanitizeLabel(operation)).Add(float64(queries))
@@ -995,15 +995,15 @@ func ObserveFeedbackOperation(operation string, duration time.Duration, queries,
 	}
 }
 
-func ObserveOrganizationTenancyOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+func ObserveOrganizationTenancyOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, codeLabel string, err error) {
 	outcome := "success"
 	if err == nil {
-		code = "none"
+		codeLabel = "none"
 	} else {
 		outcome = "error"
 	}
 	operation = sanitizeLabel(operation)
-	organizationTenancyOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	organizationTenancyOperations.WithLabelValues(operation, outcome, sanitizeLabel(codeLabel)).Inc()
 	organizationTenancyDuration.WithLabelValues(operation).Observe(duration.Seconds())
 	if queries > 0 {
 		organizationTenancyQueries.WithLabelValues(operation).Add(float64(queries))
@@ -1019,15 +1019,15 @@ func ObserveOrganizationTenancyOperation(operation string, duration time.Duratio
 // ObservePeopleDirectoryOperation records the runtime evidence of one People
 // Directory capability call: outcome and stable code, duration, query count,
 // changed rows, and cumulative statement duration.
-func ObservePeopleDirectoryOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+func ObservePeopleDirectoryOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, codeLabel string, err error) {
 	outcome := "success"
 	if err == nil {
-		code = "none"
+		codeLabel = "none"
 	} else {
 		outcome = "error"
 	}
 	operation = sanitizeLabel(operation)
-	peopleDirectoryOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	peopleDirectoryOperations.WithLabelValues(operation, outcome, sanitizeLabel(codeLabel)).Inc()
 	peopleDirectoryDuration.WithLabelValues(operation).Observe(duration.Seconds())
 	if queries > 0 {
 		peopleDirectoryQueries.WithLabelValues(operation).Add(float64(queries))
@@ -1043,15 +1043,15 @@ func ObservePeopleDirectoryOperation(operation string, duration time.Duration, q
 // ObserveIdentityAccessOperation records the runtime evidence of one Identity
 // & Access capability call: outcome and stable code, duration, query count,
 // changed rows, and cumulative statement duration.
-func ObserveIdentityAccessOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+func ObserveIdentityAccessOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, codeLabel string, err error) {
 	outcome := "success"
 	if err == nil {
-		code = "none"
+		codeLabel = "none"
 	} else {
 		outcome = "error"
 	}
 	operation = sanitizeLabel(operation)
-	identityAccessOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	identityAccessOperations.WithLabelValues(operation, outcome, sanitizeLabel(codeLabel)).Inc()
 	identityAccessDuration.WithLabelValues(operation).Observe(duration.Seconds())
 	if queries > 0 {
 		identityAccessQueries.WithLabelValues(operation).Add(float64(queries))
@@ -1066,30 +1066,30 @@ func ObserveIdentityAccessOperation(operation string, duration time.Duration, qu
 
 // ObservePeopleDirectoryHTTPResponse counts one /api/users response by the
 // status class actually written and the stable outcome code.
-func ObservePeopleDirectoryHTTPResponse(status int, code string) {
+func ObservePeopleDirectoryHTTPResponse(status int, codeLabel string) {
 	statusClass := strconv.Itoa(status/100) + "xx"
-	peopleDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
+	peopleDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(codeLabel)).Inc()
 }
 
 // ObserveGuardianDirectoryHTTPResponse counts one /api/guardians response by
 // the status class actually written and the stable outcome code (#2663).
-func ObserveGuardianDirectoryHTTPResponse(status int, code string) {
+func ObserveGuardianDirectoryHTTPResponse(status int, codeLabel string) {
 	statusClass := strconv.Itoa(status/100) + "xx"
-	guardianDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
+	guardianDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(codeLabel)).Inc()
 }
 
 // ObserveSchoolMembershipOperation records the runtime evidence of one School
 // Membership capability call: outcome and stable code, duration, query
 // count, rows, and cumulative statement duration.
-func ObserveSchoolMembershipOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+func ObserveSchoolMembershipOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, codeLabel string, err error) {
 	outcome := "success"
 	if err == nil {
-		code = "none"
+		codeLabel = "none"
 	} else {
 		outcome = "error"
 	}
 	operation = sanitizeLabel(operation)
-	schoolMembershipOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	schoolMembershipOperations.WithLabelValues(operation, outcome, sanitizeLabel(codeLabel)).Inc()
 	schoolMembershipDuration.WithLabelValues(operation).Observe(duration.Seconds())
 	if queries > 0 {
 		schoolMembershipQueries.WithLabelValues(operation).Add(float64(queries))
@@ -1105,20 +1105,20 @@ func ObserveSchoolMembershipOperation(operation string, duration time.Duration, 
 // ObserveSchoolMembershipHTTPResponse counts one School Membership HTTP
 // adapter response (/api/staff membership routes, /api/class-list-entries)
 // by the status class actually written and the stable outcome code.
-func ObserveSchoolMembershipHTTPResponse(status int, code string) {
+func ObserveSchoolMembershipHTTPResponse(status int, codeLabel string) {
 	statusClass := strconv.Itoa(status/100) + "xx"
-	schoolMembershipHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
+	schoolMembershipHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(codeLabel)).Inc()
 }
 
-func ObserveSchoolStructureOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+func ObserveSchoolStructureOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, codeLabel string, err error) {
 	outcome := "success"
 	if err == nil {
-		code = "none"
+		codeLabel = "none"
 	} else {
 		outcome = "error"
 	}
 	operation = sanitizeLabel(operation)
-	schoolStructureOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	schoolStructureOperations.WithLabelValues(operation, outcome, sanitizeLabel(codeLabel)).Inc()
 	schoolStructureDuration.WithLabelValues(operation).Observe(duration.Seconds())
 	if queries > 0 {
 		schoolStructureQueries.WithLabelValues(operation).Add(float64(queries))
@@ -1131,15 +1131,15 @@ func ObserveSchoolStructureOperation(operation string, duration time.Duration, q
 	}
 }
 
-func ObserveFacilitiesOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+func ObserveFacilitiesOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, codeLabel string, err error) {
 	outcome := "success"
 	if err == nil {
-		code = "none"
+		codeLabel = "none"
 	} else {
 		outcome = "error"
 	}
 	operation = sanitizeLabel(operation)
-	facilitiesOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	facilitiesOperations.WithLabelValues(operation, outcome, sanitizeLabel(codeLabel)).Inc()
 	facilitiesDuration.WithLabelValues(operation).Observe(duration.Seconds())
 	if queries > 0 {
 		facilitiesQueries.WithLabelValues(operation).Add(float64(queries))
@@ -1154,15 +1154,15 @@ func ObserveFacilitiesOperation(operation string, duration time.Duration, querie
 
 // ObserveFileStorageOperation records one File Storage operation: its
 // outcome, duration, statement count, rows, and statement duration (#2707).
-func ObserveFileStorageOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+func ObserveFileStorageOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, codeLabel string, err error) {
 	outcome := "success"
 	if err == nil {
-		code = "none"
+		codeLabel = "none"
 	} else {
 		outcome = "error"
 	}
 	operation = sanitizeLabel(operation)
-	fileStorageOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	fileStorageOperations.WithLabelValues(operation, outcome, sanitizeLabel(codeLabel)).Inc()
 	fileStorageDuration.WithLabelValues(operation).Observe(duration.Seconds())
 	if queries > 0 {
 		fileStorageQueries.WithLabelValues(operation).Add(float64(queries))
@@ -1177,15 +1177,15 @@ func ObserveFileStorageOperation(operation string, duration time.Duration, queri
 
 // ObserveDeviceFleetOperation records one Device Fleet operation: its
 // outcome, duration, statement count, affected rows, and statement duration.
-func ObserveDeviceFleetOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+func ObserveDeviceFleetOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, codeLabel string, err error) {
 	outcome := "success"
 	if err == nil {
-		code = "none"
+		codeLabel = "none"
 	} else {
 		outcome = "error"
 	}
 	operation = sanitizeLabel(operation)
-	deviceFleetOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	deviceFleetOperations.WithLabelValues(operation, outcome, sanitizeLabel(codeLabel)).Inc()
 	deviceFleetDuration.WithLabelValues(operation).Observe(duration.Seconds())
 	if queries > 0 {
 		deviceFleetQueries.WithLabelValues(operation).Add(float64(queries))
@@ -1198,15 +1198,15 @@ func ObserveDeviceFleetOperation(operation string, duration time.Duration, queri
 	}
 }
 
-func ObserveTimetableActivitiesOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, code string, err error) {
+func ObserveTimetableActivitiesOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, codeLabel string, err error) {
 	outcome := "success"
 	if err == nil {
-		code = "none"
+		codeLabel = "none"
 	} else {
 		outcome = "error"
 	}
 	operation = sanitizeLabel(operation)
-	timetableActivitiesOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	timetableActivitiesOperations.WithLabelValues(operation, outcome, sanitizeLabel(codeLabel)).Inc()
 	timetableActivitiesDuration.WithLabelValues(operation).Observe(duration.Seconds())
 	if queries > 0 {
 		timetableActivitiesQueries.WithLabelValues(operation).Add(float64(queries))
@@ -1222,15 +1222,15 @@ func ObserveTimetableActivitiesOperation(operation string, duration time.Duratio
 	}
 }
 
-func ObserveSchoolCalendarOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+func ObserveSchoolCalendarOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, codeLabel string, err error) {
 	outcome := "success"
 	if err == nil {
-		code = "none"
+		codeLabel = "none"
 	} else {
 		outcome = "error"
 	}
 	operation = sanitizeLabel(operation)
-	schoolCalendarOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	schoolCalendarOperations.WithLabelValues(operation, outcome, sanitizeLabel(codeLabel)).Inc()
 	schoolCalendarDuration.WithLabelValues(operation).Observe(duration.Seconds())
 	if queries > 0 {
 		schoolCalendarQueries.WithLabelValues(operation).Add(float64(queries))
@@ -1246,15 +1246,15 @@ func ObserveSchoolCalendarOperation(operation string, duration time.Duration, qu
 // ObserveWorkforceOperation records the runtime evidence of one Workforce
 // work-time capability call: outcome and stable code, duration, query count,
 // rows, and cumulative statement duration.
-func ObserveWorkforceOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+func ObserveWorkforceOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, codeLabel string, err error) {
 	outcome := "success"
 	if err == nil {
-		code = "none"
+		codeLabel = "none"
 	} else {
 		outcome = "error"
 	}
 	operation = sanitizeLabel(operation)
-	workforceOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	workforceOperations.WithLabelValues(operation, outcome, sanitizeLabel(codeLabel)).Inc()
 	workforceDuration.WithLabelValues(operation).Observe(duration.Seconds())
 	if queries > 0 {
 		workforceQueries.WithLabelValues(operation).Add(float64(queries))
@@ -1308,15 +1308,15 @@ func ObserveDataImportCommand(entity, owner, operation string, duration time.Dur
 	dataImportCommandDuration.WithLabelValues(entity, owner, operation).Observe(duration.Seconds())
 }
 
-func ObserveAppointmentsOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, code string, err error) {
+func ObserveAppointmentsOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, codeLabel string, err error) {
 	outcome := "success"
 	if err == nil {
-		code = "none"
+		codeLabel = "none"
 	} else {
 		outcome = "error"
 	}
 	operation = sanitizeLabel(operation)
-	appointmentsOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	appointmentsOperations.WithLabelValues(operation, outcome, sanitizeLabel(codeLabel)).Inc()
 	appointmentsDuration.WithLabelValues(operation).Observe(duration.Seconds())
 	if queries > 0 {
 		appointmentsQueries.WithLabelValues(operation).Add(float64(queries))
@@ -1332,15 +1332,15 @@ func ObserveAppointmentsOperation(operation string, duration time.Duration, quer
 	}
 }
 
-func ObserveCommunicationOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, code string, err error) {
+func ObserveCommunicationOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, codeLabel string, err error) {
 	outcome := "success"
 	if err == nil {
-		code = "none"
+		codeLabel = "none"
 	} else {
 		outcome = "error"
 	}
 	operation = sanitizeLabel(operation)
-	communicationOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	communicationOperations.WithLabelValues(operation, outcome, sanitizeLabel(codeLabel)).Inc()
 	communicationDuration.WithLabelValues(operation).Observe(duration.Seconds())
 	if queries > 0 {
 		communicationQueries.WithLabelValues(operation).Add(float64(queries))
@@ -1356,15 +1356,15 @@ func ObserveCommunicationOperation(operation string, duration time.Duration, que
 	}
 }
 
-func ObserveCarePlanOperation(operation string, duration time.Duration, queries, rows, conflicts int64, statementDuration time.Duration, code string, err error) {
+func ObserveCarePlanOperation(operation string, duration time.Duration, queries, rows, conflicts int64, statementDuration time.Duration, codeLabel string, err error) {
 	outcome := "success"
 	if err == nil {
-		code = "none"
+		codeLabel = "none"
 	} else {
 		outcome = "error"
 	}
 	operation = sanitizeLabel(operation)
-	carePlanOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	carePlanOperations.WithLabelValues(operation, outcome, sanitizeLabel(codeLabel)).Inc()
 	carePlanDuration.WithLabelValues(operation).Observe(duration.Seconds())
 	if queries > 0 {
 		carePlanQueries.WithLabelValues(operation).Add(float64(queries))
@@ -1380,9 +1380,9 @@ func ObserveCarePlanOperation(operation string, duration time.Duration, queries,
 	}
 }
 
-func ObserveFeedbackHTTPResponse(surface string, status int, code string) {
+func ObserveFeedbackHTTPResponse(surface string, status int, codeLabel string) {
 	statusClass := strconv.Itoa(status/100) + "xx"
-	feedbackHTTPResponses.WithLabelValues(sanitizeLabel(surface), statusClass, sanitizeLabel(code)).Inc()
+	feedbackHTTPResponses.WithLabelValues(sanitizeLabel(surface), statusClass, sanitizeLabel(codeLabel)).Inc()
 }
 
 func ObserveAuditAppend(eventType string, duration time.Duration, rows int, err error) {

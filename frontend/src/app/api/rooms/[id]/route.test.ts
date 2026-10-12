@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET, PUT, DELETE } from "./route";
 
 // ============================================================================
@@ -138,7 +139,7 @@ describe("GET /api/rooms/[id]", () => {
   });
 
   it("handles 404 room not found", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("API error (404): Not found"));
+    mockApiGet.mockRejectedValueOnce(new ApiResponseError(404, "Not found"));
 
     const request = createMockRequest("/api/rooms/999");
     const response = await GET(request, createMockContext({ id: "999" }));
@@ -248,8 +249,11 @@ describe("PUT /api/rooms/[id]", () => {
     const response = await PUT(request, createMockContext({ id: "123" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Capacity must be greater than 0");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain(
+      "Capacity must be greater than 0",
+    );
   });
 
   it("handles camelCase to snake_case field mapping", async () => {
@@ -360,7 +364,7 @@ describe("DELETE /api/rooms/[id]", () => {
 
   it("handles 404 room not found", async () => {
     mockApiDelete.mockRejectedValueOnce(
-      new Error("API error (404): Room not found"),
+      new ApiResponseError(404, "Room not found"),
     );
 
     const request = createMockRequest("/api/rooms/999", {

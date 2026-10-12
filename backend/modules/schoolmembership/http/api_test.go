@@ -106,9 +106,9 @@ func (response) Render(http.ResponseWriter, *http.Request) error { return nil }
 
 type errorResponse struct {
 	StatusCode int    `json:"-"`
-	Status     string `json:"status"`
+	Status     int    `json:"status"`
 	Kind       string `json:"kind"`
-	Error      string `json:"error"`
+	Detail     string `json:"detail"`
 }
 
 func (e errorResponse) Render(_ http.ResponseWriter, r *http.Request) error {
@@ -212,7 +212,7 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 			_ = render.Render(w, r, response{Status: "success", Data: payload, Message: message})
 		},
 		Failure: func(w http.ResponseWriter, r *http.Request, kind staffHTTP.FailureKind, err error) {
-			_ = render.Render(w, r, errorResponse{StatusCode: failureStatus[kind], Status: "error", Kind: string(kind), Error: err.Error()})
+			_ = render.Render(w, r, errorResponse{StatusCode: failureStatus[kind], Status: failureStatus[kind], Kind: string(kind), Detail: err.Error()})
 		},
 		ObserveResponse: func(status int, code string) {
 			h.observed = append(h.observed, http.StatusText(status)+":"+code)
@@ -222,10 +222,10 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 			_, _ = io.WriteString(w, "image-bytes")
 		},
 		WriteFailure: func(w http.ResponseWriter, r *http.Request, err error) {
-			_ = render.Render(w, r, errorResponse{StatusCode: http.StatusConflict, Status: "error", Kind: "write", Error: err.Error()})
+			_ = render.Render(w, r, errorResponse{StatusCode: http.StatusConflict, Status: http.StatusConflict, Kind: "write", Detail: err.Error()})
 		},
 		SchoolClassFailure: func(w http.ResponseWriter, r *http.Request, err error) {
-			_ = render.Render(w, r, errorResponse{StatusCode: http.StatusNotFound, Status: "error", Kind: "school_class", Error: err.Error()})
+			_ = render.Render(w, r, errorResponse{StatusCode: http.StatusNotFound, Status: http.StatusNotFound, Kind: "school_class", Detail: err.Error()})
 		},
 		Permissions:      func(context.Context) []string { return h.permissions },
 		HasPermission:    matchPermission,
@@ -505,7 +505,7 @@ func TestListEndpointsFailWhenThePersonLookupFails(t *testing.T) {
 	for _, target := range []string{"/staff", "/staff/documents-directory", "/staff/available"} {
 		recorder := h.do(t, http.MethodGet, target, nil)
 		assert.Equal(t, http.StatusInternalServerError, recorder.Code, target)
-		assert.Equal(t, "person store down", decodeError(t, recorder).Error, target)
+		assert.Equal(t, "person store down", decodeError(t, recorder).Detail, target)
 	}
 	assert.Contains(t, h.observed, "Internal Server Error:internal_error")
 }
@@ -527,11 +527,11 @@ func TestGetStaffSplitsTeacherAndStaffBranch(t *testing.T) {
 
 	missing := h.do(t, http.MethodGet, "/staff/99", nil)
 	assert.Equal(t, http.StatusNotFound, missing.Code)
-	assert.Equal(t, "staff member not found", decodeError(t, missing).Error)
+	assert.Equal(t, "staff member not found", decodeError(t, missing).Detail)
 
 	invalid := h.do(t, http.MethodGet, "/staff/abc", nil)
 	assert.Equal(t, http.StatusBadRequest, invalid.Code)
-	assert.Equal(t, "invalid staff ID", decodeError(t, invalid).Error)
+	assert.Equal(t, "invalid staff ID", decodeError(t, invalid).Detail)
 	assert.Contains(t, h.observed, "Bad Request:invalid_parameters")
 }
 
@@ -545,7 +545,7 @@ func TestGetStaffFailsWhenThePersonLookupFails(t *testing.T) {
 	recorder := h.do(t, http.MethodGet, "/staff/1", nil)
 
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
-	assert.Equal(t, "person store down", decodeError(t, recorder).Error)
+	assert.Equal(t, "person store down", decodeError(t, recorder).Detail)
 }
 
 func TestGetStaffKeepsMissingPersonResponse(t *testing.T) {
@@ -648,12 +648,12 @@ func TestSchoolClassesRoundTripAndValidation(t *testing.T) {
 
 	missingField := h.do(t, http.MethodPut, "/staff/2/school-classes", map[string]any{})
 	assert.Equal(t, http.StatusBadRequest, missingField.Code)
-	assert.Equal(t, "school_classes is required", decodeError(t, missingField).Error)
+	assert.Equal(t, "school_classes is required", decodeError(t, missingField).Detail)
 
 	h.accountID = 0
 	unauthenticated := h.do(t, http.MethodPut, "/staff/2/school-classes", map[string]any{"school_classes": []string{"1a"}})
 	assert.Equal(t, http.StatusUnauthorized, unauthenticated.Code)
-	assert.Equal(t, "invalid token", decodeError(t, unauthenticated).Error)
+	assert.Equal(t, "invalid token", decodeError(t, unauthenticated).Detail)
 }
 
 func TestSchoolClassFailuresAreDelegatedToTheRoot(t *testing.T) {
@@ -664,7 +664,7 @@ func TestSchoolClassFailuresAreDelegatedToTheRoot(t *testing.T) {
 
 	recorder := h.do(t, http.MethodGet, "/staff/2/school-classes", nil)
 	assert.Equal(t, http.StatusNotFound, recorder.Code, "the root's renderer decides the status")
-	assert.Equal(t, "Klassenname darf nicht leer sein", decodeError(t, recorder).Error)
+	assert.Equal(t, "Klassenname darf nicht leer sein", decodeError(t, recorder).Detail)
 }
 
 func TestAvailableStaffListsTeachersWithPersons(t *testing.T) {
@@ -704,7 +704,7 @@ func TestStaffByRoleSplitsCaregiverPoolFromRoleLookup(t *testing.T) {
 
 	missing := h.do(t, http.MethodGet, "/staff/by-role", nil)
 	assert.Equal(t, http.StatusBadRequest, missing.Code)
-	assert.Equal(t, "role or roles parameter is required", decodeError(t, missing).Error)
+	assert.Equal(t, "role or roles parameter is required", decodeError(t, missing).Detail)
 }
 
 func TestCreateStaffValidatesBodyAndGrantsPermissions(t *testing.T) {
@@ -715,11 +715,11 @@ func TestCreateStaffValidatesBodyAndGrantsPermissions(t *testing.T) {
 
 	missingPerson := h.do(t, http.MethodPost, "/staff", map[string]any{})
 	assert.Equal(t, http.StatusBadRequest, missingPerson.Code)
-	assert.Equal(t, "person ID is required", decodeError(t, missingPerson).Error)
+	assert.Equal(t, "person ID is required", decodeError(t, missingPerson).Detail)
 
 	unknownPerson := h.do(t, http.MethodPost, "/staff", map[string]any{"person_id": 999})
 	assert.Equal(t, http.StatusNotFound, unknownPerson.Code)
-	assert.Equal(t, "person not found", decodeError(t, unknownPerson).Error)
+	assert.Equal(t, "person not found", decodeError(t, unknownPerson).Detail)
 
 	// person_id travels as a decimal string on the way in, too (#2222).
 	created := h.do(t, http.MethodPost, "/staff", map[string]any{"person_id": "11", "staff_notes": "hired"})
@@ -756,7 +756,7 @@ func TestCreateStaffMapsTheTeacherOutcomes(t *testing.T) {
 	h.createErr = errors.New("staff record already in use")
 	conflict := h.do(t, http.MethodPost, "/staff", map[string]any{"person_id": 11})
 	assert.Equal(t, http.StatusConflict, conflict.Code, "the root's write renderer decides the status")
-	assert.Equal(t, "staff record already in use", decodeError(t, conflict).Error)
+	assert.Equal(t, "staff record already in use", decodeError(t, conflict).Detail)
 }
 
 func TestUpdateStaffGuardsPersonReassignment(t *testing.T) {
@@ -772,7 +772,7 @@ func TestUpdateStaffGuardsPersonReassignment(t *testing.T) {
 
 	reassign := h.do(t, http.MethodPut, "/staff/1", map[string]any{"person_id": "12"})
 	assert.Equal(t, http.StatusForbidden, reassign.Code)
-	assert.Equal(t, "insufficient permission to reassign a staff record to another person", decodeError(t, reassign).Error)
+	assert.Equal(t, "insufficient permission to reassign a staff record to another person", decodeError(t, reassign).Detail)
 
 	h.allow("users:manage")
 	h.updateResult = staffHTTP.UpdateStaffResult{Staff: schoolmembership.Staff{ID: 1, PersonID: 12}, Action: staffHTTP.TeacherActionNone}
@@ -782,11 +782,11 @@ func TestUpdateStaffGuardsPersonReassignment(t *testing.T) {
 
 	unknownPerson := h.do(t, http.MethodPut, "/staff/1", map[string]any{"person_id": "999"})
 	assert.Equal(t, http.StatusNotFound, unknownPerson.Code)
-	assert.Equal(t, "person not found", decodeError(t, unknownPerson).Error)
+	assert.Equal(t, "person not found", decodeError(t, unknownPerson).Detail)
 
 	missingStaff := h.do(t, http.MethodPut, "/staff/99", map[string]any{"person_id": "11"})
 	assert.Equal(t, http.StatusNotFound, missingStaff.Code)
-	assert.Equal(t, "staff member not found", decodeError(t, missingStaff).Error)
+	assert.Equal(t, "staff member not found", decodeError(t, missingStaff).Detail)
 }
 
 func TestUpdateStaffKeepsExternalOrganizationInItsResponse(t *testing.T) {
@@ -880,7 +880,7 @@ func TestPersonalPINSelfServiceIsGone(t *testing.T) {
 	h.allow("users:read", "staff:manage")
 	status := h.do(t, http.MethodGet, "/staff/pin", nil)
 	assert.Equal(t, http.StatusBadRequest, status.Code)
-	assert.Equal(t, "invalid staff ID", decodeError(t, status).Error)
+	assert.Equal(t, "invalid staff ID", decodeError(t, status).Detail)
 
 	update := h.do(t, http.MethodPut, "/staff/pin", map[string]any{"new_pin": "1234"})
 	assert.Equal(t, http.StatusBadRequest, update.Code)

@@ -157,13 +157,13 @@ describe("calendarPeriodService", () => {
   it("surfaces backend error messages and generic non-JSON failures", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
-        { error: "Periode ueberlappt", code: "PERIOD_OVERLAP" },
+        { detail: "Periode ueberlappt", code: "PERIOD_OVERLAP" },
         { status: 409 },
       ),
     );
     await expect(calendarPeriodService.list()).rejects.toMatchObject({
       message: "Periode ueberlappt",
-      httpStatus: 409,
+      status: 409,
       code: "PERIOD_OVERLAP",
     });
 
@@ -175,7 +175,7 @@ describe("calendarPeriodService", () => {
     );
     await expect(calendarPeriodService.delete("5")).rejects.toMatchObject({
       message: "Anfrage fehlgeschlagen (HTTP 502)",
-      httpStatus: 502,
+      status: 502,
     });
   });
 });

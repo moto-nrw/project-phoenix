@@ -108,7 +108,7 @@ describe("POST /api/parent/auth/password-reset", () => {
     });
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "Too many requests" }), {
+      new Response(JSON.stringify({ detail: "Too many requests" }), {
         status: 429,
         headers: backendHeaders,
       }),
@@ -122,13 +122,13 @@ describe("POST /api/parent/auth/password-reset", () => {
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBe("120");
 
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Too many requests");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Too many requests");
   });
 
   it("surfaces a JSON error field from the backend", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "Invalid email" }), {
+      new Response(JSON.stringify({ detail: "Invalid email" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       }),
@@ -140,8 +140,8 @@ describe("POST /api/parent/auth/password-reset", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Invalid email");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Invalid email");
   });
 
   it("falls back to the message field when error is absent", async () => {
@@ -229,7 +229,7 @@ describe("POST /api/parent/auth/password-reset", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 });

@@ -28,14 +28,17 @@ function mockOk(body: unknown): typeof global.fetch {
 
 function mockErr(
   status: number,
-  error: string,
+  detail: string,
   code?: string,
 ): typeof global.fetch {
   return vi.fn().mockResolvedValue(
-    new Response(JSON.stringify({ error, ...(code ? { code } : {}) }), {
-      status,
-      headers: { "Content-Type": "application/json" },
-    }),
+    new Response(
+      JSON.stringify({ status, detail, ...(code ? { code } : {}) }),
+      {
+        status,
+        headers: { "Content-Type": "application/json" },
+      },
+    ),
   );
 }
 
@@ -142,6 +145,66 @@ describe("MFAChallengeForm", () => {
       );
     });
     expect(assign).not.toHaveBeenCalled();
+    assign.mockRestore();
+  });
+
+  // The token exchange after a correct code refuses an inactive account or a
+  // revoked school with its own code: that also stays in the form.
+  it("keeps a refused credential of the token exchange in the form", async () => {
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
+    global.fetch = mockErr(
+      401,
+      "account inactive",
+      "identity.session_account_inactive",
+    );
+
+    render(<MFAChallengeForm {...defaultProps} onSuccess={vi.fn()} />);
+
+    const inputs = screen.getAllByRole("textbox").slice(0, 6);
+    await act(async () => {
+      fireEvent.change(inputs[0]!, { target: { value: "111111" } });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        catalogText(
+          "identity.session_account_inactive",
+          "die Prüfung des Codes",
+        ),
+      );
+    });
+    expect(assign).not.toHaveBeenCalled();
+    assign.mockRestore();
+  });
+
+  // A 401 without a refusal code means the challenge itself ran out. The
+  // form no longer invents identity.invalid_credentials for it (ADR 0006):
+  // it is an expired login and leads to the login screen.
+  it("sends a 401 without a refusal code to the login screen", async () => {
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
+    global.fetch = mockErr(401, "Unauthorized");
+
+    render(<MFAChallengeForm {...defaultProps} onSuccess={vi.fn()} />);
+
+    const inputs = screen.getAllByRole("textbox").slice(0, 6);
+    await act(async () => {
+      fireEvent.change(inputs[0]!, { target: { value: "111111" } });
+    });
+
+    await waitFor(() => {
+      expect(assign).toHaveBeenCalledWith(
+        expect.stringContaining("error=SessionExpired"),
+      );
+    });
+    expect(
+      screen.queryByText(
+        catalogText("identity.invalid_credentials", "die Prüfung des Codes"),
+      ),
+    ).not.toBeInTheDocument();
     assign.mockRestore();
   });
 

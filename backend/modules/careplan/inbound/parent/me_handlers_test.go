@@ -436,8 +436,7 @@ func TestGetChildMealPlan_DisabledContract(t *testing.T) {
 
 	require.Equal(t, http.StatusForbidden, w.Code)
 	assert.JSONEq(t, `{
-		"status":"error",
-		"error":"parent: meal plan disabled for this school",
+		"status":403,
 		"code":"meals.plan_disabled",
 		"type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen",
 		"title":"Forbidden",

@@ -17,6 +17,7 @@ import {
   rotateRequestFeed,
 } from "~/lib/request-feed-api";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
+import { Alert } from "~/components/ui/alert";
 
 /** Objekt der Fehlertexte aus dem Katalog (#2513). */
 const FEED_OBJECT = "das Abo";
@@ -201,13 +202,10 @@ export function RequestFeedDialog({ isOpen, onClose }: RequestFeedDialogProps) {
         {active && !url ? <p>Es gibt schon einen RSS-Link.</p> : null}
 
         {confirmRotate ? (
-          <div
-            role="alert"
-            className="border-moto-orange/40 bg-moto-orange-soft rounded-xl border p-4 text-gray-800"
-          >
-            Der bisherige Link funktioniert danach nicht mehr. Bereits geladene
-            Hinweise bleiben im RSS-Programm gespeichert.
-          </div>
+          <Alert
+            type="warning"
+            message="Der bisherige Link funktioniert danach nicht mehr. Bereits geladene Hinweise bleiben im RSS-Programm gespeichert."
+          />
         ) : null}
 
         {url ? (

@@ -8,27 +8,12 @@ import {
   extractParams,
   parseRequestBody,
   wrapInApiResponse,
+  createTokenExpiredResponse,
   createUnauthorizedResponse,
 } from "./route-wrapper-utils.server";
+import { isApiResponseError } from "./api-response-error.server";
 
 export { isStringParam } from "./route-wrapper-utils.server";
-
-/**
- * Checks if error is a 401 authentication error
- */
-function is401Error(error: unknown): boolean {
-  return error instanceof Error && error.message.includes("API error (401)");
-}
-
-/**
- * Creates a standard token expired response
- */
-function createTokenExpiredResponse(): NextResponse<ApiErrorResponse> {
-  return NextResponse.json(
-    { error: "Token expired", code: "TOKEN_EXPIRED" },
-    { status: 401 },
-  );
-}
 
 /**
  * Attempts to retry a request with a refreshed token
@@ -125,7 +110,7 @@ async function executeWithRetry<T>(
     const data = await executeHandler(token);
     return formatResponse(data);
   } catch (handlerError) {
-    if (!is401Error(handlerError)) {
+    if (!isApiResponseError(handlerError, 401)) {
       throw handlerError;
     }
 

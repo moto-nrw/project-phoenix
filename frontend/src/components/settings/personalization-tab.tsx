@@ -29,7 +29,7 @@ const logger = createLogger({ component: "PersonalizationTab" });
 export function PersonalizationTab() {
   const { tenant } = useTenant();
   const router = useRouter();
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(
@@ -45,7 +45,7 @@ export function PersonalizationTab() {
   // bleibt stehen. Hochladen und Entfernen sind Aktionen ohne Formular: ein
   // Fehler kommt als Toast (#2517).
   const { error: loadError, show: showLoadError, clear } = useApiLoadError();
-  const { show: showActionError } = useApiErrorDisplay();
+  const { show: showActionError, showMessage } = useApiErrorDisplay();
   const latestLoadRef = useRef<() => void>(() => undefined);
   const latestUploadRef = useRef<(file: File) => void>(() => undefined);
   const latestDeleteRef = useRef<() => void>(() => undefined);
@@ -92,13 +92,15 @@ export function PersonalizationTab() {
       // stehen könnte; die Ablagefläche zeigt die Grenzen schon dauerhaft.
       const maxSize = 2 * 1024 * 1024;
       if (file.size > maxSize) {
-        toastError("Das Bild ist zu groß. Bitte wählen Sie ein Bild bis 2 MB.");
+        showMessage(
+          "Das Bild ist zu groß. Bitte wählen Sie ein Bild bis 2 MB.",
+        );
         return;
       }
 
       const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
       if (!allowedTypes.includes(file.type)) {
-        toastError("Bitte wählen Sie ein Bild im Format JPG, PNG oder WebP.");
+        showMessage("Bitte wählen Sie ein Bild im Format JPG, PNG oder WebP.");
         return;
       }
 
@@ -142,7 +144,7 @@ export function PersonalizationTab() {
         }
       }
     },
-    [toastSuccess, toastError, router, showActionError],
+    [toastSuccess, showMessage, router, showActionError],
   );
 
   const handleUpload = useCallback(

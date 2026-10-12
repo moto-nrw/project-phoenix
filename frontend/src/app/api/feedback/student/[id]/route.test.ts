@@ -66,8 +66,8 @@ describe("GET /api/feedback/student/[id]", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Unauthorized");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Unauthorized");
   });
 
   it("returns 401 when session has no token", async () => {
@@ -87,8 +87,8 @@ describe("GET /api/feedback/student/[id]", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Invalid id parameter");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Invalid id parameter");
   });
 
   it("returns feedback data on success", async () => {
@@ -132,7 +132,11 @@ describe("GET /api/feedback/student/[id]", () => {
     mockApiGet.mockRejectedValueOnce(
       new ApiResponseError(
         403,
-        JSON.stringify({ error: "feature_disabled", code: "feature_disabled" }),
+        JSON.stringify({
+          status: 403,
+          detail: "feature disabled",
+          code: "feedback.disabled",
+        }),
         { contentType: "application/json" },
       ),
     );
@@ -141,10 +145,11 @@ describe("GET /api/feedback/student/[id]", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(403);
-    const json = await parseJsonResponse<{ error: string }>(response);
+    const json = await parseJsonResponse<{ detail: string }>(response);
     expect(json).toEqual({
-      error: "feature_disabled",
-      code: "feature_disabled",
+      status: 403,
+      detail: "feature disabled",
+      code: "feedback.disabled",
     });
   });
 
@@ -152,7 +157,11 @@ describe("GET /api/feedback/student/[id]", () => {
     mockApiGet.mockRejectedValueOnce(
       new ApiResponseError(
         404,
-        JSON.stringify({ error: "not found", code: "not_found" }),
+        JSON.stringify({
+          status: 404,
+          detail: "not found",
+          code: "general.input",
+        }),
         { contentType: "application/json" },
       ),
     );
@@ -161,8 +170,12 @@ describe("GET /api/feedback/student/[id]", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(404);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json).toEqual({ error: "not found", code: "not_found" });
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json).toEqual({
+      status: 404,
+      detail: "not found",
+      code: "general.input",
+    });
   });
 
   it("returns 500 on generic backend error", async () => {
@@ -172,12 +185,13 @@ describe("GET /api/feedback/student/[id]", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Network failure");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Network failure");
   });
 
   it("extracts status code from API error message", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("API error (502): Bad Gateway"));
+    mockApiGet.mockRejectedValueOnce(new ApiResponseError(502, "Bad Gateway"));
 
     const request = createMockRequest("/api/feedback/student/123");
     const response = await GET(request);
@@ -192,7 +206,7 @@ describe("GET /api/feedback/student/[id]", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 });

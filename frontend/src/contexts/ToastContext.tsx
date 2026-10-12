@@ -581,7 +581,17 @@ export function useApiErrorDisplay(formRef?: RefObject<HTMLElement | null>) {
       }),
     [toast],
   );
-  return useApiErrorCore(formRef, deliver);
+  const core = useApiErrorCore(formRef, deliver);
+  /**
+   * A failure the screen found itself, without an API answer: copying
+   * failed, the file is too large, the browser blocked a window. The text is
+   * already worded for the reader. A failed API call goes through `show`.
+   */
+  const showMessage = useCallback(
+    (message: string) => toast.error(message),
+    [toast],
+  );
+  return { ...core, showMessage };
 }
 
 function toFormErrorDetail(

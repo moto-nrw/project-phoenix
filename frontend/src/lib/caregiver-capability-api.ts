@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError } from "./api-error";
+import { ApiError, enrichApiError, problemDetail } from "./api-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "CaregiverCapabilityAPI" });
@@ -171,7 +171,6 @@ interface ApiEnvelope<T> {
 }
 
 interface CapabilityErrorPayload {
-  error?: string;
   blockers?: string[];
 }
 
@@ -264,7 +263,7 @@ async function handleCapabilityError(response: Response): Promise<never> {
   try {
     const payload = (await response.json()) as CapabilityErrorPayload;
     body = payload;
-    message = payload.error ?? message;
+    message = problemDetail(payload) ?? message;
     blockers = (payload.blockers ?? []).map((blocker) =>
       translateCapabilityBlocker(blocker),
     );

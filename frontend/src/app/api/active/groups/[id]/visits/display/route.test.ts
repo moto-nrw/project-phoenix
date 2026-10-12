@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET } from "./route";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 
 // ============================================================================
 // Types
@@ -24,22 +25,17 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: mockApiGet,
+    apiPost: vi.fn(),
+    apiPut: vi.fn(),
+    apiDelete: vi.fn(),
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 // ============================================================================
 // Test Helpers
@@ -97,8 +93,9 @@ describe("GET /api/active/groups/[id]/visits/display", () => {
     const response = await GET(request, createMockContext({}));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Invalid id parameter");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Invalid id parameter");
   });
 
   it("returns 500 when id parameter is not a string", async () => {
@@ -106,8 +103,9 @@ describe("GET /api/active/groups/[id]/visits/display", () => {
     const response = await GET(request, createMockContext({ id: ["1", "2"] }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Invalid id parameter");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Invalid id parameter");
   });
 
   it("fetches visits with display data for valid group id", async () => {
@@ -165,13 +163,16 @@ describe("GET /api/active/groups/[id]/visits/display", () => {
   });
 
   it("handles API errors gracefully", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("Group not found (404)"));
+    mockApiGet.mockRejectedValueOnce(
+      new ApiResponseError(404, "Group not found"),
+    );
 
     const request = createMockRequest("/api/active/groups/999/visits/display");
     const response = await GET(request, createMockContext({ id: "999" }));
 
     expect(response.status).toBe(404);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Group not found");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Not Found");
+    expect(JSON.stringify(json)).not.toContain("Group not found");
   });
 });

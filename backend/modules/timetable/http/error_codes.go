@@ -92,7 +92,7 @@ func refusalDetails(values timetable.RefusalValues) map[string]any {
 func codedInvalidOnField(err error, field string) render.Renderer {
 	renderer := codedInvalid(err)
 	if resp, ok := renderer.(*common.ErrResponse); ok {
-		resp.Errors = []common.FieldError{{Field: field, Reason: resp.ErrorText}}
+		resp.Errors = []common.FieldError{{Field: field, Reason: resp.Detail}}
 	}
 	return renderer
 }
