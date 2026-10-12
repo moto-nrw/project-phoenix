@@ -10,7 +10,7 @@ import (
 
 // retentionDaysExpr is the window a visit's child gets: the shortest accepted
 // consent window, otherwise the tenant default bound as the argument.
-const retentionDaysExpr = "COALESCE(pc.data_retention_days, ?)"
+const retentionDaysExpr = "COALESCE(cw.data_retention_days, ?)"
 
 // expiredVisitsQuery selects the tenant's completed visits past their child's
 // window. Children without an accepted consent fall back to defaultDays, so no
@@ -20,7 +20,7 @@ func expiredVisitsQuery(db bun.IDB, tenantID int64, defaultDays int) *bun.Select
 		ColumnExpr("student_id, MIN(data_retention_days) AS data_retention_days").
 		Where("tenant_id = ?", tenantID).Where("accepted = TRUE").Group("student_id")
 	return db.NewSelect().TableExpr("active.visits AS v").
-		Join("LEFT JOIN (?) AS pc ON pc.student_id = v.student_id", acceptedWindows).
+		Join("LEFT JOIN (?) AS cw ON cw.student_id = v.student_id", acceptedWindows).
 		Where("v.tenant_id = ?", tenantID).Where("v.exit_time IS NOT NULL").
 		Where("v.created_at < NOW() - make_interval(days => "+retentionDaysExpr+")", defaultDays)
 }
@@ -32,11 +32,11 @@ func (s *Store) ListVisitRetentionCounts(ctx context.Context, defaultDays int) (
 	}
 	rows := []visitRetentionCountRow{}
 	started := time.Now()
-	// pc holds one row per student, so grouping by its window keeps one row
-	// per student.
+	// cw (consent windows) holds one row per student, so grouping by its
+	// window keeps one row per student.
 	err = expiredVisitsQuery(db, tenantID, defaultDays).
 		ColumnExpr("v.student_id, COUNT(*) AS visit_count").ColumnExpr(retentionDaysExpr+" AS retention_days", defaultDays).
-		GroupExpr("v.student_id, pc.data_retention_days").OrderExpr("v.student_id").Scan(ctx, &rows)
+		GroupExpr("v.student_id, cw.data_retention_days").OrderExpr("v.student_id").Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
 	result := make([]ports.VisitRetentionCount, 0, len(rows))
 	for _, row := range rows {

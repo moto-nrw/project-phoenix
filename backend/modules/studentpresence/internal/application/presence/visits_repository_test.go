@@ -808,7 +808,7 @@ func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 		require.NoError(t, err)
 
 		// Get stats
-		stats, err := repo.ListVisitRetentionCounts(ctx, 30)
+		stats, err := repo.ListVisitRetentionCounts(ctx, 31)
 		require.NoError(t, err)
 
 		// Should have stats for our student
@@ -862,7 +862,7 @@ func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 		require.NoError(t, err)
 
 		// Count expired visits
-		count, err := repo.CountExpiredVisits(ctx, 30)
+		count, err := repo.CountExpiredVisits(ctx, 31)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, count, int64(1))
 	})
