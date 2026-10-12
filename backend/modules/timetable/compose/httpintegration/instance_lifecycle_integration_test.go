@@ -51,7 +51,7 @@ func TestInstance_SetUnderstaffedAck_HappyPath(t *testing.T) {
 	require.NotNil(t, got.UnderstaffedNote)
 	assert.Equal(t, note, *got.UnderstaffedNote)
 
-	reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, ai.ID)
+	reloaded, err := s.timetable.ActivityInstance.FindByID(s.ctx, ai.ID)
 	require.NoError(t, err)
 	assert.True(t, reloaded.UnderstaffedAck)
 	require.NotNil(t, reloaded.UnderstaffedNote)
@@ -63,7 +63,7 @@ func TestInstance_SetUnderstaffedAck_HappyPath(t *testing.T) {
 	assert.False(t, cleared.UnderstaffedAck)
 	assert.Nil(t, cleared.UnderstaffedNote)
 
-	reloaded2, err := s.repos.ActivityInstance.FindByID(s.ctx, ai.ID)
+	reloaded2, err := s.timetable.ActivityInstance.FindByID(s.ctx, ai.ID)
 	require.NoError(t, err)
 	assert.False(t, reloaded2.UnderstaffedAck)
 	assert.Nil(t, reloaded2.UnderstaffedNote)
@@ -95,7 +95,7 @@ func TestInstance_SetUnderstaffedAck_RejectedWhileStaffed(t *testing.T) {
 	assert.ErrorIs(t, err, timetable.ErrUnderstaffedAckStillStaffed)
 
 	// The flag never flipped in the DB.
-	reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, ai.ID)
+	reloaded, err := s.timetable.ActivityInstance.FindByID(s.ctx, ai.ID)
 	require.NoError(t, err)
 	assert.False(t, reloaded.UnderstaffedAck)
 
@@ -155,7 +155,7 @@ func TestInstance_Cancel_WithReason_Persists(t *testing.T) {
 	// is the contract.
 	assert.Equal(t, scheduleModels.InstanceStatusCancelled, cancelled.Status)
 
-	reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, ai.ID)
+	reloaded, err := s.timetable.ActivityInstance.FindByID(s.ctx, ai.ID)
 	require.NoError(t, err)
 	require.NotNil(t, reloaded.CancelReason)
 	assert.Equal(t, "Ausflug", *reloaded.CancelReason)
@@ -311,7 +311,7 @@ func TestInstance_UpdatePlannedRejectsDateOutsideActiveCalendarPeriod(t *testing
 	}, nil)
 
 	require.ErrorIs(t, err, timetable.ErrInstanceOutsideActiveCalendarPeriod)
-	stored, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
+	stored, err := s.timetable.ActivityInstance.FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, instance.Date.String(), stored.Date.String())
 }
@@ -664,7 +664,7 @@ func testReopenWriteRollback(t *testing.T, stage string) {
 		"second-assignment": {"active.activity_session_attendance", secondAttendanceID},
 		"instance":          {"active.activity_sessions", sessionID},
 	}
-	fault := &failingRecoveryRestore{ActivityRecoveryRepository: repositories.NewActivityRecoveryRepository(s.db, s.repos.InstanceStudent)}
+	fault := &failingRecoveryRestore{ActivityRecoveryRepository: compose.NewRetainedActivityRecoveryRepository(s.db, s.timetable.InstanceStudent)}
 	removeFault := func() {}
 	expectedRestores := 0
 	if stage == "complete" {
@@ -680,7 +680,7 @@ func testReopenWriteRollback(t *testing.T, stage string) {
 	require.ErrorContains(t, err, injected.Error())
 	require.Equal(t, expectedRestores, fault.restores, "fault must stop at its named write boundary")
 	assert.Empty(t, broadcaster.Calls())
-	stored, err := s.repos.ActivityInstance.FindByID(s.ctx, ai.ID)
+	stored, err := s.timetable.ActivityInstance.FindByID(s.ctx, ai.ID)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.InstanceStatusCompleted, stored.Status)
 	assert.NotEmpty(t, stored.CompletionSnapshot)
@@ -1977,8 +1977,8 @@ func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Simulate a live check-in for student1 via the monotonic mirror path.
-	repoFactory := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
-	updated, err := repoFactory.InstanceStudent.UpdateAttendanceFromCheckin(
+	timetableRepos := repositories.NewTimetableRepositories(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
+	updated, err := timetableRepos.InstanceStudent.UpdateAttendanceFromCheckin(
 		s.ctx, ai.ID, s.student1, time.Now(),
 	)
 	require.NoError(t, err)
@@ -2108,8 +2108,8 @@ func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
 	_, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
 
-	repoFactory := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
-	_, err = repoFactory.InstanceStudent.UpdateAttendanceFromCheckin(
+	timetableRepos := repositories.NewTimetableRepositories(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
+	_, err = timetableRepos.InstanceStudent.UpdateAttendanceFromCheckin(
 		s.ctx, ai.ID, s.student1, time.Now(),
 	)
 	require.NoError(t, err)

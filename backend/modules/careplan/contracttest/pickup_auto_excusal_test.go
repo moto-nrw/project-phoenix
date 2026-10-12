@@ -537,6 +537,7 @@ func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
 
 	h := setupAutoExcusalHarness(t, true)
 	repos := repositories.NewFactory(h.db, repositories.NewUnobservedTimetableDependencies(h.db))
+	timetableRepos := testTimetableRepositories(h.db)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
 	require.NoError(t, err)
@@ -544,7 +545,7 @@ func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
 
 	statusDay := testpkg.CreateTestStudentStatusDay(t, h.db, h.student.ID, h.date, "sick")
 	// Project the sick day onto the slots the way the production repo does.
-	_, err = repos.InstanceStudent.ApplyStatusDay(h.ctx, h.student.ID, scheduleModel.Date(h.date), statusDay.ID, scheduleModel.AttendanceSubstatusSick)
+	_, err = timetableRepos.InstanceStudent.ApplyStatusDay(h.ctx, h.student.ID, scheduleModel.Date(h.date), statusDay.ID, scheduleModel.AttendanceSubstatusSick)
 	require.NoError(t, err)
 
 	before := h.attendance(t, h.beforeRow)

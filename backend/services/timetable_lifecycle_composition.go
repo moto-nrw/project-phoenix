@@ -70,7 +70,7 @@ func newTimetableLifecycle(in timetableLifecycleInputs) (*timetableCompose.Insta
 	deps.StaffRepo, deps.ActiveGroupRepo, deps.SupervisorRepo = in.Staff, in.Sessions, in.Supervisions
 	deps.Presence, deps.ActiveService, deps.Rooms = in.Presence, in.SessionEnder, in.Rows.LifecycleRooms()
 	deps.CareDays, deps.CareDayLocks = newTimetableCareDays(in.CareDays), in.CareDayLocks
-	deps.Protocol = repositories.TimetableDeviationProtocol(in.Rows.DeviationEvents)
+	deps.Protocol = TimetableDeviationProtocol(in.Rows.DeviationEvents)
 	deps.GuardianNotices = newTimetableGuardianNotices(in.GuardianNotices)
 	deps.Broadcaster, deps.Settings = newTimetableLifecycleBroadcaster(in.Broadcaster), settings
 	deps.Materialization, deps.RecurrenceLock = in.Materialization, in.RecurrenceLock

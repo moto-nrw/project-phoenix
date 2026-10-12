@@ -304,9 +304,9 @@ func staffMessageCleanup(service communication.StaffMessagingRuntime) scheduler.
 
 func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, graph *serveGraph, reads workerReads) {
 	deps.BookingConsistency = schedulerBookingConsistency(graph)
-	deps.InstanceRepo = schedulerDayInstances(graph)
+	deps.InstanceRepo = schedulerDayInstances(reads.timetable)
 	deps.InstanceRoomRepo = reads.existingRooms
-	deps.InstanceStudentRepo = graph.repos.InstanceStudent
+	deps.InstanceStudentRepo = reads.timetable.InstanceStudent
 	deps.StudentStatusDayRepo = graph.repos.StudentStatusDay
 	deps.OverdueBroadcaster = graph.services.RealtimeHub
 	deps.StudentLifecycleRepo = schedulerStudentLifecycle(graph)

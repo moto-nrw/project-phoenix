@@ -15,7 +15,7 @@ import (
 
 func planningTrackRepository(t *testing.T, db *bun.DB) model.PlanningTrackRepository {
 	t.Helper()
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := repositories.NewTimetableRepositories(db, repositories.NewUnobservedTimetableDependencies(db))
 	return factory.PlanningTrack
 }
 

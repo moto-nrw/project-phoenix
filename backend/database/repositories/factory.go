@@ -23,7 +23,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -88,17 +87,13 @@ type Factory struct {
 	StaffDocument userModels.StaffDocumentRepository
 
 	// Education domain
-	Group        EducationGroupRepository
-	GroupTeacher GroupTeacherRepository
-	ClassTeacher ClassTeacherRepository
-	// ClassArrivalException holds class-wide arrival day exceptions (#2962).
-	ClassArrivalException scheduleModels.ClassArrivalExceptionRepository
-	GroupSubstitution     GroupSubstitutionRepository
+	Group             EducationGroupRepository
+	GroupTeacher      GroupTeacherRepository
+	ClassTeacher      ClassTeacherRepository
+	GroupSubstitution GroupSubstitutionRepository
 
 	// Schedule domain
 	Dateframe                 scheduleModels.DateframeRepository
-	Timeframe                 scheduleModels.TimeframeRepository
-	RecurrenceRule            scheduleModels.RecurrenceRuleRepository
 	StudentPickupSchedule     scheduleModels.StudentPickupScheduleRepository
 	StudentPickupException    scheduleModels.StudentPickupExceptionRepository
 	StudentPickupNote         scheduleModels.StudentPickupNoteRepository
@@ -106,21 +101,8 @@ type Factory struct {
 	StudentArrivalException   scheduleModels.StudentArrivalExceptionRepository
 	StudentArrivalNote        scheduleModels.StudentArrivalNoteRepository
 	CareScheduleChangeRequest scheduleModels.CareScheduleChangeRequestRepository
-	PlanningTrack             scheduleModels.PlanningTrackRepository
 	CalendarPeriod            scheduleModels.CalendarPeriodRepository
 	ClosingDay                scheduleModels.ClosingDayRepository
-	ActivityInstance          scheduleModels.ActivityInstanceRepository
-	InstanceIdempotency       scheduleModels.InstanceIdempotencyRepository
-	InstanceStaff             scheduleModels.InstanceStaffRepository
-	InstanceStudent           scheduleModels.InstanceStudentRepository
-	ActivityException         scheduleModels.ActivityExceptionRepository
-
-	// Activities domain
-	ActivityGroup      activitiesModels.GroupRepository
-	ActivityCategory   activitiesModels.CategoryRepository
-	ActivitySchedule   activitiesModels.ScheduleRepository
-	ActivitySupervisor activitiesModels.SupervisorPlannedRepository
-	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
 	ActiveGroup           studentpresence.SessionRecords
@@ -235,13 +217,6 @@ func (f *Factory) BindSchoolStructure(groups schoolstructure.Query) {
 	if f.CrossTenant != nil {
 		f.CrossTenant = groupCrossTenantRepository{CrossTenantQuery: f.CrossTenant, groups: groups}
 	}
-	if f.ActivityGroup != nil {
-		withTargets, ok := f.ActivityGroup.(activityGroupTargets)
-		if !ok {
-			panic(fmt.Sprintf("repository factory: activity group repository %T must also serve group targets", f.ActivityGroup))
-		}
-		f.ActivityGroup = groupActivityGroupRepository{activityGroupTargets: withTargets, groups: groups}
-	}
 	if f.ParentMessageRead != nil {
 		f.ParentMessageRead = groupParentMessageReadRepository{ParentMessageReadRepository: f.ParentMessageRead, groups: groups}
 	}
@@ -292,7 +267,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	deviceFleet := mustNewDeviceFleet(db)
 	sessionRecords := newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{
 		DB: db, Now: now, Devices: activeDeviceDirectory{devices: deviceFleet}, Rooms: &activeRoomDirectory{},
-		Activities: NewSessionActivities(timetableActivityGroupRepository{timetable: timetableCapability}),
+		Activities: NewSessionActivities(timetableCompose.NewActivityGroupRecords(timetableCapability)),
 		Staff:      &presenceSupervisionStaff{},
 	})
 	enrollmentModule := enrollmentCompose.New()
@@ -348,14 +323,12 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// School file storage trail (#2596)
 
 		// Education repositories
-		Group:                 groupRepo,
-		ClassArrivalException: timetableCompose.NewClassArrivalExceptionRepository(db),
-		GroupSubstitution:     nil, // bound to Workforce below
+		Group:             groupRepo,
+		GroupSubstitution: nil, // bound to Workforce below
 
 		// Schedule repositories. Dateframe, CalendarPeriod and ClosingDay
-		// belong to School Calendar and are bound below.
-		Timeframe:                 nil, // bound to Timetable below
-		RecurrenceRule:            nil, // bound to Timetable below
+		// belong to School Calendar and are bound below; the Timetable
+		// repositories are built where they are used (#2743).
 		StudentPickupSchedule:     nil, // bound to Care Plan below
 		StudentPickupException:    nil, // bound to Care Plan below
 		StudentPickupNote:         nil, // bound to Care Plan below
@@ -363,19 +336,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StudentArrivalException:   nil, // bound to Care Plan below
 		StudentArrivalNote:        nil, // bound to Care Plan below
 		CareScheduleChangeRequest: nil, // bound to Care Plan below
-		PlanningTrack:             nil, // bound to Timetable below
-		ActivityInstance:          nil, // bound to Timetable below
-		InstanceIdempotency:       nil, // bound to Timetable below
-		InstanceStaff:             nil, // bound to Timetable below
-		InstanceStudent:           newTimetableInstanceStudentRepository(db, timetableCapability, presenceCapability),
-		ActivityException:         nil, // bound to Timetable below
-
-		// Activities repositories
-		ActivityGroup:      nil, // bound to Timetable below
-		ActivityCategory:   nil, // bound to Timetable below
-		ActivitySchedule:   nil, // bound to Timetable below
-		ActivitySupervisor: nil, // bound to Timetable below
-		StudentEnrollment:  nil, // bound to Timetable below
 
 		// Active repositories
 		ActiveGroup:           sessionRecords,
@@ -455,7 +415,9 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	// projections below wrap some of the same repositories.
 	factory.bindDefaultPeopleDirectory(db)
 	factory.bindDefaultFacilities(db)
-	carePlan, err := NewCarePlan(db, factory.students, factory.InstanceStudent)
+	// Care Plan reads the participant slots through the Timetable adapter
+	// over the factory's Student Presence owner.
+	carePlan, err := NewCarePlan(db, factory.students, timetableCompose.NewInstanceStudentRepository(db, timetableCapability, presenceCapability, NewPartialAbsencePreview(db)))
 	if err != nil {
 		panic(fmt.Sprintf("repository factory: compose care plan: %v", err))
 	}
@@ -489,13 +451,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	factory.bindStaffProjections(lazyStaffLookup{
 		get: func() schoolmembership.Capability { return factory.schoolMembership },
 	}, timetableDependencies.Workforce)
-	adapters := newTimetableRepositories(db, timetableCapability, presenceCapability, timetableDependencies.Students, timetableDependencies.Groups, timetableDependencies.Rooms, timetableDependencies.Calendar, timetableDependencies.Membership, timetableDependencies.Workforce)
-	factory.ActivityCategory, factory.ActivityGroup = adapters.ActivityCategory, adapters.ActivityGroup
-	factory.ActivitySchedule, factory.ActivitySupervisor = adapters.ActivitySchedule, adapters.ActivitySupervisor
-	factory.StudentEnrollment, factory.Timeframe = adapters.StudentEnrollment, adapters.Timeframe
-	factory.PlanningTrack, factory.RecurrenceRule = adapters.PlanningTrack, adapters.RecurrenceRule
-	factory.ActivityException, factory.ActivityInstance = adapters.ActivityException, adapters.ActivityInstance
-	factory.InstanceIdempotency, factory.InstanceStaff = adapters.InstanceIdempotency, adapters.InstanceStaff
 	return factory
 }
 

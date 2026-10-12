@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -108,4 +109,136 @@ func (d repositoryTimetableRooms) LockRoomsByID(ctx context.Context, ids []int64
 		result = append(result, timetable.RoomRef{ID: value.ID, TenantID: value.TenantID})
 	}
 	return result, err
+}
+
+// TimetableRepositories are the Timetable owner's retained activities and
+// schedule repositories, named for the suites that may not import the
+// owner's compose package.
+type TimetableRepositories = timetableCompose.Repositories
+
+// NewTimetableRepositories builds the Timetable owner's retained activities
+// and schedule repositories (#2743) over deps. The owner names of School
+// Structure, Facilities, Workforce, School Membership and People Directory
+// reach the adapters through the directories bound here; the instance and
+// participant adapters compose an unobserved Student Presence owner.
+func NewTimetableRepositories(db *bun.DB, deps TimetableDependencies) TimetableRepositories {
+	return newTimetableRepositories(db, deps, newStudentPresence(db))
+}
+
+func newTimetableRepositories(db *bun.DB, deps TimetableDependencies, presence *studentpresence.Module) timetableCompose.Repositories {
+	return timetableCompose.NewRepositories(timetableCompose.RepositoryDependencies{
+		DB: db, Timetable: deps.Capability, Presence: presence, PartialAbsences: NewPartialAbsencePreview(db),
+		Calendar: deps.Calendar, Directories: timetableDirectories(deps),
+	})
+}
+
+// timetableDirectories binds the Timetable adapters' directory ports to the
+// owners' public capabilities. An absent capability leaves its port unset,
+// so the adapter reports it instead of reading a foreign table.
+func timetableDirectories(deps TimetableDependencies) timetableCompose.RepositoryDirectories {
+	var directories timetableCompose.RepositoryDirectories
+	if deps.Groups != nil {
+		directories.GroupNames = func(ctx context.Context, ids []int64) (map[int64]string, error) {
+			return groupNamesByID(ctx, deps.Groups, ids)
+		}
+	}
+	if deps.Rooms != nil {
+		directories.RoomNames = timetableRoomDirectory(deps.Rooms)
+	}
+	if deps.Workforce != nil {
+		directories.ShiftTypes = timetableShiftTypes(deps.Workforce)
+	}
+	if deps.Membership != nil {
+		directories.StaffPersons = timetableStaffPersons(deps.Membership)
+	}
+	if deps.Students != nil {
+		directories.PersonNames = timetablePersonNames(deps.Students)
+		directories.StudentAlumni, directories.StudentNames = timetableStudentFacts(deps.Students)
+	}
+	return directories
+}
+
+func timetableRoomDirectory(rooms facilities.Query) func(context.Context, []int64) (map[int64]string, error) {
+	return func(ctx context.Context, ids []int64) (map[int64]string, error) {
+		values, err := rooms.ListRoomsByID(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		names := make(map[int64]string, len(values))
+		for _, room := range values {
+			names[room.ID] = room.Name
+		}
+		return names, nil
+	}
+}
+
+func timetableShiftTypes(shifts workforce.ShiftQuery) func(context.Context) ([]timetableCompose.ShiftType, error) {
+	return func(ctx context.Context) ([]timetableCompose.ShiftType, error) {
+		values, err := shifts.ListShiftTypes(ctx)
+		if err != nil {
+			return nil, err
+		}
+		result := make([]timetableCompose.ShiftType, 0, len(values))
+		for _, shift := range values {
+			result = append(result, timetableCompose.ShiftType{ID: shift.ID, Name: shift.Name, Color: shift.Color})
+		}
+		return result, nil
+	}
+}
+
+func timetableStaffPersons(membership staffLookup) func(context.Context, []int64, bool) (map[int64]int64, error) {
+	return func(ctx context.Context, ids []int64, includeDeleted bool) (map[int64]int64, error) {
+		members, err := staffByID(ctx, membership, ids, includeDeleted)
+		if err != nil {
+			return nil, err
+		}
+		result := make(map[int64]int64, len(members))
+		for id, member := range members {
+			result[id] = member.PersonID
+		}
+		return result, nil
+	}
+}
+
+func timetablePersonNames(persons peopledirectory.Query) func(context.Context, []int64) (map[int64]timetableCompose.PersonName, error) {
+	return func(ctx context.Context, ids []int64) (map[int64]timetableCompose.PersonName, error) {
+		values, err := personsByID(ctx, persons, ids)
+		if err != nil {
+			return nil, err
+		}
+		result := make(map[int64]timetableCompose.PersonName, len(values))
+		for id, person := range values {
+			result[id] = timetableCompose.PersonName{FirstName: person.FirstName, LastName: person.LastName}
+		}
+		return result, nil
+	}
+}
+
+func timetableStudentFacts(students peopledirectory.StudentQuery) (
+	func(context.Context, []int64) (map[int64]bool, error),
+	func(context.Context, []int64) (map[int64]timetableCompose.PersonName, error),
+) {
+	alumni := func(ctx context.Context, ids []int64) (map[int64]bool, error) {
+		values, err := students.ListStudentsByID(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		result := make(map[int64]bool, len(values))
+		for _, student := range values {
+			result[student.ID] = student.IsAlumnus()
+		}
+		return result, nil
+	}
+	names := func(ctx context.Context, ids []int64) (map[int64]timetableCompose.PersonName, error) {
+		values, err := students.ListStudentNamesByID(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		result := make(map[int64]timetableCompose.PersonName, len(values))
+		for _, name := range values {
+			result[name.StudentID] = timetableCompose.PersonName{FirstName: name.FirstName, LastName: name.LastName}
+		}
+		return result, nil
+	}
+	return alumni, names
 }

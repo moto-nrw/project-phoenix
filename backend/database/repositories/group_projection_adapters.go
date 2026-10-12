@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -129,78 +128,6 @@ func (r groupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Con
 		func(row *studentpresence.SupervisionBlocker) int64 { return row.GroupID },
 		func(row *studentpresence.SupervisionBlocker, name string) { row.GroupName = name },
 		unknownGroupName, "supervision blockers"); err != nil {
-		return nil, err
-	}
-	return rows, nil
-}
-
-// activityGroupTargets is the shape the timetable services type-assert on
-// the activity group repository; the decorator keeps both halves reachable.
-type activityGroupTargets interface {
-	activitiesModels.GroupRepository
-	activitiesModels.GroupTargetRepository
-}
-
-type groupActivityGroupRepository struct {
-	activityGroupTargets
-	groups schoolstructure.Query
-}
-
-func (r groupActivityGroupRepository) FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activitiesModels.GroupTarget, error) {
-	byGroup, err := r.activityGroupTargets.FindTargetsByGroupIDs(ctx, groupIDs)
-	if err != nil {
-		return nil, err
-	}
-	all := make([]*activitiesModels.GroupTarget, 0, len(byGroup))
-	for _, targets := range byGroup {
-		all = append(all, targets...)
-	}
-	if _, err := enrichGroupNames(ctx, r.groups, all,
-		func(row *activitiesModels.GroupTarget) int64 { return optionalGroupID(row.EducationGroupID) },
-		func(row *activitiesModels.GroupTarget, name string) { row.EducationGroupName = name },
-		"", "template targets"); err != nil {
-		return nil, err
-	}
-	return byGroup, nil
-}
-
-func (r groupActivityGroupRepository) ListTemplateRows(ctx context.Context, templateID *int64) ([]activitiesModels.TemplateListRow, error) {
-	rows, err := r.activityGroupTargets.ListTemplateRows(ctx, templateID)
-	return r.enrichTemplateRows(ctx, rows, err)
-}
-
-func (r groupActivityGroupRepository) ListTemplateRowsForTemplatePeriod(ctx context.Context, templateID, periodID int64) ([]activitiesModels.TemplateListRow, error) {
-	rows, err := r.activityGroupTargets.ListTemplateRowsForTemplatePeriod(ctx, templateID, periodID)
-	return r.enrichTemplateRows(ctx, rows, err)
-}
-
-func (r groupActivityGroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]activitiesModels.TemplateListRow, error) {
-	rows, err := r.activityGroupTargets.ListTemplateRowsForPeriod(ctx, periodID)
-	return r.enrichTemplateRows(ctx, rows, err)
-}
-
-func (r groupActivityGroupRepository) enrichTemplateRows(ctx context.Context, rows []activitiesModels.TemplateListRow, queryErr error) ([]activitiesModels.TemplateListRow, error) {
-	if queryErr != nil {
-		return nil, queryErr
-	}
-	pointers := make([]*activitiesModels.TemplateListRow, len(rows))
-	for index := range rows {
-		pointers[index] = &rows[index]
-	}
-	if _, err := enrichGroupNames(ctx, r.groups, pointers,
-		func(row *activitiesModels.TemplateListRow) int64 {
-			if !row.EducationGroupID.Valid {
-				return 0
-			}
-			return row.EducationGroupID.Int64
-		},
-		func(row *activitiesModels.TemplateListRow, name string) {
-			// The former SQL projected COALESCE(name, ''), so the column was
-			// always non-NULL; keep that shape for the row consumers.
-			row.EducationGroupName.Valid = true
-			row.EducationGroupName.String = name
-		},
-		"", "template rows"); err != nil {
 		return nil, err
 	}
 	return rows, nil

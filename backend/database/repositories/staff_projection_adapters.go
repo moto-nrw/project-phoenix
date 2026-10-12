@@ -47,12 +47,6 @@ func (f *Factory) bindStaffProjections(membership staffLookup, workTime workforc
 	if f.StaffAbsence != nil {
 		f.StaffAbsence = newStaffAbsenceRepository(f.StaffAbsence, membership)
 	}
-	if f.ActivityGroup != nil {
-		f.ActivityGroup = newStaffActivityGroupRepository(f.ActivityGroup, membership)
-	}
-	if f.ActivitySupervisor != nil {
-		f.ActivitySupervisor = staffSupervisorPlannedRepository{SupervisorPlannedRepository: f.ActivitySupervisor, membership: membership}
-	}
 	// The group substitution adapter receives its staff resolver at
 	// construction.
 }

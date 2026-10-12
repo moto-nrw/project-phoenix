@@ -8,6 +8,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -43,7 +44,7 @@ func NewParentRouteTestRepositories(db *bun.DB) (ParentRouteTestRepositories, er
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	slots := newTimetableInstanceStudentRepository(db, NewUnobservedTimetableDependencies(db).Capability, newStudentPresence(db))
+	slots := timetableCompose.NewInstanceStudentRepository(db, NewUnobservedTimetableDependencies(db).Capability, newStudentPresence(db), NewPartialAbsencePreview(db))
 	care, err := NewCarePlan(db, people, slots)
 	if err != nil {
 		return ParentRouteTestRepositories{}, err

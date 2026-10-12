@@ -1,4 +1,4 @@
-package repositories
+package compose
 
 import (
 	"context"
@@ -95,17 +95,13 @@ func (r timetableActivityGroupRepository) attachTemplateOwnerNames(ctx context.C
 			roomIDs = append(roomIDs, *row.RoomID)
 		}
 	}
-	rooms, err := r.rooms.ListRoomsByID(ctx, dedupeTemplateIDs(roomIDs))
+	roomNames, err := r.rooms(ctx, dedupeTemplateIDs(roomIDs))
 	if err != nil {
 		return err
 	}
-	shifts, err := r.shiftTypes.ListShiftTypes(ctx)
+	shifts, err := r.shiftTypes(ctx)
 	if err != nil {
 		return err
-	}
-	roomNames := make(map[int64]string, len(rooms))
-	for _, room := range rooms {
-		roomNames[room.ID] = room.Name
 	}
 	shiftByID := make(map[int64]struct{ name, color string }, len(shifts))
 	for _, shift := range shifts {

@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/services/activities"
@@ -98,9 +99,9 @@ func NewShiftTypeTestModule(db *bun.DB) (ShiftTypeTestModule, error) {
 	}
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
 		Workforce: repositories.NewAbsenceTypeTestCapability(db), Staff: timetable.Staff, CalendarPeriods: timetable.SchoolCalendar(),
-		Instances: repositories.NewTimetableInstanceReads(timetable.ActivityInstance), InstanceStaff: repositories.NewTimetableInstanceStaffReads(timetable.InstanceStaff),
-		Rooms: timetable.Room, ActivityGroups: repositories.NewTimetableGroupReads(timetable.ActivityGroup),
-		CategoryLinker: repositories.ShiftTypeCategoryLinker(linker.SetCategoryShiftTypeLinks), DB: db, Logger: slog.Default(),
+		Instances: timetableCompose.NewTimetableInstanceReads(timetable.ActivityInstance), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(timetable.InstanceStaff),
+		Rooms: timetable.Room, ActivityGroups: timetableCompose.NewTimetableGroupReads(timetable.ActivityGroup),
+		CategoryLinker: timetableCompose.ShiftTypeCategoryLinker(linker.SetCategoryShiftTypeLinks), DB: db, Logger: slog.Default(),
 	})
 	if err != nil {
 		return ShiftTypeTestModule{}, err

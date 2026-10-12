@@ -1,4 +1,4 @@
-package repositories
+package compose
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 // select, so an offboarded supervisor keeps a nil Staff here.
 type staffActivityGroupRepository struct {
 	activitiesModels.GroupRepository
-	membership staffLookup
+	membership func(context.Context, []int64, bool) (map[int64]int64, error)
 }
 
 func (r staffActivityGroupRepository) FindWithSupervisors(ctx context.Context, groupID int64) (*activitiesModels.Group, []*activitiesModels.SupervisorPlanned, error) {
@@ -34,7 +34,7 @@ type staffActivityGroupTargetRepository struct {
 
 var _ activityGroupTargets = staffActivityGroupTargetRepository{}
 
-func newStaffActivityGroupRepository(inner activitiesModels.GroupRepository, membership staffLookup) activitiesModels.GroupRepository {
+func newStaffActivityGroupRepository(inner activitiesModels.GroupRepository, membership func(context.Context, []int64, bool) (map[int64]int64, error)) activitiesModels.GroupRepository {
 	wrapped := staffActivityGroupRepository{GroupRepository: inner, membership: membership}
 	if targets, ok := inner.(activitiesModels.GroupTargetRepository); ok {
 		return staffActivityGroupTargetRepository{staffActivityGroupRepository: wrapped, GroupTargetRepository: targets}
@@ -47,7 +47,7 @@ func newStaffActivityGroupRepository(inner activitiesModels.GroupRepository, mem
 // an offboarded supervisor still resolves.
 type staffSupervisorPlannedRepository struct {
 	activitiesModels.SupervisorPlannedRepository
-	membership staffLookup
+	membership func(context.Context, []int64, bool) (map[int64]int64, error)
 }
 
 func (r staffSupervisorPlannedRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activitiesModels.SupervisorPlanned, error) {
@@ -66,14 +66,14 @@ func (r staffSupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, gr
 	return rows, attachPlannedSupervisorStaff(ctx, r.membership, rows, true)
 }
 
-func attachPlannedSupervisorStaff(ctx context.Context, query staffLookup, rows []*activitiesModels.SupervisorPlanned, includeDeleted bool) error {
+func attachPlannedSupervisorStaff(ctx context.Context, staffPersons func(context.Context, []int64, bool) (map[int64]int64, error), rows []*activitiesModels.SupervisorPlanned, includeDeleted bool) error {
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		if row != nil {
 			ids = append(ids, row.StaffID)
 		}
 	}
-	members, err := staffByID(ctx, query, ids, includeDeleted)
+	members, err := staffPersons(ctx, ids, includeDeleted)
 	if err != nil {
 		return err
 	}
@@ -81,8 +81,8 @@ func attachPlannedSupervisorStaff(ctx context.Context, query staffLookup, rows [
 		if row == nil {
 			continue
 		}
-		if member, found := members[row.StaffID]; found {
-			row.StaffPersonID = member.PersonID
+		if personID, found := members[row.StaffID]; found {
+			row.StaffPersonID = personID
 		}
 	}
 	return nil

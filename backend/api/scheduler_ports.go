@@ -109,8 +109,8 @@ func schedulerBookingConsistency(graph *serveGraph) scheduler.BookingConsistency
 
 // schedulerDayInstances binds the overdue tick to the day's activity
 // instances with their composed status.
-func schedulerDayInstances(graph *serveGraph) scheduler.DayInstanceReader {
-	instances := graph.repos.ActivityInstance
+func schedulerDayInstances(timetableRepositories timetableCompose.Repositories) scheduler.DayInstanceReader {
+	instances := timetableRepositories.ActivityInstance
 	if instances == nil {
 		return nil
 	}
@@ -136,11 +136,12 @@ func schedulerDayInstances(graph *serveGraph) scheduler.DayInstanceReader {
 	}
 }
 
-// workerReads are the Worker's retained room and work-session reads. They
-// are built over the owner modules where the graph is composed and handed to
-// the Worker, not kept on the graph (#2743).
+// workerReads are the Worker's retained room, work-session and Timetable
+// reads. They are built over the owner modules where the graph is composed
+// and handed to the Worker, not kept on the graph (#2743).
 type workerReads struct {
 	existingRooms scheduler.ExistingRoomReader
+	timetable     timetableCompose.Repositories
 	workSessions  interface {
 		GetTodayPresenceMap(context.Context) (map[int64]string, error)
 	}
@@ -149,6 +150,7 @@ type workerReads struct {
 func newWorkerReads(modules moduleServices) workerReads {
 	return workerReads{
 		existingRooms: schedulerExistingRooms(modules.rooms),
+		timetable:     modules.timetableRepositories,
 		workSessions:  workforceLegacy.NewWorkSessionRepository(modules.workforce),
 	}
 }

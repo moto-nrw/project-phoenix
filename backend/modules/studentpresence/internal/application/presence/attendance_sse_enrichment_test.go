@@ -47,14 +47,16 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	owners := repositories.NewUnobservedTimetableDependencies(db)
+	repos := repositories.NewFactory(db, owners)
+	timetableRepos := repositories.NewTimetableRepositories(db, owners)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
 	// Real attendance syncer, wired the same way services.NewFactory does.
 	syncer := newAttendanceMirror(t,
-		repos.ActivityInstance,
-		repos.InstanceStudent,
+		timetableRepos.ActivityInstance,
+		timetableRepos.InstanceStudent,
 		slog.Default(),
 	)
 	broadcaster := testpkg.NewRecordingBroadcaster()
@@ -70,8 +72,8 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
-		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
-		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
+		ActivityGroupRepo:  repositories.NewSessionActivities(timetableRepos.ActivityGroup),
+		ActivityCatRepo:    services.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
 		DB:                 db,
@@ -105,7 +107,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 
-	isRepo := repos.InstanceStudent
+	isRepo := timetableRepos.InstanceStudent
 	row := &scheduleModels.InstanceStudent{
 		InstanceID: instance.ID,
 		StudentID:  student.ID,
@@ -208,11 +210,13 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	owners := repositories.NewUnobservedTimetableDependencies(db)
+	repos := repositories.NewFactory(db, owners)
+	timetableRepos := repositories.NewTimetableRepositories(db, owners)
 	suffix := time.Now().UnixNano()
 	syncer := newAttendanceMirror(t,
-		repos.ActivityInstance,
-		repos.InstanceStudent,
+		timetableRepos.ActivityInstance,
+		timetableRepos.InstanceStudent,
 		slog.Default(),
 	)
 	broadcaster := testpkg.NewRecordingBroadcaster()
@@ -228,8 +232,8 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
-		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
-		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
+		ActivityGroupRepo:  repositories.NewSessionActivities(timetableRepos.ActivityGroup),
+		ActivityCatRepo:    services.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
 		DB:                 db,

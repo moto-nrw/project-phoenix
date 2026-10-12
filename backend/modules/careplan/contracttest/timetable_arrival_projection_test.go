@@ -32,9 +32,9 @@ func timetableDataWithArrivalBaseline(
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: env.db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	data, err := arrivalTimetable.NewTimetableData(arrivalTimetable.TimetableDataDependencies{
-		Instances:         env.repos.ActivityInstance,
-		InstanceStaff:     env.repos.InstanceStaff,
-		Participants:      env.repos.InstanceStudent,
+		Instances:         env.timetable.ActivityInstance,
+		InstanceStaff:     env.timetable.InstanceStaff,
+		Participants:      env.timetable.InstanceStudent,
 		PickupExceptions:  env.repos.StudentPickupException,
 		ArrivalExceptions: env.repos.StudentArrivalException,
 		ArrivalBaselines:  arrivalBaselineProjector{reader: bookingModeArrivalBaseline(t, env, authoritative)},
@@ -112,11 +112,11 @@ func exceptionConflictsWithArrivalBaseline(
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: env.db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	detection, err := arrivalTimetable.NewConflictDetection(arrivalTimetable.ConflictDetectionDependencies{
-		Instances:         env.repos.ActivityInstance,
-		InstanceStaff:     env.repos.InstanceStaff,
-		InstanceStudents:  env.repos.InstanceStudent,
-		Exceptions:        env.repos.ActivityException,
-		Schedules:         env.repos.ActivitySchedule,
+		Instances:         env.timetable.ActivityInstance,
+		InstanceStaff:     env.timetable.InstanceStaff,
+		InstanceStudents:  env.timetable.InstanceStudent,
+		Exceptions:        env.timetable.ActivityException,
+		Schedules:         env.timetable.ActivitySchedule,
 		Shifts:            unusedConflictShifts{},
 		Staff:             env.repos.Staff,
 		CalendarPeriods:   env.repos.CalendarPeriod,
@@ -264,7 +264,7 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 	}
 	exception.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, exception.Validate())
-	require.NoError(t, env.repos.ActivityException.Create(ctx, exception))
+	require.NoError(t, env.timetable.ActivityException.Create(ctx, exception))
 
 	conflicts, err := exceptionConflictsWithArrivalBaseline(t, env, true).DetectExceptionConflicts(ctx, monday, monday)
 	require.NoError(t, err)
@@ -346,5 +346,5 @@ func createModifiedException(
 	}
 	exception.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, exception.Validate())
-	require.NoError(t, env.repos.ActivityException.Create(testpkg.Ctx(t), exception))
+	require.NoError(t, env.timetable.ActivityException.Create(testpkg.Ctx(t), exception))
 }

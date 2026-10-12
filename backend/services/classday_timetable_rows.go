@@ -1,4 +1,4 @@
-package repositories
+package services
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 // plans it and its participants, Student Presence runs it and records the
 // attendance. Each read is one statement over the tenant-safe projection.
 func NewClassDayTimetableRows(db *bun.DB) classdayCompose.TimetableReader {
-	return classDayTimetableRows{reads: mustPresenceReads(db)}
+	return classDayTimetableRows{reads: mustTimetablePresenceReads(db)}
 }
 
 type classDayTimetableRows struct {
@@ -60,4 +60,12 @@ func (r classDayTimetableRows) ListRoster(ctx context.Context, instanceIDs []int
 		})
 	}
 	return result, nil
+}
+
+func mustTimetablePresenceReads(db *bun.DB) timetableCompose.PresenceReads {
+	reads, err := timetableCompose.NewPresenceReads(db)
+	if err != nil {
+		panic(err)
+	}
+	return reads
 }

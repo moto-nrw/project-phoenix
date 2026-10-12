@@ -346,8 +346,8 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	}
 	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
 		Deviations: live.Deviations, Staff: repos.Staff, Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
-		ActivityInstances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
-		InstanceStaff:     repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		ActivityInstances: timetableCompose.NewTimetableInstanceReads(repos.ActivityInstance),
+		InstanceStaff:     timetableCompose.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 	})
 	if err != nil {
 		return StudentTestModule{}, err

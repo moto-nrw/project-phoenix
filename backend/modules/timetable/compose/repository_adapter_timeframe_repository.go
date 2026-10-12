@@ -1,4 +1,4 @@
-package repositories
+package compose
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
 type timetableTimeframeRepository struct{ timetable timetable.TimeframeCapability }
@@ -23,7 +22,7 @@ func (r timetableTimeframeRepository) Create(ctx context.Context, value *schedul
 	}
 	created, err := r.timetable.CreateTimeframe(ctx, publicTimeframeInput(value))
 	if err != nil {
-		return timetableCompose.WrapDatabaseError("create", err)
+		return WrapDatabaseError("create", err)
 	}
 	return replaceLegacyTimeframe(value, created)
 }
@@ -31,7 +30,7 @@ func (r timetableTimeframeRepository) Create(ctx context.Context, value *schedul
 func (r timetableTimeframeRepository) FindByID(ctx context.Context, id any) (*scheduleModels.Timeframe, error) {
 	timeframeID, ok := legacyGroupID(id)
 	if !ok {
-		return nil, timetableCompose.WrapDatabaseError("find by id", fmt.Errorf("invalid timeframe id %T", id))
+		return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid timeframe id %T", id))
 	}
 	value, err := r.timetable.FindTimeframe(ctx, timeframeID)
 	if err != nil {
@@ -57,18 +56,18 @@ func (r timetableTimeframeRepository) Update(ctx context.Context, value *schedul
 func (r timetableTimeframeRepository) Delete(ctx context.Context, id any) error {
 	timeframeID, ok := legacyGroupID(id)
 	if !ok {
-		return timetableCompose.WrapDatabaseError("delete", fmt.Errorf("invalid timeframe id %T", id))
+		return WrapDatabaseError("delete", fmt.Errorf("invalid timeframe id %T", id))
 	}
 	if err := r.timetable.DeleteTimeframe(ctx, timeframeID); err != nil {
-		return timetableCompose.WrapDatabaseError("delete", err)
+		return WrapDatabaseError("delete", err)
 	}
 	return nil
 }
 
-func (r timetableTimeframeRepository) List(ctx context.Context, options *timetableCompose.TimeframeQueryOptions) ([]*scheduleModels.Timeframe, error) {
-	description, limit, offset, err := timetableCompose.TimeframeListOptions(options)
+func (r timetableTimeframeRepository) List(ctx context.Context, options *TimeframeQueryOptions) ([]*scheduleModels.Timeframe, error) {
+	description, limit, offset, err := TimeframeListOptions(options)
 	if err != nil {
-		return nil, timetableCompose.WrapDatabaseError("list with options", err)
+		return nil, WrapDatabaseError("list with options", err)
 	}
 	description = strings.TrimSuffix(strings.TrimPrefix(description, "%"), "%")
 	return r.list(ctx, timetable.TimeframeFilter{DescriptionContains: description, Limit: limit, Offset: offset}, "list with options")
@@ -92,7 +91,7 @@ func (r timetableTimeframeRepository) list(ctx context.Context, filter timetable
 	for _, value := range values {
 		row, convertErr := legacyTimeframe(value)
 		if convertErr != nil {
-			return nil, timetableCompose.WrapDatabaseError(operation, convertErr)
+			return nil, WrapDatabaseError(operation, convertErr)
 		}
 		result = append(result, row)
 	}
@@ -140,7 +139,7 @@ func publicClock(value time.Time) string { return value.Format("15:04:05.9999999
 
 func legacyTimeframeError(operation string, err error) error {
 	if errors.Is(err, timetable.ErrTimeframeNotFound) {
-		return timetableCompose.WrapNotFoundDatabaseError(operation)
+		return WrapNotFoundDatabaseError(operation)
 	}
-	return timetableCompose.WrapDatabaseError(operation, err)
+	return WrapDatabaseError(operation, err)
 }

@@ -81,8 +81,10 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	}
 	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	instanceStudentRepo := repoFactory.InstanceStudent
+	owners := repositories.NewUnobservedTimetableDependencies(db)
+	repoFactory := repositories.NewFactory(db, owners)
+	timetableRepos := repositories.NewTimetableRepositories(db, owners)
+	instanceStudentRepo := timetableRepos.InstanceStudent
 
 	// Register parent cleanup first because t.Cleanup executes LIFO: the
 	// instance callback registered below must run before its room/group parents.
@@ -90,11 +92,11 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 		// active.group is tenant-owned and dies with the package clone
 	})
 
-	syncer, err := services.NewTimetableAttendanceMirror(repositories.TimetableOwnerRows{Instances: repoFactory.ActivityInstance, Participants: instanceStudentRepo}, slog.Default())
+	syncer, err := services.NewTimetableAttendanceMirror(repositories.TimetableOwnerRows{Instances: timetableRepos.ActivityInstance, Participants: instanceStudentRepo}, slog.Default())
 	require.NoError(t, err)
 	return &attendanceSyncSetup{
 		syncer:      syncer,
-		instRepo:    repoFactory.ActivityInstance,
+		instRepo:    timetableRepos.ActivityInstance,
 		isRepo:      instanceStudentRepo,
 		statusRepo:  repoFactory.StudentStatusDay,
 		groupRepo:   repositories.NewPresenceSessionRecords(db),

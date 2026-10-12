@@ -22,12 +22,6 @@ func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
 	if f.StaffAbsence != nil {
 		f.StaffAbsence = personStaffAbsenceRepository{StaffAbsenceRepository: f.StaffAbsence, persons: persons}
 	}
-	if f.ActivityGroup != nil {
-		f.ActivityGroup = newPersonActivityGroupRepository(f.ActivityGroup, persons)
-	}
-	if f.ActivitySupervisor != nil {
-		f.ActivitySupervisor = personSupervisorPlannedRepository{SupervisorPlannedRepository: f.ActivitySupervisor, persons: persons}
-	}
 	if f.ParentChild != nil {
 		f.ParentChild = personChildRepository{ChildRepository: f.ParentChild, persons: persons}
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
@@ -58,11 +59,11 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 	}
 	sessions := newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{
 		DB: db, Devices: activeDeviceDirectory{devices: fleet}, Rooms: &activeRoomDirectory{rooms: rooms},
-		Activities: NewSessionActivities(timetableActivityGroupRepository{timetable: timetableCapability}),
+		Activities: NewSessionActivities(timetableCompose.NewActivityGroupRecords(timetableCapability)),
 	})
 	return SessionCleanupRepositories{
 		Sessions: sessions, Device: device,
-		TimetableBridge: newTimetableActivityInstanceRepository(db, timetableCapability, newStudentPresence(db)),
+		TimetableBridge: timetableCompose.NewActivityInstanceRepository(db, timetableCapability, newStudentPresence(db)),
 	}
 }
 

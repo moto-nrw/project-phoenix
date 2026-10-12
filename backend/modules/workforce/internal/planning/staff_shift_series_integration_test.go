@@ -808,10 +808,11 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 	countedDB := env.db.WithQueryHook(queryCounter)
 	countedDependencies := repositories.NewUnobservedTimetableDependencies(countedDB)
 	repos := repositories.NewFactory(countedDB, countedDependencies)
+	timetableRepos := repositories.NewTimetableRepositories(countedDB, countedDependencies)
 	countedShifts := workforceCompose.NewShiftRows(countedDependencies.Workforce)
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: countedShifts, ShiftWeeks: countedShifts,
-		Instances: repositories.NewTimetableInstanceReads(repos.ActivityInstance), InstanceStaff: repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		Instances: timetableRepos.InstanceReads(), InstanceStaff: timetableRepos.InstanceStaffReads(),
 		Rooms: services.NewRoomRepository(countedDependencies.Rooms), Staff: repos.Staff,
 		WorkSchedules: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(countedDependencies.Workforce), WorkModels: workforceRepositoryAdapter.NewWorkTimeModelRepository(countedDependencies.Workforce),
 	})

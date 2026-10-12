@@ -154,15 +154,17 @@ func recordHTTPRuntimeEvent(tracer *observability.Tracer, observation httpRuntim
 }
 
 type moduleServices struct {
-	repositories  *repositories.Factory
-	services      *services.Factory
-	demoAccess    authAPI.DemoAccesses
-	communication *communicationModule.Module
-	mealPlan      *mealplanModule.Module
-	feedback      *feedbackModule.Module
-	persons       *peopleModule.Module
-	rooms         *facilitiesModule.Module
-	timetable     *timetableModule.Module
+	repositories *repositories.Factory
+	// timetableRepositories are the retained Timetable adapters (#2743).
+	timetableRepositories timetableCompose.Repositories
+	services              *services.Factory
+	demoAccess            authAPI.DemoAccesses
+	communication         *communicationModule.Module
+	mealPlan              *mealplanModule.Module
+	feedback              *feedbackModule.Module
+	persons               *peopleModule.Module
+	rooms                 *facilitiesModule.Module
+	timetable             *timetableModule.Module
 	// calendar owns schedule.calendar_periods, schedule.closing_days and
 	// schedule.dateframes and answers the tenant's non-working days.
 	calendar *schoolCalendarModule.Module
@@ -301,10 +303,15 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
-	repoFactory := repositories.NewFactory(db, repositories.TimetableDependencies{
+	timetableDependencies := repositories.TimetableDependencies{
 		Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime,
 		ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
-	})
+	}
+	repoFactory := repositories.NewFactory(db, timetableDependencies)
+	// The retained activities and schedule repositories belong to Timetable
+	// (#2743); the Care Plan slots, the kiosk session mirror and the Worker
+	// read the same adapters.
+	timetableRepositories := repositories.NewTimetableRepositories(db, timetableDependencies)
 	appointmentCapability, err := appointmentsCompose.New(appointmentsCompose.Dependencies{
 		DB: db,
 		Observe: func(observation appointmentsCompose.Observation) {
@@ -335,7 +342,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
-	carePlan, err := composeCarePlan(db, persons, repositories.CarePlanStatusSlots(repoFactory.InstanceStudent))
+	carePlan, err := composeCarePlan(db, persons, repositories.CarePlanStatusSlots(timetableRepositories.InstanceStudent))
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -410,7 +417,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	}
 	legacyFacilities = factory.Facilities
 	calendarAdministration = factory.SchoolCalendarAdministration()
-	return moduleServices{repositories: repoFactory, services: factory, demoAccess: authAPI.ComposedDemoAccess(factory.AccountAuthentication().DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime}, nil
+	return moduleServices{repositories: repoFactory, timetableRepositories: timetableRepositories, services: factory, demoAccess: authAPI.ComposedDemoAccess(factory.AccountAuthentication().DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime}, nil
 }
 
 // withFileStorageWiring resolves what the File Storage module needs from the
@@ -1519,7 +1526,6 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		Settings:  svc.Settings,
 		Logger:    logger.With("service", "device-scan"),
 	})
-	repoFactory := modules.repositories
 	return iotAPI.NewResource(iotAPI.ServiceDependencies{
 		Administration:   devicefleetCompose.NewAdministration(svc.IoT.Fleet()),
 		DeviceScan:       deviceScan,
@@ -1537,7 +1543,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		SchoolName:              devicescanCompose.NewSchoolName(schoolName(svc.Schools)),
 		ErrorReports:            errorReports,
 		SessionEnd:              sessionEnd,
-		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(svc.Active, devicescanCompose.NewSupervisionQuery(presence), svc.Users, svc.IoT, devicescanCompose.NewSessionMirror(repoFactory.ActivityInstance, repoFactory.InstanceStaff, svc.Activities, services.KioskMirrorPublisher(svc.RealtimeHub, logger), logger), logger),
+		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(svc.Active, devicescanCompose.NewSupervisionQuery(presence), svc.Users, svc.IoT, devicescanCompose.NewSessionMirror(modules.timetableRepositories.ActivityInstance, modules.timetableRepositories.InstanceStaff, svc.Activities, services.KioskMirrorPublisher(svc.RealtimeHub, logger), logger), logger),
 		Logger:                  logger.With("handler", "iot"),
 		DeviceAuthenticator:     deviceAuth.Device(),
 		DeviceOnlyAuthenticator: deviceAuth.DeviceOnly(),

@@ -31,8 +31,10 @@ func arrivalServiceWithClassExceptions(t *testing.T, repos *repositories.Factory
 	return nativeArrivalSchedules(t, repos.CarePlan(), classArrivalBaseline(t, repos), services.ClassArrivalPlans(classes), classExceptions)
 }
 
-func setClassArrivalException(t *testing.T, repos *repositories.Factory, class string, date timezone.Date, hhmm, reason string) {
+func setClassArrivalException(t *testing.T, _ *repositories.Factory, class string, date timezone.Date, hhmm, reason string) {
 	t.Helper()
+	// Class arrival exceptions belong to Timetable (#2962, #2743).
+	exceptions := arrivalTimetable.NewClassArrivalExceptionRepository(testpkg.SetupTestDB(t))
 	parsed, err := time.Parse("15:04", hhmm)
 	require.NoError(t, err)
 	row := &scheduleModel.ClassArrivalException{
@@ -45,7 +47,7 @@ func setClassArrivalException(t *testing.T, repos *repositories.Factory, class s
 	}
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, row.Validate())
-	require.NoError(t, repos.ClassArrivalException.Upsert(testpkg.Ctx(t), row))
+	require.NoError(t, exceptions.Upsert(testpkg.Ctx(t), row))
 }
 
 func TestClassArrivalExceptionReplacesTheClassTimeOnThatDateOnly(t *testing.T) {

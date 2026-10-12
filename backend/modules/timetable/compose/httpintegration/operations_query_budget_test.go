@@ -73,6 +73,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staff *usersModels.
 	t.Helper()
 	owners := repositories.NewUnobservedTimetableDependencies(db)
 	repos := repositories.NewFactory(db, owners)
+	timetableRepos := repositories.NewTimetableRepositories(db, owners)
 	stand := newTimetableOpsDeps()
 	stand.personService.accountPerson = staff.Person
 	stand.personService.staffByPersonID[staff.PersonID] = staff
@@ -83,10 +84,10 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staff *usersModels.
 	deps.PlanningTracks = nil
 	deps.Now = func() time.Time { return now }
 	rows := repositories.TimetableOwnerRows{
-		Instances:       repos.ActivityInstance,
-		InstanceStaff:   repos.InstanceStaff,
-		Participants:    repos.InstanceStudent,
-		Templates:       repos.ActivityGroup,
+		Instances:       timetableRepos.ActivityInstance,
+		InstanceStaff:   timetableRepos.InstanceStaff,
+		Participants:    timetableRepos.InstanceStudent,
+		Templates:       timetableRepos.ActivityGroup,
 		Students:        repos.Student,
 		EducationGroups: repos.Group,
 		Rooms:           services.NewRoomRepository(owners.Rooms),

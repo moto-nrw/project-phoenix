@@ -29,7 +29,7 @@ func instanceStudentFactory(t *testing.T, db *bun.DB) *repositories.Factory {
 
 func instanceStudentRepository(t *testing.T, db *bun.DB) scheduleModels.InstanceStudentRepository {
 	t.Helper()
-	return instanceStudentFactory(t, db).InstanceStudent
+	return repositories.NewTimetableRepositories(db, repositories.NewUnobservedTimetableDependencies(db)).InstanceStudent
 }
 
 func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
@@ -663,7 +663,7 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
 	attendance.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, factory.InstanceStudent.Create(ctx, attendance))
+	require.NoError(t, instanceStudentRepository(t, db).Create(ctx, attendance))
 
 	older := &absencerecords.StudentStatusDay{
 		StudentID: student.ID, Date: calendar.Date(date), Status: absencerecords.StudentStatusDaySick,
@@ -675,7 +675,7 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	}
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, older))
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, newer))
-	got, err := factory.InstanceStudent.FindByID(ctx, attendance.ID)
+	got, err := instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status)
 	require.NotNil(t, got.Substatus)
@@ -684,14 +684,14 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	assert.Equal(t, newer.ID, *got.StudentStatusDayID, "the newest active status must take provenance immediately")
 
 	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, newer.ID, time.Now(), absencerecords.StudentStatusSourceManual))
-	got, err = factory.InstanceStudent.FindByID(ctx, attendance.ID)
+	got, err = instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got.StudentStatusDayID)
 	assert.Equal(t, older.ID, *got.StudentStatusDayID, "clearing the newest status must restore the older active status")
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, newer))
 
 	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, older.ID, time.Now(), absencerecords.StudentStatusSourceManual))
-	got, err = factory.InstanceStudent.FindByID(ctx, attendance.ID)
+	got, err = instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status)
 	require.NotNil(t, got.Substatus)
@@ -700,7 +700,7 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	assert.Equal(t, newer.ID, *got.StudentStatusDayID)
 
 	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, newer.ID, time.Now(), absencerecords.StudentStatusSourceManual))
-	got, err = factory.InstanceStudent.FindByID(ctx, attendance.ID)
+	got, err = instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got.Status)
 	assert.Nil(t, got.Substatus)
@@ -713,7 +713,7 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, completedStatus))
 	testpkg.SetActivityInstanceLifecycle(t, ctx, db, inst.ID, scheduleModels.InstanceStatusCompleted)
 	require.NoError(t, factory.StudentStatusDay.MarkClearedByID(ctx, completedStatus.ID, time.Now(), absencerecords.StudentStatusSourceManual))
-	got, err = factory.InstanceStudent.FindByID(ctx, attendance.ID)
+	got, err = instanceStudentRepository(t, db).FindByID(ctx, attendance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status, "completed slots remain historical absences")
 	assert.Nil(t, got.Substatus)
@@ -746,7 +746,7 @@ func TestInstanceStudentRepository_MarkNotScheduled_TakesBackStatusDayAbsence(t 
 		Status:     scheduleModels.AttendanceStatusExpected,
 	}
 	attendance.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, factory.InstanceStudent.Create(ctx, attendance))
+	require.NoError(t, instanceStudentRepository(t, db).Create(ctx, attendance))
 
 	sick := &absencerecords.StudentStatusDay{
 		StudentID: student.ID, Date: calendar.Date(date), Status: absencerecords.StudentStatusDaySick,
@@ -1042,7 +1042,7 @@ func TestInstanceStudentRepository_MarkExpectedAbsentByActiveGroupIDs_PairScoped
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance
+	instanceRepo := repositories.NewTimetableRepositories(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance
 
 	fx := newActivityInstanceFixtures(t, db, "mark-pairs")
 	defer fx.cleanup()
@@ -1775,7 +1775,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *te
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance
+	instanceRepo := repositories.NewTimetableRepositories(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance
 
 	account := testpkg.CreateTestAccount(t, db, "roster-restore-frozen@test.local")
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
@@ -2246,7 +2246,7 @@ func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance
+	instRepo := repositories.NewTimetableRepositories(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance
 
 	student := testpkg.CreateTestStudent(t, db, "Paula", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()), "1a")
 	other := testpkg.CreateTestStudent(t, db, "Otto", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()+1), "1a")

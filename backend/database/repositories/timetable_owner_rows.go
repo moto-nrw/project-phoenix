@@ -100,15 +100,15 @@ func (r TimetableOwnerRows) DeviationEventReader() timetableCompose.DeviationEve
 // with the day-wide staffing lock (#1840) the caller supplies.
 func (r TimetableOwnerRows) SickCascadeRows(dayLock func(context.Context, calendar.Date) error) SickCascadeTimetableRows {
 	return SickCascadeTimetableRows{
-		instances: TimetableInstanceReads{instances: r.Instances}, staff: TimetableInstanceStaffReads{staff: r.InstanceStaff}, dayLock: dayLock,
+		instances: timetableCompose.NewTimetableInstanceReads(r.Instances), staff: timetableCompose.NewTimetableInstanceStaffReads(r.InstanceStaff), dayLock: dayLock,
 	}
 }
 
 // SickCascadeTimetableRows serves the shift-plan-sync workflow's timetable
 // port from the retained rows, in the Timetable owner's public vocabulary.
 type SickCascadeTimetableRows struct {
-	instances TimetableInstanceReads
-	staff     TimetableInstanceStaffReads
+	instances timetableCompose.TimetableInstanceReads
+	staff     timetableCompose.TimetableInstanceStaffReads
 	dayLock   func(context.Context, calendar.Date) error
 }
 

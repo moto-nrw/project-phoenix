@@ -24,25 +24,14 @@ import (
 )
 
 type TimetableTestRepositories struct {
-	enrollment              *enrollmentCapability.Module
-	schoolCalendar          schoolcalendar.Calendar
-	calendarPeriodUsage     *timetableCompose.CalendarPeriodUsageRepository
-	Timetable               timetable.Capability
-	ActivityGroup           activitiesModels.GroupRepository
-	ActivityCategory        activitiesModels.CategoryRepository
-	ActivitySchedule        activitiesModels.ScheduleRepository
-	ActivitySupervisor      activitiesModels.SupervisorPlannedRepository
-	StudentEnrollment       activitiesModels.StudentEnrollmentRepository
+	enrollment          *enrollmentCapability.Module
+	schoolCalendar      schoolcalendar.Calendar
+	calendarPeriodUsage *timetableCompose.CalendarPeriodUsageRepository
+	Timetable           timetable.Capability
+	// Repositories are the retained Timetable adapters (#2743).
+	timetableCompose.Repositories
 	StaffShift              *WorkforceShiftRows
 	ShiftType               *WorkforceShiftTypeRows
-	PlanningTrack           scheduleModels.PlanningTrackRepository
-	ActivityInstance        scheduleModels.ActivityInstanceRepository
-	InstanceIdempotency     scheduleModels.InstanceIdempotencyRepository
-	InstanceStaff           scheduleModels.InstanceStaffRepository
-	InstanceStudent         scheduleModels.InstanceStudentRepository
-	ActivityException       scheduleModels.ActivityExceptionRepository
-	Timeframe               scheduleModels.TimeframeRepository
-	RecurrenceRule          scheduleModels.RecurrenceRuleRepository
 	CalendarPeriod          scheduleModels.CalendarPeriodRepository
 	ClosingDay              scheduleModels.ClosingDayRepository
 	Dateframe               scheduleModels.DateframeRepository
@@ -101,25 +90,30 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
+	rooms, err := NewFacilities(db)
+	if err != nil {
+		return TimetableTestRepositories{}, err
+	}
+	adapters := newTimetableRepositories(db, TimetableDependencies{
+		Capability: bookings, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime,
+	}, newStudentPresence(db))
 	sessions := newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{
 		DB: db, Now: now, Rooms: &activeRoomDirectory{},
-		Activities: NewSessionActivities(timetableActivityGroupRepository{timetable: bookings}),
+		Activities: NewSessionActivities(timetableCompose.NewActivityGroupRecords(bookings)),
 		Staff:      &presenceSupervisionStaff{},
 	})
 	repos := &Factory{
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
-		Student:               NewStudentRepository(db),
-		InstanceStudent:       newTimetableInstanceStudentRepository(db, bookings, newStudentPresence(db)),
-		ActiveGroup:           sessions,
-		GroupSupervisor:       sessions,
-		ClassArrivalException: timetableCompose.NewClassArrivalExceptionRepository(db),
-		SubmissionRateLimit:   enrollmentCompose.New(),
+		Student:             NewStudentRepository(db),
+		ActiveGroup:         sessions,
+		GroupSupervisor:     sessions,
+		SubmissionRateLimit: enrollmentCompose.New(),
 	}
 	repos.bindDefaultFacilities(db)
 	repos.bindSchoolCalendarAdapters(calendar, NewCalendarPeriodUsage(enrollmentCompose.New(), bookings))
 	repos.bindStudentDirectories(persons, persons)
-	carePlan, err := NewCarePlan(db, persons, repos.InstanceStudent)
+	carePlan, err := NewCarePlan(db, persons, adapters.InstanceStudent)
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
@@ -128,20 +122,10 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	repos.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	repos.BindPeopleDirectory(persons)
 	repos.BindSchoolStructure(groups)
-	rooms, err := NewFacilities(db)
-	if err != nil {
-		return TimetableTestRepositories{}, err
-	}
 	room := facilitiesAdapter.New()
 	room.Bind(rooms)
-	adapters := newTimetableRepositories(db, bookings, newStudentPresence(db), persons, groups, rooms, calendar, membership, workTime)
-	repos.ActivityCategory, repos.ActivityGroup = adapters.ActivityCategory, adapters.ActivityGroup
-	repos.ActivitySchedule, repos.ActivitySupervisor = adapters.ActivitySchedule, adapters.ActivitySupervisor
-	repos.StudentEnrollment, repos.Timeframe = adapters.StudentEnrollment, adapters.Timeframe
-	repos.PlanningTrack, repos.RecurrenceRule = adapters.PlanningTrack, adapters.RecurrenceRule
-	repos.ActivityException, repos.ActivityInstance = adapters.ActivityException, adapters.ActivityInstance
-	repos.InstanceIdempotency, repos.InstanceStaff = adapters.InstanceIdempotency, adapters.InstanceStaff
-	result := timetableTestRepositories(repos)
+	result := timetableTestRepositories(repos, adapters)
+	result.ClassArrivalException = timetableCompose.NewClassArrivalExceptionRepository(db)
 	result.Room = room
 	result.Timetable = bookings
 	// The Dienstplan rows belong to Workforce (#2689); suites that still
@@ -152,15 +136,11 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	return result, nil
 }
 
-func timetableTestRepositories(r *Factory) TimetableTestRepositories {
+func timetableTestRepositories(r *Factory, t timetableCompose.Repositories) TimetableTestRepositories {
 	return TimetableTestRepositories{
-		ActivityGroup: r.ActivityGroup, ActivityCategory: r.ActivityCategory, ActivitySchedule: r.ActivitySchedule,
-		ActivitySupervisor: r.ActivitySupervisor, StudentEnrollment: r.StudentEnrollment,
-		PlanningTrack:    r.PlanningTrack,
-		ActivityInstance: r.ActivityInstance, InstanceIdempotency: r.InstanceIdempotency,
-		InstanceStaff: r.InstanceStaff, InstanceStudent: r.InstanceStudent, ActivityException: r.ActivityException,
-		Timeframe: r.Timeframe, RecurrenceRule: r.RecurrenceRule, CalendarPeriod: r.CalendarPeriod,
-		ClosingDay: r.ClosingDay, Dateframe: r.Dateframe,
+		Repositories:   t,
+		CalendarPeriod: r.CalendarPeriod,
+		ClosingDay:     r.ClosingDay, Dateframe: r.Dateframe,
 		Staff: r.Staff, Teacher: r.Teacher, ClassTeacher: r.ClassTeacher, GroupTeacher: r.GroupTeacher,
 		Person: r.Person, Student: r.Student, Group: r.Group,
 		ActiveGroup: r.ActiveGroup, GroupSupervisor: r.GroupSupervisor,
@@ -168,8 +148,7 @@ func timetableTestRepositories(r *Factory) TimetableTestRepositories {
 		StudentArrivalNote: r.StudentArrivalNote, StudentPickupSchedule: r.StudentPickupSchedule,
 		StudentPickupException: r.StudentPickupException, StudentPickupNote: r.StudentPickupNote,
 		StudentStatusDay: r.StudentStatusDay, CarePlan: r.carePlan,
-		ClassArrivalException: r.ClassArrivalException,
-		enrollment:            r.SubmissionRateLimit, schoolCalendar: r.SchoolCalendar(), calendarPeriodUsage: r.CalendarPeriodUsage(),
+		enrollment: r.SubmissionRateLimit, schoolCalendar: r.SchoolCalendar(), calendarPeriodUsage: r.CalendarPeriodUsage(),
 	}
 }
 

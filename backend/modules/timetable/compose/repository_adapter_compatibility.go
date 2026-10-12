@@ -1,6 +1,18 @@
-package repositories
+package compose
 
-import activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+import (
+	"github.com/uptrace/bun"
+
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+)
+
+func mustPresenceReads(db *bun.DB) PresenceReads {
+	reads, err := NewPresenceReads(db)
+	if err != nil {
+		panic(err)
+	}
+	return reads
+}
 
 func legacyDatabaseError(operation string, err error) error {
 	return activitiesModels.WrapDatabaseError(operation, err)
@@ -30,3 +42,5 @@ func legacyNullString(value *string) activitiesModels.NullString {
 	}
 	return activitiesModels.NullString{String: *value, Valid: true}
 }
+
+func setDate[D ~string](target *D, value string) { *target = D(value) }

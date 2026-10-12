@@ -198,7 +198,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		return ActiveTestModule{}, err
 	}
 	operationRows := r.OwnerRows()
-	operationRows.Locks = repositories.NewActivityRecoveryRepository(db, r.InstanceStudent)
+	operationRows.Locks = arrivalTimetable.NewRetainedActivityRecoveryRepository(db, r.InstanceStudent)
 	operations, err := newTimetableOperations(timetableOperationInputs{
 		Rows: operationRows, Lifecycle: tt.Instance.OperationLifecycle(),
 		Sessions: r.ActiveGroup, Presence: presence,

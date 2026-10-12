@@ -61,7 +61,7 @@ func TestUpdateTemplateFields_DropsOccurrencesAfterTheNewLastDay(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, after), 1)
 
-	groups := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup
+	groups := repositories.NewTimetableRepositories(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup
 	newEnd := lastDay.String()
 	updated, err := groups.UpdateTemplateFields(s.ctx, s.template.ID, activitiesModels.TemplateFieldsUpdate{
 		Name: s.template.Name, Type: s.template.Type, CategoryID: s.template.CategoryID,

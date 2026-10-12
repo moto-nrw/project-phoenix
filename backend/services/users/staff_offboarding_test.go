@@ -41,14 +41,15 @@ type offboardingIdentity interface {
 }
 
 type offboardingScenario struct {
-	db       *bun.DB
-	repos    *repositories.Factory
-	workTime workforce.Capability
-	rows     repositories.TimetableTestRepositories
-	authSvc  offboardingIdentity
-	svc      *offboardingTestRunner
-	deps     offboardingcompose.Dependencies
-	ctx      context.Context
+	db        *bun.DB
+	repos     *repositories.Factory
+	timetable repositories.TimetableRepositories
+	workTime  workforce.Capability
+	rows      repositories.TimetableTestRepositories
+	authSvc   offboardingIdentity
+	svc       *offboardingTestRunner
+	deps      offboardingcompose.Dependencies
+	ctx       context.Context
 }
 
 func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScenario {
@@ -88,14 +89,15 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	svc := &offboardingTestRunner{deps: deps}
 
 	return &offboardingScenario{
-		db:       db,
-		repos:    repos,
-		workTime: owners.Workforce,
-		rows:     rows,
-		authSvc:  authService,
-		svc:      svc,
-		deps:     deps,
-		ctx:      testpkg.Ctx(t),
+		db:        db,
+		repos:     repos,
+		timetable: repositories.NewTimetableRepositories(db, owners),
+		workTime:  owners.Workforce,
+		rows:      rows,
+		authSvc:   authService,
+		svc:       svc,
+		deps:      deps,
+		ctx:       testpkg.Ctx(t),
 	}
 }
 
@@ -203,7 +205,7 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	require.NoError(t, err)
 	_, err = sc.rows.StaffShift.FindByID(sc.ctx, shift.ID)
 	require.NoError(t, err)
-	_, err = sc.repos.InstanceStaff.FindByID(sc.ctx, assignment.ID)
+	_, err = sc.timetable.InstanceStaff.FindByID(sc.ctx, assignment.ID)
 	require.NoError(t, err)
 	person, err := sc.repos.Person.FindByID(sc.ctx, staff.PersonID)
 	require.NoError(t, err)
@@ -272,14 +274,14 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 					return sc.rows.StaffShift.Create(writerCtx, &scheduleModels.StaffShift{StaffID: staff.ID, Date: scheduleModels.Date(testpkg.TodayDate().AddDays(1)), StartTime: testpkg.WallClock(8, 0), EndTime: testpkg.WallClock(12, 0), CreatedBy: staff.ID})
 				}
 				if operation == "move_history" {
-					stored, err := sc.repos.ActivityInstance.FindByID(writerCtx, instance.ID)
+					stored, err := sc.timetable.ActivityInstance.FindByID(writerCtx, instance.ID)
 					if err != nil {
 						return err
 					}
 					stored.Date = scheduleModels.Date(testpkg.TodayDate().AddDays(1))
-					return sc.repos.ActivityInstance.Update(writerCtx, stored)
+					return sc.timetable.ActivityInstance.Update(writerCtx, stored)
 				}
-				return sc.repos.InstanceStaff.Create(writerCtx, &scheduleModels.InstanceStaff{InstanceID: instance.ID, StaffID: staff.ID})
+				return sc.timetable.InstanceStaff.Create(writerCtx, &scheduleModels.InstanceStaff{InstanceID: instance.ID, StaffID: staff.ID})
 			})
 		}()
 		require.Eventually(t, func() bool {
@@ -297,11 +299,11 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 	case <-ctx.Done():
 		t.Fatal("assignment writer did not finish")
 	}
-	rows, err := sc.repos.InstanceStaff.FindByInstanceID(ctx, instance.ID)
+	rows, err := sc.timetable.InstanceStaff.FindByInstanceID(ctx, instance.ID)
 	require.NoError(t, err)
 	if operation == "move_history" {
 		require.Len(t, rows, 1, "the historical assignment is retained")
-		persisted, err := sc.repos.ActivityInstance.FindByID(ctx, instance.ID)
+		persisted, err := sc.timetable.ActivityInstance.FindByID(ctx, instance.ID)
 		require.NoError(t, err)
 		require.Equal(t, scheduleModels.Date(date), persisted.Date, "history cannot be moved back into an operational assignment")
 	} else {
@@ -978,7 +980,7 @@ func TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments(t *testing.T) {
 			IsSpontaneous: true,
 		}
 		inst.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, sc.repos.ActivityInstance.Create(sc.ctx, inst))
+		require.NoError(t, sc.timetable.ActivityInstance.Create(sc.ctx, inst))
 		return inst
 	}
 	plannedInst := makeInstance(fmt.Sprintf("offb-planned-%d", time.Now().UnixNano()))
@@ -988,7 +990,7 @@ func TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments(t *testing.T) {
 	makeAssignment := func(instanceID int64) *scheduleModels.InstanceStaff {
 		row := &scheduleModels.InstanceStaff{InstanceID: instanceID, StaffID: staff.ID}
 		row.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, sc.repos.InstanceStaff.Create(sc.ctx, row))
+		require.NoError(t, sc.timetable.InstanceStaff.Create(sc.ctx, row))
 		return row
 	}
 	plannedRow := makeAssignment(plannedInst.ID)

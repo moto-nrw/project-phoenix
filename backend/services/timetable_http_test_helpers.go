@@ -89,7 +89,7 @@ func NewTimetableHTTPTestModule(db *bun.DB, options TimetableHTTPTestOptions) (T
 	if err != nil {
 		return TimetableHTTPTestModule{}, err
 	}
-	recovery := repositories.NewActivityRecoveryRepository(db, r.InstanceStudent)
+	recovery := timetableCompose.NewRetainedActivityRecoveryRepository(db, r.InstanceStudent)
 	rows := r.OwnerRows()
 	rows.Locks = recovery
 	conflicts, data, err := newTimetableHTTPTestReads(db, r, rows)
@@ -139,7 +139,7 @@ func NewTimetableHTTPTestModule(db *bun.DB, options TimetableHTTPTestOptions) (T
 	corrections, err := timetableCompose.NewAttendanceCorrections(timetableCompose.AttendanceCorrectionDependencies{
 		Participants: r.InstanceStudent,
 		Instances:    r.ActivityInstance,
-		Trail:        repositories.TimetableAttendanceCorrectionTrail(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{Reads: trail}).AttendanceCorrection),
+		Trail:        TimetableAttendanceCorrectionTrail(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{Reads: trail}).AttendanceCorrection),
 		People:       r.Person,
 		Locks:        recovery,
 	})

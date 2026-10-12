@@ -510,7 +510,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 			IsSpontaneous:   true,
 		}
 		mirroredInstance.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance.Create(ctx, mirroredInstance))
+		require.NoError(t, repositories.NewTimetableRepositories(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance.Create(ctx, mirroredInstance))
 
 		// ACT: Force-start the same activity on device 2
 		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device2.ID, []int64{newSupervisor.ID}, &room2.ID)
@@ -534,7 +534,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		assert.Equal(t, session2.ID, transferredVisit.ActiveGroupID, "expected active visit to move to new session")
 		assert.Nil(t, transferredVisit.ExitTime, "expected transferred visit to remain open")
 
-		completedMirror, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance.FindByID(ctx, mirroredInstance.ID)
+		completedMirror, err := repositories.NewTimetableRepositories(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance.FindByID(ctx, mirroredInstance.ID)
 		require.NoError(t, err)
 		assert.Equal(t, scheduleModels.InstanceStatusCompleted, completedMirror.Status, "expected old timetable mirror to be completed")
 		assert.NotNil(t, completedMirror.CompletedAt, "expected completed mirror timestamp")

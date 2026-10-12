@@ -41,6 +41,7 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	timetableRepos := testTimetableRepositories(db)
 	require.NoError(t, err)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
@@ -57,8 +58,8 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
-		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
-		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
+		ActivityGroupRepo:  repositories.NewSessionActivities(timetableRepos.ActivityGroup),
+		ActivityCatRepo:    services.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
 		StaffNames: services.NewAttendanceStaffNames(repos.Staff, services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
@@ -207,8 +208,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
-	require.NoError(t, err)
+	timetableRepos := testTimetableRepositories(db)
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
 
@@ -239,7 +239,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 		ValidFrom:       activityModels.Date(today.AddDays(-60)),
 	}
 	booking.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.StudentEnrollment.Create(ctx, booking))
+	require.NoError(t, timetableRepos.StudentEnrollment.Create(ctx, booking))
 
 	// A parent request nobody has decided yet.
 	request := &testpkg.ExcusedAbsenceRequestRow{
@@ -251,7 +251,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 		Status:        absencerecords.ExcusedRequestStatusPending,
 	}
 	request.TenantID = testpkg.Tenant(t)
-	_, err = db.NewInsert().
+	_, err := db.NewInsert().
 		Model(request).
 		ModelTableExpr("active.excused_absence_requests").
 		Exec(ctx)
@@ -285,22 +285,22 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("future roster rows go, past ones stay", func(t *testing.T) {
-		future, err := repos.InstanceStudent.FindByInstanceID(ctx, futureInstance.ID)
+		future, err := timetableRepos.InstanceStudent.FindByInstanceID(ctx, futureInstance.ID)
 		require.NoError(t, err)
 		assert.Empty(t, future, "the departed child is off the upcoming block")
 
-		past, err := repos.InstanceStudent.FindByInstanceID(ctx, pastInstance.ID)
+		past, err := timetableRepos.InstanceStudent.FindByInstanceID(ctx, pastInstance.ID)
 		require.NoError(t, err)
 		require.Len(t, past, 1, "the day that happened is frozen history")
 		assert.Equal(t, studentID, past[0].StudentID)
 	})
 
 	t.Run("the offering ends at the last care day", func(t *testing.T) {
-		stillToday, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, activityModels.Date(today))
+		stillToday, err := timetableRepos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, activityModels.Date(today))
 		require.NoError(t, err)
 		assert.Len(t, stillToday, 1)
 
-		tomorrow, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, activityModels.Date(today.AddDays(1)))
+		tomorrow, err := timetableRepos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, activityModels.Date(today.AddDays(1)))
 		require.NoError(t, err)
 		assert.Empty(t, tomorrow)
 	})

@@ -54,12 +54,12 @@ func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 	testpkg.CreateTestInstanceStaff(t, db, lernzeit.ID, other.ID, testpkg.InstanceStaffOpts{})
 
 	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, owners)
+	timetableRepos := repositories.NewTimetableRepositories(db, owners)
 	service := planning.NewStaffAssignmentService(planning.StaffAssignmentDependencies{
-		InstanceStaffRepo:    repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
-		ActivityInstanceRepo: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
+		InstanceStaffRepo:    timetableRepos.InstanceStaffReads(),
+		ActivityInstanceRepo: timetableRepos.InstanceReads(),
 		RoomRepo:             services.NewRoomRepository(owners.Rooms),
-		ActivityGroupRepo:    repositories.NewTimetableGroupReads(repos.ActivityGroup),
+		ActivityGroupRepo:    timetableRepos.GroupReads(),
 	}, nil)
 	ctx := testpkg.TenantContext(tenantID)
 

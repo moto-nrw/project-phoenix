@@ -1,4 +1,4 @@
-package repositories
+package compose
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -75,7 +74,7 @@ func scheduledInstances(rows []*scheduleModels.ActivityInstance) []*timetable.Sc
 			result = append(result, nil)
 			continue
 		}
-		instance := timetableCompose.ScheduledInstanceOf(row)
+		instance := ScheduledInstanceOf(row)
 		result = append(result, &instance)
 	}
 	return result

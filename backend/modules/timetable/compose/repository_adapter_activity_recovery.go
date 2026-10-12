@@ -1,27 +1,32 @@
-package repositories
+package compose
 
 import (
 	"context"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/uptrace/bun"
 )
 
-// NewActivityRecoveryRepository composes the completion and reopen support of
+// NewRetainedActivityRecoveryRepository composes the completion and reopen support of
 // a block from its two owners: Timetable locks the participants, Student
 // Presence locks and restores the live group, the visits, the supervisors,
 // the attendance and the session (#2762).
-func NewActivityRecoveryRepository(db *bun.DB, assignments scheduleModels.InstanceStudentRepository) scheduleModels.ActivityRecoveryRepository {
+func NewRetainedActivityRecoveryRepository(db *bun.DB, assignments scheduleModels.InstanceStudentRepository) scheduleModels.ActivityRecoveryRepository {
 	owner, ok := assignments.(timetableInstanceStudentRepository)
 	if !ok {
 		panic("activity recovery: timetable assignment adapter is required")
 	}
-	presence := newStudentPresence(db)
-	return timetableCompose.NewActivityRecoveryRepository(db,
+	// The recovery locks and restores through the same Student Presence
+	// module the assignment adapter composes.
+	presence, ok := owner.presence.(*studentpresence.Module)
+	if !ok {
+		panic("activity recovery: the assignment adapter must compose the Student Presence module")
+	}
+	return NewActivityRecoveryRepository(db,
 		recoveryAssignments{capability: owner.timetable, presence: presence},
 		recoveryPresence{Module: presence})
 }

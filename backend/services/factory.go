@@ -549,6 +549,12 @@ func newFactory(
 	repos.BindSchoolStructure(groups)
 	repos.BindFacilities(rooms)
 	roomRepository := NewRoomRepository(rooms)
+	// The retained activities and schedule repositories belong to Timetable;
+	// they are built over the capabilities this graph binds (#2743).
+	timetableRepos := repositories.NewTimetableRepositories(db, repositories.TimetableDependencies{
+		Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms,
+		Calendar: calendar, Membership: membership, Workforce: workTime,
+	})
 	repos.Student = overlappingRosterGroupNames{StudentRepository: repos.Student, groups: groups}
 	settingsRuntime := newSettingsRuntime(db, nil)
 
@@ -724,9 +730,9 @@ func newFactory(
 	// Reconciles already-materialized future timetable rosters when a grade
 	// transition graduates or restores students (#405).
 	rosterReconciler := arrivalTimetable.NewRosterReconciler(
-		repos.ActivityInstance,
-		repos.InstanceStudent,
-		repos.StudentEnrollment,
+		timetableRepos.ActivityInstance,
+		timetableRepos.InstanceStudent,
+		timetableRepos.StudentEnrollment,
 		logger,
 		now,
 	)
@@ -1095,7 +1101,7 @@ func newFactory(
 	// schedule.instance_students and enrich SSE events. No circular
 	// dependency because it only depends on repos, not on studentpresence.Presence.
 	attendanceSyncService, err := NewTimetableAttendanceMirror(
-		repositories.TimetableOwnerRows{Instances: repos.ActivityInstance, Participants: repos.InstanceStudent},
+		repositories.TimetableOwnerRows{Instances: timetableRepos.ActivityInstance, Participants: timetableRepos.InstanceStudent},
 		logger.With("service", "attendance-sync"),
 	)
 	if err != nil {
@@ -1149,11 +1155,11 @@ func newFactory(
 	// into care that day" marker (#1747). Repos only, so no cycle with the
 	// active service it is injected into.
 	timetableRows := repositories.TimetableOwnerRows{
-		Instances:         repos.ActivityInstance,
-		InstanceStaff:     repos.InstanceStaff,
-		Participants:      repos.InstanceStudent,
-		Templates:         repos.ActivityGroup,
-		Categories:        repos.ActivityCategory,
+		Instances:         timetableRepos.ActivityInstance,
+		InstanceStaff:     timetableRepos.InstanceStaff,
+		Participants:      timetableRepos.InstanceStudent,
+		Templates:         timetableRepos.ActivityGroup,
+		Categories:        timetableRepos.ActivityCategory,
 		Students:          repos.Student,
 		EducationGroups:   repos.Group,
 		Rooms:             roomRepository,
@@ -1182,8 +1188,8 @@ func newFactory(
 		StaffRepo:                NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:                 NewAttendanceRooms(roomRepository),
 		YardRoomColor:            yardRoomColorQuery(rooms),
-		ActivityGroupRepo:        repositories.NewSessionActivities(repos.ActivityGroup),
-		ActivityCatRepo:          NewAttendanceActivityCategories(repos.ActivityCategory),
+		ActivityGroupRepo:        repositories.NewSessionActivities(timetableRepos.ActivityGroup),
+		ActivityCatRepo:          NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo:       NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:               NewSessionDeviceDirectory(legacyDevices, settingsService, activeLogger),
 		StaffNames:               NewAttendanceStaffNames(repos.Staff, usersService),
@@ -1223,10 +1229,10 @@ func newFactory(
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
 		timetableCapability,
-		repos.ActivityGroup,
-		repos.ActivitySchedule,
-		repos.ActivitySupervisor,
-		repos.StudentEnrollment,
+		timetableRepos.ActivityGroup,
+		timetableRepos.ActivitySchedule,
+		timetableRepos.ActivitySupervisor,
+		timetableRepos.StudentEnrollment,
 		repos.ActiveGroup,
 		repos.Staff,
 		repos.Student,
@@ -1264,8 +1270,8 @@ func newFactory(
 	// Initialize facilities service
 	facilitiesService := facilities.NewServiceWithConfig(facilities.ServiceConfig{
 		Rooms:     rooms,
-		Occupancy: facilitiesLegacy.OccupancyProjection(roomOccupancyPresence{newStudentPresence(db, logger)}, repos.ActivityGroup, membership, persons),
-		History:   facilitiesLegacy.HistoryProjection(roomHistoryPresence{newStudentPresence(db, logger)}, repos.ActivityGroup, membership, persons),
+		Occupancy: facilitiesLegacy.OccupancyProjection(roomOccupancyPresence{newStudentPresence(db, logger)}, timetableRepos.ActivityGroup, membership, persons),
+		History:   facilitiesLegacy.HistoryProjection(roomHistoryPresence{newStudentPresence(db, logger)}, timetableRepos.ActivityGroup, membership, persons),
 		ValidateDeletion: func(ctx context.Context, roomID int64) error {
 			activeGroups, err := repos.ActiveGroup.FindActiveByRoomID(ctx, roomID)
 			if err != nil {
@@ -1313,15 +1319,15 @@ func newFactory(
 		Staff:           repos.Staff,
 		CalendarPeriods: calendar,
 		DeviationEvents: audits.DeviationEvent,
-		Instances:       repositories.NewTimetableInstanceReads(repos.ActivityInstance),
-		InstanceStaff:   repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		Instances:       arrivalTimetable.NewTimetableInstanceReads(timetableRepos.ActivityInstance),
+		InstanceStaff:   arrivalTimetable.NewTimetableInstanceStaffReads(timetableRepos.InstanceStaff),
 		Rooms:           roomRepository,
-		ActivityGroups:  repositories.NewTimetableGroupReads(repos.ActivityGroup),
+		ActivityGroups:  arrivalTimetable.NewTimetableGroupReads(timetableRepos.ActivityGroup),
 		WorkSchedules:   staffWorkSchedules,
 		WorkModels:      workTimeModels,
 		Holidays:        nonWorkingDayService,
 		NonWorkingDays:  calendar,
-		CategoryLinker:  repositories.ShiftTypeCategoryLinker(activitiesService.SetCategoryShiftTypeLinks),
+		CategoryLinker:  arrivalTimetable.ShiftTypeCategoryLinker(activitiesService.SetCategoryShiftTypeLinks),
 		DB:              db,
 		Broadcaster:     realtimeHub,
 		Logger:          logger.With("service", "shift_planning"),
@@ -1364,8 +1370,8 @@ func newFactory(
 		Presence: newStudentPresence(db, logger),
 		Dashboard: devicefleetLegacy.NewDashboardSources(devicefleetLegacy.DashboardDependencies{
 			ActiveGroups:   repos.ActiveGroup,
-			Templates:      repos.ActivityGroup,
-			Instances:      repos.ActivityInstance,
+			Templates:      timetableRepos.ActivityGroup,
+			Instances:      timetableRepos.ActivityInstance,
 			PickupSchedule: pickupScheduleService,
 		}),
 		Tenants: devicefleetLegacy.NewTenantFacts(devicefleetLegacy.TenantFactDependencies{
@@ -1393,10 +1399,10 @@ func newFactory(
 	// for a date window. Consumed by the scheduler task (gated on the
 	// timetable.materialization_enabled setting) and the manual admin endpoint.
 	timetableTemplateRows := repositories.TimetableTemplateRows{
-		Groups: repos.ActivityGroup, Categories: repos.ActivityCategory, Schedules: repos.ActivitySchedule,
-		Enrollments: repos.StudentEnrollment, Supervisors: repos.ActivitySupervisor, Instances: repos.ActivityInstance,
-		InstanceStaff: repos.InstanceStaff, Participants: repos.InstanceStudent, Timeframes: repos.Timeframe,
-		CalendarPeriods: repos.CalendarPeriod, Exceptions: repos.ActivityException, EducationGroups: repos.Group,
+		Groups: timetableRepos.ActivityGroup, Categories: timetableRepos.ActivityCategory, Schedules: timetableRepos.ActivitySchedule,
+		Enrollments: timetableRepos.StudentEnrollment, Supervisors: timetableRepos.ActivitySupervisor, Instances: timetableRepos.ActivityInstance,
+		InstanceStaff: timetableRepos.InstanceStaff, Participants: timetableRepos.InstanceStudent, Timeframes: timetableRepos.Timeframe,
+		CalendarPeriods: repos.CalendarPeriod, Exceptions: timetableRepos.ActivityException, EducationGroups: repos.Group,
 	}
 	materializationService, err := newTimetableMaterialization(timetableMaterializationInputs{
 		Rows:       timetableTemplateRows,
@@ -1415,7 +1421,7 @@ func newFactory(
 
 	// Initialize instance lifecycle before template split: the split reuses its
 	// deviation snapshot/reapply machinery when replacing future occurrences.
-	recoveryRepo := repositories.NewActivityRecoveryRepository(db, repos.InstanceStudent)
+	recoveryRepo := arrivalTimetable.NewRetainedActivityRecoveryRepository(db, timetableRepos.InstanceStudent)
 	timetableRows.Locks = recoveryRepo
 	// The cancellation notice (#2601) rides on the announcement service, which
 	// is built after the instance service; the lifecycle reaches it through
@@ -1425,11 +1431,11 @@ func newFactory(
 	// start check of the instance lifecycle and the auto-start tick, and the
 	// planning reads api/timetable serves.
 	timetableConflicts, err := NewTimetableConflictDetection(TimetableConflictReaders{
-		Instances:         repos.ActivityInstance,
-		InstanceStaff:     repos.InstanceStaff,
-		InstanceStudents:  repos.InstanceStudent,
-		Exceptions:        repos.ActivityException,
-		Schedules:         repos.ActivitySchedule,
+		Instances:         timetableRepos.ActivityInstance,
+		InstanceStaff:     timetableRepos.InstanceStaff,
+		InstanceStudents:  timetableRepos.InstanceStudent,
+		Exceptions:        timetableRepos.ActivityException,
+		Schedules:         timetableRepos.ActivitySchedule,
 		Staff:             repos.Staff,
 		CalendarPeriods:   repos.CalendarPeriod,
 		ArrivalExceptions: repos.StudentArrivalException,
@@ -1449,7 +1455,7 @@ func newFactory(
 	instanceService, err := newTimetableLifecycle(timetableLifecycleInputs{
 		Rows: timetableRows,
 		Planning: arrivalTimetable.InstanceLifecycleDependencies{
-			IdempotencyRepo: repos.InstanceIdempotency, ExceptionRepo: repos.ActivityException, CalendarPeriodRepo: repos.CalendarPeriod,
+			IdempotencyRepo: timetableRepos.InstanceIdempotency, ExceptionRepo: timetableRepos.ActivityException, CalendarPeriodRepo: repos.CalendarPeriod,
 		},
 		Staff:               repos.Staff,
 		Sessions:            repos.ActiveGroup,
@@ -1791,7 +1797,7 @@ func newFactory(
 		GroupTeacherRepo:       repos.GroupTeacher,
 		GroupSubstitutionRepo:  repos.GroupSubstitution,
 		GroupSupervisorRepo:    repositories.CaregiverSupervisionBlockers{Records: repos.GroupSupervisor},
-		ActivitySupervisorRepo: repositories.CaregiverPlannedSupervisionBlockers{Supervisors: repos.ActivitySupervisor},
+		ActivitySupervisorRepo: repositories.CaregiverPlannedSupervisionBlockers{Supervisors: timetableRepos.ActivitySupervisor},
 		RoleAssignments:        identityRoles,
 	})
 
@@ -1807,13 +1813,13 @@ func newFactory(
 		Persons:              repos.Person,
 		Membership:           membership,
 		StaffGroups:          staffGroups,
-		SupervisedActivities: supervisedActivityGroupIDs(repos.ActivityGroup),
+		SupervisedActivities: supervisedActivityGroupIDs(timetableRepos.ActivityGroup),
 		Presence:             newStudentPresence(db, logger),
 		Settings:             settingsService,
 		Logger:               usercontextLogger,
 	}, repositories.CallerRowSources{
 		Groups: repos.Group, Staff: repos.Staff, Teachers: repos.Teacher, Students: repos.Student,
-		Activities: repos.ActivityGroup, Sessions: repos.ActiveGroup, Logger: usercontextLogger,
+		Activities: timetableRepos.ActivityGroup, Sessions: repos.ActiveGroup, Logger: usercontextLogger,
 	})
 	if err != nil {
 		return nil, err
@@ -1824,8 +1830,8 @@ func newFactory(
 	// module's schedule port (#3418).
 	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
 		Deviations: staffDeviations, Staff: repos.Staff, Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
-		ActivityInstances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
-		InstanceStaff:     repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		ActivityInstances: arrivalTimetable.NewTimetableInstanceReads(timetableRepos.ActivityInstance),
+		InstanceStaff:     arrivalTimetable.NewTimetableInstanceStaffReads(timetableRepos.InstanceStaff),
 	})
 	if err != nil {
 		return nil, err
@@ -1865,7 +1871,7 @@ func newFactory(
 			return len(rows), err
 		},
 		Activities: func(ctx context.Context) (int, error) {
-			rows, err := repos.ActivityGroup.List(ctx, nil)
+			rows, err := timetableRepos.ActivityGroup.List(ctx, nil)
 			return len(rows), err
 		},
 		Groups: func(ctx context.Context) (int, error) { rows, err := repos.Group.List(ctx, nil); return len(rows), err },
@@ -2443,8 +2449,8 @@ func newFactory(
 			StudentGuardianRepo:  repos.StudentGuardian,
 			ChildRepo:            repos.ParentChild,
 			GroupRepo:            repos.Group,
-			InstanceStaffRepo:    repos.InstanceStaff,
-			ActivityInstanceRepo: repos.ActivityInstance,
+			InstanceStaffRepo:    timetableRepos.InstanceStaff,
+			ActivityInstanceRepo: timetableRepos.ActivityInstance,
 			RoomRepo:             roomRepository,
 			StaffShiftRepo:       shiftRows,
 			ShiftTypeRepo:        shiftTypeRows,
@@ -2595,7 +2601,7 @@ func newFactory(
 		Accounts:     identityAccess,
 		ActiveGroups: repos.ActiveGroup,
 		Supervisors:  repos.GroupSupervisor,
-		Categories:   repos.ActivityCategory,
+		Categories:   timetableRepos.ActivityCategory,
 		AuditLog:     operatorAuditLog,
 	})
 	if err != nil {
@@ -2641,7 +2647,7 @@ func newFactory(
 	// facades are its tenant-safe reads, the retained schedule services its
 	// compatibility bindings.
 	slotListsService := classdayCompose.NewSlotLists(classdayCompose.SlotListDependencies{
-		Timetable:       repositories.NewClassDayTimetableRows(db),
+		Timetable:       NewClassDayTimetableRows(db),
 		Presence:        newStudentPresence(db, logger),
 		CarePlan:        repos.CarePlan(),
 		Students:        persons,
@@ -2664,12 +2670,12 @@ func newFactory(
 	planExportService := planexportCompose.New(planexportCompose.Sources{
 		Overview:       shiftPlanning.Overview,
 		ShiftTypes:     workTime,
-		Instances:      repositories.NewTimetableInstanceReads(repos.ActivityInstance),
-		InstanceStaff:  repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
-		Students:       repos.InstanceStudent,
+		Instances:      arrivalTimetable.NewTimetableInstanceReads(timetableRepos.ActivityInstance),
+		InstanceStaff:  arrivalTimetable.NewTimetableInstanceStaffReads(timetableRepos.InstanceStaff),
+		Students:       timetableRepos.InstanceStudent,
 		Rooms:          rooms,
 		Staff:          planExportStaffNames{staff: repos.Staff},
-		ActivityGroups: repositories.NewTimetableGroupReads(repos.ActivityGroup),
+		ActivityGroups: arrivalTimetable.NewTimetableGroupReads(timetableRepos.ActivityGroup),
 		PlanningTracks: timetableCapability,
 		ClosingDays:    planExportClosingDays{calendar: calendar},
 		Holidays:       planExportHolidays{calendar: calendar},
@@ -2801,7 +2807,7 @@ func newFactory(
 	}
 	instanceSeriesConverter, err := arrivalTimetable.NewInstanceSeriesConversion(arrivalTimetable.InstanceSeriesConversionDependencies{
 		DB:             db,
-		InstanceRepo:   repos.ActivityInstance,
+		InstanceRepo:   timetableRepos.ActivityInstance,
 		Lifecycle:      instanceService,
 		Templates:      timetableTemplates,
 		RecurrenceLock: recurrenceLock,
@@ -2974,7 +2980,7 @@ func newFactory(
 		RequestReviewPolicy:  requestReviewPolicy,
 		StudentStatusDays:    studentStatusDayService,
 		AbsenceOverview:      studentStatusDayOverviewService,
-		StudentHistory:       presenceservice.NewStudentHistory(newStudentPresence(db, logger), historyRoomNames(rooms), NewDataAccessAudit(audits.DataAccessLog), NewHistorySlots(repos.InstanceStudent)),
+		StudentHistory:       presenceservice.NewStudentHistory(newStudentPresence(db, logger), historyRoomNames(rooms), NewDataAccessAudit(audits.DataAccessLog), NewHistorySlots(timetableRepos.InstanceStudent)),
 		Statistics: newStatistics(db, logger, presenceCompose.StatisticsDependencies{
 			StatusDays:  statisticsStatusDays{repos.CarePlan()},
 			Courses:     newCourseStatistics(db),
@@ -3044,7 +3050,7 @@ func newFactory(
 		LockStaffShifts: workforceCompose.NewStaffShiftLock(db),
 		Deviations:      timetablePlanning.Deviations,
 		TimetableData:   NewSickCascadeTimetableRows(timetableRows, db),
-		InstanceStaff:   repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		InstanceStaff:   arrivalTimetable.NewTimetableInstanceStaffReads(timetableRepos.InstanceStaff),
 		Broadcaster:     factory.RealtimeHub,
 		Logger:          logger.With("service", "shift_plan_sync"),
 		Today:           today,

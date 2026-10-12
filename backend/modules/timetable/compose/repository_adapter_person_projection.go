@@ -1,17 +1,16 @@
-package repositories
+package compose
 
 import (
 	"context"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 // personActivityGroupRepository attaches Staff.Person to the supervisors a
 // group is loaded with.
 type personActivityGroupRepository struct {
 	activitiesModels.GroupRepository
-	persons peopledirectory.Query
+	persons func(context.Context, []int64) (map[int64]PersonName, error)
 }
 
 func (r personActivityGroupRepository) FindWithSupervisors(ctx context.Context, groupID int64) (*activitiesModels.Group, []*activitiesModels.SupervisorPlanned, error) {
@@ -32,7 +31,7 @@ type personActivityGroupTargetRepository struct {
 	activitiesModels.GroupTargetRepository
 }
 
-func newPersonActivityGroupRepository(inner activitiesModels.GroupRepository, persons peopledirectory.Query) activitiesModels.GroupRepository {
+func newPersonActivityGroupRepository(inner activitiesModels.GroupRepository, persons func(context.Context, []int64) (map[int64]PersonName, error)) activitiesModels.GroupRepository {
 	wrapped := personActivityGroupRepository{GroupRepository: inner, persons: persons}
 	if targets, ok := inner.(activitiesModels.GroupTargetRepository); ok {
 		return personActivityGroupTargetRepository{personActivityGroupRepository: wrapped, GroupTargetRepository: targets}
@@ -44,7 +43,7 @@ func newPersonActivityGroupRepository(inner activitiesModels.GroupRepository, pe
 // supervisor rows.
 type personSupervisorPlannedRepository struct {
 	activitiesModels.SupervisorPlannedRepository
-	persons peopledirectory.Query
+	persons func(context.Context, []int64) (map[int64]PersonName, error)
 }
 
 func (r personSupervisorPlannedRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activitiesModels.SupervisorPlanned, error) {
@@ -63,14 +62,14 @@ func (r personSupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, g
 	return rows, attachPlannedSupervisorPersons(ctx, r.persons, rows)
 }
 
-func attachPlannedSupervisorPersons(ctx context.Context, query peopledirectory.Query, rows []*activitiesModels.SupervisorPlanned) error {
+func attachPlannedSupervisorPersons(ctx context.Context, personNames func(context.Context, []int64) (map[int64]PersonName, error), rows []*activitiesModels.SupervisorPlanned) error {
 	personIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		if row != nil && row.StaffPersonID > 0 {
 			personIDs = append(personIDs, row.StaffPersonID)
 		}
 	}
-	persons, err := personsByID(ctx, query, personIDs)
+	persons, err := personNames(ctx, personIDs)
 	if err != nil {
 		return err
 	}

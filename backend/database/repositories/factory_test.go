@@ -14,8 +14,12 @@ func TestNewFactory(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	owners := repositories.NewUnobservedTimetableDependencies(db)
+	factory := repositories.NewFactory(db, owners)
 	require.NotNil(t, factory)
+	// The retained activities and schedule repositories belong to Timetable
+	// and are built where they are used (#2743).
+	timetable := repositories.NewTimetableRepositories(db, owners)
 
 	// Verify users repositories are initialized
 	t.Run("users repositories", func(t *testing.T) {
@@ -44,24 +48,24 @@ func TestNewFactory(t *testing.T) {
 	// Verify schedule repositories are initialized
 	t.Run("schedule repositories", func(t *testing.T) {
 		assert.NotNil(t, factory.Dateframe)
-		assert.NotNil(t, factory.Timeframe)
-		assert.NotNil(t, factory.PlanningTrack)
-		assert.NotNil(t, factory.RecurrenceRule)
+		assert.NotNil(t, timetable.Timeframe)
+		assert.NotNil(t, timetable.PlanningTrack)
+		assert.NotNil(t, timetable.RecurrenceRule)
 	})
 
 	// Verify activities repositories are initialized
 	t.Run("activities repositories", func(t *testing.T) {
-		assert.NotNil(t, factory.ActivityGroup)
-		assert.NotNil(t, factory.ActivityCategory)
-		assert.NotNil(t, factory.ActivitySchedule)
-		assert.NotNil(t, factory.ActivitySupervisor)
+		assert.NotNil(t, timetable.ActivityGroup)
+		assert.NotNil(t, timetable.ActivityCategory)
+		assert.NotNil(t, timetable.ActivitySchedule)
+		assert.NotNil(t, timetable.ActivitySupervisor)
 
-		assert.NotNil(t, factory.ActivitySchedule)
-		assert.NotNil(t, factory.ActivitySupervisor)
-		assert.NotNil(t, factory.StudentEnrollment)
-		assert.NotNil(t, factory.Timeframe)
-		assert.NotNil(t, factory.PlanningTrack)
-		assert.NotNil(t, factory.RecurrenceRule)
+		assert.NotNil(t, timetable.ActivitySchedule)
+		assert.NotNil(t, timetable.ActivitySupervisor)
+		assert.NotNil(t, timetable.StudentEnrollment)
+		assert.NotNil(t, timetable.Timeframe)
+		assert.NotNil(t, timetable.PlanningTrack)
+		assert.NotNil(t, timetable.RecurrenceRule)
 	})
 
 	// Verify active repositories are initialized

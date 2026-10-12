@@ -1,4 +1,4 @@
-package repositories
+package compose
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
 const legacyActivityExceptionDateColumn = "exception_date"
@@ -26,7 +25,7 @@ func (r timetableActivityExceptionRepository) Create(ctx context.Context, value 
 	}
 	created, err := r.timetable.CreateActivityException(ctx, publicActivityExceptionInput(value))
 	if err != nil {
-		return timetableCompose.WrapDatabaseError("create", err)
+		return WrapDatabaseError("create", err)
 	}
 	return replaceLegacyActivityException(value, created)
 }
@@ -34,7 +33,7 @@ func (r timetableActivityExceptionRepository) Create(ctx context.Context, value 
 func (r timetableActivityExceptionRepository) FindByID(ctx context.Context, id any) (*scheduleModels.ActivityException, error) {
 	exceptionID, ok := legacyGroupID(id)
 	if !ok {
-		return nil, timetableCompose.WrapDatabaseError("find by id", fmt.Errorf("invalid activity exception id %T", id))
+		return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid activity exception id %T", id))
 	}
 	value, err := r.timetable.FindActivityException(ctx, exceptionID)
 	if err != nil {
@@ -60,18 +59,18 @@ func (r timetableActivityExceptionRepository) Update(ctx context.Context, value 
 func (r timetableActivityExceptionRepository) Delete(ctx context.Context, id any) error {
 	exceptionID, ok := legacyGroupID(id)
 	if !ok {
-		return timetableCompose.WrapDatabaseError("delete", fmt.Errorf("invalid activity exception id %T", id))
+		return WrapDatabaseError("delete", fmt.Errorf("invalid activity exception id %T", id))
 	}
 	if err := r.timetable.DeleteActivityException(ctx, exceptionID); err != nil {
-		return timetableCompose.WrapDatabaseError("delete", err)
+		return WrapDatabaseError("delete", err)
 	}
 	return nil
 }
 
-func (r timetableActivityExceptionRepository) List(ctx context.Context, options *timetableCompose.ActivityExceptionQueryOptions) ([]*scheduleModels.ActivityException, error) {
-	groupID, limit, offset, err := timetableCompose.ActivityExceptionListOptions(options)
+func (r timetableActivityExceptionRepository) List(ctx context.Context, options *ActivityExceptionQueryOptions) ([]*scheduleModels.ActivityException, error) {
+	groupID, limit, offset, err := ActivityExceptionListOptions(options)
 	if err != nil {
-		return nil, timetableCompose.WrapDatabaseError("list with options", err)
+		return nil, WrapDatabaseError("list with options", err)
 	}
 	return r.list(ctx, timetable.ActivityExceptionFilter{
 		ActivityGroupID: groupID, Limit: limit, Offset: offset,
@@ -82,76 +81,76 @@ func (r timetableActivityExceptionRepository) FindByActivityGroupID(ctx context.
 	return r.list(ctx, timetable.ActivityExceptionFilter{ActivityGroupID: &groupID, OrderByDate: true}, "find by activity group id")
 }
 
-func (r timetableActivityExceptionRepository) FindByActivityGroupAndDate(ctx context.Context, groupID int64, date timetableCompose.ActivityExceptionDate) (*scheduleModels.ActivityException, error) {
+func (r timetableActivityExceptionRepository) FindByActivityGroupAndDate(ctx context.Context, groupID int64, date ActivityExceptionDate) (*scheduleModels.ActivityException, error) {
 	text := date.String()
 	values, err := r.timetable.ListActivityExceptions(ctx, timetable.ActivityExceptionFilter{
 		ActivityGroupID: &groupID, ExceptionDate: &text, Limit: 1,
 	})
 	if err != nil {
-		return nil, timetableCompose.WrapDatabaseError("find by activity group and date", err)
+		return nil, WrapDatabaseError("find by activity group and date", err)
 	}
 	if len(values) == 0 {
 		return nil, nil
 	}
 	result, err := legacyActivityException(values[0])
 	if err != nil {
-		return nil, timetableCompose.WrapDatabaseError("find by activity group and date", err)
+		return nil, WrapDatabaseError("find by activity group and date", err)
 	}
 	return result, nil
 }
 
-func (r timetableActivityExceptionRepository) FindByActivityGroupAndDateRange(ctx context.Context, groupID int64, from, to timetableCompose.ActivityExceptionDate) ([]*scheduleModels.ActivityException, error) {
+func (r timetableActivityExceptionRepository) FindByActivityGroupAndDateRange(ctx context.Context, groupID int64, from, to ActivityExceptionDate) ([]*scheduleModels.ActivityException, error) {
 	fromText, toText := from.String(), to.String()
 	return r.list(ctx, timetable.ActivityExceptionFilter{
 		ActivityGroupID: &groupID, FromDate: &fromText, ToDate: &toText, OrderByDate: true,
 	}, "find by activity group and date range")
 }
 
-func (r timetableActivityExceptionRepository) FindByDateRange(ctx context.Context, from, to timetableCompose.ActivityExceptionDate) ([]*scheduleModels.ActivityException, error) {
+func (r timetableActivityExceptionRepository) FindByDateRange(ctx context.Context, from, to ActivityExceptionDate) ([]*scheduleModels.ActivityException, error) {
 	fromText, toText := from.String(), to.String()
 	return r.list(ctx, timetable.ActivityExceptionFilter{
 		FromDate: &fromText, ToDate: &toText, OrderByDate: true,
 	}, "find by date range")
 }
 
-func (r timetableActivityExceptionRepository) CountWithOptions(ctx context.Context, options *timetableCompose.ActivityExceptionQueryOptions) (int, error) {
-	before, err := timetableCompose.ActivityExceptionBefore(options)
+func (r timetableActivityExceptionRepository) CountWithOptions(ctx context.Context, options *ActivityExceptionQueryOptions) (int, error) {
+	before, err := ActivityExceptionBefore(options)
 	if err != nil {
-		return 0, timetableCompose.WrapDatabaseError("count with options", err)
+		return 0, WrapDatabaseError("count with options", err)
 	}
 	count, err := r.timetable.CountActivityExceptions(ctx, before)
 	if err != nil {
-		return 0, timetableCompose.WrapDatabaseError("count with options", err)
+		return 0, WrapDatabaseError("count with options", err)
 	}
 	return count, nil
 }
 
-func (r timetableActivityExceptionRepository) OldestBefore(ctx context.Context, column string, cutoff *timetableCompose.ActivityExceptionDate) (*timetableCompose.ActivityExceptionDate, error) {
+func (r timetableActivityExceptionRepository) OldestBefore(ctx context.Context, column string, cutoff *ActivityExceptionDate) (*ActivityExceptionDate, error) {
 	if column != legacyActivityExceptionDateColumn {
-		return nil, timetableCompose.WrapDatabaseError("oldest before", fmt.Errorf("unsupported activity exception date column %q", column))
+		return nil, WrapDatabaseError("oldest before", fmt.Errorf("unsupported activity exception date column %q", column))
 	}
 	before := publicOptionalDate(cutoff)
 	value, err := r.timetable.OldestActivityExceptionBefore(ctx, before)
 	if err != nil {
-		return nil, timetableCompose.WrapDatabaseError("oldest before", err)
+		return nil, WrapDatabaseError("oldest before", err)
 	}
 	if value == nil {
 		return nil, nil
 	}
-	result, err := timetableCompose.ParseActivityExceptionDate(*value)
+	result, err := ParseActivityExceptionDate(*value)
 	if err != nil {
-		return nil, timetableCompose.WrapDatabaseError("oldest before", err)
+		return nil, WrapDatabaseError("oldest before", err)
 	}
 	return &result, nil
 }
 
-func (r timetableActivityExceptionRepository) DeleteOlderThan(ctx context.Context, column string, cutoff timetableCompose.ActivityExceptionDate) (int64, error) {
+func (r timetableActivityExceptionRepository) DeleteOlderThan(ctx context.Context, column string, cutoff ActivityExceptionDate) (int64, error) {
 	if column != legacyActivityExceptionDateColumn {
-		return 0, timetableCompose.WrapDatabaseError("delete older than", fmt.Errorf("unsupported activity exception date column %q", column))
+		return 0, WrapDatabaseError("delete older than", fmt.Errorf("unsupported activity exception date column %q", column))
 	}
 	rows, err := r.timetable.DeleteActivityExceptionsBefore(ctx, cutoff.String())
 	if err != nil {
-		return 0, timetableCompose.WrapDatabaseError("delete older than", err)
+		return 0, WrapDatabaseError("delete older than", err)
 	}
 	return rows, nil
 }
@@ -159,13 +158,13 @@ func (r timetableActivityExceptionRepository) DeleteOlderThan(ctx context.Contex
 func (r timetableActivityExceptionRepository) list(ctx context.Context, filter timetable.ActivityExceptionFilter, operation string) ([]*scheduleModels.ActivityException, error) {
 	values, err := r.timetable.ListActivityExceptions(ctx, filter)
 	if err != nil {
-		return nil, timetableCompose.WrapDatabaseError(operation, err)
+		return nil, WrapDatabaseError(operation, err)
 	}
 	result := make([]*scheduleModels.ActivityException, 0, len(values))
 	for _, value := range values {
 		row, convertErr := legacyActivityException(value)
 		if convertErr != nil {
-			return nil, timetableCompose.WrapDatabaseError(operation, convertErr)
+			return nil, WrapDatabaseError(operation, convertErr)
 		}
 		result = append(result, row)
 	}
@@ -181,7 +180,7 @@ func legacyActivityException(value timetable.ActivityException) (*scheduleModels
 }
 
 func replaceLegacyActivityException(result *scheduleModels.ActivityException, value timetable.ActivityException) error {
-	date, err := timetableCompose.ParseActivityExceptionDate(value.ExceptionDate)
+	date, err := ParseActivityExceptionDate(value.ExceptionDate)
 	if err != nil {
 		return fmt.Errorf("parse activity exception date: %w", err)
 	}
@@ -226,7 +225,7 @@ func publicOptionalClock(value *time.Time) *string {
 	return &text
 }
 
-func publicOptionalDate(value *timetableCompose.ActivityExceptionDate) *string {
+func publicOptionalDate(value *ActivityExceptionDate) *string {
 	if value == nil {
 		return nil
 	}
@@ -236,7 +235,7 @@ func publicOptionalDate(value *timetableCompose.ActivityExceptionDate) *string {
 
 func legacyActivityExceptionError(operation string, err error) error {
 	if errors.Is(err, timetable.ErrActivityExceptionNotFound) {
-		return timetableCompose.WrapNotFoundDatabaseError(operation)
+		return WrapNotFoundDatabaseError(operation)
 	}
-	return timetableCompose.WrapDatabaseError(operation, err)
+	return WrapDatabaseError(operation, err)
 }

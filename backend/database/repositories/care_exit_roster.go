@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -182,7 +183,7 @@ func (r careExitRoster) ReconnectCareExitAssignmentPickupExceptions(ctx context.
 	if len(wanted) == 0 {
 		return nil
 	}
-	participants, err := r.roster.ListInstanceStudents(ctx, timetable.InstanceStudentFilter{InstanceIDs: uniqueInt64s(instanceIDs), StudentIDs: studentIDs})
+	participants, err := r.roster.ListInstanceStudents(ctx, timetable.InstanceStudentFilter{InstanceIDs: uniqueSortedInt64s(instanceIDs), StudentIDs: studentIDs})
 	if err != nil {
 		return err
 	}
@@ -258,4 +259,10 @@ func careExitRosterRows(removals []careplan.CareExitRemoval) []timetable.CareExi
 		})
 	}
 	return rows
+}
+
+func uniqueSortedInt64s(ids []int64) []int64 {
+	result := slices.Clone(ids)
+	slices.Sort(result)
+	return slices.Compact(result)
 }

@@ -44,9 +44,9 @@ func TestVisitRevisionRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
 	module := testSchoolPresence(t, db)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	rows := &failingSlotRevision{InstanceStudentRepository: repos.InstanceStudent}
-	syncer := newAttendanceMirror(t, repos.ActivityInstance, rows, slog.Default())
+	timetableRepos := repositories.NewTimetableRepositories(db, repositories.NewUnobservedTimetableDependencies(db))
+	rows := &failingSlotRevision{InstanceStudentRepository: timetableRepos.InstanceStudent}
+	syncer := newAttendanceMirror(t, timetableRepos.ActivityInstance, rows, slog.Default())
 	svc, broadcaster := newServiceWithPresenceSync(t, db, module, syncer)
 	activeService.ConfigureForTest(svc, activeService.WithTenantRuntime(testpkg.TenantRuntime(t, db)))
 	student := testpkg.CreateTestStudent(t, db, "Slot", "Rollback", "3a")
@@ -82,7 +82,7 @@ func TestVisitRevisionRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 		require.NoError(t, readErr)
 		require.Len(t, attendance, 1)
 		assert.True(t, attendance[0].CheckInTime.Equal(expected), "school attendance interval")
-		slot, readErr := repos.InstanceStudent.FindByInstanceAndStudent(ctx, instance.ID, student.ID)
+		slot, readErr := timetableRepos.InstanceStudent.FindByInstanceAndStudent(ctx, instance.ID, student.ID)
 		require.NoError(t, readErr)
 		require.NotNil(t, slot.CheckedInAt)
 		assert.True(t, slot.CheckedInAt.Equal(expected), "timetable interval")

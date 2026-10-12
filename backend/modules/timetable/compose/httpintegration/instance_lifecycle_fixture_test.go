@@ -44,14 +44,16 @@ type lifecycleSetup struct {
 	svc      *compose.InstanceLifecycleService
 	factory  *services.Factory
 	repos    *repositories.Factory
-	db       *bun.DB
-	ctx      context.Context
-	roomID   int64
-	staffID  int64
-	student1 int64
-	student2 int64
-	tmplID   int64
-	period   *testpkg.CalendarPeriod
+	// timetable are the retained Timetable adapters over the same owners.
+	timetable repositories.TimetableRepositories
+	db        *bun.DB
+	ctx       context.Context
+	roomID    int64
+	staffID   int64
+	student1  int64
+	student2  int64
+	tmplID    int64
+	period    *testpkg.CalendarPeriod
 }
 
 // buildLifecycle prepares the minimum scaffold for instance-lifecycle tests:
@@ -60,7 +62,8 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	timetableDependencies := repositories.NewUnobservedTimetableDependencies(db)
+	repoFactory := repositories.NewFactory(db, timetableDependencies)
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
@@ -86,17 +89,18 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
 
 	setup := &lifecycleSetup{
-		presence: newInstancePresence(t, db),
-		factory:  serviceFactory,
-		repos:    repoFactory,
-		db:       db,
-		ctx:      ctx,
-		roomID:   room.ID,
-		staffID:  staff.ID,
-		student1: student1.ID,
-		student2: student2.ID,
-		tmplID:   templateRow.ID,
-		period:   period,
+		presence:  newInstancePresence(t, db),
+		factory:   serviceFactory,
+		repos:     repoFactory,
+		timetable: repositories.NewTimetableRepositories(db, timetableDependencies),
+		db:        db,
+		ctx:       ctx,
+		roomID:    room.ID,
+		staffID:   staff.ID,
+		student1:  student1.ID,
+		student2:  student2.ID,
+		tmplID:    templateRow.ID,
+		period:    period,
 	}
 	// These state-machine fixtures use fixed wall-clock windows. Time-policy
 	// boundaries have dedicated clock-injected tests; keep this suite focused on
@@ -129,7 +133,7 @@ func newLifecycleAutoEnd(t *testing.T, instances scheduleModels.ActivityInstance
 // lifecycleDependencies is the dependency set instanceServiceWithBroadcaster
 // wires, for tests that add an optional collaborator before construction.
 func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, recovery ...scheduleModels.ActivityRecoveryRepository) compose.InstanceLifecycleDependencies {
-	recoveryRepo := repositories.NewActivityRecoveryRepository(s.db, s.repos.InstanceStudent)
+	recoveryRepo := compose.NewRetainedActivityRecoveryRepository(s.db, s.timetable.InstanceStudent)
 	if len(recovery) > 0 {
 		recoveryRepo = recovery[0]
 	}
@@ -147,15 +151,15 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		StartConflicts:      lifecycleStartConflicts(s),
 		SubstituteConflicts: s.factory.TimetableData.Deviations,
 		Presence:            s.presence,
-		InstanceRepo:        s.repos.ActivityInstance,
-		IdempotencyRepo:     s.repos.InstanceIdempotency,
-		InstanceStaffRepo:   s.repos.InstanceStaff,
-		InstanceStudents:    s.repos.InstanceStudent,
-		ExceptionRepo:       s.repos.ActivityException,
+		InstanceRepo:        s.timetable.ActivityInstance,
+		IdempotencyRepo:     s.timetable.InstanceIdempotency,
+		InstanceStaffRepo:   s.timetable.InstanceStaff,
+		InstanceStudents:    s.timetable.InstanceStudent,
+		ExceptionRepo:       s.timetable.ActivityException,
 		ActiveGroupRepo:     s.repos.ActiveGroup,
 		SupervisorRepo:      s.repos.GroupSupervisor,
 		Rooms:               repositories.TimetableOwnerRows{Rooms: services.NewRoomRepository(rooms)}.LifecycleRooms(),
-		ActivityGroupRepo:   s.repos.ActivityGroup,
+		ActivityGroupRepo:   s.timetable.ActivityGroup,
 		StaffRepo:           s.repos.Staff,
 		StudentRepo:         s.repos.Student,
 		CalendarPeriodRepo:  s.repos.CalendarPeriod,
@@ -164,7 +168,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		RecurrenceLock:      s.factory.TimetableData.RecurrenceLock,
 		CareDays:            lifecycleCareDays{query: s.factory.CareDay},
 		CareDayLocks:        s.repos.CarePlan(),
-		Protocol:            repositories.TimetableDeviationProtocol(audits.DeviationEvent),
+		Protocol:            services.TimetableDeviationProtocol(audits.DeviationEvent),
 		ContentHash:         securityruntime.Fingerprint,
 		DB:                  s.db,
 		Logger:              slog.Default(),
@@ -181,8 +185,8 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 // presence; the lifecycle only consumes its start check.
 func lifecycleStartConflicts(s *lifecycleSetup) timetable.StartConflictQuery {
 	detection, err := services.NewTimetableConflictDetection(services.TimetableConflictReaders{
-		Instances: s.repos.ActivityInstance, InstanceStaff: s.repos.InstanceStaff, InstanceStudents: s.repos.InstanceStudent,
-		Exceptions: s.repos.ActivityException, Schedules: s.repos.ActivitySchedule, Staff: s.repos.Staff,
+		Instances: s.timetable.ActivityInstance, InstanceStaff: s.timetable.InstanceStaff, InstanceStudents: s.timetable.InstanceStudent,
+		Exceptions: s.timetable.ActivityException, Schedules: s.timetable.ActivitySchedule, Staff: s.repos.Staff,
 		CalendarPeriods: s.repos.CalendarPeriod, ArrivalExceptions: s.repos.StudentArrivalException,
 		Sessions: s.repos.ActiveGroup, Shifts: unusedShiftRows{}, Presence: s.presence,
 	})
@@ -361,7 +365,7 @@ func forceSetInstanceStatus(t *testing.T, s *lifecycleSetup, id int64, status st
 // lifecycle's public view does not carry.
 func reloadInstance(t *testing.T, s *lifecycleSetup, id int64) *scheduleModels.ActivityInstance {
 	t.Helper()
-	row, err := s.repos.ActivityInstance.FindByID(s.ctx, id)
+	row, err := s.timetable.ActivityInstance.FindByID(s.ctx, id)
 	require.NoError(t, err)
 	require.NotNil(t, row)
 	return row

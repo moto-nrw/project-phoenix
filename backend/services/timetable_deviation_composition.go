@@ -21,8 +21,8 @@ import (
 // The Timetable owner's deviation writes, attendance corrections and
 // attendance mirror (#3424 slice S3), bound to the collaborators the owner
 // may not name: the Audit Platform's protocol and correction trail
-// (repositories.TimetableDeviationProtocol and
-// repositories.TimetableAttendanceCorrectionTrail), the realtime hub and
+// (TimetableDeviationProtocol and
+// TimetableAttendanceCorrectionTrail), the realtime hub and
 // Student Presence's attendance syncer port.
 
 // timetableDeviationInputs compose the deviation writes over the retained
@@ -50,7 +50,7 @@ func newTimetableStaffDeviations(in timetableDeviationInputs) (timetable.StaffDe
 		Staff:           in.Staff,
 		Supervisions:    in.Supervisions,
 		Lifecycle:       in.Lifecycle,
-		Protocol:        repositories.TimetableDeviationProtocol(in.Rows.DeviationEvents),
+		Protocol:        TimetableDeviationProtocol(in.Rows.DeviationEvents),
 		ActivityUpdates: timetableActivityUpdates{broadcaster: in.Broadcaster},
 		DB:              in.DB,
 		Logger:          in.Logger,
@@ -80,7 +80,7 @@ func newTimetableAttendanceCorrections(in timetableCorrectionInputs) (timetable.
 	return timetableCompose.NewAttendanceCorrections(timetableCompose.AttendanceCorrectionDependencies{
 		Participants: in.Rows.Participants,
 		Instances:    in.Rows.Instances,
-		Trail:        repositories.TimetableAttendanceCorrectionTrail(in.Trail),
+		Trail:        TimetableAttendanceCorrectionTrail(in.Trail),
 		People:       in.People,
 		Locks:        in.Rows.AttendanceLocks(),
 		Logger:       in.Logger,

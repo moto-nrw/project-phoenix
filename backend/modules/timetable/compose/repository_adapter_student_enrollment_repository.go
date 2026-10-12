@@ -1,4 +1,4 @@
-package repositories
+package compose
 
 import (
 	"context"
@@ -6,13 +6,13 @@ import (
 	"fmt"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 type timetableStudentEnrollmentRepository struct {
 	timetable timetable.Capability
-	students  peopledirectory.StudentQuery
+	alumni    func(context.Context, []int64) (map[int64]bool, error)
+	names     func(context.Context, []int64) (map[int64]PersonName, error)
 }
 
 func (r timetableStudentEnrollmentRepository) Create(ctx context.Context, enrollment *activitiesModels.StudentEnrollment) error {
@@ -119,28 +119,20 @@ func (r timetableStudentEnrollmentRepository) FindByGroupID(ctx context.Context,
 	if err != nil || len(rows) == 0 {
 		return rows, err
 	}
-	if r.students == nil {
+	if r.alumni == nil || r.names == nil {
 		return nil, errors.New("student enrollment repository: people directory is required")
 	}
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.StudentID)
 	}
-	students, err := r.students.ListStudentsByID(ctx, ids)
+	alumni, err := r.alumni(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	names, err := r.students.ListStudentNamesByID(ctx, ids)
+	namesByID, err := r.names(ctx, ids)
 	if err != nil {
 		return nil, err
-	}
-	alumni := make(map[int64]bool, len(students))
-	for _, student := range students {
-		alumni[student.ID] = student.IsAlumnus()
-	}
-	namesByID := make(map[int64]peopledirectory.StudentName, len(names))
-	for _, name := range names {
-		namesByID[name.StudentID] = name
 	}
 	for _, row := range rows {
 		row.StudentAlumnus = alumni[row.StudentID]

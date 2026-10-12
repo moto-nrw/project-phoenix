@@ -67,13 +67,14 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	timetableDependencies := repositories.NewUnobservedTimetableDependencies(db)
+	repoFactory := repositories.NewFactory(db, timetableDependencies)
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
 
-	svc := newTestMaterialization(t, db, repoFactory)
+	svc := newTestMaterialization(t, db, repoFactory, repositories.NewTimetableRepositories(db, timetableDependencies))
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -281,7 +282,7 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 
 	class3a := "3a"
 	class4a := "4a"
-	targetRepo, ok := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.(activitiesModels.GroupTargetRepository)
+	targetRepo, ok := repositories.NewTimetableRepositories(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.(activitiesModels.GroupTargetRepository)
 	require.True(t, ok)
 	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activitiesModels.GroupTarget{
 		{TargetGroupType: activitiesModels.TargetGroupTypeKlasse, TargetSchoolClass: &class3a},
@@ -368,8 +369,9 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	svc := newTestMaterialization(t, db, repoFactory)
+	timetableDependencies := repositories.NewUnobservedTimetableDependencies(db)
+	repoFactory := repositories.NewFactory(db, timetableDependencies)
+	svc := newTestMaterialization(t, db, repoFactory, repositories.NewTimetableRepositories(db, timetableDependencies))
 
 	// Use a fresh tenant id that we know has no active periods.
 	//
@@ -399,8 +401,9 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	svc := newTestMaterialization(t, db, repoFactory)
+	timetableDependencies := repositories.NewUnobservedTimetableDependencies(db)
+	repoFactory := repositories.NewFactory(db, timetableDependencies)
+	svc := newTestMaterialization(t, db, repoFactory, repositories.NewTimetableRepositories(db, timetableDependencies))
 
 	emptyTemplateTenantID := testpkg.UniqueTestTenantID(t)
 	ctx := testpkg.TenantContext(emptyTemplateTenantID)
@@ -662,19 +665,19 @@ func updateCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, peri
 // newTestMaterialization composes the Timetable owner's materialization over
 // the retained repositories, the way the composition root does, without the
 // per-date care filter and the staffing announcement.
-func newTestMaterialization(t *testing.T, db *bun.DB, repos *repositories.Factory) timetable.MaterializationCapability {
+func newTestMaterialization(t *testing.T, db *bun.DB, repos *repositories.Factory, timetableRepos repositories.TimetableRepositories) timetable.MaterializationCapability {
 	t.Helper()
 	svc, err := compose.NewMaterialization(compose.MaterializationDependencies{
-		GroupRepo:      repos.ActivityGroup,
-		ScheduleRepo:   repos.ActivitySchedule,
-		EnrollmentRepo: repos.StudentEnrollment,
-		SupervisorRepo: repos.ActivitySupervisor,
+		GroupRepo:      timetableRepos.ActivityGroup,
+		ScheduleRepo:   timetableRepos.ActivitySchedule,
+		EnrollmentRepo: timetableRepos.StudentEnrollment,
+		SupervisorRepo: timetableRepos.ActivitySupervisor,
 		PeriodRepo:     repos.CalendarPeriod,
-		InstanceRepo:   repos.ActivityInstance,
-		StaffRepo:      repos.InstanceStaff,
-		StudentRepo:    repos.InstanceStudent,
-		ExceptionRepo:  repos.ActivityException,
-		TimeframeRepo:  repos.Timeframe,
+		InstanceRepo:   timetableRepos.ActivityInstance,
+		StaffRepo:      timetableRepos.InstanceStaff,
+		StudentRepo:    timetableRepos.InstanceStudent,
+		ExceptionRepo:  timetableRepos.ActivityException,
+		TimeframeRepo:  timetableRepos.Timeframe,
 		RecurrenceLock: repositories.MustNewTimetableRecurrenceLock(db),
 		DB:             db,
 		Logger:         slog.Default(),

@@ -56,7 +56,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        304
+        310
       ],
       "tables": []
     },
@@ -147,7 +147,7 @@
       "declaration": "setupTestCleanupContextWithServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        70
+        71
       ],
       "tables": []
     },
@@ -157,7 +157,7 @@
       "declaration": "TestNewFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        17
+        18
       ],
       "tables": []
     },
@@ -255,16 +255,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         268
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/school_calendar_test.go",
-      "declaration": "TestCapacityOccurrencesReadPeriodsThroughTheCalendarOwner",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        410
       ],
       "tables": []
     },
@@ -474,16 +464,6 @@
       "scope": "test",
       "file": "database/repositories/teaching_assignment_adapters_test.go",
       "declaration": "TestTeachingAssignmentAdaptersPreserveLegacyContracts",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        15
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/timetable_group_repository_test.go",
-      "declaration": "TestTimetableGroupAdapterPreservesDatabaseErrorBehavior",
       "target": "database/repositories.NewFactory",
       "lines": [
         15
@@ -879,7 +859,7 @@
       "declaration": "newOffboardingScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        67
+        68
       ],
       "tables": []
     },
@@ -920,26 +900,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         61
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "test/isolation_test.go",
-      "declaration": "TestTenantIsolation_ActivityCategoryVisibility",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        407
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "test/isolation_test.go",
-      "declaration": "TestTenantIsolation_TimeframeVisibility",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        204
       ],
       "tables": []
     },
@@ -17218,12 +17178,12 @@
         },
         {
           "file": "api/base.go",
-          "line": 507,
+          "line": 514,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 673,
+          "line": 680,
           "declaration": "type serveGraph"
         }
       ]
@@ -17233,7 +17193,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 304,
+          "line": 310,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -17243,22 +17203,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 158,
+          "line": 160,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 376,
+          "line": 383,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 421,
+          "line": 428,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 672,
+          "line": 679,
           "declaration": "type serveGraph"
         },
         {
