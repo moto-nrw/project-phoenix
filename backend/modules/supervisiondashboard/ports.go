@@ -225,8 +225,7 @@ type Planning interface {
 
 // Resolver resolves one setting of the request tenant. The retained adapter
 // builds Settings and the caller's overview decision over it; it prefetches
-// one snapshot per request only when the value is the full settings service,
-// which also resolves many keys at once.
+// one snapshot per request when the value also resolves many keys at once.
 type Resolver interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 	ResolveString(ctx context.Context, key string) (string, error)

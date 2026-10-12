@@ -13,10 +13,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	educationModels "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
+	settingsplatform "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -136,24 +136,13 @@ func (m *mockArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Conte
 	return m.getBulkEffectiveArrivalTimesForDateFn(studentIDs, date)
 }
 
-// dashboardSettings adds the optional snapshot read Prepare looks for on the
-// retained settings service. The embedded service stays nil, so a call to any
-// method besides these three fails the test loudly.
+// dashboardSettings adds the snapshot read Prepare looks for.
 type dashboardSettings struct {
-	configService.BatchSettingsService
-	resolvers     *settingsDouble
-	resolveManyFn func(ctx context.Context, keys []string) (*configService.SettingsSnapshot, error)
+	*settingsDouble
+	resolveManyFn func(ctx context.Context, keys []string) (*settingsplatform.Snapshot, error)
 }
 
-func (s *dashboardSettings) ResolveBool(ctx context.Context, key string) (bool, error) {
-	return s.resolvers.ResolveBool(ctx, key)
-}
-
-func (s *dashboardSettings) ResolveString(ctx context.Context, key string) (string, error) {
-	return s.resolvers.ResolveString(ctx, key)
-}
-
-func (s *dashboardSettings) ResolveMany(ctx context.Context, keys []string) (*configService.SettingsSnapshot, error) {
+func (s *dashboardSettings) ResolveMany(ctx context.Context, keys []string) (*settingsplatform.Snapshot, error) {
 	if s.resolveManyFn == nil {
 		return nil, nil
 	}
@@ -372,7 +361,7 @@ func TestSettingsBranches(t *testing.T) {
 		ResolveBoolFn:   func(context.Context, string) (bool, error) { return true, nil },
 		ResolveStringFn: func(context.Context, string) (string, error) { return "", errors.New("boom") },
 	}
-	batch := &dashboardSettings{resolvers: mock}
+	batch := &dashboardSettings{settingsDouble: mock}
 	s := settings{settings: batch}
 
 	_, err := s.TrackingIndicatorLabels(ctx)
@@ -418,15 +407,15 @@ func TestSettingsBranches(t *testing.T) {
 	require.ErrorContains(t, err, "spontaneous activities")
 
 	var preparedKeys []string
-	batch.resolveManyFn = func(_ context.Context, keys []string) (*configService.SettingsSnapshot, error) {
+	batch.resolveManyFn = func(_ context.Context, keys []string) (*settingsplatform.Snapshot, error) {
 		preparedKeys = keys
-		return &configService.SettingsSnapshot{}, nil
+		return &settingsplatform.Snapshot{}, nil
 	}
 	prepared, err := s.Prepare(ctx)
 	require.NoError(t, err)
 	assert.NotNil(t, prepared)
 	assert.Contains(t, preparedKeys, configModel.KeyWeekendFollowsFriday)
-	batch.resolveManyFn = func(context.Context, []string) (*configService.SettingsSnapshot, error) {
+	batch.resolveManyFn = func(context.Context, []string) (*settingsplatform.Snapshot, error) {
 		return nil, errors.New("settings down")
 	}
 	_, err = s.Prepare(ctx)

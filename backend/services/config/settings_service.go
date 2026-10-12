@@ -47,6 +47,10 @@ type settingsService struct {
 	gradeCapGuard func(ctx context.Context) (int, error)
 }
 
+// Consumers that prefetch a request snapshot rely on the settings service
+// answering SnapshotResolver.
+var _ SnapshotResolver = (*settingsService)(nil)
+
 // SettingsLookupObserver records bounded per-key lookup evidence. cache is
 // one of snapshot, hit, miss, or bypass; outcome is ok or error.
 type SettingsLookupObserver func(key, cache, outcome string, duration time.Duration)

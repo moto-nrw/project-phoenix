@@ -3310,12 +3310,16 @@ returned carries `models/config` types no contract may expose.
 rule either: no consumer read the schema. Every consumer that took the full
 settings service declares a narrow port; the supervision dashboard's is
 `supervisiondashboard.Resolver` in its public ports, so the legacy tree stays
-within its LOC budget. Each test package keeps a local func-field
-`settingsDouble` with only the resolvers its ports need, and `configtest` is
-deleted with its package entry. Both `configtest` keys fall, and the now
-unused rules `delivery.application.settings` and
-`communication.parent-compatibility.application-settings-application` are
-deleted (166 -> 164).
+within its LOC budget, and its snapshot prefetch checks for the one-method
+`services/config.SnapshotResolver`, which the settings service is compiled to
+satisfy, instead of the full batch service. Each test package keeps a local
+func-field `settingsDouble` with only the resolvers its ports need; the
+dashboard's internal test names the snapshot as `modules/settings.Snapshot`.
+`configtest` is deleted with its package entry. Both `configtest` keys fall,
+and the now unused rules `delivery.application.settings`,
+`communication.parent-compatibility.application-settings-application` and
+`calendar-view.adapter-test.settings-platform-application` are deleted
+(166 -> 164).
 
 A reviewed epoch may also add the one owner-agnostic shared-kernel rule
 ([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),

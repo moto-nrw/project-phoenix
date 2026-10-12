@@ -17874,17 +17874,6 @@
       "target_role": "domain"
     },
     {
-      "id": "calendar-view.adapter-test.settings-platform-application",
-      "description": "Adapter tests fake the retained settings service (#2703).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "settings-platform",
-      "target_role": "application"
-    },
-    {
       "id": "calendar-view.adapter-test.settings-platform-domain",
       "description": "Adapter tests name the setting keys the adapter resolves (#2703).",
       "scopes": [
