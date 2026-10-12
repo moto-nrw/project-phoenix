@@ -18,6 +18,11 @@ func TestReviewedSharedFixtureRuleShape(t *testing.T) {
 		{"tenant runtime", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"production"}}, true},
 		{"calendar date for the e2e role", Rule{SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "legacy-shared", TargetRole: "domain", Scopes: []string{"internal_test"}}, true},
 		{"permission constants", Rule{SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "security-runtime", TargetRole: "contract", Scopes: []string{"internal_test", "external_test"}}, true},
+		{"security contract", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{"production"}}, true},
+		{"settings contract", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "settings-platform", TargetRole: "public", Scopes: []string{"production"}}, true},
+		{"settings contract for the e2e role", Rule{SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "settings-platform", TargetRole: "public", Scopes: []string{"internal_test"}}, true},
+		{"settings application", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "settings-platform", TargetRole: "application", Scopes: []string{"production"}}, false},
+		{"settings repository", Rule{SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "settings-platform", TargetRole: "postgres", Scopes: []string{"internal_test"}}, false},
 		{"no role", Rule{SourceOwner: "test-support", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"production"}}, false},
 		{"test-support role in a test scope", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"internal_test"}}, false},
 		{"e2e role in production", Rule{SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"production"}}, false},
@@ -49,12 +54,46 @@ func sharedFixturePolicies(t *testing.T) (*Policy, *Policy) {
 	base := *candidate
 	base.PolicyEpoch--
 	base.Rules = slices.DeleteFunc(slices.Clone(candidate.Rules), func(rule Rule) bool {
-		return strings.HasPrefix(rule.ID, "shared-fixtures.")
+		return strings.HasPrefix(rule.ID, "shared-fixtures.") || ownerSuiteRuleIDs[rule.ID]
 	})
 	if len(base.Rules) == len(candidate.Rules) {
 		t.Fatal("the repository policy carries no shared-fixtures rules")
 	}
 	return &base, candidate
+}
+
+// ownerSuiteRuleIDs are the repository rules registered under the pinned
+// owner-suite shapes of ADR 0047.
+var ownerSuiteRuleIDs = map[string]bool{
+	"settings-platform.internal-test.security-runtime-public": true,
+	"audit-platform.adapter-test.enrollment-support":          true,
+	"audit-platform.adapter-test.care-plan-support":           true,
+}
+
+func TestReviewedOwnerSuiteRuleShape(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []struct {
+		name string
+		rule Rule
+		want bool
+	}{
+		{"settings suite decides through the security contract", Rule{SourceOwner: "settings-platform", SourceRole: "module-internal-test", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{"internal_test"}}, true},
+		{"audit suite composes Enrollment", Rule{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "enrollment", TargetRole: "test-support", Scopes: []string{"external_test"}}, true},
+		{"audit suite composes Care Plan", Rule{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "care-plan", TargetRole: "test-support", Scopes: []string{"external_test"}}, true},
+		{"wider scope", Rule{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "enrollment", TargetRole: "test-support", Scopes: []string{"internal_test", "external_test"}}, false},
+		{"production scope", Rule{SourceOwner: "settings-platform", SourceRole: "module-internal-test", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{"production"}}, false},
+		{"another source role", Rule{SourceOwner: "settings-platform", SourceRole: "application", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{"internal_test"}}, false},
+		{"another source owner", Rule{SourceOwner: "workforce", SourceRole: "adapter-test", TargetOwner: "enrollment", TargetRole: "test-support", Scopes: []string{"external_test"}}, false},
+		{"another target role", Rule{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "enrollment", TargetRole: "domain", Scopes: []string{"external_test"}}, false},
+		{"security application", Rule{SourceOwner: "settings-platform", SourceRole: "module-internal-test", TargetOwner: "security-runtime", TargetRole: "application", Scopes: []string{"internal_test"}}, false},
+		{"owner-agnostic source", Rule{SourceRole: "adapter-test", TargetOwner: "care-plan", TargetRole: "test-support", Scopes: []string{"external_test"}}, false},
+		{"owner kind target", Rule{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwnerKind: "domain", TargetRole: "test-support", Scopes: []string{"external_test"}}, false},
+		{"no scope", Rule{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "care-plan", TargetRole: "test-support"}, false},
+	} {
+		if got := reviewedOwnerSuiteRule(scenario.rule); got != scenario.want {
+			t.Errorf("%s: reviewedOwnerSuiteRule = %v, want %v", scenario.name, got, scenario.want)
+		}
+	}
 }
 
 func noCreated() map[string]struct{} { return map[string]struct{}{} }
@@ -72,6 +111,11 @@ func TestSharedFixtureRulesPassOnlyInAReviewedEpoch(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "rule shared-fixtures.") {
 		t.Fatalf("shared-fixture rules passed without an epoch increase: %v", err)
 	}
+	for id := range ownerSuiteRuleIDs {
+		if !strings.Contains(err.Error(), "rule "+id) {
+			t.Fatalf("owner-suite rule %s passed without an epoch increase: %v", id, err)
+		}
+	}
 }
 
 func TestSharedFixtureEpochGrantsNothingElse(t *testing.T) {
@@ -80,6 +124,9 @@ func TestSharedFixtureEpochGrantsNothingElse(t *testing.T) {
 		{ID: "shared-fixtures.people-domain", Description: "test", Scopes: []string{"production"}, SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "people-directory", TargetRole: "domain"},
 		{ID: "shared-fixtures.tenant-postgres", Description: "test", Scopes: []string{"production"}, SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "tenant-runtime", TargetRole: "postgres"},
 		{ID: "shared-fixtures.e2e-in-production", Description: "test", Scopes: []string{"production"}, SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "tenant-runtime", TargetRole: "public"},
+		{ID: "shared-fixtures.settings-application", Description: "test", Scopes: []string{"production"}, SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "settings-platform", TargetRole: "application"},
+		{ID: "owner-suite.audit-enrollment-domain", Description: "test", Scopes: []string{"external_test"}, SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "enrollment", TargetRole: "domain"},
+		{ID: "owner-suite.settings-security-production", Description: "test", Scopes: []string{"production"}, SourceOwner: "settings-platform", SourceRole: "application", TargetOwner: "security-runtime", TargetRole: "public"},
 		{ID: "shared-fixtures.foreign-owner", Description: "test", Scopes: []string{"production"}, SourceOwner: "care-plan", SourceRole: "test-support", TargetOwner: "tenant-runtime", TargetRole: "public"},
 	} {
 		base, candidate := sharedFixturePolicies(t)

@@ -18,10 +18,15 @@ import (
 
 var bookingAuditMonday = timezone.NewDate(2026, time.January, 5)
 
-// Raw arrival rows on unbooked days and broad class rosters are deliberate in
-// booking-led care. This fixture includes both and pins that only actionable
+// The VerifyBookingConsistencyAudit* scenarios arrange their rows here and
+// assert the report of the repository the Audit integration suite composes
+// (database/repositories/audit/integration).
+
+// VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows: raw arrival
+// rows on unbooked days and broad class rosters are deliberate in booking-led
+// care. This fixture includes both and pins that only actionable
 // pickup/offering violations contribute to the report.
-func verifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.T, db *bun.DB, repository any) {
+func VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.T, db *bun.DB, repository any) {
 	ctx := Ctx(t)
 	repo := repository.(auditModel.BookingConsistencyRepository)
 	auditDate := bookingAuditMonday
@@ -95,7 +100,9 @@ func verifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.
 	assert.Equal(t, 2, report.TotalFindings())
 }
 
-func verifyBookingConsistencyAuditRequiresDateAndTenant(t *testing.T, repository any) {
+// VerifyBookingConsistencyAuditRequiresDateAndTenant pins the refusals of an
+// audit without a tenant context or date.
+func VerifyBookingConsistencyAuditRequiresDateAndTenant(t *testing.T, repository any) {
 	repo := repository.(auditModel.BookingConsistencyRepository)
 	_, err := repo.Audit(context.Background(), auditModel.Date(timezone.TodayDate().String()))
 	require.ErrorContains(t, err, "requires a tenant context")
@@ -104,7 +111,9 @@ func verifyBookingConsistencyAuditRequiresDateAndTenant(t *testing.T, repository
 	require.ErrorContains(t, err, "date is required")
 }
 
-func verifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, db *bun.DB, repository any) {
+// VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions pins that
+// arrival exceptions and links valid only later do not count as findings.
+func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, db *bun.DB, repository any) {
 	ctx := Ctx(t)
 	repo := repository.(auditModel.BookingConsistencyRepository)
 	auditDate := bookingAuditMonday
@@ -146,7 +155,9 @@ func verifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 	assert.Equal(t, 1, report.ApprovedWithoutRequiredOffering)
 }
 
-func verifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing.T, db *bun.DB, repository any) {
+// VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks pins that
+// two contiguous links of one offering cover the required offering.
+func VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing.T, db *bun.DB, repository any) {
 	ctx := Ctx(t)
 	repo := repository.(auditModel.BookingConsistencyRepository)
 	auditDate := bookingAuditMonday
@@ -234,6 +245,8 @@ func createApprovedBookingAuditChild(
 	return approvedBookingAuditChild{phase: phase, child: child}
 }
 
+// AuditTenantIDFromContext reads the tenant the Audit Platform binds to a
+// context, for repositories composed in tests.
 func AuditTenantIDFromContext(ctx context.Context) int64 {
 	return auditModel.TenantIDFromContext(ctx)
 }

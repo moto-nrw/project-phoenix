@@ -426,7 +426,7 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 			continue
 		}
 		if candidate.PolicyEpoch > base.PolicyEpoch &&
-			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedSharedKernelRule(rule) || reviewedCommonHTTPRule(rule)) {
+			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) || reviewedSharedKernelRule(rule) || reviewedCommonHTTPRule(rule)) {
 			continue
 		}
 		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
@@ -477,13 +477,17 @@ const sharedFixtureOwner = "test-support"
 // sharedFixtureTargets are the owner/role points the shared fixture owner may
 // reach in a reviewed epoch (ADR 0039, #2748): its own tooling, the tenant
 // runtime rows are created under, the calendar-date type DATE columns are
-// mandated to use, and the permission constants tokens carry. Nothing an
-// owner is dissolving is among them.
+// mandated to use, and the permission constants tokens carry. ADR 0047
+// (#3944) adds the security and settings contracts the guardian presets,
+// student access decisions and settings double are served through. No
+// implementation role of another owner is among them.
 var sharedFixtureTargets = map[[2]string]bool{
 	{sharedFixtureOwner, "test-support"}: true,
 	{"tenant-runtime", "public"}:         true,
 	{"legacy-shared", "domain"}:          true,
 	{"security-runtime", "contract"}:     true,
+	{"security-runtime", "public"}:       true,
+	{"settings-platform", "public"}:      true,
 }
 
 // reviewedSharedFixtureRule reports whether a rule has the one owner-specific
@@ -518,16 +522,50 @@ func reviewedSharedFixtureRule(rule Rule) bool {
 	return sharedFixtureTargets[[2]string{rule.TargetOwner, rule.TargetRole}]
 }
 
-// firstPartyAllowedByReviewedSharedFixtureRule reports whether the single rule
-// that admits this first-party import in the candidate policy is a reviewed
-// shared-fixture rule (ADR 0039). The import loosening it implies is then the
-// intended effect of that rule, not a separate widening.
-func firstPartyAllowedByReviewedSharedFixtureRule(base, candidate *Policy, scope Scope, source, target Package) bool {
-	if candidate.PolicyEpoch <= base.PolicyEpoch || source.Owner != sharedFixtureOwner {
+// ownerSuiteRules are the three owner-suite reaches ADR 0047 (#3944) pins for
+// the tests that leave the shared fixture package: the settings suite decides
+// the overview scope through the security contract, and the Audit
+// integration suite composes Enrollment and Care Plan through their test
+// support. Each is exact: source owner and role, target owner and role, and
+// the one scope the suite runs in.
+var ownerSuiteRules = []Rule{
+	{SourceOwner: "settings-platform", SourceRole: "module-internal-test", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{string(ScopeInternalTest)}},
+	{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "enrollment", TargetRole: "test-support", Scopes: []string{string(ScopeExternalTest)}},
+	{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "care-plan", TargetRole: "test-support", Scopes: []string{string(ScopeExternalTest)}},
+}
+
+// reviewedOwnerSuiteRule reports whether a rule is one of the pinned
+// ownerSuiteRules, in its scope only. Owner kinds, external classes, the
+// same-owner flag and every other source, target or scope stay under the
+// ordinary loosening guards.
+func reviewedOwnerSuiteRule(rule Rule) bool {
+	if rule.SourceOwnerKind != "" || rule.TargetOwnerKind != "" || rule.TargetClass != "" || rule.SameOwner || len(rule.Scopes) == 0 {
+		return false
+	}
+	for _, pinned := range ownerSuiteRules {
+		if rule.SourceOwner == pinned.SourceOwner && rule.SourceRole == pinned.SourceRole &&
+			rule.TargetOwner == pinned.TargetOwner && rule.TargetRole == pinned.TargetRole &&
+			scopesContain(pinned.Scopes, rule.Scopes) {
+			return true
+		}
+	}
+	return false
+}
+
+// firstPartyAllowedByReviewedFixtureRule reports whether the single rule that
+// admits this first-party import in the candidate policy is a reviewed
+// shared-fixture rule (ADR 0039, ADR 0047) or a pinned owner-suite rule
+// (ADR 0047). The import loosening it implies is then the intended effect of
+// that rule, not a separate widening.
+func firstPartyAllowedByReviewedFixtureRule(base, candidate *Policy, scope Scope, source, target Package) bool {
+	if candidate.PolicyEpoch <= base.PolicyEpoch {
 		return false
 	}
 	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
-	return decision.Allowed != nil && len(decision.Overlaps) == 0 && reviewedSharedFixtureRule(*decision.Allowed)
+	if decision.Allowed == nil || len(decision.Overlaps) != 0 {
+		return false
+	}
+	return reviewedSharedFixtureRule(*decision.Allowed) || reviewedOwnerSuiteRule(*decision.Allowed)
 }
 
 // reviewedSharedKernelRule reports whether a rule has the one owner-agnostic
@@ -752,7 +790,7 @@ func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, base
 				!timetablePlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
 				!shiftPlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
 				!enrollmentApplicationCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!firstPartyAllowedByReviewedSharedFixtureRule(base, candidate, scope, source, target) &&
+				!firstPartyAllowedByReviewedFixtureRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedSharedKernelRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedCommonHTTPRule(base, candidate, scope, source, target) {
 				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())

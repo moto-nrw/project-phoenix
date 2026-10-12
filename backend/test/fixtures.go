@@ -16,11 +16,11 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/userpass/userpasstest"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -3018,7 +3018,7 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 		CanPickup:          true,
 		EmergencyPriority:  1,
 	}
-	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRolePrimaryGuardian)
+	ApplyStudentGuardianRole(link, securityruntime.GuardianRolePrimaryGuardian)
 	link.IsPrimary = true
 	link.SetTenantID(fixtureTenantID(tb))
 	require.NoError(tb, InsertTestStudentGuardian(ctx, db, link), "Failed to create student guardian link")
@@ -3230,7 +3230,7 @@ func CreateTestCoGuardianForStudent(
 		EmergencyPriority:  2,
 	}
 	// A co-guardian, not the primary one: same portal access, no primacy.
-	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleCoGuardian)
+	ApplyStudentGuardianRole(link, securityruntime.GuardianRoleCoGuardian)
 	link.SetTenantID(fixtureTenantID(tb))
 	require.NoError(tb, InsertTestStudentGuardian(ctx, db, link), "Failed to link co-guardian to student")
 

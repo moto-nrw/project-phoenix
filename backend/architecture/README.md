@@ -3282,13 +3282,30 @@ reaches ([ADR 0039](../../docs/adr/0039-shared-fixtures-reach-their-standing-tar
 `e2e-test` role in the test scopes, and a target of `test-support/test-support`,
 `tenant-runtime/public`, `legacy-shared/domain` or `security-runtime/contract`.
 Epoch 24 registers the six `shared-fixtures.*` rules under it. Everything else
-the fixtures still import — the models, services and repositories other
-carriers are dissolving, the device authenticator, the legacy composition —
-stays exact debt on #2748 and falls with those carriers; a rule would hide it.
+the fixtures still import stays exact debt on #2748; a rule for it would hide
+it. Most of it does not fall with a carrier: it names implementation roles
+their owners keep, so the fixtures leave them by moving to owner test support
+or by reaching owner contracts. Only the legacy composition `services`
+(#2747, #2751) and possibly the session token adapter (#3487) are dissolved
+by a carrier.
 The third cut of #2748 needed no rule: the fixtures map the device, room,
 activity and schedule rows they write themselves, the API helpers bind the
 kiosk staff principal from IDs and re-export the People Directory suite
 constructors from the legacy composition, and twelve keys fell (191 -> 179).
+Slice A of #3944 moved the mail, broadcaster, Argon2 and device doubles to new
+owner test-support points without a rule (177 -> 173).
+
+[ADR 0047](../../docs/adr/0047-shared-fixtures-reach-the-security-and-settings-contracts.md)
+(#3944, slice B) adds `security-runtime/public` and `settings-platform/public`
+to those standing targets under the same shape, and pins three owner-suite
+reaches for the tests that left the fixture package: the settings suite
+(`settings-platform`/`module-internal-test`, internal_test) to
+`security-runtime/public`, and the Audit integration suite
+(`audit-platform`/`adapter-test`, external_test) to `enrollment/test-support`
+and `care-plan/test-support`. A wider scope, another role or another target
+stays a loosening. Epoch 35 registers five rules under it and seven keys fall
+(173 -> 166). `configtest` keeps `services/config`: the settings schema it
+returns carries `models/config` types no contract may expose.
 
 A reviewed epoch may also add the one owner-agnostic shared-kernel rule
 ([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),

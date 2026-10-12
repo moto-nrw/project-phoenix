@@ -1,8 +1,8 @@
 package test
 
 import (
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
 // The retained People Directory repository suites (the tests of
@@ -75,25 +75,23 @@ const (
 	StudentStatusAlumnus                   = users.StudentStatusAlumnus
 	StudentStatusInactive                  = users.StudentStatusInactive
 	StudentStatusPending                   = users.StudentStatusPending
-	GuardianPermissionEnrollmentSubmit     = authorize.GuardianPermissionEnrollmentSubmit
-	GuardianPermissionPollResponse         = authorize.GuardianPermissionPollResponse
-	GuardianPermissionPortalAccess         = authorize.GuardianPermissionPortalAccess
-	GuardianRoleLegalGuardian              = authorize.GuardianRoleLegalGuardian
-	GuardianRolePickupOnly                 = authorize.GuardianRolePickupOnly
-	GuardianRoleSocialWorker               = authorize.GuardianRoleSocialWorker
+	GuardianPermissionEnrollmentSubmit     = securityruntime.GuardianPermissionEnrollmentSubmit
+	GuardianPermissionPollResponse         = securityruntime.GuardianPermissionPollResponse
+	GuardianPermissionPortalAccess         = securityruntime.GuardianPermissionPortalAccess
+	GuardianRoleLegalGuardian              = securityruntime.GuardianRoleLegalGuardian
+	GuardianRolePickupOnly                 = securityruntime.GuardianRolePickupOnly
+	GuardianRoleSocialWorker               = securityruntime.GuardianRoleSocialWorker
 )
 
 var (
-	ErrAnnouncementPublished     = users.ErrAnnouncementPublished
-	ErrChangeRequestNotFound     = users.ErrChangeRequestNotFound
-	ErrChangeRequestNotPending   = users.ErrChangeRequestNotPending
-	ErrGuardianAccountConflict   = users.ErrGuardianAccountConflict
-	ErrGuardianProfileNotFound   = users.ErrGuardianProfileNotFound
-	ErrStudentGuardianNotFound   = users.ErrStudentGuardianNotFound
-	EnrolledOn                   = users.EnrolledOn
-	WithAccompaniedDays          = users.WithAccompaniedDays
-	NewQueryOptions              = users.NewQueryOptions
-	NewQueryFilter               = users.NewQueryFilter
-	ApplyStudentGuardianRole     = authorize.ApplyStudentGuardianRole
-	StudentGuardianHasPermission = authorize.StudentGuardianHasPermission
+	ErrAnnouncementPublished   = users.ErrAnnouncementPublished
+	ErrChangeRequestNotFound   = users.ErrChangeRequestNotFound
+	ErrChangeRequestNotPending = users.ErrChangeRequestNotPending
+	ErrGuardianAccountConflict = users.ErrGuardianAccountConflict
+	ErrGuardianProfileNotFound = users.ErrGuardianProfileNotFound
+	ErrStudentGuardianNotFound = users.ErrStudentGuardianNotFound
+	EnrolledOn                 = users.EnrolledOn
+	WithAccompaniedDays        = users.WithAccompaniedDays
+	NewQueryOptions            = users.NewQueryOptions
+	NewQueryFilter             = users.NewQueryFilter
 )

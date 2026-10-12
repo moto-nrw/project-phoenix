@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -69,7 +69,7 @@ func CreateTestStudentGuardianLinkForTenant(tb testing.TB, db *bun.DB, tenantID,
 		CanPickup:          true,
 		EmergencyPriority:  1,
 	}
-	authorize.ApplyStudentGuardianRole(link, role)
+	ApplyStudentGuardianRole(link, role)
 	link.SetTenantID(tenantID)
 	require.NoError(tb, InsertTestStudentGuardian(ctx, db, link), "Failed to create student guardian link")
 	return link
@@ -216,7 +216,7 @@ func SetTestStudentGuardianLinkRole(tb testing.TB, db *bun.DB, linkID int64, rol
 
 	link, err := LoadTestStudentGuardian(ctx, db, linkID)
 	require.NoError(tb, err, "Failed to load student guardian link")
-	authorize.ApplyStudentGuardianRole(link, role)
+	ApplyStudentGuardianRole(link, role)
 	err = db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if err := setTestStudentGuardianRole(ctx, tx, linkID, link.GuardianRole); err != nil {
 			return err
@@ -236,5 +236,31 @@ func StudentGuardianLinkGrantsPortalAccess(tb testing.TB, db *bun.DB, linkID int
 
 	link, err := LoadTestStudentGuardian(ctx, db, linkID)
 	require.NoError(tb, err, "Failed to load student guardian link")
-	return authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess)
+	return StudentGuardianHasPermission(link, securityruntime.GuardianPermissionPortalAccess)
+}
+
+// ApplyStudentGuardianRole sets a relationship's role to the preset and its
+// parent-portal permissions to exactly the ones the preset grants, as the
+// owner's role assignment stores them.
+func ApplyStudentGuardianRole(link *users.StudentGuardian, role string) {
+	if link == nil {
+		return
+	}
+	normalized, granted := securityruntime.StudentGuardianRolePreset(role)
+	permissions := make(map[string]interface{}, len(granted))
+	for _, permission := range granted {
+		permissions[permission] = true
+	}
+	link.SetGuardianAuthorizationData(normalized, permissions)
+}
+
+// StudentGuardianHasPermission reports whether the relationship grants the
+// parent-portal permission under the Security Runtime's stored-value rule.
+func StudentGuardianHasPermission(link *users.StudentGuardian, permission string) bool {
+	if link == nil {
+		return false
+	}
+	_, _, _, _, _, permissions := link.GuardianAuthorizationData()
+	value, exists := permissions[permission]
+	return exists && securityruntime.GuardianPermissionGranted(value)
 }

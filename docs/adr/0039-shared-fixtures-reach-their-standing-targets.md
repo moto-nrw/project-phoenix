@@ -61,7 +61,12 @@ this shape, and only this shape, under a reviewed epoch. Other source owners,
 owner kinds, external classes, the implementation roles of the granted
 owners and every other target stay under the ordinary loosening guards. No
 rule is granted for anything a carrier is dissolving; those keys stay exact
-debt on #2748 and fall with the carriers.
+debt on #2748. Most of them do not fall with a carrier: they name
+implementation roles their owners keep, so the fixtures leave them by moving
+to owner test support or by reaching owner contracts (#3944,
+[ADR 0047](0047-shared-fixtures-reach-the-security-and-settings-contracts.md)).
+Only the legacy composition `services` (#2747, #2751) and possibly the
+session token adapter (#3487) are dissolved by a carrier.
 
 This decision changes no runtime write owner, table, HTTP route, status code
 or error string.
