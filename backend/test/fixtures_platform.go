@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
 // CreateTestOperator inserts a platform operator with a unique email and
 // registers cleanup via tb.Cleanup. Sites that need an int64 use the ID field.
-func CreateTestOperator(tb testing.TB, db *bun.DB) *platform.Operator {
+func CreateTestOperator(tb testing.TB, db *bun.DB) *Operator {
 	tb.Helper()
 	return CreateTestOperatorWithEmail(tb, db,
 		fmt.Sprintf("op-%d@test.local", uniqueFixtureSuffix()), "Test Operator")
@@ -20,10 +19,10 @@ func CreateTestOperator(tb testing.TB, db *bun.DB) *platform.Operator {
 
 // CreateTestOperatorWithEmail inserts a platform operator with the given email
 // and display name and registers cleanup via tb.Cleanup.
-func CreateTestOperatorWithEmail(tb testing.TB, db *bun.DB, email, displayName string) *platform.Operator {
+func CreateTestOperatorWithEmail(tb testing.TB, db *bun.DB, email, displayName string) *Operator {
 	tb.Helper()
 
-	op := &platform.Operator{
+	op := &Operator{
 		Email:        email,
 		DisplayName:  displayName,
 		PasswordHash: "$argon2id$v=19$m=65536,t=3,p=2$placeholder$placeholder",
@@ -43,7 +42,7 @@ func CreateTestOperatorWithEmail(tb testing.TB, db *bun.DB, email, displayName s
 }
 
 // CreateTestOrganization inserts an organization fixture and registers exact-ID cleanup.
-func CreateTestOrganization(tb testing.TB, db *bun.DB, organization *platform.Organization) *platform.Organization {
+func CreateTestOrganization(tb testing.TB, db *bun.DB, organization *Organization) *Organization {
 	tb.Helper()
 	require.NotNil(tb, organization)
 	_, err := db.NewInsert().
@@ -63,7 +62,7 @@ func CreateTestOrganization(tb testing.TB, db *bun.DB, organization *platform.Or
 		require.NoError(tb, cleanupErr, "Failed to find test organization schools")
 		cleanupTenantTestData(tb, db, tenantIDs...)
 		_, cleanupErr = db.NewDelete().
-			Model((*platform.Organization)(nil)).
+			Model((*Organization)(nil)).
 			ModelTableExpr("platform.organizations").
 			Where("id = ?", organization.ID).
 			Exec(ctx)
@@ -126,12 +125,12 @@ func cleanupOperator(tb testing.TB, db *bun.DB, operatorID int64) {
 // CreateTestOperatorWithPassword inserts a platform operator whose password
 // hash verifies the given password (cheap Argon2id parameters), for the
 // operator login and password-change flows, and registers cleanup.
-func CreateTestOperatorWithPassword(tb testing.TB, db *bun.DB, email, password string) *platform.Operator {
+func CreateTestOperatorWithPassword(tb testing.TB, db *bun.DB, email, password string) *Operator {
 	tb.Helper()
 
 	hash, err := hashPassword(password)
 	require.NoError(tb, err, "Failed to hash operator password")
-	op := &platform.Operator{
+	op := &Operator{
 		Email:        email,
 		DisplayName:  "Test Operator",
 		PasswordHash: hash,

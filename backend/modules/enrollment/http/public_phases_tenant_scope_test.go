@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -25,7 +24,7 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 
 	now := time.Now().UnixNano()
 	ctx := context.Background()
-	org := &platformModels.Organization{
+	org := &testpkg.Organization{
 		ID:     now,
 		Name:   "Public Phase Tenant Scope Org",
 		Slug:   fmt.Sprintf("public-phase-tenant-scope-org-%d", now),

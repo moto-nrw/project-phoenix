@@ -68,7 +68,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 
 	authService, err := services.IdentityAccessForTests(services.IdentityAccessTestConfig{
 		TenantRuntime: testpkg.TenantRuntime(t, db),
-		Audit:         testpkg.NewAuthEventCommand(services.NewTestAuditPersistence(db, nil).AuthEvent),
+		Audit:         testpkg.NewAuditCommand(services.NewTestAuditPersistence(db, nil).AuthEvent.Create),
 		FrontendURL:   "http://localhost:3000", PasswordResetExpiry: time.Hour,
 	}, db, nil)
 	require.NoError(t, err)
