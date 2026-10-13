@@ -173,7 +173,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		return StudentTestModule{}, err
 	}
 	rosterReconciler := timetableCompose.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, logger, now)
-	recurrenceLock, err := NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return StudentTestModule{}, err
 	}

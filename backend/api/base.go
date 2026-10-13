@@ -466,7 +466,9 @@ func observeDataImport(observation services.DataImportObservation) {
 func composeFacilities(db *bun.DB, legacyFacilities *interface {
 	ValidateRoomDeletion(context.Context, int64) error
 }) (*facilitiesModule.Module, error) {
-	recurrenceLock, err := services.NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := timetableCompose.NewRecurrenceWriteLock(timetableCompose.RecurrenceLockDependencies{
+		DB: db, GradeTransitionLockKey: schoolStructureModule.TransitionsLockKey,
+	})
 	if err != nil {
 		return nil, err
 	}

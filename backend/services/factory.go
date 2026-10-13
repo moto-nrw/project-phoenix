@@ -753,7 +753,9 @@ func newFactory(
 	)
 	// The Timetable owner's tenant recurrence gate (#3424 slice S2) orders
 	// every recurrence writer the factory composes.
-	recurrenceLock, err := NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := arrivalTimetable.NewRecurrenceWriteLock(arrivalTimetable.RecurrenceLockDependencies{
+		DB: db, GradeTransitionLockKey: schoolstructure.TransitionsLockKey,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable recurrence lock: %w", err)
 	}

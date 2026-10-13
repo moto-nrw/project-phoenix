@@ -84,7 +84,7 @@ func NewTimetableHTTPTestModule(db *bun.DB, options TimetableHTTPTestOptions) (T
 		clock := options.Clock
 		today = func() calendar.Date { return calendar.DateFromTime(clock()) }
 	}
-	lock, err := NewTimetableRecurrenceLock(db)
+	lock, err := newTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return TimetableHTTPTestModule{}, err
 	}
@@ -297,7 +297,7 @@ func NewTimetableHTTPTestSessionRecords(db *bun.DB) *presenceCompose.SessionReco
 // NewTimetableHTTPTestRecurrenceLock is the Timetable owner's tenant
 // recurrence gate over the test database.
 func NewTimetableHTTPTestRecurrenceLock(db *bun.DB) (timetable.RecurrenceWriteLock, error) {
-	return NewTimetableRecurrenceLock(db)
+	return newTimetableTestRecurrenceLock(db)
 }
 
 // NewTimetableHTTPTestPeople serves the People port of the timetable routes

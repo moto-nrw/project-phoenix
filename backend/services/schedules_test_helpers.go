@@ -27,7 +27,7 @@ func NewScheduleTestModule(db *bun.DB, unit tenant.UnitOfWork) (ScheduleTestModu
 	if err != nil {
 		return ScheduleTestModule{}, err
 	}
-	recurrenceLock, err := NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return ScheduleTestModule{}, err
 	}

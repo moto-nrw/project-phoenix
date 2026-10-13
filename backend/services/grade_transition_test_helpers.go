@@ -47,7 +47,7 @@ func NewGradeTransitionTestModule(db *bun.DB, resync OfferingResync, clocks ...f
 		resync = func(context.Context, timezone.Date) error { return nil }
 	}
 	clock := optionalClock(clocks)
-	recurrenceLock, err := NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
