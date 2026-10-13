@@ -1,4 +1,4 @@
-package legacy
+package compose
 
 import facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 

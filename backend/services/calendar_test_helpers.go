@@ -3,8 +3,8 @@ package services
 import (
 	"log/slog"
 
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -12,7 +12,7 @@ import (
 type CalendarTestModule struct{ Calendar calendarCompose.Application }
 
 func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModule, error) {
-	command, err := auditService.NewCommand(NewTestAuditStore(db), func(auditService.AppendObservation) {})
+	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return CalendarTestModule{}, err
 	}

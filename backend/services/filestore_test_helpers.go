@@ -3,6 +3,7 @@ package services
 import (
 	"log/slog"
 
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
@@ -10,7 +11,6 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -36,9 +36,9 @@ func NewFileStoreTestModule(db *bun.DB, unit tenant.UnitOfWork, objects UploadsB
 	if err != nil {
 		return FileStoreTestModule{}, err
 	}
-	command, err := auditSvc.NewCommand(
+	command, err := auditCompose.NewCommand(
 		NewTestAuditStore(db),
-		func(auditSvc.AppendObservation) {},
+		func(auditCompose.AppendObservation) {},
 	)
 	if err != nil {
 		return FileStoreTestModule{}, err

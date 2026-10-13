@@ -5,6 +5,7 @@ import (
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
@@ -43,7 +44,7 @@ func NewOperatorSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (Operator
 		return OperatorSettingsTestModule{}, err
 	}
 	registry := settingsCompose.NewSideEffectRegistry()
-	wc := facilitiesLegacy.NewWCService(active.Facilities, facilitiesLegacy.ActivityCatalog(active.Activities), slog.Default())
+	wc := facilitiesCompose.NewWCService(active.Facilities, facilitiesLegacy.ActivityCatalog(active.Activities), slog.Default())
 	facilitiesLegacy.RegisterSettingsSideEffects(registry, active.Schulhof, wc)
 	registerCareWithdrawalSettingsSideEffects(registry, care.CareLifecycle)
 	return OperatorSettingsTestModule{

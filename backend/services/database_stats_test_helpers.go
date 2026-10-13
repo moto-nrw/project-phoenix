@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/services/database"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/uptrace/bun"
 )
 
@@ -24,7 +24,7 @@ func NewDatabaseStatsTestReader(db *bun.DB) (DatabaseStatsReader, error) {
 	if err != nil {
 		return nil, err
 	}
-	databaseService := database.NewService(database.StatsDependencies{
+	databaseService := transactionruntime.NewDatabaseStats(transactionruntime.DatabaseStatsDependencies{
 		Students: func(ctx context.Context) (int, error) {
 			rows, err := repos.Student.List(ctx, nil)
 			return len(rows), err
@@ -50,7 +50,7 @@ func NewDatabaseStatsTestReader(db *bun.DB) (DatabaseStatsReader, error) {
 		},
 	}, slog.Default())
 
-	return NewDatabaseStatsReader(databaseService, func(ctx context.Context) database.StatsCapabilities {
+	return NewDatabaseStatsReader(databaseService, func(ctx context.Context) transactionruntime.DatabaseStatsCapabilities {
 		return securityruntime.DatabaseStatsCapabilities(authjwt.PermissionsFromCtx(ctx))
 	}), nil
 }

@@ -34,6 +34,7 @@ import (
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importService "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
@@ -76,16 +77,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	auditService "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/database"
-	importService "github.com/moto-nrw/project-phoenix/services/import"
-	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
@@ -96,6 +94,7 @@ import (
 	reminderPorts "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
+	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
 	"github.com/spf13/viper"
@@ -158,9 +157,9 @@ type Factory struct {
 	// GradeTransition is the owner workflow behind the school-year rollover
 	// (#2711): the admin HTTP surface calls exactly its public commands.
 	GradeTransition    *gradetransition.Workflow
-	Facilities         facilitiesLegacy.RoomService
-	Schulhof           facilitiesLegacy.SchulhofService
-	WC                 facilitiesLegacy.WCService
+	Facilities         facilitiesCompose.RoomService
+	Schulhof           facilitiesCompose.SchulhofService
+	WC                 facilitiesCompose.WCService
 	Invitation         InvitationCapability
 	GuardianInvitation GuardianInvitationCapability
 	IoT                devicefleetCompose.IoTService
@@ -201,8 +200,8 @@ type Factory struct {
 	PeopleDirectory           peopledirectory.Capability
 	GuardianProfileLoader     *peopleCompose.GuardianProfileLoader
 	UserContext               *CallerRows
-	Database                  database.DatabaseService
-	DatabaseStatsCapabilities func(context.Context) database.StatsCapabilities
+	Database                  transactionruntime.DatabaseStats
+	DatabaseStatsCapabilities func(context.Context) transactionruntime.DatabaseStatsCapabilities
 	Import                    *importService.ImportService[importModels.StudentImportRow]        // Student import service
 	StaffImport               *importService.ImportService[importModels.StaffImportRow]          // Staff (Mitarbeiter) import service
 	ClassListImport           *importService.ImportService[importModels.ClassListEntryImportRow] // Class-list entry import (#2382)
@@ -256,7 +255,7 @@ type Factory struct {
 	InstanceSeriesConverter timetable.InstanceSeriesConversion
 	OperatorMFA             identityaccess.OperatorMFAFlows
 	OperatorPasskey         identityaccess.OperatorPasskeyFlows
-	UnregisteredTagScans    auditService.UnregisteredTagScanService
+	UnregisteredTagScans    auditCompose.UnregisteredTagScanService
 
 	// Delivery owns the leased email and push outboxes; EmailOutboxWorker
 	// drains both transports.
@@ -433,7 +432,7 @@ func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe
 	if store == nil || logger == nil || observe == nil {
 		return nil, errors.New("audit command store, logger, and observer are required")
 	}
-	command, err := auditService.NewCommand(store, func(observation auditService.AppendObservation) {
+	command, err := auditCompose.NewCommand(store, func(observation auditCompose.AppendObservation) {
 		observe(observation.EventType, observation.Duration, observation.Rows, observation.Err)
 		log := logger.Debug
 		if observation.Err != nil {
@@ -1278,7 +1277,7 @@ func newFactory(
 	}
 
 	// Initialize facilities service
-	facilitiesService := facilitiesLegacy.NewRoomService(facilitiesLegacy.RoomServiceConfig{
+	facilitiesService := facilitiesCompose.NewRoomService(facilitiesCompose.RoomServiceConfig{
 		Rooms:     rooms,
 		Occupancy: facilitiesLegacy.OccupancyProjection(roomOccupancyPresence{newStudentPresence(db, logger)}, timetableRepos.ActivityGroup, membership, persons),
 		History:   facilitiesLegacy.HistoryProjection(roomHistoryPresence{newStudentPresence(db, logger)}, timetableRepos.ActivityGroup, membership, persons),
@@ -1301,7 +1300,7 @@ func newFactory(
 	})
 
 	// Initialize Schulhof service (depends on facilities, activities, and active services)
-	schulhofService := facilitiesLegacy.NewSchulhofService(
+	schulhofService := facilitiesCompose.NewSchulhofService(
 		facilitiesService,
 		facilitiesLegacy.ActivityCatalog(activitiesService),
 		facilitiesLegacy.OpenGroupCatalog(facilitiesGroupSupervisions(newStudentPresence(db, logger)), facilitiesRoomSessions(newStudentPresence(db, logger)), facilitiesGroupVisits(newStudentPresence(db, logger))),
@@ -1309,7 +1308,7 @@ func newFactory(
 	)
 
 	// Initialize WC service (depends on facilities and activities services)
-	wcService := facilitiesLegacy.NewWCService(
+	wcService := facilitiesCompose.NewWCService(
 		facilitiesService,
 		facilitiesLegacy.ActivityCatalog(activitiesService),
 		facilitiesLogger,
@@ -1871,7 +1870,7 @@ func newFactory(
 	})
 
 	// Initialize database stats service
-	databaseService := database.NewService(database.StatsDependencies{
+	databaseService := transactionruntime.NewDatabaseStats(transactionruntime.DatabaseStatsDependencies{
 		Students: func(ctx context.Context) (int, error) {
 			return studentRepository.CountEnrolled(ctx)
 		},
@@ -1913,9 +1912,9 @@ func newFactory(
 		PresenceSettings(settingsService),
 		today,
 	)
-	unregisteredTagScanService, err := auditService.NewUnregisteredTagScanService(
+	unregisteredTagScanService, err := auditCompose.NewUnregisteredTagScanService(
 		newUnregisteredTagScanRepository(legacyDeviceFleet),
-		auditService.UnregisteredTagScanRuntime{TenantID: tenant.FromContext},
+		auditCompose.UnregisteredTagScanRuntime{TenantID: tenant.FromContext},
 	)
 	if err != nil {
 		return nil, err
@@ -1940,7 +1939,7 @@ func newFactory(
 			BalanceAdjustService: OpeningBalanceBookingCapability(staffBalanceAdjustService),
 			StaffAbsenceService:  VacationTakeoverCapability(staffAbsenceService),
 		},
-		ConsentHistory: auditService.NewConsentRecorder(auditCommand),
+		ConsentHistory: auditCompose.NewConsentRecorder(auditCommand),
 		Audit:          auditCommand,
 		Observe: func(observation importService.ImportObservation) {
 			observeDataImport(observation)
@@ -2945,7 +2944,7 @@ func newFactory(
 		GuardianProfileLoader:   guardianProfileLoader,
 		UserContext:             userContextService,
 		Database:                databaseService,
-		DatabaseStatsCapabilities: func(ctx context.Context) database.StatsCapabilities {
+		DatabaseStatsCapabilities: func(ctx context.Context) transactionruntime.DatabaseStatsCapabilities {
 			return securityruntime.DatabaseStatsCapabilities(authjwt.PermissionsFromCtx(ctx))
 		},
 		Import:               dataImports.Student,        // Student import service

@@ -5,15 +5,15 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 func facilitiesGroupSupervisions(presence interface {
 	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
-}) func(context.Context, []int64) ([]facilitiesLegacy.OpenGroupSupervisor, error) {
-	return func(ctx context.Context, groupIDs []int64) ([]facilitiesLegacy.OpenGroupSupervisor, error) {
-		result := make([]facilitiesLegacy.OpenGroupSupervisor, 0)
+}) func(context.Context, []int64) ([]facilitiesCompose.OpenGroupSupervisor, error) {
+	return func(ctx context.Context, groupIDs []int64) ([]facilitiesCompose.OpenGroupSupervisor, error) {
+		result := make([]facilitiesCompose.OpenGroupSupervisor, 0)
 		if len(groupIDs) == 0 {
 			return result, nil
 		}
@@ -24,7 +24,7 @@ func facilitiesGroupSupervisions(presence interface {
 			return nil, &studentpresence.OperationError{Op: "FindSupervisorsByActiveGroupIDs", Err: studentpresence.ErrDatabaseOperation}
 		}
 		for _, row := range rows {
-			result = append(result, facilitiesLegacy.OpenGroupSupervisor{ID: row.ID, GroupID: row.GroupID, StaffID: row.StaffID, Ended: facilitiesSupervisionEnded(row.EndDate, today.String())})
+			result = append(result, facilitiesCompose.OpenGroupSupervisor{ID: row.ID, GroupID: row.GroupID, StaffID: row.StaffID, Ended: facilitiesSupervisionEnded(row.EndDate, today.String())})
 		}
 		return result, nil
 	}
@@ -49,15 +49,15 @@ func facilitiesSupervisionEnded(endDate *string, today string) bool {
 
 func facilitiesGroupVisits(presence interface {
 	ListVisits(context.Context, studentpresence.VisitFilter) ([]studentpresence.Visit, error)
-}) func(context.Context, int64) ([]facilitiesLegacy.OpenGroupVisit, error) {
-	return func(ctx context.Context, groupID int64) ([]facilitiesLegacy.OpenGroupVisit, error) {
+}) func(context.Context, int64) ([]facilitiesCompose.OpenGroupVisit, error) {
+	return func(ctx context.Context, groupID int64) ([]facilitiesCompose.OpenGroupVisit, error) {
 		visits, err := presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{groupID}})
 		if err != nil {
 			return nil, &studentpresence.OperationError{Op: "FindVisitsByActiveGroupID", Err: studentpresence.ErrDatabaseOperation}
 		}
-		result := make([]facilitiesLegacy.OpenGroupVisit, 0, len(visits))
+		result := make([]facilitiesCompose.OpenGroupVisit, 0, len(visits))
 		for _, visit := range visits {
-			result = append(result, facilitiesLegacy.OpenGroupVisit{ExitTime: visit.ExitTime})
+			result = append(result, facilitiesCompose.OpenGroupVisit{ExitTime: visit.ExitTime})
 		}
 		return result, nil
 	}
@@ -65,16 +65,16 @@ func facilitiesGroupVisits(presence interface {
 
 func facilitiesRoomSessions(presence interface {
 	QueryLiveGroups(context.Context, studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error)
-}) func(context.Context, int64) ([]facilitiesLegacy.OpenGroup, error) {
-	return func(ctx context.Context, roomID int64) ([]facilitiesLegacy.OpenGroup, error) {
+}) func(context.Context, int64) ([]facilitiesCompose.OpenGroup, error) {
+	return func(ctx context.Context, roomID int64) ([]facilitiesCompose.OpenGroup, error) {
 		groups, err := presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{RoomID: &roomID, OpenOnly: true})
 		if err != nil {
 			return nil, &studentpresence.OperationError{Op: "FindActiveGroupsByRoomID", Err: fmt.Errorf("find by room: %w", err)}
 		}
 		today := timezone.TodayDate()
-		result := make([]facilitiesLegacy.OpenGroup, 0, len(groups))
+		result := make([]facilitiesCompose.OpenGroup, 0, len(groups))
 		for _, group := range groups {
-			result = append(result, facilitiesLegacy.OpenGroup{
+			result = append(result, facilitiesCompose.OpenGroup{
 				ID: group.ID, StartTime: group.StartTime, EndTime: group.EndTime,
 				IsToday: timezone.DateFromTime(group.StartTime) == today,
 			})

@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
-	"github.com/moto-nrw/project-phoenix/services/iot/staffclock"
+	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
 )
 
 // staffClockClock is the wall clock and the Berlin calendar day the kiosk

@@ -6,8 +6,8 @@ import (
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
-	"github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
 	"github.com/uptrace/bun"
 )
 

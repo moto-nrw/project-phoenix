@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 
 	"github.com/uptrace/bun"
@@ -13,7 +14,6 @@ import (
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -58,7 +58,7 @@ type BookingMaterializationTestModule struct {
 // NewBookingMaterializationTestModule composes the booking materialization
 // over the test database.
 func NewBookingMaterializationTestModule(db *bun.DB, unit tenant.UnitOfWork, options BookingMaterializationTestOptions) (BookingMaterializationTestModule, error) {
-	auditCommand, err := auditService.NewCommand(NewTestAuditStore(db), func(auditService.AppendObservation) {})
+	auditCommand, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}

@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/services/iot/staffclock"
+	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
 )
 
 // rfidCardLookup maps the owner's validated card facts to the staff-clock port.

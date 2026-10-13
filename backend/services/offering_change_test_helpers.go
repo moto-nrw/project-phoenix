@@ -7,10 +7,10 @@ import (
 
 	"github.com/uptrace/bun"
 
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -46,7 +46,7 @@ func NewOfferingChangeTestModule(db *bun.DB, options OfferingChangeTestOptions) 
 	if options.Settings == nil || options.Bookings == nil {
 		return nil, errors.New("offering change test module: settings and bookings are required")
 	}
-	auditCommand, err := auditService.NewCommand(NewTestAuditStore(db), func(auditService.AppendObservation) {})
+	auditCommand, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return nil, err
 	}

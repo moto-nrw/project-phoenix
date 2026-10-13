@@ -6,10 +6,10 @@ import (
 	"errors"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	importService "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	importService "github.com/moto-nrw/project-phoenix/services/import"
 )
 
 // The bindings below connect Enrollment's decision flow (#3564) to the People
