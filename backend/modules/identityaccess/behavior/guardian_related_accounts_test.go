@@ -281,7 +281,7 @@ func TestRevokeAccess_PayerStaysWithoutFinancialPermission(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t, func(db *bun.DB, cfg *services.GuardianInvitationTestConfig) {
-		cfg.Audit = testpkg.NewGuardianFinancialChangeCommand(services.NewTestAuditPersistence(db, nil).GuardianFinancialChange)
+		cfg.Audit = testpkg.NewAuditCommand(services.NewTestAuditPersistence(db, nil).GuardianFinancialChange.Create)
 	})
 	defer env.cleanup()
 

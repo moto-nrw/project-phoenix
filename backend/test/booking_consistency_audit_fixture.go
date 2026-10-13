@@ -9,7 +9,6 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModel "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -23,13 +22,28 @@ var bookingAuditMonday = timezone.NewDate(2026, time.January, 5)
 // assert the report of the repository the Audit integration suite composes
 // (database/repositories/audit/integration).
 
+// BookingConsistencyAudit runs the Audit Platform's booking consistency audit
+// for the tenant in ctx on auditDate (YYYY-MM-DD). The Audit integration
+// suite adapts its repository to it, so the scenarios need not name the Audit
+// Platform's report type (#2748).
+type BookingConsistencyAudit func(ctx context.Context, auditDate string) (BookingConsistencyFindings, error)
+
+// BookingConsistencyFindings carries the report fields the scenarios assert;
+// TotalFindings is the report's own count.
+type BookingConsistencyFindings struct {
+	TenantID                        int64
+	PickupProjectionMissingDays     int
+	ApprovedWithoutRequiredOffering int
+	ApprovedWithoutOptionalOffering int
+	TotalFindings                   int
+}
+
 // VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows: raw arrival
 // rows on unbooked days and broad class rosters are deliberate in booking-led
 // care. This fixture includes both and pins that only actionable
 // pickup/offering violations contribute to the report.
-func VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.T, db *bun.DB, repository any) {
+func VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.T, db *bun.DB, runAudit BookingConsistencyAudit) {
 	ctx := Ctx(t)
-	repo := repository.(auditModel.BookingConsistencyRepository)
 	auditDate := bookingAuditMonday
 
 	bookedStudent := CreateTestStudent(t, db, "Gebucht", "Audit", "1a")
@@ -92,31 +106,29 @@ func VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.
 	createApprovedBookingAuditChild(t, otherTenant.Context(), db, auditDate, otherStudent.ID,
 		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
 
-	report, err := repo.Audit(ctx, auditModel.Date(auditDate.String()))
+	report, err := runAudit(ctx, auditDate.String())
 	require.NoError(t, err)
 	assert.Equal(t, Tenant(t), report.TenantID)
 	assert.Equal(t, 1, report.PickupProjectionMissingDays)
 	assert.Equal(t, 1, report.ApprovedWithoutRequiredOffering)
 	assert.Equal(t, 1, report.ApprovedWithoutOptionalOffering)
-	assert.Equal(t, 2, report.TotalFindings())
+	assert.Equal(t, 2, report.TotalFindings)
 }
 
 // VerifyBookingConsistencyAuditRequiresDateAndTenant pins the refusals of an
 // audit without a tenant context or date.
-func VerifyBookingConsistencyAuditRequiresDateAndTenant(t *testing.T, repository any) {
-	repo := repository.(auditModel.BookingConsistencyRepository)
-	_, err := repo.Audit(context.Background(), auditModel.Date(timezone.TodayDate().String()))
+func VerifyBookingConsistencyAuditRequiresDateAndTenant(t *testing.T, runAudit BookingConsistencyAudit) {
+	_, err := runAudit(context.Background(), timezone.TodayDate().String())
 	require.ErrorContains(t, err, "requires a tenant context")
 
-	_, err = repo.Audit(Ctx(t), auditModel.Date(""))
+	_, err = runAudit(Ctx(t), "")
 	require.ErrorContains(t, err, "date is required")
 }
 
 // VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions pins that
 // arrival exceptions and links valid only later do not count as findings.
-func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, db *bun.DB, repository any) {
+func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, db *bun.DB, runAudit BookingConsistencyAudit) {
 	ctx := Ctx(t)
-	repo := repository.(auditModel.BookingConsistencyRepository)
 	auditDate := bookingAuditMonday
 	staff := CreateTestStaff(t, db, "Audit", "Ausnahme")
 
@@ -150,7 +162,7 @@ func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 	}
 	insertAuditOfferingSelection(t, db, ctx, tenant.FromContext(ctx), futureLink)
 
-	report, err := repo.Audit(ctx, auditModel.Date(auditDate.String()))
+	report, err := runAudit(ctx, auditDate.String())
 	require.NoError(t, err)
 	assert.Equal(t, 0, report.PickupProjectionMissingDays)
 	assert.Equal(t, 1, report.ApprovedWithoutRequiredOffering)
@@ -158,9 +170,8 @@ func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 
 // VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks pins that
 // two contiguous links of one offering cover the required offering.
-func VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing.T, db *bun.DB, repository any) {
+func VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing.T, db *bun.DB, runAudit BookingConsistencyAudit) {
 	ctx := Ctx(t)
-	repo := repository.(auditModel.BookingConsistencyRepository)
 	auditDate := bookingAuditMonday
 	staff := CreateTestStaff(t, db, "Audit", "Split")
 	student := CreateTestStudent(t, db, "Geteilt", "Audit", "1a")
@@ -189,7 +200,7 @@ func VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing
 	}
 	insertTenantBookingAuditModel(t, db, ctx, arrival, &arrival.TenantID)
 
-	report, err := repo.Audit(ctx, auditModel.Date(auditDate.String()))
+	report, err := runAudit(ctx, auditDate.String())
 	require.NoError(t, err)
 	assert.Equal(t, 0, report.ApprovedWithoutRequiredOffering)
 }
