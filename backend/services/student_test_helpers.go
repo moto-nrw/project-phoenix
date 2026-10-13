@@ -155,6 +155,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		return NewStudentPhotos(persons, guardian.PhotoRuntime, StudentPhotoRuntimeDependencies{
 			Settings: settingsService, Broadcaster: broadcaster, Unlinker: unlinker,
 			Consents: studentConsentService, Logger: logger,
+			ActingAccount: testRequestTokens.accountID,
 		})
 	}
 	studentPhotoService := newStudentPhotos(realtimeHub, nil)
@@ -292,6 +293,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		pillEmitter,
 		realtimeHub,
 		requestReviewPolicy,
+		testRequestTokens.Permissions,
 		parentRequestEvents,
 		logger.With("service", "care-requests"),
 		studentAuditService,
@@ -301,7 +303,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		CarePlan: repos.CarePlan, Enrollment: repos.Enrollment(), Students: repos.Student,
 		Withdrawals: repos.CareWithdrawal, Settings: settingsService,
 		Planning: manualPlanningReader{query: enrollmentCompose.NewManualPlanningQuery(db), courseGroups: repos.Timetable},
-		Bookings: careBookings, Reviews: requestReviewPolicy, Emitter: pillEmitter,
+		Bookings: careBookings, Reviews: requestReviewPolicy, Permissions: testRequestTokens.Permissions, Emitter: pillEmitter,
 		Events: parentRequestEvents, Today: today, Logger: logger.With("service", "offering-change-requests"),
 	})
 	if err != nil {
@@ -320,7 +322,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	}
 	excusedRequestService, err := newExcusedAbsenceRequests(excusedRequestWiring{
 		carePlan: repos.CarePlan, students: repos.Student, persons: repos.Person,
-		scope:   parentRequestReviewScope(requestReviewPolicy),
+		scope:   parentRequestReviewScope(requestReviewPolicy, testRequestTokens.Permissions),
 		emitter: pillEmitter, broadcaster: realtimeHub, events: parentRequestEvents,
 		logger: logger.With("service", "excused-requests"),
 	})
@@ -329,7 +331,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	}
 	masterDataDecisions, err := newMasterDataDecisions(masterDataDecisionWiring{
 		carePlan: repos.CarePlan, fields: persons, students: repos.Student, persons: repos.Person,
-		audit: studentAuditService, scope: parentRequestWriteScope(requestReviewPolicy),
+		audit: studentAuditService, scope: parentRequestWriteScope(requestReviewPolicy, testRequestTokens.Permissions),
 		emitter: pillEmitter, broadcaster: realtimeHub, events: parentRequestEvents,
 		logger: logger.With("service", "master-data-review"),
 	})
@@ -339,6 +341,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	parentRequestCoordinator, err := newParentRequestCoordinator(parentRequestCoordinatorWiring{
 		masterData: masterDataDecisions, excused: excusedRequestService, care: careRequestService,
 		offering: offeringChangeConflictPort{changes: offeringChanges}, events: parentRequestEvents,
+		permissions: testRequestTokens.Permissions,
 	})
 	if err != nil {
 		return StudentTestModule{}, err

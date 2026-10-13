@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -261,6 +262,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
 			logger: logger, backoff: settingsOverrides.resetBackoff, maxActiveSchools: settingsOverrides.demoMaxActiveSchools,
 			operatorWithoutSecondFactor: settingsOverrides.demoOperatorWithoutSecondFactor,
+			newToken:                    testRequestTokens.NewCapabilityToken, fingerprint: testRequestTokens.CapabilityFingerprint,
 		},
 		demoStandingSchool: settingsOverrides.standingDemo,
 		mfa: &mfaWiring{
@@ -404,3 +406,49 @@ func (d failingStaffDirectory) Create(context.Context, *userModels.Staff) error 
 // trusted-device HMAC key from: the process configuration, exactly as the
 // production root reads it, so no key is stored in source.
 func mfaTestSecret() string { return currentFactoryConfig().JWTSecret }
+
+// testRequestTokens are the request reads and capability tokens of the
+// retained token adapter, bound the way the serving root binds them (api).
+// The test compositions keep them here until the test hooks leave the legacy
+// composition (#2747).
+var testRequestTokens = TokenAdapter{
+	Permissions:           authjwt.PermissionsFromCtx,
+	Claims:                testRequestClaims,
+	Memo:                  testRequestMemo,
+	NewCapabilityToken:    authjwt.NewOpaqueCapabilityToken,
+	CapabilityFingerprint: authjwt.OpaqueCapabilityFingerprint,
+}
+
+// testTokensFor binds testRequestTokens to the session signer cfg names.
+func testTokensFor(cfg FactoryConfig) (TokenAdapter, error) {
+	signer, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
+	if err != nil {
+		return TokenAdapter{}, fmt.Errorf("invalid auth JWT configuration: %w", err)
+	}
+	codec, err := signedIdentityTokensOf(signer)
+	if err != nil {
+		return TokenAdapter{}, err
+	}
+	tokens := testRequestTokens
+	tokens.SessionTokens = codec
+	return tokens, nil
+}
+
+func testRequestClaims(ctx context.Context) (RequestClaims, bool) {
+	claims, ok := ctx.Value(authjwt.CtxClaims).(authjwt.AppClaims)
+	if !ok {
+		return RequestClaims{}, false
+	}
+	return RequestClaims{
+		AccountID: int64(claims.ID), TenantID: claims.TenantID, Scope: claims.Scope,
+		SchoolScope: claims.IsSchoolScope(), Admin: claims.IsAdmin,
+		FirstName: claims.FirstName, LastName: claims.LastName, Username: claims.Username,
+	}, true
+}
+
+func testRequestMemo(ctx context.Context) RequestMemo {
+	if cache := authjwt.RequestIdentityCacheFrom(ctx); cache != nil {
+		return cache
+	}
+	return nil
+}

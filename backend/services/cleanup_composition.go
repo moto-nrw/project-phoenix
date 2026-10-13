@@ -230,6 +230,13 @@ type TimeTrackingCleanupResult = timetracking.TimeTrackingCleanupResult
 type TimeTrackingCleanupPreview = timetracking.TimeTrackingCleanupPreview
 type TimeTrackingCleanupStats = timetracking.TimeTrackingCleanupStats
 
+// signedIdentityTokensOf adapts a root's resolved signer to the native claim
+// codec. The signing primitive stays in the token adapter; Identity owns the
+// claim schema and validation.
+func signedIdentityTokensOf(signer *authjwt.TokenAuth) (identityaccessCompose.SignedIdentityTokens, error) {
+	return NewSessionTokens(signer.JwtAuth, signer.JwtExpiry, signer.JwtRefreshExpiry)
+}
+
 // configuredTokenAuth resolves the signer of roots that receive no resolved
 // configuration: the cleanup CLI and the test compositions.
 func configuredTokenAuth() (*authjwt.TokenAuth, error) {

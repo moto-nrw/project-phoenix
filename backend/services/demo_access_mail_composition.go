@@ -28,6 +28,10 @@ type demoAccessWiring struct {
 	maxActiveSchools int
 	// operatorWithoutSecondFactor is set for APP_ENV=demo only (#3460).
 	operatorWithoutSecondFactor bool
+	// newToken mints the opaque capability token of a demo access link and
+	// fingerprint fingerprints a presented one.
+	newToken    func() (raw, fingerprint string, err error)
+	fingerprint func(raw string) string
 }
 
 // IsDemoEnvironment reports whether appEnv names the public demo, the only
@@ -37,13 +41,14 @@ func IsDemoEnvironment(appEnv string) bool {
 }
 
 // demoAccessWiringFor composes the demo access for APP_ENV=demo only.
-func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFrom email.Email, frontendURL string, maxActiveSchools int, logger *slog.Logger) *demoAccessWiring {
+func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFrom email.Email, frontendURL string, maxActiveSchools int, tokens TokenAdapter, logger *slog.Logger) *demoAccessWiring {
 	if !email.IsDemoEnvironment(appEnv) {
 		return nil
 	}
 	return &demoAccessWiring{
 		dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL, maxActiveSchools: maxActiveSchools, logger: logger,
 		operatorWithoutSecondFactor: true,
+		newToken:                    tokens.NewCapabilityToken, fingerprint: tokens.CapabilityFingerprint,
 	}
 }
 

@@ -9,7 +9,6 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -82,9 +81,9 @@ func newExcusedAbsenceRequests(wiring excusedRequestWiring) (*carePlanCompose.Ex
 
 // parentRequestReviewScope adapts the identity-owned review policy to the
 // workflow's data-only port: the permissions come from the request claims.
-func parentRequestReviewScope(policy excusedRequestReviewPolicy) carePlanCompose.ReviewScopeResolver {
+func parentRequestReviewScope(policy excusedRequestReviewPolicy, permissions func(context.Context) []string) carePlanCompose.ReviewScopeResolver {
 	return func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
-		schoolWide, groupIDs, err := policy.AbsenceScope(ctx, authjwt.PermissionsFromCtx(ctx))
+		schoolWide, groupIDs, err := policy.AbsenceScope(ctx, permissions(ctx))
 		if err != nil {
 			return carePlanCompose.ReviewScope{}, err
 		}

@@ -393,7 +393,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
-	factory, err := withFileStorageWiring(func(fileStorageWiring services.FileStorageWiring) (*services.Factory, error) {
+	factory, err := withRootWiring(func(fileStorageWiring services.FileStorageWiring, tokens services.TokenAdapter) (*services.Factory, error) {
 		return services.NewFactoryWithModules(
 			carePlan, db, logger, publicAPIURL, tenantRuntime,
 			organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability,
@@ -424,6 +424,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 			observeDataImport,
 			productEvents,
 			fileStorageWiring,
+			tokens,
 		)
 	})
 	if err != nil {
@@ -435,17 +436,22 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	return moduleServices{carePlan: carePlan, studentStatusDays: studentStatusDays, timetableRepositories: timetableRepositories, services: factory, demoAccess: authAPI.ComposedDemoAccess(factory.AccountAuthentication().DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff}, nil
 }
 
-// withFileStorageWiring resolves what the File Storage module needs from the
-// root and cannot compose itself (#2707): the uploads object store, rooted at
-// the uploads directory every document feature shares, and the metrics sink.
-// It hands both to the service factory, which composes the module where the
-// announcement ports live.
-func withFileStorageWiring(build func(services.FileStorageWiring) (*services.Factory, error)) (*services.Factory, error) {
+// withRootWiring resolves what the service factory needs from the root and
+// cannot compose itself. File Storage (#2707) needs the uploads object store,
+// rooted at the uploads directory every document feature shares, and the
+// metrics sink; the factory composes the module where the announcement ports
+// live. The legacy composition reads the request and signs sessions through
+// the retained token adapter only the root binds (#2747).
+func withRootWiring(build func(services.FileStorageWiring, services.TokenAdapter) (*services.Factory, error)) (*services.Factory, error) {
 	uploads, err := apiCommon.PrivateUploadsBackend()
 	if err != nil {
 		return nil, fmt.Errorf("resolve uploads backend: %w", err)
 	}
-	return build(services.FileStorageWiring{Objects: uploads, Observe: observeFileStorage})
+	tokens, err := newLegacyTokenAdapter()
+	if err != nil {
+		return nil, err
+	}
+	return build(services.FileStorageWiring{Objects: uploads, Observe: observeFileStorage}, tokens)
 }
 
 func observeFileStorage(observation filestorageCompose.Observation) {
@@ -932,9 +938,10 @@ func (graph *serveGraph) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func mountRoutes(root chi.Router, in routeInputs, limiters authRateLimiters) (documentSweeps, error) {
 	svc := in.modules.services
 	svc.EnableStudentPhotos(services.StudentPhotoBootstrap{
-		Unlinker:     studentsAPI.NewPhotoUnlinker(in.logger.With("component", "student-photo-unlinker"), "public"),
-		PhotoRuntime: in.modules.studentPhotoRuntime,
-		Logger:       in.logger.With("service", "student-photo"),
+		Unlinker:      studentsAPI.NewPhotoUnlinker(in.logger.With("component", "student-photo-unlinker"), "public"),
+		PhotoRuntime:  in.modules.studentPhotoRuntime,
+		Logger:        in.logger.With("service", "student-photo"),
+		ActingAccount: actingAccountID,
 	})
 	if err := mountDemoAccess(root, in.modules.demoAccess, viper.GetString("app_env"), in.frontendURL, viper.GetString("tenant_domain")); err != nil {
 		return documentSweeps{}, err

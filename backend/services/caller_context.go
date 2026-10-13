@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
@@ -40,6 +39,9 @@ type callerContextWiring struct {
 	Presence             *studentpresence.Module
 	Settings             callerSettings
 	Logger               *slog.Logger
+	// Tokens reads the verified principal and the request identity memo
+	// (#2099) the request middleware attached.
+	Tokens TokenAdapter
 }
 
 // newCallerContext composes the Identity & Access caller context (#3501)
@@ -54,8 +56,8 @@ func newCallerContext(wiring callerContextWiring) (identityaccess.CallerContext,
 		AbsenceReadRequired:   securityruntime.ErrAbsenceReadRequired,
 	}
 	deps := identityCompose.CallerContextDependencies{
-		Caller:     CallerFromClaims,
-		Memo:       requestIdentityMemo,
+		Caller:     wiring.Tokens.Caller,
+		Memo:       wiring.Tokens.memo,
 		Accounts:   wiring.Accounts,
 		People:     callerPeople{persons: wiring.Persons},
 		Membership: callerMembership{membership: wiring.Membership},
@@ -81,32 +83,6 @@ func newCallerRows(wiring callerContextWiring, sources CallerRowSources) (*Calle
 		return nil, fmt.Errorf("compose caller context: %w", err)
 	}
 	return NewCallerRows(caller, sources), nil
-}
-
-// requestIdentityMemo resolves the request identity memo the request
-// middleware attached (#2099).
-func requestIdentityMemo(ctx context.Context) identityCompose.CallerMemo {
-	if cache := authjwt.RequestIdentityCacheFrom(ctx); cache != nil {
-		return cache
-	}
-	return nil
-}
-
-// CallerFromClaims resolves the principal the authenticator verified.
-func CallerFromClaims(ctx context.Context) identityaccess.Caller {
-	claims, ok := ctx.Value(authjwt.CtxClaims).(authjwt.AppClaims)
-	if !ok {
-		return identityaccess.Caller{}
-	}
-	return identityaccess.Caller{
-		Authenticated:  true,
-		AccountID:      int64(claims.ID),
-		ClaimsTenantID: claims.TenantID,
-		Scope:          claims.Scope,
-		SchoolScope:    claims.IsSchoolScope(),
-		AdminRole:      claims.IsAdmin,
-		AdminWildcard:  securityruntime.HasAdminWildcard(authjwt.PermissionsFromCtx(ctx)),
-	}
 }
 
 type callerPeople struct{ persons userModels.PersonRepository }

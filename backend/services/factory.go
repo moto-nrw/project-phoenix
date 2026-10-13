@@ -55,7 +55,6 @@ import (
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -484,15 +483,19 @@ func NewFactoryWithModules(
 	observeDataImport DataImportObserver,
 	productEvents ProductEventTracker,
 	fileStorage FileStorageWiring,
+	tokens TokenAdapter,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
+	if tokens.Permissions == nil || tokens.Claims == nil || tokens.Memo == nil || tokens.SessionTokens == nil || tokens.NewCapabilityToken == nil || tokens.CapabilityFingerprint == nil {
+		return nil, errors.New("the token adapter's request reads, session tokens and capability tokens are required")
+	}
 	if carePlan == nil || organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || observeCarePlan == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil || observeIdentityAccess == nil || workTime == nil || observeDataImport == nil || fileStorage.Objects == nil || fileStorage.Observe == nil {
 		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, care plan, meal plan, feedback, Audit, Delivery, Identity & Access, Workforce, and Data Import capabilities with their binders and observers are required")
 	}
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	cfg := currentFactoryConfig()
 	cfg.PublicAPIURL = publicAPIURL
-	return newFactory(carePlan, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, observeDataImport, productEvents, fileStorage, false, clocks...)
+	return newFactory(carePlan, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, observeDataImport, productEvents, fileStorage, tokens, false, clocks...)
 }
 
 // FileStorageWiring carries what the File Storage module needs from the root
@@ -534,6 +537,7 @@ func newFactory(
 	observeDataImport DataImportObserver,
 	productEvents ProductEventTracker,
 	fileStorage FileStorageWiring,
+	tokens TokenAdapter,
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
@@ -1618,14 +1622,7 @@ func newFactory(
 		return nil, fmt.Errorf("NEXT_PUBLIC_OPERATOR_HOSTNAME is required")
 	}
 
-	sessionTokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
-	if err != nil {
-		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
-	}
-	sessionCodec, err := signedIdentityTokensOf(sessionTokenAuth)
-	if err != nil {
-		return nil, err
-	}
+	sessionCodec := tokens.SessionTokens
 
 	// Identity & Access serves tenant, parent and school login, refresh,
 	// switching, logout, session validation, cleanup and revocation (#3251),
@@ -1677,7 +1674,7 @@ func newFactory(
 			},
 		},
 		operators:          operatorDependencies,
-		demoAccess:         demoAccessWiringFor(appEnv, dispatcher, defaultFrom, frontendURL, viper.GetInt("demo_max_active_schools"), authLogger),
+		demoAccess:         demoAccessWiringFor(appEnv, dispatcher, defaultFrom, frontendURL, viper.GetInt("demo_max_active_schools"), tokens, authLogger),
 		demoStandingSchool: standingDemoSchool(viper.GetBool("demo_standing_school")),
 		operatorLinks: &operatorLinkWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom,
@@ -1812,7 +1809,7 @@ func newFactory(
 	guardianInvitationService := GuardianInvitationCapability(identityAccess)
 
 	caregiverCapabilityService := peopleCompose.NewCaregiverCapabilityService(peopleCompose.CaregiverCapabilityServiceDependencies{
-		RequestActorScope:      requestActorScope,
+		RequestActorScope:      tokens.actorScope,
 		Identity:               caregiverIdentity{identityAccess},
 		Audit:                  newCaregiverCapabilityAudit(audits.AuthEvent),
 		PersonRepo:             personRepository,
@@ -1842,6 +1839,7 @@ func newFactory(
 		Presence:             newStudentPresence(db, logger),
 		Settings:             settingsService,
 		Logger:               usercontextLogger,
+		Tokens:               tokens,
 	}, CallerRowSources{
 		Groups: groupRepository, Staff: staffRepository, Teachers: teacherRepository, Students: studentRepository,
 		Activities: arrivalTimetable.NewCallerActivityGroups(timetableRepos.ActivityGroup), Sessions: sessionRecords, Logger: usercontextLogger,
@@ -2013,7 +2011,7 @@ func newFactory(
 		enrollmentRecords,
 	))
 
-	studentAuditService := peopleCompose.NewStudentAuditService(requestAuditActor, NewStudentAuditFor(persons))
+	studentAuditService := peopleCompose.NewStudentAuditService(tokens.auditActor, NewStudentAuditFor(persons))
 	careLifecycleService, err := careplanCompose.NewCareLifecycle(careplanCompose.CareLifecycleDependencies{
 		DB: db, Records: carePlan,
 		Owners: NewCareLifecycleOwners(CareLifecycleOwnerSources{
@@ -2334,6 +2332,7 @@ func newFactory(
 		pillEmitter,
 		realtimeHub,
 		requestReviewPolicy,
+		tokens.Permissions,
 		parentRequestEvents,
 		logger.With("service", "care-requests"),
 		studentAuditService,
@@ -2350,7 +2349,7 @@ func newFactory(
 		CarePlan: carePlan, Enrollment: enrollmentRecords, Students: studentRepository,
 		Withdrawals: NewCareWithdrawalCompletionRepository(carePlan), Settings: settingsService,
 		Planning: manualPlanningReader{query: enrollmentCompose.NewManualPlanningQuery(db), courseGroups: timetableCapability},
-		Bookings: careBookings, Reviews: requestReviewPolicy, Emitter: pillEmitter,
+		Bookings: careBookings, Reviews: requestReviewPolicy, Permissions: tokens.Permissions, Emitter: pillEmitter,
 		Events: parentRequestEvents, Shares: requestShares, Today: today,
 		Logger: logger.With("service", "offering-change-requests"),
 	})
@@ -2429,7 +2428,7 @@ func newFactory(
 	// and the effect sinks. The sharing port is the lazy requestShares above.
 	excusedRequestService, err := newExcusedAbsenceRequests(excusedRequestWiring{
 		carePlan: carePlan, students: studentRepository, persons: personRepository,
-		scope:   parentRequestReviewScope(requestReviewPolicy),
+		scope:   parentRequestReviewScope(requestReviewPolicy, tokens.Permissions),
 		emitter: pillEmitter, broadcaster: realtimeHub, events: parentRequestEvents,
 		notifier: absenceNotifier, observe: observeCarePlan,
 		shares: requestShares,
@@ -2883,7 +2882,7 @@ func newFactory(
 	// port; the review scope is the one the Stammdaten queue is listed with.
 	masterDataDecisions, err := newMasterDataDecisions(masterDataDecisionWiring{
 		carePlan: carePlan, fields: persons, students: studentRepository, persons: personRepository,
-		audit: studentAuditService, scope: parentRequestWriteScope(requestReviewPolicy),
+		audit: studentAuditService, scope: parentRequestWriteScope(requestReviewPolicy, tokens.Permissions),
 		emitter: pillEmitter, broadcaster: realtimeHub, events: parentRequestEvents, shares: requestShares,
 		logger: logger.With("service", "master-data-review"), today: today,
 	})
@@ -2913,6 +2912,7 @@ func newFactory(
 	parentRequestCoordinator, err := newParentRequestCoordinator(parentRequestCoordinatorWiring{
 		masterData: masterDataDecisions, excused: excusedRequestService, care: careRequestService,
 		offering: offeringChangeConflictPort{changes: offeringChanges}, events: parentRequestEvents,
+		permissions: tokens.Permissions,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose parent request coordinator: %w", err)
@@ -2975,7 +2975,7 @@ func newFactory(
 		UserContext:             userContextService,
 		Database:                databaseService,
 		DatabaseStatsCapabilities: func(ctx context.Context) transactionruntime.DatabaseStatsCapabilities {
-			return securityruntime.DatabaseStatsCapabilities(authjwt.PermissionsFromCtx(ctx))
+			return securityruntime.DatabaseStatsCapabilities(tokens.Permissions(ctx))
 		},
 		Import:               dataImports.Student,        // Student import service
 		StaffImport:          dataImports.Staff,          // Staff (Mitarbeiter) import service
@@ -3153,6 +3153,9 @@ type StudentPhotoBootstrap struct {
 	// factory holds.
 	PhotoRuntime *peopleCompose.StudentPhotoRuntime
 	Logger       *slog.Logger
+	// ActingAccount reads the acting account of the request a granted
+	// consent is recorded for.
+	ActingAccount func(context.Context) int64
 }
 
 // EnableStudentPhotos stores the photo lifecycle and registers its settings
@@ -3160,11 +3163,12 @@ type StudentPhotoBootstrap struct {
 // prior service. Call once at API bootstrap.
 func (f *Factory) EnableStudentPhotos(deps StudentPhotoBootstrap) {
 	f.StudentPhotos = NewStudentPhotos(f.PeopleDirectory, deps.PhotoRuntime, StudentPhotoRuntimeDependencies{
-		Settings:    f.Settings,
-		Broadcaster: f.RealtimeHub,
-		Unlinker:    deps.Unlinker,
-		Consents:    f.StudentConsents,
-		Logger:      deps.Logger,
+		Settings:      f.Settings,
+		Broadcaster:   f.RealtimeHub,
+		Unlinker:      deps.Unlinker,
+		Consents:      f.StudentConsents,
+		Logger:        deps.Logger,
+		ActingAccount: deps.ActingAccount,
 	})
 	RegisterStudentPhotoSettingsSideEffects(f.SettingsSideEffects, f.StudentPhotos)
 }

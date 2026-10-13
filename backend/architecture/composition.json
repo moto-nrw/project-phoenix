@@ -16382,12 +16382,12 @@
         },
         {
           "file": "api/base.go",
-          "line": 443,
-          "declaration": "withFileStorageWiring"
+          "line": 445,
+          "declaration": "withRootWiring"
         },
         {
           "file": "api/base.go",
-          "line": 697,
+          "line": 703,
           "declaration": "type serveGraph"
         },
         {

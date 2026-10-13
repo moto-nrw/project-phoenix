@@ -8,7 +8,6 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
-	jwtPkg "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -44,6 +43,7 @@ type studentPhotoRuntime struct {
 	unlinker    peopleCompose.PhotoUnlinker
 	consents    StudentPhotoConsentRecorder
 	logger      *slog.Logger
+	actor       func(context.Context) int64
 }
 
 // PhotoBroadcaster is the subset of realtime.Broadcaster the photo lifecycle
@@ -60,7 +60,10 @@ func (r studentPhotoRuntime) PhotoFeatureEnabled(ctx context.Context) (bool, err
 }
 
 func (r studentPhotoRuntime) ActingAccountID(ctx context.Context) int64 {
-	return int64(jwtPkg.ClaimsFromCtx(ctx).ID)
+	if r.actor == nil {
+		return 0
+	}
+	return r.actor(ctx)
 }
 
 func (r studentPhotoRuntime) UnlinkStoredPhoto(storedURL string) {
@@ -245,6 +248,7 @@ func NewStudentPhotos(
 	runtime := studentPhotoRuntime{
 		settings: deps.Settings, broadcaster: deps.Broadcaster,
 		unlinker: deps.Unlinker, consents: deps.Consents, logger: deps.Logger,
+		actor: deps.ActingAccount,
 	}
 	if slot != nil {
 		*slot = runtime
@@ -260,6 +264,9 @@ type StudentPhotoRuntimeDependencies struct {
 	Unlinker    peopleCompose.PhotoUnlinker
 	Consents    StudentPhotoConsentRecorder
 	Logger      *slog.Logger
+	// ActingAccount reads the acting account of the request a granted
+	// consent is recorded for; nil records none.
+	ActingAccount func(context.Context) int64
 }
 
 // StudentPhotoFeatureToggle is the one photo lifecycle operation the settings

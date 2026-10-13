@@ -11,7 +11,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -96,17 +95,6 @@ func sessionRepositoriesOf(people lifecycleRepositories, organizations organizat
 	}
 }
 
-// signedIdentityTokensOf adapts a root's resolved signer to the native claim
-// codec. The signing primitive stays in the token adapter; Identity owns the
-// claim schema and validation.
-func signedIdentityTokensOf(signer *authjwt.TokenAuth) (identityaccessCompose.SignedIdentityTokens, error) {
-	codec, err := identityaccessCompose.NewSessionTokenCodec(signer.JwtAuth, signer.JwtExpiry, signer.JwtRefreshExpiry)
-	if err != nil {
-		return nil, fmt.Errorf("identity token codec: %w", err)
-	}
-	return codec, nil
-}
-
 // newIdentityAccessWithSessions composes the Identity & Access module with
 // the account-authentication flows bound.
 func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWiring) (*identityaccess.Module, error) {
@@ -179,7 +167,7 @@ func demoDependencies(wiring *demoAccessWiring, standingSchool string, schools o
 			schools: schools, orders: organizationCompose.NewDemoSchoolOrders(SecureRandomSource(), wiring.maxActiveSchools), standing: standingSchool,
 		},
 		Mail:     newDemoAccessMail(wiring),
-		NewToken: authjwt.NewOpaqueCapabilityToken, Fingerprint: authjwt.OpaqueCapabilityFingerprint,
+		NewToken: wiring.newToken, Fingerprint: wiring.fingerprint,
 		OperatorWithoutSecondFactor: wiring.operatorWithoutSecondFactor,
 	}, nil
 }

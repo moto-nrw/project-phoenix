@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -123,6 +122,9 @@ type careScheduleRequestService struct {
 	studentAudit      peopleCompose.StudentChangeRecorder
 	logger            *slog.Logger
 	reviewPolicy      RequestReviewPolicy
+	// permissions reads the permissions of the request claims the review
+	// policy decides on.
+	permissions func(context.Context) []string
 	// shareVisibility answers who the parent explicitly shared a request
 	// with; nil means nobody was, so every co-guardian gets the neutral line.
 	shareVisibility communicationCompose.ParentShareVisibilityResolver
@@ -169,18 +171,20 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	emitter *communicationCompose.ParentEventEmitter,
 	broadcaster realtime.Broadcaster,
 	reviewPolicy RequestReviewPolicy,
+	permissions func(context.Context) []string,
 	events usersModels.ParentRequestEventRepository,
 	logger *slog.Logger,
 	studentAudit peopleCompose.StudentChangeRecorder,
 	options ...CareRequestOption,
 ) carerequests.Service {
-	if reviewPolicy == nil {
-		panic("care schedule request review policy is required")
+	if reviewPolicy == nil || permissions == nil {
+		panic("care schedule request review policy and request permissions are required")
 	}
 	svc := newCareScheduleRequestService(
 		requestRecords, people, arrival, pickup, userContext,
 		emitter, broadcaster, reviewPolicy, newParentRequestLedger(events), logger, studentAudit,
 	)
+	svc.permissions = permissions
 	svc.attendance = attendance
 	svc.pickupAutoExcusal = pickupAutoExcusal
 	svc.dayLocker = dayLocker
@@ -339,7 +343,7 @@ func (s *careScheduleRequestService) canReviewStudent(ctx context.Context, stude
 	if s.reviewPolicy == nil {
 		return false, errors.New("care request review policy is required")
 	}
-	ok, err := s.reviewPolicy.Allows(ctx, jwt.PermissionsFromCtx(ctx), student)
+	ok, err := s.reviewPolicy.Allows(ctx, s.permissions(ctx), student)
 	if err != nil {
 		return false, fmt.Errorf("schedule: resolve request reviewer scope: %w", err)
 	}

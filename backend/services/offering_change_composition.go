@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
@@ -39,6 +38,8 @@ type offeringChangeInputs struct {
 	Planning    carePlanCompose.OfferingChangePlanning
 	Bookings    careplan.BookingMaterializationCapability
 	Reviews     offeringChangeReviewPolicy
+	// Permissions reads the permissions of the request claims.
+	Permissions func(context.Context) []string
 	Emitter     *communicationCompose.ParentEventEmitter
 	Events      usersModels.ParentRequestEventRepository
 	Shares      carePlanCompose.ShareVisibility
@@ -47,8 +48,8 @@ type offeringChangeInputs struct {
 }
 
 func newOfferingChanges(inputs offeringChangeInputs) (careplan.OfferingChangeCapability, error) {
-	if inputs.CarePlan == nil || inputs.Enrollment == nil || inputs.Students == nil || inputs.Reviews == nil {
-		return nil, errors.New("offering changes: care plan, enrollment, students and review policy are required")
+	if inputs.CarePlan == nil || inputs.Enrollment == nil || inputs.Students == nil || inputs.Reviews == nil || inputs.Permissions == nil {
+		return nil, errors.New("offering changes: care plan, enrollment, students, review policy and request permissions are required")
 	}
 	var messenger carePlanCompose.RequestMessenger
 	if inputs.Emitter != nil {
@@ -70,7 +71,7 @@ func newOfferingChanges(inputs offeringChangeInputs) (careplan.OfferingChangeCap
 		Settings:   offeringChangeSettings{bookingSettings{settings: inputs.Settings}, inputs.Settings},
 		Planning:   inputs.Planning,
 		Bookings:   inputs.Bookings,
-		Scope:      offeringChangeReviewScope(inputs.Reviews),
+		Scope:      offeringChangeReviewScope(inputs.Reviews, inputs.Permissions),
 		Messenger:  messenger,
 		Ledger:     ledger,
 		Shares:     inputs.Shares,
@@ -91,9 +92,9 @@ type offeringChangeReviewPolicy interface {
 
 // offeringChangeReviewScope applies the identity-owned review policy with
 // the permissions of the request claims.
-func offeringChangeReviewScope(policy offeringChangeReviewPolicy) carePlanCompose.ReviewScopeResolver {
+func offeringChangeReviewScope(policy offeringChangeReviewPolicy, permissions func(context.Context) []string) carePlanCompose.ReviewScopeResolver {
 	return func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
-		schoolWide, groupIDs, err := policy.Scope(ctx, authjwt.PermissionsFromCtx(ctx))
+		schoolWide, groupIDs, err := policy.Scope(ctx, permissions(ctx))
 		if err != nil {
 			return carePlanCompose.ReviewScope{}, err
 		}
