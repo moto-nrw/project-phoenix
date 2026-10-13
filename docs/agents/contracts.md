@@ -13,22 +13,24 @@ React). The Phoenix backend runs on the server, never on the Pi. PRs target
 PyrePortal consumes `/api/iot/*` using a device API key and staff PIN.
 `../PyrePortal/src/services/apiErrors.ts` maps registry error codes (its
 `errorCodes.generated.ts` comes from `error-registry.json` via
-`pnpm run sync:error-codes`) and, until #2508, backend error strings to German
-UI text. Coordinate endpoint, error-string,
-and auth-header changes across repos. Changing a mapped string or code is a
-two-repo change: `backend/api/testdata/iot_error_strings.golden`
-(`TestFullProductionRouterGolden`) and `TestPyrePortalErrorStringsGuard`
-(`backend/api/iot/pyreportal_error_strings_test.go`) fail until both sides
-and the golden move together.
+`pnpm run sync:error-codes`) to German UI text. Since #2508 the kiosk matches
+no backend text; the refusal body is the RFC 9457 envelope of ADR 0006 with
+`status` as the HTTP status number, the diagnostic text in `detail` and the
+identity in `code` (#2520). Coordinate endpoint, code and auth-header changes
+across repos. Changing a code the kiosk branches on is a two-repo change:
+`backend/api/testdata/iot_error_codes.golden` (`TestFullProductionRouterGolden`)
+and `TestPyrePortalErrorCodesGuard`
+(`backend/api/iot/pyreportal_error_codes_test.go`) fail until both sides and
+the golden move together.
 Backend header and attribution rules: `backend/CLAUDE.md` RFID/IoT Integration.
 
 ### Kiosk error codes
 
-Each kiosk refusal answers with its own `iot.*` code (#3939). Status, text and
-error class did not change. PyrePortal moves its text patterns to these
-codes in #2508; until then the golden and the guard list only the codes it maps.
+Each kiosk refusal answers with its own `iot.*` code (#3939). The text in
+`detail` is diagnostics and may change; the golden and the guard list the
+codes PyrePortal branches on.
 
-| Code | Status | Text |
+| Code | Status | Detail |
 |---|---|---|
 | `iot.device_api_key_required` | 401 | device API key is required |
 | `iot.device_api_key_format_invalid` | 401 | invalid API key format - use Bearer token |
@@ -93,8 +95,7 @@ texts), `backend/api/iot/compose/error_reports.go` (forwarding),
 The 502 is the only 5xx that `ServerErrorReporting` does not report
 (`common.SkipServerErrorReport`); reporting it could only loop. PyrePortal's
 SDK transport consumes these answers and shows no text, so they are not part
-of `ERROR_MESSAGE_MAPPINGS` or `iot_error_strings.golden`. Changing a status or
-text is still a two-repo change. `serve` refuses to start with `SENTRY_DSN` set
+of `iot_error_codes.golden`. Changing a status is still a two-repo change. `serve` refuses to start with `SENTRY_DSN` set
 and `SENTRY_PYREPORTAL_DSN` empty, and a malformed DSN stops the start.
 With `SENTRY_DSN` set, `APP_ENV` must be `production`, `staging`, `demo` or
 `development`; it is the Sentry environment of backend events.
@@ -129,7 +130,7 @@ Refusals carry stable codes PyrePortal maps:
 - `iot.open_room_binary_mode` (409)
 - the check-in capacity and `iot.student_already_active` bodies
 
-`backend/api/iot/pyreportal_error_strings_test.go` pins the codes. Deploy the
+`backend/api/iot/pyreportal_error_codes_test.go` pins the codes. Deploy the
 backend first. A kiosk that finds neither flag nor route (404) keeps the old
 Schulhof/WC buttons.
 

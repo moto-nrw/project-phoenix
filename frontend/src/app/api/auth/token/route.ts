@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { createLogger } from "~/lib/logger";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "AuthTokenRoute" });
 
@@ -11,10 +12,7 @@ async function POSTHandler(_request: NextRequest) {
     const session = await auth();
 
     if (!session?.user?.token || !session?.user?.refreshToken) {
-      return NextResponse.json(
-        { error: "No refresh token found" },
-        { status: 401 },
-      );
+      return problemResponse(401, "No refresh token found", _request);
     }
 
     return NextResponse.json({
@@ -25,10 +23,7 @@ async function POSTHandler(_request: NextRequest) {
     logger.error("token_refresh_error", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
+    return problemResponse(500, "Internal Server Error", _request);
   }
 }
 

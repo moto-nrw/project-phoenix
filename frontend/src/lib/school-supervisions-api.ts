@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError, transportFetch } from "./api-error";
+import { apiErrorFromBody, transportFetch } from "./api-error";
 // Client-seitige API für die Aufsichten im Schul-Portal ("moto schule", #2527).
 //
 // Gleiche Nutzlast wie die OGS-Aufsicht (lib/timetable-operations-types), aber
@@ -71,33 +71,12 @@ function mapContact(raw: BackendSupervisionContact): SupervisionContact {
   return { ...raw, phones: raw.phones ?? [] };
 }
 
-class SchoolSupervisionApiError extends ApiError {
-  readonly httpStatus: number;
-
-  constructor(message: string, httpStatus: number, code?: string) {
-    super(message, httpStatus, { code });
-    this.name = "SchoolSupervisionApiError";
-    this.httpStatus = httpStatus;
-  }
-}
-
 async function unwrap<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
-    let code: string | undefined;
-    let payload: unknown;
-    try {
-      const body = (await response.json()) as { error?: string; code?: string };
-      payload = body;
-      if (body.error) message = body.error;
-      code = body.code;
-    } catch {
-      // Allgemeine Meldung behalten.
-    }
-    throw enrichApiError(
-      new SchoolSupervisionApiError(message, response.status, code),
-      payload,
+    throw apiErrorFromBody(
+      `Anfrage fehlgeschlagen (HTTP ${response.status})`,
       response.status,
+      await response.json().catch(() => undefined),
     );
   }
   const envelope = (await response.json()) as ApiEnvelope<T>;

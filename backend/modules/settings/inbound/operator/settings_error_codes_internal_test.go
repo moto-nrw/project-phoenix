@@ -59,7 +59,7 @@ func TestRenderOperatorSettingsErrorKeepsCauseOutOfTheAnswer(t *testing.T) {
 			status, body := renderSettingsErrorBody(t, err)
 			assert.Equal(t, http.StatusInternalServerError, status)
 			assert.Equal(t, "general.server", body["code"])
-			assert.NotContains(t, body["error"], "pq:")
+			assert.NotContains(t, body["detail"], "pq:")
 			assert.NotContains(t, body["detail"], "pq:")
 		})
 	}

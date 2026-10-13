@@ -48,14 +48,6 @@ vi.mock("~/lib/operator/provisioning-helpers", async (importOriginal) => {
   };
 });
 
-vi.mock("~/lib/operator/api-helpers", () => ({
-  isOperatorApiError: () => false,
-}));
-
-vi.mock("~/lib/hooks/use-scroll-to-error", () => ({
-  useScrollToError: () => vi.fn(),
-}));
-
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({
     debug: vi.fn(),

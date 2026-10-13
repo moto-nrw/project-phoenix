@@ -30,8 +30,8 @@ func requestIDMiddlewareWithStartRequest(tracer *observability.Tracer, startRequ
 			tracer.Failure(r.Context(), "http", "request-id", "generation_failure", err)
 			// This middleware precedes the router-wide problem middleware, so its
 			// own failure must pass through the same response adapter explicitly.
-			apiCommon.ProblemResponseMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			apiCommon.ProblemResponseMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				apiCommon.RenderStatus(w, r, http.StatusInternalServerError, "")
 			})).ServeHTTP(w, r)
 			return
 		}

@@ -230,8 +230,8 @@ func TestLogin_GuardianOnlyReturnsParentPortalCode(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 
 	var body struct {
-		Status string `json:"status"`
-		Error  string `json:"error"`
+		Status int    `json:"status"`
+		Detail string `json:"detail"`
 		Code   string `json:"code"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))

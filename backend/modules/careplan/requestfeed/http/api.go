@@ -88,17 +88,35 @@ func (rs *Resource) feed(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(feed.XML))
 }
 
+// Registered class codes (error-registry.json) of the feed's refusals. This
+// package may not import api/common, so it names them once here.
+const (
+	codeGeneralInput             = "general.input"
+	codeGeneralBusinessRejection = "general.business_rejection"
+	codeGeneralServer            = "general.server"
+)
+
+// feedProblem is the shared error envelope (ADR 0006): the HTTP status
+// number, the diagnostic text and the registered code.
+// ProblemResponseMiddleware adds type, title and instance like for every
+// error answer.
+type feedProblem struct {
+	Status int    `json:"status"`
+	Detail string `json:"detail"`
+	Code   string `json:"code"`
+}
+
 func (rs *Resource) failure(w http.ResponseWriter, err error) {
-	status := http.StatusInternalServerError
+	status, code := http.StatusInternalServerError, codeGeneralServer
 	switch {
 	case errors.Is(err, requestfeed.ErrNotFound):
-		status = http.StatusNotFound
+		status, code = http.StatusNotFound, codeGeneralInput
 	case errors.Is(err, requestfeed.ErrAlreadyActive):
-		status = http.StatusConflict
+		status, code = http.StatusConflict, codeGeneralBusinessRejection
 	default:
 		rs.runtime.Logger.Error("request feed failed", "error", err)
 	}
-	http.Error(w, http.StatusText(status), status)
+	writeJSON(w, status, feedProblem{Status: status, Detail: http.StatusText(status), Code: code})
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

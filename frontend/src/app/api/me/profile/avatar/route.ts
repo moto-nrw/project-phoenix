@@ -4,7 +4,7 @@ import { createDeleteHandler } from "~/lib/route-wrapper.server";
 import type { BackendProfile } from "~/lib/profile-helpers";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
-import { backendResponseError } from "~/lib/api-helpers.server";
+import { backendResponseError } from "~/lib/api-response-error.server";
 
 const logger = createLogger({ component: "AvatarRoute" });
 

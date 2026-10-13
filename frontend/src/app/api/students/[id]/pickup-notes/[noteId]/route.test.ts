@@ -25,21 +25,14 @@ vi.mock("@/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-helpers.server", () => ({
+vi.mock("@/lib/api-helpers.server", async () => ({
   apiGet: vi.fn(),
   apiPost: vi.fn(),
   apiPut: mockApiPut,
   apiDelete: mockApiDelete,
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
+  handleApiError: vi.fn(
+    (await import("~/test/helpers/handle-api-error")).mockHandleApiError,
+  ),
 }));
 
 // ============================================================================
@@ -153,8 +146,9 @@ describe("PUT /api/students/[id]/pickup-notes/[noteId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Note not found");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Note not found");
   });
 });
 
@@ -208,7 +202,8 @@ describe("DELETE /api/students/[id]/pickup-notes/[noteId]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Deletion failed");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Deletion failed");
   });
 });

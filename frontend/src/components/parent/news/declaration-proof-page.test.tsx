@@ -4,12 +4,13 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DeclarationProofPage } from "./declaration-proof-page";
 import * as parentApi from "~/lib/parent-api";
-import { ParentApiError, type ParentDeclarationProof } from "~/lib/parent-api";
+import { type ParentDeclarationProof } from "~/lib/parent-api";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { catalogText } from "~/test/error-catalog-text";
 
@@ -158,7 +159,9 @@ describe("Nachweis eines Einverständnisses im Eltern-Portal (#3430)", () => {
     vi.spyOn(parentApi, "fetchDeclarationProof").mockResolvedValue(proof);
     const download = vi
       .spyOn(parentApi, "downloadDeclarationProofPdf")
-      .mockRejectedValueOnce(new ParentApiError("boom", 500, "general.server"))
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, { code: "general.server" }),
+      )
       .mockResolvedValueOnce(undefined);
 
     render(<DeclarationProofPage announcementId="42" />);
@@ -180,7 +183,7 @@ describe("Nachweis eines Einverständnisses im Eltern-Portal (#3430)", () => {
 
   it("explains a missing proof instead of an error", async () => {
     vi.spyOn(parentApi, "fetchDeclarationProof").mockRejectedValue(
-      new ParentApiError("not found", 404, "not_found"),
+      new ApiError("not found", 404, { code: "not_found" }),
     );
 
     render(<DeclarationProofPage announcementId="42" />);
@@ -199,7 +202,7 @@ describe("Nachweis eines Einverständnisses im Eltern-Portal (#3430)", () => {
     const load = vi
       .spyOn(parentApi, "fetchDeclarationProof")
       .mockRejectedValueOnce(
-        new ParentApiError("boom", 503, "general.unavailable"),
+        new ApiError("boom", 503, { code: "general.unavailable" }),
       )
       .mockResolvedValueOnce(proof);
 

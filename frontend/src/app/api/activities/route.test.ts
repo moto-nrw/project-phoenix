@@ -25,22 +25,17 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: mockApiGet,
-  apiPost: mockApiPost,
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: mockApiGet,
+    apiPost: mockApiPost,
+    apiPut: vi.fn(),
+    apiDelete: vi.fn(),
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 // ============================================================================
 // Test Helpers
@@ -285,8 +280,9 @@ describe("POST /api/activities", () => {
     const response = await POST(request, createMockContext());
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Name is required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Name is required");
   });
 
   it("validates max_participants must be greater than 0", async () => {
@@ -298,8 +294,11 @@ describe("POST /api/activities", () => {
     const response = await POST(request, createMockContext());
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Max participants must be greater than 0");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain(
+      "Max participants must be greater than 0",
+    );
   });
 
   it("accepts an activity without a participant limit", async () => {
@@ -345,8 +344,9 @@ describe("POST /api/activities", () => {
     const response = await POST(request, createMockContext());
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Category is required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Category is required");
   });
 
   it("returns fallback activity when backend returns unexpected structure", async () => {

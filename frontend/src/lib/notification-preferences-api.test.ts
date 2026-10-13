@@ -156,13 +156,16 @@ describe("notification preferences API client", () => {
     expect(init).toMatchObject({ method: "DELETE" });
   });
 
-  it("surfaces the backend's message on failure", async () => {
+  it("keeps the backend diagnostic separate on failure", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ error: "unknown notification type" }, 400),
+      jsonResponse({ detail: "unknown notification type" }, 400),
     );
 
-    await expect(setNotificationPreference("nope", true)).rejects.toThrow(
-      "unknown notification type",
+    await expect(setNotificationPreference("nope", true)).rejects.toMatchObject(
+      {
+        message: "Einstellung konnte nicht geladen werden (400).",
+        detail: "unknown notification type",
+      },
     );
   });
 

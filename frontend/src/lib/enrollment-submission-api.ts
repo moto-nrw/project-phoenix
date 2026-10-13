@@ -208,7 +208,6 @@ export interface EnrollmentChangeRequest {
 interface BackendEnvelope<T> {
   status?: string;
   data?: T;
-  error?: string;
   message?: string;
 }
 

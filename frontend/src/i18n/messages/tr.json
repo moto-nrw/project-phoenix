@@ -1142,7 +1142,7 @@
       "emailTitle": "E-posta İletişimi",
       "photoTitle": "Fotoğraf İzni"
     },
-    "captchaMisconfigured": "Kayıt şu anda yapılamıyor: Bot koruması tam olarak kurulmamış. Lütfen OGS yönetimine başvurun.",
+    "captchaMisconfigured": "Online kayıt şu anda mümkün değil. Bu sizin hatanız değil. Lütfen OGS ile iletişime geçin.",
     "structured": {
       "yes": "Evet",
       "no": "Hayır",
@@ -2082,6 +2082,7 @@
     },
     "codes": {
       "attendance": {
+        "log_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "web_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin."
       },
       "care": {
@@ -2292,6 +2293,7 @@
         "announcement_published": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "attachment_limit_reached": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "file_missing": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "file_name_invalid": "Dosya adı kabul edilmiyor. Lütfen dosyayı yeniden seçin.",
         "file_too_large": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "file_type_not_allowed": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "file_unreadable": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
@@ -2487,6 +2489,7 @@
         "class_list_entry_student_exists": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "class_list_entry_student_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "companion_lock_busy": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "companion_plan_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "companion_would_lose_departure": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "companions_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "conflict_kind_unsupported": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
@@ -2788,6 +2791,12 @@
       },
       "billing": {
         "invalid_key_day": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
+      },
+      "display": {
+        "disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin."
+      },
+      "feedback": {
+        "disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin."
       }
     },
     "actions": {

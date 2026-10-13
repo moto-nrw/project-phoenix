@@ -94,7 +94,7 @@ describe("PhaseExpiryWarnings", () => {
     expect(screen.getByRole("status")).toHaveClass("bg-moto-orange-soft");
   });
 
-  it("zeigt eine unvollständige Übernahme nach dem Ausfalldatum rot", () => {
+  it("meldet eine unvollständige Übernahme nach dem Ausfalldatum sofort", () => {
     useSWRAuth.mockReturnValue({
       data: [
         {
@@ -124,7 +124,7 @@ describe("PhaseExpiryWarnings", () => {
     expect(
       screen.getByRole("link", { name: "Anschlussphase öffnen" }),
     ).toHaveAttribute("href", "/admin/enrollments/phases/12");
-    expect(screen.getByRole("alert")).toHaveClass("bg-moto-red-soft");
+    expect(screen.getByRole("alert")).toHaveClass("bg-moto-orange-soft");
   });
 
   it("nennt vor dem Ausfalldatum die noch offenen Folgebuchungen", () => {
@@ -182,7 +182,7 @@ describe("PhaseExpiryWarnings", () => {
         "Seit dem 1. Februar 2027 fehlen Buchungen für 204 Kinder. Erstellen Sie jetzt eine Anschlussphase.",
       ),
     ).toBeVisible();
-    expect(screen.getByRole("alert")).toHaveClass("bg-moto-red-soft");
+    expect(screen.getByRole("alert")).toHaveClass("bg-moto-orange-soft");
   });
 
   it("zeigt ohne Warnungen keinen leeren Platzhalter", () => {

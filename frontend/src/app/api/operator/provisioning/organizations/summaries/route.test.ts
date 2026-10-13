@@ -103,14 +103,11 @@ describe("GET /api/operator/provisioning/organizations/summaries", () => {
     );
   });
 
-  // Negative paths — these used to be uncovered. Without them a regression
-  // in handleApiError (e.g. losing the status-code regex) would silently
-  // return 500 for every backend non-2xx, which masks 404/409 etc. on the
-  // dashboard.
-  it("forwards a backend 500 with the same status code", async () => {
+  // Backend diagnostics must not reach the browser on a 5xx.
+  it("sanitizes a backend 500 while preserving its status code", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "summaries failed" }), {
+      new Response(JSON.stringify({ detail: "summaries failed" }), {
         status: 500,
         headers: { "Content-Type": "application/json" },
       }),
@@ -122,10 +119,8 @@ describe("GET /api/operator/provisioning/organizations/summaries", () => {
     const response = await GET(request, mockContext);
 
     expect(response.status).toBe(500);
-    const json = (await response.json()) as { error?: string };
-    // handleApiError extracts the inner backend error and surfaces it,
-    // dropping the "API error (500): " wrapper from the proxy layer.
-    expect(json.error).toBe("summaries failed");
+    const json = (await response.json()) as { detail?: string };
+    expect(json.detail).toBe("Internal Server Error");
   });
 
   it("forwards a backend 503 with the same status code", async () => {

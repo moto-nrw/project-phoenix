@@ -16,13 +16,14 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: mockApiGet,
   apiPost: vi.fn(),
   apiPut: vi.fn(),
   apiDelete: vi.fn(),
   handleApiError: vi.fn(
-    () => new Response(JSON.stringify({ error: "err" }), { status: 500 }),
+    () => new Response(JSON.stringify({ detail: "err" }), { status: 500 }),
   ),
 }));
 

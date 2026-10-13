@@ -243,7 +243,7 @@ func runRequestTransaction(
 	_, requestRollback := err.(*requestRollbackError)
 	if err != nil && !requestRollback {
 		sw.reset()
-		http.Error(sw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		RenderStatus(sw, r, http.StatusInternalServerError, "")
 	}
 	if writeErr := sw.commitResponse(); writeErr != nil {
 		observeTenantRuntime(r.Context(), TenantRuntimeEvent{Kind: TenantRuntimeResponseWrite, Err: writeErr})
@@ -259,7 +259,7 @@ func (e *requestRollbackError) Error() string {
 }
 
 func rejectTenantRequest(w http.ResponseWriter, r *http.Request, err error) {
-	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	RenderStatus(w, r, http.StatusInternalServerError, "")
 }
 
 func logTenantRequest(r *http.Request, tenantID int64, sw *tenantStatusWriter, start time.Time, err error) {

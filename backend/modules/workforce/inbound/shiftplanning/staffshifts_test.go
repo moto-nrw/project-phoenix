@@ -508,7 +508,7 @@ func TestStaffShiftsRouteOverviewPermissionsAndWireContract(t *testing.T) {
 	recorder = testutil.ExecuteRequest(route.router, testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil,
 		testutil.WithJWTBearer(route.claims(permissions.TimeTrackingManage, permissions.SchedulesRead, permissions.UsersRead))))
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
-	assert.Contains(t, recorder.Body.String(), `"error":"staff schedule overview could not be loaded"`)
+	assert.Contains(t, recorder.Body.String(), `"detail":"staff schedule overview could not be loaded"`)
 	assert.NotContains(t, recorder.Body.String(), rawCause)
 }
 

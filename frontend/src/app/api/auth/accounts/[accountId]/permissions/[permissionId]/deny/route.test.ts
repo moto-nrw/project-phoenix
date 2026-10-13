@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { POST } from "./route";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 
 // ============================================================================
 // Types
@@ -92,8 +93,8 @@ describe("POST /api/auth/accounts/[accountId]/permissions/[permissionId]/deny", 
     );
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Account ID and Permission ID are required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toContain("Account ID and Permission ID are required");
   });
 
   it("returns 400 when permissionId is missing", async () => {
@@ -107,8 +108,8 @@ describe("POST /api/auth/accounts/[accountId]/permissions/[permissionId]/deny", 
     );
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Account ID and Permission ID are required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toContain("Account ID and Permission ID are required");
   });
 
   it("denies permission successfully", async () => {
@@ -136,7 +137,7 @@ describe("POST /api/auth/accounts/[accountId]/permissions/[permissionId]/deny", 
 
   it("handles API errors gracefully", async () => {
     mockApiPost.mockRejectedValueOnce(
-      new Error("API error (404): Permission not found"),
+      new ApiResponseError(404, "Permission not found"),
     );
 
     const request = createMockRequest(
@@ -149,13 +150,14 @@ describe("POST /api/auth/accounts/[accountId]/permissions/[permissionId]/deny", 
     );
 
     expect(response.status).toBe(404);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Permission not found");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Not Found");
+    expect(JSON.stringify(json)).not.toContain("Permission not found");
   });
 
   it("handles unauthorized deny attempts", async () => {
     mockApiPost.mockRejectedValueOnce(
-      new Error("API error (401): Unauthorized"),
+      new ApiResponseError(401, "Unauthorized"),
     );
 
     const request = createMockRequest(
@@ -168,7 +170,7 @@ describe("POST /api/auth/accounts/[accountId]/permissions/[permissionId]/deny", 
     );
 
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Unauthorized");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toContain("Unauthorized");
   });
 });

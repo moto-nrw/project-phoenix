@@ -582,10 +582,23 @@ function TenantPageTabs({
   const visible = items.slice(0, visibleCount);
   const hidden = items.slice(visibleCount);
   const hiddenActive = hidden.find((item) => item.value === value);
+  const activeItem = items.find((item) => item.value === value);
+  const visibleRovingItem = visible.find((item) => !item.disabled);
+  const fallbackRovingValue = isPhone
+    ? items.find((item) => !item.disabled)?.value
+    : (visibleRovingItem?.value ??
+      (hidden.some((item) => !item.disabled) ? "__mehr__" : undefined));
   // Auf dem Desktop vertritt „Mehr“ den aktiven verborgenen Reiter. Auf dem
   // Telefon sind alle Reiter sichtbar, der aktive Reiter bleibt daher selbst
-  // der eine Tabulator-Stopp.
-  const rovingValue = hiddenActive && !isPhone ? "__mehr__" : value;
+  // der eine Tabulator-Stopp. Hat kein Reiter die aktuelle Filterlage,
+  // bleibt die Auswahl leer; ein sichtbarer Reiter ist trotzdem per Tab
+  // erreichbar und eröffnet die Pfeiltasten-Navigation.
+  const rovingValue =
+    hiddenActive && !isPhone && !hiddenActive.disabled
+      ? "__mehr__"
+      : activeItem && !activeItem.disabled
+        ? value
+        : fallbackRovingValue;
 
   const tabClass = (active: boolean, disabled?: boolean) =>
     cn(

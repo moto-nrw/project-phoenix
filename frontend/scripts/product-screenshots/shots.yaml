@@ -262,7 +262,7 @@ shots:
     pfad: /children
     vorbereitung:
       - klicken: 'text=Emir Yilmaz'
-      - warten_auf: 'role=tab'
+      - warten_auf: 'main button:has-text("Emir abmelden")'
   # Hilfe abwesenheit-meines-kindes-melden; PostHog: 75 Abwesenheitsanfragen
   - id: eltern-kind-abmelden
     titel: Kind abmelden
@@ -283,7 +283,7 @@ shots:
     vorbereitung:
       - klicken: 'text=Emir Yilmaz'
       - warten_auf: 'role=tab'
-      - klicken: 'main button:has-text("Abholzeit für")'
+      - klicken: 'main button:has-text("Abhol")'
       - warten_auf: '[role="dialog"]'
   # Hilfe als-elternteil-nachrichten-lesen; PostHog: 323 Aufrufe
   - id: eltern-nachrichten

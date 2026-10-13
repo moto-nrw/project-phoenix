@@ -7,10 +7,10 @@ import {
   ReviewDiffPanel,
 } from "~/components/students/request-review-card";
 import { usePickupExtensionPrompt } from "~/components/timetable/pickup-extension-access";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
-import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import {
-  CareRequestApiError,
   type StaffCareRequest,
   decideCareScheduleChangeRequest,
 } from "~/lib/care-request-review-api";
@@ -178,8 +178,8 @@ function useCareRequestDecision(
   onDecided: (notice: string) => void,
   expectedVersion?: string,
 ) {
-  const toast = useToast();
-  const { show: showApiError } = useApiErrorDisplay();
+  const { show: showApiError, showMessage: showLocalError } =
+    useApiErrorDisplay();
   const extensions = usePickupExtensionPrompt();
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState(false);
@@ -190,7 +190,6 @@ function useCareRequestDecision(
   );
   // Fehler laufen als Toast, nicht als Kasten in der Karte: sie sind die
   // Ausnahme, und der Platz gehört dem, worüber entschieden wird.
-  const showLocalError = (message: string) => toast.error(message);
   const decide = async (approve: boolean) => {
     const trimmed = reason.trim();
     if (
@@ -265,7 +264,7 @@ function decisionInputReady(
 }
 
 function logDecisionError(err: unknown, requestID: string) {
-  const code = err instanceof CareRequestApiError ? err.code : undefined;
+  const code = err instanceof ApiError ? err.code : undefined;
   logger.warn("care_request_review_decide_failed", {
     error: err instanceof Error ? err.message : String(err),
     request_id: requestID,

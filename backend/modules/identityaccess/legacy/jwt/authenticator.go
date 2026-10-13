@@ -157,14 +157,14 @@ func MFAEnrollmentAuthenticator(next http.Handler) http.Handler {
 	})
 }
 
-// renderUnauthorized renders an unauthorized response with fallback to http.Error
+// renderUnauthorized renders an unauthorized response.
 func renderUnauthorized(w http.ResponseWriter, r *http.Request, err error) {
 	slog.WarnContext(r.Context(), "unauthorized request",
 		slog.String("error", err.Error()),
 		slog.String("path", r.URL.Path),
 	)
-	if render.Render(w, r, ErrUnauthorized(err)) != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	if renderErr := render.Render(w, r, ErrUnauthorized(err)); renderErr != nil {
+		slog.ErrorContext(r.Context(), "failed to render unauthorized response", slog.String("error", renderErr.Error()))
 	}
 }
 

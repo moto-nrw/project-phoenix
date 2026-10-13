@@ -7,10 +7,10 @@ import {
   ReviewDiffPanel,
 } from "~/components/students/request-review-card";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import {
-  ExcusedRequestApiError,
   type StaffExcusedRequest,
   decideExcusedAbsenceRequest,
 } from "~/lib/excused-request-review-api";
@@ -129,7 +129,7 @@ export function ExcusedRequestReviewItem({
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const code = err instanceof ExcusedRequestApiError ? err.code : undefined;
+      const code = err instanceof ApiError ? err.code : undefined;
       logger.warn("excused_request_review_decide_failed", {
         error: message,
         request_id: row.id,

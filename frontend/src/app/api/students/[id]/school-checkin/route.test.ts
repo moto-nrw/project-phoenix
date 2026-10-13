@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import { POST } from "./route";
 
 interface ExtendedSession extends Session {
@@ -16,23 +17,14 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-helpers.server", () => ({
+vi.mock("@/lib/api-helpers.server", async () => ({
   apiGet: vi.fn(),
   apiPost: mockApiPost,
   apiPut: vi.fn(),
   apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(403)")
-        ? 403
-        : message.includes("(404)")
-          ? 404
-          : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
+  handleApiError: vi.fn(
+    (await import("~/test/helpers/handle-api-error")).mockHandleApiError,
+  ),
 }));
 
 function createMockRequest(
@@ -114,7 +106,7 @@ describe("POST /api/students/[id]/school-checkin", () => {
 
   it("propagates backend 403 unchanged", async () => {
     mockApiPost.mockRejectedValueOnce(
-      new Error("API error (403): not a supervisor"),
+      new ApiResponseError(403, "not a supervisor"),
     );
     const request = createMockRequest("/api/students/42/school-checkin", {
       method: "POST",

@@ -18,7 +18,7 @@ func extractErrResponse(t *testing.T, renderer render.Renderer) (int, string, st
 	t.Helper()
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok, "Expected *common.ErrResponse")
-	return errResp.HTTPStatusCode, errResp.Status, errResp.ErrorText
+	return errResp.HTTPStatusCode, errResp.Code, errResp.Detail
 }
 
 func TestAnnouncementErrorRenderer_NotFound(t *testing.T) {

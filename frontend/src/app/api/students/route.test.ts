@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET, POST } from "./route";
 import { suppressConsole } from "~/test/helpers/console";
 
@@ -26,23 +27,15 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: mockApiGet,
   apiPost: mockApiPost,
   apiPut: vi.fn(),
   apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : message.includes("(429)")
-          ? 429
-          : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
+  handleApiError: vi.fn(
+    (await import("~/test/helpers/handle-api-error")).mockHandleApiError,
+  ),
 }));
 
 vi.mock("~/lib/student-privacy-helpers", () => ({
@@ -76,9 +69,6 @@ vi.mock("~/lib/student-request-helpers", () => ({
   buildStudentResponse: vi.fn((mapped: Record<string, unknown>) =>
     Promise.resolve(mapped),
   ),
-  handleStudentCreationError: vi.fn((error: unknown) => {
-    throw error;
-  }),
 }));
 
 // ============================================================================
@@ -312,7 +302,7 @@ describe("GET /api/students", () => {
 
   it("logs rate-limited fetch failures as warnings", async () => {
     mockApiGet.mockRejectedValueOnce(
-      new Error("API error (429): Rate limit exceeded"),
+      new ApiResponseError(429, "Rate limit exceeded"),
     );
 
     const request = createMockRequest("/api/students");

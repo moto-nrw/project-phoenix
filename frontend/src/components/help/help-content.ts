@@ -507,6 +507,8 @@ function studentSearchTopic(
     differences: [
       "Haben Sie einen anderen Tag gewählt? Dann sehen Sie die geplante Anwesenheit. Ein aktueller Aufenthaltsort wird nicht gezeigt.",
       "Ansicht und Spalten bleiben auf diesem Gerät so, wie Sie sie gewählt haben.",
+      // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
+      "Fehlen `Meine Gruppen` und `Aktuelle Aufsicht` in der Navigation? Dann wählen Sie in `Alle Kinder` oben `Meine Gruppe` oder `Meine Aufsicht`.",
       "Einige Bereiche brauchen zusätzliche Rechte: `Betreuungsplan`, `Dokumente` und `Änderungsprotokoll`. Fehlt ein Bereich? Fragen Sie Ihre Leitung.",
       ...(presenceDifference ? [presenceDifference] : []),
     ],
@@ -1032,6 +1034,8 @@ function ownGroupsTopic(
       "Eine vorübergehend übernommene Gruppe erscheint ebenfalls unter `Meine Gruppen`.",
       "Gruppen, die nicht Ihre eigenen sind, stehen unter `Weitere Gruppen`.",
       "Fehlt eine Gruppe? Bitten Sie Ihre Leitung, Ihre Gruppenzuordnung zu prüfen.",
+      // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
+      "Fehlt `Meine Gruppen` in der Navigation? Öffnen Sie `Alle Kinder` und wählen Sie oben `Meine Gruppe`. Die Gruppenseite öffnen Sie im Menü mit den drei Punkten unter `Zur Gruppenseite`.",
     ],
     troubleshooting: HELP_TOPICS.missingChildOrGroup,
     related: [
@@ -1124,6 +1128,8 @@ function transferGroupTopic(groupMode: HelpGroupMode): HelpTopic {
     troubleshootingDetails: [
       "Fehlt der Eintrag `Gruppe übergeben` im Menü? Dann betreuen Sie die Gruppe nur als Vertretung. Eine Vertretung kann die Gruppe nicht weitergeben.",
       "Steht dort `Keine pädagogische Fachkraft verfügbar`? Dann gibt es niemanden zum Übergeben. Fragen Sie Ihre Leitung.",
+      // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
+      "Fehlt `Meine Gruppen` in der Navigation? Öffnen Sie `Alle Kinder`. Wählen Sie im Menü mit den drei Punkten `Zur Gruppenseite`.",
     ],
     related: [HELP_TOPICS.ownGroups, HELP_TOPICS.missingChildOrGroup],
   };
@@ -1473,6 +1479,8 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`. In Zeiterfassung und Dienstplan erscheint sie nicht.",
       "Fehlt `Spontane Aktivität starten`? Dann hat Ihre OGS in den `Einstellungen` unter `Betrieb` den Schalter `Spontane Aktivitäten erlauben` ausgeschaltet.",
       "Fehlt ein Kind unter `Anwesende Kinder`? Ist seine Gehzeit schon erreicht, steht es nur unter `Alle anwesenden`. Ist es noch nicht angemeldet, suchen Sie es über `Kind hinzufügen`.",
+      // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
+      "Fehlt `Aktuelle Aufsicht` in der Navigation? Öffnen Sie `Alle Kinder`. Wählen Sie im Menü mit den drei Punkten `Zur Aufsicht`.",
     ],
     troubleshooting: HELP_TOPICS.attendanceProblem,
     related: [HELP_TOPICS.rooms, HELP_TOPICS.ownGroups],
@@ -6895,7 +6903,7 @@ function teacherLoginTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "moto sagt, das Konto habe keinen Zugang zum Schul-Portal? Dann fehlt Ihnen die Rolle. Wenden Sie sich an die OGS-Verwaltung.",
-      "moto sagt `Ungültige E-Mail oder Passwort`? Prüfen Sie beides und versuchen Sie es erneut.",
+      "moto sagt `Die E-Mail-Adresse oder das Passwort stimmt nicht.`? Prüfen Sie beides und versuchen Sie es erneut.",
     ],
     related: [
       HELP_TOPICS.teacherAccess,
@@ -7311,7 +7319,7 @@ function teacherLoginProblemTopic(): HelpTopic {
     ],
     differences: [
       "`Dieses Konto hat keinen Zugang zum Schul-Portal.` Dann fehlt Ihrem Konto die Rolle. Wenden Sie sich an die OGS-Verwaltung.",
-      "`Ungültige E-Mail oder Passwort.` Prüfen Sie beides.",
+      "`Die E-Mail-Adresse oder das Passwort stimmt nicht.` Prüfen Sie beides.",
     ],
     troubleshootingDetails: [
       "Sie werden immer wieder abgemeldet? Melden Sie sich einmal neu an.",

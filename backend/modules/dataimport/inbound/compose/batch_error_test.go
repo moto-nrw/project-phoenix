@@ -39,7 +39,7 @@ func TestBatchFailureResponseRetainsCommittedProgressAndRowErrors(t *testing.T) 
 	rr := testutil.ExecuteRequestForTest(t, resource.Router(), req)
 	require.Equal(t, http.StatusInternalServerError, rr.Code, "%s", rr.Body.String())
 	var response struct {
-		Status  string
+		Status  int
 		Code    string
 		Details struct {
 			Result struct {
@@ -52,7 +52,7 @@ func TestBatchFailureResponseRetainsCommittedProgressAndRowErrors(t *testing.T) 
 		}
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
-	assert.Equal(t, "error", response.Status)
+	assert.Equal(t, http.StatusInternalServerError, response.Status)
 	assert.Equal(t, "import.import_batch_failed", response.Code)
 	assert.Equal(t, 100, response.Details.Result.CreatedCount)
 	assert.Equal(t, 205, response.Details.Result.TotalRows)

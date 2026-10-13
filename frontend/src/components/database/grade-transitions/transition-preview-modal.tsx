@@ -5,6 +5,7 @@
 // explicit second confirmation before applying.
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ApiError } from "~/lib/api-error";
 import { Button } from "~/components/ui/button";
 import {
   FormErrorAlert,
@@ -25,7 +26,6 @@ import { createLogger } from "~/lib/logger";
 import {
   applyGradeTransition,
   PREVIEW_STALE_CODE,
-  TransitionRequestError,
   previewGradeTransition,
   type GradeTransition,
   type TransitionPreview,
@@ -139,10 +139,7 @@ export function TransitionPreviewModal({
         object: "das Anwenden des Jahrgangswechsels",
         retry: () => latestApplyRef.current(),
       });
-      if (
-        error instanceof TransitionRequestError &&
-        error.code === PREVIEW_STALE_CODE
-      ) {
+      if (error instanceof ApiError && error.code === PREVIEW_STALE_CODE) {
         await reloadPreview();
       }
       setApplying(false);

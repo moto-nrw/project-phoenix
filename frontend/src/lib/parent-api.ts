@@ -1,4 +1,9 @@
-import { ApiError, transportFetch, unavailableApiError } from "./api-error";
+import {
+  ApiError,
+  transportFetch,
+  unavailableApiError,
+  apiErrorFromBody,
+} from "./api-error";
 /**
  * Parent-portal client API. Symmetric to the operator-api / tenant
  * api-helpers split. Every call goes through a Next.js proxy route
@@ -462,63 +467,33 @@ function unwrapEnvelope<T>(json: ApiEnvelope<T>): T {
 }
 
 /**
- * A failed parents-portal API call. Carries the HTTP status and the backend's
- * stable error `code` (e.g. "care.care_exception_conflict") so callers can map to a
- * localized message instead of showing the raw English error string. Extends
- * `Error`, so existing `err instanceof Error ? err.message` handling still works.
- */
-export class ParentApiError extends ApiError {
-  readonly status: number;
-  constructor(
-    message: string,
-    status: number,
-    code?: string,
-    payload?: {
-      details?: Record<string, unknown>;
-      errors?: { field: string; reason: string }[];
-      instance?: string;
-    },
-  ) {
-    super(message, status, { code, ...payload });
-    this.name = "ParentApiError";
-    this.status = status;
-  }
-}
-
-/**
  * Reads the backend error message + code off a failed response, logs it, and
  * (on 401) bounces the user to the parents login. Shared by
  * getJson/postJson/deleteJson so the error/redirect/logging path lives in
- * exactly one place. Always throws a ParentApiError.
+ * exactly one place. Always throws an ApiError with status, code, field
+ * errors and request ID from the envelope.
  */
 async function throwResponseError(
   url: string,
   response: Response,
 ): Promise<never> {
-  let message = `Request failed (${response.status})`;
-  let code: string | undefined;
-  let payload:
-    | {
-        details?: Record<string, unknown>;
-        errors?: { field: string; reason: string }[];
-        instance?: string;
-      }
-    | undefined;
+  let body: unknown;
   try {
-    const body = (await response.json()) as {
-      error?: string;
-      code?: string;
-      details?: Record<string, unknown>;
-      errors?: { field: string; reason: string }[];
-      instance?: string;
-    };
-    if (body.error) message = body.error;
-    if (body.code) code = body.code;
-    payload = body;
+    body = await response.json();
   } catch {
-    // Body was not JSON, keep the generic message.
+    // Body was not JSON; the status still classifies.
   }
-  const context = { url, status: response.status, message, code };
+  const error = apiErrorFromBody(
+    `Request failed (${response.status})`,
+    response.status,
+    body,
+  );
+  const context = {
+    url,
+    status: response.status,
+    message: error.message,
+    code: error.code,
+  };
   if (response.status === 401) {
     logger.warn("parent_api_request_failed", context);
     if (typeof window !== "undefined") {
@@ -527,7 +502,7 @@ async function throwResponseError(
   } else {
     logger.error("parent_api_request_failed", context);
   }
-  throw new ParentApiError(message, response.status, code, payload);
+  throw error;
 }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -879,10 +854,7 @@ export async function getChildToday(studentId: string): Promise<ChildToday> {
       `/api/parent/me/children/${encodeURIComponent(studentId)}/today`,
     );
   } catch (err) {
-    if (
-      err instanceof ParentApiError &&
-      (err.status === 403 || err.status === 404)
-    ) {
+    if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
       logger.warn("parent_child_today_unavailable", {
         status: err.status,
         student_id: studentId,

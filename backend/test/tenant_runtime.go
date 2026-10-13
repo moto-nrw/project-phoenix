@@ -353,7 +353,7 @@ func TenantTxMiddleware(db *bun.DB) func(http.Handler) http.Handler {
 					next.ServeHTTP(w, r.WithContext(ctx))
 					return
 				default:
-					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+					writeTestProblem(w, http.StatusInternalServerError, codeGeneralServer)
 					return
 				}
 			}
@@ -368,7 +368,7 @@ func TenantTxMiddleware(db *bun.DB) func(http.Handler) http.Handler {
 				return nil
 			})
 			if err != nil && status == http.StatusOK {
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				writeTestProblem(w, http.StatusInternalServerError, codeGeneralServer)
 			}
 		})
 	}

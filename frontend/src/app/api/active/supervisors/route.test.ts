@@ -25,29 +25,24 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: mockApiGet,
-  apiPost: mockApiPost,
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  extractParams: vi.fn((request: NextRequest) => {
-    const params: Record<string, string> = {};
-    request.nextUrl.searchParams.forEach((value: string, key: string) => {
-      params[key] = value;
-    });
-    return params;
-  }),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: mockApiGet,
+    apiPost: mockApiPost,
+    apiPut: vi.fn(),
+    apiDelete: vi.fn(),
+    extractParams: vi.fn((request: NextRequest) => {
+      const params: Record<string, string> = {};
+      request.nextUrl.searchParams.forEach((value: string, key: string) => {
+        params[key] = value;
+      });
+      return params;
+    }),
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 // ============================================================================
 // Test Helpers

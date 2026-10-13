@@ -105,7 +105,7 @@ describe("POST /api/auth/password-reset/confirm", () => {
     };
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "Invalid or expired token" }), {
+      new Response(JSON.stringify({ detail: "Invalid or expired token" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       }),
@@ -118,8 +118,8 @@ describe("POST /api/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Invalid or expired token");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Invalid or expired token");
   });
 
   it("returns 410 when token has expired", async () => {
@@ -129,7 +129,7 @@ describe("POST /api/auth/password-reset/confirm", () => {
     };
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "Token expired" }), {
+      new Response(JSON.stringify({ detail: "Token expired" }), {
         status: 410,
         headers: { "Content-Type": "application/json" },
       }),
@@ -142,8 +142,8 @@ describe("POST /api/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(410);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Token expired");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Token expired");
   });
 
   it("handles backend error with message field", async () => {
@@ -171,7 +171,7 @@ describe("POST /api/auth/password-reset/confirm", () => {
     });
   });
 
-  it("handles non-JSON error response", async () => {
+  it("replaces a non-JSON backend server error with a safe problem envelope", async () => {
     const requestBody = {
       token: "valid-token",
       password: "NewPassword123!",
@@ -191,11 +191,17 @@ describe("POST /api/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    expect(response.headers.get("Content-Type")).toContain("text/plain");
-    expect(await response.text()).toBe("Server Error");
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/problem+json",
+    );
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
-  it("handles empty error response body", async () => {
+  it("replaces an empty backend server error with a safe problem envelope", async () => {
     const requestBody = {
       token: "valid-token",
       password: "NewPassword123!",
@@ -215,7 +221,11 @@ describe("POST /api/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    expect(await response.text()).toBe("");
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("handles JSON parse error in error response", async () => {
@@ -257,7 +267,7 @@ describe("POST /api/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 });

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET, POST } from "./route";
 
 // ============================================================================
@@ -261,8 +262,9 @@ describe("GET /api/staff", () => {
     const response = await GET(request, createMockContext());
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Backend error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Backend error");
   });
 });
 
@@ -469,7 +471,7 @@ describe("POST /api/staff", () => {
   });
 
   it("handles 403 permission errors", async () => {
-    const mockError = new Error("Permission denied (403)");
+    const mockError = new ApiResponseError(403, "Permission denied");
     mockApiPost.mockRejectedValueOnce(mockError);
 
     const request = createMockRequest("/api/staff", {
@@ -478,11 +480,11 @@ describe("POST /api/staff", () => {
     });
     const response = await POST(request, createMockContext());
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(403);
   });
 
   it("handles 400 validation errors for person not found", async () => {
-    const mockError = new Error("person not found (400)");
+    const mockError = new ApiResponseError(400, "person not found");
     mockApiPost.mockRejectedValueOnce(mockError);
 
     const request = createMockRequest("/api/staff", {
@@ -491,6 +493,6 @@ describe("POST /api/staff", () => {
     });
     const response = await POST(request, createMockContext());
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(400);
   });
 });

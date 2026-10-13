@@ -73,8 +73,10 @@ describe("DELETE /api/students/care-withdrawals/[completionId]", () => {
       new ApiResponseError(
         409,
         JSON.stringify({
-          status: "error",
-          error: "Vorschau veraltet",
+          type: "about:blank",
+          title: "Conflict",
+          status: 409,
+          detail: "Vorschau veraltet",
           code: "students.deletion_preview_changed",
         }),
       ),
@@ -94,8 +96,10 @@ describe("DELETE /api/students/care-withdrawals/[completionId]", () => {
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
-      status: "error",
-      error: "Vorschau veraltet",
+      type: "about:blank",
+      title: "Conflict",
+      status: 409,
+      detail: "Vorschau veraltet",
       code: "students.deletion_preview_changed",
     });
   });

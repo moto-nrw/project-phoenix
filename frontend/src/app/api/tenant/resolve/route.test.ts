@@ -48,8 +48,8 @@ describe("GET /api/tenant/resolve", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("slug parameter is required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("slug parameter is required");
   });
 
   it("resolves tenant slug from backend", async () => {
@@ -81,7 +81,7 @@ describe("GET /api/tenant/resolve", () => {
 
   it("forwards 404 from backend", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "not found" }), {
+      new Response(JSON.stringify({ detail: "not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
       }),
@@ -118,7 +118,7 @@ describe("GET /api/tenant/resolve", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 });

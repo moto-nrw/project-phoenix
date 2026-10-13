@@ -74,8 +74,8 @@ describe("POST /api/auth/roles/[roleId]/permissions/[permissionId]", () => {
     const response = await POST(request, createMockContext());
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toContain("required");
+    const json = (await response.json()) as { detail: string };
+    expect(json.detail).toContain("required");
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -119,7 +119,7 @@ describe("POST /api/auth/roles/[roleId]/permissions/[permissionId]", () => {
 
   it("handles backend errors during assignment", async () => {
     mockFetch.mockReturnValueOnce(
-      createMockResponse({ error: "Permission already assigned" }, 409),
+      createMockResponse({ detail: "Permission already assigned" }, 409),
     );
 
     const request = createMockRequest("/api/auth/roles/1/permissions/2", {
@@ -190,7 +190,7 @@ describe("DELETE /api/auth/roles/[roleId]/permissions/[permissionId]", () => {
 
   it("handles backend errors during removal", async () => {
     mockFetch.mockReturnValueOnce(
-      createMockResponse({ error: "Permission not found" }, 404),
+      createMockResponse({ detail: "Permission not found" }, 404),
     );
 
     const request = createMockRequest("/api/auth/roles/1/permissions/2", {

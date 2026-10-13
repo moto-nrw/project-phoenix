@@ -92,7 +92,7 @@ export function PushNotificationSection({
   // Einschalten, Ausschalten und Testen sind Aktionen ohne Formular: Erfolg
   // und Fehler kommen als Toast (#2517). Die Fehlerobjekte sind übersetzt, im
   // Elternportal spricht der Katalog die gewählte Sprache (#2518).
-  const { show: showActionError } = useApiErrorDisplay();
+  const { show: showActionError, showMessage } = useApiErrorDisplay();
   const latestEnableRef = useRef<() => void>(() => undefined);
   const latestDisableRef = useRef<() => void>(() => undefined);
   const latestTestRef = useRef<() => void>(() => undefined);
@@ -208,7 +208,7 @@ export function PushNotificationSection({
         typeof Notification !== "undefined" &&
         Notification.permission !== "granted"
       ) {
-        toast.error(t("enableError"));
+        showMessage(t("enableError"));
       } else {
         void showActionError(err, {
           object: t("errorObjectEnable"),
@@ -233,7 +233,7 @@ export function PushNotificationSection({
         error: err instanceof Error ? err.message : String(err),
       });
       // Kein API-Fehler: der Browser hat die Installation nicht angeboten.
-      toast.error(setupT("installError"));
+      showMessage(setupT("installError"));
     } finally {
       setBusy(false);
     }

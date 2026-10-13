@@ -89,8 +89,8 @@ describe("GET /api/auth/permissions", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(401);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toBe("Unauthorized");
+    const json = (await response.json()) as { detail: string };
+    expect(json.detail).toBe("Unauthorized");
   });
 
   it("fetches all permissions", async () => {
@@ -144,7 +144,7 @@ describe("GET /api/auth/permissions", () => {
 
   it("handles backend errors", async () => {
     mockFetch.mockReturnValueOnce(
-      createMockResponse({ error: "Backend error" }, 500),
+      createMockResponse({ detail: "Backend error" }, 500),
     );
 
     const request = createMockRequest("/api/auth/permissions");
@@ -216,7 +216,7 @@ describe("POST /api/auth/permissions", () => {
 
   it("handles backend errors during creation", async () => {
     mockFetch.mockReturnValueOnce(
-      createMockResponse({ error: "Permission already exists" }, 409),
+      createMockResponse({ detail: "Permission already exists" }, 409),
     );
 
     const request = createMockRequest("/api/auth/permissions", {

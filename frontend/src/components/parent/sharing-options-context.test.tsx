@@ -1,14 +1,13 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ParentApiError, getRequestSharingOptions } from "~/lib/parent-api";
+import { getRequestSharingOptions } from "~/lib/parent-api";
 import { catalogText } from "~/test/error-catalog-text";
 import { RequestSharingSelector } from "./request-sharing-control";
 import { SharingOptionsProvider } from "./sharing-options-context";
 
-vi.mock("~/lib/parent-api", async (importOriginal) => ({
-  ParentApiError: (await importOriginal<typeof import("~/lib/parent-api")>())
-    .ParentApiError,
+vi.mock("~/lib/parent-api", () => ({
   getRequestSharingOptions: vi.fn(),
   getRequestSharing: vi.fn(),
   setRequestSharing: vi.fn(),
@@ -99,7 +98,7 @@ describe("SharingOptionsProvider", () => {
   // fetches again because the provider dropped the failed request.
   it("retries a failed load through the provider", async () => {
     getOptions.mockRejectedValueOnce(
-      new ParentApiError("diag", 503, "general.unavailable"),
+      new ApiError("diag", 503, { code: "general.unavailable" }),
     );
     render(
       <SharingOptionsProvider>

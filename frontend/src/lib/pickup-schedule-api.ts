@@ -1,9 +1,4 @@
-import {
-  ApiError,
-  apiErrorFromBody,
-  enrichApiError,
-  transportFetch,
-} from "./api-error";
+import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 // Pickup Schedule API Client
 // Calls Next.js API routes which proxy to the Go backend
 
@@ -38,7 +33,6 @@ interface ApiResponse<T> {
   status: string;
   data?: T;
   message?: string;
-  error?: string;
 }
 
 export interface BulkPickupScheduleInput {
@@ -48,13 +42,6 @@ export interface BulkPickupScheduleInput {
 
 export interface BulkPickupResult {
   students_affected: number;
-}
-
-export class PickupScheduleApiError extends ApiError {
-  constructor(message: string, code?: string) {
-    super(message, undefined, { code });
-    this.name = "PickupScheduleApiError";
-  }
 }
 
 export interface PickupAdjustmentSelection {
@@ -181,22 +168,6 @@ export async function bulkUpsertPickupSchedules(
   );
 }
 
-// Error response from failed JSON parsing
-interface ErrorResponse {
-  error?: string;
-  code?: string;
-}
-
-// Type guard for error responses
-function isErrorResponse(value: unknown): value is ErrorResponse {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    (typeof (value as ErrorResponse).error === "string" ||
-      typeof (value as ErrorResponse).code === "string")
-  );
-}
-
 export async function previewStudentPickupAdjustment(
   studentId: string,
   payload: PickupAdjustmentPayload,
@@ -259,30 +230,22 @@ async function throwResponseError(
   response: Response,
   fallback: string,
 ): Promise<never> {
-  // Ein Rumpf ohne JSON klassifiziert sich allein über den Status; der
-  // Ausfall des Parsens hat deshalb keine eigene Folge.
-  const body: unknown = await response.json().catch(() => undefined);
-  const message = isErrorResponse(body) && body.error ? body.error : fallback;
-  throw enrichApiError(
-    new PickupScheduleApiError(
-      message,
-      isErrorResponse(body) ? body.code : undefined,
-    ),
-    body,
+  throw apiErrorFromBody(
+    fallback,
     response.status,
+    await response.json().catch(() => undefined),
   );
 }
 
 /**
- * A success status whose body still reports a failure (or lacks the data) is
- * a server fault unless the body names its own code.
+ * A success status whose body lacks the data is a server fault.
  */
 function bodyError(message: string, body: unknown): ApiError {
   return apiErrorFromBody(message, 500, body);
 }
 
 /**
- * Parse a JSON API response body; throw if the body signals an error or has no data.
+ * Parse a JSON API response body; a success without data is a server fault.
  */
 async function parseApiResult<T>(
   response: Response,
@@ -290,26 +253,11 @@ async function parseApiResult<T>(
 ): Promise<T> {
   const result = (await response.json()) as ApiResponse<T>;
 
-  if (result.status === "error" || !result.data) {
-    throw bodyError(result.error ?? fallback, result);
+  if (!result.data) {
+    throw bodyError(fallback, result);
   }
 
   return result.data;
-}
-
-/**
- * Handle a DELETE response (204 No Content or JSON body).
- */
-async function handleDeleteResponse(
-  response: Response,
-  fallback: string,
-): Promise<void> {
-  if (response.status === 204) return;
-
-  const result = (await response.json()) as ApiResponse<null>;
-  if (result.status === "error") {
-    throw bodyError(result.error ?? fallback, result);
-  }
 }
 
 /**
@@ -334,10 +282,6 @@ export async function fetchStudentPickupData(
   }
 
   const result = (await response.json()) as ApiResponse<BackendPickupData>;
-
-  if (result.status === "error") {
-    throw bodyError(result.error ?? "Failed to fetch pickup schedules", result);
-  }
 
   return mapPickupDataResponse(
     result.data ?? { schedules: [], exceptions: [], notes: [] },
@@ -474,8 +418,6 @@ export async function deleteStudentPickupException(
   if (!response.ok) {
     await throwResponseError(response, "Failed to delete pickup exception");
   }
-
-  await handleDeleteResponse(response, "Failed to delete pickup exception");
 }
 
 /**
@@ -525,8 +467,6 @@ export async function deleteStudentDepartureException(
   if (!response.ok) {
     await throwResponseError(response, "Failed to delete departure exception");
   }
-
-  await handleDeleteResponse(response, "Failed to delete departure exception");
 }
 
 // =============================================================================
@@ -607,8 +547,6 @@ export async function deleteStudentPickupNote(
   if (!response.ok) {
     await throwResponseError(response, "Failed to delete pickup note");
   }
-
-  await handleDeleteResponse(response, "Failed to delete pickup note");
 }
 
 /**
@@ -631,8 +569,6 @@ export async function replaceStudentWeekdayPickupNotes(
   if (!response.ok) {
     await throwResponseError(response, "Failed to update pickup notes");
   }
-
-  await handleDeleteResponse(response, "Failed to update pickup notes");
 }
 
 // =============================================================================

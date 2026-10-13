@@ -94,7 +94,7 @@ describe("GET /api/operator/provisioning/stats", () => {
     expect(response.status).toBeGreaterThanOrEqual(400);
   });
 
-  it("returns 401 with TOKEN_EXPIRED when the backend returns 401 and refresh fails", async () => {
+  it("returns 401 with the error envelope when the backend returns 401 and refresh fails", async () => {
     mockAuth.mockResolvedValue({ user: { token: "stale-token" } });
     mockFetch.mockResolvedValue(
       new Response("expired", {
@@ -113,6 +113,6 @@ describe("GET /api/operator/provisioning/stats", () => {
       code?: string;
       error?: string;
     };
-    expect(json.code).toBe("TOKEN_EXPIRED");
+    expect(json.code).toBe("general.permission");
   });
 });

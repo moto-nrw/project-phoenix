@@ -151,6 +151,7 @@ import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pend
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import {
+  useChildSearchOnlyNavigation,
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
@@ -182,6 +183,9 @@ const mockUseEnrollmentsUnread = vi.mocked(useEnrollmentsUnread);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUseOpenCareGroupMode = vi.mocked(useOpenCareGroupMode);
+const mockUseChildSearchOnlyNavigation = vi.mocked(
+  useChildSearchOnlyNavigation,
+);
 const mockUseStaffMessagingEnabled = vi.mocked(useStaffMessagingEnabled);
 const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
 const mockUseSWRDefault = vi.mocked(useSWR);
@@ -2617,6 +2621,75 @@ describe("Sidebar", () => {
 
       expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
     });
+  });
+
+  describe("Kinder nur über Alle Kinder (#1321)", () => {
+    beforeEach(() => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [{ id: "7", name: "Raum 7", groupId: "70" }],
+        groups: [{ id: "1", name: "Bären", is_personal: true }],
+        refresh: vi.fn(),
+      });
+    });
+
+    afterEach(() => {
+      mockUseChildSearchOnlyNavigation.mockReturnValue(false);
+    });
+
+    it("keeps Meine Gruppen and Aktuelle Aufsicht while the school keeps them", () => {
+      render(<Sidebar />);
+
+      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
+    });
+
+    it("leaves Alle Kinder as the only child entry when the school switches it on", () => {
+      mockUseChildSearchOnlyNavigation.mockReturnValue(true);
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Meine Gruppen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Aktuelle Aufsicht")).not.toBeInTheDocument();
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
+    });
+
+    it("marks Alle Kinder on the group page reached by link", () => {
+      mockUseChildSearchOnlyNavigation.mockReturnValue(true);
+      mockUsePathname.mockReturnValue("/ogs-groups");
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Alle Kinder").closest("a")).toHaveClass(
+        "bg-gray-100",
+      );
+    });
+
+    it.each([
+      ["Gruppenseite", "/ogs-groups?group=1"],
+      ["Aufsichtsseite", "/active-supervisions?session=70"],
+    ])(
+      "marks Alle Kinder on a child detail page opened from the %s",
+      (_source, from) => {
+        mockUseChildSearchOnlyNavigation.mockReturnValue(true);
+        mockUsePathname.mockReturnValue("/students/123");
+        mockUseSearchParams.mockReturnValue(
+          createMockSearchParams((key) => (key === "from" ? from : null)),
+        );
+
+        render(<Sidebar />);
+
+        expect(screen.getByText("Alle Kinder").closest("a")).toHaveClass(
+          "bg-gray-100",
+        );
+      },
+    );
   });
 
   describe("collapsible sidebar (#2825)", () => {

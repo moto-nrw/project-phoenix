@@ -61,7 +61,7 @@ describe("GET /api/operator/profile", () => {
     const response = await GET(request, mockContext);
 
     expect(response.status).toBe(200);
-    const json = (await response.json()) as { data?: unknown; error?: string };
+    const json = (await response.json()) as { data?: unknown; detail?: string };
     expect(json.data).toEqual(profileData);
     expect(mockFetch).toHaveBeenCalledWith(
       "http://localhost:8080/operator/profile",
@@ -81,8 +81,8 @@ describe("GET /api/operator/profile", () => {
     const response = await GET(request, mockContext);
 
     expect(response.status).toBe(401);
-    const json = (await response.json()) as { error?: string; data?: unknown };
-    expect(json.error).toBe("Unauthorized");
+    const json = (await response.json()) as { detail?: string; data?: unknown };
+    expect(json.detail).toBe("Unauthorized");
   });
 
   it("handles API error", async () => {
@@ -125,7 +125,7 @@ describe("PUT /api/operator/profile", () => {
     const response = await PUT(request, mockContext);
 
     expect(response.status).toBe(200);
-    const json = (await response.json()) as { data?: unknown; error?: string };
+    const json = (await response.json()) as { data?: unknown; detail?: string };
     expect(json.data).toEqual(updatedProfile);
     expect(mockFetch).toHaveBeenCalledWith(
       "http://localhost:8080/operator/profile",
@@ -143,14 +143,14 @@ describe("PUT /api/operator/profile", () => {
     const response = await PUT(request, mockContext);
 
     expect(response.status).toBe(401);
-    const json = (await response.json()) as { error?: string; data?: unknown };
-    expect(json.error).toBe("Unauthorized");
+    const json = (await response.json()) as { detail?: string; data?: unknown };
+    expect(json.detail).toBe("Unauthorized");
   });
 
   it("handles validation error from backend", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "Display name too short" }), {
+      new Response(JSON.stringify({ detail: "Display name too short" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       }),

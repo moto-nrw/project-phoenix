@@ -128,7 +128,7 @@ describe("createFileExportRoute", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("forwards a backend 5xx without a BFF event", async () => {
+  it("replaces a backend 5xx without a BFF event", async () => {
     globalThis.fetch = vi
       .fn()
       .mockResolvedValue(
@@ -138,7 +138,11 @@ describe("createFileExportRoute", () => {
     const response = await route(exportRequest());
 
     expect(response.status).toBe(503);
-    expect(await response.text()).toBe("backend down");
+    expect(await response.json()).toMatchObject({
+      status: 503,
+      detail: "Service Unavailable",
+      code: "general.unavailable",
+    });
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -238,7 +242,13 @@ describe("createFileExportRoute", () => {
     const response = await route(request);
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: "connect ECONNREFUSED" });
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
+    expect(body).not.toContain("ECONNREFUSED");
     expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {
       tags: { request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10" },
     });

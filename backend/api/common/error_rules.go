@@ -69,6 +69,14 @@ func FixedRenderer(renderer func(error) render.Renderer, publicErr error) func(e
 	}
 }
 
+// FixedCodedRenderer is FixedRenderer for a coded helper: every matched
+// error answers with publicErr and the registered code.
+func FixedCodedRenderer(renderer func(error, string) render.Renderer, publicErr error, code string) func(error) render.Renderer {
+	return func(error) render.Renderer {
+		return renderer(publicErr, code)
+	}
+}
+
 // UnwrapRenderer builds an ErrorRenderer for the typed-wrapper packages
 // (rooms, groups, schedules, activities, users): errors.As to the domain
 // wrapper E, match the rules against the wrapped chain, and render the

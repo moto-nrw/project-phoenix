@@ -25,7 +25,8 @@ vi.mock("~/server/auth", () => ({
   uncachedAuth: mockUncachedAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   handleApiError: mockHandleApiError,
 }));
 
@@ -54,9 +55,11 @@ describe("GET /api/staff/[id]/avatar", () => {
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({
-      error: "Unauthorized",
-      success: false,
-      message: "Unauthorized",
+      type: "about:blank",
+      title: "Unauthorized",
+      status: 401,
+      detail: "Unauthorized",
+      code: "general.permission",
     });
   });
 
@@ -68,8 +71,11 @@ describe("GET /api/staff/[id]/avatar", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
-      error: "Valid staff ID is required",
-      success: false,
+      type: "about:blank",
+      title: "Bad Request",
+      status: 400,
+      detail: "Valid staff ID is required",
+      code: "general.input",
     });
   });
 
@@ -81,8 +87,11 @@ describe("GET /api/staff/[id]/avatar", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
-      error: "Valid staff ID is required",
-      success: false,
+      type: "about:blank",
+      title: "Bad Request",
+      status: 400,
+      detail: "Valid staff ID is required",
+      code: "general.input",
     });
   });
 

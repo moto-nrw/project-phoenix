@@ -72,8 +72,9 @@ describe("GET /api/auth/accounts/[accountId]", () => {
     const response = await GET(request, createMockContext());
 
     expect(response.status).toBe(500);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toContain("Account ID is required");
+    const json = (await response.json()) as { detail: string };
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Account ID is required");
   });
 
   it("fetches account from user API successfully", async () => {
@@ -117,7 +118,16 @@ describe("GET /api/auth/accounts/[accountId]", () => {
 
   it("forwards the backend error instead of fabricating an account", async () => {
     mockFetch.mockReturnValueOnce(
-      createMockResponse({ error: "Not found" }, 404),
+      createMockResponse(
+        {
+          type: "about:blank",
+          title: "Not Found",
+          status: 404,
+          detail: "Not found",
+          code: "general.input",
+        },
+        404,
+      ),
     );
 
     const request = createMockRequest("/api/auth/accounts/456");
@@ -127,7 +137,7 @@ describe("GET /api/auth/accounts/[accountId]", () => {
     );
 
     expect(response.status).toBe(404);
-    expect(await response.json()).toEqual({ error: "Not found" });
+    expect(await response.json()).toMatchObject({ detail: "Not found" });
   });
 
   it("handles user data without data wrapper", async () => {

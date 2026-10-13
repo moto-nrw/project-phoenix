@@ -6,6 +6,7 @@ import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "StudentsDayLogExportRoute" });
 
@@ -19,7 +20,11 @@ function exportQuery(request: NextRequest): string {
   return query ? `?${query}` : "";
 }
 
-async function proxyExport(query: string, token: string): Promise<Response> {
+async function proxyExport(
+  request: NextRequest,
+  query: string,
+  token: string,
+): Promise<Response> {
   const backendResponse = await fetch(
     `${getServerApiUrl()}/api/students/day-log/export${query}`,
     {
@@ -29,12 +34,12 @@ async function proxyExport(query: string, token: string): Promise<Response> {
   );
 
   if (!backendResponse.ok) {
-    const response = forwardBackendResponse(backendResponse);
+    const response = forwardBackendResponse(backendResponse, request);
     response.headers.set("Cache-Control", "no-store");
     return response;
   }
   if (!backendResponse.body) {
-    return new Response("No response body from backend", { status: 502 });
+    return problemResponse(502, "No response body from backend", request);
   }
 
   const headers = new Headers({ "Cache-Control": "no-store" });
@@ -56,11 +61,11 @@ async function GETHandler(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
-      return new Response("Unauthorized", { status: 401 });
+      return problemResponse(401, "Unauthorized", request);
     }
 
     const query = exportQuery(request);
-    const response = await proxyExport(query, session.user.token);
+    const response = await proxyExport(request, query, session.user.token);
     if (response.status !== 401) return response;
 
     const refreshed = await uncachedAuth();
@@ -70,13 +75,13 @@ async function GETHandler(request: NextRequest) {
     ) {
       return response;
     }
-    return proxyExport(query, refreshed.user.token);
+    return proxyExport(request, query, refreshed.user.token);
   } catch (error) {
     captureBffException(error, request);
     logger.error("day_log_export_proxy_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return new Response("Internal server error", { status: 500 });
+    return problemResponse(500, "Internal server error", request);
   }
 }
 

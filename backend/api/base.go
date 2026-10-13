@@ -569,12 +569,12 @@ func mealPlanParticipantLess(left, right mealplanCompose.ParticipantCandidate) b
 }
 
 var mealPlanErrorRules = []apiCommon.ErrorRule{
-	{Target: mealplanModule.ErrDisabled, Render: apiCommon.FixedRenderer(apiCommon.ErrorForbidden, errors.New("feature_disabled"))},
+	{Target: mealplanModule.ErrDisabled, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorForbiddenWithCode, errors.New("feature_disabled"), apiCommon.CodeMealsPlanDisabled)},
 	{Target: mealplanModule.ErrInvalidMealDate, Render: apiCommon.FixedRenderer(apiCommon.ErrorInvalidRequest, errors.New("meal plan covers weekdays only (Monday-Friday)"))},
 	{Target: mealplanModule.ErrInvalidDishes, Render: apiCommon.ErrorInvalidRequest},
-	{Target: mealplanModule.ErrRegistrationDisabled, Render: apiCommon.FixedRenderer(apiCommon.ErrorForbidden, errors.New("meal_registration_disabled"))},
+	{Target: mealplanModule.ErrRegistrationDisabled, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorForbiddenWithCode, errors.New("meal_registration_disabled"), apiCommon.CodeMealsRegistrationDisabled)},
 	{Target: mealplanModule.ErrInvalidParticipation, Render: apiCommon.ErrorInvalidRequest},
-	{Target: mealplanModule.ErrParticipationCutoff, Render: apiCommon.FixedRenderer(apiCommon.ErrorConflict, errors.New("meal_participation_cutoff_passed"))},
+	{Target: mealplanModule.ErrParticipationCutoff, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New("meal_participation_cutoff_passed"), apiCommon.CodeMealsParticipationCutoffPassed)},
 }
 
 func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
@@ -680,10 +680,11 @@ func newFeedbackResource(module *feedbackModule.Module) *feedbackAPI.Resource {
 		},
 		Success: apiCommon.Respond,
 		Failure: func(w http.ResponseWriter, r *http.Request, failure feedbackAPI.Failure) {
-			apiCommon.RenderError(w, r, &apiCommon.ErrResponse{
-				Err: failure.Err, HTTPStatusCode: failure.Status,
-				Status: "error", ErrorText: failure.Err.Error(),
-			})
+			response := &apiCommon.ErrResponse{Err: failure.Err, HTTPStatusCode: failure.Status, Detail: failure.Err.Error()}
+			if errors.Is(failure.Err, feedbackAPI.ErrFeatureDisabled) {
+				response.Code = apiCommon.CodeFeedbackDisabled
+			}
+			apiCommon.RenderError(w, r, response)
 		},
 		ObserveResponse: func(status int, code string) {
 			observability.ObserveFeedbackHTTPResponse("staff", status, code)
@@ -816,6 +817,12 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, t
 	// Setup router middleware
 	graph.router.Use(requestIDs(tracer))
 	graph.router.Use(apiCommon.ProblemResponseMiddleware)
+	// chi answers an unknown path with a plain-text body; the shared envelope
+	// replaces it, so ProblemResponseMiddleware only repairs real handler
+	// regressions. chi's 405 has no body and keeps its Allow header.
+	graph.router.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		apiCommon.RenderStatus(w, r, http.StatusNotFound, "")
+	})
 	graph.router.Use(apiCommon.TenantRuntimeMiddleware(tenantRuntime))
 	graph.router.Use(apiCommon.AuthorizationObserverMiddleware(func(event apiCommon.AuthorizationEvent) {
 		observability.RecordAuthorizationEvent(event.Outcome, event.Reason, event.Elapsed)
@@ -2145,7 +2152,7 @@ func publicCalendarFeed(modules moduleServices) http.HandlerFunc {
 	svc := modules.services
 	return func(w http.ResponseWriter, r *http.Request) {
 		if svc.Calendar == nil {
-			http.Error(w, "not found", http.StatusNotFound)
+			apiCommon.RenderStatus(w, r, http.StatusNotFound, "")
 			return
 		}
 		token := chi.URLParam(r, "token")
@@ -2155,13 +2162,13 @@ func publicCalendarFeed(modules moduleServices) http.HandlerFunc {
 		}
 		if err != nil {
 			if errors.Is(err, calendarService.ErrNotFound) {
-				http.Error(w, "not found", http.StatusNotFound)
+				apiCommon.RenderStatus(w, r, http.StatusNotFound, "")
 				return
 			}
 			slog.Error("calendar feed failed",
 				"error", err.Error(),
 			)
-			http.Error(w, "internal error", http.StatusInternalServerError)
+			apiCommon.RenderStatus(w, r, http.StatusInternalServerError, "")
 			return
 		}
 		w.Header().Set("Content-Type", "text/calendar; charset=utf-8")

@@ -60,7 +60,7 @@ describe("Einverständnisse in the staff client (#3430)", () => {
       new Response(
         JSON.stringify({
           status: "error",
-          error: "declaration has submissions",
+          detail: "declaration has submissions",
           code: "communication.declaration_has_submissions",
         }),
         { status: 409, headers: { "Content-Type": "application/json" } },
@@ -72,7 +72,8 @@ describe("Einverständnisse in the staff client (#3430)", () => {
     expect(error).toMatchObject({
       status: 409,
       code: "communication.declaration_has_submissions",
-      message: "declaration has submissions",
+      message: "Elternmitteilung konnte nicht gelöscht werden",
+      detail: "declaration has submissions",
     });
   });
 
@@ -125,14 +126,14 @@ describe("Einverständnisse in the staff client (#3430)", () => {
 
   it("throws instead of saving an error body as a file", async () => {
     mockFetch(
-      new Response(JSON.stringify({ error: "not found" }), {
+      new Response(JSON.stringify({ detail: "not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
       }),
     );
 
     await expect(downloadDeclarationExport("42", "csv")).rejects.toThrow(
-      "not found",
+      "Die Datei konnte nicht erstellt werden",
     );
     expect(downloadBlobMock).not.toHaveBeenCalled();
   });

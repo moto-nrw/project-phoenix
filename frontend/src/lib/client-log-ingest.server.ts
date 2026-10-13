@@ -8,6 +8,10 @@
  */
 
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  isApiResponseError,
+  problemResponse,
+} from "~/lib/api-response-error.server";
 import type { Session } from "next-auth";
 import { parseRequestBody } from "~/lib/route-wrapper-utils.server";
 import { validateSessionToken } from "~/server/auth/token-validation";
@@ -68,27 +72,25 @@ export async function ingestClientLogs(
   portal: ClientLogPortal,
 ): Promise<NextResponse> {
   if (!session?.user?.token || session.error) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return problemResponse(401, "Unauthorized", request);
   }
-  if (!takeBudget("global", 1000)) return rateLimited();
+  if (!takeBudget("global", 1000)) return rateLimited(request);
   const identity = await validateSessionToken(session.user.token, portal);
   if (
     !identity ||
     identity.read_only ||
     String(identity.id) !== session.user.id
   ) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return problemResponse(401, "Unauthorized", request);
   }
-  if (!takeBudget(`actor:${portal}:${identity.id}`, 20)) return rateLimited();
+  if (!takeBudget(`actor:${portal}:${identity.id}`, 20))
+    return rateLimited(request);
   let body: unknown;
   try {
     body = await parseRequestBody<unknown>(request, 64 * 1024);
   } catch (error) {
-    const status =
-      error instanceof Error && error.message.includes("API error (413)")
-        ? 413
-        : 400;
-    return NextResponse.json({ error: "Invalid log payload" }, { status });
+    const status = isApiResponseError(error, 413) ? 413 : 400;
+    return problemResponse(status, "Invalid log payload", request);
   }
   const entries =
     body && typeof body === "object" && "entries" in body
@@ -100,7 +102,7 @@ export async function ingestClientLogs(
     entries.length > 50 ||
     !entries.every(validEntry)
   ) {
-    return NextResponse.json({ error: "Invalid log payload" }, { status: 400 });
+    return problemResponse(400, "Invalid log payload", request);
   }
   for (const entry of entries) {
     console.log(
@@ -121,9 +123,8 @@ export async function ingestClientLogs(
   return NextResponse.json({ status: "success", processed: entries.length });
 }
 
-function rateLimited() {
-  return NextResponse.json(
-    { error: "Rate limit exceeded" },
-    { status: 429, headers: { "Retry-After": "60" } },
-  );
+function rateLimited(request: NextRequest) {
+  return problemResponse(429, "Rate limit exceeded", {}, request, {
+    "Retry-After": "60",
+  });
 }

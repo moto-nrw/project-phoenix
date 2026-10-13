@@ -1,4 +1,4 @@
-import { backendResponseError } from "~/lib/api-helpers.server";
+import { backendResponseError } from "~/lib/api-response-error.server";
 import { revalidateTag } from "next/cache";
 import type { NextRequest } from "next/server";
 import {
@@ -86,7 +86,11 @@ export const POST = createFileUploadHandler<LoginImageResponse>(
   async (request: NextRequest, formData: FormData, token: string) => {
     const file = formData.get("login_image");
     if (!file || !(file instanceof File)) {
-      throw new FileValidationError("No image file provided", 400);
+      throw new FileValidationError(
+        "No image file provided",
+        400,
+        "files.file_missing",
+      );
     }
 
     const validatedFormData = new FormData();

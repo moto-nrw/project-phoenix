@@ -75,7 +75,11 @@ describe("POST /api/auth/logout", () => {
 
     expect(response.status).toBe(401);
     const text = await response.text();
-    expect(JSON.parse(text)).toEqual({ error: "No active session" });
+    expect(JSON.parse(text)).toMatchObject({
+      status: 401,
+      detail: "No active session",
+      code: "general.permission",
+    });
   });
 
   it("returns 401 when session has no refresh token", async () => {
@@ -124,7 +128,7 @@ describe("POST /api/auth/logout", () => {
     expect(text).toBe("");
   });
 
-  it("forwards the backend error status and body", async () => {
+  it("replaces a backend server error with a safe problem envelope", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
       new Response('{"code":"logout_failed","details":{"retry":true}}', {
         status: 500,
@@ -139,9 +143,11 @@ describe("POST /api/auth/logout", () => {
     expect(response.headers.get("Content-Type")).toBe(
       "application/problem+json",
     );
-    expect(await response.text()).toBe(
-      '{"code":"logout_failed","details":{"retry":true}}',
-    );
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("forwards a backend 200 response", async () => {

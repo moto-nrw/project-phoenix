@@ -102,10 +102,19 @@ describe("GET /api/operator/provisioning/organizations/[id]/schools", () => {
   it("forwards a backend 404 with the same status code", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "organization not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      }),
+      new Response(
+        JSON.stringify({
+          type: "about:blank",
+          title: "Not Found",
+          status: 404,
+          detail: "organization not found",
+          code: "general.input",
+        }),
+        {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
     );
 
     const request = new NextRequest(
@@ -114,8 +123,8 @@ describe("GET /api/operator/provisioning/organizations/[id]/schools", () => {
     const response = await GET(request, contextWith("999"));
 
     expect(response.status).toBe(404);
-    const json = (await response.json()) as { error?: string };
-    expect(json.error).toBe("organization not found");
+    const json = (await response.json()) as { detail?: string };
+    expect(json.detail).toBe("organization not found");
   });
 
   it("forwards a backend 500 with the same status code", async () => {

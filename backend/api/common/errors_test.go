@@ -34,8 +34,7 @@ func TestErrResponse_Render(t *testing.T) {
 			errResponse: &common.ErrResponse{
 				Err:            errors.New("invalid input"),
 				HTTPStatusCode: http.StatusBadRequest,
-				Status:         "error",
-				ErrorText:      "invalid input",
+				Detail:         "invalid input",
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -44,8 +43,7 @@ func TestErrResponse_Render(t *testing.T) {
 			errResponse: &common.ErrResponse{
 				Err:            errors.New("not authorized"),
 				HTTPStatusCode: http.StatusUnauthorized,
-				Status:         "error",
-				ErrorText:      "not authorized",
+				Detail:         "not authorized",
 			},
 			expectedStatus: http.StatusUnauthorized,
 		},
@@ -54,8 +52,7 @@ func TestErrResponse_Render(t *testing.T) {
 			errResponse: &common.ErrResponse{
 				Err:            errors.New("server failure"),
 				HTTPStatusCode: http.StatusInternalServerError,
-				Status:         "error",
-				ErrorText:      "server failure",
+				Detail:         "server failure",
 			},
 			expectedStatus: http.StatusInternalServerError,
 		},
@@ -176,12 +173,12 @@ func TestErrorInvalidRequestWithDetails(t *testing.T) {
 	var body struct {
 		Code    string         `json:"code"`
 		Details map[string]any `json:"details"`
-		Error   string         `json:"error"`
+		Detail  string         `json:"detail"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.Equal(t, common.CodeWorkforceTargetOverrideTooLong, body.Code)
 	assert.Equal(t, map[string]any{"max_days": float64(366)}, body.Details)
-	assert.Equal(t, "range too long", body.Error)
+	assert.Equal(t, "range too long", body.Detail)
 }
 
 // TestErrorInvalidOnField pins the 400 that names its code and the one field
@@ -200,12 +197,12 @@ func TestErrorInvalidOnField(t *testing.T) {
 	var body struct {
 		Code   string              `json:"code"`
 		Errors []common.FieldError `json:"errors"`
-		Error  string              `json:"error"`
+		Detail string              `json:"detail"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.Equal(t, common.CodeTimetableCalendarPeriodEndBeforeStart, body.Code)
 	assert.Equal(t, []common.FieldError{{Field: "end_date", Reason: "end_date must be after start_date"}}, body.Errors)
-	assert.Equal(t, "end_date must be after start_date", body.Error)
+	assert.Equal(t, "end_date must be after start_date", body.Detail)
 }
 
 func TestErrorTooManyRequests(t *testing.T) {
@@ -310,8 +307,9 @@ func TestErrorInvalidRequest_ResponseBody(t *testing.T) {
 	var resp map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, "error", resp["status"])
-	assert.Equal(t, "field validation failed", resp["error"])
+	assert.Equal(t, float64(w.Code), resp["status"])
+	assert.NotContains(t, resp, "error")
+	assert.Equal(t, "field validation failed", resp["detail"])
 }
 
 func TestErrorUnauthorized_ResponseBody(t *testing.T) {
@@ -329,8 +327,9 @@ func TestErrorUnauthorized_ResponseBody(t *testing.T) {
 	var resp map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, "error", resp["status"])
-	assert.Equal(t, "token expired", resp["error"])
+	assert.Equal(t, float64(w.Code), resp["status"])
+	assert.NotContains(t, resp, "error")
+	assert.Equal(t, "token expired", resp["detail"])
 }
 
 func TestErrorForbidden_ResponseBody(t *testing.T) {
@@ -348,8 +347,9 @@ func TestErrorForbidden_ResponseBody(t *testing.T) {
 	var resp map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, "error", resp["status"])
-	assert.Equal(t, "insufficient permissions", resp["error"])
+	assert.Equal(t, float64(w.Code), resp["status"])
+	assert.NotContains(t, resp, "error")
+	assert.Equal(t, "insufficient permissions", resp["detail"])
 }
 
 func TestErrorNotFound_ResponseBody(t *testing.T) {
@@ -367,8 +367,9 @@ func TestErrorNotFound_ResponseBody(t *testing.T) {
 	var resp map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, "error", resp["status"])
-	assert.Equal(t, "student not found", resp["error"])
+	assert.Equal(t, float64(w.Code), resp["status"])
+	assert.NotContains(t, resp, "error")
+	assert.Equal(t, "student not found", resp["detail"])
 }
 
 func TestErrorInternalServer_ResponseBody(t *testing.T) {
@@ -386,8 +387,9 @@ func TestErrorInternalServer_ResponseBody(t *testing.T) {
 	var resp map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, "error", resp["status"])
-	assert.Equal(t, "database connection failed", resp["error"])
+	assert.Equal(t, float64(w.Code), resp["status"])
+	assert.NotContains(t, resp, "error")
+	assert.Equal(t, "database connection failed", resp["detail"])
 }
 
 func TestErrorConflict_ResponseBody(t *testing.T) {
@@ -405,8 +407,9 @@ func TestErrorConflict_ResponseBody(t *testing.T) {
 	var resp map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, "error", resp["status"])
-	assert.Equal(t, "resource already exists", resp["error"])
+	assert.Equal(t, float64(w.Code), resp["status"])
+	assert.NotContains(t, resp, "error")
+	assert.Equal(t, "resource already exists", resp["detail"])
 }
 
 func TestErrorTooManyRequests_ResponseBody(t *testing.T) {
@@ -424,8 +427,9 @@ func TestErrorTooManyRequests_ResponseBody(t *testing.T) {
 	var resp map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, "error", resp["status"])
-	assert.Equal(t, "rate limit exceeded", resp["error"])
+	assert.Equal(t, float64(w.Code), resp["status"])
+	assert.NotContains(t, resp, "error")
+	assert.Equal(t, "rate limit exceeded", resp["detail"])
 }
 
 func TestErrorGone_ResponseBody(t *testing.T) {
@@ -443,8 +447,9 @@ func TestErrorGone_ResponseBody(t *testing.T) {
 	var resp map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, "error", resp["status"])
-	assert.Equal(t, "invitation expired", resp["error"])
+	assert.Equal(t, float64(w.Code), resp["status"])
+	assert.NotContains(t, resp, "error")
+	assert.Equal(t, "invitation expired", resp["detail"])
 }
 
 // =============================================================================
@@ -500,8 +505,9 @@ func TestErrorConflictWithCode(t *testing.T) {
 	var resp map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, "error", resp["status"])
-	assert.Equal(t, "account already has access to tenant", resp["error"])
+	assert.Equal(t, float64(w.Code), resp["status"])
+	assert.NotContains(t, resp, "error")
+	assert.Equal(t, "account already has access to tenant", resp["detail"])
 	assert.Equal(t, "identity.account_already_has_tenant_access", resp["code"])
 }
 
@@ -521,7 +527,7 @@ func TestErrorConflictWithoutDomainCodeUsesClassCode(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "general.business_rejection", resp["code"])
-	assert.Equal(t, "conflict", resp["error"])
+	assert.Equal(t, "conflict", resp["detail"])
 }
 
 // =============================================================================
@@ -544,8 +550,9 @@ func TestErrorConflictMessage(t *testing.T) {
 	var resp map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, "error", resp["status"])
-	assert.Equal(t, "Raum kann nicht gelöscht werden", resp["error"])
+	assert.Equal(t, float64(w.Code), resp["status"])
+	assert.NotContains(t, resp, "error")
+	assert.Equal(t, "Raum kann nicht gelöscht werden", resp["detail"])
 }
 
 // =============================================================================
@@ -571,8 +578,9 @@ func TestErrorValidation(t *testing.T) {
 	var resp map[string]interface{}
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, "error", resp["status"])
-	assert.Equal(t, "validation failed", resp["error"])
+	assert.Equal(t, float64(w.Code), resp["status"])
+	assert.NotContains(t, resp, "error")
+	assert.Equal(t, "validation failed", resp["detail"])
 
 	respErrs, ok := resp["errors"].([]interface{})
 	require.True(t, ok, "errors field must be an array")
@@ -618,9 +626,10 @@ func TestErrorInternalServerWrap(t *testing.T) {
 
 	var resp map[string]interface{}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, "error", resp["status"])
+	assert.Equal(t, float64(w.Code), resp["status"])
+	assert.NotContains(t, resp, "error")
 	// Client sees the stable message only — the internal cause must not leak.
-	assert.Equal(t, "failed to create student", resp["error"])
+	assert.Equal(t, "failed to create student", resp["detail"])
 	assert.NotContains(t, w.Body.String(), "students_pkey")
 
 	// Err field chains the cause so slog/Sentry still see the root cause.
@@ -730,8 +739,7 @@ func TestRenderError_NonErrResponseRenderer(t *testing.T) {
 	// though the status code matches. Covers the `errResp.Err != nil` guard.
 	renderer := &common.ErrResponse{
 		HTTPStatusCode: http.StatusInternalServerError,
-		Status:         "error",
-		ErrorText:      "no cause",
+		Detail:         "no cause",
 	}
 	common.RenderError(w, r, renderer)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
@@ -753,7 +761,7 @@ func TestErrorHelpers_NilErrorDoesNotPanic(t *testing.T) {
 	// Each entry: helper name -> (invocation, expected HTTP status).
 	// Every helper that takes a single `error` parameter must accept nil
 	// without panicking and return the corresponding HTTP status with a
-	// non-empty ErrorText fallback.
+	// non-empty Detail fallback.
 	cases := []struct {
 		name           string
 		renderer       render.Renderer
@@ -776,12 +784,11 @@ func TestErrorHelpers_NilErrorDoesNotPanic(t *testing.T) {
 			errResp, ok := tc.renderer.(*common.ErrResponse)
 			require.True(t, ok, "helper must return *ErrResponse")
 			assert.Equal(t, tc.expectedStatus, errResp.HTTPStatusCode)
-			assert.Equal(t, "error", errResp.Status)
 			assert.Nil(t, errResp.Err, "Err must remain nil when caller passed nil")
 			// Fallback text must be non-empty so the client gets a meaningful body.
-			assert.NotEmpty(t, errResp.ErrorText, "ErrorText must fall back, not be empty")
+			assert.NotEmpty(t, errResp.Detail, "Detail must fall back, not be empty")
 			// And it must match the standard HTTP status text for the code.
-			assert.Equal(t, http.StatusText(tc.expectedStatus), errResp.ErrorText)
+			assert.Equal(t, http.StatusText(tc.expectedStatus), errResp.Detail)
 
 			// End-to-end: rendering must succeed and the response body must
 			// contain the fallback text.
@@ -792,8 +799,9 @@ func TestErrorHelpers_NilErrorDoesNotPanic(t *testing.T) {
 
 			var body map[string]interface{}
 			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-			assert.Equal(t, "error", body["status"])
-			assert.Equal(t, http.StatusText(tc.expectedStatus), body["error"])
+			assert.Equal(t, float64(tc.expectedStatus), body["status"])
+			assert.NotContains(t, body, "error")
+			assert.Equal(t, http.StatusText(tc.expectedStatus), body["detail"])
 		})
 	}
 }
@@ -809,9 +817,8 @@ func TestErrorConflictWithCode_NilError(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
 	assert.Nil(t, errResp.Err)
-	assert.Equal(t, http.StatusText(http.StatusConflict), errResp.ErrorText)
+	assert.Equal(t, http.StatusText(http.StatusConflict), errResp.Detail)
 	assert.Equal(t, "identity.account_already_has_tenant_access", errResp.Code,
 		"code must be preserved even when err is nil")
 
@@ -823,13 +830,14 @@ func TestErrorConflictWithCode_NilError(t *testing.T) {
 	var body map[string]interface{}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.Equal(t, "identity.account_already_has_tenant_access", body["code"])
+	assert.Equal(t, float64(http.StatusConflict), body["status"])
 }
 
 func TestErrorHelpers_NonNilErrorPreservesMessage(t *testing.T) {
 	t.Parallel()
 
 	// Sibling check to the nil-error suite: when a real error is passed,
-	// ErrorText must reflect err.Error() — not the http.StatusText fallback.
+	// Detail must reflect err.Error() — not the http.StatusText fallback.
 	// Guards against a future "always use StatusText" regression.
 	customErr := errors.New("custom failure message")
 
@@ -853,7 +861,7 @@ func TestErrorHelpers_NonNilErrorPreservesMessage(t *testing.T) {
 			errResp, ok := tc.renderer.(*common.ErrResponse)
 			require.True(t, ok)
 			assert.Same(t, customErr, errResp.Err, "Err pointer must be preserved")
-			assert.Equal(t, "custom failure message", errResp.ErrorText)
+			assert.Equal(t, "custom failure message", errResp.Detail)
 		})
 	}
 }

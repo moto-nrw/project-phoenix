@@ -3,7 +3,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DateRange } from "react-day-picker";
 
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { RangeCalendarInline } from "~/components/ui/date-range-picker";
 import {
@@ -257,6 +256,11 @@ export function VacationRequestModal({
       )} (${vacationStatusLabel(overlap.status)}).`
     : null;
   const overBalanceDays = Math.max(0, workingDays - remainingDays);
+  const balanceMessage = exceedsBalance
+    ? `Das sind ${overBalanceDays} ${
+        overBalanceDays === 1 ? "Tag" : "Tage"
+      } mehr, als Sie noch haben. Bitte sprechen Sie mit der OGS-Leitung.`
+    : null;
 
   const handleSubmit = async () => {
     if (!range?.from || !range.to) {
@@ -336,7 +340,9 @@ export function VacationRequestModal({
           </div>
           <SlideOverCloseButton disabled={submitting} />
         </SlideOverHeader>
-        <SlideOverBody error={overlapMessage ?? formErrors.error}>
+        <SlideOverBody
+          error={overlapMessage ?? balanceMessage ?? formErrors.error}
+        >
           <div className="space-y-5">
             <div>
               <p className="mb-2 text-xs font-semibold tracking-wider text-gray-500 uppercase">
@@ -440,15 +446,6 @@ export function VacationRequestModal({
                   </div>
                 </div>
               ))}
-
-            {exceedsBalance && (
-              <Alert
-                type="error"
-                message={`Das sind ${overBalanceDays} ${
-                  overBalanceDays === 1 ? "Tag" : "Tage"
-                } mehr, als Sie noch haben. Bitte sprechen Sie mit der OGS-Leitung.`}
-              />
-            )}
 
             <div>
               <label

@@ -122,7 +122,7 @@ func TestPlanningTrackHandlerMapsNotFound(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if body["error"] == nil {
+	if body["detail"] == nil {
 		t.Fatalf("expected error response, got %#v", body)
 	}
 }

@@ -4,7 +4,8 @@ import { apiGet, apiPost } from "~/lib/api-helpers.server";
 import { GET, POST } from "./route";
 import { POST as ROTATE } from "./rotate/route";
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: vi.fn(),
   apiPost: vi.fn(),
 }));

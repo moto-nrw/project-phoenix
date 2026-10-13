@@ -97,7 +97,6 @@ interface BackendEnvelope<T> {
   status?: string;
   data?: T;
   message?: string;
-  error?: string;
 }
 
 const BASE = "/api/enrollment/care-offerings";

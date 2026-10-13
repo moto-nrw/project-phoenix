@@ -406,6 +406,10 @@ func visibleRooms(rooms []facilities.Room, includeSystem bool) []facilities.Room
 	return visible
 }
 
+// ErrHistoryDisabled refuses the room history of a school whose attendance
+// log is switched off; the root answers it with its registered code.
+var ErrHistoryDisabled = errors.New("feature_disabled")
+
 func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 	id, err := rs.runtime.ParseID(r)
 	if err != nil {
@@ -415,7 +419,7 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 	ctx, enabled, capDays := rs.runtime.HistoryConfig(r.Context())
 	r = r.WithContext(ctx)
 	if !enabled {
-		rs.runtime.Failure(w, r, FailureForbidden, errors.New("feature_disabled"), "forbidden")
+		rs.runtime.Failure(w, r, FailureForbidden, ErrHistoryDisabled, "forbidden")
 		return
 	}
 	allowed, err := rs.runtime.HistoryAllowed(ctx)

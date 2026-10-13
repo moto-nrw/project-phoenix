@@ -156,7 +156,7 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 	case rs.AuthService.InvalidCredentials(err):
 		// Mask the specific cause to prevent account enumeration.
 		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
-			ErrInvalidCredentials, common.CodeCareInvalidCredentials))
+			ErrInvalidCredentials, common.CodeIdentityInvalidCredentials))
 	case rs.AuthService.AccountInactive(err):
 		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
 			ErrAccountInactive, common.CodeIdentitySessionAccountInactive))
@@ -170,9 +170,11 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 		// switch-school path returns for that state.
 		common.RenderError(w, r, common.ErrorNotFound(ErrTenantNotFound))
 	case rs.AuthService.SchoolAccessDenied(err):
-		common.RenderError(w, r, common.ErrorUnauthorized(ErrTenantAccessDenied))
+		// Same code as a wrong password, like the tenant login: the login page
+		// must not tell a caller that the address exists at another school.
+		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(ErrTenantAccessDenied, common.CodeIdentityInvalidCredentials))
 	case rs.AuthService.MFABlocked(err):
-		common.RenderError(w, r, common.ErrorTooManyRequests(rs.AuthService.Cause(err)))
+		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(rs.AuthService.Cause(err), common.CodeIdentityMfaBlocked))
 	case rs.AuthService.MFAUnavailable(err):
 		// Fail-closed MFA status lookup -- 503 so the client retries
 		// instead of treating it as bad credentials.
@@ -219,9 +221,9 @@ func (rs *Resource) completeSchoolExchange(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		switch {
 		case rs.AuthService.InvalidCredentials(err):
-			common.RenderError(w, r, common.ErrorUnauthorized(ErrInvalidCredentials))
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(ErrInvalidCredentials, common.CodeIdentityInvalidCredentials))
 		case rs.AuthService.AccountInactive(err):
-			common.RenderError(w, r, common.ErrorUnauthorized(ErrAccountInactive))
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(ErrAccountInactive, common.CodeIdentitySessionAccountInactive))
 		case rs.AuthService.NoSchoolPortalRole(err):
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(
 				ErrAccountNoSchoolPortalRole, common.CodeSchoolNoSchoolPortalRole))
@@ -234,7 +236,7 @@ func (rs *Resource) completeSchoolExchange(w http.ResponseWriter, r *http.Reques
 			// this case the mint guard's refusal fell through to a 500,
 			// which reads as "our fault, retry" instead of "you are no
 			// longer at this school".
-			common.RenderError(w, r, common.ErrorUnauthorized(ErrTenantAccessDenied))
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(ErrTenantAccessDenied, common.CodeIdentityInvalidCredentials))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
@@ -406,13 +408,14 @@ func (rs *Resource) switchSchool(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case rs.AuthService.InvalidCredentials(err):
-			common.RenderError(w, r, common.ErrorUnauthorized(ErrAccountNotFound))
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(ErrAccountNotFound, common.CodeIdentityAccountNotFound))
 		case rs.AuthService.AccountInactive(err):
-			common.RenderError(w, r, common.ErrorUnauthorized(ErrAccountInactive))
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(ErrAccountInactive, common.CodeIdentitySessionAccountInactive))
 		case rs.AuthService.SchoolNotFound(err):
 			common.RenderError(w, r, common.ErrorNotFound(ErrTenantNotFound))
 		case rs.AuthService.SchoolAccessDenied(err):
-			common.RenderError(w, r, common.ErrorUnauthorized(ErrTenantAccessDenied))
+			// No access to the school switched to: the tenant switch answers the same code.
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(ErrTenantAccessDenied, common.CodeIdentityTenantAccessDenied))
 		case rs.AuthService.NoSchoolPortalRole(err):
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(
 				ErrAccountNoSchoolPortalRole, common.CodeSchoolNoSchoolPortalRole))

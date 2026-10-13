@@ -54,10 +54,10 @@ func TestAbsenceTypesRouteManagesCustomTypeAllowance(t *testing.T) {
 	conflict := testutil.ExecuteRequest(router, duplicate)
 	require.Equal(t, http.StatusConflict, conflict.Code, conflict.Body.String())
 	var conflictEnvelope struct {
-		Error string `json:"error"`
+		Detail string `json:"detail"`
 	}
 	require.NoError(t, json.Unmarshal(conflict.Body.Bytes(), &conflictEnvelope))
-	assert.Equal(t, "eine Abwesenheitsart mit diesem Namen gibt es bereits", conflictEnvelope.Error)
+	assert.Equal(t, "eine Abwesenheitsart mit diesem Namen gibt es bereits", conflictEnvelope.Detail)
 
 	path := fmt.Sprintf("/%s/allowances/%d", typeEnvelope.Data.ID, staff.ID)
 	ownClaims := claims

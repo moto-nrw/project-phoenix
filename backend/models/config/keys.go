@@ -179,7 +179,11 @@ const (
 	// Whether colleagues at this school can write to each other inside moto
 	// (OGS-internal 1:1 chat, issue #2598). Defaults OFF: a school switches an
 	// internal staff channel on deliberately.
-	KeyStaffMessagingEnabled           = "operations.staff_messaging_enabled"
+	KeyStaffMessagingEnabled = "operations.staff_messaging_enabled"
+	// Whether staff find children through the child search alone (#1321):
+	// "Meine Gruppe" and "Aktuelle Aufsicht" leave the navigation and become
+	// quick filters there. Defaults OFF; the pages stay reachable by link.
+	KeyChildSearchOnlyNavigation       = "operations.child_search_only_navigation"
 	KeyTimeTrackingAccountStartDate    = "operations.time_tracking_account_start_date"
 	KeyTimeTrackingEnforcePlannedStart = "operations.time_tracking_enforce_planned_start"
 	// #3825: how many minutes before the planned shift start (Dienstplan)

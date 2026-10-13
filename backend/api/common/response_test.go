@@ -204,11 +204,13 @@ func TestRespondWithError_BadRequest(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var response map[string]string
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
-	assert.Equal(t, "error", response["status"])
-	assert.Equal(t, "invalid input", response["error"])
+	assert.Equal(t, float64(http.StatusBadRequest), response["status"])
+	assert.Equal(t, "invalid input", response["detail"])
+	assert.Equal(t, "general.input", response["code"])
+	assert.NotContains(t, response, "error")
 }
 
 func TestRespondWithError_Unauthorized(t *testing.T) {
@@ -221,11 +223,13 @@ func TestRespondWithError_Unauthorized(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 
-	var response map[string]string
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
-	assert.Equal(t, "error", response["status"])
-	assert.Equal(t, "not authorized", response["error"])
+	assert.Equal(t, float64(http.StatusUnauthorized), response["status"])
+	assert.Equal(t, "not authorized", response["detail"])
+	assert.Equal(t, "general.permission", response["code"])
+	assert.NotContains(t, response, "error")
 }
 
 func TestRespondWithError_InternalServerError(t *testing.T) {
@@ -238,11 +242,13 @@ func TestRespondWithError_InternalServerError(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 
-	var response map[string]string
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
-	assert.Equal(t, "error", response["status"])
-	assert.Equal(t, "server error", response["error"])
+	assert.Equal(t, float64(http.StatusInternalServerError), response["status"])
+	assert.Equal(t, "server error", response["detail"])
+	assert.Equal(t, "general.server", response["code"])
+	assert.NotContains(t, response, "error")
 }
 
 // =============================================================================

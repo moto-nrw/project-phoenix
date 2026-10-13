@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET, PUT, DELETE } from "./route";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 
 interface ExtendedSession extends Session {
   user: Session["user"] & { token?: string };
@@ -18,22 +19,17 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: mockApiPut,
-  apiDelete: mockApiDelete,
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: mockApiGet,
+    apiPost: vi.fn(),
+    apiPut: mockApiPut,
+    apiDelete: mockApiDelete,
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 function createMockRequest(
   path: string,
@@ -148,7 +144,7 @@ describe("GET /api/activities/[id]", () => {
 
   it("returns 404 when activity not found", async () => {
     mockApiGet.mockRejectedValueOnce(
-      new Error("API error (404): Activity not found"),
+      new ApiResponseError(404, "Activity not found"),
     );
 
     const request = createMockRequest("/api/activities/999");
@@ -267,8 +263,9 @@ describe("PUT /api/activities/[id]", () => {
     const response = await PUT(request, createMockContext({ id: "invalid" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Invalid activity ID");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Invalid activity ID");
   });
 });
 
@@ -337,8 +334,9 @@ describe("DELETE /api/activities/[id]", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Invalid activity ID");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Invalid activity ID");
   });
 
   it("handles empty response from backend", async () => {

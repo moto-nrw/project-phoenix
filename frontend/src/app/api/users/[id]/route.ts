@@ -1,11 +1,7 @@
 // app/api/users/[id]/route.ts
 import type { NextRequest } from "next/server";
-import {
-  ApiResponseError,
-  apiGet,
-  apiPut,
-  apiDelete,
-} from "~/lib/api-helpers.server";
+import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import {
   createGetHandler,
   createPutHandler,
@@ -112,46 +108,8 @@ export const PUT = createPutHandler<BackendPersonResponse, PersonUpdateRequest>(
       throw new Error("Last name cannot be blank");
     }
 
-    try {
-      // Update the person via the API
-      const response = await apiPut<BackendPersonResponse>(
-        `/api/users/${id}`,
-        token,
-        body,
-      );
-
-      return response;
-    } catch (error) {
-      if (error instanceof ApiResponseError) throw error;
-      // Check for permission errors (403 Forbidden)
-      if (error instanceof Error && error.message.includes("403")) {
-        logger.error("permission denied when updating person", {
-          person_id: id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        throw new Error(
-          "Permission denied: You need the 'users:update' permission to update persons.",
-          { cause: error },
-        );
-      }
-
-      // Check for validation errors
-      if (error instanceof Error && error.message.includes("400")) {
-        const errorMessage = error.message;
-        logger.error("validation error when updating person", {
-          person_id: id,
-          error: errorMessage,
-        });
-
-        // Extract specific error message if possible
-        if (errorMessage.includes("person not found")) {
-          throw new Error("Person not found", { cause: error });
-        }
-      }
-
-      // Re-throw other errors
-      throw error;
-    }
+    // A backend failure (403, 400, 404) keeps its envelope and status.
+    return apiPut<BackendPersonResponse>(`/api/users/${id}`, token, body);
   },
 );
 
@@ -171,33 +129,10 @@ export const DELETE = createDeleteHandler(
       throw new Error("Person ID is required");
     }
 
-    try {
-      // Delete the person via the API
-      await apiDelete(`/api/users/${id}`, token);
+    // A backend failure (403, 404) keeps its envelope and status.
+    await apiDelete(`/api/users/${id}`, token);
 
-      // Return null to indicate success with no content
-      return null;
-    } catch (error) {
-      if (error instanceof ApiResponseError) throw error;
-      // Check for permission errors (403 Forbidden)
-      if (error instanceof Error && error.message.includes("403")) {
-        logger.error("permission denied when deleting person", {
-          person_id: id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        throw new Error(
-          "Permission denied: You need the 'users:delete' permission to delete persons.",
-          { cause: error },
-        );
-      }
-
-      // Check for not found errors
-      if (error instanceof Error && error.message.includes("404")) {
-        throw new Error("Person not found", { cause: error });
-      }
-
-      // Re-throw other errors
-      throw error;
-    }
+    // Return null to indicate success with no content
+    return null;
   },
 );

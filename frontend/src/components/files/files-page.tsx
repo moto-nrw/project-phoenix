@@ -38,11 +38,7 @@ import {
   type FolderOverview,
   type StoredFile,
 } from "~/lib/files-api";
-import {
-  useApiErrorDisplay,
-  useApiFormError,
-  useToast,
-} from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
@@ -385,8 +381,7 @@ function FolderFilesPanel({
   const [deleting, setDeleting] = useState(false);
   // Fehler beim Löschen bleiben im offenen Bestätigungsdialog.
   const deleteErrors = useApiFormError();
-  const { show: showError } = useApiErrorDisplay();
-  const toast = useToast();
+  const { show: showError, showMessage } = useApiErrorDisplay();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const latestDeleteRef = useRef<() => void>(() => undefined);
 
@@ -396,7 +391,7 @@ function FolderFilesPanel({
     if (picked.length === 0) return;
     const tooLarge = picked.find((file) => file.size > MAX_FILE_SIZE_BYTES);
     if (tooLarge) {
-      toast.error(
+      showMessage(
         `Die Datei „${tooLarge.name}“ ist größer als 25 MB. Bitte wählen Sie eine kleinere Datei.`,
       );
       return;

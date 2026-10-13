@@ -5,7 +5,7 @@ import { useTenantSlugSafe } from "~/lib/tenant-context";
 import type { SchemaTab } from "~/lib/settings-api";
 import { createLogger } from "~/lib/logger";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 
 const logger = createLogger({ component: "EnrollmentLinkPanel" });
 
@@ -27,7 +27,7 @@ export function EnrollmentLinkPanel({ tab }: Props) {
   const tenantSlug = useTenantSlugSafe();
   const [origin, setOrigin] = useState<string>("");
   const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
-  const toast = useToast();
+  const { showMessage } = useApiErrorDisplay();
 
   // Window access is client-only; defer until mount.
   useEffect(() => {
@@ -75,7 +75,7 @@ export function EnrollmentLinkPanel({ tab }: Props) {
       });
       // Kein API-Fehler: der Browser hat das Kopieren verweigert. Der Link
       // steht daneben und lässt sich von Hand markieren.
-      toast.error(
+      showMessage(
         "Der Link konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.",
       );
     }

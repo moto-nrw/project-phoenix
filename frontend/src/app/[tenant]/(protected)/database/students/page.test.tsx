@@ -65,12 +65,13 @@ vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
-const mockToastError = vi.fn();
+const mockShowMessage = vi.fn();
+const actionErrorApi = { showMessage: mockShowMessage };
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({
     success: vi.fn(),
-    error: mockToastError,
   })),
+  useApiErrorDisplay: () => actionErrorApi,
 }));
 
 // Mock UI components

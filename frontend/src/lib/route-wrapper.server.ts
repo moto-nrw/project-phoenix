@@ -8,27 +8,12 @@ import {
   extractParams,
   parseRequestBody,
   wrapInApiResponse,
+  createTokenExpiredResponse,
   createUnauthorizedResponse,
 } from "./route-wrapper-utils.server";
+import { isApiResponseError } from "./api-response-error.server";
 
 export { isStringParam } from "./route-wrapper-utils.server";
-
-/**
- * Checks if error is a 401 authentication error
- */
-function is401Error(error: unknown): boolean {
-  return error instanceof Error && error.message.includes("API error (401)");
-}
-
-/**
- * Creates a standard token expired response
- */
-function createTokenExpiredResponse(): NextResponse<ApiErrorResponse> {
-  return NextResponse.json(
-    { error: "Token expired", code: "TOKEN_EXPIRED" },
-    { status: 401 },
-  );
-}
 
 /**
  * Attempts to retry a request with a refreshed token
@@ -117,6 +102,7 @@ type ResponseFormatter<T> = (
  * Executes handler with retry logic on 401 errors
  */
 async function executeWithRetry<T>(
+  request: NextRequest,
   token: string,
   executeHandler: (token: string) => Promise<T>,
   formatResponse: (data: T) => ApiNextResponse<T>,
@@ -125,7 +111,7 @@ async function executeWithRetry<T>(
     const data = await executeHandler(token);
     return formatResponse(data);
   } catch (handlerError) {
-    if (!is401Error(handlerError)) {
+    if (!isApiResponseError(handlerError, 401)) {
       throw handlerError;
     }
 
@@ -138,7 +124,7 @@ async function executeWithRetry<T>(
       // Retry failed, fall through to token expired
     }
 
-    return createTokenExpiredResponse();
+    return createTokenExpiredResponse(request);
   }
 }
 
@@ -154,7 +140,7 @@ function createNoBodyHandler<T>(
       const session = await auth();
 
       if (!session?.user?.token) {
-        return createUnauthorizedResponse();
+        return createUnauthorizedResponse(request);
       }
 
       const safeParams = await extractParams(request, context);
@@ -162,6 +148,7 @@ function createNoBodyHandler<T>(
         handler(request, token, safeParams);
 
       return await executeWithRetry(
+        request,
         session.user.token,
         executeHandler,
         (data) => formatResponse(data, request),
@@ -196,7 +183,7 @@ function createWithBodyHandler<T, B>(
     try {
       const session = await auth();
       if (!session?.user?.token) {
-        return createUnauthorizedResponse();
+        return createUnauthorizedResponse(request);
       }
 
       const safeParams = await extractParams(request, context);
@@ -205,6 +192,7 @@ function createWithBodyHandler<T, B>(
         handler(request, body, token, safeParams);
 
       return await executeWithRetry(
+        request,
         session.user.token,
         executeHandler,
         (data) => formatResponse(data, request),

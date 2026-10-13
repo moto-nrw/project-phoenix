@@ -14,7 +14,7 @@ const (
 
 // PhaseExpiryWarning is the administrator-facing decision: either the school
 // still needs a successor phase or an existing successor still lacks effective
-// bookings. Overdue switches the same warning from yellow to red.
+// bookings. Overdue makes the same warning urgent; it stays a warning.
 type PhaseExpiryWarning struct {
 	SourcePhaseID      int64         `json:"source_phase_id"`
 	SourcePhaseName    string        `json:"source_phase_name"`

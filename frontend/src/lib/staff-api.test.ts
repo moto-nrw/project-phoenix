@@ -1953,7 +1953,7 @@ describe("staff-api", () => {
         ok: false,
         status: 409,
         text: () =>
-          Promise.resolve(JSON.stringify({ error: "rejected", code })),
+          Promise.resolve(JSON.stringify({ detail: "rejected", code })),
       } as Response);
 
       const failure = staffAbsenceService.setVacationOpening("4", {
@@ -1972,13 +1972,13 @@ describe("staff-api", () => {
         status: 404,
         text: () =>
           Promise.resolve(
-            JSON.stringify({ error: "Keine Übernahme für dieses Jahr" }),
+            JSON.stringify({ detail: "Keine Übernahme für dieses Jahr" }),
           ),
       } as Response);
 
       await expect(
         staffAbsenceService.deleteVacationOpening("4", 2026),
-      ).rejects.toThrow("Keine Übernahme für dieses Jahr");
+      ).rejects.toThrow("Löschen fehlgeschlagen");
     });
 
     it("deletes a takeover for the given year", async () => {
@@ -2008,7 +2008,7 @@ describe("staff-api", () => {
           text: () =>
             Promise.resolve(
               JSON.stringify({
-                error: "vacation quota exceeded: 2026: remaining -2",
+                detail: "vacation quota exceeded: 2026: remaining -2",
                 code: "workforce.vacation_quota_below_used",
               }),
             ),
@@ -2087,7 +2087,7 @@ describe("staff-api", () => {
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              error: "vacation quota exceeded: 2026: remaining 1, needed 3",
+              detail: "vacation quota exceeded: 2026: remaining 1, needed 3",
               code: "workforce.vacation_quota_exceeded",
             }),
           ),
@@ -2238,15 +2238,15 @@ describe("staff-api", () => {
     it.each([
       {
         code: "workforce.vacation_quota_exceeded",
-        error: "vacation quota exceeded",
+        detail: "vacation quota exceeded",
       },
       {
         code: "workforce.absence_allowance_exceeded",
-        error: "staff absence type allowance exceeded",
+        detail: "staff absence type allowance exceeded",
       },
       {
         code: "workforce.absence_overlap",
-        error: "dates overlap with an existing absence",
+        detail: "dates overlap with an existing absence",
       },
     ])("keeps the code of a refused booking (#3256): %o", async (payload) => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
@@ -2328,7 +2328,7 @@ describe("staff-api", () => {
           Promise.resolve(
             JSON.stringify({
               code: "workforce.absence_rebooking_blocked",
-              error: "Der August 2026 ist abgeschlossen.",
+              detail: "Der August 2026 ist abgeschlossen.",
             }),
           ),
       } as Response);
@@ -2354,7 +2354,7 @@ describe("staff-api", () => {
           Promise.resolve(
             JSON.stringify({
               code: "workforce.absence_allowance_exceeded",
-              error: "staff absence type allowance exceeded",
+              detail: "staff absence type allowance exceeded",
             }),
           ),
       } as Response);
@@ -2540,7 +2540,7 @@ describe("staff-api", () => {
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              error: "database unavailable",
+              detail: "database unavailable",
               code: "general.server",
               instance: "req-session-write",
             }),
@@ -2562,7 +2562,7 @@ describe("staff-api", () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       const overlapBody = JSON.stringify({
         status: "error",
-        error: "work session overlaps an existing block (08:00-12:00)",
+        detail: "work session overlaps an existing block (08:00-12:00)",
         code: "workforce.work_session_overlap",
       });
       mockFetch
@@ -2732,7 +2732,7 @@ describe("staff-api", () => {
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              error: "balance adjustment exceeds accrued balance",
+              detail: "balance adjustment exceeds accrued balance",
               code: "workforce.balance_adjustment_exceeds_balance",
             }),
           ),
@@ -2759,7 +2759,7 @@ describe("staff-api", () => {
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              error: "balance adjustment exceeds accrued balance",
+              detail: "balance adjustment exceeds accrued balance",
               code: "workforce.balance_adjustment_exceeds_balance",
             }),
           ),
@@ -2785,7 +2785,7 @@ describe("staff-api", () => {
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              error: "balance adjustment exceeds accrued balance",
+              detail: "balance adjustment exceeds accrued balance",
               code: "workforce.balance_adjustment_exceeds_balance",
             }),
           ),
@@ -2820,7 +2820,7 @@ describe("staff-api", () => {
           text: () =>
             Promise.resolve(
               JSON.stringify({
-                error: "duplicate",
+                detail: "duplicate",
                 code: "workforce.balance_already_reset",
               }),
             ),
@@ -2831,7 +2831,7 @@ describe("staff-api", () => {
           text: () =>
             Promise.resolve(
               JSON.stringify({
-                error: "dependent",
+                detail: "dependent",
                 code: "workforce.dependent_balance_reset",
               }),
             ),
@@ -2929,7 +2929,7 @@ describe("staff-api", () => {
         ok: false,
         status: 409,
         text: () =>
-          Promise.resolve(JSON.stringify({ error: "rejected", code })),
+          Promise.resolve(JSON.stringify({ detail: "rejected", code })),
       } as Response);
 
       const failure = staffBalanceAdjustmentService.createOpening("4", {
@@ -2948,7 +2948,7 @@ describe("staff-api", () => {
         status: 400,
         text: () =>
           Promise.resolve(
-            JSON.stringify({ error: "Stichtag liegt in der Zukunft" }),
+            JSON.stringify({ detail: "Stichtag liegt in der Zukunft" }),
           ),
       } as Response);
 
@@ -2958,7 +2958,7 @@ describe("staff-api", () => {
           balanceMinutes: 600,
           note: "Übernahme",
         }),
-      ).rejects.toThrow("Stichtag liegt in der Zukunft");
+      ).rejects.toThrow("Eröffnungssaldo fehlgeschlagen");
     });
   });
 
@@ -3252,7 +3252,7 @@ describe("staff-api", () => {
           Promise.resolve(
             JSON.stringify({
               code: "workforce.stammdaten_invalid",
-              error: "invalid IBAN checksum",
+              detail: "invalid IBAN checksum",
             }),
           ),
       } as unknown as Response);
@@ -3277,7 +3277,7 @@ describe("staff-api", () => {
         ok: false,
         statusText: "Conflict",
         text: () =>
-          Promise.resolve(JSON.stringify({ error: "Mitarbeiter gesperrt" })),
+          Promise.resolve(JSON.stringify({ detail: "Mitarbeiter gesperrt" })),
       } as unknown as Response);
 
       await expect(
@@ -3294,7 +3294,7 @@ describe("staff-api", () => {
           },
           "",
         ),
-      ).rejects.toThrow("Mitarbeiter gesperrt");
+      ).rejects.toThrow("Stammdaten konnten nicht gespeichert werden");
     });
 
     it("falls back to the generic save message on an empty error body", async () => {
