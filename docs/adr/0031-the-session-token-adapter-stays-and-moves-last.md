@@ -4,6 +4,10 @@ status: accepted
 
 # The session token adapter stays and moves last
 
+> The timing of this decision ("moves last") is replaced by
+> [ADR 0054](0054-the-session-token-adapter-leaves-legacy-now.md). Its
+> substance stands.
+
 [#3226](https://github.com/moto-nrw/project-phoenix/issues/3226) rewrote the
 Identity & Access persistence and token layer natively, but could not delete
 `modules/identityaccess/legacy/jwt`.
