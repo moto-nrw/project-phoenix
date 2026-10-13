@@ -10,7 +10,7 @@ import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "GuardianPaymentExportRoute" });
 
-async function proxyExport(body: string, token: string) {
+async function proxyExport(request: NextRequest, body: string, token: string) {
   const { getServerApiUrl } = await import("~/lib/server-api-url");
   const response = await fetch(
     `${getServerApiUrl()}/api/guardians/payment-overview/export`,
@@ -26,7 +26,7 @@ async function proxyExport(body: string, token: string) {
     },
   );
 
-  if (!response.ok) return forwardBackendResponse(response);
+  if (!response.ok) return forwardBackendResponse(response, request);
 
   const contentType =
     response.headers.get("content-type") ?? "application/octet-stream";
@@ -44,11 +44,11 @@ async function POSTHandler(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
-      return problemResponse(401, "Unauthorized");
+      return problemResponse(401, "Unauthorized", request);
     }
 
     const body = await request.text();
-    const response = await proxyExport(body, session.user.token);
+    const response = await proxyExport(request, body, session.user.token);
     if (response.status !== 401) return response;
 
     const refreshed = await uncachedAuth();
@@ -58,12 +58,12 @@ async function POSTHandler(request: NextRequest) {
     ) {
       return response;
     }
-    return proxyExport(body, refreshed.user.token);
+    return proxyExport(request, body, refreshed.user.token);
   } catch (error) {
     captureBffException(error, request);
     const message = error instanceof Error ? error.message : "Export failed";
     logger.error("guardian_payment_export_route_failed", { error: message });
-    return problemResponse(500, message);
+    return problemResponse(500, message, request);
   }
 }
 

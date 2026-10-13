@@ -20,7 +20,7 @@ const DEMO_ROLES = new Set(["caregiver", "lead", "parent", "all"]);
 export async function POST(request: NextRequest) {
   const token = request.cookies.get(DEMO_TOKEN_COOKIE)?.value;
   if (!token) {
-    return problemResponse(404, "demo access is unknown");
+    return problemResponse(404, "demo access is unknown", request);
   }
   let body: { role?: unknown } = {};
   try {
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({ token }),
     });
-    if (!backend.ok) return forwardBackendResponse(backend);
+    if (!backend.ok) return forwardBackendResponse(backend, request);
     const payload = (await backend.json().catch(() => ({}))) as {
       entry_url?: unknown;
     };
@@ -59,6 +59,6 @@ export async function POST(request: NextRequest) {
     logger.error("demo_reset_forward_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return problemResponse(500, "Internal Server Error");
+    return problemResponse(500, "Internal Server Error", request);
   }
 }

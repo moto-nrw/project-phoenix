@@ -9,6 +9,7 @@ import {
   type ProblemBody,
 } from "./api-error";
 import { ERROR_CODES } from "./error-codes.generated";
+import { requestInstance } from "./request-id";
 
 const logger = createLogger({ component: "ApiHelpers" });
 const registeredErrorCodes: ReadonlySet<string> = new Set(ERROR_CODES);
@@ -107,19 +108,63 @@ export async function backendResponseError(
  * stack details or upstream text, so the detail is the status title and the
  * caller logs the real cause server-side.
  */
+type ProblemResponseExtra = Omit<Partial<ProblemBody>, "status" | "detail">;
+
 export function problemResponse(
   status: number,
   detail: string,
-  extra?: Omit<Partial<ProblemBody>, "status" | "detail">,
+  request?: Request,
+): NextResponse<ProblemBody>;
+export function problemResponse(
+  status: number,
+  detail: string,
+  extra?: ProblemResponseExtra,
+  headers?: HeadersInit,
+): NextResponse<ProblemBody>;
+export function problemResponse(
+  status: number,
+  detail: string,
+  extra: ProblemResponseExtra | undefined,
+  request?: Request,
+  headers?: HeadersInit,
+): NextResponse<ProblemBody>;
+export function problemResponse(
+  status: number,
+  detail: string,
+  extraOrRequest?: ProblemResponseExtra | Request,
+  requestOrHeaders?: Request | HeadersInit,
   headers?: HeadersInit,
 ): NextResponse<ProblemBody> {
-  const responseHeaders = new Headers(headers);
+  const request = isRequest(extraOrRequest)
+    ? extraOrRequest
+    : isRequest(requestOrHeaders)
+      ? requestOrHeaders
+      : undefined;
+  const extra = isRequest(extraOrRequest) ? undefined : extraOrRequest;
+  const responseHeaders = new Headers(
+    isRequest(requestOrHeaders) ? headers : (requestOrHeaders ?? headers),
+  );
   responseHeaders.set("Content-Type", "application/problem+json");
   const publicDetail = status >= 500 ? problemTitle(status) : detail;
-  return NextResponse.json(problemBody(status, publicDetail, extra), {
-    status,
-    headers: responseHeaders,
-  });
+  return NextResponse.json(
+    problemBody(status, publicDetail, {
+      ...extra,
+      instance: extra?.instance ?? requestInstance(request),
+    }),
+    {
+      status,
+      headers: responseHeaders,
+    },
+  );
+}
+
+function isRequest(value: unknown): value is Request {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "headers" in value &&
+    typeof (value as Request).headers?.get === "function"
+  );
 }
 
 /**
@@ -153,10 +198,18 @@ export function handleApiError(
         error.status,
         problemTitle(error.status),
         safeProblemExtensions(parsed, error.status),
+        request,
         headers,
       );
     }
+    const instance = requestInstance(request);
     if (error.contentType) headers.set("Content-Type", error.contentType);
+    if (instance && !parsed.instance) {
+      return new NextResponse<ProblemBody>(
+        JSON.stringify({ ...parsed, instance }),
+        { status: error.status, headers },
+      );
+    }
     return new NextResponse<ProblemBody>(error.bodyText, {
       status: error.status,
       headers,
@@ -171,12 +224,17 @@ export function handleApiError(
         ? error.code
         : errorClassCode(error.status);
     logApiRouteError(error.status, error.message, code);
-    return problemResponse(error.status, problemTitle(error.status), {
-      code,
-      errors: error.errors,
-      details: error.details,
-      instance: error.instance,
-    });
+    return problemResponse(
+      error.status,
+      problemTitle(error.status),
+      {
+        code,
+        errors: error.errors,
+        details: error.details,
+        instance: error.instance,
+      },
+      request,
+    );
   }
 
   // Unknown errors are logged as errors and return 500
@@ -184,7 +242,7 @@ export function handleApiError(
   logger.error("api route error without status", {
     error: error instanceof Error ? error.message : String(error),
   });
-  return problemResponse(500, "internal error");
+  return problemResponse(500, "internal error", request);
 }
 
 function isProblemEnvelope(

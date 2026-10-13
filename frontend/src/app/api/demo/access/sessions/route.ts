@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   const linkToken = typeof body.token === "string" ? body.token.trim() : "";
   const token = linkToken || request.cookies.get(DEMO_TOKEN_COOKIE)?.value;
   if (!token) {
-    return problemResponse(404, "demo access is unknown");
+    return problemResponse(404, "demo access is unknown", request);
   }
   const role = typeof body.role === "string" ? body.role : undefined;
   try {
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({ token, role }),
     });
-    if (!backend.ok) return forwardBackendResponse(backend);
+    if (!backend.ok) return forwardBackendResponse(backend, request);
     const payload: unknown = await backend.json().catch(() => ({}));
     const response = NextResponse.json(payload, { status: backend.status });
     if (backend.ok && linkToken) {
@@ -54,6 +54,6 @@ export async function POST(request: NextRequest) {
     logger.error("demo_session_forward_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return problemResponse(500, "Internal Server Error");
+    return problemResponse(500, "Internal Server Error", request);
   }
 }

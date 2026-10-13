@@ -17,12 +17,12 @@ async function GETHandler(
 ) {
   const session = await auth();
   if (!session?.user?.token) {
-    return problemResponse(401, "Unauthorized");
+    return problemResponse(401, "Unauthorized", request);
   }
 
   const { id } = await context.params;
   if (!/^\d+$/.test(id)) {
-    return problemResponse(400, "Invalid staff id");
+    return problemResponse(400, "Invalid staff id", request);
   }
 
   try {
@@ -35,10 +35,11 @@ async function GETHandler(
       },
     );
 
-    if (!backendResponse.ok) return forwardBackendResponse(backendResponse);
+    if (!backendResponse.ok)
+      return forwardBackendResponse(backendResponse, request);
 
     if (!backendResponse.body) {
-      return problemResponse(502, "No response body from backend");
+      return problemResponse(502, "No response body from backend", request);
     }
 
     const headers = new Headers();
@@ -59,7 +60,7 @@ async function GETHandler(
       staff_id: id,
       error: error instanceof Error ? error.message : String(error),
     });
-    return problemResponse(500, "Internal server error");
+    return problemResponse(500, "Internal server error", request);
   }
 }
 

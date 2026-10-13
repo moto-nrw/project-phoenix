@@ -17,14 +17,14 @@ export async function withInvitationOwnerSession(
 ): Promise<Response> {
   const origin = getClientForwardHeaders(request)["X-Moto-Frontend-Origin"];
   if (request.headers.get("origin") !== origin) {
-    return problemResponse(403, "Invalid origin");
+    return problemResponse(403, "Invalid origin", request);
   }
   const hostname = hostnameFromAuthority(getOriginalRequestHost(request));
   if (
     !hostname ||
     hostname === hostnameFromAuthority(env.NEXT_PUBLIC_OPERATOR_HOSTNAME)
   ) {
-    return problemResponse(403, "Unsupported portal");
+    return problemResponse(403, "Unsupported portal", request);
   }
   const handler = async (authRequest: {
     auth: import("next-auth").Session | null;

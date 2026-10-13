@@ -30,20 +30,24 @@ interface UpdateOfferingsBody {
 async function PUTHandler(request: NextRequest) {
   const authHeader = await bearerHeader();
   if (!authHeader) {
-    return problemResponse(401, "Unauthenticated");
+    return problemResponse(401, "Unauthenticated", request);
   }
 
   let body: UpdateOfferingsBody;
   try {
     body = (await request.json()) as UpdateOfferingsBody;
   } catch {
-    return problemResponse(400, "Invalid JSON");
+    return problemResponse(400, "Invalid JSON", request);
   }
 
   const requestID = body.request_id != null ? String(body.request_id) : "";
   const childID = body.child_id != null ? String(body.child_id) : "";
   if (!requestID || !childID) {
-    return problemResponse(400, "request_id and child_id are required");
+    return problemResponse(
+      400,
+      "request_id and child_id are required",
+      request,
+    );
   }
 
   try {
@@ -65,13 +69,13 @@ async function PUTHandler(request: NextRequest) {
         }),
       },
     );
-    return forwardBackendResponse(upstream);
+    return forwardBackendResponse(upstream, request);
   } catch (error) {
     captureBffException(error, request);
     logger.error("admin_child_offerings_update_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return problemResponse(500, "Internal Server Error");
+    return problemResponse(500, "Internal Server Error", request);
   }
 }
 

@@ -12,7 +12,9 @@ const forward = proxyPut<null, { enabled: boolean }>(
 export const PUT: typeof forward = (request, context) => {
   const type = request.nextUrl.pathname.split("/").at(-1) ?? "";
   if (!VALID_TYPE_PATTERN.test(type)) {
-    return Promise.resolve(problemResponse(400, "invalid notification type"));
+    return Promise.resolve(
+      problemResponse(400, "invalid notification type", request),
+    );
   }
   return forward(request, context);
 };

@@ -12,7 +12,11 @@ const path = (
     typeof changeRequestId !== "string" ||
     !changeRequestId
   ) {
-    return problemResponse(400, "token and change request id required");
+    return problemResponse(
+      400,
+      "token and change request id required",
+      _request,
+    );
   }
   return `/api/enrollment/requests/${encodeURIComponent(token)}/change-requests/${encodeURIComponent(changeRequestId)}/messages`;
 };

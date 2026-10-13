@@ -5,7 +5,7 @@ import { createTenantApiAdapter } from "~/lib/backend-proxy-route.server";
 export const GET = createTenantApiAdapter(async (_request, token, context) => {
   const groupId = (await context?.params)?.id;
   if (typeof groupId !== "string" || !groupId) {
-    return problemResponse(400, "Group ID is required");
+    return problemResponse(400, "Group ID is required", _request);
   }
   const response = await apiGet(`/api/groups/${groupId}/students`, token);
   // Keep this endpoint's established bare-array success shape.

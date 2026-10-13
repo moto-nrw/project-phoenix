@@ -128,13 +128,17 @@ export function wrapInApiResponse<T>(data: T): ApiResponse<T> {
   return { success: true, message: "Success", data };
 }
 
-export function createUnauthorizedResponse(): NextResponse<ProblemBody> {
-  return problemResponse(401, "Unauthorized");
+export function createUnauthorizedResponse(
+  request?: Request,
+): NextResponse<ProblemBody> {
+  return problemResponse(401, "Unauthorized", request);
 }
 
 /** The refreshed session could not repeat a request the backend answered 401. */
-export function createTokenExpiredResponse(): NextResponse<ProblemBody> {
-  return problemResponse(401, "Token expired");
+export function createTokenExpiredResponse(
+  request?: Request,
+): NextResponse<ProblemBody> {
+  return problemResponse(401, "Token expired", request);
 }
 
 export function isStringParam(param: unknown): param is string {

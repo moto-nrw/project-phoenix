@@ -13,7 +13,11 @@ const path = (
     typeof roleId !== "string" ||
     !roleId
   ) {
-    return problemResponse(400, "Account ID and Role ID are required");
+    return problemResponse(
+      400,
+      "Account ID and Role ID are required",
+      _request,
+    );
   }
   return `/auth/accounts/${encodeURIComponent(accountId)}/roles/${encodeURIComponent(roleId)}`;
 };

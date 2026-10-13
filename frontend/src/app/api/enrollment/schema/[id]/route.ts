@@ -7,7 +7,7 @@ const path = (
 ) => {
   const id = params.id;
   if (typeof id !== "string" || !id) {
-    return problemResponse(400, "Invalid id");
+    return problemResponse(400, "Invalid id", _request);
   }
   return `/api/enrollment/schema/${encodeURIComponent(id)}`;
 };

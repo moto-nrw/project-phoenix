@@ -11,7 +11,11 @@ export const GET = createPublicJsonProxy({
       typeof phaseId !== "string" ||
       !phaseId
     ) {
-      return problemResponse(400, "tenant slug and phaseId are required");
+      return problemResponse(
+        400,
+        "tenant slug and phaseId are required",
+        request,
+      );
     }
     const path = `/api/enrollment/schema/public/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(phaseId)}`;
     const lateInvite = request.nextUrl.searchParams.get("late_invite")?.trim();

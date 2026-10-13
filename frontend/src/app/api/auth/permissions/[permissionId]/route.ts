@@ -8,7 +8,7 @@ function permissionPath(
 ) {
   const permissionId = params.permissionId;
   if (typeof permissionId !== "string" || !permissionId) {
-    return problemResponse(400, "Permission ID is required");
+    return problemResponse(400, "Permission ID is required", _request);
   }
   return `/auth/permissions/${encodeURIComponent(permissionId)}`;
 }

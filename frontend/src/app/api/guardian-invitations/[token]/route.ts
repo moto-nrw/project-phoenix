@@ -6,7 +6,7 @@ export const GET = createPublicJsonProxy({
   path: (_request, params) => {
     const token = params.token;
     if (typeof token !== "string" || !token) {
-      return problemResponse(400, "Missing invitation token");
+      return problemResponse(400, "Missing invitation token", _request);
     }
     return `/auth/guardian-invitations/${encodeURIComponent(token)}`;
   },

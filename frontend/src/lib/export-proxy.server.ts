@@ -33,7 +33,7 @@ export function createFileExportRoute(options: {
 }) {
   const logger = createLogger({ component: options.component });
 
-  async function proxy(token: string, body: string) {
+  async function proxy(request: NextRequest, token: string, body: string) {
     const { getServerApiUrl } = await import("~/lib/server-api-url");
     const response = await fetch(`${getServerApiUrl()}${options.backendPath}`, {
       method: "POST",
@@ -47,7 +47,7 @@ export function createFileExportRoute(options: {
     });
 
     if (!response.ok) {
-      return forwardBackendResponse(response);
+      return forwardBackendResponse(response, request);
     }
 
     const contentType =
@@ -66,7 +66,7 @@ export function createFileExportRoute(options: {
     try {
       const session = await auth();
       if (!session?.user?.token) {
-        return problemResponse(401, "Unauthorized");
+        return problemResponse(401, "Unauthorized", request);
       }
 
       let body = await request.text();
@@ -76,11 +76,15 @@ export function createFileExportRoute(options: {
             options.normalizeBody(body ? JSON.parse(body) : {}),
           );
         } catch {
-          return problemResponse(400, "request body is not valid JSON");
+          return problemResponse(
+            400,
+            "request body is not valid JSON",
+            request,
+          );
         }
       }
 
-      const response = await proxy(session.user.token, body);
+      const response = await proxy(request, session.user.token, body);
       if (response.status !== 401) return response;
 
       // The access token lives 15 minutes; a single refreshed retry keeps a
@@ -92,12 +96,12 @@ export function createFileExportRoute(options: {
       ) {
         return response;
       }
-      return proxy(refreshed.user.token, body);
+      return proxy(request, refreshed.user.token, body);
     } catch (error) {
       captureBffException(error, request);
       const message = error instanceof Error ? error.message : "Export failed";
       logger.error("file_export_route_failed", { error: message });
-      return problemResponse(500, message);
+      return problemResponse(500, message, request);
     }
   };
 }

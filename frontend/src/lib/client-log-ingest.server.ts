@@ -72,24 +72,25 @@ export async function ingestClientLogs(
   portal: ClientLogPortal,
 ): Promise<NextResponse> {
   if (!session?.user?.token || session.error) {
-    return problemResponse(401, "Unauthorized");
+    return problemResponse(401, "Unauthorized", request);
   }
-  if (!takeBudget("global", 1000)) return rateLimited();
+  if (!takeBudget("global", 1000)) return rateLimited(request);
   const identity = await validateSessionToken(session.user.token, portal);
   if (
     !identity ||
     identity.read_only ||
     String(identity.id) !== session.user.id
   ) {
-    return problemResponse(401, "Unauthorized");
+    return problemResponse(401, "Unauthorized", request);
   }
-  if (!takeBudget(`actor:${portal}:${identity.id}`, 20)) return rateLimited();
+  if (!takeBudget(`actor:${portal}:${identity.id}`, 20))
+    return rateLimited(request);
   let body: unknown;
   try {
     body = await parseRequestBody<unknown>(request, 64 * 1024);
   } catch (error) {
     const status = isApiResponseError(error, 413) ? 413 : 400;
-    return problemResponse(status, "Invalid log payload");
+    return problemResponse(status, "Invalid log payload", request);
   }
   const entries =
     body && typeof body === "object" && "entries" in body
@@ -101,7 +102,7 @@ export async function ingestClientLogs(
     entries.length > 50 ||
     !entries.every(validEntry)
   ) {
-    return problemResponse(400, "Invalid log payload");
+    return problemResponse(400, "Invalid log payload", request);
   }
   for (const entry of entries) {
     console.log(
@@ -122,11 +123,8 @@ export async function ingestClientLogs(
   return NextResponse.json({ status: "success", processed: entries.length });
 }
 
-function rateLimited() {
-  return problemResponse(
-    429,
-    "Rate limit exceeded",
-    {},
-    { "Retry-After": "60" },
-  );
+function rateLimited(request: NextRequest) {
+  return problemResponse(429, "Rate limit exceeded", {}, request, {
+    "Retry-After": "60",
+  });
 }

@@ -12,7 +12,7 @@ async function POSTHandler(_request: NextRequest) {
     const session = await auth();
 
     if (!session?.user?.token || !session?.user?.refreshToken) {
-      return problemResponse(401, "No refresh token found");
+      return problemResponse(401, "No refresh token found", _request);
     }
 
     return NextResponse.json({
@@ -23,7 +23,7 @@ async function POSTHandler(_request: NextRequest) {
     logger.error("token_refresh_error", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return problemResponse(500, "Internal Server Error");
+    return problemResponse(500, "Internal Server Error", _request);
   }
 }
 

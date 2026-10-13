@@ -15,7 +15,7 @@ async function POSTHandler(request: NextRequest) {
     const session = await auth();
 
     if (!session?.user?.token) {
-      return problemResponse(401, "Unauthenticated");
+      return problemResponse(401, "Unauthenticated", request);
     }
 
     let body: {
@@ -26,16 +26,16 @@ async function POSTHandler(request: NextRequest) {
     try {
       body = (await request.json()) as typeof body;
     } catch {
-      return problemResponse(400, "Invalid JSON");
+      return problemResponse(400, "Invalid JSON", request);
     }
     const { currentPassword, newPassword, confirmPassword } = body;
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-      return problemResponse(400, "all password fields are required");
+      return problemResponse(400, "all password fields are required", request);
     }
 
     if (newPassword !== confirmPassword) {
-      return problemResponse(400, "new passwords do not match");
+      return problemResponse(400, "new passwords do not match", request);
     }
 
     await apiPost("/auth/password", session.user.token, {

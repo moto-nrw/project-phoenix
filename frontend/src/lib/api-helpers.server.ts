@@ -81,12 +81,14 @@ async function getIncomingForwardHeaders(): Promise<Record<string, string>> {
  * browser. This helper remains for compatibility with existing callers and
  * must not be used by an unwrapped route handler.
  */
-export async function checkAuth(): Promise<Response | null> {
+export async function checkAuth(
+  request?: NextRequest,
+): Promise<Response | null> {
   const { auth } = await import("../server/auth");
   const session = await auth();
 
   if (!session?.user?.token) {
-    return problemResponse(401, "Unauthorized");
+    return problemResponse(401, "Unauthorized", request);
   }
 
   return null;

@@ -23,7 +23,11 @@ function exportQuery(request: NextRequest): string {
   return query ? `?${query}` : "";
 }
 
-async function proxyExport(query: string, token: string): Promise<Response> {
+async function proxyExport(
+  request: NextRequest,
+  query: string,
+  token: string,
+): Promise<Response> {
   const backendResponse = await fetch(
     `${getServerApiUrl()}/api/statistics/export${query}`,
     {
@@ -33,12 +37,12 @@ async function proxyExport(query: string, token: string): Promise<Response> {
   );
 
   if (!backendResponse.ok) {
-    const response = forwardBackendResponse(backendResponse);
+    const response = forwardBackendResponse(backendResponse, request);
     response.headers.set("Cache-Control", "no-store");
     return response;
   }
   if (!backendResponse.body) {
-    return problemResponse(502, "No response body from backend");
+    return problemResponse(502, "No response body from backend", request);
   }
 
   const headers = new Headers({ "Cache-Control": "no-store" });
@@ -60,11 +64,11 @@ async function GETHandler(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
-      return problemResponse(401, "Unauthorized");
+      return problemResponse(401, "Unauthorized", request);
     }
 
     const query = exportQuery(request);
-    const response = await proxyExport(query, session.user.token);
+    const response = await proxyExport(request, query, session.user.token);
     if (response.status !== 401) return response;
 
     const refreshed = await uncachedAuth();
@@ -74,13 +78,13 @@ async function GETHandler(request: NextRequest) {
     ) {
       return response;
     }
-    return proxyExport(query, refreshed.user.token);
+    return proxyExport(request, query, refreshed.user.token);
   } catch (error) {
     captureBffException(error, request);
     logger.error("statistics_export_proxy_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return problemResponse(500, "Internal server error");
+    return problemResponse(500, "Internal server error", request);
   }
 }
 

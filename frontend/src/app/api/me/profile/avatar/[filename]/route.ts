@@ -17,14 +17,14 @@ export const GET = withTenantAuth(
       const session = await auth();
 
       if (!session?.user?.token) {
-        return problemResponse(401, "Unauthorized");
+        return problemResponse(401, "Unauthorized", request);
       }
 
       const params = await context.params;
       const filename = params.filename as string;
 
       if (!filename) {
-        return problemResponse(400, "Filename is required");
+        return problemResponse(400, "Filename is required", request);
       }
 
       // Validate filename to prevent path traversal attacks
@@ -33,7 +33,7 @@ export const GET = withTenantAuth(
         filename.includes("/") ||
         filename.includes("\\")
       ) {
-        return problemResponse(400, "Invalid filename");
+        return problemResponse(400, "Invalid filename", request);
       }
 
       // Fetch from backend
@@ -45,7 +45,7 @@ export const GET = withTenantAuth(
       });
 
       if (!response.ok) {
-        return forwardBackendResponse(response);
+        return forwardBackendResponse(response, request);
       }
 
       // Get the image data and content type

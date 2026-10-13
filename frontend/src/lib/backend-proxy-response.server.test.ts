@@ -52,6 +52,20 @@ describe("forwardBackendResponse", () => {
     expect(body).not.toContain("refused the connection");
   });
 
+  it("adds the request ID to a sanitized backend error", async () => {
+    const response = forwardBackendResponse(
+      new Response("upstream diagnostics", { status: 502 }),
+      new Request("https://frontend.test/api/example", {
+        headers: { "X-Request-ID": "request-502" },
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      status: 502,
+      instance: "request-502",
+    });
+  });
+
   it("replaces an unregistered backend code with the status class", async () => {
     const response = forwardBackendResponse(
       new Response(

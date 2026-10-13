@@ -20,7 +20,7 @@ async function GETHandler(request: NextRequest) {
   const session = await auth();
 
   if (!session?.user?.token) {
-    return problemResponse(401, "Unauthorized");
+    return problemResponse(401, "Unauthorized", request);
   }
 
   try {
@@ -36,10 +36,11 @@ async function GETHandler(request: NextRequest) {
       },
     );
 
-    if (!backendResponse.ok) return forwardBackendResponse(backendResponse);
+    if (!backendResponse.ok)
+      return forwardBackendResponse(backendResponse, request);
 
     if (!backendResponse.body) {
-      return problemResponse(502, "No response body from backend");
+      return problemResponse(502, "No response body from backend", request);
     }
 
     // Pass through Content-Type and Content-Disposition from backend
@@ -61,7 +62,7 @@ async function GETHandler(request: NextRequest) {
     logger.error("export proxy error", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return problemResponse(500, "Internal server error");
+    return problemResponse(500, "Internal server error", request);
   }
 }
 

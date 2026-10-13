@@ -15,6 +15,10 @@ export const POST = createOptionalTenantJsonProxy({
       content_type: response.headers.get("content-type"),
     });
   },
-  networkErrorResponse: (error) =>
-    problemResponse(500, `registration request failed: ${String(error)}`),
+  networkErrorResponse: (error, request) =>
+    problemResponse(
+      500,
+      `registration request failed: ${String(error)}`,
+      request,
+    ),
 });

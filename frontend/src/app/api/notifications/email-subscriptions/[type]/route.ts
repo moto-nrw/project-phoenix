@@ -10,7 +10,7 @@ function emailSubscriptionPath(
 ) {
   const type = params.type;
   if (typeof type !== "string" || !VALID_TYPE_PATTERN.test(type)) {
-    return problemResponse(400, "Invalid notification type format");
+    return problemResponse(400, "Invalid notification type format", _request);
   }
   return `/api/notifications/email-subscriptions/${type}`;
 }

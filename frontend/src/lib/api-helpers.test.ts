@@ -16,6 +16,8 @@ import {
   apiGet,
   apiPost,
   checkAuth,
+  bffError,
+  problemResponse,
   ApiResponseError as ServerApiResponseError,
 } from "./api-helpers.server";
 import { suppressConsole } from "~/test/helpers/console";
@@ -233,6 +235,20 @@ describe("handleApiError", () => {
     expect(body).not.toContain("refused the connection");
   });
 
+  it("adds the request ID to a sanitized backend error", async () => {
+    const response = handleApiError(
+      new ServerApiResponseError(502, "upstream diagnostics"),
+      new Request("https://frontend.test/api/example", {
+        headers: { "X-Request-ID": "request-502" },
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      status: 502,
+      instance: "request-502",
+    });
+  });
+
   it("preserves a registered backend 5xx code while sanitizing diagnostics", async () => {
     const response = handleApiError(
       backendError(500, {
@@ -348,6 +364,51 @@ describe("handleApiError", () => {
       code: "general.input",
       errors: [{ field: "date", reason: "invalid" }],
       details: { field: "date" },
+    });
+  });
+
+  it("adds the request ID to frontend-generated errors", async () => {
+    const response = handleApiError(
+      new ApiError("bad date", 400),
+      new Request("https://frontend.test/api/example", {
+        headers: { "X-Request-ID": "request-400" },
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      status: 400,
+      instance: "request-400",
+    });
+  });
+
+  it("adds the request ID to BFF errors forwarded by the route wrapper", async () => {
+    const response = handleApiError(
+      bffError(400, "request body is not valid JSON"),
+      new Request("https://frontend.test/api/example", {
+        headers: { "X-Request-ID": "request-bff" },
+      }),
+    );
+
+    expect(await response.json()).toMatchObject({
+      status: 400,
+      instance: "request-bff",
+    });
+  });
+
+  it("adds the request ID to a directly constructed problem response", async () => {
+    const response = problemResponse(
+      400,
+      "Invalid JSON",
+      undefined,
+      new Request("https://frontend.test/api/example", {
+        headers: { "X-Request-ID": "request-direct" },
+      }),
+      undefined,
+    );
+
+    expect(await response.json()).toMatchObject({
+      status: 400,
+      instance: "request-direct",
     });
   });
 

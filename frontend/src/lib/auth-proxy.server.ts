@@ -52,7 +52,7 @@ export async function forwardJsonPost(
       body: bodyJson,
     });
 
-    const out = forwardBackendResponse(response);
+    const out = forwardBackendResponse(response, request);
     mirrorSetCookies(response, out);
     return out;
   } catch (error) {
@@ -61,6 +61,6 @@ export async function forwardJsonPost(
       path: backendPath,
       error: error instanceof Error ? error.message : String(error),
     });
-    return problemResponse(500, "Internal Server Error");
+    return problemResponse(500, "Internal Server Error", request);
   }
 }

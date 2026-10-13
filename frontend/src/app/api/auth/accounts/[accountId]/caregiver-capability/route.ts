@@ -7,7 +7,7 @@ const path = (
 ) => {
   const accountId = params.accountId;
   if (typeof accountId !== "string" || !accountId) {
-    return problemResponse(400, "Invalid accountId parameter");
+    return problemResponse(400, "Invalid accountId parameter", _request);
   }
   return `/auth/accounts/${encodeURIComponent(accountId)}/caregiver-capability`;
 };

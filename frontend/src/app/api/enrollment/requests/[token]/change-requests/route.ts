@@ -7,7 +7,7 @@ const path = (
 ) => {
   const token = params.token;
   if (typeof token !== "string" || !token) {
-    return problemResponse(400, "token required");
+    return problemResponse(400, "token required", _request);
   }
   return `/api/enrollment/requests/${encodeURIComponent(token)}/change-requests`;
 };

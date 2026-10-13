@@ -102,6 +102,7 @@ type ResponseFormatter<T> = (
  * Executes handler with retry logic on 401 errors
  */
 async function executeWithRetry<T>(
+  request: NextRequest,
   token: string,
   executeHandler: (token: string) => Promise<T>,
   formatResponse: (data: T) => ApiNextResponse<T>,
@@ -123,7 +124,7 @@ async function executeWithRetry<T>(
       // Retry failed, fall through to token expired
     }
 
-    return createTokenExpiredResponse();
+    return createTokenExpiredResponse(request);
   }
 }
 
@@ -139,7 +140,7 @@ function createNoBodyHandler<T>(
       const session = await auth();
 
       if (!session?.user?.token) {
-        return createUnauthorizedResponse();
+        return createUnauthorizedResponse(request);
       }
 
       const safeParams = await extractParams(request, context);
@@ -147,6 +148,7 @@ function createNoBodyHandler<T>(
         handler(request, token, safeParams);
 
       return await executeWithRetry(
+        request,
         session.user.token,
         executeHandler,
         (data) => formatResponse(data, request),
@@ -181,7 +183,7 @@ function createWithBodyHandler<T, B>(
     try {
       const session = await auth();
       if (!session?.user?.token) {
-        return createUnauthorizedResponse();
+        return createUnauthorizedResponse(request);
       }
 
       const safeParams = await extractParams(request, context);
@@ -190,6 +192,7 @@ function createWithBodyHandler<T, B>(
         handler(request, body, token, safeParams);
 
       return await executeWithRetry(
+        request,
         session.user.token,
         executeHandler,
         (data) => formatResponse(data, request),

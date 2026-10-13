@@ -22,12 +22,12 @@ export const GET = withParentAuth(
   async (request: NextRequest, context: RouteContext): Promise<Response> => {
     const session = await parentAuth();
     if (!session?.user?.token) {
-      return createUnauthorizedResponse();
+      return createUnauthorizedResponse(request);
     }
     const params = await extractParams(request, context);
     const appointmentId = params.appointmentId;
     if (!isStringParam(appointmentId) || appointmentId.length === 0) {
-      return problemResponse(400, "Appointment ID is required");
+      return problemResponse(400, "Appointment ID is required", request);
     }
     return streamIcsDownload(
       `/parent/me/calendar/appointments/${encodeURIComponent(appointmentId)}/ics`,

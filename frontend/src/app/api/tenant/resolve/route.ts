@@ -7,7 +7,7 @@ export const GET = createPublicJsonProxy({
   path: (request) => {
     const slug = request.nextUrl.searchParams.get("slug");
     if (!slug) {
-      return problemResponse(400, "slug parameter is required");
+      return problemResponse(400, "slug parameter is required", request);
     }
     return `/auth/tenant/resolve?slug=${encodeURIComponent(slug)}`;
   },

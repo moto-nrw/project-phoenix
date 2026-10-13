@@ -21,7 +21,7 @@ async function GETHandler(
   const session = await auth();
   const token = session?.user?.token;
   if (!token) {
-    return problemResponse(401, "Unauthorized");
+    return problemResponse(401, "Unauthorized", request);
   }
 
   const backendUrl = `${getServerApiUrl()}/api/students/${encodeURIComponent(id)}/photo/${encodeURIComponent(filename)}`;
@@ -77,7 +77,7 @@ async function GETHandler(
       filename,
       status: upstream.status,
     });
-    return forwardBackendResponse(upstream);
+    return forwardBackendResponse(upstream, request);
   }
 
   // 200 path — stream the body through unchanged. Preserve Content-Type,

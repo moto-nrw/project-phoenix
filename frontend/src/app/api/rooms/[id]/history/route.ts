@@ -66,7 +66,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
   const session = await auth();
 
   if (!session?.user?.token) {
-    return problemResponse(401, "Unauthorized");
+    return problemResponse(401, "Unauthorized", request);
   }
 
   // Extract roomId from URL path
@@ -75,7 +75,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
   const roomId = roomsIndex >= 0 ? pathParts[roomsIndex + 1] : undefined;
 
   if (!roomId) {
-    return problemResponse(400, "Invalid id parameter");
+    return problemResponse(400, "Invalid id parameter", request);
   }
 
   // Backend expects RFC3339 start/end (not start_date/end_date — that was a
@@ -128,7 +128,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
       room_id: roomId,
       error: apiError instanceof Error ? apiError.message : String(apiError),
     });
-    return handleApiError(apiError);
+    return handleApiError(apiError, request);
   }
 }
 

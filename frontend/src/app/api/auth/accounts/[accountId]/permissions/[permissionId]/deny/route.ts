@@ -12,7 +12,11 @@ export const POST = createTenantApiAdapter(async (_request, token, context) => {
     typeof permissionId !== "string" ||
     !permissionId
   ) {
-    return problemResponse(400, "Account ID and Permission ID are required");
+    return problemResponse(
+      400,
+      "Account ID and Permission ID are required",
+      _request,
+    );
   }
   await apiPost(
     `/auth/accounts/${accountId}/permissions/${permissionId}/deny`,

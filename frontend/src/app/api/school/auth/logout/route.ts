@@ -19,7 +19,7 @@ async function POSTHandler(request: NextRequest) {
 
     const refreshToken = session?.user?.refreshToken;
     if (!refreshToken) {
-      return problemResponse(401, "No active session");
+      return problemResponse(401, "No active session", request);
     }
 
     // The backend /auth/logout route is guarded by AuthenticateRefreshJWT,
@@ -33,13 +33,13 @@ async function POSTHandler(request: NextRequest) {
       },
     });
 
-    return forwardBackendResponse(response);
+    return forwardBackendResponse(response, request);
   } catch (error) {
     captureBffException(error, request);
     logger.error("logout failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return problemResponse(502, "Backend unavailable");
+    return problemResponse(502, "Backend unavailable", request);
   }
 }
 

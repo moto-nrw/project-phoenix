@@ -8,7 +8,7 @@ function rolePath(
 ) {
   const roleId = params.roleId;
   if (typeof roleId !== "string" || !roleId) {
-    return problemResponse(400, "Role ID is required");
+    return problemResponse(400, "Role ID is required", _request);
   }
   return `/auth/roles/${encodeURIComponent(roleId)}`;
 }

@@ -30,11 +30,12 @@ export const POST = createTenantApiAdapter(
     try {
       body = (await request.json()) as typeof body;
     } catch {
-      return problemResponse(400, "Invalid JSON");
+      return problemResponse(400, "Invalid JSON", request);
     }
     const { id, ...updateData } = body;
     const response = await apiPut(`/auth/accounts/${id}`, token, updateData);
     return Response.json(response);
   },
-  () => problemResponse(500, "Failed to update account"),
+  (_error, request) =>
+    problemResponse(500, "Failed to update account", request),
 );

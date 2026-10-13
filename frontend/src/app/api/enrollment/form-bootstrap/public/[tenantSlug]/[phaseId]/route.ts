@@ -43,7 +43,7 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
       getOriginalRequestHost(request),
     );
     if (!requestHostname) {
-      return problemResponse(400, "Invalid request host");
+      return problemResponse(400, "Invalid request host", request);
     }
     const isParentPortal = requestHostname === parentsHostname;
     const lateInvite = request.nextUrl.searchParams.get("late_invite")?.trim();
@@ -55,7 +55,7 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
     if (lateInvite) backendUrl.searchParams.set("late_invite", lateInvite);
     const response = await fetch(backendUrl, { cache: "no-store" });
     if (!response.ok) {
-      return forwardBackendResponse(response);
+      return forwardBackendResponse(response, request);
     }
     const payload = await response.json().catch(() => ({}));
 
@@ -119,7 +119,7 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
     logger.error("form_bootstrap_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return problemResponse(500, "Internal Server Error");
+    return problemResponse(500, "Internal Server Error", request);
   }
 }
 

@@ -21,14 +21,14 @@ export const GET = withTenantAuth(
       const session = await auth();
 
       if (!session?.user?.token) {
-        return problemResponse(401, "Unauthorized");
+        return problemResponse(401, "Unauthorized", _request);
       }
 
       const params = await context.params;
       const rawId = params.id;
 
       if (!isStringParam(rawId) || !/^\d+$/.test(rawId)) {
-        return problemResponse(400, "Valid staff ID is required");
+        return problemResponse(400, "Valid staff ID is required", _request);
       }
 
       const backendUrl = `${getServerApiUrl()}/api/staff/${encodePathSegment(rawId)}/avatar`;
@@ -52,7 +52,7 @@ export const GET = withTenantAuth(
       }
 
       if (!response.ok) {
-        return forwardBackendResponse(response);
+        return forwardBackendResponse(response, _request);
       }
 
       const contentType = response.headers.get("content-type") ?? "image/jpeg";

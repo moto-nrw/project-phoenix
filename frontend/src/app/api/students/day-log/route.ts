@@ -22,7 +22,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
   const session = await auth();
 
   if (!session?.user?.token) {
-    return problemResponse(401, "Unauthorized");
+    return problemResponse(401, "Unauthorized", request);
   }
 
   const queryParams = new URLSearchParams();
@@ -58,7 +58,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (apiError) {
-    return handleApiError(apiError);
+    return handleApiError(apiError, request);
   }
 }
 

@@ -20,7 +20,7 @@ interface AcceptGuardianInvitationBody {
 export async function POST(request: NextRequest, context: RouteContext) {
   const { token } = await context.params;
   if (!token) {
-    return problemResponse(400, "Missing invitation token");
+    return problemResponse(400, "Missing invitation token", request);
   }
 
   try {
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     try {
       body = (await request.json()) as AcceptGuardianInvitationBody;
     } catch {
-      return problemResponse(400, "Invalid JSON");
+      return problemResponse(400, "Invalid JSON", request);
     }
     const payload = {
       password: body.password,
@@ -47,12 +47,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     );
 
-    return forwardBackendResponse(response);
+    return forwardBackendResponse(response, request);
   } catch (error) {
     captureBffException(error, request);
     logger.error("guardian_invitation_accept_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return problemResponse(500, "Internal Server Error");
+    return problemResponse(500, "Internal Server Error", request);
   }
 }

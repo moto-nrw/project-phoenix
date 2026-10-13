@@ -27,13 +27,13 @@ async function GETHandler(
 
   const studentId = request.nextUrl.searchParams.get("student_id") ?? "";
   if (!/^\d+$/.test(studentId)) {
-    return problemResponse(400, "student_id is required");
+    return problemResponse(400, "student_id is required", request);
   }
 
   const session = await parentAuth();
   const token = session?.user?.token;
   if (!token) {
-    return problemResponse(401, "Unauthorized");
+    return problemResponse(401, "Unauthorized", request);
   }
 
   const backendUrl = `${getServerApiUrl()}/parent/me/news/${encodeURIComponent(announcementId)}/declaration/proof?student_id=${encodeURIComponent(studentId)}&format=pdf`;
@@ -61,7 +61,7 @@ async function GETHandler(
       announcement_id: announcementId,
       status: upstream.status,
     });
-    return forwardBackendResponse(upstream);
+    return forwardBackendResponse(upstream, request);
   }
 
   const headers = new Headers();

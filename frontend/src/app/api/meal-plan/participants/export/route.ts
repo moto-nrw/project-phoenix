@@ -10,14 +10,14 @@ export const GET = withTenantAuth(
   async (request: NextRequest): Promise<Response> => {
     const session = await auth();
     if (!session?.user?.token) {
-      return problemResponse(401, "Unauthorized");
+      return problemResponse(401, "Unauthorized", request);
     }
     const response = await fetch(
       `${getServerApiUrl()}/api/meal-plan/participants/export${request.nextUrl.search}`,
       { headers: { Authorization: `Bearer ${session.user.token}` } },
     );
     if (!response.ok) {
-      return forwardBackendResponse(response);
+      return forwardBackendResponse(response, request);
     }
     return new Response(await response.arrayBuffer(), {
       status: response.status,

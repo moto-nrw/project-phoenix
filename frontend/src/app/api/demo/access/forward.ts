@@ -21,16 +21,16 @@ export async function forwardDemoToken(
     // An unreadable body is an unknown token.
   }
   if (!token) {
-    return problemResponse(404, "demo access is unknown");
+    return problemResponse(404, "demo access is unknown", request);
   }
   try {
     const response = await send(token, getClientForwardHeaders(request));
-    return forwardBackendResponse(response);
+    return forwardBackendResponse(response, request);
   } catch (error) {
     logger.error("demo_access_forward_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return problemResponse(500, "Internal Server Error");
+    return problemResponse(500, "Internal Server Error", request);
   }
 }
 

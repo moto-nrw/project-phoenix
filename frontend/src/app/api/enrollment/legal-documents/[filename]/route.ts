@@ -48,12 +48,12 @@ async function DELETEHandler(_request: NextRequest, context: RouteContext) {
   const session = await auth();
   const token = session?.user?.token;
   if (!token) {
-    return problemResponse(401, "Unauthenticated");
+    return problemResponse(401, "Unauthenticated", _request);
   }
 
   const { filename } = await context.params;
   if (!filename) {
-    return problemResponse(400, "Invalid filename");
+    return problemResponse(400, "Invalid filename", _request);
   }
 
   try {
@@ -62,7 +62,7 @@ async function DELETEHandler(_request: NextRequest, context: RouteContext) {
       token,
     );
     if (!deleted) {
-      return createTokenExpiredResponse();
+      return createTokenExpiredResponse(_request);
     }
     return new NextResponse(null, { status: 204 });
   } catch (error) {

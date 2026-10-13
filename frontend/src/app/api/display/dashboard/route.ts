@@ -7,7 +7,7 @@ export const GET = createPublicJsonProxy({
   path: (request) =>
     request.headers.get("x-display-token")
       ? "/api/display/dashboard"
-      : problemResponse(400, "token required"),
+      : problemResponse(400, "token required", request),
   cache: "no-store",
   contentTypeOnGet: false,
   additionalHeaders: (request) => ({

@@ -12,8 +12,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   const backendUrl = `${getServerApiUrl()}/public/enrollment-form-legal-documents/${encodeURIComponent(filename)}`;
   const response = await fetch(backendUrl, { cache: "no-store" });
 
-  if (!response.ok) return forwardBackendResponse(response);
-  if (!response.body) return problemResponse(404, "Not found");
+  if (!response.ok) return forwardBackendResponse(response, _request);
+  if (!response.body) return problemResponse(404, "Not found", _request);
 
   return new NextResponse(response.body, {
     status: response.status,

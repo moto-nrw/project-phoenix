@@ -20,7 +20,7 @@ async function GETHandler(request: NextRequest) {
   const session = await schoolAuth();
 
   if (!session?.user?.token) {
-    return problemResponse(401, "Unauthorized");
+    return problemResponse(401, "Unauthorized", request);
   }
 
   return proxySSEStream(request, {

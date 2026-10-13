@@ -159,7 +159,7 @@ export function createFileUploadHandler<T>(
         const session = await auth();
 
         if (!session?.user?.token) {
-          return problemResponse(401, "Unauthorized");
+          return problemResponse(401, "Unauthorized", request);
         }
 
         // Extract parameters
@@ -195,6 +195,7 @@ export function createFileUploadHandler<T>(
             return problemResponse(
               validationError.status,
               validationError.message,
+              request,
             );
           }
           throw validationError;
@@ -216,7 +217,7 @@ export function createFileUploadHandler<T>(
         return NextResponse.json(response);
       } catch (error) {
         if (error instanceof FileValidationError) {
-          return problemResponse(error.status, error.message);
+          return problemResponse(error.status, error.message, request);
         }
         return handleApiError(error, request);
       }

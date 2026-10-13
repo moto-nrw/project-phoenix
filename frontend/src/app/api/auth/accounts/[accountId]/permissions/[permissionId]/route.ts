@@ -13,7 +13,11 @@ export const DELETE = createTenantApiAdapter(
       typeof permissionId !== "string" ||
       !permissionId
     ) {
-      return problemResponse(400, "Account ID and Permission ID are required");
+      return problemResponse(
+        400,
+        "Account ID and Permission ID are required",
+        _request,
+      );
     }
     await apiDelete(
       `/auth/accounts/${accountId}/permissions/${permissionId}`,

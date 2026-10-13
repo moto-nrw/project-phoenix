@@ -28,13 +28,13 @@ async function GETHandler(
 
   const format = request.nextUrl.searchParams.get("format") ?? "";
   if (!FORMATS.has(format)) {
-    return problemResponse(400, "format must be csv or pdf");
+    return problemResponse(400, "format must be csv or pdf", request);
   }
 
   const session = await auth();
   const token = session?.user?.token;
   if (!token) {
-    return problemResponse(401, "Unauthorized");
+    return problemResponse(401, "Unauthorized", request);
   }
 
   const backendUrl = `${getServerApiUrl()}/api/parent-announcements/${encodeURIComponent(announcementId)}/declaration-export?format=${format}`;
@@ -63,7 +63,7 @@ async function GETHandler(
       format,
       status: upstream.status,
     });
-    return forwardBackendResponse(upstream);
+    return forwardBackendResponse(upstream, request);
   }
 
   const headers = new Headers();

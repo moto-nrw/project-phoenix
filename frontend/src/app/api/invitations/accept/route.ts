@@ -24,10 +24,10 @@ export async function POST(request: NextRequest) {
     try {
       body = (await request.clone().json()) as AcceptInvitationBody;
     } catch {
-      return problemResponse(400, "Invalid JSON");
+      return problemResponse(400, "Invalid JSON", request);
     }
     if (!body.token) {
-      return problemResponse(400, "Missing invitation token");
+      return problemResponse(400, "Missing invitation token", request);
     }
 
     const { token, ...rest } = body;
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
         },
       );
 
-      return forwardBackendResponse(response);
+      return forwardBackendResponse(response, request);
     };
     return body.existingAccount
       ? await withInvitationOwnerSession(request, forward)
@@ -61,6 +61,6 @@ export async function POST(request: NextRequest) {
     logger.error("invitation accept failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return problemResponse(500, "Internal Server Error");
+    return problemResponse(500, "Internal Server Error", request);
   }
 }

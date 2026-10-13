@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { problemBody, problemTitle } from "./api-error";
 import { safeProblemExtensions } from "./api-response-error.server";
+import { requestInstance } from "./request-id";
 
 /** Forward a backend response, replacing unsafe backend 5xx bodies. */
-export function forwardBackendResponse(response: Response): NextResponse {
+export function forwardBackendResponse(
+  response: Response,
+  request?: Request,
+): NextResponse {
   const headers = new Headers();
   for (const name of ["Content-Type", "Retry-After"]) {
     const value = response.headers.get(name);
@@ -12,7 +16,7 @@ export function forwardBackendResponse(response: Response): NextResponse {
 
   if (response.status >= 500) {
     headers.set("Content-Type", "application/problem+json");
-    return new NextResponse(sanitizedBackendErrorBody(response), {
+    return new NextResponse(sanitizedBackendErrorBody(response, request), {
       status: response.status,
       headers,
     });
@@ -26,6 +30,7 @@ export function forwardBackendResponse(response: Response): NextResponse {
 
 function sanitizedBackendErrorBody(
   response: Response,
+  request?: Request,
 ): ReadableStream<Uint8Array> {
   return new ReadableStream({
     async start(controller) {
@@ -36,11 +41,10 @@ function sanitizedBackendErrorBody(
         // A non-JSON or unreadable upstream body only keeps its status class.
       }
 
-      const body = problemBody(
-        response.status,
-        problemTitle(response.status),
-        safeProblemExtensions(parsed, response.status),
-      );
+      const body = problemBody(response.status, problemTitle(response.status), {
+        ...safeProblemExtensions(parsed, response.status),
+        instance: requestInstance(request),
+      });
       controller.enqueue(new TextEncoder().encode(JSON.stringify(body)));
       controller.close();
     },

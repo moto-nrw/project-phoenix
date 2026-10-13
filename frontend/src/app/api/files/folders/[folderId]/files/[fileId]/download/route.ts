@@ -23,7 +23,7 @@ async function GETHandler(
   const session = await auth();
   const token = session?.user?.token;
   if (!token) {
-    return problemResponse(401, "Unauthorized");
+    return problemResponse(401, "Unauthorized", request);
   }
 
   // ?inline=1 asks for in-browser viewing (PDF, images); the backend decides
@@ -51,7 +51,7 @@ async function GETHandler(
       file_id: fileId,
       status: upstream.status,
     });
-    return forwardBackendResponse(upstream);
+    return forwardBackendResponse(upstream, request);
   }
 
   const headers = new Headers();

@@ -13,7 +13,11 @@ function rolePermissionPath(
     typeof permissionId !== "string" ||
     !permissionId
   ) {
-    return problemResponse(400, "Role ID and Permission ID are required");
+    return problemResponse(
+      400,
+      "Role ID and Permission ID are required",
+      _request,
+    );
   }
   return `/auth/roles/${encodeURIComponent(roleId)}/permissions/${encodeURIComponent(permissionId)}`;
 }

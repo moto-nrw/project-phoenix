@@ -27,8 +27,9 @@ export function operatorErrorResponse(
   status: number,
   code: ErrorCode,
   diagnostic: string,
+  request?: Request,
 ): NextResponse {
-  return problemResponse(status, diagnostic, { code });
+  return problemResponse(status, diagnostic, { code }, request);
 }
 
 async function readOperatorSession() {
@@ -192,6 +193,7 @@ type WithBodyHandler<T, B> = (
  * Mirrors the teacher route-wrapper pattern.
  */
 async function executeWithRetry<T>(
+  request: NextRequest,
   token: string,
   executeHandler: (token: string) => Promise<T>,
   formatResponse: (data: T) => NextResponse,
@@ -213,7 +215,7 @@ async function executeWithRetry<T>(
       // Retry failed, fall through to token expired
     }
 
-    return createTokenExpiredResponse();
+    return createTokenExpiredResponse(request);
   }
 }
 
@@ -224,10 +226,11 @@ function createOperatorNoBodyHandler<T>(
   return withOperatorAuth(async (request, context): Promise<NextResponse> => {
     try {
       const session = await readOperatorSession();
-      if (!session?.user?.token) return createUnauthorizedResponse();
+      if (!session?.user?.token) return createUnauthorizedResponse(request);
       const params = await extractParams(request, context);
 
       return await executeWithRetry(
+        request,
         session.user.token,
         (token) => handler(request, token, params),
         formatResponse,
@@ -242,11 +245,12 @@ function createOperatorWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
   return withOperatorAuth(async (request, context): Promise<NextResponse> => {
     try {
       const session = await readOperatorSession();
-      if (!session?.user?.token) return createUnauthorizedResponse();
+      if (!session?.user?.token) return createUnauthorizedResponse(request);
       const params = await extractParams(request, context);
       const body = await parseRequestBody<B>(request);
 
       return await executeWithRetry(
+        request,
         session.user.token,
         (token) => handler(request, body, token, params),
         (data) => NextResponse.json(wrapInApiResponse(data)),
@@ -293,7 +297,7 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
   return withOperatorAuth(async (request): Promise<NextResponse> => {
     try {
       const session = await readOperatorSession();
-      if (!session?.user?.token) return createUnauthorizedResponse();
+      if (!session?.user?.token) return createUnauthorizedResponse(request);
 
       let body: unknown;
       try {
@@ -303,6 +307,7 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
           400,
           "general.input",
           "Invalid JSON request body",
+          request,
         );
       }
       const { getServerApiUrl } = await import("~/lib/server-api-url");
@@ -340,7 +345,7 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
         durationMs: Date.now() - startedAt,
         outcome: response.ok ? "success" : "backend_error",
       });
-      return forwardBackendResponse(response);
+      return forwardBackendResponse(response, request);
     } catch (error) {
       return handleApiError(error, request);
     }
@@ -382,6 +387,7 @@ export function createOperatorPublicProxyPostHandler(
         400,
         "general.input",
         "Invalid JSON request body",
+        request,
       );
     }
 
@@ -406,7 +412,7 @@ export function createOperatorPublicProxyPostHandler(
         durationMs: Date.now() - startedAt,
         outcome: response.ok ? "success" : "backend_error",
       });
-      const forwardedResponse = await forwardBackendResponse(response);
+      const forwardedResponse = forwardBackendResponse(response, request);
       await options.decorateResponse?.(request, forwardedResponse, response.ok);
       return forwardedResponse;
     } catch {
@@ -421,6 +427,7 @@ export function createOperatorPublicProxyPostHandler(
         503,
         "general.unavailable",
         "Backend request failed",
+        request,
       );
     }
   };
@@ -444,7 +451,7 @@ export function createOperatorProxyMethodHandler(
     try {
       const session = await readOperatorSession();
       if (!session?.user?.token) {
-        return createTokenExpiredResponse();
+        return createTokenExpiredResponse(request);
       }
 
       const [params, { getServerApiUrl }, { getClientForwardHeaders }] =
@@ -479,7 +486,7 @@ export function createOperatorProxyMethodHandler(
       }
 
       if (response.status === 401) {
-        return createTokenExpiredResponse();
+        return createTokenExpiredResponse(request);
       }
 
       await recordOperatorBackendProxyMetric({
@@ -489,7 +496,7 @@ export function createOperatorProxyMethodHandler(
         durationMs: Date.now() - startedAt,
         outcome: response.ok ? "success" : "backend_error",
       });
-      return forwardBackendResponse(response);
+      return forwardBackendResponse(response, request);
     } catch (error) {
       return handleApiError(error, request);
     }

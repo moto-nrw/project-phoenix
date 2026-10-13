@@ -7,7 +7,7 @@ export const GET = createTenantApiAdapter(async (request, token) => {
   const studentIndex = pathParts.indexOf("student");
   const studentId = studentIndex >= 0 ? pathParts[studentIndex + 1] : undefined;
   if (!studentId) {
-    return problemResponse(400, "Invalid id parameter");
+    return problemResponse(400, "Invalid id parameter", request);
   }
   const response = await apiGet<{ data: unknown }>(
     `/api/feedback/student/${studentId}`,

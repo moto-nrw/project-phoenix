@@ -8,7 +8,7 @@ export const POST = createPublicJsonProxy({
   path: (_request, params) => {
     const tenantSlug = params.tenantSlug;
     if (typeof tenantSlug !== "string" || !tenantSlug) {
-      return problemResponse(400, "tenant slug is required");
+      return problemResponse(400, "tenant slug is required", _request);
     }
     return `/api/enrollment/${encodeURIComponent(tenantSlug)}/submit`;
   },

@@ -69,7 +69,7 @@ export const DELETE = withTenantAuth(
       const session = await auth();
 
       if (!session?.user?.token) {
-        return createUnauthorizedResponse();
+        return createUnauthorizedResponse(request);
       }
 
       const params = await extractParams(request, context);
@@ -113,15 +113,15 @@ export const DELETE = withTenantAuth(
         ) {
           response = await makeRequest(refreshed.user.token);
         } else {
-          return createTokenExpiredResponse();
+          return createTokenExpiredResponse(request);
         }
       }
 
       if (!response.ok) {
         if (response.status === 401) {
-          return createTokenExpiredResponse();
+          return createTokenExpiredResponse(request);
         }
-        return forwardBackendResponse(response);
+        return forwardBackendResponse(response, request);
       }
 
       return NextResponse.json({ success: true });

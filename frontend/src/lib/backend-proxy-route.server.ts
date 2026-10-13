@@ -38,8 +38,8 @@ interface JsonProxyOptions {
   additionalHeaders?: (request: NextRequest) => Record<string, string>;
   mapJsonBody?: (body: unknown) => unknown;
   invalidJsonMessage?: string;
-  invalidJsonResponse?: () => Response;
-  networkErrorResponse?: (error: unknown) => Response;
+  invalidJsonResponse?: (request: NextRequest) => Response;
+  networkErrorResponse?: (error: unknown, request: NextRequest) => Response;
   includeEmptyBody?: boolean;
   retryOn401?: boolean;
   onSuccess?: (response: Response) => Response | Promise<Response>;
@@ -98,11 +98,11 @@ async function proxyJsonRequest(
       try {
         parsed = await request.json();
       } catch {
-        if (invalidJsonResponse) return invalidJsonResponse();
+        if (invalidJsonResponse) return invalidJsonResponse(request);
         if (invalidJsonMessage) {
-          return problemResponse(400, invalidJsonMessage);
+          return problemResponse(400, invalidJsonMessage, request);
         }
-        return problemResponse(400, "Invalid JSON");
+        return problemResponse(400, "Invalid JSON", request);
       }
       requestBody = JSON.stringify(mapJsonBody ? mapJsonBody(parsed) : parsed);
     } else if (body === "optional-json") {
@@ -155,9 +155,11 @@ async function proxyJsonRequest(
       } catch {
         // Observability must not replace a backend response.
       }
-      return forwardBackendResponse(response);
+      return forwardBackendResponse(response, request);
     }
-    return onSuccess ? onSuccess(response) : forwardBackendResponse(response);
+    return onSuccess
+      ? onSuccess(response)
+      : forwardBackendResponse(response, request);
   } catch (error) {
     captureBffException(error, request);
     logger.error("JSON backend proxy failed", {
@@ -165,12 +167,13 @@ async function proxyJsonRequest(
       path: typeof path === "string" ? path : request.nextUrl.pathname,
       error: error instanceof Error ? error.message : String(error),
     });
-    if (networkErrorResponse) return networkErrorResponse(error);
+    if (networkErrorResponse) return networkErrorResponse(error, request);
     return problemResponse(
       500,
       networkErrorFromException && error instanceof Error
         ? error.message
         : networkErrorMessage,
+      request,
     );
   }
 }
@@ -180,7 +183,11 @@ export function createTenantJsonProxy(options: JsonProxyOptions) {
   return withTenantAuth(async (request: NextRequest, context: RouteContext) => {
     const session = await auth();
     if (!session?.user?.token) {
-      return problemResponse(401, options.unauthorizedError ?? "Unauthorized");
+      return problemResponse(
+        401,
+        options.unauthorizedError ?? "Unauthorized",
+        request,
+      );
     }
     return proxyJsonRequest(
       request,
@@ -214,7 +221,7 @@ export function createOperatorJsonProxy(options: JsonProxyOptions) {
     async (request: NextRequest, context: RouteContext) => {
       const session = await operatorAuth();
       if (!session?.user?.token) {
-        return problemResponse(401, "Unauthorized");
+        return problemResponse(401, "Unauthorized", request);
       }
       return proxyJsonRequest(
         request,
@@ -237,13 +244,13 @@ export function createTenantApiAdapter(
     token: string,
     context: RouteContext | undefined,
   ) => Promise<Response>,
-  onLocalError?: (error: unknown) => Response,
+  onLocalError?: (error: unknown, request: NextRequest) => Response,
 ) {
   return withTenantAuth(async (request: NextRequest, context: RouteContext) => {
     try {
       const session = await auth();
       if (!session?.user?.token) {
-        return problemResponse(401, "Unauthorized");
+        return problemResponse(401, "Unauthorized", request);
       }
       return await handler(request, session.user.token, context);
     } catch (error) {
@@ -251,7 +258,7 @@ export function createTenantApiAdapter(
         return handleApiError(error, request);
       }
       captureBffException(error, request);
-      return onLocalError(error);
+      return onLocalError(error, request);
     }
   });
 }

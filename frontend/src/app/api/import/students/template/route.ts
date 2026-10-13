@@ -13,7 +13,7 @@ async function GETHandler(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
-      return problemResponse(401, "Unauthorized");
+      return problemResponse(401, "Unauthorized", request);
     }
 
     // Get format parameter from query string
@@ -29,7 +29,7 @@ async function GETHandler(request: NextRequest) {
       },
     );
 
-    if (!response.ok) return forwardBackendResponse(response);
+    if (!response.ok) return forwardBackendResponse(response, request);
 
     // Get content type and filename from backend response
     const contentType =
@@ -50,7 +50,7 @@ async function GETHandler(request: NextRequest) {
     logger.error("template download failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return problemResponse(500, "Internal server error");
+    return problemResponse(500, "Internal server error", request);
   }
 }
 

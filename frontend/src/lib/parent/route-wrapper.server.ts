@@ -144,6 +144,7 @@ type WithBodyHandler<T, B> = (
 ) => Promise<T>;
 
 async function executeWithRetry<T>(
+  request: NextRequest,
   token: string,
   executeHandler: (token: string) => Promise<T>,
   formatResponse: (data: T) => NextResponse,
@@ -165,7 +166,7 @@ async function executeWithRetry<T>(
       // Retry failed, fall through to token expired
     }
 
-    return createTokenExpiredResponse();
+    return createTokenExpiredResponse(request);
   }
 }
 
@@ -176,10 +177,11 @@ function createParentNoBodyHandler<T>(
   return withParentAuth(async (request, context): Promise<NextResponse> => {
     try {
       const session = await parentAuth();
-      if (!session?.user?.token) return createUnauthorizedResponse();
+      if (!session?.user?.token) return createUnauthorizedResponse(request);
       const params = await extractParams(request, context);
 
       return await executeWithRetry(
+        request,
         session.user.token,
         (token) => handler(request, token, params),
         formatResponse,
@@ -194,11 +196,12 @@ function createParentWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
   return withParentAuth(async (request, context): Promise<NextResponse> => {
     try {
       const session = await parentAuth();
-      if (!session?.user?.token) return createUnauthorizedResponse();
+      if (!session?.user?.token) return createUnauthorizedResponse(request);
       const params = await extractParams(request, context);
       const body = await parseRequestBody<B>(request);
 
       return await executeWithRetry(
+        request,
         session.user.token,
         (token) => handler(request, body, token, params),
         (data) => NextResponse.json(wrapInApiResponse(data)),

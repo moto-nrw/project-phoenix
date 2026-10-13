@@ -6,7 +6,7 @@ export const GET = createPublicJsonProxy({
   path: (request, params) => {
     const tenantSlug = params.tenantSlug;
     if (typeof tenantSlug !== "string" || !tenantSlug) {
-      return problemResponse(400, "tenant slug is required");
+      return problemResponse(400, "tenant slug is required", request);
     }
     const phaseId = request.nextUrl.searchParams.get("phaseId");
     const lateInvite = request.nextUrl.searchParams.get("late_invite")?.trim();

@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     try {
       body = await request.json();
     } catch {
-      return problemResponse(400, "Invalid JSON");
+      return problemResponse(400, "Invalid JSON", request);
     }
 
     const cookieHeader = request.headers.get("cookie");
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(body),
     });
 
-    const out = forwardBackendResponse(response);
+    const out = forwardBackendResponse(response, request);
     for (const cookie of response.headers.getSetCookie()) {
       out.headers.append("set-cookie", cookie);
     }
@@ -40,6 +40,6 @@ export async function POST(request: NextRequest) {
     logger.error("login proxy failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return problemResponse(500, "Internal Server Error");
+    return problemResponse(500, "Internal Server Error", request);
   }
 }

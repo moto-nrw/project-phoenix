@@ -6,7 +6,7 @@ export const GET = createTenantJsonProxy({
   path: (request) => {
     const phase = request.nextUrl.searchParams.get("phase_id");
     if (!phase) {
-      return problemResponse(400, "phase_id is required");
+      return problemResponse(400, "phase_id is required", request);
     }
     return `/api/enrollment/care-offerings/booking-stats?phase_id=${encodeURIComponent(phase)}`;
   },
