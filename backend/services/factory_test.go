@@ -1,4 +1,4 @@
-package services_test
+package services
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,8 +13,8 @@ import (
 
 const testFactoryJWTSecret = "test-secret-must-be-at-least-32-chars-long-for-real"
 
-func testFactoryConfig() services.FactoryConfig {
-	return services.FactoryConfig{
+func testFactoryConfig() FactoryConfig {
+	return FactoryConfig{
 		JWTSecret:        testFactoryJWTSecret,
 		JWTExpiry:        15 * time.Minute,
 		JWTRefreshExpiry: 24 * time.Hour,
@@ -32,10 +31,10 @@ func TestNewFactory(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 	require.NotNil(t, repos)
 
-	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), testFactoryConfig())
+	factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), testFactoryConfig())
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -80,7 +79,7 @@ func TestNewFactory_EnrollmentDeletionKeepsGuardianDirectoryAfterAuditSetup(t *t
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	factory, err := services.NewFactoryForTestsWithConfig(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)), db, slog.Default(), testFactoryConfig())
+	factory, err := NewFactoryForTestsWithConfig(NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db)), db, slog.Default(), testFactoryConfig())
 	require.NoError(t, err)
 
 	_, err = factory.EnrollmentDeletion.PreviewRequest(testpkg.Ctx(t), testpkg.UniqueTestTenantID(t))
@@ -91,11 +90,11 @@ func TestNewFactory_RejectsPartialVAPIDConfig(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 	cfg := testFactoryConfig()
 	cfg.VAPIDPublicKey = "configured-without-the-other-required-values"
 
-	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
+	factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
 	require.Error(t, err)
 	require.Nil(t, factory)
 	assert.ErrorContains(t, err, "invalid VAPID configuration")
@@ -107,10 +106,10 @@ func TestNewFactory_InvitationTokenExpiry_ZeroDefaults(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
-	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
+	factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -121,12 +120,12 @@ func TestNewFactory_InvitationTokenExpiry_ClampedToMax(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.InvitationTokenExpiryHours = 500
 
-	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
+	factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -137,12 +136,12 @@ func TestNewFactory_InvitationTokenExpiry_ValidValue(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.InvitationTokenExpiryHours = 72
 
-	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
+	factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -153,10 +152,10 @@ func TestNewFactory_PasswordResetExpiry_ZeroDefaults(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
-	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
+	factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -167,12 +166,12 @@ func TestNewFactory_PasswordResetExpiry_ClampedToMax(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.PasswordResetExpiryMinutes = 2000
 
-	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
+	factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -183,12 +182,12 @@ func TestNewFactory_PasswordResetExpiry_ValidValue(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.PasswordResetExpiryMinutes = 60
 
-	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
+	factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -199,12 +198,12 @@ func TestNewFactory_FrontendURL_TrailingSlashRemoved(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.FrontendURL = "http://example.com/"
 
-	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
+	factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -215,12 +214,12 @@ func TestNewFactory_FrontendURL_Required(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.FrontendURL = ""
 
-	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
+	factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
 	require.Error(t, err)
 	require.Nil(t, factory)
 	assert.Contains(t, err.Error(), "FRONTEND_URL")
@@ -233,8 +232,8 @@ func TestNewFactory_PublicAPIURL_Required(t *testing.T) {
 	cfg := testFactoryConfig()
 	cfg.PublicAPIURL = ""
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
 	require.Error(t, err)
 	require.Nil(t, factory)
 	assert.ErrorContains(t, err, "NEXT_PUBLIC_API_URL")
@@ -243,20 +242,20 @@ func TestNewFactory_PublicAPIURL_Required(t *testing.T) {
 func TestNewFactory_PortalURLs_Required(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 
 	for _, tc := range []struct {
 		name, want string
-		clear      func(*services.FactoryConfig)
+		clear      func(*FactoryConfig)
 	}{
-		{"parents", "PARENTS_URL", func(cfg *services.FactoryConfig) { cfg.ParentsURL = "" }},
-		{"school", "SCHOOL_URL", func(cfg *services.FactoryConfig) { cfg.SchoolURL = "" }},
+		{"parents", "PARENTS_URL", func(cfg *FactoryConfig) { cfg.ParentsURL = "" }},
+		{"school", "SCHOOL_URL", func(cfg *FactoryConfig) { cfg.SchoolURL = "" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := testFactoryConfig()
 			tc.clear(&cfg)
 
-			factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
+			factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
 			require.Error(t, err)
 			require.Nil(t, factory)
 			assert.Contains(t, err.Error(), tc.want)
@@ -268,9 +267,9 @@ func TestNewFactory_DefaultEmailFrom_WhenNotConfigured(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 
-	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), testFactoryConfig())
+	factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), testFactoryConfig())
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -283,13 +282,13 @@ func TestNewFactory_EmailFrom_WhenConfigured(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.EmailFromName = "Test App"
 	cfg.EmailFromAddress = "test@example.com"
 
-	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
+	factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -301,12 +300,12 @@ func TestNewFactory_NegativeInvitationExpiry(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.InvitationTokenExpiryHours = -10
 
-	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
+	factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -317,12 +316,12 @@ func TestNewFactory_NegativePasswordResetExpiry(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 
 	cfg := testFactoryConfig()
 	cfg.PasswordResetExpiryMinutes = -10
 
-	factory, err := services.NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
+	factory, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -332,8 +331,8 @@ func TestNewFactory_NegativePasswordResetExpiry(t *testing.T) {
 func TestEnableStudentPhotos(t *testing.T) {
 	t.Parallel()
 
-	f := &services.Factory{SettingsSideEffects: services.NewSettingsSideEffects()}
-	f.EnableStudentPhotos(services.StudentPhotoBootstrap{Logger: slog.Default()})
+	f := &Factory{SettingsSideEffects: NewSettingsSideEffects()}
+	f.EnableStudentPhotos(StudentPhotoBootstrap{Logger: slog.Default()})
 	require.NotNil(t, f.StudentPhotos)
 	post, err := f.SettingsSideEffects.Dispatch(context.Background(), 1, "operations.student_photos_enabled", "x")
 	require.NoError(t, err)
