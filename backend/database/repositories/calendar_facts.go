@@ -5,17 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
 type CalendarFacts struct {
@@ -25,11 +25,11 @@ type CalendarFacts struct {
 	StudentGuardianRepo  userModels.StudentGuardianRepository
 	ChildRepo            ParentChildLinkSource
 	GroupRepo            EducationGroupRepository
-	InstanceStaffRepo    scheduleModels.InstanceStaffRepository
-	ActivityInstanceRepo scheduleModels.ActivityInstanceRepository
-	RoomRepo             facilitiesModels.RoomRepository
-	StaffShiftRepo       CalendarStaffShiftSource
-	ShiftTypeRepo        CalendarShiftTypeSource
+	InstanceStaffRepo    timetableCompose.CalendarAssignmentRows
+	ActivityInstanceRepo timetableCompose.CalendarInstanceRows
+	RoomRepo             facilitiesCompose.RoomRows
+	StaffShiftRepo       timetableCompose.CalendarShiftRows
+	ShiftTypeRepo        timetableCompose.CalendarShiftTypeRows
 	SchoolRepo           organizationtenancy.Query
 	AccountRepo          identityaccess.ParentCalendarFeeds
 	StaffFeedRepo        identityaccess.StaffCalendarFeeds
@@ -242,12 +242,12 @@ func (p calendarGroupPort) List(ctx context.Context) ([]*calendarCompose.Group, 
 }
 
 type calendarRoomPort struct {
-	source facilitiesModels.RoomRepository
+	source facilitiesCompose.RoomRows
 }
 
 func (p calendarRoomPort) FindByIDs(ctx context.Context, ids []int64) ([]*calendarCompose.Room, error) {
-	value, err := p.source.FindByIDs(ctx, ids)
-	return calendarMapSlice(value, func(v *facilitiesModels.Room) *calendarCompose.Room {
+	value, err := facilitiesCompose.FindRoomNames(ctx, p.source, ids)
+	return calendarMapSlice(value, func(v *facilitiesCompose.RoomName) *calendarCompose.Room {
 		if v == nil {
 			return nil
 		}
@@ -256,59 +256,49 @@ func (p calendarRoomPort) FindByIDs(ctx context.Context, ids []int64) ([]*calend
 }
 
 type calendarAssignmentPort struct {
-	source scheduleModels.InstanceStaffRepository
+	source timetableCompose.CalendarAssignmentRows
 }
 
 func (p calendarAssignmentPort) FindByStaffAndDateRange(ctx context.Context, id int64, from, to appointmentcap.Date) ([]*calendarCompose.InstanceStaff, error) {
-	value, err := p.source.FindByStaffAndDateRange(ctx, id, scheduleModels.Date(from), scheduleModels.Date(to))
-	return calendarMapSlice(value, func(v *scheduleModels.InstanceStaff) *calendarCompose.InstanceStaff {
+	value, err := timetableCompose.FindCalendarAssignments(ctx, p.source, id, string(from), string(to))
+	return calendarMapSlice(value, func(v timetableCompose.CalendarAssignment) *calendarCompose.InstanceStaff {
 		return &calendarCompose.InstanceStaff{InstanceID: v.InstanceID, RoomID: v.RoomID, UpdatedAt: v.UpdatedAt}
 	}), err
 }
 
 type calendarInstancePort struct {
-	source scheduleModels.ActivityInstanceRepository
+	source timetableCompose.CalendarInstanceRows
 }
 
 func (p calendarInstancePort) FindByIDs(ctx context.Context, ids []int64) ([]*calendarCompose.ActivityInstance, error) {
-	value, err := p.source.FindByIDs(ctx, ids)
-	return calendarMapSlice(value, func(v *scheduleModels.ActivityInstance) *calendarCompose.ActivityInstance {
+	value, err := timetableCompose.FindCalendarInstances(ctx, p.source, ids)
+	return calendarMapSlice(value, func(v timetableCompose.CalendarInstance) *calendarCompose.ActivityInstance {
 		return &calendarCompose.ActivityInstance{ID: v.ID, RoomID: v.RoomID, Title: v.Title, Status: v.Status, Description: v.Description, Date: appointmentcap.Date(v.Date), StartTime: v.StartTime, EndTime: v.EndTime, UpdatedAt: v.UpdatedAt, ActivityType: v.TemplateType}
 	}), err
 }
 
-// CalendarStaffShiftSource is the planned-shift read the staff calendar feed
-// needs; the Workforce capability's retained-row adapter serves it (#3418).
-type CalendarStaffShiftSource interface {
-	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end scheduleModels.Date) ([]*scheduleModels.StaffShift, error)
-}
-
-// CalendarShiftTypeSource is the shift-type list the feed labels shifts with.
-type CalendarShiftTypeSource interface {
-	ListAll(ctx context.Context) ([]*scheduleModels.ShiftType, error)
-}
-
 type calendarShiftPort struct {
-	source CalendarStaffShiftSource
+	source timetableCompose.CalendarShiftRows
 }
 
 func (p calendarShiftPort) FindByStaffAndDateRange(ctx context.Context, id int64, from, to appointmentcap.Date) ([]*calendarCompose.StaffShift, error) {
-	value, err := p.source.FindByStaffAndDateRange(ctx, id, scheduleModels.Date(from), scheduleModels.Date(to))
-	return calendarMapSlice(value, func(v *scheduleModels.StaffShift) *calendarCompose.StaffShift {
+	value, err := timetableCompose.FindCalendarShifts(ctx, p.source, id, string(from), string(to))
+	return calendarMapSlice(value, func(v timetableCompose.CalendarShift) *calendarCompose.StaffShift {
 		return &calendarCompose.StaffShift{ID: v.ID, Date: appointmentcap.Date(v.Date), StartTime: v.StartTime, EndTime: v.EndTime, UpdatedAt: v.UpdatedAt, ShiftTypeID: v.ShiftTypeID, Cancelled: v.Cancelled, Notes: v.Notes}
 	}), err
 }
 
 type calendarShiftTypePort struct {
-	source CalendarShiftTypeSource
+	source timetableCompose.CalendarShiftTypeRows
 }
 
 func (p calendarShiftTypePort) ListAll(ctx context.Context) ([]*calendarCompose.ShiftType, error) {
-	value, err := p.source.ListAll(ctx)
-	return calendarMapSlice(value, func(v *scheduleModels.ShiftType) *calendarCompose.ShiftType {
+	value, err := timetableCompose.ListCalendarShiftTypes(ctx, p.source)
+	return calendarMapSlice(value, func(v timetableCompose.CalendarShiftType) *calendarCompose.ShiftType {
 		return &calendarCompose.ShiftType{ID: v.ID, Name: v.Name}
 	}), err
 }
+
 func calendarPerson(value *userModels.Person) *calendarCompose.Person {
 	if value == nil {
 		return nil
