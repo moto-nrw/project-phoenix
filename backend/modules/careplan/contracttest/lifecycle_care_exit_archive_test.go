@@ -7,7 +7,6 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -32,7 +31,7 @@ func TestCareExitArchive_RecordedAtUsesTheBerlinDay(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "CareExitRecorded", "Kid", class)
 
 	yesterday := timezone.TodayDate().AddDays(-1)
-	testpkg.SetStudentLifecycle(t, db, student.ID, users.StudentStatusActive, nil, &yesterday)
+	testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusActive, nil, &yesterday)
 
 	require.NoError(t, carePlanRecords(db).UpsertCareExit(ctx, careplan.CareExit{
 		StudentID: student.ID,

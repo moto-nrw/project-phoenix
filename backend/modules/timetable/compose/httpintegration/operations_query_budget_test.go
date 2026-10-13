@@ -6,7 +6,6 @@ import (
 	"time"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -68,10 +67,12 @@ func TestTimetableOperationsPlannedNowQueryBudget(t *testing.T) {
 
 // newPlannedNowBudgetOperations composes the operational day over the
 // retained repositories; the caller is the given staff member.
-func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staff *usersModels.Staff, now time.Time) timetable.OperationCapability {
+func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testpkg.Staff, now time.Time) timetable.OperationCapability {
 	t.Helper()
 	owners := services.NewUnobservedTimetableDependencies(db)
 	repos := services.NewRepositoryTestFactory(db, owners)
+	staff, err := repos.Staff.FindWithPerson(testpkg.Ctx(t), staffFixture.ID)
+	require.NoError(t, err)
 	timetableRepos := services.NewTimetableRepositories(db, owners)
 	stand := newTimetableOpsDeps()
 	stand.personService.accountPerson = staff.Person

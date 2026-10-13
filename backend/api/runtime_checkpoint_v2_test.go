@@ -17,7 +17,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -154,7 +153,7 @@ func newTargetRiskWorkload(t *testing.T, production *Runtime) *targetRiskWorkloa
 	require.NoError(t, db.NewRaw("SELECT nextval(pg_get_serial_sequence('users.care_withdrawal_completions', 'id'))").Scan(ctx, &w.missingCompletion))
 
 	withdrawn := testpkg.CreateTestStudent(fixtures, db, "Checkpoint", "Withdrawn", "2a")
-	w.completionID = w.pendingWithdrawal(t, production, withdrawn.ID)
+	w.completionID = w.pendingWithdrawal(t, withdrawn.ID)
 	w.companionID = testpkg.CreateTestStudent(fixtures, db, "Checkpoint", "Companion", "2a").ID
 	w.accompanied(t, w.companionID)
 	w.stalePreviewID = w.linkedStudent(t, "Stale")
@@ -261,36 +260,12 @@ func (w *targetRiskWorkload) putStudent(t *testing.T, studentID int64, body stri
 	require.Equal(t, http.StatusOK, response.Code, "prepare student plan: %s", response.Body.String())
 }
 
-// pendingWithdrawal stores one school-confirmed withdrawal task through the
-// Care Plan owner over the production graph's pool. A withdrawal cannot be
-// raised over HTTP without booking-led enrollment, so the fixture asks the
-// owner directly; the least-privilege pool needs the tenant transaction.
-func (w *targetRiskWorkload) pendingWithdrawal(t *testing.T, production *Runtime, studentID int64) int64 {
+// pendingWithdrawal stores one school-confirmed withdrawal task in the
+// workload's tenant. A withdrawal cannot be raised over HTTP without
+// booking-led enrollment, so the fixture writes the pending task row.
+func (w *targetRiskWorkload) pendingWithdrawal(t *testing.T, studentID int64) int64 {
 	t.Helper()
-	tenantID, err := tenant.NewTenantID(w.tenantID)
-	require.NoError(t, err)
-	ctx := tenant.WithUnitOfWork(testpkg.Ctx(w.fixtures), production.graph.tenantRuntime)
-	carePlan, err := testutil.NewUnobservedCarePlan(production.graph.db, testutil.NewUnobservedTimetableDependencies(production.graph.db))
-	require.NoError(t, err)
-	writer := tenantScopedUpsert(testutil.NewCareWithdrawalCompletionRepository(carePlan).UpsertPending, func(fn func(context.Context) error) error {
-		return tenant.WithinTenant(ctx, tenantID, fn)
-	})
-	return testpkg.CreateTestCareWithdrawalCompletion(w.fixtures, writer, studentID, w.accountID, "2026-09-14").ID
-}
-
-// tenantUpsert runs an owner's pending-task upsert inside the tenant
-// transaction, whatever context the fixture passes.
-type tenantUpsert[T any] struct {
-	upsert func(context.Context, T) error
-	within func(func(context.Context) error) error
-}
-
-func tenantScopedUpsert[T any](upsert func(context.Context, T) error, within func(func(context.Context) error) error) tenantUpsert[T] {
-	return tenantUpsert[T]{upsert: upsert, within: within}
-}
-
-func (u tenantUpsert[T]) UpsertPending(_ context.Context, value T) error {
-	return u.within(func(ctx context.Context) error { return u.upsert(ctx, value) })
+	return testpkg.CreateTestCareWithdrawalCompletion(w.fixtures, w.db, studentID, w.accountID, "2026-09-14").ID
 }
 
 // deletionBody reads the preview the confirmation dialog shows and returns

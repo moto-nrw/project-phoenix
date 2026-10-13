@@ -345,7 +345,6 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 func TestOGSGroupLive_UsesBookingBoundaryAndKeepsPresentChildren(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t)
-	repos := newStudentTestRepositories(tc.db)
 	require.NoError(t, tc.settings().SetValue(
 		testpkg.Ctx(t), settings.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
 	))
@@ -361,7 +360,7 @@ func TestOGSGroupLive_UsesBookingBoundaryAndKeepsPresentChildren(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
 	for _, id := range []int64{absent.ID, present.ID} {
-		testpkg.CreateTestBookingExpiredCareWithdrawal(t, repos.CareWithdrawal, id)
+		testpkg.CreateTestBookingExpiredCareWithdrawal(t, tc.db, id)
 	}
 	device := testpkg.CreateTestDevice(t, tc.db, "ogs-booking-boundary")
 	testpkg.CreateTestAttendance(t, tc.db, present.ID, teacher.Staff.ID, device.ID, time.Now().Add(-time.Hour), nil)
@@ -380,7 +379,6 @@ func TestOGSGroupLive_UsesBookingBoundaryAndKeepsPresentChildren(t *testing.T) {
 func TestOGSGroupLive_KeepsOpenVisitWithoutAttendance(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t)
-	repos := newStudentTestRepositories(tc.db)
 	require.NoError(t, tc.settings().SetValue(
 		testpkg.Ctx(t), settings.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
 	))
@@ -394,7 +392,7 @@ func TestOGSGroupLive_KeepsOpenVisitWithoutAttendance(t *testing.T) {
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
-	testpkg.CreateTestBookingExpiredCareWithdrawal(t, repos.CareWithdrawal, student.ID)
+	testpkg.CreateTestBookingExpiredCareWithdrawal(t, tc.db, student.ID)
 	room := testpkg.CreateTestRoom(t, tc.db, "OGS Besuchsraum")
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "OGS Besuchsaktivität")
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)

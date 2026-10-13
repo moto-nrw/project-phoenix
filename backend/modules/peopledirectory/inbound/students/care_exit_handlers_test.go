@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -26,7 +27,6 @@ import (
 func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresence(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRouteWithCareLifecycle(t, true, fixedCalendarClock)
-	repos := newStudentTestRepositories(tc.db)
 	student := testpkg.CreateTestStudent(t, tc.db, "Sichtbar", "Grenze", "4c")
 	endedWithoutTask := testpkg.CreateTestStudent(t, tc.db, "Ohne", "Aufgabe", "4d")
 	studentID := student.ID
@@ -44,7 +44,7 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 	if firstGap.After(horizon) {
 		t.Skip("today closes the planning horizon; no future planning day to ask for")
 	}
-	upsertNaturalCompletion(t, repos.CareWithdrawal, studentID, firstGap)
+	upsertNaturalCompletion(t, tc.db, studentID, firstGap)
 	actor := testpkg.CreateTestAccount(t, tc.db, "participation-reader@example.test")
 	claims := testutil.AdminTestClaims(int(actor.ID))
 
@@ -66,7 +66,7 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 
 	// Move the same pending task onto today to exercise the live-presence
 	// exception without treating today's attendance as future planning data.
-	upsertNaturalCompletion(t, repos.CareWithdrawal, studentID, today)
+	upsertNaturalCompletion(t, tc.db, studentID, today)
 	assert.False(t, listedIDs("")[student.ID])
 	assert.True(t, listedIDs("&include_pending_withdrawals=true")[student.ID])
 
@@ -81,10 +81,10 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 }
 
 func upsertNaturalCompletion(
-	t *testing.T, repo testpkg.CareWithdrawalWriter, studentID int64, gap timezone.Date,
+	t *testing.T, db bun.IDB, studentID int64, gap timezone.Date,
 ) {
 	t.Helper()
-	testpkg.CreateTestBookingExpiredCareWithdrawalOn(t, repo, studentID, gap)
+	testpkg.CreateTestBookingExpiredCareWithdrawalOn(t, db, studentID, gap)
 }
 
 func listedCareStudentIDs(t *testing.T, tc *testContext, claims jwt.AppClaims, query string) map[int64]bool {
@@ -111,7 +111,7 @@ func TestCareWithdrawalHandlers_StaleDeletionRollsBackCompletion(t *testing.T) {
 	repos := newStudentTestRepositories(tc.db)
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "StaleDeletion", "3a")
 	_, actor := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CareWithdrawal", "StaleDelete")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, repos.CareWithdrawal, student.ID, actor.ID, timezone.TodayDate())
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, student.ID, actor.ID, timezone.TodayDate())
 	claims := testutil.AdminTestClaims(int(actor.ID))
 
 	previewRequest := testutil.NewAuthenticatedRequest(
@@ -186,10 +186,9 @@ func TestCareExitHandlers_RequireDeletePermission(t *testing.T) {
 func TestCareWithdrawalHandlers_ListAndChildWarningRequireDeletePermission(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRouteWithCareLifecycle(t, false)
-	repos := newStudentTestRepositories(tc.db)
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Abmeldung", "2a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "care-withdrawal-list@example.com")
-	testpkg.CreateTestCareWithdrawalCompletionConfirmedAt(t, repos.CareWithdrawal, student.ID, actor.ID, timezone.TodayDate(), actor.CreatedAt)
+	testpkg.CreateTestCareWithdrawalCompletionConfirmedAt(t, tc.db, student.ID, actor.ID, timezone.TodayDate(), actor.CreatedAt)
 	claims := testutil.AdminTestClaims(int(actor.ID))
 
 	for _, path := range []string{"/care-withdrawals", fmt.Sprintf("/care-withdrawals?student_id=%d", student.ID)} {
@@ -209,7 +208,7 @@ func TestCareWithdrawalHandlers_PreviewThenConfirmOneTask(t *testing.T) {
 	repos := newStudentTestRepositories(tc.db)
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Abschluss", "3a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "care-withdrawal-confirm@example.com")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, repos.CareWithdrawal, student.ID, actor.ID, timezone.TodayDate().AddDays(1))
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, student.ID, actor.ID, timezone.TodayDate().AddDays(1))
 	claims := testutil.AdminTestClaims(int(actor.ID))
 	body := map[string]any{
 		"last_care_day": timezone.TodayDate().String(),

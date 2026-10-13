@@ -71,7 +71,9 @@ func createTestTeacherWithAccountForTenant(
 	_, err = db.NewRaw(`INSERT INTO users.staff_employment_profiles (membership_id, tenant_id)
 		VALUES (?, ?)`, staff.ID, tenantID).Exec(context.Background())
 	require.NoError(t, err)
-	staff.Person = person
+	staff.Person = &userModels.Person{FirstName: person.FirstName, LastName: person.LastName, AccountID: person.AccountID}
+	staff.Person.ID = person.ID
+	staff.Person.SetTenantID(person.TenantID)
 
 	teacher := &userModels.Teacher{StaffID: staff.ID}
 	teacher.SetTenantID(tenantID)
@@ -480,7 +482,7 @@ func TestCaregiverCapability_DisableAllowsCustomTenantRoleToRemain(t *testing.T)
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	assignSystemRoleToAccount(t, db, account.ID, testpkg.Tenant(t), "user")
 
-	tenantID := teacher.GetTenantID()
+	tenantID := teacher.TenantID
 	customRole := &testpkg.RoleFixture{
 		Name:        "coordinator",
 		Description: "Tenant-scoped coordinator role",
