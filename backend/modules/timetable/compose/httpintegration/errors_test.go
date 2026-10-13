@@ -1,9 +1,14 @@
 package httpintegration_test
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/go-chi/render"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
@@ -35,7 +40,7 @@ func TestErrorRenderer_NotFoundErrors(t *testing.T) {
 			resp, ok := renderer.(*common.ErrResponse)
 			assert.True(t, ok)
 			assert.Equal(t, http.StatusNotFound, resp.HTTPStatusCode)
-			assert.Equal(t, "error", resp.Status)
+			assertEnvelope(t, resp, "general.input")
 		})
 	}
 }
@@ -46,11 +51,12 @@ func TestErrorRenderer_ConflictErrors(t *testing.T) {
 	tests := []struct {
 		name    string
 		baseErr error
+		code    string
 	}{
-		{"ErrGroupFull", activities.ErrGroupFull},
-		{"ErrAlreadyEnrolled", activities.ErrAlreadyEnrolled},
-		{"ErrTimetableTemplateProtected", activities.ErrTimetableTemplateProtected},
-		{"ErrOnlySupervisorRequiresReplacement", activities.ErrOnlySupervisorRequiresReplacement},
+		{"ErrGroupFull", activities.ErrGroupFull, "general.business_rejection"},
+		{"ErrAlreadyEnrolled", activities.ErrAlreadyEnrolled, "general.business_rejection"},
+		{"ErrTimetableTemplateProtected", activities.ErrTimetableTemplateProtected, "timetable.activity_template_protected"},
+		{"ErrOnlySupervisorRequiresReplacement", activities.ErrOnlySupervisorRequiresReplacement, "timetable.only_supervisor_replacement_required"},
 	}
 
 	for _, tt := range tests {
@@ -60,7 +66,7 @@ func TestErrorRenderer_ConflictErrors(t *testing.T) {
 			resp, ok := renderer.(*common.ErrResponse)
 			assert.True(t, ok)
 			assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
-			assert.Equal(t, "error", resp.Status)
+			assertEnvelope(t, resp, tt.code)
 			if tt.baseErr == activities.ErrOnlySupervisorRequiresReplacement {
 				assert.Equal(t, "timetable.only_supervisor_replacement_required", resp.Code)
 			}
@@ -74,9 +80,10 @@ func TestErrorRenderer_ForbiddenErrors(t *testing.T) {
 	tests := []struct {
 		name    string
 		baseErr error
+		code    string
 	}{
-		{"ErrGroupClosed", activities.ErrGroupClosed},
-		{"ErrSystemActivityProtected", activities.ErrSystemActivityProtected},
+		{"ErrGroupClosed", activities.ErrGroupClosed, "general.permission"},
+		{"ErrSystemActivityProtected", activities.ErrSystemActivityProtected, "timetable.activity_system_protected"},
 	}
 
 	for _, tt := range tests {
@@ -86,7 +93,7 @@ func TestErrorRenderer_ForbiddenErrors(t *testing.T) {
 			resp, ok := renderer.(*common.ErrResponse)
 			assert.True(t, ok)
 			assert.Equal(t, http.StatusForbidden, resp.HTTPStatusCode)
-			assert.Equal(t, "error", resp.Status)
+			assertEnvelope(t, resp, tt.code)
 		})
 	}
 }
@@ -99,7 +106,7 @@ func TestErrorRenderer_BadRequestErrors(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
-	assert.Equal(t, "error", resp.Status)
+	assertEnvelope(t, resp, "general.input")
 }
 
 func TestErrorRenderer_UnknownActivityError(t *testing.T) {
@@ -110,7 +117,7 @@ func TestErrorRenderer_UnknownActivityError(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
-	assert.Equal(t, "error", resp.Status)
+	assertEnvelope(t, resp, "general.server")
 }
 
 func TestErrorRenderer_NonActivityError(t *testing.T) {
@@ -121,5 +128,20 @@ func TestErrorRenderer_NonActivityError(t *testing.T) {
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
-	assert.Equal(t, "error", resp.Status)
+	assertEnvelope(t, resp, "general.server")
+}
+
+// assertEnvelope renders resp and checks the wire envelope: the status
+// member is the HTTP status number and the code is the expected one.
+func assertEnvelope(t *testing.T, resp *common.ErrResponse, wantCode string) {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	require.NoError(t, render.Render(recorder, httptest.NewRequest(http.MethodGet, "/", nil), resp))
+	var body struct {
+		Status int    `json:"status"`
+		Code   string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+	assert.Equal(t, resp.HTTPStatusCode, body.Status)
+	assert.Equal(t, wantCode, body.Code)
 }

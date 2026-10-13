@@ -57,16 +57,14 @@ func TestErrResponse_Fields(t *testing.T) {
 	errResp := &ErrResponse{
 		Err:            testErr,
 		HTTPStatusCode: http.StatusUnauthorized,
-		StatusText:     "error",
-		AppCode:        2001,
-		ErrorText:      testErr.Error(),
+		Detail:         testErr.Error(),
+		Code:           codeGeneralPermission,
 	}
 
 	assert.Equal(t, testErr, errResp.Err)
 	assert.Equal(t, http.StatusUnauthorized, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.StatusText)
-	assert.Equal(t, int64(2001), errResp.AppCode)
-	assert.Equal(t, "token expired", errResp.ErrorText)
+	assert.Equal(t, "general.permission", errResp.Code)
+	assert.Equal(t, "token expired", errResp.Detail)
 }
 
 // =============================================================================
@@ -94,7 +92,7 @@ func TestErrUnauthorized_WithTokenErrors(t *testing.T) {
 
 			assert.Equal(t, tt.err, errResp.Err)
 			assert.Equal(t, http.StatusUnauthorized, errResp.HTTPStatusCode)
-			assert.Equal(t, tt.want, errResp.ErrorText)
+			assert.Equal(t, tt.want, errResp.Detail)
 		})
 	}
 }
@@ -125,6 +123,6 @@ func TestErrUnauthorized_CustomError(t *testing.T) {
 
 	assert.Equal(t, customErr, errResp.Err)
 	assert.Equal(t, http.StatusUnauthorized, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.StatusText)
-	assert.Equal(t, "custom error message", errResp.ErrorText)
+	assert.Equal(t, "general.permission", errResp.Code)
+	assert.Equal(t, "custom error message", errResp.Detail)
 }

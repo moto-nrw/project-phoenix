@@ -191,10 +191,10 @@ func TestCorrectParentRequestDecision_UnsupportedKindsNameTheReason(t *testing.T
 			assert.Equal(t, http.StatusConflict, rr.Code)
 			assert.Equal(t, "students.correction_unsupported", decodeErrorCode(t, rr))
 			var body struct {
-				Error string `json:"error"`
+				Detail string `json:"detail"`
 			}
 			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-			assert.Contains(t, body.Error, "direkt", "the message must say what to do instead")
+			assert.Contains(t, body.Detail, "direkt", "the message must say what to do instead")
 		})
 	}
 }

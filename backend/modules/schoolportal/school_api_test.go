@@ -234,7 +234,7 @@ func TestSchoolLoginHandler_PortalRoleGate(t *testing.T) {
 	rec = httptest.NewRecorder()
 	schoolRouter.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "care.invalid_credentials")
+	assert.Contains(t, rec.Body.String(), `"code":"identity.invalid_credentials"`)
 }
 
 func TestSchoolMFAEndpoints_RejectForeignScopes(t *testing.T) {

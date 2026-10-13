@@ -53,6 +53,8 @@ vi.mock("~/lib/supervision-context", () => ({
 }));
 
 vi.mock("~/lib/tenant-context", () => ({
+  useTenantRoutingModeSafe: () => "subdomain",
+  useChildSearchOnlyNavigation: () => false,
   useOpenCareGroupMode: () => false,
   useTenant: vi.fn(() => ({ tenantSlug: "test-tenant", tenant: null })),
   useTenantSafe: vi.fn(() => ({

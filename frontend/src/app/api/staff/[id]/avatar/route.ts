@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
-import { handleApiError } from "~/lib/api-helpers.server";
+import { handleApiError, problemResponse } from "~/lib/api-helpers.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import {
@@ -21,20 +21,14 @@ export const GET = withTenantAuth(
       const session = await auth();
 
       if (!session?.user?.token) {
-        return NextResponse.json(
-          { error: "Unauthorized", success: false, message: "Unauthorized" },
-          { status: 401 },
-        );
+        return problemResponse(401, "Unauthorized", _request);
       }
 
       const params = await context.params;
       const rawId = params.id;
 
       if (!isStringParam(rawId) || !/^\d+$/.test(rawId)) {
-        return NextResponse.json(
-          { error: "Valid staff ID is required", success: false },
-          { status: 400 },
-        );
+        return problemResponse(400, "Valid staff ID is required", _request);
       }
 
       const backendUrl = `${getServerApiUrl()}/api/staff/${encodePathSegment(rawId)}/avatar`;
@@ -58,7 +52,7 @@ export const GET = withTenantAuth(
       }
 
       if (!response.ok) {
-        return forwardBackendResponse(response);
+        return forwardBackendResponse(response, _request);
       }
 
       const contentType = response.headers.get("content-type") ?? "image/jpeg";

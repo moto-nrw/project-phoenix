@@ -1142,7 +1142,7 @@
       "emailTitle": "Kontakt przez e-mail",
       "photoTitle": "Zgoda na zdjęcia"
     },
-    "captchaMisconfigured": "Zapis nie jest teraz możliwy: ochrona przed botami nie jest w pełni skonfigurowana. Proszę skontaktować się z kierownictwem OGS.",
+    "captchaMisconfigured": "Zapis online nie jest teraz możliwy. Problem nie leży po Państwa stronie. Proszę skontaktować się z OGS.",
     "structured": {
       "yes": "Tak",
       "no": "Nie",
@@ -2082,6 +2082,7 @@
     },
     "codes": {
       "attendance": {
+        "log_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "web_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       },
       "care": {
@@ -2292,6 +2293,7 @@
         "announcement_published": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "attachment_limit_reached": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "file_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "file_name_invalid": "Nazwa pliku jest niedozwolona. Wybierz plik ponownie.",
         "file_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "file_type_not_allowed": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "file_unreadable": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -2487,6 +2489,7 @@
         "class_list_entry_student_exists": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "class_list_entry_student_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "companion_lock_busy": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "companion_plan_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "companion_would_lose_departure": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "companions_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "conflict_kind_unsupported": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -2788,6 +2791,12 @@
       },
       "billing": {
         "invalid_key_day": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
+      },
+      "display": {
+        "disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
+      },
+      "feedback": {
+        "disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       }
     },
     "actions": {

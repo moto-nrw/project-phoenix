@@ -191,3 +191,43 @@ func (conn *sseConnection) sendEvent(event realtime.Event) error {
 
 	return conn.writeSSEMessage(string(event.Type), eventData)
 }
+
+// Registered class codes (error-registry.json) of the stream's refusals.
+// This package may not import api/common, so it names them once here.
+const (
+	codeGeneralPermission  = "general.permission"
+	codeGeneralUnavailable = "general.unavailable"
+	codeGeneralServer      = "general.server"
+)
+
+// sseProblem is the shared error envelope (ADR 0006) of a stream that could
+// not start: the HTTP status number, the diagnostic text and the registered
+// code. ProblemResponseMiddleware adds type, title and instance like for
+// every error answer.
+type sseProblem struct {
+	Status int    `json:"status"`
+	Detail string `json:"detail"`
+	Code   string `json:"code"`
+}
+
+// writeSSEProblem refuses a stream before its first event. It replaces the
+// event-stream content type the connection setup may already have set.
+func writeSSEProblem(w http.ResponseWriter, status int, code, detail string) {
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.Header().Del("Cache-Control")
+	w.Header().Del("Connection")
+	w.Header().Del("X-Accel-Buffering")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(sseProblem{Status: status, Detail: detail, Code: code}); err != nil {
+		slog.Default().Error("failed to write SSE refusal", slog.String("error", err.Error()))
+	}
+}
+
+// setupProblemCode is the registered code of a subscription refusal: 401 and
+// 403 are permission refusals, anything else a server fault.
+func setupProblemCode(status int) string {
+	if status == http.StatusUnauthorized || status == http.StatusForbidden {
+		return codeGeneralPermission
+	}
+	return codeGeneralServer
+}

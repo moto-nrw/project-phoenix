@@ -75,7 +75,7 @@ func (rs *Resource) exportStudentAttendanceHistory(w http.ResponseWriter, r *htt
 func (rs *Resource) checkAttendanceExportAccess(w http.ResponseWriter, r *http.Request, student *Student) bool {
 	logger := rs.attendanceHistoryLogger()
 	if !resolveBoolSetting(r.Context(), rs.SettingsService, settingAttendanceLogEnabled, false, logger) {
-		renderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
+		renderError(w, r, common.ErrorForbiddenWithCode(errors.New("feature_disabled"), common.CodeAttendanceLogDisabled))
 		return false
 	}
 	if !rs.attendanceHistoryScopeAllows(r, student) {

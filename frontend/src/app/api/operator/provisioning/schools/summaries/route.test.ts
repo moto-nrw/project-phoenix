@@ -70,7 +70,7 @@ describe("GET /api/operator/provisioning/schools/summaries", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("returns 401 with TOKEN_EXPIRED when the backend returns 401 and refresh fails", async () => {
+  it("returns 401 with the error envelope when the backend returns 401 and refresh fails", async () => {
     mockAuth.mockResolvedValue({ user: { token: "stale-token" } });
     mockFetch.mockResolvedValue(
       new Response("expired", {
@@ -86,14 +86,14 @@ describe("GET /api/operator/provisioning/schools/summaries", () => {
 
     expect(response.status).toBe(401);
     const json = (await response.json()) as { code?: string };
-    expect(json.code).toBe("TOKEN_EXPIRED");
+    expect(json.code).toBe("general.permission");
   });
 
-  // Negative paths — ensure non-401 backend errors propagate verbatim.
-  it("forwards a backend 500 with the same status code", async () => {
+  // Backend diagnostics must not reach the browser on a 5xx.
+  it("sanitizes a backend 500 while preserving its status code", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "school summaries failed" }), {
+      new Response(JSON.stringify({ detail: "school summaries failed" }), {
         status: 500,
         headers: { "Content-Type": "application/json" },
       }),
@@ -105,8 +105,8 @@ describe("GET /api/operator/provisioning/schools/summaries", () => {
     const response = await GET(request, mockContext);
 
     expect(response.status).toBe(500);
-    const json = (await response.json()) as { error?: string };
-    expect(json.error).toBe("school summaries failed");
+    const json = (await response.json()) as { detail?: string };
+    expect(json.detail).toBe("Internal Server Error");
   });
 
   it("returns 500 when fetch throws a network error", async () => {

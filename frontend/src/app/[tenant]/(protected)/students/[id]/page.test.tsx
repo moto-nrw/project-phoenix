@@ -17,11 +17,7 @@ import { getDayData as getArrivalDayData } from "~/lib/arrival-schedule-helpers"
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { setTestClock } from "~/test/clock";
 
-const {
-  mockSWRMutate,
-  MockStudentStatusDayConflictError,
-  MockStudentStatusDayPartialAbsenceConflictError,
-} = vi.hoisted(() => ({
+const { mockSWRMutate, MockStudentStatusDayConflictError } = vi.hoisted(() => ({
   mockSWRMutate: vi.fn(),
   MockStudentStatusDayConflictError: class extends Error {
     conflicts: unknown[];
@@ -32,14 +28,6 @@ const {
       this.name = "StudentStatusDayConflictError";
       this.conflicts = conflicts;
       this.totalCount = totalCount ?? conflicts.length;
-    }
-  },
-  MockStudentStatusDayPartialAbsenceConflictError: class extends Error {
-    constructor() {
-      super(
-        "Für diesen Tag liegt bereits eine Abmeldung ab einer Uhrzeit vor. Bitte zuerst die Teilabwesenheit entfernen.",
-      );
-      this.name = "StudentStatusDayPartialAbsenceConflictError";
     }
   },
 }));
@@ -540,8 +528,6 @@ const mockCreateStudentStatusDays = vi.fn();
 const mockFetchStudentStatusDays = vi.fn();
 vi.mock("~/lib/student-status-days-api", () => ({
   StudentStatusDayConflictError: MockStudentStatusDayConflictError,
-  StudentStatusDayPartialAbsenceConflictError:
-    MockStudentStatusDayPartialAbsenceConflictError,
   createStudentStatusDays: (
     studentId: string,
     status: "sick" | "excused" | "class_trip",

@@ -89,6 +89,10 @@ func renderFailure(w http.ResponseWriter, r *http.Request, kind roomsHTTP.Failur
 	case roomsHTTP.FailureInvalid:
 		apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
 	case roomsHTTP.FailureForbidden:
+		if errors.Is(err, roomsHTTP.ErrHistoryDisabled) {
+			apiCommon.RenderError(w, r, apiCommon.ErrorForbiddenWithCode(err, apiCommon.CodeAttendanceLogDisabled))
+			return
+		}
 		apiCommon.RenderError(w, r, apiCommon.ErrorForbidden(err))
 	case roomsHTTP.FailureNotFound:
 		// Only ErrRoomNotFound maps here: a deleted or unknown room names

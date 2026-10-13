@@ -6,6 +6,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
 import type React from "react";
 import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,7 +21,6 @@ import {
   setRequestSharing,
   submitMasterDataRequest,
   updateMasterDataField,
-  ParentApiError,
   type ChildFeatures,
   type ChildMasterData,
 } from "~/lib/parent-api";
@@ -83,7 +83,7 @@ vi.mock("~/lib/parent-api", async (importOriginal) => {
 // #2518: failures go through the shared error path, so the sentences come
 // from the error catalog instead of component texts.
 const unavailable = () =>
-  new ParentApiError("diag", 503, "general.unavailable");
+  new ApiError("diag", 503, { code: "general.unavailable" });
 const REQUEST_ERROR = catalogText("general.unavailable", "die Anfrage");
 
 const mockGetFeatures = vi.mocked(getChildFeatures);

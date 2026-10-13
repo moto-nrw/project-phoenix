@@ -105,7 +105,7 @@ func TestOpenRoomWire_RequiresADevice(t *testing.T) {
 	rr := bookWith(t, booking, map[string]any{"student_rfid": "TAG", "room_id": 77})
 
 	assert.Equal(t, 401, rr.Code)
-	assert.JSONEq(t, `{"status":"error","error":"device API key is required"}`, rr.Body.String())
+	assert.JSONEq(t, `{"status":401,"detail":"device API key is required","code":"general.permission"}`, rr.Body.String())
 	assert.Empty(t, booking.commands)
 }
 
@@ -117,14 +117,14 @@ func TestOpenRoomWire_ClassifiedRefusals(t *testing.T) {
 		status int
 		body   string
 	}{
-		{"unknown room", devicescan.NotFoundWithCode(devicescan.MessageOpenRoomNotFound, devicescan.CodeOpenRoomNotFound), 404, `{"status":"error","error":"room not found","code":"iot.room_not_found"}`},
-		{"room not released", &devicescan.Failure{Kind: devicescan.FailureConflict, Message: devicescan.MessageOpenRoomNotReleased, Code: devicescan.CodeOpenRoomNotReleased}, 409, `{"status":"error","error":"room is not released as an open room","code":"rooms.not_released"}`},
-		{"child not checked in", &devicescan.Failure{Kind: devicescan.FailureConflict, Message: devicescan.MessageStudentNotPresent, Code: devicescan.CodeStudentNotPresent}, 409, `{"status":"error","error":"student is not checked in","code":"iot.student_not_present"}`},
-		{"binary mode", &devicescan.Failure{Kind: devicescan.FailureConflict, Message: devicescan.MessageOpenRoomBinaryMode, Code: devicescan.CodeOpenRoomBinaryMode}, 409, `{"status":"error","error":"open rooms need detailed presence mode","code":"iot.open_room_binary_mode"}`},
-		{"unknown card", devicescan.NotFoundWithCode(devicescan.MessageRFIDTagNotFound, devicescan.CodeRFIDTagNotFound), 404, `{"status":"error","error":"RFID tag not found","code":"iot.rfid_tag_not_found"}`},
-		{"full room", &devicescan.RoomCapacityExceededError{RoomID: 77, RoomName: "Turnhalle", CurrentOccupancy: 20, MaxCapacity: 20}, 409, `{"status":"error","error":"Room capacity exceeded","code":"iot.room_capacity_exceeded"}`},
-		{"active elsewhere", &devicescan.StudentAlreadyActiveError{StudentID: 5}, 409, `{"status":"error","error":"student already has an active visit","code":"iot.student_already_active","details":{"student_id":5}}`},
-		{"server fault", devicescan.Internal(devicescan.MessageCreateVisitFailed, nil), 500, `{"status":"error","error":"failed to create visit record"}`},
+		{"unknown room", devicescan.NotFoundWithCode(devicescan.MessageOpenRoomNotFound, devicescan.CodeOpenRoomNotFound), 404, `{"status":404,"detail":"room not found","code":"iot.room_not_found"}`},
+		{"room not released", &devicescan.Failure{Kind: devicescan.FailureConflict, Message: devicescan.MessageOpenRoomNotReleased, Code: devicescan.CodeOpenRoomNotReleased}, 409, `{"status":409,"detail":"room is not released as an open room","code":"rooms.not_released"}`},
+		{"child not checked in", &devicescan.Failure{Kind: devicescan.FailureConflict, Message: devicescan.MessageStudentNotPresent, Code: devicescan.CodeStudentNotPresent}, 409, `{"status":409,"detail":"student is not checked in","code":"iot.student_not_present"}`},
+		{"binary mode", &devicescan.Failure{Kind: devicescan.FailureConflict, Message: devicescan.MessageOpenRoomBinaryMode, Code: devicescan.CodeOpenRoomBinaryMode}, 409, `{"status":409,"detail":"open rooms need detailed presence mode","code":"iot.open_room_binary_mode"}`},
+		{"unknown card", devicescan.NotFoundWithCode(devicescan.MessageRFIDTagNotFound, devicescan.CodeRFIDTagNotFound), 404, `{"status":404,"detail":"RFID tag not found","code":"iot.rfid_tag_not_found"}`},
+		{"full room", &devicescan.RoomCapacityExceededError{RoomID: 77, RoomName: "Turnhalle", CurrentOccupancy: 20, MaxCapacity: 20}, 409, `{"status":409,"detail":"Room capacity exceeded","code":"iot.room_capacity_exceeded"}`},
+		{"active elsewhere", &devicescan.StudentAlreadyActiveError{StudentID: 5}, 409, `{"status":409,"detail":"student already has an active visit","code":"iot.student_already_active","details":{"student_id":5}}`},
+		{"server fault", devicescan.Internal(devicescan.MessageCreateVisitFailed, nil), 500, `{"status":500,"detail":"failed to create visit record","code":"general.server"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

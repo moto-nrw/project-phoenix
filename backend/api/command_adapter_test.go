@@ -370,7 +370,7 @@ func TestRaw_HTTPError(t *testing.T) {
 
 	srv := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, _ *testpkg.HTTPRequest) {
 		w.WriteHeader(testpkg.HTTPStatusBadRequest)
-		_, _ = fmt.Fprint(w, `{"message":"bad input"}`)
+		_, _ = fmt.Fprint(w, `{"status":400,"detail":"bad input","code":"general.input"}`)
 	})
 	defer srv.Close()
 
@@ -716,10 +716,10 @@ func TestAPIError_Error_MessagePrecedence(t *testing.T) {
 // parseHTTPError Tests
 // =============================================================================
 
-func TestParseHTTPError_WithMessage(t *testing.T) {
+func TestParseHTTPError_WithDetail(t *testing.T) {
 	t.Parallel()
 
-	body := `{"status":"error","message":"not found","code":"iot.rfid_tag_not_found"}`
+	body := `{"status":404,"detail":"not found","code":"iot.rfid_tag_not_found"}`
 	err := parseHTTPError("GET", "/test", 404, []byte(body))
 	var apiErr *APIError
 	require.ErrorAs(t, err, &apiErr)
@@ -729,14 +729,17 @@ func TestParseHTTPError_WithMessage(t *testing.T) {
 	assert.Contains(t, apiErr.Error(), "iot.rfid_tag_not_found")
 }
 
-func TestParseHTTPError_WithErrorField(t *testing.T) {
+// The pre-#2520 text members are no part of the envelope any more; the
+// adapter reads the diagnostic text from detail only.
+func TestParseHTTPError_IgnoresLegacyTextMembers(t *testing.T) {
 	t.Parallel()
 
-	body := `{"error":"unauthorized"}`
+	body := `{"error":"unauthorized","message":"unauthorized","code":"general.permission"}`
 	err := parseHTTPError("POST", "/login", 401, []byte(body))
 	var apiErr *APIError
 	require.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, "unauthorized", apiErr.Message)
+	assert.Empty(t, apiErr.Message)
+	assert.Equal(t, "general.permission", apiErr.Code)
 }
 
 func TestParseHTTPError_InvalidJSON(t *testing.T) {
@@ -752,7 +755,7 @@ func TestParseHTTPError_InvalidJSON(t *testing.T) {
 func TestParseHTTPError_EmptyMessageAndError(t *testing.T) {
 	t.Parallel()
 
-	body := `{"status":"error"}`
+	body := `{"status":500}`
 	err := parseHTTPError("GET", "/test", 500, []byte(body))
 	var apiErr *APIError
 	require.ErrorAs(t, err, &apiErr)

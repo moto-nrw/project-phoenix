@@ -1450,9 +1450,8 @@
     "body": {
       "code": "general.input",
       "detail": "invalid change request list query",
-      "error": "invalid change request list query",
       "instance": "",
-      "status": "error",
+      "status": 400,
       "title": "Bad Request",
       "type": "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen"
     }
@@ -1464,9 +1463,8 @@
     "body": {
       "code": "general.input",
       "detail": "invalid change request list query",
-      "error": "invalid change request list query",
       "instance": "",
-      "status": "error",
+      "status": 400,
       "title": "Bad Request",
       "type": "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen"
     }
@@ -1478,9 +1476,8 @@
     "body": {
       "code": "general.input",
       "detail": "invalid change request list query",
-      "error": "invalid change request list query",
       "instance": "",
-      "status": "error",
+      "status": 400,
       "title": "Bad Request",
       "type": "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen"
     }
@@ -1492,9 +1489,8 @@
     "body": {
       "code": "general.input",
       "detail": "invalid change request list query",
-      "error": "invalid change request list query",
       "instance": "",
-      "status": "error",
+      "status": 400,
       "title": "Bad Request",
       "type": "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen"
     }
@@ -1506,9 +1502,8 @@
     "body": {
       "code": "general.input",
       "detail": "invalid change request list query",
-      "error": "invalid change request list query",
       "instance": "",
-      "status": "error",
+      "status": 400,
       "title": "Bad Request",
       "type": "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen"
     }
@@ -1520,9 +1515,8 @@
     "body": {
       "code": "general.input",
       "detail": "invalid change request list query",
-      "error": "invalid change request list query",
       "instance": "",
-      "status": "error",
+      "status": 400,
       "title": "Bad Request",
       "type": "https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen"
     }
@@ -1731,9 +1725,8 @@
     "body": {
       "code": "students.absence_read_required",
       "detail": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
-      "error": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
       "instance": "",
-      "status": "error",
+      "status": 403,
       "title": "Forbidden",
       "type": "https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen"
     }
@@ -1745,9 +1738,8 @@
     "body": {
       "code": "students.absence_read_required",
       "detail": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
-      "error": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
       "instance": "",
-      "status": "error",
+      "status": 403,
       "title": "Forbidden",
       "type": "https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen"
     }
@@ -1759,9 +1751,8 @@
     "body": {
       "code": "students.absence_read_required",
       "detail": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
-      "error": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
       "instance": "",
-      "status": "error",
+      "status": 403,
       "title": "Forbidden",
       "type": "https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen"
     }
@@ -1773,9 +1764,8 @@
     "body": {
       "code": "general.permission",
       "detail": "Forbidden",
-      "error": "Forbidden",
       "instance": "",
-      "status": "error",
+      "status": 403,
       "title": "Forbidden",
       "type": "https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen"
     }
@@ -1787,9 +1777,8 @@
     "body": {
       "code": "general.permission",
       "detail": "Forbidden",
-      "error": "Forbidden",
       "instance": "",
-      "status": "error",
+      "status": 403,
       "title": "Forbidden",
       "type": "https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen"
     }

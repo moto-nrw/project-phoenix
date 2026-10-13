@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { ApiError } from "~/lib/api-error";
 import { Pencil, Play, RotateCcw, Trash2, Users } from "lucide-react";
 import {
   FormErrorAlert,
@@ -41,7 +42,6 @@ import {
   NOT_DRAFT_CODE,
   NOT_LATEST_TRANSITION_CODE,
   revertGradeTransition,
-  TransitionRequestError,
   type GradeTransition,
   type TransitionResult,
   type TransitionStatus,
@@ -326,7 +326,7 @@ export function GradeTransitionsManager({
       // reload and re-point the dialog at the new latest instead of telling the
       // user to try again against a target that can never succeed (#405 review).
       if (
-        error instanceof TransitionRequestError &&
+        error instanceof ApiError &&
         error.code === NOT_LATEST_TRANSITION_CODE
       ) {
         const list = await refresh();
@@ -336,10 +336,7 @@ export function GradeTransitionsManager({
         void (latest ? revertErrors.show : showActionError)(error, {
           object: "das Zurücksetzen des Jahrgangswechsels",
         });
-      } else if (
-        error instanceof TransitionRequestError &&
-        error.code === NOT_APPLIED_CODE
-      ) {
+      } else if (error instanceof ApiError && error.code === NOT_APPLIED_CODE) {
         // The target is no longer in applied status: another admin already
         // reverted it since this list was fetched. Retrying the same ID can
         // never succeed, so reload the list and close the dialog instead of
@@ -380,10 +377,7 @@ export function GradeTransitionsManager({
       // A grade_transition.not_draft conflict means another admin applied this draft since the
       // list was fetched. Retrying the delete can never succeed, so reload the
       // list and close the dialog instead of suggesting a retry (#405 review).
-      if (
-        error instanceof TransitionRequestError &&
-        error.code === NOT_DRAFT_CODE
-      ) {
+      if (error instanceof ApiError && error.code === NOT_DRAFT_CODE) {
         setDeleteTarget(null);
         void refresh();
         void showActionError(error, { object: "das Löschen des Entwurfs" });

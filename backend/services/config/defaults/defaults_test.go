@@ -103,6 +103,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.time_tracking_deviation_tolerance_minutes",
 		// Student photo feature (Datenverwaltung): per-school opt-in toggle.
 		"operations.student_photos_enabled",
+		// Child search as the only child navigation (#1321).
+		"operations.child_search_only_navigation",
 		// 2FA / MFA work package (issue #1308): mode toggle + trusted-device pair.
 		"security.mfa_mode",
 		"security.mfa_trusted_device_enabled",
@@ -1975,6 +1977,23 @@ func TestStudentPhotosSetting(t *testing.T) {
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "kinder", def.Category)
 	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Nil(t, def.DependsOn, "stand-alone toggle, no DependsOn")
+}
+
+// TestChildSearchOnlyNavigationSetting guards the navigation switch (#1321):
+// off by default so no school's navigation changes until it opts in, and an
+// operational toggle the school changes itself (config:update, shared).
+func TestChildSearchOnlyNavigationSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyChildSearchOnlyNavigation)
+	require.NotNil(t, def, "operations.child_search_only_navigation should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "must default to false - the separate entries stay until a school opts in")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "organisation", def.Category, "sits next to the group mode it depends on in practice")
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy, "the school decides, not the operator")
 	assert.Nil(t, def.DependsOn, "stand-alone toggle, no DependsOn")
 }
 

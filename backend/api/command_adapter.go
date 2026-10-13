@@ -464,16 +464,11 @@ func applyAuth(req *http.Request, auth AuthRef) {
 
 func parseHTTPError(method, path string, statusCode int, body []byte) error {
 	var payload struct {
-		Status  string `json:"status"`
-		Message string `json:"message"`
-		Error   string `json:"error"`
-		Code    string `json:"code"`
+		Detail string `json:"detail"`
+		Code   string `json:"code"`
 	}
 	if err := json.Unmarshal(body, &payload); err == nil {
-		message := strings.TrimSpace(payload.Message)
-		if message == "" {
-			message = strings.TrimSpace(payload.Error)
-		}
+		message := strings.TrimSpace(payload.Detail)
 		return &APIError{
 			Method:     method,
 			Path:       path,

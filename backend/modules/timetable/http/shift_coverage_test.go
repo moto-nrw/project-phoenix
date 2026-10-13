@@ -212,7 +212,7 @@ func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			recorder := postShiftCoverage(t, router, test.body)
 			assert.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
-			assert.Contains(t, recorder.Body.String(), `"error":"invalid shift coverage request"`)
+			assert.Contains(t, recorder.Body.String(), `"detail":"invalid shift coverage request"`)
 		})
 	}
 
@@ -223,7 +223,7 @@ func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
 			Dates: []string{validDate.String()}, StartTime: "09:00", EndTime: "10:00", StaffIDs: []int64{99},
 		})
 		assert.Equal(t, http.StatusInternalServerError, recorder.Code)
-		assert.Contains(t, recorder.Body.String(), `"error":"shift coverage could not be checked"`)
+		assert.Contains(t, recorder.Body.String(), `"detail":"shift coverage could not be checked"`)
 		assert.NotContains(t, recorder.Body.String(), "dependencies are not wired")
 	})
 }

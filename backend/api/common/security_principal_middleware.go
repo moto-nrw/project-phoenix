@@ -104,8 +104,7 @@ func RequiresAllPermissions(required ...string) Middleware {
 func AuthorizationForbidden() *ErrResponse {
 	return &ErrResponse{
 		HTTPStatusCode: http.StatusForbidden,
-		Status:         "error",
-		ErrorText:      http.StatusText(http.StatusForbidden),
+		Detail:         http.StatusText(http.StatusForbidden),
 	}
 }
 

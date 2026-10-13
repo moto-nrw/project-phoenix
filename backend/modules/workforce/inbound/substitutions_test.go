@@ -29,13 +29,13 @@ func TestRenderSubstitutionsFailureUsesSharedEnvelope(t *testing.T) {
 
 	require.Equal(t, http.StatusConflict, recorder.Code)
 	var body struct {
-		Status string `json:"status"`
-		Error  string `json:"error"`
+		Status int    `json:"status"`
+		Detail string `json:"detail"`
 		Code   string `json:"code"`
 	}
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
-	require.Equal(t, "error", body.Status)
-	require.Equal(t, "Diese Gruppenübergabe besteht bereits.", body.Error)
+	require.Equal(t, http.StatusConflict, body.Status)
+	require.Equal(t, "Diese Gruppenübergabe besteht bereits.", body.Detail)
 	require.Equal(t, "substitutions.already_assigned", body.Code)
 	require.NotContains(t, recorder.Body.String(), "postgres")
 }

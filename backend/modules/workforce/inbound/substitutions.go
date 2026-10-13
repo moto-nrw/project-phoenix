@@ -50,7 +50,7 @@ func substitutionCaller(ctx context.Context) (workforce.SubstitutionCaller, erro
 // adapter classified; the underlying error only reaches the log.
 func renderSubstitutionsFailure(w http.ResponseWriter, r *http.Request, failure substitutionsHTTP.Failure) {
 	resp := &common.ErrResponse{
-		Err: failure.Err, HTTPStatusCode: failure.Status, Status: "error", ErrorText: failure.Message, Code: failure.Code,
+		Err: failure.Err, HTTPStatusCode: failure.Status, Detail: failure.Message, Code: failure.Code,
 		Details: failure.Details,
 	}
 	if failure.Field != "" {

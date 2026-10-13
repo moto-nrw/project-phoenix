@@ -78,7 +78,7 @@ func TestRenderModuleErrorUsesStableContract(t *testing.T) {
 			response := renderErrorResponse(t, fmt.Errorf("wrapped: %w", spec.target))
 			require.Equal(t, spec.status, response.status)
 			require.Equal(t, spec.code, response.body.Code)
-			require.Equal(t, spec.message, response.body.Error)
+			require.Equal(t, spec.message, response.body.Detail)
 		})
 	}
 }
@@ -114,7 +114,7 @@ func TestGroupAssignmentRequestPreservesDateErrors(t *testing.T) {
 	response := renderErrorResponse(t, err)
 	require.Equal(t, 400, response.status)
 	require.Equal(t, "substitutions.invalid_period", response.body.Code)
-	require.Equal(t, "Das Startdatum ist ungültig.", response.body.Error)
+	require.Equal(t, "Das Startdatum ist ungültig.", response.body.Detail)
 }
 
 func TestRenderModuleErrorHidesInternalCause(t *testing.T) {
@@ -123,7 +123,7 @@ func TestRenderModuleErrorHidesInternalCause(t *testing.T) {
 	response := renderErrorResponse(t, errors.New("postgres password leaked"))
 	require.Equal(t, 500, response.status)
 	require.Equal(t, "substitutions.internal", response.body.Code)
-	require.Equal(t, "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.", response.body.Error)
+	require.Equal(t, "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.", response.body.Detail)
 	require.NotContains(t, response.rawBody, "postgres")
 }
 
@@ -131,8 +131,8 @@ type renderedError struct {
 	status  int
 	rawBody string
 	body    struct {
-		Status string `json:"status"`
-		Error  string `json:"error"`
+		Status int    `json:"status"`
+		Detail string `json:"detail"`
 		Code   string `json:"code"`
 	}
 }
@@ -145,8 +145,8 @@ func renderErrorResponse(t *testing.T, err error) renderedError {
 	t.Helper()
 	failure := classify(err)
 	response := renderedError{status: failure.Status, rawBody: failure.Message + " " + failure.Code}
-	response.body.Status = "error"
-	response.body.Error = failure.Message
+	response.body.Status = failure.Status
+	response.body.Detail = failure.Message
 	response.body.Code = failure.Code
 	return response
 }

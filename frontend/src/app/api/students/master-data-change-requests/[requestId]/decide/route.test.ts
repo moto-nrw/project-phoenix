@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { POST } from "./route";
 import { apiPost } from "~/lib/api-helpers.server";
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiPost: vi.fn(),
 }));
 

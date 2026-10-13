@@ -5,7 +5,6 @@ import { ApiError } from "~/lib/api-error";
 import type { StudentPartialAbsence } from "~/lib/student-partial-absences-api";
 import {
   StudentStatusDayConflictError,
-  StudentStatusDayPartialAbsenceConflictError,
   type StudentStatusDay,
 } from "~/lib/student-status-days-api";
 
@@ -934,9 +933,11 @@ describe("PlannedStatusDaysModal", () => {
   });
 
   it("keeps the partial-absence conflict message after a failed submission", async () => {
-    const onSubmit = vi
-      .fn()
-      .mockRejectedValue(new StudentStatusDayPartialAbsenceConflictError());
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError("partial absence conflict", 409, {
+        code: "students.partial_absence_conflict",
+      }),
+    );
 
     render(
       <PlannedStatusDaysModal

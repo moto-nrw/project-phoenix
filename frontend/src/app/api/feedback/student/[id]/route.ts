@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { apiGet } from "~/lib/api-helpers.server";
+import { apiGet, problemResponse } from "~/lib/api-helpers.server";
 import { createTenantApiAdapter } from "~/lib/backend-proxy-route.server";
 
 export const GET = createTenantApiAdapter(async (request, token) => {
@@ -7,10 +7,7 @@ export const GET = createTenantApiAdapter(async (request, token) => {
   const studentIndex = pathParts.indexOf("student");
   const studentId = studentIndex >= 0 ? pathParts[studentIndex + 1] : undefined;
   if (!studentId) {
-    return NextResponse.json(
-      { error: "Invalid id parameter" },
-      { status: 400 },
-    );
+    return problemResponse(400, "Invalid id parameter", request);
   }
   const response = await apiGet<{ data: unknown }>(
     `/api/feedback/student/${studentId}`,

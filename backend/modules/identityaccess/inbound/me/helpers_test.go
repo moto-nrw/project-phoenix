@@ -38,8 +38,8 @@ func assertRenderedStatus(t *testing.T, err error, want int) {
 	t.Helper()
 	status, body := renderedError(t, ErrorRenderer(err))
 	assert.Equal(t, want, status)
-	assert.Equal(t, "error", body["status"])
-	assert.Equal(t, err.Error(), body["error"])
+	assert.Equal(t, float64(want), body["status"])
+	assert.Equal(t, err.Error(), body["detail"])
 }
 
 func TestErrorRenderer_UserNotAuthenticated(t *testing.T) {

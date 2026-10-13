@@ -60,8 +60,8 @@ describe("POST /api/operator/profile/email-change", () => {
     const response = await POST(request, mockContext);
 
     expect(response.status).toBe(401);
-    const json = (await response.json()) as { error?: string };
-    expect(json.error).toBe("Unauthorized");
+    const json = (await response.json()) as { detail?: string };
+    expect(json.detail).toBe("Unauthorized");
     expect(mockFetch).not.toHaveBeenCalled();
   });
 

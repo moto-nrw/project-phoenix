@@ -418,6 +418,76 @@ export const STAFF_ONBOARDING_TOURS: Readonly<
   },
 };
 
+// Der Reiter „Meine Gruppe“ in „Alle Kinder“ (MY_GROUPS_SCOPE in
+// students/search/child-scope-tabs.ts) und der Rahmen um ihr Menü.
+const MY_GROUP_TAB = '[role="tab"][data-tab-value="groups"]';
+const ALL_CHILDREN_MENU = '[data-setup-tour="child-search-menu"] button';
+
+/**
+ * Die Touren für Schulen, die Kinder nur über „Alle Kinder“ finden lassen
+ * (#1321). Dort fehlen „Meine Gruppen“ und „Aktuelle Aufsicht“ in der
+ * Navigation; die Touren zeigen den Weg, den es dann wirklich gibt.
+ */
+const CHILD_SEARCH_ONLY_TOURS: Readonly<
+  Partial<Record<StaffOnboardingStepKey, SetupTour>>
+> = {
+  groups: {
+    path: "/students/search",
+    stops: [
+      ...viaNavigation(TAGESBETRIEB, ALL_CHILDREN),
+      {
+        target: MY_GROUP_TAB,
+        title: "Ihre Gruppe",
+        text: "Wählen Sie diesen Reiter. Dann sehen Sie nur die Kinder Ihrer Gruppe.",
+        advance: "click",
+      },
+      {
+        target: '[data-setup-tour="student-card"]',
+        title: "Ihre Gruppe",
+        text: "Hier sehen Sie die Kinder Ihrer Gruppe. Jede Karte zeigt, wo das Kind gerade ist und wann es kommt und geht.",
+        advance: "next",
+        missingText: "In Ihrer Gruppe ist noch kein Kind. Wählen Sie „Weiter“.",
+      },
+      {
+        target: SEARCH,
+        title: "Kind suchen",
+        text: "Viele Kinder? Geben Sie hier einen Namen ein.",
+        advance: "next",
+      },
+    ],
+  },
+  supervision: {
+    path: "/active-supervisions",
+    stops: [
+      ...viaNavigation(TAGESBETRIEB, ALL_CHILDREN),
+      {
+        target: ALL_CHILDREN_MENU,
+        title: "Menü öffnen",
+        text: "Wählen Sie oben rechts das Menü mit den drei Punkten.",
+        advance: "click",
+        nav: true,
+      },
+      {
+        target: 'a[role="menuitem"][href$="/active-supervisions"]',
+        title: "Zur Aufsicht öffnen",
+        text: "Wählen Sie „Zur Aufsicht“.",
+        advance: "click",
+        nav: true,
+      },
+      ...STAFF_ONBOARDING_TOURS.supervision.stops.filter((stop) => !stop.nav),
+    ],
+  },
+};
+
+/** Die Touren passend zur Navigation der Schule. */
+export function staffOnboardingTours(
+  childSearchOnlyNavigation: boolean,
+): Readonly<Record<StaffOnboardingStepKey, SetupTour>> {
+  return childSearchOnlyNavigation
+    ? { ...STAFF_ONBOARDING_TOURS, ...CHILD_SEARCH_ONLY_TOURS }
+    : STAFF_ONBOARDING_TOURS;
+}
+
 /**
  * Nach den ersten Schritten: Anleitungen für Dinge, die seltener anfallen.
  * Titel und Texte folgen den Artikeln der Hilfe.

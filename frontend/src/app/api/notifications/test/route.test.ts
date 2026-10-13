@@ -4,7 +4,8 @@ const { mockApiPost } = vi.hoisted(() => ({
   mockApiPost: vi.fn(),
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiPost: mockApiPost,
 }));
 vi.mock("~/lib/route-wrapper.server", () => ({

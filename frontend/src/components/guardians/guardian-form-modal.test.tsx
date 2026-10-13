@@ -372,10 +372,14 @@ describe("toEntry", () => {
 });
 
 describe("GuardianFormModal", () => {
-  const mockOnClose = vi.fn();
-  const mockOnSubmit = vi.fn();
+  let mockOnClose = vi.fn();
+  let mockOnSubmit = vi.fn();
 
   beforeEach(() => {
+    // Ein später Rückruf eines früheren Dialogs darf nicht zum nächsten Test
+    // zählen. clearAllMocks leert nur Aufrufe, nicht die Funktionsinstanz.
+    mockOnClose = vi.fn();
+    mockOnSubmit = vi.fn();
     vi.clearAllMocks();
   });
 

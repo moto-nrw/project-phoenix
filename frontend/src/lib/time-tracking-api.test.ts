@@ -156,13 +156,13 @@ describe("TimeTrackingService", () => {
 
     it("throws on error response", async () => {
       global.fetch = mockFetchResponse(
-        { error: "Already checked in" },
+        { detail: "Already checked in" },
         false,
         409,
       );
 
       await expect(timeTrackingService.checkIn("present")).rejects.toThrow(
-        "Already checked in",
+        "Failed to check in",
       );
     });
 
@@ -174,11 +174,11 @@ describe("TimeTrackingService", () => {
       );
     });
 
-    it("uses message field when error field is absent", async () => {
+    it("does not read a legacy message field as the diagnostic", async () => {
       global.fetch = mockFetchResponse({ message: "Server error" }, false, 500);
 
       await expect(timeTrackingService.checkIn("present")).rejects.toThrow(
-        "Server error",
+        "Failed to check in",
       );
     });
   });
@@ -224,7 +224,7 @@ describe("TimeTrackingService", () => {
     it("keeps the code and request ID of a refused stamp", async () => {
       global.fetch = mockFetchResponse(
         {
-          error: "already checked in",
+          detail: "already checked in",
           code: "general.business_rejection",
           instance: "req-stamp",
         },
@@ -261,10 +261,14 @@ describe("TimeTrackingService", () => {
     });
 
     it("throws on error", async () => {
-      global.fetch = mockFetchResponse({ error: "Not checked in" }, false, 400);
+      global.fetch = mockFetchResponse(
+        { detail: "Not checked in" },
+        false,
+        400,
+      );
 
       await expect(timeTrackingService.checkOut()).rejects.toThrow(
-        "Not checked in",
+        "Failed to check out",
       );
     });
   });
@@ -717,10 +721,10 @@ describe("TimeTrackingService", () => {
     });
 
     it("throws on error", async () => {
-      global.fetch = mockFetchResponse({ error: "Not found" }, false, 404);
+      global.fetch = mockFetchResponse({ detail: "Not found" }, false, 404);
 
       await expect(timeTrackingService.deleteAbsence("999")).rejects.toThrow(
-        "Not found",
+        "Failed to delete absence",
       );
     });
   });
@@ -797,14 +801,14 @@ describe("TimeTrackingService", () => {
 
     it("surfaces the backend error", async () => {
       global.fetch = mockFetchResponse(
-        { error: "Nur Rückfragen können erneut eingereicht werden" },
+        { detail: "Nur Rückfragen können erneut eingereicht werden" },
         false,
         409,
       );
 
       await expect(
         timeTrackingService.resubmitAbsence("7", "Antwort"),
-      ).rejects.toThrow("Nur Rückfragen können erneut eingereicht werden");
+      ).rejects.toThrow("Antrag konnte nicht erneut eingereicht werden");
     });
   });
 

@@ -575,7 +575,7 @@ func TestErrorUpload_CarriesTheRefusalCode(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, CodeFilesFileTooLarge, sizeResp.Code)
 	assert.Equal(t, int64(1), sizeResp.Details["max_mb"])
-	assert.Contains(t, sizeResp.ErrorText, "bis zu 1 MB")
+	assert.Contains(t, sizeResp.Detail, "bis zu 1 MB")
 
 	req = createMultipartRequest(t, "other", "a.pdf", []byte("%PDF-1.4"))
 	_, err = ParseDocumentWithLimits(httptest.NewRecorder(), req, "document", 10<<20, 10<<20)

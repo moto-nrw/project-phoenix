@@ -5,6 +5,7 @@ import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "StudentTemplateRoute" });
 
@@ -12,7 +13,7 @@ async function GETHandler(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return problemResponse(401, "Unauthorized", request);
     }
 
     // Get format parameter from query string
@@ -28,7 +29,7 @@ async function GETHandler(request: NextRequest) {
       },
     );
 
-    if (!response.ok) return forwardBackendResponse(response);
+    if (!response.ok) return forwardBackendResponse(response, request);
 
     // Get content type and filename from backend response
     const contentType =
@@ -49,10 +50,7 @@ async function GETHandler(request: NextRequest) {
     logger.error("template download failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return problemResponse(500, "Internal server error", request);
   }
 }
 

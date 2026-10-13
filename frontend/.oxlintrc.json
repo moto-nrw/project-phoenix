@@ -4,6 +4,7 @@
   "jsPlugins": [
     "./scripts/oxlint-plugin-bauart.mjs",
     "./scripts/oxlint-plugin-date-safety.mjs",
+    "./scripts/oxlint-plugin-error-path.mjs",
     "./scripts/oxlint-plugin-logging-safety.mjs",
     "./scripts/oxlint-plugin-test-clock.mjs",
     "./scripts/oxlint-plugin-ui-kit.mjs"
@@ -27,6 +28,11 @@
     "bauart/no-raw-status-hex": "error",
     "bauart/no-disabled-menu-item": "error",
     "date-safety/no-utc-date-extraction": "error",
+    "error-path/no-error-alert": "error",
+    "error-path/no-error-text-display": "error",
+    "error-path/no-hand-rolled-alert": "error",
+    "error-path/no-raw-error-toast": "error",
+    "error-path/no-error-text-match": "error",
     "logging-safety/no-serialized-context": "error",
     "test-clock/no-real-clock": "error",
     "ui-kit/no-generic-brand-colors": "error",

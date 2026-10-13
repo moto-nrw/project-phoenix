@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 export const GET = createTenantJsonProxy({
   method: "GET",
@@ -7,9 +7,10 @@ export const GET = createTenantJsonProxy({
     const requestID = request.nextUrl.searchParams.get("request_id") ?? "";
     const childID = request.nextUrl.searchParams.get("child_id") ?? "";
     if (!requestID || !childID) {
-      return NextResponse.json(
-        { error: "request_id and child_id are required" },
-        { status: 400 },
+      return problemResponse(
+        400,
+        "request_id and child_id are required",
+        request,
       );
     }
     return `/api/enrollment/admin/requests/${encodeURIComponent(requestID)}/children/${encodeURIComponent(childID)}/offering-adjustments`;

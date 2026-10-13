@@ -2,7 +2,11 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { withOperatorAuth } from "~/server/auth/operator-route";
 import type { ErrorCode } from "~/lib/error-codes.generated";
-import { ApiResponseError, handleApiError } from "../api-helpers.server";
+import { handleApiError, problemResponse } from "../api-helpers.server";
+import {
+  ApiResponseError,
+  isApiResponseError,
+} from "../api-response-error.server";
 import { forwardBackendResponse } from "../backend-proxy-response.server";
 import { recordBackendProxyMetric } from "../backend-proxy-metrics";
 import { sanitizeEndpoint } from "../log-sanitize";
@@ -11,6 +15,7 @@ import {
   extractParams,
   parseRequestBody,
   wrapInApiResponse,
+  createTokenExpiredResponse,
   createUnauthorizedResponse,
 } from "../route-wrapper-utils.server";
 /**
@@ -22,18 +27,9 @@ export function operatorErrorResponse(
   status: number,
   code: ErrorCode,
   diagnostic: string,
+  request?: Request,
 ): NextResponse {
-  return NextResponse.json(
-    { status: "error", error: diagnostic, code },
-    { status },
-  );
-}
-
-/**
- * Checks if error is a 401 authentication error
- */
-function is401Error(error: unknown): boolean {
-  return error instanceof Error && error.message.includes("API error (401)");
+  return problemResponse(status, diagnostic, { code }, request);
 }
 
 async function readOperatorSession() {
@@ -197,6 +193,7 @@ type WithBodyHandler<T, B> = (
  * Mirrors the teacher route-wrapper pattern.
  */
 async function executeWithRetry<T>(
+  request: NextRequest,
   token: string,
   executeHandler: (token: string) => Promise<T>,
   formatResponse: (data: T) => NextResponse,
@@ -205,7 +202,7 @@ async function executeWithRetry<T>(
     const data = await executeHandler(token);
     return formatResponse(data);
   } catch (handlerError) {
-    if (!is401Error(handlerError)) {
+    if (!isApiResponseError(handlerError, 401)) {
       throw handlerError;
     }
 
@@ -218,10 +215,7 @@ async function executeWithRetry<T>(
       // Retry failed, fall through to token expired
     }
 
-    return NextResponse.json(
-      { error: "Token expired", code: "TOKEN_EXPIRED" },
-      { status: 401 },
-    );
+    return createTokenExpiredResponse(request);
   }
 }
 
@@ -232,10 +226,11 @@ function createOperatorNoBodyHandler<T>(
   return withOperatorAuth(async (request, context): Promise<NextResponse> => {
     try {
       const session = await readOperatorSession();
-      if (!session?.user?.token) return createUnauthorizedResponse();
+      if (!session?.user?.token) return createUnauthorizedResponse(request);
       const params = await extractParams(request, context);
 
       return await executeWithRetry(
+        request,
         session.user.token,
         (token) => handler(request, token, params),
         formatResponse,
@@ -250,11 +245,12 @@ function createOperatorWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
   return withOperatorAuth(async (request, context): Promise<NextResponse> => {
     try {
       const session = await readOperatorSession();
-      if (!session?.user?.token) return createUnauthorizedResponse();
+      if (!session?.user?.token) return createUnauthorizedResponse(request);
       const params = await extractParams(request, context);
       const body = await parseRequestBody<B>(request);
 
       return await executeWithRetry(
+        request,
         session.user.token,
         (token) => handler(request, body, token, params),
         (data) => NextResponse.json(wrapInApiResponse(data)),
@@ -301,7 +297,7 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
   return withOperatorAuth(async (request): Promise<NextResponse> => {
     try {
       const session = await readOperatorSession();
-      if (!session?.user?.token) return createUnauthorizedResponse();
+      if (!session?.user?.token) return createUnauthorizedResponse(request);
 
       let body: unknown;
       try {
@@ -311,6 +307,7 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
           400,
           "general.input",
           "Invalid JSON request body",
+          request,
         );
       }
       const { getServerApiUrl } = await import("~/lib/server-api-url");
@@ -348,7 +345,7 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
         durationMs: Date.now() - startedAt,
         outcome: response.ok ? "success" : "backend_error",
       });
-      return forwardBackendResponse(response);
+      return forwardBackendResponse(response, request);
     } catch (error) {
       return handleApiError(error, request);
     }
@@ -390,6 +387,7 @@ export function createOperatorPublicProxyPostHandler(
         400,
         "general.input",
         "Invalid JSON request body",
+        request,
       );
     }
 
@@ -414,7 +412,7 @@ export function createOperatorPublicProxyPostHandler(
         durationMs: Date.now() - startedAt,
         outcome: response.ok ? "success" : "backend_error",
       });
-      const forwardedResponse = await forwardBackendResponse(response);
+      const forwardedResponse = forwardBackendResponse(response, request);
       await options.decorateResponse?.(request, forwardedResponse, response.ok);
       return forwardedResponse;
     } catch {
@@ -429,6 +427,7 @@ export function createOperatorPublicProxyPostHandler(
         503,
         "general.unavailable",
         "Backend request failed",
+        request,
       );
     }
   };
@@ -437,7 +436,7 @@ export function createOperatorPublicProxyPostHandler(
 /**
  * Creates an authenticated route handler for an arbitrary HTTP method against
  * a dynamic backend endpoint resolved from route params. Handles 401 → token
- * refresh → retry, and returns a TOKEN_EXPIRED envelope if refresh fails
+ * refresh → retry, and answers 401 with the error envelope if refresh fails
  * (unlike createOperatorProxyPostHandler which forwards the backend 401
  * verbatim — these handlers are used where the client needs a reliable
  * sentinel to trigger a login redirect).
@@ -452,10 +451,7 @@ export function createOperatorProxyMethodHandler(
     try {
       const session = await readOperatorSession();
       if (!session?.user?.token) {
-        return NextResponse.json(
-          { error: "Unauthorized", code: "TOKEN_EXPIRED" },
-          { status: 401 },
-        );
+        return createTokenExpiredResponse(request);
       }
 
       const [params, { getServerApiUrl }, { getClientForwardHeaders }] =
@@ -490,10 +486,7 @@ export function createOperatorProxyMethodHandler(
       }
 
       if (response.status === 401) {
-        return NextResponse.json(
-          { error: "Token expired", code: "TOKEN_EXPIRED" },
-          { status: 401 },
-        );
+        return createTokenExpiredResponse(request);
       }
 
       await recordOperatorBackendProxyMetric({
@@ -503,7 +496,7 @@ export function createOperatorProxyMethodHandler(
         durationMs: Date.now() - startedAt,
         outcome: response.ok ? "success" : "backend_error",
       });
-      return forwardBackendResponse(response);
+      return forwardBackendResponse(response, request);
     } catch (error) {
       return handleApiError(error, request);
     }

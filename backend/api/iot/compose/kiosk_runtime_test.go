@@ -26,14 +26,14 @@ func TestSessionConflictAnswersInTheSharedErrorEnvelope(t *testing.T) {
 	})
 
 	require.Equal(t, http.StatusConflict, recorder.Code)
-	assert.Empty(t, routetest.ProblemEnvelopeViolations(recorder.Body.Bytes(), false), recorder.Body.String())
+	assert.Empty(t, routetest.ProblemEnvelopeViolations(recorder.Body.Bytes(), recorder.Code, false), recorder.Body.String())
 	var body struct {
-		Error   string         `json:"error"`
+		Detail  string         `json:"detail"`
 		Code    string         `json:"code"`
 		Details map[string]any `json:"details"`
 	}
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
-	assert.Equal(t, "Session conflict detected", body.Error)
+	assert.Equal(t, "Session conflict detected", body.Detail)
 	assert.Equal(t, "general.business_rejection", body.Code)
 	assert.Equal(t, map[string]any{
 		"has_conflict": true, "conflicting_device": float64(4711),

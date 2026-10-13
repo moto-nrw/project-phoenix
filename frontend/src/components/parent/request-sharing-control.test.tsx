@@ -5,12 +5,12 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ModalProvider } from "~/components/dashboard/modal-context";
 import { catalogText } from "~/test/error-catalog-text";
 import {
-  ParentApiError,
   getRequestSharing,
   getRequestSharingOptions,
   setRequestSharing,
@@ -20,9 +20,7 @@ import {
   RequestSharingSelector,
 } from "./request-sharing-control";
 
-vi.mock("~/lib/parent-api", async (importOriginal) => ({
-  ParentApiError: (await importOriginal<typeof import("~/lib/parent-api")>())
-    .ParentApiError,
+vi.mock("~/lib/parent-api", () => ({
   getRequestSharing: vi.fn(),
   getRequestSharingOptions: vi.fn(),
   setRequestSharing: vi.fn(),
@@ -144,7 +142,7 @@ describe("RequestSharingControl", () => {
   // Hinweis erklaert es, und die Auswahl wird als leer gemeldet (#2267).
   it("explains a failed recipient load and reports no recipients", async () => {
     getOptions.mockRejectedValue(
-      new ParentApiError("diag", 503, "general.unavailable"),
+      new ApiError("diag", 503, { code: "general.unavailable" }),
     );
     const onChange = vi.fn();
     render(
@@ -166,7 +164,7 @@ describe("RequestSharingControl", () => {
 
   it("retries a failed recipient load in place", async () => {
     getOptions.mockRejectedValueOnce(
-      new ParentApiError("diag", 503, "general.unavailable"),
+      new ApiError("diag", 503, { code: "general.unavailable" }),
     );
     render(
       <RequestSharingSelector
@@ -186,7 +184,7 @@ describe("RequestSharingControl", () => {
 
   it("shows a failed sharing load next to the request with a retry", async () => {
     getSharing.mockRejectedValueOnce(
-      new ParentApiError("diag", 503, "general.unavailable"),
+      new ApiError("diag", 503, { code: "general.unavailable" }),
     );
     renderControl();
 
@@ -201,7 +199,7 @@ describe("RequestSharingControl", () => {
 
   it("keeps a failed save inside the sharing dialog", async () => {
     setSharing.mockRejectedValueOnce(
-      new ParentApiError("diag", 400, "care.request_sharing_invalid"),
+      new ApiError("diag", 400, { code: "care.request_sharing_invalid" }),
     );
     renderControl();
     fireEvent.click(await screen.findByText("Anfrage teilen"));

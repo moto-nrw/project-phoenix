@@ -272,7 +272,7 @@ func (c *guardianCompositionContext) status(t *testing.T, claims jwt.AppClaims, 
 func errorText(t *testing.T, body string) string {
 	t.Helper()
 	response := testutil.ParseJSONResponse(t, []byte(body))
-	text, ok := response["error"].(string)
+	text, ok := response["detail"].(string)
 	require.True(t, ok, "expected error text in response: %s", body)
 	return text
 }

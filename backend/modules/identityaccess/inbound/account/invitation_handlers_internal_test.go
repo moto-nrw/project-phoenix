@@ -146,7 +146,7 @@ func TestInvitationHandlers_CreateInvitation_AccountAlreadyHasTenantAccess(t *te
 
 	require.Equal(t, http.StatusConflict, rr.Code)
 	body := decodeJSONBody(t, rr)
-	assert.Equal(t, "error", body["status"])
+	assert.Equal(t, float64(rr.Code), body["status"])
 	assert.Equal(t, "identity.account_already_has_tenant_access", body["code"])
 }
 

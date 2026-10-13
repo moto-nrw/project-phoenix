@@ -224,8 +224,11 @@ describe("GET /api/schedules/timeframes", () => {
     const response = await GET(request, createMockContext());
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Unexpected timeframe response format");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain(
+      "Unexpected timeframe response format",
+    );
   });
 
   it("returns empty array when API call fails", async () => {
@@ -235,7 +238,8 @@ describe("GET /api/schedules/timeframes", () => {
     const response = await GET(request, createMockContext());
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Backend error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Backend error");
   });
 });

@@ -82,8 +82,8 @@ describe("GET /api/auth/roles/[roleId]", () => {
     const response = await GET(request, createMockContext());
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toContain("required");
+    const json = (await response.json()) as { detail: string };
+    expect(json.detail).toContain("required");
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -124,7 +124,7 @@ describe("GET /api/auth/roles/[roleId]", () => {
 
   it("handles 404 when role not found", async () => {
     mockFetch.mockReturnValueOnce(
-      createMockResponse({ error: "Role not found" }, 404),
+      createMockResponse({ detail: "Role not found" }, 404),
     );
 
     const request = createMockRequest("/api/auth/roles/999");
@@ -236,7 +236,7 @@ describe("DELETE /api/auth/roles/[roleId]", () => {
 
   it("handles backend errors during deletion", async () => {
     mockFetch.mockReturnValueOnce(
-      createMockResponse({ error: "Cannot delete role in use" }, 409),
+      createMockResponse({ detail: "Cannot delete role in use" }, 409),
     );
 
     const request = createMockRequest("/api/auth/roles/1", {

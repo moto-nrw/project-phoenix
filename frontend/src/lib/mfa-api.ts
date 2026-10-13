@@ -1,7 +1,4 @@
-import { ApiError, enrichApiError, transportFetch } from "./api-error";
-import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "MFAApi" });
+import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 
 export type LoginScope = "tenant" | "operator" | "school";
 
@@ -129,56 +126,22 @@ async function postJson<T>(
   }
 
   if (!response.ok) {
-    const err = new MFAApiError(
+    // Callers branch on the envelope's code (identity.mfa_code_invalid,
+    // identity.mfa_blocked, …), never on the diagnostic text.
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
       response.status,
-      extractErrorMessage(data) ?? `Request failed (${response.status})`,
-      extractErrorCode(data) ?? undefined,
+      data,
     );
-    throw enrichApiError(err, data);
   }
 
   if (data === null) {
     if (options.allowEmptyBody) {
       return undefined as T;
     }
-    throw new MFAApiError(
-      500,
-      "Leere Antwort vom Server. Bitte versuchen Sie es erneut.",
-    );
+    throw new ApiError("empty response body", 500);
   }
   return data as T;
-}
-
-function extractErrorMessage(data: unknown): string | null {
-  if (!data || typeof data !== "object") return null;
-  const rec = data as Record<string, unknown>;
-  return typeof rec.error === "string" ? rec.error : null;
-}
-
-/**
- * Pulls the backend's stable `code` off an error body. Callers branch on
- * this instead of the human-readable `error` string, which is English,
- * unstable, and not a contract.
- */
-function extractErrorCode(data: unknown): string | null {
-  if (!data || typeof data !== "object") return null;
-  const rec = data as Record<string, unknown>;
-  return typeof rec.code === "string" ? rec.code : null;
-}
-
-export class MFAApiError extends ApiError {
-  constructor(
-    public status: number,
-    message: string,
-    /**
-     * Stable backend error code (`api/common.ErrResponse.Code`), when the
-     * endpoint sets one. Otherwise ApiError supplies the status class code.
-     */
-    code?: string,
-  ) {
-    super(message, status, { code });
-    this.name = "MFAApiError";
-  }
 }
 
 interface LoginParams {
@@ -504,60 +467,4 @@ export async function operatorAdminSetGlobalMFAOverride(
     { override, reason },
     { bearerToken, method: "PUT", allowEmptyBody: true },
   );
-}
-
-function germanMessageFor401(text: string): string {
-  if (text.includes("locked") || text.includes("gesperrt")) {
-    return "Konto vorübergehend gesperrt. Bitte versuchen Sie es in 15 Minuten erneut.";
-  }
-  // Check "invalid" before "expired": the backend conflates both into the
-  // single string "invalid or expired code" for security (no oracle on
-  // whether the code was wrong vs. timed out). In practice the dominant
-  // cause is a mistyped code, so we surface the friendlier "ungültig"
-  // message and let the user retry. A genuinely expired code falls into
-  // the same branch — both states are resolved by requesting a new code.
-  if (text.includes("invalid") || text.includes("ungültig")) {
-    return "Der eingegebene Code ist ungültig. Bitte erneut versuchen.";
-  }
-  if (text.includes("expired") || text.includes("abgelaufen")) {
-    return "Der Code ist abgelaufen. Fordern Sie einen neuen Code an.";
-  }
-  return "Anmeldung fehlgeschlagen. Bitte erneut versuchen.";
-}
-
-function germanMessageFor429(text: string): string {
-  // Distinguish the two 429 paths from the backend:
-  //   ErrMFALocked      ("account locked due to too many failed attempts")
-  //   ErrMFARateLimited ("too many code requests, please wait")
-  if (text.includes("locked") || text.includes("gesperrt")) {
-    return "Konto vorübergehend gesperrt. Bitte versuchen Sie es in 15 Minuten erneut.";
-  }
-  if (text.includes("code request") || text.includes("code-anfrage")) {
-    return "Zu viele Code-Anfragen. Bitte warten Sie ein paar Minuten, bevor Sie einen neuen Code anfordern.";
-  }
-  return "Zu viele Versuche. Bitte warten Sie einen Moment.";
-}
-
-export function germanMFAErrorMessage(err: unknown): string {
-  if (!(err instanceof MFAApiError)) {
-    logger.warn("unexpected_mfa_error_shape", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return "Anmeldefehler. Bitte versuchen Sie es erneut.";
-  }
-  const text = err.message.toLowerCase();
-  if (err.status === 401) return germanMessageFor401(text);
-  if (err.status === 429) return germanMessageFor429(text);
-  if (err.status >= 500) {
-    return "Der Server ist gerade nicht erreichbar. Bitte später erneut versuchen.";
-  }
-  // Anything else (400/403/404/etc.) used to leak the raw backend English
-  // string into the German UI ("invalid request body", "permission denied",
-  // …). Log the original message so we can spot missing translations, but
-  // surface a generic German fallback to the user. (#1430 review item #11)
-  logger.warn("mfa_error_no_translation", {
-    status: err.status,
-    error: err.message,
-  });
-  return "Anmeldung fehlgeschlagen. Bitte erneut versuchen.";
 }

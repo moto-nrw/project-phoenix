@@ -15,17 +15,11 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(400)")
-        ? 400
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
+  handleApiError: vi.fn(
+    (await import("~/test/helpers/handle-api-error")).mockHandleApiError,
+  ),
 }));
 
 const defaultSession: ExtendedSession = {
@@ -160,8 +154,9 @@ describe("POST /api/me/profile/avatar", () => {
     const response = await POST(request, createMockContext());
 
     expect(response.status).toBe(500);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toContain("Invalid file format");
+    const json = (await response.json()) as { detail: string };
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Invalid file format");
   });
 
   it("rejects request with no file", async () => {
@@ -177,8 +172,9 @@ describe("POST /api/me/profile/avatar", () => {
     const response = await POST(request, createMockContext());
 
     expect(response.status).toBe(500);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toContain("No avatar file provided");
+    const json = (await response.json()) as { detail: string };
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("No avatar file provided");
   });
 
   it("handles backend upload errors", async () => {

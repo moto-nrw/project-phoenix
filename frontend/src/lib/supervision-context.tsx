@@ -78,6 +78,7 @@ const EMPTY_SUPERVISION_STATE: DerivedSupervision = {
   supervisedRoomId: undefined,
   supervisedRoomName: undefined,
   supervisedRooms: [],
+  ownSupervisedRooms: [],
   overviewEnabled: false,
 };
 
@@ -718,6 +719,7 @@ const EMPTY_SUPERVISION: SupervisionContextType = {
   isSupervising: false,
   ownSupervision: false,
   supervisedRooms: [],
+  ownSupervisedRooms: [],
   isLoadingSupervision: false,
   overviewEnabled: false,
   // eslint-disable-next-line no-empty-function -- safe no-op default for operator context

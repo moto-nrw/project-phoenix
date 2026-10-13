@@ -5,11 +5,11 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { catalogText } from "~/test/error-catalog-text";
 import {
-  ParentApiError,
   listParentRequestEvents,
   updateExcusedRequest,
   updateMasterDataRequest,
@@ -193,11 +193,9 @@ describe("RequestEditModal", () => {
   it("shows a failed save inside the dialog from the shared catalog", async () => {
     const onClose = vi.fn();
     updateMasterData.mockRejectedValue(
-      new ParentApiError(
-        "request was changed by someone else",
-        409,
-        "students.change_request_stale",
-      ),
+      new ApiError("request was changed by someone else", 409, {
+        code: "students.change_request_stale",
+      }),
     );
     render(
       <RequestEditModal

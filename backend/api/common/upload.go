@@ -195,24 +195,24 @@ func ServeImage(w http.ResponseWriter, r *http.Request, baseDir, filename, cache
 
 func servePublicFile(w http.ResponseWriter, r *http.Request, baseDir, filename, cacheControl string) {
 	if err := ValidateFilename(filename); err != nil {
-		http.NotFound(w, r)
+		RenderStatus(w, r, http.StatusNotFound, "")
 		return
 	}
 
 	backend, _, err := fileStore(baseDir)
 	if err != nil {
-		http.NotFound(w, r)
+		RenderStatus(w, r, http.StatusNotFound, "")
 		return
 	}
 	key, err := storage.Key(filename)
 	if err != nil {
-		http.NotFound(w, r)
+		RenderStatus(w, r, http.StatusNotFound, "")
 		return
 	}
 
 	object, err := backend.OpenObject(r.Context(), key)
 	if err != nil {
-		http.NotFound(w, r)
+		RenderStatus(w, r, http.StatusNotFound, "")
 		return
 	}
 	defer func() {

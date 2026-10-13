@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import * as sessionCache from "./session-cache";
-import {
-  fetchSchoolSetup,
-  mapSchoolSetupState,
-  SchoolSetupError,
-} from "./school-setup-api";
+import { fetchSchoolSetup, mapSchoolSetupState } from "./school-setup-api";
 
 describe("fetchSchoolSetup", () => {
   it("refuses a state without steps instead of showing 0 of 0", async () => {
@@ -14,7 +10,10 @@ describe("fetchSchoolSetup", () => {
       }),
     );
 
-    await expect(fetchSchoolSetup()).rejects.toBeInstanceOf(SchoolSetupError);
+    await expect(fetchSchoolSetup()).rejects.toMatchObject({
+      status: 500,
+      code: "general.server",
+    });
   });
 });
 

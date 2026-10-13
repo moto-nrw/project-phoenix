@@ -1,4 +1,4 @@
-import { ApiError, apiErrorFromBody } from "./api-error";
+import { ApiError, apiErrorFromResponse } from "./api-error";
 import { createLogger } from "./logger";
 import { sessionFetch } from "./session-cache";
 
@@ -90,9 +90,9 @@ export function mapSchoolSetupState(raw: BackendState): SchoolSetupState {
 async function readState(response: Response, event: string) {
   if (!response.ok) {
     logger.error(event, { status: response.status });
-    throw new SchoolSetupError(
-      response.status,
-      await failedResponseBody(response),
+    throw await apiErrorFromResponse(
+      response,
+      `school setup request failed (${response.status})`,
     );
   }
   const body = (await response.json()) as
@@ -104,42 +104,9 @@ async function readState(response: Response, event: string) {
   if (data.completed !== true && !Array.isArray(data.steps)) {
     logger.error(event, { reason: "unexpected_shape" });
     // Eine unbrauchbare Antwort ist ein Serverfehler, kein Eingabefehler.
-    throw new SchoolSetupError(500);
+    throw new ApiError("school setup response has an unexpected shape", 500);
   }
   return mapSchoolSetupState(data);
-}
-
-/**
- * Fehler mit HTTP-Status, Code und Vorgangskennung der Antwort, damit der
- * gemeinsame Fehlerweg den passenden Katalogtext zeigt (#2517).
- */
-export class SchoolSetupError extends ApiError {
-  declare status: number;
-
-  constructor(status: number, body?: unknown) {
-    const wire = apiErrorFromBody(
-      `school setup request failed (${status})`,
-      status,
-      body,
-    );
-    super(wire.message, status, {
-      code: wire.code,
-      details: wire.details,
-      errors: wire.errors,
-      instance: wire.instance,
-    });
-    this.name = "SchoolSetupError";
-  }
-}
-
-async function failedResponseBody(response: Response): Promise<unknown> {
-  try {
-    const text = await response.text();
-    return text ? (JSON.parse(text) as unknown) : undefined;
-  } catch {
-    // Kein JSON: der Status allein ordnet den Fehler ein.
-    return undefined;
-  }
 }
 
 /**

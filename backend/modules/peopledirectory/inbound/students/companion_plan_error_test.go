@@ -32,7 +32,7 @@ func TestCompanionPlanErrorRenderer(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
 		// The German sentinel text is the whole instruction the user gets.
-		assert.Equal(t, careplan.ErrCompanionWouldLoseDeparture.Error(), resp.ErrorText)
+		assert.Equal(t, careplan.ErrCompanionWouldLoseDeparture.Error(), resp.Detail)
 	})
 
 	t.Run("busy companion lock is a retriable 409 with its code", func(t *testing.T) {

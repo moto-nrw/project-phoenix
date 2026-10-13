@@ -54,6 +54,7 @@ vi.mock("~/lib/school-setup-api", async (importOriginal) => ({
 }));
 
 import { SchoolSetupWizard } from "./school-setup-wizard";
+import { ApiError } from "~/lib/api-error";
 
 function newSchool(): SchoolSetupState {
   return {
@@ -856,9 +857,10 @@ describe("SchoolSetupWizard", () => {
   });
 
   it("says so when a step could not be saved", async () => {
-    const { SchoolSetupError } = await import("~/lib/school-setup-api");
     api.setSchoolSetupStepSkipped.mockRejectedValue(
-      new SchoolSetupError(409, { code: "school.setup_completed" }),
+      new ApiError("school setup already completed", 409, {
+        code: "school.setup_completed",
+      }),
     );
     render(<SchoolSetupWizard />);
 

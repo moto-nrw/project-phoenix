@@ -703,8 +703,8 @@ describe("StaffImportPage", () => {
         ok: false,
         json: () =>
           Promise.resolve({
-            status: "error",
-            error: "Import fehlgeschlagen",
+            status: 409,
+            detail: "import batch failed",
             code: "import.import_batch_failed",
             details: {
               result: {
@@ -744,14 +744,17 @@ describe("StaffImportPage", () => {
     });
     fireEvent.click(screen.getByText("205 Mitarbeiter anlegen"));
 
+    // A batch that stopped after saved rows is a failure of the import:
+    // it stands in the form's error alert, not in a warning (#2520).
     await waitFor(() => {
-      expect(
-        screen.getByText(/100 Zeilen sind gespeichert/),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId("alert-error")).toHaveTextContent(
+        /100 Zeilen sind gespeichert/,
+      );
     });
-    expect(
-      screen.getByText(/Zeile 152 hat den Rest angehalten/),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("alert-error")).toHaveTextContent(
+      /Zeile 152 hat den Rest angehalten/,
+    );
+    expect(screen.queryByTestId("alert-warning")).not.toBeInTheDocument();
     expect(screen.getByTestId("stat-new")).toHaveTextContent("100");
     expect(screen.getByTestId("stat-errors")).toHaveTextContent("1");
     expect(screen.getByText("Refused Batch")).toBeInTheDocument();
@@ -780,8 +783,8 @@ describe("StaffImportPage", () => {
         ok: false,
         json: () =>
           Promise.resolve({
-            status: "error",
-            error: "Import fehlgeschlagen",
+            status: 409,
+            detail: "import batch failed",
             code: "import.import_batch_failed",
             details: {
               result: {

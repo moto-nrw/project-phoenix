@@ -73,8 +73,8 @@ describe("GET /api/auth/account", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Unauthorized");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Unauthorized");
   });
 
   it("fetches account information successfully", async () => {
@@ -173,7 +173,7 @@ describe("GET /api/auth/account", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 });

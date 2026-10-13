@@ -43,27 +43,15 @@ func Respond(w http.ResponseWriter, r *http.Request, status int, data interface{
 	render.Status(r, status)
 	if err := render.Render(w, r, NewResponse(data, message)); err != nil {
 		slog.Default().ErrorContext(r.Context(), "failed to render response", slog.String("error", err.Error()))
-		http.Error(w, "Error rendering response", http.StatusInternalServerError)
+		RenderError(w, r, ErrorInternalServerWrap("error rendering response", err))
 	}
 }
 
-// RespondWithError sends a structured error response.
-// For server errors (5xx), it logs the error to slog and hands it to
-// ServerErrorReporting, which reports the answer to Sentry once.
+// RespondWithError answers in the shared error envelope with the class code
+// of status; a handler that can name its failure renders an ErrResponse with
+// a registered code instead. RenderError logs and reports a 5xx.
 func RespondWithError(w http.ResponseWriter, r *http.Request, status int, errorMsg string) {
-	if status >= 500 {
-		slog.Default().ErrorContext(r.Context(), "server error",
-			slog.Int("status", status),
-			slog.String("correlation_id", requestID(r)),
-			slog.String("error", errorMsg),
-		)
-		noteServerError(r.Context(), errors.New(errorMsg), ErrorClassCode(status))
-	}
-	render.Status(r, status)
-	render.JSON(w, r, map[string]string{
-		"status": "error",
-		"error":  errorMsg,
-	})
+	RenderError(w, r, newErrResponse(status, errors.New(errorMsg)))
 }
 
 // RespondNoContent sends a 204 No Content response
@@ -130,6 +118,6 @@ func RespondPaginated(w http.ResponseWriter, r *http.Request, status int, data i
 	render.Status(r, status)
 	if err := render.Render(w, r, NewPaginatedResponse(data, params.Page, params.PageSize, params.Total, message)); err != nil {
 		slog.Default().ErrorContext(r.Context(), "failed to render paginated response", slog.String("error", err.Error()))
-		http.Error(w, "Error rendering paginated response", http.StatusInternalServerError)
+		RenderError(w, r, ErrorInternalServerWrap("error rendering paginated response", err))
 	}
 }

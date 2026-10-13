@@ -9,6 +9,7 @@
  */
 
 import { useState } from "react";
+import { ApiError } from "~/lib/api-error";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -21,7 +22,6 @@ import { MasterDataReviewItem } from "~/components/students/master-data-review-i
 import { OfferingRequestReviewItem } from "~/components/students/offering-request-review-item";
 import { createLogger } from "~/lib/logger";
 import {
-  ChangeRequestStaleError,
   markRequestDone,
   type AggregatedOpenRequest,
   type ParentRequestKind,
@@ -156,7 +156,8 @@ export function RequestDecisionRow({
       });
       // Eine veraltete Anfrage meldet der Katalog über ihren Code; die Liste
       // lädt dann die neue Fassung, statt einen Wiederholen-Klick anzubieten.
-      const stale = err instanceof ChangeRequestStaleError;
+      const stale =
+        err instanceof ApiError && err.code === "students.change_request_stale";
       await actionErrors.show(err, {
         object: "die Anfrage",
         retry: stale ? undefined : () => void markDone(),

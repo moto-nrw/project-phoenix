@@ -40,8 +40,8 @@ func TestUpdateStudentTxErrorRenderer_CompanionLockBusy(t *testing.T) {
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 		// The German sentence travels to the UI unchanged — it is the only
 		// instruction the user gets ("in einem Moment erneut speichern").
-		assert.Equal(t, studentdeletion.ErrCompanionLockBusy.Error(), resp.ErrorText)
-		assert.Equal(t, careplan.ErrCompanionLockBusy.Error(), resp.ErrorText, "the workflow keeps the user-facing text of the update path")
+		assert.Equal(t, studentdeletion.ErrCompanionLockBusy.Error(), resp.Detail)
+		assert.Equal(t, careplan.ErrCompanionLockBusy.Error(), resp.Detail, "the workflow keeps the user-facing text of the update path")
 	})
 
 	t.Run("still a conflict when wrapped by a caller", func(t *testing.T) {
@@ -84,8 +84,8 @@ func TestStudentDeletionErrorRenderer_CompanionLockBusy(t *testing.T) {
 		resp := rendererStatus(t, studentDeletionErrorRenderer(studentdeletion.ErrCompanionLockBusy))
 
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
-		assert.Equal(t, studentdeletion.ErrCompanionLockBusy.Error(), resp.ErrorText)
-		assert.Equal(t, careplan.ErrCompanionLockBusy.Error(), resp.ErrorText, "the workflow keeps the user-facing text of the update path")
+		assert.Equal(t, studentdeletion.ErrCompanionLockBusy.Error(), resp.Detail)
+		assert.Equal(t, careplan.ErrCompanionLockBusy.Error(), resp.Detail, "the workflow keeps the user-facing text of the update path")
 	})
 
 	t.Run("an unrelated error is still a server error", func(t *testing.T) {
@@ -113,7 +113,7 @@ func TestUpdateStudentTxErrorRenderer_CompanionsChanged(t *testing.T) {
 		assert.Equal(t, common.CodeStudentsCompanionsChanged, resp.Code)
 		// The German sentence reaches the UI unchanged — it carries the one
 		// instruction that gets the user out ("neu laden").
-		assert.Equal(t, careplan.ErrCompanionsChanged.Error(), resp.ErrorText)
+		assert.Equal(t, careplan.ErrCompanionsChanged.Error(), resp.Detail)
 	})
 
 	t.Run("still classified when wrapped by a caller", func(t *testing.T) {

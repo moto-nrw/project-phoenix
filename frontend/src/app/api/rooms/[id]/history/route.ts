@@ -1,10 +1,12 @@
 // app/api/rooms/[id]/history/route.ts
 import type { NextRequest } from "next/server";
+import { wireErrorCode } from "~/lib/api-error";
 import {
   apiGet,
-  ApiResponseError,
   handleApiError,
+  problemResponse,
 } from "~/lib/api-helpers.server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
@@ -40,15 +42,15 @@ interface BackendResponseEnvelope {
 
 // True iff the backend rejected the request because the tenant has
 // gdpr.attendance_log_enabled = false (issue #1425). The backend signals
-// that with HTTP 403 + a JSON body of `{ "error": "feature_disabled" }`.
-// A generic 403 (e.g. RBAC failure) intentionally does NOT match here so
-// it surfaces as a real error to the user — only the GDPR feature-gate
-// path is translated to the "section hidden" signal.
+// that with HTTP 403 and the code `attendance.log_disabled`. A generic 403
+// (e.g. RBAC failure) intentionally does NOT match here so it surfaces as a
+// real error to the user — only the GDPR feature-gate path is translated to
+// the "section hidden" signal.
 function isFeatureDisabledError(error: unknown): boolean {
   if (!(error instanceof ApiResponseError)) return false;
   if (error.status !== 403) return false;
-  const body = error.body<{ error?: string }>();
-  return body?.error === ROOM_HISTORY_STATUS_FEATURE_DISABLED;
+  const body = error.body<{ code?: unknown }>();
+  return wireErrorCode(body?.code) === "attendance.log_disabled";
 }
 
 function normalizeRangeParam(value: string, boundary: "start" | "end"): string {
@@ -64,7 +66,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
   const session = await auth();
 
   if (!session?.user?.token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return problemResponse(401, "Unauthorized", request);
   }
 
   // Extract roomId from URL path
@@ -73,10 +75,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
   const roomId = roomsIndex >= 0 ? pathParts[roomsIndex + 1] : undefined;
 
   if (!roomId) {
-    return NextResponse.json(
-      { error: "Invalid id parameter" },
-      { status: 400 },
-    );
+    return problemResponse(400, "Invalid id parameter", request);
   }
 
   // Backend expects RFC3339 start/end (not start_date/end_date — that was a
@@ -129,7 +128,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
       room_id: roomId,
       error: apiError instanceof Error ? apiError.message : String(apiError),
     });
-    return handleApiError(apiError);
+    return handleApiError(apiError, request);
   }
 }
 

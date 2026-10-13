@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { DELETE } from "./route";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 
 // ============================================================================
 // Types
@@ -92,8 +93,8 @@ describe("DELETE /api/auth/accounts/[accountId]/permissions/[permissionId]", () 
     );
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Account ID and Permission ID are required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toContain("Account ID and Permission ID are required");
   });
 
   it("returns 400 when permissionId is missing", async () => {
@@ -107,8 +108,8 @@ describe("DELETE /api/auth/accounts/[accountId]/permissions/[permissionId]", () 
     );
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Account ID and Permission ID are required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toContain("Account ID and Permission ID are required");
   });
 
   it("removes permission successfully", async () => {
@@ -135,7 +136,7 @@ describe("DELETE /api/auth/accounts/[accountId]/permissions/[permissionId]", () 
 
   it("handles API errors gracefully", async () => {
     mockApiDelete.mockRejectedValueOnce(
-      new Error("API error (404): Permission not found"),
+      new ApiResponseError(404, "Permission not found"),
     );
 
     const request = createMockRequest(
@@ -148,13 +149,14 @@ describe("DELETE /api/auth/accounts/[accountId]/permissions/[permissionId]", () 
     );
 
     expect(response.status).toBe(404);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Permission not found");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Not Found");
+    expect(JSON.stringify(json)).not.toContain("Permission not found");
   });
 
   it("handles unauthorized deletion attempts", async () => {
     mockApiDelete.mockRejectedValueOnce(
-      new Error("API error (401): Unauthorized"),
+      new ApiResponseError(401, "Unauthorized"),
     );
 
     const request = createMockRequest(
@@ -167,7 +169,7 @@ describe("DELETE /api/auth/accounts/[accountId]/permissions/[permissionId]", () 
     );
 
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Unauthorized");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toContain("Unauthorized");
   });
 });

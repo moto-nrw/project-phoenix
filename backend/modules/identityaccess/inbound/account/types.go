@@ -137,31 +137,39 @@ type TenantResolveResponse struct {
 	// are care days on Friday's plan. Shell metadata so day pickers and day
 	// views stop skipping the weekend. Fails closed (false).
 	WeekendFollowsFriday bool `json:"weekend_follows_friday"`
+	// ChildSearchOnlyNavigation is the tenant's resolved
+	// operations.child_search_only_navigation setting (#1321): staff find
+	// children through the child search alone, and "Meine Gruppe" and
+	// "Aktuelle Aufsicht" leave the navigation. Shell metadata because every
+	// staff member's navigation follows it, also without config:read. Fails
+	// closed (false), which keeps the separate entries.
+	ChildSearchOnlyNavigation bool `json:"child_search_only_navigation"`
 }
 
 type tenantShellSettings struct {
-	presenceMode           string
-	timetableEnabled       bool
-	studentPhotosEnabled   bool
-	nfcEnabled             bool
-	parentMessagingEnabled bool
-	staffMessagingEnabled  bool
-	displayEnabled         bool
-	calDAVEnabled          bool
-	careOfferingsEnabled   bool
-	attendanceWebEnabled   bool
-	attendanceLogEnabled   bool
-	groupMode              string
-	overviewScope          string
-	attendanceEditScope    string
-	reasonPolicy           string
-	showTimetableCounts    bool
-	waitlistEnabled        bool
-	analyticsFreigabe      bool
-	analyticsSamplePercent int
-	earlyCheckoutNote      bool
-	earlyCheckoutTolerance int
-	weekendFollowsFriday   bool
+	presenceMode              string
+	timetableEnabled          bool
+	studentPhotosEnabled      bool
+	nfcEnabled                bool
+	parentMessagingEnabled    bool
+	staffMessagingEnabled     bool
+	displayEnabled            bool
+	calDAVEnabled             bool
+	careOfferingsEnabled      bool
+	attendanceWebEnabled      bool
+	attendanceLogEnabled      bool
+	groupMode                 string
+	overviewScope             string
+	attendanceEditScope       string
+	reasonPolicy              string
+	showTimetableCounts       bool
+	waitlistEnabled           bool
+	analyticsFreigabe         bool
+	analyticsSamplePercent    int
+	earlyCheckoutNote         bool
+	earlyCheckoutTolerance    int
+	weekendFollowsFriday      bool
+	childSearchOnlyNavigation bool
 }
 
 // SwitchTenantRequest represents the switch-tenant request payload

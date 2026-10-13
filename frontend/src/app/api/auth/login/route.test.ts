@@ -105,7 +105,7 @@ describe("POST /api/auth/login", () => {
     const loginPayload = { email: "test@example.com", password: "wrong" };
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "Invalid credentials" }), {
+      new Response(JSON.stringify({ detail: "Invalid credentials" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
       }),
@@ -117,11 +117,11 @@ describe("POST /api/auth/login", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Invalid credentials");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Invalid credentials");
   });
 
-  it("handles non-JSON response from backend", async () => {
+  it("replaces a non-JSON backend 5xx response with a safe envelope", async () => {
     const loginPayload = { email: "test@example.com", password: "Test1234!" };
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
@@ -137,8 +137,14 @@ describe("POST /api/auth/login", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    expect(response.headers.get("Content-Type")).toBe("text/plain");
-    expect(await response.text()).toBe("Server Error");
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/problem+json",
+    );
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -181,7 +187,7 @@ describe("POST /api/auth/login", () => {
     expect(await response.text()).toBe("");
   });
 
-  it("returns fallback message when backend sends an empty non-JSON body", async () => {
+  it("replaces an empty backend 5xx response with a safe envelope", async () => {
     const loginPayload = { email: "test@example.com", password: "Test1234!" };
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
@@ -197,7 +203,11 @@ describe("POST /api/auth/login", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(502);
-    expect(await response.text()).toBe("");
+    expect(await response.json()).toMatchObject({
+      status: 502,
+      detail: "Bad Gateway",
+      code: "general.unavailable",
+    });
   });
 
   it("returns 500 when fetch throws an error", async () => {
@@ -212,8 +222,8 @@ describe("POST /api/auth/login", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
     expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {});
   });
 
@@ -241,8 +251,8 @@ describe("POST /api/auth/login", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Invalid JSON");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Invalid JSON");
     expect(captureException).not.toHaveBeenCalled();
   });
 });

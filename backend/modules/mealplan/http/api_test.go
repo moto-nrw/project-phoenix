@@ -163,7 +163,7 @@ func TestStaffDeleteKeepsWeekendNoOpContract(t *testing.T) {
 	}
 }
 
-func TestStaffWeekendWriteKeepsLegacyErrorContract(t *testing.T) {
+func TestStaffWeekendWriteKeepsItsErrorContract(t *testing.T) {
 	t.Parallel()
 
 	response := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest(
@@ -172,7 +172,7 @@ func TestStaffWeekendWriteKeepsLegacyErrorContract(t *testing.T) {
 	if response.Code != 400 {
 		t.Fatalf("weekend write status = %d, body = %s", response.Code, response.Body.String())
 	}
-	want := `{"status":"error","error":"meal plan covers weekdays only (Monday-Friday)"}` + "\n"
+	want := `{"status":400,"detail":"meal plan covers weekdays only (Monday-Friday)","code":"general.input"}` + "\n"
 	if response.Body.String() != want {
 		t.Fatalf("weekend write body = %q, want %q", response.Body.String(), want)
 	}

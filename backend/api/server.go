@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/analytics"
+	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -414,10 +415,11 @@ func workerProbeHandler(ready func() bool, metricsToken string) http.Handler {
 	router.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("OK"))
 	})
-	router.Get("/ready", func(w http.ResponseWriter, _ *http.Request) {
+	router.Get("/ready", func(w http.ResponseWriter, r *http.Request) {
 		if !ready() {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = w.Write([]byte("standby"))
+			// A standby answers 503 in the shared error envelope; the
+			// probe reads the status, the detail names the state.
+			apiCommon.RenderStatus(w, r, http.StatusServiceUnavailable, "standby")
 			return
 		}
 		_, _ = w.Write([]byte("ready"))
