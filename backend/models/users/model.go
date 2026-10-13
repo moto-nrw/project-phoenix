@@ -3,7 +3,7 @@ package users
 import "time"
 
 // Model holds the common row columns of the user models. It mirrors
-// models/Model so the persisted columns and JSON stay unchanged while
+// models/base.Model so the persisted columns and JSON stay unchanged while
 // models/users no longer imports models/base for its row basis (#3991).
 type Model struct {
 	ID        int64     `bun:"id,pk,autoincrement" json:"id"`

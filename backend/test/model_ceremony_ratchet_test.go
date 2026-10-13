@@ -18,7 +18,7 @@ import (
 // 117 TableName methods; this ratchet keeps them from growing back.
 //
 // Three patterns, scanned over models/ excluding models/base (which hosts the
-// one canonical getter set):
+// canonical getter set; models/users keeps a local copy, see the M1 allowlist):
 //
 //	M1 — GetID/GetCreatedAt/GetUpdatedAt method declarations. Zero tolerated;
 //	     conventional models embed a base shape, while audit models keep their
