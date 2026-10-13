@@ -3,7 +3,6 @@ package services
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -13,27 +12,27 @@ import (
 type CalendarTestModule struct{ Calendar calendarCompose.Application }
 
 func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModule, error) {
-	command, err := auditService.NewCommand(repositories.NewTestAuditStore(db), func(auditService.AppendObservation) {})
+	command, err := auditService.NewCommand(NewTestAuditStore(db), func(auditService.AppendObservation) {})
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
-	repos, err := repositories.NewEnrollmentTestRepositories(db, command)
+	repos, err := NewEnrollmentTestRepositories(db, command)
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
-	parents, err := repositories.NewParentRouteTestRepositories(db)
+	parents, err := NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
-	appointments, err := repositories.NewAppointments(db)
+	appointments, err := NewAppointments(db)
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
-	schoolCalendar, err := repositories.NewSchoolCalendar(db)
+	schoolCalendar, err := NewSchoolCalendar(db)
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
-	feeds := repositories.NewCalendarFeedTestRepositories(db)
+	feeds := NewCalendarFeedTestRepositories(db)
 	identity, err := NewUserContextTestModule(db, unit)
 	if err != nil {
 		return CalendarTestModule{}, err
@@ -49,12 +48,12 @@ func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModu
 	logger := slog.Default()
 	cfg := currentFactoryConfig()
 	calendarSvc := NewCalendarPortal(CalendarDependencies{
-		CalendarFacts: repositories.CalendarFacts{
+		CalendarFacts: CalendarFacts{
 			StaffRepo:            repos.Staff,
 			StudentRepo:          repos.Student,
-			GuardianProfileRepo:  repositories.NewCalendarGuardianDirectory(repos.GuardianProfile, repositories.MustNewPeopleDirectory(db)),
+			GuardianProfileRepo:  NewCalendarGuardianDirectory(repos.GuardianProfile, MustNewPeopleDirectory(db)),
 			StudentGuardianRepo:  repos.StudentGuardian,
-			ChildRepo:            parents.ParentChild,
+			ChildRepo:            parents.ParentChildLinks(),
 			GroupRepo:            repos.Group,
 			InstanceStaffRepo:    repos.InstanceStaff,
 			ActivityInstanceRepo: repos.ActivityInstance,

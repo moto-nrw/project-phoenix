@@ -5,10 +5,11 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -21,7 +22,7 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
@@ -36,7 +37,7 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 	} {
 		svc := parentportalcompose.New(parentportalcompose.Dependencies{
 			CarePlan:       repos.CarePlan(),
-			People:         repositories.MustNewPeopleDirectory(db),
+			People:         services.MustNewPeopleDirectory(db),
 			CareProfiles:   careProfiles(t, db),
 			ChildRepo:      repos.ParentChild,
 			StatusDayRepo:  repos.StudentStatusDay,

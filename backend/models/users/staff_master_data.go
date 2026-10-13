@@ -2,7 +2,6 @@ package users
 
 import (
 	"context"
-	"errors"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -41,31 +40,6 @@ type StaffMasterData struct {
 	WeeklyHours      *float64       `bun:"weekly_hours" json:"weekly_hours,omitempty"`
 }
 
-// Validate ensures the master data row is storable.
-func (m *StaffMasterData) Validate() error {
-	if m.StaffID <= 0 {
-		return errors.New("staff_id is required")
-	}
-	if m.Gender != nil {
-		switch *m.Gender {
-		case GenderFemale, GenderMale, GenderDiverse:
-			// valid
-		default:
-			return errors.New("gender must be 'female', 'male', or 'diverse'")
-		}
-	}
-	if m.WeeklyHours != nil && (*m.WeeklyHours < 0 || *m.WeeklyHours > 80) {
-		return errors.New("weekly_hours must be between 0 and 80")
-	}
-	if m.EntryDate != nil && m.ContractEndDate != nil && m.ContractEndDate.Before(*m.EntryDate) {
-		return errors.New("contract_end_date must not be before entry_date")
-	}
-	if m.EntryDate != nil && m.ProbationEndDate != nil && m.ProbationEndDate.Before(*m.EntryDate) {
-		return errors.New("probation_end_date must not be before entry_date")
-	}
-	return nil
-}
-
 // StaffQualification is one qualification row of a staff member (#1423):
 // Erste-Hilfe, Schwimmschein, Fortbildungen — each with optional acquisition
 // and expiry dates.
@@ -76,20 +50,6 @@ type StaffQualification struct {
 	Name       string         `bun:"name,notnull" json:"name"`
 	AcquiredOn *calendar.Date `bun:"acquired_on,type:date" json:"acquired_on,omitempty"`
 	ExpiresOn  *calendar.Date `bun:"expires_on,type:date" json:"expires_on,omitempty"`
-}
-
-// Validate ensures the qualification row is storable.
-func (q *StaffQualification) Validate() error {
-	if q.StaffID <= 0 {
-		return errors.New("staff_id is required")
-	}
-	if q.Name == "" {
-		return errors.New("name is required")
-	}
-	if q.AcquiredOn != nil && q.ExpiresOn != nil && q.ExpiresOn.Before(*q.AcquiredOn) {
-		return errors.New("expires_on must not be before acquired_on")
-	}
-	return nil
 }
 
 // StaffFinancialData is the 1:1 bank & tax record of a staff member (#1423).
@@ -103,15 +63,6 @@ type StaffFinancialData struct {
 	IBAN                 *string `bun:"iban" json:"-"`
 	TaxID                *string `bun:"tax_id" json:"-"`
 	SocialSecurityNumber *string `bun:"social_security_number" json:"-"`
-}
-
-// Validate ensures the financial row is storable. Field syntax is validated
-// in the service layer (the rules carry business meaning, not storage rules).
-func (f *StaffFinancialData) Validate() error {
-	if f.StaffID <= 0 {
-		return errors.New("staff_id is required")
-	}
-	return nil
 }
 
 // StaffMasterDataRepository persists the 1:1 master-data rows.

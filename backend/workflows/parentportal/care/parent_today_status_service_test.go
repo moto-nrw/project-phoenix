@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -26,7 +25,7 @@ import (
 func buildTodayStatusService(t *testing.T) (*care.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	return care.New(care.Config{
 		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      repos.ParentChild,
@@ -45,10 +44,10 @@ func buildTodayStatusService(t *testing.T) (*care.Service, *bun.DB) {
 func buildTodayStatusServiceWithSchedule(t *testing.T) (*care.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	arrivals, err := services.NewArrivalSchedules(db, repos.CarePlan(), repositories.MustNewPeopleDirectory(db), nil, nil, nil, slog.Default())
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	arrivals, err := services.NewArrivalSchedules(db, repos.CarePlan(), services.MustNewPeopleDirectory(db), nil, nil, nil, slog.Default())
 	require.NoError(t, err)
-	pickups, err := services.NewPickupSchedules(db, repos.CarePlan(), repositories.MustNewPeopleDirectory(db), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), // Auto-excusal (#2360) is not what these cases assert.
+	pickups, err := services.NewPickupSchedules(db, repos.CarePlan(), services.MustNewPeopleDirectory(db), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), // Auto-excusal (#2360) is not what these cases assert.
 		nil, slog.Default())
 	require.NoError(t, err)
 	return care.New(care.Config{
@@ -79,11 +78,11 @@ func seedPickupScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID in
 	row.SetTenantID(tenantID)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), tenantID)
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupSchedule.Create(txCtx, row)
+		return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentPickupSchedule.Create(txCtx, row)
 	}))
 	t.Cleanup(func() {
 		_ = testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-			return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupSchedule.DeleteByStudentID(txCtx, studentID)
+			return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentPickupSchedule.DeleteByStudentID(txCtx, studentID)
 		})
 	})
 	return true
@@ -351,7 +350,7 @@ func TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan(t *testing
 	exception.SetTenantID(chain.TenantID)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentArrivalException.Create(txCtx, exception)
+		return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentArrivalException.Create(txCtx, exception)
 	}))
 
 	status, err := svc.GetChildTodayStatus(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)

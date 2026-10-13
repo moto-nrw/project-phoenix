@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -21,7 +20,7 @@ import (
 
 // buildCombinedGroupService creates an Active Service for combined group tests
 func buildCombinedGroupService(t *testing.T, db *testpkg.DB) active.Service {
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return composedEngine(t, serviceFactory.Active)

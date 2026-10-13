@@ -6,7 +6,6 @@ import (
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -42,7 +41,7 @@ func NewTestMasterDataDecisions(options MasterDataDecisionTestOptions) (*carePla
 	}
 	scope := options.Scope
 	if scope == nil {
-		scope = repositories.SchoolWideReviewScope
+		scope = SchoolWideReviewScope
 	}
 	return newMasterDataDecisions(masterDataDecisionWiring{
 		carePlan: options.CarePlan, fields: options.People, students: options.Students, persons: options.Persons,

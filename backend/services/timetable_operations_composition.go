@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -45,7 +44,7 @@ type timetablePickupTimes interface {
 // timetableOperationInputs are the retained rows and the owners the
 // Timetable operational day reads through (#3551). Broadcaster is optional.
 type timetableOperationInputs struct {
-	Rows           repositories.TimetableOwnerRows
+	Rows           timetableCompose.OwnerRows
 	PlanningTracks timetable.PlanningTrackQuery
 	Sessions       studentpresence.SessionRecords
 	Supervisions   studentpresence.SupervisionRecords

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -53,12 +52,12 @@ func calendarTestConfig(t *testing.T, db *bun.DB) calendarRuntime.CalendarDepend
 	userContext := identity.UserContext.Caller()
 
 	return calendarRuntime.CalendarDependencies{
-		CalendarFacts: repositories.CalendarFacts{
+		CalendarFacts: calendarRuntime.CalendarFacts{
 			StaffRepo:            repos.Staff,
 			StudentRepo:          repos.Student,
-			GuardianProfileRepo:  repositories.NewCalendarGuardianDirectory(repos.GuardianProfile, repositories.MustNewPeopleDirectory(db)),
+			GuardianProfileRepo:  calendarRuntime.NewCalendarGuardianDirectory(repos.GuardianProfile, calendarRuntime.MustNewPeopleDirectory(db)),
 			StudentGuardianRepo:  repos.StudentGuardian,
-			ChildRepo:            repos.ParentChild,
+			ChildRepo:            repos.ParentChildLinks(),
 			GroupRepo:            repos.Group,
 			InstanceStaffRepo:    repos.InstanceStaff,
 			ActivityInstanceRepo: repos.ActivityInstance,
@@ -3217,9 +3216,9 @@ func portalDate(year int, month time.Month, day int) appointments.Date {
 	return appointments.NewDate(year, month, day)
 }
 
-func calendarTestRepositories(t *testing.T, db *bun.DB) repositories.CalendarTestRepositories {
+func calendarTestRepositories(t *testing.T, db *bun.DB) calendarRuntime.CalendarTestRepositories {
 	t.Helper()
-	repositories, err := repositories.NewCalendarTestRepositories(db)
+	repositories, err := calendarRuntime.NewCalendarTestRepositories(db, calendarRuntime.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	return repositories
 }

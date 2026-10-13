@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -22,7 +21,7 @@ func TestPresenceStudents_UpdateLiveStatusFailsOnUnknownStudent(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	students := services.PresenceStudents(db, repoFactory.Student)
 
 	sick := true
@@ -46,7 +45,7 @@ func TestStatusDayStudents_MissingAuthorizeFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	student := testpkg.CreateTestStudent(t, db, "FailClosed", "Student", "FC1")
 	ctx := testpkg.Ctx(t)
 
@@ -66,7 +65,7 @@ func TestPresenceStudents_UpdateLiveStatusPersistsFlags(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	students := services.PresenceStudents(db, repoFactory.Student)
 	student := testpkg.CreateTestStudent(t, db, "Live", "Status", "LS1")
 	ctx := testpkg.Ctx(t)

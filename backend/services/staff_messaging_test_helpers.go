@@ -3,7 +3,6 @@ package services
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -18,7 +17,7 @@ type StaffMessagingTestModule struct {
 }
 
 func NewStaffMessagingTestModule(db *bun.DB, unit tenant.UnitOfWork) (StaffMessagingTestModule, error) {
-	repos, err := repositories.NewStaffMessagingTestRepositories(db)
+	repos, err := NewStaffMessagingTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return StaffMessagingTestModule{}, err
 	}

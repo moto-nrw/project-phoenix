@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -73,10 +72,9 @@ func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
 	_, refreshToken, err := workingService.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	signer, err := authjwt.NewTokenAuthWithDurations(authTestFactoryConfig(false).JWTSecret, 15*time.Minute, time.Hour)
 	require.NoError(t, err)
-	service, err := services.IdentityAccessForTests(repoFactory, services.IdentityAccessTestConfig{
+	service, err := services.IdentityAccessForTests(services.IdentityAccessTestConfig{
 		TokenAuth: signer, TenantRuntime: testpkg.TenantRuntime(t, db),
 		Audit: failingAuditCommand{}, FrontendURL: "http://localhost:3000",
 		PasswordResetExpiry: time.Hour,
@@ -103,8 +101,7 @@ func TestRevocationAuditFailureRollsBackAndRetryIsIdempotent(t *testing.T) {
 	_, _, err = workingService.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	service, err := services.IdentityAccessForTests(repoFactory, services.IdentityAccessTestConfig{
+	service, err := services.IdentityAccessForTests(services.IdentityAccessTestConfig{
 		TenantRuntime: testpkg.TenantRuntime(t, db), Audit: failingAuditCommand{},
 		FrontendURL: "http://localhost:3000", PasswordResetExpiry: time.Hour,
 	}, db, nil)

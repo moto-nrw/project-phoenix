@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -45,7 +46,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	foreignStaff := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Coverage", "Foreign")
 	localRoom := testpkg.CreateTestRoomForTenant(t, db, testpkg.Tenant(t), "Coverage-Local")
 	foreignRoom := testpkg.CreateTestRoomForTenant(t, db, foreignTenantID, "Coverage-Foreign")
-	repos, err := repositories.NewTimetableTestRepositories(db)
+	repos, err := services.NewTimetableTestRepositoriesWithMembers(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	shiftRows := repos.StaffShift
 	localCtx := testpkg.Ctx(t)
@@ -131,7 +132,8 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	assert.Empty(t, foreignSchedules, "foreign recurrence bounds must not cross the tenant boundary")
 
 	queryCounter := testpkg.NewQueryCounter()
-	countedRepos, err := repositories.NewTimetableTestRepositories(db.WithQueryHook(queryCounter))
+	countedDB := db.WithQueryHook(queryCounter)
+	countedRepos, err := services.NewTimetableTestRepositoriesWithMembers(countedDB, services.MustNewMembershipTestRepositories(countedDB))
 	require.NoError(t, err)
 	detection := newConflictDetection(t, countedRepos)
 	pattern := 0

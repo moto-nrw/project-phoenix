@@ -6,13 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -43,12 +44,12 @@ type AuthTestModule struct {
 	OperatorPasskeys identityaccess.OperatorPasskeyFlows
 	// Repos and TokenAuth let a behaviour test read the rows the flows
 	// wrote and mint the tokens they expect.
-	Repos     *repositories.Factory
+	Repos     MembershipTestRepositories
 	TokenAuth *authjwt.TokenAuth
 }
 
 type InvitationTestModule struct {
-	Persistence *repositories.InvitationPersistence
+	Persistence *InvitationPersistence
 	Invitation  InvitationCapability
 	// Auth is the composed Identity & Access module, for the invitation
 	// HTTP tests that mount the whole auth router and therefore need the
@@ -57,7 +58,7 @@ type InvitationTestModule struct {
 }
 
 func NewInvitationTestModule(db *bun.DB, unit tenant.UnitOfWork) (InvitationTestModule, error) {
-	repos, err := repositories.NewInvitationPersistence(db)
+	repos, err := NewInvitationPersistence(db)
 	if err != nil {
 		return InvitationTestModule{}, err
 	}
@@ -170,14 +171,28 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		return AuthTestModule{}, err
 	}
 	logger := slog.Default()
-	command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	r, err := repositories.NewAuthTestRepositories(db, command)
+	members, err := NewMembershipTestRepositories(db)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
+	r := identityChainOf(db, members)
+	parentPortal, err := NewAuthTestParentPortal(db)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
+	organizations, err := NewOrganizationTenancy(db)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
+	// The auth events append through the command; the operator second factor
+	// appends to the operator ledger (#3331), so the module needs it bound.
+	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db})
+	audits = audits.WithRoutedWrites(command)
+	operatorAuditLog := newOperatorAuditLog(audits.OperatorAuditLog)
 	cfg := currentFactoryConfig()
 	settingsOverrides := authTestSettings{mailer: email.NewMockMailer(), rateLimitEnabled: cfg.RateLimitEnabled, demoMaxActiveSchools: 300}
 	for _, option := range options {
@@ -215,12 +230,12 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	// The delivery module is composed after the identity module, so the
 	// guardian mail reads its outbox at call time, as the factory does.
 	var deliveryModule DeliveryTestModule
-	identity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: r.School}, func(ctx context.Context, tenantID int64) (string, error) {
+	identity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
 		return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, logger)
-	sessionRepos := sessionRepositoriesOf(r, r.School)
+	sessionRepos := sessionRepositoriesOf(r, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db))
 	if settingsOverrides.staffCreateErr != nil {
-		sessionRepos.lifecycle.staff = failingStaffDirectory{StaffRepository: r.Staff, err: settingsOverrides.staffCreateErr}
+		sessionRepos.lifecycle.staff = failingStaffDirectory{StaffRepository: r.staff, err: settingsOverrides.staffCreateErr}
 	}
 	// The operator flows are composed here too: the operator second factor
 	// and both portals' passkey ceremonies (#3331) mint their sessions
@@ -231,7 +246,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		return AuthTestModule{}, err
 	}
 	operators, err := newOperatorDependencies(operatorAuthenticationWiring{
-		repos:         operatorRepositoriesOf(r),
+		repos:         operatorRepositoriesOf(r, operatorAuditLog),
 		organizations: owners.organizations,
 		persons:       owners.persons,
 		membership:    owners.membership,
@@ -250,7 +265,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		},
 		demoStandingSchool: settingsOverrides.standingDemo,
 		mfa: &mfaWiring{
-			repos: r, settings: settings.Settings,
+			operatorAuditLog: operatorAuditLog, settings: settings.Settings,
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
 			jwtSecret: mfaTestSecret(), logger: logger, backoff: settingsOverrides.mfaBackoff,
 			decorate: settingsOverrides.mfaRecords, capability: settingsOverrides.mfaCapability,
@@ -260,9 +275,9 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 			settings: settings.Settings, audit: command,
 			caregivers: caregiverProfiles{persons: owners.persons, membership: owners.membership},
 			guardianMail: &guardianInvitationWiring{
-				settings: settings.Settings, schools: r.School,
+				settings: settings.Settings, schools: organizations,
 				outbox:      func() platformModels.OutboxResultEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
-				enrollments: r.ParentEnrollmentRequest, parentsURL: parentsURL,
+				enrollments: parentPortal.ParentEnrollmentRequest, parentsURL: parentsURL,
 				fallbackExpiry: time.Duration(inviteHours) * time.Hour, logger: logger,
 			},
 		},
@@ -297,17 +312,17 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		DemoAccess: identityAccess.DemoAccess(),
 		MFA:        identityAccess, Passkeys: identityAccess,
 		OperatorMFA: identityAccess, OperatorPasskeys: identityAccess,
-		Repos: r, TokenAuth: tokenAuth,
+		Repos: members, TokenAuth: tokenAuth,
 		Invitation: invitation, GuardianInvitation: guardian,
-		Schools: r.School, Settings: settings.Settings,
+		Schools: organizations, Settings: settings.Settings,
 	}, nil
 }
 
 // IdentityAccessForTests composes the Identity & Access module over the
-// given repositories the way the factory does it, for behaviour tests that
-// exercise sessions, the account lifecycle or the role administration
+// identity chain rows of db the way the factory does it, for behaviour tests
+// that exercise sessions, the account lifecycle or the role administration
 // without the whole factory (#3364).
-func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestConfig, db *bun.DB, logger *slog.Logger) (*identityaccess.Module, error) {
+func IdentityAccessForTests(cfg IdentityAccessTestConfig, db *bun.DB, logger *slog.Logger) (*identityaccess.Module, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -327,11 +342,20 @@ func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestC
 	if err != nil {
 		return nil, err
 	}
+	organizations, err := NewOrganizationTenancy(db)
+	if err != nil {
+		return nil, err
+	}
+	repos, err := authTestIdentityChain(db)
+	if err != nil {
+		return nil, err
+	}
+	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db})
 	module, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepositoriesOf(repos, repos.School), codec: codec, settings: cfg.Settings,
+		repos: sessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db)), codec: codec, settings: cfg.Settings,
 		audit: cfg.Audit, logger: logger,
 		mfa: &mfaWiring{
-			repos: repos, settings: cfg.Settings,
+			operatorAuditLog: newOperatorAuditLog(audits.OperatorAuditLog), settings: cfg.Settings,
 			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom, frontendURL: cfg.FrontendURL,
 			jwtSecret: mfaTestSecret(), logger: logger,
 		},

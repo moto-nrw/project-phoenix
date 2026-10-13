@@ -48,11 +48,6 @@ func NewPeopleRepositorySuitePeople(db *bun.DB) services.PeopleRepositorySuitePe
 	return services.NewPeopleRepositorySuitePeople(db)
 }
 
-// NewPeopleRepositorySuiteSchoolStructure is the School Structure owner.
-func NewPeopleRepositorySuiteSchoolStructure(db *bun.DB) (services.PeopleRepositorySuiteSchoolStructure, error) {
-	return services.NewPeopleRepositorySuiteSchoolStructure(db)
-}
-
 // NewPeopleRepositorySuiteCareLifecycle composes the care lifecycle; a nil
 // command records into the test audit store.
 func NewPeopleRepositorySuiteCareLifecycle(db *bun.DB, command services.PeopleRepositorySuiteAuditCommand) (services.PeopleRepositorySuiteCareLifecycle, error) {

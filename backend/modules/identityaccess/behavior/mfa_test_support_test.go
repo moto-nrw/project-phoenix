@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -32,7 +31,7 @@ func newMFATestModule(t *testing.T, db *bun.DB, options ...services.AuthTestOpti
 
 // newTestMFAService wires a test-DB-backed second factor with a successful
 // mailer, so StartMFAChallenge exercises the delivered-code path.
-func newTestMFAService(t *testing.T, options ...services.AuthTestOption) (identityaccess.AccountMFA, *repositories.Factory, *bun.DB) {
+func newTestMFAService(t *testing.T, options ...services.AuthTestOption) (identityaccess.AccountMFA, services.MembershipTestRepositories, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module := newMFATestModule(t, db, withDeliveringMailer(options)...)
@@ -63,7 +62,7 @@ func challengeTokenAuth(t *testing.T, module services.AuthTestModule) *authjwt.T
 // signer it mints challenge tokens with and an account to gate.
 type mfaTestScenario struct {
 	MFA       identityaccess.AccountMFA
-	Repos     *repositories.Factory
+	Repos     services.MembershipTestRepositories
 	TokenAuth *authjwt.TokenAuth
 	DB        *bun.DB
 	AccountID int64

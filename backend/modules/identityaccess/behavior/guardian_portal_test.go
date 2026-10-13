@@ -5,7 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -15,7 +16,7 @@ import (
 func TestGuardianPortalMemberships(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	access, err := repositories.NewIdentityAccessForTests(db)
+	access, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
@@ -75,7 +76,7 @@ func TestGuardianPortalMemberships(t *testing.T) {
 func TestLoginReadyGuardianPortalMembershipsRequirePassword(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	access, err := repositories.NewIdentityAccessForTests(db)
+	access, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	ready := testpkg.CreateTestParentGuardianChain(t, db)
@@ -92,7 +93,7 @@ func TestLoginReadyGuardianPortalMembershipsRequirePassword(t *testing.T) {
 func TestGuardianPortalMembershipsEmptyAndDatabaseFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	access, err := repositories.NewIdentityAccessForTests(db)
+	access, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 	memberships, err := access.FindActiveGuardianMemberships(testpkg.Ctx(t), nil)

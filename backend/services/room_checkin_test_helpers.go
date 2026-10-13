@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -39,12 +38,12 @@ func NewCheckinTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() t
 	if err != nil {
 		return CheckinTestModule{}, err
 	}
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := NewFacilities(db)
 	if err != nil {
 		return CheckinTestModule{}, err
 	}
 	logger := slog.Default()
-	rosters := repositories.SessionRosters{Sessions: newStudentPresence(db, logger), Roster: repositories.NewUnobservedTimetableDependencies(db).Capability}
+	rosters := SessionRosters{Sessions: newStudentPresence(db, logger), Roster: NewUnobservedTimetableDependencies(db).Capability}
 	scan := devicescanCompose.New(devicescanCompose.Dependencies{
 		Fleet:      module.IoT.Fleet(),
 		Presence:   newStudentPresence(db, logger),

@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
 
@@ -22,7 +21,7 @@ import (
 func TestValidateSessionTokens(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	config := authTestFactoryConfig(false)
 	serviceFactory, err := services.NewFactoryForTestsWithConfig(repoFactory, db, slog.Default(), config)
 	require.NoError(t, err)
@@ -31,7 +30,7 @@ func TestValidateSessionTokens(t *testing.T) {
 	require.NotNil(t, service, "the composed module validates session hand-offs")
 	signer, err := jwt.NewTokenAuthWithDurations(config.JWTSecret, config.JWTExpiry, config.JWTRefreshExpiry)
 	require.NoError(t, err)
-	sessions, err := repositories.NewIdentityAccessForTests(db)
+	sessions, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	for _, portal := range []string{"tenant", "parent", "school", "platform"} {

@@ -4,7 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -37,7 +38,7 @@ func createSupervisorTestData(t *testing.T, db *testpkg.DB) *supervisorTestData 
 	room := testpkg.CreateTestRoom(t, db, "SupervisorRoom")
 
 	// Create an active group for supervisors
-	groupRepo := sessionGroups(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	groupRepo := sessionGroups(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	now := time.Now()
 	activeGroup := &ports.ActiveGroup{
 		StartTime:      now,
@@ -68,7 +69,7 @@ func TestGroupSupervisorRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates group supervisor with valid data", func(t *testing.T) {
@@ -118,7 +119,7 @@ func TestGroupSupervisorRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing group supervisor", func(t *testing.T) {
@@ -151,7 +152,7 @@ func TestGroupSupervisorRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates supervisor role", func(t *testing.T) {
@@ -185,7 +186,7 @@ func TestGroupSupervisorRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing supervisor", func(t *testing.T) {
@@ -217,7 +218,7 @@ func TestPresence_QuerySupervisionsAfterLegacyCreate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all group supervisors", func(t *testing.T) {
@@ -290,7 +291,7 @@ func TestGroupSupervisorRepository_FindActiveByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active supervisions for staff", func(t *testing.T) {
@@ -347,7 +348,7 @@ func TestGroupSupervisorRepository_FindByActiveGroupID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds all supervisors for active group", func(t *testing.T) {
@@ -417,8 +418,8 @@ func TestGroupSupervisorRepository_FindByActiveGroupIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
-	groupRepo := sessionGroups(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	groupRepo := sessionGroups(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds supervisors for multiple active groups", func(t *testing.T) {
@@ -477,7 +478,7 @@ func TestGroupSupervisorRepository_EndSupervision(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("ends active supervision", func(t *testing.T) {
@@ -507,7 +508,7 @@ func TestGroupSupervisorRepository_UsesInjectedClockForActiveSupervisions(t *tes
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	today := timezone.NewDate(2020, 1, 2)
-	repo := sessionSupervisors(repositories.NewPresenceSessionRecords(db, func() time.Time {
+	repo := sessionSupervisors(services.NewPresenceSessionRecords(db, func() time.Time {
 		return today.BerlinMidnight()
 	}))
 
@@ -595,7 +596,7 @@ func TestGroupSupervisorRepository_GetStaffIDsWithSupervisionToday(t *testing.T)
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns staff with supervision starting today", func(t *testing.T) {
@@ -737,7 +738,7 @@ func TestGroupSupervisorRepository_Update_NilSupervision(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("update with nil supervision should fail", func(t *testing.T) {
@@ -752,7 +753,7 @@ func TestGroupSupervisorRepository_Update_ValidationFailure(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("update with invalid supervision should fail validation", func(t *testing.T) {
@@ -780,7 +781,7 @@ func TestGroupSupervisorRepository_Create_ValidationFailure(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("create with invalid supervision should fail validation", func(t *testing.T) {
@@ -812,7 +813,7 @@ func TestPresence_QuerySupervisionsIncludesCreatedRole(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists with filter options applied", func(t *testing.T) {
@@ -839,7 +840,7 @@ func TestGroupSupervisorRepository_EndSupervision_AlreadyEnded(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("ending already ended supervision is no-op", func(t *testing.T) {
@@ -867,7 +868,7 @@ func TestGroupSupervisorRepository_EndSupervision_NonExistent(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("ending non-existent supervision is no-op", func(t *testing.T) {
@@ -886,7 +887,7 @@ func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	repo := sessionSupervisors(factory.ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
@@ -1027,7 +1028,7 @@ func TestGroupSupervisorRepository_EndByActiveGroupAndStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 
 	createSup := func(t *testing.T, groupID, staffID int64) *ports.GroupSupervisor {
@@ -1125,7 +1126,7 @@ func TestGroupSupervisorRepository_FindStaleOpen(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	otherTenantID := testpkg.UniqueTestTenantID(t)

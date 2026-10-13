@@ -8,10 +8,11 @@ import (
 
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,9 +22,9 @@ import (
 // overviewRepositories composes the retained readers and the Dienstplan row
 // adapter over the same handle, so a query counter attached to db observes
 // every read the projection makes.
-func overviewRepositories(db *bun.DB) (*repositories.Factory, *workforceCompose.ShiftRows) {
-	dependencies := repositories.NewUnobservedTimetableDependencies(db)
-	return repositories.NewFactory(db, dependencies), workforceCompose.NewShiftRows(dependencies.Workforce)
+func overviewRepositories(db *bun.DB) (*services.RepositoryTestFactory, services.TimetableRepositories, *workforceCompose.ShiftRows, services.TimetableDependencies) {
+	dependencies := services.NewUnobservedTimetableDependencies(db)
+	return services.NewRepositoryTestFactory(db, dependencies), services.NewTimetableRepositories(db, dependencies), workforceCompose.NewShiftRows(dependencies.Workforce), dependencies
 }
 
 func integrationClock(t *testing.T, value string) time.Time {
@@ -52,7 +53,7 @@ func createOverviewTenantFixture(
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Overview", fmt.Sprintf("Tenant-%d", tenantID))
 	room := testpkg.CreateTestRoomForTenant(t, db, tenantID, fmt.Sprintf("Overview-%d", tenantID))
-	_, shiftRows := overviewRepositories(db)
+	_, _, shiftRows, _ := overviewRepositories(db)
 	ctx := testpkg.TenantContext(tenantID)
 
 	instance := testpkg.CreateTestActivityInstanceForTenant(t, db, tenantID, date, room.ID, testpkg.ActivityInstanceOpts{
@@ -89,12 +90,12 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 
 	queryCounter := testpkg.NewQueryCounter()
 	countedDB := db.WithQueryHook(queryCounter)
-	repos, shiftRows := overviewRepositories(countedDB)
+	repos, timetableRepos, shiftRows, owners := overviewRepositories(countedDB)
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
-		Shifts: shiftRows, Instances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
-		InstanceStaff: repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
-		Rooms:         repos.Room, Staff: repos.Staff,
-		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel,
+		Shifts: shiftRows, Instances: timetableRepos.InstanceReads(),
+		InstanceStaff: timetableRepos.InstanceStaffReads(),
+		Rooms:         services.NewRoomRepository(owners.Rooms), Staff: repos.Staff,
+		WorkSchedules: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(owners.Workforce), WorkModels: workforceRepositoryAdapter.NewWorkTimeModelRepository(owners.Workforce),
 	})
 
 	localOverview, err := service.GetOverview(testpkg.Ctx(t), date, date.AddDays(4))
@@ -151,7 +152,7 @@ func createOverviewShift(t *testing.T, db *bun.DB, tenantID, staffID int64, date
 		BreakMinutes: breakMinutes, CreatedBy: staffID,
 	}
 	shift.TenantID = tenantID
-	_, shiftRows := overviewRepositories(db)
+	_, _, shiftRows, _ := overviewRepositories(db)
 	require.NoError(t, shiftRows.Create(testpkg.TenantContext(tenantID), shift))
 	return shift.ID
 }
@@ -179,9 +180,7 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 
 	modelStaff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Summary", "ModelFallback")
 	createOverviewShift(t, db, tenantID, modelStaff.ID, monday, "09:00", "10:00", 0)
-	modelRepos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	modelRepos.SetConfigRuntime(testpkg.ConfigRuntime(db))
-	modelRepo := modelRepos.WorkTimeModel
+	modelRepo := workforceRepositoryAdapter.NewWorkTimeModelRepository(services.NewUnobservedTimetableDependencies(db).Workforce)
 	workModel := &configModel.WorkTimeModel{
 		Name:               fmt.Sprintf("Summary fallback %d", time.Now().UnixNano()),
 		RotationLength:     1,
@@ -209,13 +208,12 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 
 	queryCounter := testpkg.NewQueryCounter()
 	countedDB := db.WithQueryHook(queryCounter)
-	repos, shiftRows := overviewRepositories(countedDB)
-	repos.SetConfigRuntime(testpkg.ConfigRuntime(countedDB))
+	repos, timetableRepos, shiftRows, owners := overviewRepositories(countedDB)
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
-		Shifts: shiftRows, Instances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
-		InstanceStaff: repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
-		Rooms:         repos.Room, Staff: repos.Staff,
-		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel,
+		Shifts: shiftRows, Instances: timetableRepos.InstanceReads(),
+		InstanceStaff: timetableRepos.InstanceStaffReads(),
+		Rooms:         services.NewRoomRepository(owners.Rooms), Staff: repos.Staff,
+		WorkSchedules: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(owners.Workforce), WorkModels: workforceRepositoryAdapter.NewWorkTimeModelRepository(owners.Workforce),
 	})
 
 	overview, err := service.GetOverview(testpkg.TenantContext(tenantID), monday, friday)
@@ -294,12 +292,12 @@ func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *te
 	weekdayShiftID := createOverviewShift(t, db, tenantID, staff.ID, friday, "08:00", "10:00", 0)
 	weekendShiftID := createOverviewShift(t, db, tenantID, staff.ID, saturday, "09:00", "12:00", 0)
 
-	repos, shiftRows := overviewRepositories(db)
+	repos, timetableRepos, shiftRows, owners := overviewRepositories(db)
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
-		Shifts: shiftRows, Instances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
-		InstanceStaff: repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
-		Rooms:         repos.Room, Staff: repos.Staff,
-		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel,
+		Shifts: shiftRows, Instances: timetableRepos.InstanceReads(),
+		InstanceStaff: timetableRepos.InstanceStaffReads(),
+		Rooms:         services.NewRoomRepository(owners.Rooms), Staff: repos.Staff,
+		WorkSchedules: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(owners.Workforce), WorkModels: workforceRepositoryAdapter.NewWorkTimeModelRepository(owners.Workforce),
 	})
 
 	// The Dienstplan grid requests Mon-Fri, but the contractual week is

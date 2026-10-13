@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -13,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -153,7 +154,7 @@ func (f *completeWithdrawalFixture) completeWithdrawal() *userModels.CareWithdra
 }
 
 func (f *completeWithdrawalFixture) assertCompletionAudit() {
-	rows, err := f.env.repos.EnrollmentOfferingAdjustment.ListByRequestChildID(f.ctx, f.childID)
+	rows, err := services.NewTestAuditPersistence(f.env.db, nil).EnrollmentOfferingAdjustment.ListByRequestChildID(f.ctx, f.childID)
 	require.NoError(f.t, err)
 	require.Len(f.t, rows, 2)
 	assert.True(f.t, rows[0].CompleteWithdrawalConfirmed)
@@ -179,7 +180,7 @@ func (f *completeWithdrawalFixture) assertCareExitCompletesSource(pending *userM
 }
 
 func newWithdrawalLifecycle(env *decisionTestEnv) careplan.CareLifecycle {
-	return newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
+	return newTestCareLifecycle(env.db, services.CareLifecycleTestConfig{
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return env.settings.ResolveBool(ctx, enrollmentKeys.BookingsAuthoritative)
 		},
@@ -280,9 +281,9 @@ func newWithdrawalRaceFixture(t *testing.T) *withdrawalRaceFixture {
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-10))
 	completionWaiting := make(chan struct{})
 	recurrenceGate := func(ctx context.Context) error {
-		return repositories.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(ctx)
+		return services.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(ctx)
 	}
-	lifecycle := newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
+	lifecycle := newTestCareLifecycle(env.db, services.CareLifecycleTestConfig{
 		LockCareBookingWrites: func(ctx context.Context) error {
 			close(completionWaiting)
 			return recurrenceGate(ctx)

@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -53,7 +54,7 @@ func grantTenantRole(t *testing.T, db *bun.DB, ctx context.Context, accountID, t
 func TestNativeEffectiveAdminsIncludeGrantedWildcardsWithoutSchoolLeakage(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	query, err := repositories.NewIdentityAccessForTests(db)
+	query, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
@@ -117,7 +118,7 @@ func TestNativeEffectiveAdminAccountIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo, err := repositories.NewIdentityAccessForTests(db)
+	repo, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 

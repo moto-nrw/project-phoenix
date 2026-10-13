@@ -3,10 +3,11 @@ package enrollmenthttp_test
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -17,7 +18,7 @@ import (
 // Organisation & Tenancy capability, the owner the serving root binds.
 // Callers pass a factory built on the pool from testpkg.SetupTestDB.
 type factorySchools struct {
-	repos *repositories.EnrollmentFlowTestRepositories
+	repos *services.EnrollmentFlowTestRepositories
 }
 
 func (s factorySchools) FindSchool(ctx context.Context, id int64) (*enrollmentOwner.School, error) {

@@ -5,7 +5,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 )
@@ -28,10 +27,10 @@ type TestPersonDirectorySources struct {
 // import that composition. The dated roster read stays unwired; a suite that
 // needs it derives a copy with WithCareParticipation.
 func NewTestPersonDirectory(db *bun.DB, sources TestPersonDirectorySources) *peopleCompose.PersonDirectory {
-	people := repositories.MustNewPeopleDirectory(db)
+	people := MustNewPeopleDirectory(db)
 	deps := peopleCompose.PersonDirectoryDependencies{
-		PersonDirectory:  repositories.NewPersonDirectory(people),
-		StudentDirectory: repositories.NewStudentDirectory(people),
+		PersonDirectory:  peopleCompose.NewPersonWrites(people),
+		StudentDirectory: peopleCompose.NewStudentDirectory(people),
 		PersonRepo:       sources.Persons,
 		RFIDRepo:         sources.RFIDCards,
 		AccountExists:    sources.AccountExists,

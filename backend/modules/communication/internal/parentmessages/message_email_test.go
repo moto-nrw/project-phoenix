@@ -19,13 +19,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -82,13 +82,13 @@ func (o *recordingMessageOutbox) Clear() {
 func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) *emailFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	organizations, err := repositories.NewOrganizationTenancy(db)
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	organizations, err := services.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	outbox := &recordingMessageOutbox{}
 	svc := messaging.NewService(messaging.Config{
 		ThreadRepo:       repos.ParentMessageThread,
-		MessageRepo:      repos.ParentMessage,
+		MessageRepo:      services.NewParentMessageRepository(db),
 		ReadRepo:         repos.ParentMessageRead,
 		Persons:          newPersons(repos, db),
 		Settings:         stubSettings{messagingEnabled: true},

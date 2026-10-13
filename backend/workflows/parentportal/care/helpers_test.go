@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -20,7 +21,7 @@ import (
 
 // childResolver binds messaging's ChildResolver to the real guardian-child
 // resolution, as the portal composition does in production.
-func childResolver(db *bun.DB, repos *repositories.Factory) messaging.ChildResolver {
+func childResolver(db *bun.DB, repos *services.RepositoryTestFactory) messaging.ChildResolver {
 	return care.New(care.Config{
 		ChildRepo: repos.ParentChild, StudentRepo: repos.Student,
 		RequestSharing: unusedRequestSharer{},

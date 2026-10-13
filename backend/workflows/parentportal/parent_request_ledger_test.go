@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -27,7 +26,7 @@ import (
 func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedAbsenceRequests, usersModels.ParentRequestEventRepository, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	events := repos.ParentRequestEvent
 	excused, err := services.NewTestExcusedAbsenceRequests(services.ExcusedRequestTestOptions{
 		CarePlan: repos.CarePlan(), Students: repos.Student, Persons: repos.Person, Events: events, Logger: slog.Default(),
@@ -35,7 +34,7 @@ func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedA
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:       repos.CarePlan(),
-		People:         repositories.MustNewPeopleDirectory(db),
+		People:         services.MustNewPeopleDirectory(db),
 		CareProfiles:   careProfiles(t, db),
 		ChildRepo:      repos.ParentChild,
 		StatusDayRepo:  repos.StudentStatusDay,

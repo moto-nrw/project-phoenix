@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -41,13 +40,15 @@ type offboardingIdentity interface {
 }
 
 type offboardingScenario struct {
-	db      *bun.DB
-	repos   *repositories.Factory
-	rows    repositories.TimetableTestRepositories
-	authSvc offboardingIdentity
-	svc     *offboardingTestRunner
-	deps    offboardingcompose.Dependencies
-	ctx     context.Context
+	db        *bun.DB
+	repos     *services.RepositoryTestFactory
+	timetable services.TimetableRepositories
+	workTime  workforce.Capability
+	rows      services.TimetableTestRepositories
+	authSvc   offboardingIdentity
+	svc       *offboardingTestRunner
+	deps      offboardingcompose.Dependencies
+	ctx       context.Context
 }
 
 func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScenario {
@@ -60,15 +61,14 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 		db = databases[0]
 	}
 
-	rows, err := repositories.NewTimetableTestRepositories(db)
+	rows, err := services.NewTimetableTestRepositoriesWithMembers(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
-	owners := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, owners)
-	repos.SetConfigRuntime(testpkg.ConfigRuntime(db))
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
 
-	authService, err := services.IdentityAccessForTests(repos, services.IdentityAccessTestConfig{
+	authService, err := services.IdentityAccessForTests(services.IdentityAccessTestConfig{
 		TenantRuntime: testpkg.TenantRuntime(t, db),
-		Audit:         testpkg.NewAuthEventCommand(repos.AuthEvent),
+		Audit:         testpkg.NewAuthEventCommand(services.NewTestAuditPersistence(db, nil).AuthEvent),
 		FrontendURL:   "http://localhost:3000", PasswordResetExpiry: time.Hour,
 	}, db, nil)
 	require.NoError(t, err)
@@ -76,7 +76,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
 	deps := offboardingcompose.Dependencies{
 		DB: db, Access: services.StaffOffboardingAccess(authService),
-		Employment: repositories.MembershipStaffEmployment(repositories.MustNewStaffEmployment(db)),
+		Employment: services.MembershipStaffEmployment(services.MustNewStaffEmployment(db)),
 		Authorize: func(ctx context.Context) (staffoffboarding.Actor, error) {
 			actor, _ := ctx.Value(offboardingTestActorKey{}).(staffoffboarding.Actor)
 			actor.AccountID = actorAccount.ID
@@ -88,13 +88,15 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	svc := &offboardingTestRunner{deps: deps}
 
 	return &offboardingScenario{
-		db:      db,
-		repos:   repos,
-		rows:    rows,
-		authSvc: authService,
-		svc:     svc,
-		deps:    deps,
-		ctx:     testpkg.Ctx(t),
+		db:        db,
+		repos:     repos,
+		timetable: services.NewTimetableRepositories(db, owners),
+		workTime:  owners.Workforce,
+		rows:      rows,
+		authSvc:   authService,
+		svc:       svc,
+		deps:      deps,
+		ctx:       testpkg.Ctx(t),
 	}
 }
 
@@ -202,7 +204,7 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	require.NoError(t, err)
 	_, err = sc.rows.StaffShift.FindByID(sc.ctx, shift.ID)
 	require.NoError(t, err)
-	_, err = sc.repos.InstanceStaff.FindByID(sc.ctx, assignment.ID)
+	_, err = sc.timetable.InstanceStaff.FindByID(sc.ctx, assignment.ID)
 	require.NoError(t, err)
 	person, err := sc.repos.Person.FindByID(sc.ctx, staff.PersonID)
 	require.NoError(t, err)
@@ -271,14 +273,14 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 					return sc.rows.StaffShift.Create(writerCtx, &scheduleModels.StaffShift{StaffID: staff.ID, Date: scheduleModels.Date(testpkg.TodayDate().AddDays(1)), StartTime: testpkg.WallClock(8, 0), EndTime: testpkg.WallClock(12, 0), CreatedBy: staff.ID})
 				}
 				if operation == "move_history" {
-					stored, err := sc.repos.ActivityInstance.FindByID(writerCtx, instance.ID)
+					stored, err := sc.timetable.ActivityInstance.FindByID(writerCtx, instance.ID)
 					if err != nil {
 						return err
 					}
 					stored.Date = scheduleModels.Date(testpkg.TodayDate().AddDays(1))
-					return sc.repos.ActivityInstance.Update(writerCtx, stored)
+					return sc.timetable.ActivityInstance.Update(writerCtx, stored)
 				}
-				return sc.repos.InstanceStaff.Create(writerCtx, &scheduleModels.InstanceStaff{InstanceID: instance.ID, StaffID: staff.ID})
+				return sc.timetable.InstanceStaff.Create(writerCtx, &scheduleModels.InstanceStaff{InstanceID: instance.ID, StaffID: staff.ID})
 			})
 		}()
 		require.Eventually(t, func() bool {
@@ -296,11 +298,11 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 	case <-ctx.Done():
 		t.Fatal("assignment writer did not finish")
 	}
-	rows, err := sc.repos.InstanceStaff.FindByInstanceID(ctx, instance.ID)
+	rows, err := sc.timetable.InstanceStaff.FindByInstanceID(ctx, instance.ID)
 	require.NoError(t, err)
 	if operation == "move_history" {
 		require.Len(t, rows, 1, "the historical assignment is retained")
-		persisted, err := sc.repos.ActivityInstance.FindByID(ctx, instance.ID)
+		persisted, err := sc.timetable.ActivityInstance.FindByID(ctx, instance.ID)
 		require.NoError(t, err)
 		require.Equal(t, scheduleModels.Date(date), persisted.Date, "history cannot be moved back into an operational assignment")
 	} else {
@@ -315,7 +317,7 @@ func TestOffboardingRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	sc := newOffboardingScenario(t, testpkg.SetupIsolatedTestDB(t))
 	actor := testpkg.CreateTestStaff(t, sc.db, "Runtime", "Actor")
-	queue, err := repositories.NewStaffDocumentCleanup(sc.db, nil)
+	queue, err := services.NewStaffDocumentCleanup(sc.db, nil)
 	require.NoError(t, err)
 	sc.deps.Cleanup = queue.Enqueue
 	workflow, err := offboardingcompose.New(sc.deps)
@@ -977,7 +979,7 @@ func TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments(t *testing.T) {
 			IsSpontaneous: true,
 		}
 		inst.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, sc.repos.ActivityInstance.Create(sc.ctx, inst))
+		require.NoError(t, sc.timetable.ActivityInstance.Create(sc.ctx, inst))
 		return inst
 	}
 	plannedInst := makeInstance(fmt.Sprintf("offb-planned-%d", time.Now().UnixNano()))
@@ -987,7 +989,7 @@ func TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments(t *testing.T) {
 	makeAssignment := func(instanceID int64) *scheduleModels.InstanceStaff {
 		row := &scheduleModels.InstanceStaff{InstanceID: instanceID, StaffID: staff.ID}
 		row.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, sc.repos.InstanceStaff.Create(sc.ctx, row))
+		require.NoError(t, sc.timetable.InstanceStaff.Create(sc.ctx, row))
 		return row
 	}
 	plannedRow := makeAssignment(plannedInst.ID)
@@ -1185,7 +1187,7 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 		RotationLength:     1,
 		RotationAnchorDate: configModel.NewCalendarDate(2026, time.January, 5),
 	}
-	require.NoError(t, sc.repos.WorkTimeModel.Create(sc.ctx, model, []*configModel.WorkTimeModelEntry{
+	require.NoError(t, services.NewWorkTimeModelRepository(sc.workTime).Create(sc.ctx, model, []*configModel.WorkTimeModelEntry{
 		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 300},
 	}))
 	_, err := sc.db.ExecContext(context.Background(),
@@ -1208,7 +1210,7 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 		Scan(context.Background(), &workTimeModelID))
 	assert.Nil(t, workTimeModelID, "work_time_model_id must be cleared on offboarding")
 
-	require.NoError(t, sc.repos.WorkTimeModel.Delete(sc.ctx, model.ID),
+	require.NoError(t, services.NewWorkTimeModelRepository(sc.workTime).Delete(sc.ctx, model.ID),
 		"work-time-model deletion must succeed once the offboarded staff no longer references it")
 }
 

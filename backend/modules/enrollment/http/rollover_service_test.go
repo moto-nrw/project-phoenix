@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -18,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -33,7 +34,7 @@ type rolloverTestEnv struct {
 	// this env over the test tenant.
 	tb             testing.TB
 	db             *bun.DB
-	repos          *repositories.EnrollmentFlowTestRepositories
+	repos          *services.EnrollmentFlowTestRepositories
 	timetable      timetable.Capability
 	rolloverSvc    enrollmentAPI.RolloverService
 	requestSvc     enrollmentAPI.RequestService

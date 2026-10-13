@@ -8,7 +8,6 @@ import (
 
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -34,25 +33,25 @@ func NewClassDayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
-	command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
-	r, err := repositories.NewEnrollmentTestRepositories(db, command)
+	r, err := NewEnrollmentTestRepositories(db, command)
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
 	careplanCompose.WireCareParticipation(active.CareDay, care.CareLifecycle)
 	reports := newEnrollmentReports(enrollmentReportSources{
 		Owner: r.Enrollment(), Offerings: enrollmentCompose.NewCareOfferingRecords(r.CarePlan), AccessLog: r.DataAccessLog,
-		Students: r.Student, Persons: r.Person, Groups: repositories.NewGroupNames(r.Group), StudentGuardians: r.StudentGuardian,
-		Companions: repositories.NewStudentCompanionRepository(r.CarePlan), ClassListEntries: NewClassListEntryRosterReader(r.Membership),
+		Students: r.Student, Persons: r.Person, Groups: NewGroupNames(r.Group), StudentGuardians: r.StudentGuardian,
+		Companions: NewStudentCompanionRepository(r.CarePlan), ClassListEntries: NewClassListEntryRosterReader(r.Membership),
 		PickupSchedules: active.PickupSchedule, CareParticipation: care.CareLifecycle, Settings: active.Settings,
 	})
 	classDay := newClassDay(classDaySources{
 		Caller: active.UserContext, Reports: reports, StatusDays: r.StudentStatusDay,
 		PickupTimes: active.PickupSchedule, ArrivalTimes: active.ArrivalSchedule, CareDays: active.CareDay,
-		Companions: repositories.NewStudentCompanionRepository(r.CarePlan), Students: r.Student, Persons: r.Person,
+		Companions: NewStudentCompanionRepository(r.CarePlan), Students: r.Student, Persons: r.Person,
 		StudentGuardians: r.StudentGuardian, AccessLog: r.DataAccessLog, ClassArrivalExceptions: active.ArrivalSchedule,
 		Settings: active.Settings, BlockStarts: active.TimetableOperations,
 		Broadcaster: deliveryCompose.NewRealtimeHub(slog.Default()), Logger: slog.Default(),

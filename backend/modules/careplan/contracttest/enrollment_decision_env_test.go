@@ -13,7 +13,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -21,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -141,7 +141,9 @@ type decisionTestEnv struct {
 	// over the test tenant.
 	tb    testing.TB
 	db    *bun.DB
-	repos *repositories.Factory
+	repos *services.RepositoryTestFactory
+	// timetable are the retained Timetable adapters over the same owners.
+	timetable services.TimetableRepositories
 	// requestSvc is the parent-facing intake.
 	requestSvc *enrollmentTest.Intake
 	// offeringCatalog is the Care Plan catalog over the test database; its
@@ -175,8 +177,8 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings testutil.EnrollmentDe
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
-	timetableDeps := repositories.NewUnobservedTimetableDependencies(db)
-	repoFactory := repositories.NewFactory(db, timetableDeps)
+	timetableDeps := services.NewUnobservedTimetableDependencies(db)
+	repoFactory := services.NewRepositoryTestFactory(db, timetableDeps)
 	settings := newStubRequestSettings()
 	settings.boolValues[enrollmentKeys.Enabled] = true
 	settings.boolValues[enrollmentKeys.AllowSubmissionEdit] = true
@@ -199,7 +201,7 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings testutil.EnrollmentDe
 	settings.stringValues[enrollmentKeys.LegalEmailContactText] = "E-Mail Text"
 	settings.stringValues[enrollmentKeys.LegalPhotoText] = "Foto Text"
 
-	schools := factorySchools{repos: repoFactory}
+	schools := newFactorySchools(t, db)
 	offerings := testutil.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan())
 	intake := testutil.NewEnrollmentIntake(testutil.EnrollmentIntakeSources{
 		Bookings:         testutil.NewEnrollmentCareBookingCommands(carePlanTest.NewOfferingBookings()),
@@ -245,6 +247,7 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings testutil.EnrollmentDe
 		tb:              t,
 		db:              db,
 		repos:           repoFactory,
+		timetable:       services.NewTimetableRepositories(db, timetableDeps),
 		requestSvc:      intake,
 		offeringCatalog: catalog,
 		settings:        settings,
@@ -312,7 +315,7 @@ func newDecisionServiceForTestWithCareWithdrawal(
 	careWithdrawal enrollmentTest.CareWithdrawalReconciler,
 ) enrollmentTest.PublicDecisions {
 	if careWithdrawal == nil {
-		careWithdrawal = newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
+		careWithdrawal = newTestCareLifecycle(env.db, services.CareLifecycleTestConfig{
 			BookingsAuthoritative: testBookingsAuthority(settings),
 		})
 	}
@@ -342,7 +345,7 @@ func composeBookings(
 	careWithdrawal enrollmentTest.CareWithdrawalReconciler,
 ) careplan.BookingMaterializationCapability {
 	if careWithdrawal == nil {
-		careWithdrawal = newTestCareLifecycle(db, repositories.CareLifecycleTestConfig{
+		careWithdrawal = newTestCareLifecycle(db, services.CareLifecycleTestConfig{
 			BookingsAuthoritative: testBookingsAuthority(settings),
 		})
 	}
@@ -367,21 +370,22 @@ func composeBookings(
 func composeDecisions(
 	tb testing.TB,
 	db *bun.DB,
-	repoFactory *repositories.Factory,
+	repoFactory *services.RepositoryTestFactory,
 	bookings enrollmentTest.DecisionBookings,
 	settings testutil.EnrollmentDecisionSettings,
 	lockTemplateRecurrence func(context.Context) error,
 	careWithdrawal enrollmentTest.CareWithdrawalReconciler,
 ) *enrollmentTest.Decisions {
 	if careWithdrawal == nil {
-		careWithdrawal = newTestCareLifecycle(db, repositories.CareLifecycleTestConfig{
+		careWithdrawal = newTestCareLifecycle(db, services.CareLifecycleTestConfig{
 			BookingsAuthoritative: testBookingsAuthority(settings),
 		})
 	}
 	guardianAccess, err := testutil.NewEnrollmentGuardianAccess(db)
 	require.NoError(tb, err)
-	students, err := repositories.NewPeopleDirectory(db)
+	students, err := services.NewPeopleDirectory(db)
 	require.NoError(tb, err)
+	audits := services.NewTestAuditPersistence(db, nil)
 	return testutil.NewEnrollmentDecisions(testutil.EnrollmentDecisionSources{
 		Requests:               repoFactory.Enrollment(),
 		Children:               repoFactory.Enrollment(),
@@ -390,8 +394,8 @@ func composeDecisions(
 		CareOfferings:          testutil.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
 		Phases:                 repoFactory.Enrollment(),
 		Schemas:                repoFactory.Enrollment(),
-		OfferingAdjustments:    repoFactory.EnrollmentOfferingAdjustment,
-		Restorations:           repoFactory.EnrollmentRestorationAudit,
+		OfferingAdjustments:    audits.EnrollmentOfferingAdjustment,
+		Restorations:           audits.EnrollmentRestorationAudit,
 		Notifications:          testNotifications(repoFactory.Enrollment(), settings, nil),
 		Persons:                repoFactory.Person,
 		Staff:                  repoFactory.Staff,
@@ -399,14 +403,14 @@ func composeDecisions(
 		StudentGuardians:       repoFactory.StudentGuardian,
 		GuardianProfiles:       repoFactory.GuardianProfile,
 		GuardianPhones:         repoFactory.GuardianPhoneNumber,
-		PickupSchedules:        repositories.NewEnrollmentPickupSchedules(repoFactory.StudentPickupSchedule),
-		ArrivalSchedules:       repositories.NewEnrollmentArrivalSchedules(repoFactory.StudentArrivalSchedule),
+		PickupSchedules:        timetableCompose.NewEnrollmentPickupSchedules(repoFactory.StudentPickupSchedule),
+		ArrivalSchedules:       timetableCompose.NewEnrollmentArrivalSchedules(repoFactory.StudentArrivalSchedule),
 		CareBookings:           bookings,
 		GuardianAccess:         guardianAccess,
 		StudentEnrollment:      students,
-		Companions:             repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
+		Companions:             services.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:       repoFactory.CarePlan().DeleteCompanionEdges,
-		StudentAudit:           services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAudit(db)),
+		StudentAudit:           services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, services.NewStudentAudit(db)),
 		CareWithdrawal:         careWithdrawal,
 		FrontendURL:            "http://localhost:3000",
 		ParentsURL:             "http://parents.localhost:3000",
@@ -429,13 +433,13 @@ func testBookingsAuthority(settings testutil.EnrollmentDecisionSettings) func(co
 // newTestCareLifecycle composes Care Plan's lifecycle over the test database,
 // with its owners bound the way the production graph binds them. The care-end
 // history goes to the ordinary student audit unless the config names another.
-func newTestCareLifecycle(db *bun.DB, config repositories.CareLifecycleTestConfig) careplan.CareLifecycle {
-	repos, err := repositories.NewCareLifecycleTestRepositories(db, nil)
+func newTestCareLifecycle(db *bun.DB, config services.CareLifecycleTestConfig) careplan.CareLifecycle {
+	repos, err := services.NewCareLifecycleTestRepositories(db, nil)
 	if err != nil {
 		panic(err)
 	}
 	if config.Audit == nil {
-		config.Audit = services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, repositories.NewStudentAudit(db))
+		config.Audit = services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, services.NewStudentAudit(db))
 	}
 	lifecycle, err := repos.NewCareLifecycle(config)
 	if err != nil {
@@ -455,7 +459,7 @@ func changeRequestApplierForTest(t *testing.T, env *decisionTestEnv) enrollmentT
 // over the env's intake repositories and decision flow.
 func newChangeRequestServiceWithDecisionForTest(t *testing.T, env *decisionTestEnv) enrollmentTest.ChangeRequests {
 	t.Helper()
-	schools := factorySchools{repos: env.repos}
+	schools := newFactorySchools(t, env.db)
 	offerings := testutil.NewEnrollmentCareOfferingRecords(env.repos.CarePlan())
 	return testutil.NewEnrollmentChangeRequests(testutil.EnrollmentChangeRequestSources{
 		Bookings:            testutil.NewEnrollmentCareBookingCommands(carePlanTest.NewOfferingBookings()),
@@ -481,12 +485,19 @@ func newChangeRequestServiceWithDecisionForTest(t *testing.T, env *decisionTestE
 	})
 }
 
-// factorySchools reads the seeded schools through the repository factory's
-// Organisation & Tenancy capability, the owner the serving root binds.
-type factorySchools struct{ repos *repositories.Factory }
+// factorySchools reads the seeded schools through an Organisation & Tenancy
+// capability, the owner the serving root binds.
+type factorySchools struct{ schools services.SchoolCapability }
+
+func newFactorySchools(t *testing.T, db *bun.DB) factorySchools {
+	t.Helper()
+	organizations, err := services.NewOrganizationTenancy(db)
+	require.NoError(t, err)
+	return factorySchools{schools: organizations}
+}
 
 func (s factorySchools) FindSchool(ctx context.Context, id int64) (*enrollmentTest.School, error) {
-	school, err := s.repos.School.FindSchool(ctx, id)
+	school, err := s.schools.FindSchool(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -686,7 +697,7 @@ func (d offeringStudentTestDirectory) ListOfferingStudents(ctx context.Context, 
 	return rows, nil
 }
 
-func approvedOfferingTestProjection(repos *repositories.Factory) *enrollmentTest.ApprovedOfferingProjection {
+func approvedOfferingTestProjection(repos *services.RepositoryTestFactory) *enrollmentTest.ApprovedOfferingProjection {
 	return enrollmentTest.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudentTestDirectory{repos.Student})
 }
 

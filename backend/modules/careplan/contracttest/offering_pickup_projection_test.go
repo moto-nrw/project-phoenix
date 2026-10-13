@@ -3,13 +3,14 @@ package contracttest_test
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 
 	"log/slog"
 	"testing"
@@ -84,7 +85,7 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 	)
 
 	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
-	err := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(effectiveFrom), nil)
+	err := services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(effectiveFrom), nil)
 	require.NoError(t, err)
 
 	reader := projectedPickupReader(env)
@@ -137,7 +138,7 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 	)
 
 	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		childID,
 		enrollmentTest.Date(effectiveFrom),
@@ -311,7 +312,7 @@ func TestOfferingPickupProjection_ResetWaitsForOfferingSourceGate(t *testing.T) 
 	monday := nextWeekday(decisionTestToday, time.Monday)
 
 	resetter := newBookingsForTest(env, nil, func(ctx context.Context) error {
-		return repositories.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(ctx)
+		return services.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(ctx)
 	}, nil)
 	releaseHolder, holderDone := holdOfferingSourceGate(t, env)
 	resetDone := startPickupReset(t, env, resetter, studentID, monday)
@@ -329,7 +330,7 @@ func holdOfferingSourceGate(t *testing.T, env *decisionTestEnv) (chan struct{}, 
 	acquired, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
 	go func() {
 		done <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
-			if err := repositories.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(ctx); err != nil {
+			if err := services.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(ctx); err != nil {
 				return err
 			}
 			close(acquired)

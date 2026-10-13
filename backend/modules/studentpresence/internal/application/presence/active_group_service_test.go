@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
@@ -22,7 +21,7 @@ import (
 
 // createActiveService creates an Active Service with real database connection
 func createActiveService(t *testing.T, db *testpkg.DB) active.Service {
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return composedEngine(t, serviceFactory.Active)

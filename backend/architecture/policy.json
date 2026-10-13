@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 35,
+  "policy_epoch": 36,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1125,13 +1125,6 @@
       "path": "database/migrations",
       "owner": "migrations",
       "role": "migration",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "database/repositories",
-      "owner": "legacy-composition",
-      "role": "compose",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -4663,13 +4656,6 @@
     }
   ],
   "legacy_composition": [
-    {
-      "package": "database/repositories",
-      "symbols": [
-        "Factory",
-        "NewFactory"
-      ]
-    },
     {
       "package": "services",
       "symbols": [
@@ -14750,6 +14736,18 @@
       "target_role": "public"
     },
     {
+      "id": "legacy-composition.to.audit-platform-compose",
+      "description": "Legacy composition obtains Audit Platform persistence from the Audit composition while the retained services still consume it (ADR 0049).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "compose",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
+    },
+    {
       "id": "care-plan.postgres.public",
       "description": "Care Plan Postgres adapters use the owner facade vocabulary.",
       "scopes": [
@@ -21032,6 +21030,17 @@
       "source_role": "compose",
       "target_owner": "settings-platform",
       "target_role": "domain"
+    },
+    {
+      "id": "settings-platform.compose.postgres",
+      "description": "Settings composition constructs its Postgres adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "postgres"
     },
     {
       "id": "settings-platform.compose.public",

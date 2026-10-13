@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -13,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/uptrace/bun"
 
 	"github.com/stretchr/testify/assert"
@@ -172,7 +173,7 @@ func TestCourseCatalogQueryBudget(t *testing.T) {
 	fx := setupOfferingChangeFixture(t, env, "CourseCatalogBudget")
 	group := repositoryActivityGroup(t, ctx, env, "CourseCatalogBudget")
 	group.Type = activitiesModels.GroupTypeActivity
-	require.NoError(t, env.repos.ActivityGroup.Update(ctx, group))
+	require.NoError(t, env.timetable.ActivityGroup.Update(ctx, group))
 	zero := 0
 	course := createAdjustmentCareOfferingWith(t, env, "Kurs CourseCatalogBudget", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &group.ID
@@ -261,7 +262,7 @@ func TestOfferingChangeRequestService_Create_StripsChangedCurrentAutomaticOfferi
 	// This row represents an offering materialized from another selection. A
 	// crafted request must not be able to change its days and persist it as a
 	// manual booking.
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &enrollmentTest.RequestChildOffering{
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &enrollmentTest.RequestChildOffering{
 		RequestChildID:        fx.childID,
 		CareOfferingID:        automatic.ID,
 		SelectedDays:          []string{"mon"},
@@ -1193,10 +1194,10 @@ func createPlanningOccurrence(
 		NotScheduled: opts.notScheduled,
 	})
 	if opts.unplanned {
-		stored, err := env.repos.InstanceStudent.FindByID(testpkg.Ctx(t), attendance.ID)
+		stored, err := env.timetable.InstanceStudent.FindByID(testpkg.Ctx(t), attendance.ID)
 		require.NoError(t, err)
 		stored.IsUnplanned = true
-		require.NoError(t, env.repos.InstanceStudent.Update(testpkg.Ctx(t), stored))
+		require.NoError(t, env.timetable.InstanceStudent.Update(testpkg.Ctx(t), stored))
 	}
 }
 
@@ -1232,30 +1233,30 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	manualGroup.Type = activitiesModels.GroupTypeCare
 	manualGroup.IsTemplate = true
 	manualGroup.TargetGroupType = activitiesModels.TargetGroupTypeAngebot
-	require.NoError(t, env.repos.ActivityGroup.Update(ctx, manualGroup))
+	require.NoError(t, env.timetable.ActivityGroup.Update(ctx, manualGroup))
 
 	sourcedGroup := repositoryActivityGroup(t, ctx, env, "OfferingPlanningPreview")
 	sourcedGroup.Type = activitiesModels.GroupTypeCare
 	sourcedGroup.IsTemplate = true
 	sourcedGroup.TargetGroupType = activitiesModels.TargetGroupTypeAngebot
 	sourcedGroup.SourceCareOfferingIDs = []int64{fx.newOffering.ID}
-	require.NoError(t, env.repos.ActivityGroup.Update(ctx, sourcedGroup))
+	require.NoError(t, env.timetable.ActivityGroup.Update(ctx, sourcedGroup))
 
-	legacySourcedGroup, err := env.repos.ActivityGroup.FindByID(ctx, fx.oldGroupID)
+	legacySourcedGroup, err := env.timetable.ActivityGroup.FindByID(ctx, fx.oldGroupID)
 	require.NoError(t, err)
 	legacySourcedGroup.Type = activitiesModels.GroupTypeCare
 	legacySourcedGroup.IsTemplate = true
 	legacySourcedGroup.TargetGroupType = activitiesModels.TargetGroupTypeNone
-	require.NoError(t, env.repos.ActivityGroup.Update(ctx, legacySourcedGroup))
+	require.NoError(t, env.timetable.ActivityGroup.Update(ctx, legacySourcedGroup))
 	parentChoiceGroup := repositoryActivityGroup(t, ctx, env, "EmptyParentChoicePlanning")
 	parentChoiceGroup.Type = activitiesModels.GroupTypeCare
 	parentChoiceGroup.IsTemplate = true
-	require.NoError(t, env.repos.ActivityGroup.Update(ctx, parentChoiceGroup))
+	require.NoError(t, env.timetable.ActivityGroup.Update(ctx, parentChoiceGroup))
 	parentChoiceOffering := createAdjustmentCareOfferingWith(t, env, "Leere Tagesauswahl", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &parentChoiceGroup.ID
 		o.CountsAsCare, o.CountsAsCareSet = true, true
 	})
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &enrollmentTest.RequestChildOffering{
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &enrollmentTest.RequestChildOffering{
 		RequestChildID: fx.childID,
 		CareOfferingID: parentChoiceOffering.ID,
 		SelectedDays:   []string{},
@@ -1373,7 +1374,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsManualPlanningForFu
 
 	manualGroup := repositoryActivityGroup(t, ctx, env, "ManualFullWithdrawal")
 	manualGroup.Type, manualGroup.IsTemplate = activitiesModels.GroupTypeCare, true
-	require.NoError(t, env.repos.ActivityGroup.Update(ctx, manualGroup))
+	require.NoError(t, env.timetable.ActivityGroup.Update(ctx, manualGroup))
 	period := testpkg.CreateTestCalendarPeriod(
 		t, env.db, "Manual full withdrawal "+t.Name(), timezone.Date(env.sourcePhase.ServiceStartDate), timezone.Date(env.sourcePhase.ServiceEndDate),
 	)
@@ -1477,7 +1478,7 @@ func TestManualPlanningReaderRejectsInvalidCalendarWindows(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	student := testpkg.CreateTestStudent(t, db, "Planning", "Validation", "2a")
-	reader := repositories.NewManualPlanningQuery(nil)
+	reader := services.NewManualPlanningQuery(nil)
 	for _, tc := range []struct {
 		name, from, to string
 	}{
@@ -1499,7 +1500,7 @@ func TestManualPlanningReaderRejectsInvalidCalendarWindows(t *testing.T) {
 }
 
 func (r manualPlanningFixture) ListManualPlanningOccurrences(ctx context.Context, studentID int64, from, to string) ([]careplanCompose.ManualPlanningOccurrence, error) {
-	rows, err := repositories.NewManualPlanningQuery(r.db).ListManualPlanningOccurrences(ctx, studentID, from, to)
+	rows, err := services.NewManualPlanningQuery(r.db).ListManualPlanningOccurrences(ctx, studentID, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -1522,7 +1523,7 @@ func offeringChangePayload(t *testing.T, row *careplan.OfferingChangeRequest) ma
 // owner row the activity repository updates.
 func repositoryActivityGroup(t *testing.T, ctx context.Context, env *decisionTestEnv, name string) *activitiesModels.Group {
 	t.Helper()
-	group, err := env.repos.ActivityGroup.FindByID(ctx, testpkg.CreateTestActivityGroup(t, env.db, name).ID)
+	group, err := env.timetable.ActivityGroup.FindByID(ctx, testpkg.CreateTestActivityGroup(t, env.db, name).ID)
 	require.NoError(t, err)
 	return group
 }

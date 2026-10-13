@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +46,7 @@ func TestActivityInstanceCreateInExecutionStateJoinsTheCallerTransaction(t *test
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance
+	repo := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db)).ActivityInstance
 	fx := newActivityInstanceFixtures(t, db, "cutover-uow")
 	defer fx.cleanup()
 	group := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)
@@ -72,7 +73,7 @@ func TestActivityInstanceCreateRollsBackThePlanWhenTheSessionCannotStart(t *test
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance
+	repo := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db)).ActivityInstance
 	fx := newActivityInstanceFixtures(t, db, "cutover-failure")
 	defer fx.cleanup()
 	group := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)

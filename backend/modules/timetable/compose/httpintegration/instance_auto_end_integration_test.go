@@ -30,13 +30,13 @@ func TestAutoEnd_UsesAtomicManualCompletionPath(t *testing.T) {
 	require.NoError(t, err)
 
 	visit := testpkg.CreateTestVisit(t, s.db, s.student1, started.ActiveGroupID, autoEndNow.Add(-time.Hour), nil)
-	updated, err := s.repos.InstanceStudent.UpdateAttendanceFromCheckin(
+	updated, err := s.timetable.InstanceStudent.UpdateAttendanceFromCheckin(
 		s.ctx, instance.ID, s.student1, visit.EntryTime,
 	)
 	require.NoError(t, err)
 	require.True(t, updated)
 
-	autoEnd := newLifecycleAutoEnd(t, s.repos.ActivityInstance, s.svc)
+	autoEnd := newLifecycleAutoEnd(t, s.timetable.ActivityInstance, s.svc)
 	var result *timetable.AutoEndResult
 	err = testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var runErr error
@@ -47,7 +47,7 @@ func TestAutoEnd_UsesAtomicManualCompletionPath(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, 1, result.Completed)
 
-	reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
+	reloaded, err := s.timetable.ActivityInstance.FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.InstanceStatusCompleted, reloaded.Status)
 	require.NotNil(t, reloaded.CompletedAt)
@@ -66,7 +66,7 @@ func TestAutoEnd_UsesAtomicManualCompletionPath(t *testing.T) {
 	require.Len(t, supervisors, 1)
 	require.NotNil(t, supervisors[0].EndDate)
 
-	attendance, err := s.repos.InstanceStudent.FindByInstanceAndStudent(s.ctx, instance.ID, s.student1)
+	attendance, err := s.timetable.InstanceStudent.FindByInstanceAndStudent(s.ctx, instance.ID, s.student1)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.AttendanceStatusPresent, attendance.Status)
 	require.NotNil(t, attendance.CheckedOutAt)
@@ -81,7 +81,7 @@ func TestAutoEnd_ConcurrentManualCompletionHasOneWinner(t *testing.T) {
 	instance := seedInstance(t, s, true, false)
 	_, err := svc.Start(s.ctx, instance.ID, s.staffID)
 	require.NoError(t, err)
-	autoEnd := newLifecycleAutoEnd(t, s.repos.ActivityInstance, svc)
+	autoEnd := newLifecycleAutoEnd(t, s.timetable.ActivityInstance, svc)
 	start := make(chan struct{})
 	manualErr := make(chan error, 1)
 	autoResult := make(chan *timetable.AutoEndResult, 1)
@@ -181,9 +181,9 @@ func TestAutoEnd_IsTenantIsolated(t *testing.T) {
 		ActiveGroupID: &foreignGroup.ID,
 	}
 	foreignInstance.SetTenantID(foreign.TenantID)
-	require.NoError(t, s.repos.ActivityInstance.Create(foreignCtx, foreignInstance))
+	require.NoError(t, s.timetable.ActivityInstance.Create(foreignCtx, foreignInstance))
 
-	autoEnd := newLifecycleAutoEnd(t, s.repos.ActivityInstance, s.svc)
+	autoEnd := newLifecycleAutoEnd(t, s.timetable.ActivityInstance, s.svc)
 	var result *timetable.AutoEndResult
 	err = testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var runErr error
@@ -194,7 +194,7 @@ func TestAutoEnd_IsTenantIsolated(t *testing.T) {
 	assert.Equal(t, 1, result.Checked)
 	assert.Equal(t, 1, result.Completed)
 
-	untouched, err := s.repos.ActivityInstance.FindByID(foreignCtx, foreignInstance.ID)
+	untouched, err := s.timetable.ActivityInstance.FindByID(foreignCtx, foreignInstance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.InstanceStatusActive, untouched.Status)
 }
@@ -222,7 +222,7 @@ func TestAutoEnd_LeavesIndependentRoomStays(t *testing.T) {
 	roomSession := testpkg.CreateTestActiveGroup(t, s.db, roomActivity.ID, s.roomID)
 	independent := testpkg.CreateTestVisit(t, s.db, s.student2, roomSession.ID, autoEndNow.Add(-30*time.Minute), nil)
 
-	autoEnd := newLifecycleAutoEnd(t, s.repos.ActivityInstance, s.svc)
+	autoEnd := newLifecycleAutoEnd(t, s.timetable.ActivityInstance, s.svc)
 	var result *timetable.AutoEndResult
 	err = testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var runErr error

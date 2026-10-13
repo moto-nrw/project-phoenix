@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -49,13 +49,13 @@ func render(fn func(io.Writer)) string {
 // setupTestCleanupContext creates a cleanupContext with test database
 func setupTestCleanupContext(t *testing.T) *cleanupContext {
 	db := testpkg.SetupTestDB(t)
-	schools, err := repositories.NewOrganizationTenancy(db)
+	schools, err := testutil.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	ctx := &cleanupContext{
 		Schools:       schools,
 		TenantRuntime: testpkg.TenantRuntime(t, db),
 		DB:            db,
-		Audit:         repositories.NewTestAuditStore(db),
+		Audit:         testutil.NewTestAuditStore(db),
 		Output:        io.Discard,
 		Logger:        log.New(io.Discard, "", 0),
 	}
@@ -66,17 +66,24 @@ func setupTestCleanupContext(t *testing.T) *cleanupContext {
 // setupTestCleanupContextWithServices creates the narrow session-cleanup service.
 func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	db := testpkg.SetupTestDB(t)
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	owners := testutil.NewUnobservedTimetableDependencies(db)
+	sessionDevices, err := testutil.NewDeviceFleet(db)
+	require.NoError(t, err)
+	sessions := testutil.NewSessionRecords(db, testutil.SessionRecordOwners{
+		Devices: sessionDevices, Rooms: owners.Rooms, Timetable: owners.Capability, Membership: owners.Membership, Persons: owners.Students,
+	})
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repoFactory.ActiveGroup)
+	devices, err := testutil.NewDeviceRepository(db)
+	require.NoError(t, err)
+	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(sessions)
 	sessionService := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		SchoolPresence: presence,
 		GroupRepo:      sessionGroups,
 		SupervisorRepo: sessionSupervisors,
 		DeviceRepo: cleanupTestDevices{
 			findDeviceID: func(ctx context.Context) (int64, error) {
-				device, err := repoFactory.Device.FindByDeviceID(ctx, "WEB-MANUAL-001")
+				device, err := devices.FindByDeviceID(ctx, "WEB-MANUAL-001")
 				if err != nil {
 					return 0, err
 				}
@@ -85,14 +92,14 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 				}
 				return device.ID, nil
 			},
-			updateRoomID: repoFactory.Device.UpdateRoomID,
+			updateRoomID: devices.UpdateRoomID,
 		},
-		TimetableBridgeCompleter: repoFactory.ActivityInstance,
+		TimetableBridgeCompleter: testutil.NewRetainedTimetableRepositories(db, owners).ActivityInstance,
 		DB:                       db,
 		Logger:                   slog.Default(),
 	}, presenceservice.WithPresenceSettings(detailedPresenceSettings{}))
-	cleanupSvc := buildRetentionCleanupService(&cleanupContext{DB: db, Audit: repositories.NewTestAuditStore(db)})
-	schools, err := repositories.NewOrganizationTenancy(db)
+	cleanupSvc := buildRetentionCleanupService(&cleanupContext{DB: db, Audit: testutil.NewTestAuditStore(db)})
+	schools, err := testutil.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	return &cleanupContext{
 		Schools:               schools,

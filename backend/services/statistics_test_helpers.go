@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -30,25 +29,25 @@ func NewStatisticsTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func(
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	r, err := repositories.NewStatisticsTestRepositories(db, command, clocks...)
+	r, err := NewStatisticsTestRepositories(db, command, clocks...)
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	groups, err := repositories.NewSchoolStructure(db)
+	groups, err := NewSchoolStructure(db)
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := NewFacilities(db)
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
 	students := overlappingRosterGroupNames{StudentRepository: r.Timetable.Student, groups: groups}
 	calendarAdministration := schoolCalendarAdministration(settings.Settings, func(context.Context) error { return nil }, nil)
-	calendar, err := repositories.NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
+	calendar, err := NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}

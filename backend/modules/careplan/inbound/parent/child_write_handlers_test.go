@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
@@ -80,11 +79,11 @@ func newWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 
 func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService.SettingsService) http.Handler {
 	t.Helper()
-	repos, repoErr := repositories.NewParentRouteTestRepositories(db)
+	repos, repoErr := services.NewParentRouteTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:        repos.CareExceptions,
-		People:          repositories.MustNewPeopleDirectory(db),
+		People:          services.MustNewPeopleDirectory(db),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChild,
 		StatusDayRepo:   repos.StudentStatusDay,
@@ -229,11 +228,11 @@ func (disabledSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ strin
 
 func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	t.Helper()
-	repos, repoErr := repositories.NewParentRouteTestRepositories(db)
+	repos, repoErr := services.NewParentRouteTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:      repos.CareExceptions,
-		People:        repositories.MustNewPeopleDirectory(db),
+		People:        services.MustNewPeopleDirectory(db),
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
 		StudentRepo:   repos.Student,

@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -23,7 +22,7 @@ type GroupsTestModule struct {
 	Active      studentpresence.Presence
 	Users       *peopleCompose.PersonDirectory
 	People      peopleCompose.GroupRoutePeople
-	UserContext *repositories.CallerRows
+	UserContext *CallerRows
 }
 
 // TeacherGroupIDs exposes the same assignment projection as attendance composition.
@@ -32,7 +31,7 @@ func (m GroupsTestModule) TeacherGroupIDs(ctx context.Context, teacherID int64) 
 }
 
 func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork, publishers ...realtimeevents.Publisher) (GroupsTestModule, error) {
-	r, err := repositories.NewUserContextTestRepositories(db)
+	r, err := NewUserContextTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return GroupsTestModule{}, err
 	}
@@ -46,16 +45,16 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork, publishers ...realt
 		publisher = publishers[0]
 	}
 	groups := education.NewGroupManagement(tt.Group, tt.GroupTeacher, tt.ClassTeacher,
-		repositories.NewEducationRooms(tt.Room), NewEducationTeachers(tt.Teacher), repositories.NewEducationStaff(tt.Staff),
+		NewEducationRooms(tt.Facilities), NewEducationTeachers(tt.Teacher), NewEducationStaff(tt.Staff),
 		tt.Student, r.Substitutions, education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: publisher})
 
 	persons := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
-		PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
-		StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
-		PersonRepo:       tt.Person, StudentRepo: tt.Student, TeacherRepo: tt.Teacher, AccountExists: repositories.AccountExists(r.Profile),
+		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
+		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
+		PersonRepo:       tt.Person, StudentRepo: tt.Student, TeacherRepo: tt.Teacher, AccountExists: AccountExists(r.Profile),
 		StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: tt.Person, Staff: tt.Staff, Teachers: tt.Teacher}),
 	})
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := NewFacilities(db)
 	if err != nil {
 		return GroupsTestModule{}, err
 	}
@@ -66,7 +65,7 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork, publishers ...realt
 		StaffNames:      NewAttendanceStaffNames(tt.Staff, persons), GroupRepo: sessionGroups, SupervisorRepo: sessionSupervisors,
 		StudentRepo: PresenceStudents(db, tt.Student), StaffRepo: NewAttendanceStaffDirectory(tt.Staff), RoomRepo: NewAttendanceRooms(tt.Room),
 		EducationGroupRepo: NewAttendanceEducationGroups(tt.Group, tt.Student),
-		ActivityGroupRepo:  repositories.NewSessionActivities(tt.ActivityGroup), DB: db, Logger: slog.Default(),
+		ActivityGroupRepo:  NewSessionActivities(tt.GroupReads()), DB: db, Logger: slog.Default(),
 		SchoolPresence: newStudentPresence(db, slog.Default()),
 	})
 

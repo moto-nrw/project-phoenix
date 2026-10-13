@@ -3,7 +3,6 @@ package services
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
@@ -38,7 +37,7 @@ func NewFileStoreTestModule(db *bun.DB, unit tenant.UnitOfWork, objects UploadsB
 		return FileStoreTestModule{}, err
 	}
 	command, err := auditSvc.NewCommand(
-		repositories.NewTestAuditStore(db),
+		NewTestAuditStore(db),
 		func(auditSvc.AppendObservation) {},
 	)
 	if err != nil {
@@ -51,12 +50,12 @@ func NewFileStoreTestModule(db *bun.DB, unit tenant.UnitOfWork, objects UploadsB
 	if err != nil {
 		return FileStoreTestModule{}, err
 	}
-	persons, err := repositories.NewPeopleDirectory(db)
+	persons, err := NewPeopleDirectory(db)
 	if err != nil {
 		return FileStoreTestModule{}, err
 	}
 	announcements := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
-		Repo: repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New()), Settings: settings.Settings, Logger: slog.Default(),
+		Repo: NewParentAnnouncementRepository(db, enrollmentAudience.New()), Settings: settings.Settings, Logger: slog.Default(),
 	})
 	files, err := filestorageCompose.New(filestorageCompose.Dependencies{
 		DB:            db,
@@ -64,7 +63,7 @@ func NewFileStoreTestModule(db *bun.DB, unit tenant.UnitOfWork, objects UploadsB
 		Identity:      identity,
 		People:        persons,
 		Settings:      fileStorageSettings{service: settings.Settings},
-		Events:        fileStorageEvents{repo: repositories.NewFileEventTestRepository(db, command)},
+		Events:        fileStorageEvents{repo: newFileEventTestRepository(db, command)},
 		HasPermission: securityruntime.HasPermission,
 		Announcements: announcements,
 		Observe:       func(filestorageCompose.Observation) {},

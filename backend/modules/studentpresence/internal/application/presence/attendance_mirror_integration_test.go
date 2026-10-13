@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -44,7 +43,7 @@ type attendanceSyncSetup struct {
 	syncer      studentpresence.AttendanceSyncer
 	instRepo    scheduleModels.ActivityInstanceRepository
 	isRepo      scheduleModels.InstanceStudentRepository
-	statusRepo  *repositories.StudentStatusDayRepository
+	statusRepo  *services.StudentStatusDayRepository
 	groupRepo   studentpresence.SessionRecords
 	db          *bun.DB
 	ctx         context.Context
@@ -81,8 +80,10 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	}
 	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	instanceStudentRepo := repoFactory.InstanceStudent
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repoFactory := services.NewRepositoryTestFactory(db, owners)
+	timetableRepos := services.NewTimetableRepositories(db, owners)
+	instanceStudentRepo := timetableRepos.InstanceStudent
 
 	// Register parent cleanup first because t.Cleanup executes LIFO: the
 	// instance callback registered below must run before its room/group parents.
@@ -90,14 +91,14 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 		// active.group is tenant-owned and dies with the package clone
 	})
 
-	syncer, err := services.NewTimetableAttendanceMirror(repositories.TimetableOwnerRows{Instances: repoFactory.ActivityInstance, Participants: instanceStudentRepo}, slog.Default())
+	syncer, err := services.NewTimetableAttendanceMirror(services.TimetableOwnerRows{Instances: timetableRepos.ActivityInstance, Participants: instanceStudentRepo}, slog.Default())
 	require.NoError(t, err)
 	return &attendanceSyncSetup{
 		syncer:      syncer,
-		instRepo:    repoFactory.ActivityInstance,
+		instRepo:    timetableRepos.ActivityInstance,
 		isRepo:      instanceStudentRepo,
 		statusRepo:  repoFactory.StudentStatusDay,
-		groupRepo:   repositories.NewPresenceSessionRecords(db),
+		groupRepo:   services.NewPresenceSessionRecords(db),
 		db:          db,
 		ctx:         ctx,
 		roomID:      room.ID,
@@ -111,7 +112,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 // Presence syncer port the way the composition root does (#3424 slice S3).
 func newAttendanceMirror(t testing.TB, instances scheduleModels.ActivityInstanceRepository, rows scheduleModels.InstanceStudentRepository, logger *slog.Logger) studentpresence.AttendanceSyncer {
 	t.Helper()
-	syncer, err := services.NewTimetableAttendanceMirror(repositories.TimetableOwnerRows{Instances: instances, Participants: rows}, logger)
+	syncer, err := services.NewTimetableAttendanceMirror(services.TimetableOwnerRows{Instances: instances, Participants: rows}, logger)
 	require.NoError(t, err)
 	return syncer
 }
@@ -252,7 +253,7 @@ func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
 			require.NotNil(t, checkInSnapshot5)
 			testpkg.CreateTestVisit(t, s.db, student.ID, s.activeGroup.ID, entryTime, nil)
 
-			factory, err := services.NewFactoryForTests(repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)), s.db, slog.Default())
+			factory, err := services.NewFactoryForTests(services.NewRepositoryTestFactory(s.db, services.NewUnobservedTimetableDependencies(s.db)), s.db, slog.Default())
 			require.NoError(t, err)
 			if tt.timeout {
 				device := testpkg.CreateTestDevice(t, s.db, fmt.Sprintf("AS-Bulk-%d", time.Now().UnixNano()))

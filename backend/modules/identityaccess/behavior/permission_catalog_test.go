@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +16,7 @@ import (
 func TestRoleCatalogWithoutLifecycle(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	catalog, err := repositories.NewIdentityAccessForTests(db)
+	catalog, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	role := testpkg.CreateTestRole(t, db, "catalog-without-lifecycle")
@@ -38,7 +39,7 @@ func TestRoleCatalogWithoutLifecycle(t *testing.T) {
 func TestRoleCatalogDatabaseFailures(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	catalog, err := repositories.NewIdentityAccessForTests(db)
+	catalog, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, db.Close())

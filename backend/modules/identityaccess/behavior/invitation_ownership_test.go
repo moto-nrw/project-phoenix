@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -185,7 +186,7 @@ func TestInvitationLifecycleAndImportedSchoolIdentity(t *testing.T) {
 			testpkg.OwnTenant(t)
 			db := testpkg.SetupTestDB(t)
 			service := setupInvitationService(t, db)
-			repos, compositionErr := repositories.NewInvitationPersistence(db)
+			repos, compositionErr := services.NewInvitationPersistence(db)
 			require.NoError(t, compositionErr)
 			ctx := testpkg.Ctx(t)
 			roleID := testpkg.CreateTestRole(t, db, "invited-staff").ID

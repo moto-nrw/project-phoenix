@@ -3,7 +3,6 @@ package services
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
@@ -38,11 +37,11 @@ func NewOperatorSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (Operator
 	if err != nil {
 		return OperatorSettingsTestModule{}, err
 	}
-	careRepos, err := repositories.NewCareLifecycleTestRepositories(db, repositories.NewTestAuditStore(db))
+	careRepos, err := NewCareLifecycleTestRepositories(db, NewTestAuditStore(db))
 	if err != nil {
 		return OperatorSettingsTestModule{}, err
 	}
-	schools, err := repositories.NewOrganizationTenancy(db)
+	schools, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return OperatorSettingsTestModule{}, err
 	}

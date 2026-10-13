@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
@@ -28,19 +27,19 @@ type GradeTransitionTestModule struct {
 type OfferingResync func(ctx context.Context, effectiveFrom timezone.Date) error
 
 func NewGradeTransitionTestModule(db *bun.DB, resync OfferingResync, clocks ...func() time.Time) (GradeTransitionTestModule, error) {
-	command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
-	tt, err := repositories.NewTimetableTestRepositories(db, clocks...)
+	tt, err := NewTimetableTestRepositories(db, clocks...)
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
-	people, err := repositories.NewPeopleDirectory(db)
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
@@ -48,7 +47,7 @@ func NewGradeTransitionTestModule(db *bun.DB, resync OfferingResync, clocks ...f
 		resync = func(context.Context, timezone.Date) error { return nil }
 	}
 	clock := optionalClock(clocks)
-	recurrenceLock, err := repositories.NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := NewTimetableRecurrenceLock(db)
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}

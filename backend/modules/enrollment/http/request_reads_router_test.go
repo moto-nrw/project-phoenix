@@ -9,12 +9,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -33,7 +34,7 @@ type unreadEnv struct {
 	router   http.Handler
 	tenantID int64
 	phaseID  int64
-	repos    repositories.EnrollmentTestRepositories
+	repos    services.EnrollmentTestRepositories
 	requests enrollmentAPI.RequestService
 }
 
@@ -43,7 +44,7 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := testpkg.Ctx(t)
-	repos, err := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
+	repos, err := services.NewEnrollmentTestRepositories(db, services.NewTestAuditStore(db))
 	require.NoError(t, err)
 	settings := stubTakeoverSettings{}
 

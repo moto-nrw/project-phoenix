@@ -6,7 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,7 @@ import (
 func TestNativeParentFeedConcurrentCreationKeepsOneWinner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	feeds, err := repositories.NewIdentityAccessForTests(db)
+	feeds, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "parent-feed-race")
 	ctx := testpkg.Ctx(t)
@@ -63,7 +64,7 @@ func TestNativeParentFeedConcurrentCreationKeepsOneWinner(t *testing.T) {
 func TestNativeParentFeedRotationUsesAmbientTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	feeds, err := repositories.NewIdentityAccessForTests(db)
+	feeds, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "parent-feed-rollback")
 	ctx := testpkg.Ctx(t)

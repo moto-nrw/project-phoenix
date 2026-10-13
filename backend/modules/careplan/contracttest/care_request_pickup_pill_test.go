@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
@@ -243,7 +242,7 @@ func nativeCareReviews(t *testing.T, f *careFixture) careplan.CareScheduleReview
 		},
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },
 		Today:                 func() careplan.Date { return "2026-09-09" },
-		Blocks:                repositories.NewPickupReviewBlocks(f.db),
+		Blocks:                services.NewPickupReviewBlocks(f.db),
 		ObserveCare:           func(requestreviewcompose.CareObservation) {},
 		ObserveTimetable:      func(requestreviewcompose.TimetableObservation) {},
 	})

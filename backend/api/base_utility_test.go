@@ -19,7 +19,6 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -308,7 +307,7 @@ func setupCaregiverCompositionModule(t *testing.T, graph *serveGraph) *caregiver
 func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	t.Helper()
 	db, module := testutil.SetupSettingsCallbacksModule(t, newStudentPhotoTestBootstrap())
-	repos, err := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
+	repos, err := testutil.NewEnrollmentTestRepositoriesWithMembers(db, testutil.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	homeLayouts, ok := module.Settings.(interface {
 		HomeLayout(context.Context, int64, int64, []string) (any, error)
@@ -907,9 +906,9 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	people, err := repositories.NewPeopleDirectory(db)
+	people, err := testutil.NewPeopleDirectory(db)
 	require.NoError(t, err)
-	identity, err := repositories.NewIdentityAccessForTests(db)
+	identity, err := testutil.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	resource := newUsersResource(people, identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
 		_, _, found, err := identity.LookupRFIDCard(ctx, tagID)
@@ -959,7 +958,7 @@ type settingsCallbackRoute struct {
 func checkTimetableConflictWiring(t *testing.T, graph *serveGraph) {
 	t.Parallel()
 
-	timetable := newTimetableResource(moduleServices{services: graph.services, repositories: graph.repos}, nil, slog.Default())
+	timetable := newTimetableResource(moduleServices{services: graph.services}, nil, slog.Default())
 	require.NotNil(t, timetable)
 	require.NotNil(t, timetable.ConflictDetection, "api/timetable must hold the owner's conflict detection")
 	assert.Same(t, graph.services.TimetableData.ConflictDetection, timetable.ConflictDetection,

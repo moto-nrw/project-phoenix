@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -70,24 +70,26 @@ func TestTimetableOperationsPlannedNowQueryBudget(t *testing.T) {
 // retained repositories; the caller is the given staff member.
 func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staff *usersModels.Staff, now time.Time) timetable.OperationCapability {
 	t.Helper()
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
+	timetableRepos := services.NewTimetableRepositories(db, owners)
 	stand := newTimetableOpsDeps()
 	stand.personService.accountPerson = staff.Person
 	stand.personService.staffByPersonID[staff.PersonID] = staff
 	deps := stand.dependencies()
 	deps.Sessions = repos.ActiveGroup
 	deps.Supervisions = repos.GroupSupervisor
-	deps.Visits = repositories.NewStudentPresenceForTests(db)
+	deps.Visits = services.NewStudentPresenceForTests(db)
 	deps.PlanningTracks = nil
 	deps.Now = func() time.Time { return now }
-	rows := repositories.TimetableOwnerRows{
-		Instances:       repos.ActivityInstance,
-		InstanceStaff:   repos.InstanceStaff,
-		Participants:    repos.InstanceStudent,
-		Templates:       repos.ActivityGroup,
+	rows := compose.OwnerRows{
+		Instances:       timetableRepos.ActivityInstance,
+		InstanceStaff:   timetableRepos.InstanceStaff,
+		Participants:    timetableRepos.InstanceStudent,
+		Templates:       timetableRepos.ActivityGroup,
 		Students:        repos.Student,
-		EducationGroups: repos.Group,
-		Rooms:           repos.Room,
+		EducationGroups: services.TimetableEducationGroupNames(repos.Group),
+		Rooms:           services.NewTimetableRoomNames(owners.Rooms),
 	}
 	templates, err := rows.OperationTemplates()
 	require.NoError(t, err)

@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"time"
 )
 
 // repository is the model-owned persistence contract shared by schedule
@@ -18,18 +17,4 @@ type repository[T any] interface {
 type crudRepository[T any] interface {
 	repository[T]
 	List(context.Context, map[string]any) ([]T, error)
-}
-
-// RequestQueueFilters is the legacy care-request repository's paging shape.
-// The owner facade converts it to its public RequestQueueFilter at the adapter
-// boundary.
-type RequestQueueFilters struct {
-	UrgentOnly    *bool
-	UrgentDate    string
-	StudentIDs    []int64
-	StudentID     int64
-	Search        string
-	BeforeInstant time.Time
-	BeforeID      int64
-	Limit         int
 }

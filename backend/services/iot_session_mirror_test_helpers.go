@@ -1,7 +1,6 @@
 package services
 
 import (
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/uptrace/bun"
@@ -11,7 +10,7 @@ import (
 // retained timetable rows of the test repositories, the way the root binds
 // it to the production ones. The instance rows are returned for read-back.
 func (TimetableTestModule) KioskSessionMirror(db *bun.DB, activities activitiesSvc.ActivityService) (devicescanCompose.SessionMirror, devicescanCompose.MirrorInstances, error) {
-	repos, err := repositories.NewTimetableTestRepositories(db)
+	repos, err := NewTimetableTestRepositories(db)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -5,6 +5,8 @@ import (
 	"context"
 	"slices"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -18,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -48,7 +49,7 @@ func createSourcedTemplate(
 	group.SourceCareOfferingIDs = []int64{offeringID}
 	group.SourceGradeLevels = gradeLevels
 	group.CalendarPeriodID = &period.ID
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.Update(testpkg.Ctx(t), group))
+	require.NoError(t, testTimetableRepositories(env.db).ActivityGroup.Update(testpkg.Ctx(t), group))
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
 	return group
 }
@@ -367,9 +368,9 @@ func TestResyncTemplateOfferingRoster_SeedsFutureDatedLinkFromItsStart(t *testin
 	studentID, childID := submitAndApproveOfferingChild(t, env, offering.ID, "future-link@example.com", "Fee", 2)
 
 	// The child only holds the offering from a future switch date onward.
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ReplaceRequestChildOfferings(ctx, childID, nil))
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ReplaceRequestChildOfferings(ctx, childID, nil))
 	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		childID,
 		enrollmentTest.Date(switchDate),
@@ -410,7 +411,7 @@ func TestResyncTemplateOfferingRoster_CapsRowAtLinkEnd(t *testing.T) {
 	// The child leaves the offering mid-phase: the link is closed at the
 	// switch date and nothing follows it.
 	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(switchDate), nil))
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(switchDate), nil))
 
 	template := createSourcedTemplate(t, env, "EndetFrueherTermin", offering.ID, []int{2}, period)
 	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(ctx,
@@ -486,7 +487,7 @@ func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *tes
 	// predecessor, only the lineage connects it to the successor.
 	successor := createCareOfferingTemplateGroup(t, env.db, "LineageNachfolger")
 	successor.SeriesRootID = &predecessor.ID
-	require.NoError(t, env.repos.ActivityGroup.Update(testpkg.Ctx(t), successor))
+	require.NoError(t, env.timetable.ActivityGroup.Update(testpkg.Ctx(t), successor))
 	createCareOfferingTemplateSchedule(t, env.db, successor.ID, activitiesModels.WeekdayMonday, &period.ID)
 
 	carried := predecessorRows[0]
@@ -500,7 +501,7 @@ func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *tes
 		SelectedWeekdays:         carried.SelectedWeekdays,
 	}
 	carriedRow.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.StudentEnrollment.Create(testpkg.Ctx(t), carriedRow))
+	require.NoError(t, env.timetable.StudentEnrollment.Create(testpkg.Ctx(t), carriedRow))
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("activities.student_enrollments").
@@ -611,8 +612,8 @@ func TestResyncTemplateOfferingRoster_GapBetweenLinksStaysUnplanned(t *testing.T
 
 	leaveDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
 	rejoinDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(90)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(leaveDate), nil))
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(leaveDate), nil))
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		childID,
 		enrollmentTest.Date(rejoinDate),
@@ -673,7 +674,7 @@ func TestResyncTemplateOfferingRoster_ShrinksRetainedRowToLinkEnd(t *testing.T) 
 
 	// The child leaves the offering mid-phase AFTER the row was seeded.
 	capDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(45)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(capDate), nil))
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(capDate), nil))
 
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
 	rows = loadTemplateEnrollments(t, env, template.ID)
@@ -715,7 +716,7 @@ func TestResyncTemplateOfferingRoster_SourceSwitchRespectsNewLinkStart(t *testin
 	// The child switches to offering B mid-phase; the template is retargeted
 	// from A to B in the same breath.
 	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(45)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		childID,
 		enrollmentTest.Date(switchDate),
@@ -909,7 +910,7 @@ func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err, "deleting an offering with a grade-filtered sourced template must not fail")
 
-	degraded, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.FindByID(ctx, template.ID)
+	degraded, err := testTimetableRepositories(env.db).ActivityGroup.FindByID(ctx, template.ID)
 	require.NoError(t, err)
 	assert.Empty(t, degraded.SourceCareOfferingIDs)
 	assert.Empty(t, degraded.SourceGradeLevels)
@@ -957,7 +958,7 @@ func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 	offeringB := createSourceOffering(t, env, "DetachQuelleB", nil)
 	template := createSourcedTemplate(t, env, "DetachTermin", offeringA.ID, nil, period)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.Update(ctx, template))
+	require.NoError(t, testTimetableRepositories(env.db).ActivityGroup.Update(ctx, template))
 
 	studentA, _ := submitAndApproveOfferingChild(t, env, offeringA.ID, "detach-a@example.com", "Alwa", 2)
 	studentB, _ := submitAndApproveOfferingChild(t, env, offeringB.ID, "detach-b@example.com", "Bodo", 2)
@@ -975,7 +976,7 @@ func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 	require.True(t, ok)
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, offeringResyncToday))
 
-	kept, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.FindByID(ctx, template.ID)
+	kept, err := testTimetableRepositories(env.db).ActivityGroup.FindByID(ctx, template.ID)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{offeringB.ID}, kept.SourceCareOfferingIDs,
 		"the template must stay sourced by the remaining offering")
@@ -1031,7 +1032,7 @@ func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 	offeringB := createSourceOffering(t, env, "DriftQuelleB", nil)
 	template := createSourcedTemplate(t, env, "DriftTermin", offeringA.ID, []int{2}, period)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.Update(ctx, template))
+	require.NoError(t, testTimetableRepositories(env.db).ActivityGroup.Update(ctx, template))
 
 	onlyA, _ := submitAndApproveOfferingChild(t, env, offeringA.ID, "drift-only-a@example.com", "Anke", 2)
 	onlyB, _ := submitAndApproveOfferingChild(t, env, offeringB.ID, "drift-only-b@example.com", "Bern", 2)
@@ -1052,13 +1053,13 @@ func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 		timezone.NewDate(2030, 1, 1),
 		timezone.NewDate(2030, 1, 31))
 	template.CalendarPeriodID = &shortPeriod.ID
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.Update(ctx, template))
+	require.NoError(t, testTimetableRepositories(env.db).ActivityGroup.Update(ctx, template))
 
 	detacher, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok)
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, offeringResyncToday))
 
-	kept, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.FindByID(ctx, template.ID)
+	kept, err := testTimetableRepositories(env.db).ActivityGroup.FindByID(ctx, template.ID)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{offeringB.ID}, kept.SourceCareOfferingIDs,
 		"a drifted sibling must not strip the remaining valid source")
@@ -1087,7 +1088,7 @@ func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 	offeringB := createSourceOffering(t, env, "UnionQuelleB", nil)
 	template := createSourcedTemplate(t, env, "UnionTermin", offeringA.ID, nil, period)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.Update(ctx, template))
+	require.NoError(t, testTimetableRepositories(env.db).ActivityGroup.Update(ctx, template))
 
 	// One child holds BOTH offerings (same request), one child only offering B.
 	grade := int16(2)
@@ -1174,7 +1175,7 @@ func TestDecide_FansOutToMultiSourceTemplate(t *testing.T) {
 	offeringB := createSourceOffering(t, env, "FanoutQuelleB", nil)
 	template := createSourcedTemplate(t, env, "FanoutMultiTermin", offeringA.ID, nil, period)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.Update(ctx, template))
+	require.NoError(t, testTimetableRepositories(env.db).ActivityGroup.Update(ctx, template))
 
 	studentID, _ := submitAndApproveOfferingChild(t, env, offeringB.ID, "fanout-multi@example.com", "Mio", 2)
 
@@ -1216,7 +1217,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 
 	template := createSourcedTemplate(t, env, "DriftBreitTermin", offeringA.ID, nil, period)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.Update(ctx, template))
+	require.NoError(t, testTimetableRepositories(env.db).ActivityGroup.Update(ctx, template))
 
 	// One child holds BOTH offerings; the approval fan-out seeds the union
 	// row shaped by A (first in the array): Mo–Fr.
@@ -1268,7 +1269,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	require.True(t, ok)
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, offeringResyncToday))
 
-	kept, err := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.FindByID(ctx, template.ID)
+	kept, err := testTimetableRepositories(env.db).ActivityGroup.FindByID(ctx, template.ID)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{offeringB.ID}, kept.SourceCareOfferingIDs)
 
@@ -1302,7 +1303,7 @@ func TestDecide_MultiSourceFanOutSeedsFromPhaseStart(t *testing.T) {
 	offeringB := createSourceOffering(t, env, "LaufendQuelleB", nil)
 	template := createSourcedTemplate(t, env, "LaufendMultiTermin", offeringA.ID, nil, period)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.Update(ctx, template))
+	require.NoError(t, testTimetableRepositories(env.db).ActivityGroup.Update(ctx, template))
 
 	submitAndApproveOfferingChild(t, env, offeringB.ID, "laufend-multi@example.com", "Lars", 2)
 
@@ -1334,7 +1335,7 @@ func TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource(t *t
 	offeringB := createSourceOffering(t, env, "KorrekturQuelleB", nil)
 	template := createSourcedTemplate(t, env, "KorrekturMultiTermin", offeringA.ID, nil, period)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.Update(ctx, template))
+	require.NoError(t, testTimetableRepositories(env.db).ActivityGroup.Update(ctx, template))
 
 	_, childID := submitAndApproveOfferingChild(t, env, offeringA.ID, "korrektur-multi@example.com", "Kim", 2)
 	child, err := readOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
@@ -1380,7 +1381,7 @@ func TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled(t *testing.T) {
 	offeringB := createSourceOffering(t, env, "GateQuelleB", nil)
 	template := createSourcedTemplate(t, env, "GateMultiTermin", offeringA.ID, nil, period)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.Update(ctx, template))
+	require.NoError(t, testTimetableRepositories(env.db).ActivityGroup.Update(ctx, template))
 
 	submitAndApproveOfferingChild(t, env, offeringB.ID, "gate-multi@example.com", "Gero", 2)
 
@@ -1425,7 +1426,8 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	registerSourcedInstanceCleanup(t, env, planned.ID)
 	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentID, "expected")
 
-	repoFactory := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db))
+	repoFactory := services.NewRepositoryTestFactory(env.db, services.NewUnobservedTimetableDependencies(env.db))
+	timetableRepos := testTimetableRepositories(env.db)
 	sourcedResyncer, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the delete-side detach")
 	phaseSvc := enrollmentTest.NewPhases(enrollmentTest.PhaseDependencies{
@@ -1442,7 +1444,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 		"the not-yet-effective sourced rows must be retired with the phase")
 	assert.Empty(t, loadSourcedInstanceStudents(t, env, planned.ID),
 		"the child's still-planned occurrence row must be removed with the phase")
-	degraded, err := repoFactory.ActivityGroup.FindByID(ctx, template.ID)
+	degraded, err := timetableRepos.ActivityGroup.FindByID(ctx, template.ID)
 	require.NoError(t, err)
 	assert.Empty(t, degraded.SourceCareOfferingIDs, "the cascade flips the now source-less template to a manual roster")
 }
@@ -1491,7 +1493,7 @@ func createSourcedTemplateSegment(
 	group.SourceCareOfferingIDs = []int64{offeringID}
 	group.SourceGradeLevels = gradeLevels
 	group.CalendarPeriodID = &period.ID
-	require.NoError(t, repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup.Update(testpkg.Ctx(t), group))
+	require.NoError(t, testTimetableRepositories(env.db).ActivityGroup.Update(testpkg.Ctx(t), group))
 	createBoundedTemplateSchedule(t, env, group.ID, activitiesModels.WeekdayMonday, &period.ID, validFrom, validUntil)
 	return group
 }
@@ -1685,7 +1687,7 @@ func TestResyncTemplateOfferingRoster_PreservesManualOccurrenceRemoval(t *testin
 	// The child leaves the offering four weeks later: the resync resizes the
 	// enrollment row while the occurrence date stays covered.
 	switchDate := occurrenceDate.AddDays(28)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(switchDate), nil))
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(switchDate), nil))
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
 
 	rows := loadTemplateEnrollments(t, env, template.ID)
@@ -1776,7 +1778,7 @@ func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 
 	// The child leaves the offering mid-phase BEFORE the request is decided.
 	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(switchDate), nil))
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(switchDate), nil))
 
 	outcome, err := env.decision.Decide(ctx, enrollmentTest.DecideInput{
 		RequestID:  submitted.Request.ID,
@@ -2048,7 +2050,7 @@ func TestResyncTemplateOfferingRoster_FutureLegacyLinkDoesNotSuppressEarlierSour
 	// The child joins the legacy offering mid-phase and keeps the source
 	// offering; before that date only the source plans the child.
 	legacyStart := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		childID,
 		enrollmentTest.Date(legacyStart),
@@ -2300,7 +2302,7 @@ func TestSourcedRosterRows_AppearInTemplateListReads(t *testing.T) {
 	))
 
 	ctx := testpkg.Ctx(t)
-	repo := repositories.NewFactory(env.db, repositories.NewUnobservedTimetableDependencies(env.db)).ActivityGroup
+	repo := testTimetableRepositories(env.db).ActivityGroup
 
 	rows, err := repo.ListTemplateRows(ctx, &template.ID)
 	require.NoError(t, err)
