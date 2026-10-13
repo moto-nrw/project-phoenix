@@ -44,8 +44,9 @@ func (a requestSubmissionAdapter) DepartureModes(ctx context.Context, id int64, 
 	if err != nil {
 		return nil, requestStudentReadError(err)
 	}
+	plan := requestDeparturePlan(student)
 	modes := make([]string, 0, 2)
-	for _, mode := range student.AllowedDepartureModes[weekdayDepartureKeys[weekday]] {
+	for _, mode := range plan.AllowedDepartureModes[weekdayDepartureKeys[weekday]] {
 		modes = append(modes, string(mode))
 	}
 	if len(modes) == 0 {

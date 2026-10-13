@@ -66,6 +66,31 @@ func TestDayDepartureRequestStoresTheModeAndTheDayBefore(t *testing.T) {
 		"a child without a weekly plan goes home alone, and the request records that")
 }
 
+func TestDayDepartureRequestStoresTheLegacyDepartureModeBefore(t *testing.T) {
+	t.Parallel()
+
+	svc, db, _ := buildDayDepartureRequestService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	ctx := testpkg.Ctx(t)
+	_, err := db.NewUpdate().TableExpr("users.student_care_profiles").
+		Set(`allowed_departure_modes = '{}'::jsonb`).
+		Set(`departure_days = '{"mon":"bus"}'::jsonb`).
+		Set(`bus_days = '{}'::jsonb`).
+		Set(`pickup_days = '{}'::jsonb`).
+		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", chain.StudentID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	created, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID,
+		dayDepartureRequestToday.AddDays(7), time.Time{}, "pickup", "Die Oma holt ab", nil)
+	require.NoError(t, err)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(created.Payload, &payload))
+	assert.Equal(t, []any{"bus"}, payload["previous_departure_modes"],
+		"the request history reads the legacy weekday departure plan before the change")
+}
+
 func TestDayDepartureRequestNeedsTheSchoolsAbholartSetting(t *testing.T) {
 	t.Parallel()
 
