@@ -826,7 +826,18 @@
       "statusRejected": "Odrzucono: {reason}",
       "noDecisionReason": "Nie podano uzasadnienia",
       "submit": "Wyślij prośbę",
-      "errorObject": "godzina odbioru"
+      "errorObject": "godzina odbioru",
+      "titleWithMode": "Zmień odbiór",
+      "introWithMode": "Proszę poprosić o inną godzinę lub inny sposób odbioru na jeden dzień. Plan tygodnia pozostaje bez zmian. Zmiana obowiązuje dopiero po potwierdzeniu przez OGS.",
+      "modeLabel": "Sposób odbioru w tym dniu",
+      "modeUnchanged": "Jak w planie tygodnia",
+      "noTimeOrMode": "Proszę wpisać godzinę odbioru lub wybrać sposób odbioru.",
+      "reasonRequiredGeneric": "Proszę krótko podać, dlaczego zmienia się odbiór.",
+      "pickupOptionalHint": "Proszę zostawić puste, jeśli godzina się nie zmienia.",
+      "modeStaffSet": "OGS ustaliła już sposób odbioru na ten dzień: {mode}.",
+      "pendingMode": "Nowy sposób odbioru: {to}",
+      "statusApprovedChange": "Potwierdzono, zmiana obowiązuje.",
+      "errorStaffConflictGeneric": "OGS wpisała już zmianę na ten dzień. Proszę skontaktować się z zespołem OGS."
     },
     "actions": {
       "sick": {
@@ -1739,7 +1750,9 @@
     "eventRequestWithdrawn": "Prośba wycofana",
     "eventRequestCreatedCareOffering": "Wysłano prośbę o zmianę zapisanych ofert",
     "eventRequestConfirmedCareOffering": "Prośba potwierdzona, zapisane oferty zostaną zmienione",
-    "eventRequestConfirmedCareOfferingDated": "Prośba potwierdzona, zapisane oferty zostaną zmienione od {date}"
+    "eventRequestConfirmedCareOfferingDated": "Prośba potwierdzona, zapisane oferty zostaną zmienione od {date}",
+    "eventRequestCreatedPickupChangeWithMode": "Wysłano prośbę o zmianę odbioru",
+    "eventRequestConfirmedPickupChangeWithMode": "Prośba potwierdzona, odbiór zmieniony"
   },
   "parentFeedback": {
     "kicker": "Opinia",
@@ -1804,7 +1817,10 @@
       "pickupHint": "Zmień godzinę odbioru na jeden dzień",
       "message": "Napisz wiadomość",
       "messageCompact": "Napisz wiadomość",
-      "messageHint": "Napisz do OGS w sprawie: {name}"
+      "messageHint": "Napisz do OGS w sprawie: {name}",
+      "pickupWithMode": "Zmień odbiór: {name}",
+      "pickupCompactWithMode": "Zmień odbiór",
+      "pickupHintWithMode": "Zmień godzinę lub sposób odbioru na jeden dzień"
     }
   },
   "parentStart": {

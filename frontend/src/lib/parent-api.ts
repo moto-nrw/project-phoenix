@@ -261,6 +261,9 @@ export interface ChildFeatures {
   // actions for a chat-only guardian instead of dead-ending on a backend 403.
   readonly request_submit_enabled: boolean;
   readonly pickup_change_enabled: boolean;
+  // Ob die Anfrage für einen Tag auch eine andere Abholart enthalten darf
+  // (#3945): Abholänderung für einen Tag UND Abholart ändern sind an.
+  readonly pickup_change_mode_enabled?: boolean;
   // Die Schule kann eine Uhrzeit festlegen, bis zu der Eltern die Abholzeit
   // für heute ändern dürfen (operations.parent_pickup_change_cutoff_time,
   // #3163). Leer oder fehlend heißt: keine Frist. today_closed sagt, dass die
@@ -323,13 +326,30 @@ export interface CareException {
   // resolves the tile to an absence rather than the base-plan pickup. Undefined
   // for ordinary rows.
   readonly arrival_absent?: boolean;
+  // Die Abholart, die die OGS für diesen Tag eingetragen oder bestätigt hat
+  // (#3945). Fehlt sie, gilt die Abholart aus dem Wochenplan.
+  readonly departure_mode?: DayDepartureMode;
 }
 
+// Abholarten, die Eltern für einen einzelnen Tag anfragen können (#3945).
+// „In Begleitung“ setzt nur die OGS, weil sie das Begleitkind verknüpft.
+export const REQUESTABLE_DAY_DEPARTURE_MODES = [
+  "alone",
+  "bus",
+  "pickup",
+] as const;
+export type DayDepartureMode =
+  (typeof REQUESTABLE_DAY_DEPARTURE_MODES)[number] | "accompanied";
+
+// Eine Abholänderungsanfrage für einen Tag. pickup_time oder departure_mode
+// ist null, wenn die Anfrage diesen Teil nicht ändert (#3945).
 export interface PickupChangeRequest {
   readonly id: string;
   readonly date: string;
-  readonly pickup_time: string;
+  readonly pickup_time: string | null;
   readonly previous_pickup_time?: string;
+  readonly departure_mode?: DayDepartureMode | null;
+  readonly previous_departure_modes?: readonly DayDepartureMode[];
   readonly reason: string;
   readonly status: "pending" | "approved" | "rejected" | "withdrawn";
   readonly decision_reason?: string;
@@ -1411,7 +1431,10 @@ export async function submitCareException(
   studentId: string,
   params: {
     date: string;
+    /** Leer: die Abholzeit des Tages bleibt (#3945). */
     pickupTime: string;
+    /** Leer: die Abholart des Tages bleibt (#3945). */
+    departureMode?: DayDepartureMode | "";
     reason: string;
     recipientGuardianProfileIds?: string[];
   },
@@ -1420,7 +1443,8 @@ export async function submitCareException(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception`,
     {
       date: params.date,
-      pickup_time: params.pickupTime,
+      pickup_time: params.pickupTime || undefined,
+      departure_mode: params.departureMode || undefined,
       reason: params.reason,
       recipient_guardian_profile_ids: params.recipientGuardianProfileIds ?? [],
     },
@@ -1434,6 +1458,7 @@ export async function updatePickupChangeRequest(
   input: {
     date: string;
     pickupTime: string;
+    departureMode?: DayDepartureMode | "";
     reason: string;
     expectedVersion: string;
   },
@@ -1443,6 +1468,7 @@ export async function updatePickupChangeRequest(
     {
       date: input.date,
       pickup_time: input.pickupTime,
+      departure_mode: input.departureMode ?? "",
       reason: input.reason,
       expected_version: input.expectedVersion,
     },

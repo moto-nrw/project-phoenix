@@ -10,3 +10,4 @@ type ArrivalNote = careplan.ArrivalNote
 type PickupSchedule = careplan.PickupSchedule
 type PickupException = careplan.PickupException
 type PickupNote = careplan.PickupNote
+type DepartureException = careplan.DepartureException

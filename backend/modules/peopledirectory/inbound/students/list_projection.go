@@ -72,16 +72,18 @@ type SlimStudentResponse struct {
 	// Planned + actual times (the arrival/pickup rows and their sort/group
 	// modes). Only populated for full-access rows and when the caller passes
 	// include_pickup_times / include_arrival_times.
-	DepartureModes     []departure.DepartureMode `json:"departure_modes,omitempty"`
-	DepartureLabel     string                    `json:"departure_label,omitempty"`
-	PickupTime         *string                   `json:"pickup_time,omitempty"`
-	PickupIsException  bool                      `json:"pickup_is_exception,omitempty"`
-	PickupNotes        string                    `json:"pickup_notes,omitempty"`
-	ArrivalTime        *string                   `json:"arrival_time,omitempty"`
-	ArrivalIsException bool                      `json:"arrival_is_exception,omitempty"`
-	ArrivalNotes       string                    `json:"arrival_notes,omitempty"`
-	ActualArrivalTime  *string                   `json:"actual_arrival_time,omitempty"`
-	ActualPickupTime   *string                   `json:"actual_pickup_time,omitempty"`
+	DepartureModes []departure.DepartureMode `json:"departure_modes,omitempty"`
+	DepartureLabel string                    `json:"departure_label,omitempty"`
+	// DepartureIsException marks a day Abholart (#3945) in DepartureModes.
+	DepartureIsException bool    `json:"departure_is_exception,omitempty"`
+	PickupTime           *string `json:"pickup_time,omitempty"`
+	PickupIsException    bool    `json:"pickup_is_exception,omitempty"`
+	PickupNotes          string  `json:"pickup_notes,omitempty"`
+	ArrivalTime          *string `json:"arrival_time,omitempty"`
+	ArrivalIsException   bool    `json:"arrival_is_exception,omitempty"`
+	ArrivalNotes         string  `json:"arrival_notes,omitempty"`
+	ActualArrivalTime    *string `json:"actual_arrival_time,omitempty"`
+	ActualPickupTime     *string `json:"actual_pickup_time,omitempty"`
 
 	// "Nach Laufgemeinschaft" grouping; only with include_companions=true.
 	CompanionStudentIDs []int64 `json:"companion_student_ids,omitempty"`
@@ -103,39 +105,40 @@ func slimStudentResponses(responses []StudentResponse, planningDate timezone.Dat
 		r := &responses[i]
 		departure := dailyDepartureForDate(*r, planningDate)
 		slim[i] = SlimStudentResponse{
-			ID:                  r.ID,
-			FirstName:           r.FirstName,
-			LastName:            r.LastName,
-			SchoolClass:         r.SchoolClass,
-			Location:            r.Location,
-			LocationSince:       r.LocationSince,
-			RoomColor:           r.RoomColor,
-			GroupID:             r.GroupID,
-			GroupName:           r.GroupName,
-			Sick:                r.Sick,
-			SickSince:           r.SickSince,
-			Excused:             r.Excused,
-			ExcusedSince:        r.ExcusedSince,
-			ClassTrip:           r.ClassTrip,
-			ClassTripSince:      r.ClassTripSince,
-			DayPlanningStatus:   r.DayPlanningStatus,
-			DayPlanningReason:   r.DayPlanningReason,
-			DayPlanningLabel:    r.DayPlanningLabel,
-			PendingExcusedNote:  r.PendingExcusedNote,
-			DepartureModes:      departure.Modes,
-			DepartureLabel:      departure.LegacyLabel,
-			PickupTime:          r.PickupTime,
-			PickupIsException:   r.PickupIsException,
-			PickupNotes:         r.PickupNotes,
-			ArrivalTime:         r.ArrivalTime,
-			ArrivalIsException:  r.ArrivalIsException,
-			ArrivalNotes:        r.ArrivalNotes,
-			ActualArrivalTime:   r.ActualArrivalTime,
-			ActualPickupTime:    r.ActualPickupTime,
-			CompanionStudentIDs: r.CompanionStudentIDs,
-			PhotoURL:            r.PhotoURL,
-			PhotoConsentGiven:   r.PhotoConsentGiven,
-			HasFullAccess:       r.HasFullAccess,
+			ID:                   r.ID,
+			FirstName:            r.FirstName,
+			LastName:             r.LastName,
+			SchoolClass:          r.SchoolClass,
+			Location:             r.Location,
+			LocationSince:        r.LocationSince,
+			RoomColor:            r.RoomColor,
+			GroupID:              r.GroupID,
+			GroupName:            r.GroupName,
+			Sick:                 r.Sick,
+			SickSince:            r.SickSince,
+			Excused:              r.Excused,
+			ExcusedSince:         r.ExcusedSince,
+			ClassTrip:            r.ClassTrip,
+			ClassTripSince:       r.ClassTripSince,
+			DayPlanningStatus:    r.DayPlanningStatus,
+			DayPlanningReason:    r.DayPlanningReason,
+			DayPlanningLabel:     r.DayPlanningLabel,
+			PendingExcusedNote:   r.PendingExcusedNote,
+			DepartureModes:       departure.Modes,
+			DepartureLabel:       departure.LegacyLabel,
+			DepartureIsException: departure.Exception,
+			PickupTime:           r.PickupTime,
+			PickupIsException:    r.PickupIsException,
+			PickupNotes:          r.PickupNotes,
+			ArrivalTime:          r.ArrivalTime,
+			ArrivalIsException:   r.ArrivalIsException,
+			ArrivalNotes:         r.ArrivalNotes,
+			ActualArrivalTime:    r.ActualArrivalTime,
+			ActualPickupTime:     r.ActualPickupTime,
+			CompanionStudentIDs:  r.CompanionStudentIDs,
+			PhotoURL:             r.PhotoURL,
+			PhotoConsentGiven:    r.PhotoConsentGiven,
+			HasFullAccess:        r.HasFullAccess,
 		}
 	}
 	return slim

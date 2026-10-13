@@ -66,6 +66,6 @@ func (s *RequestEdits) payload(ctx context.Context, request carerequests.Request
 	}
 	return pickupRequestPayload(ctx, s.Pickup, s.Today(), carerequests.PickupChangeCreateInput{
 		StudentID: input.StudentID, GuardianAccountID: input.GuardianAccountID, Date: input.Date,
-		PickupTime: input.PickupTime, Reason: input.Reason, ReasonRequired: input.ReasonRequired, Cutoff: input.Cutoff,
+		PickupTime: input.PickupTime, DepartureMode: input.DepartureMode, Reason: input.Reason, ReasonRequired: input.ReasonRequired, Cutoff: input.Cutoff,
 	})
 }

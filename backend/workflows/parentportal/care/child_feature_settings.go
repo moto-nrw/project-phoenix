@@ -19,6 +19,7 @@ type childFeatureSettings struct {
 	excusedApproval    bool
 	notes              bool
 	pickupChange       bool
+	pickupChangeMode   bool
 	pickupCutoff       careplan.SameDayCutoff
 	inviteMode         string
 	canRemove          bool
@@ -42,6 +43,7 @@ func childFeatureSettingKeys() []string {
 		configModels.KeyParentNotesEnabled,
 		configModels.KeyParentPickupChangeEnabled,
 		configModels.KeyParentPickupChangeCutoffTime,
+		configModels.KeyParentCareModeRequestEnabled,
 		configModels.KeyGuardianParentInviteMode,
 		configModels.KeyGuardianParentCanRemove,
 		configModels.KeyParentMasterDataEditEnabled,
@@ -103,6 +105,12 @@ func (s *Service) resolveChildFeatureSettings(ctx context.Context, tenantID int6
 	if out.pickupChange, out.pickupCutoff, err = s.resolvePickupChangeSettings(r); err != nil {
 		return out, err
 	}
+	// The Abholart of one day (#3945) needs the one-day change and the
+	// school's permission to ask for a different Abholart at all.
+	if out.pickupChangeMode, err = r.resolveBool(configModels.KeyParentCareModeRequestEnabled); err != nil {
+		return out, fmt.Errorf("parent: resolve departure-mode request setting: %w", err)
+	}
+	out.pickupChangeMode = out.pickupChangeMode && out.pickupChange
 	if err := r.resolveRelatedAccountAndMasterDataSettings(&out); err != nil {
 		return out, err
 	}

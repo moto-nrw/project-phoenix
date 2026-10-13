@@ -2,15 +2,19 @@ package carerequests
 
 import (
 	"encoding/json"
+	"strings"
 
 	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// PickupChangeTerms contains the stored ask, never today's plan.
+// PickupChangeTerms contains the stored ask, never today's plan. PickupTime
+// and DepartureMode are empty for a leg the request leaves unchanged (#3945).
 type PickupChangeTerms struct {
-	Date               calendar.Date
-	PickupTime         string
-	PreviousPickupTime string
+	Date                   calendar.Date
+	PickupTime             string
+	PreviousPickupTime     string
+	DepartureMode          string
+	PreviousDepartureModes []string
 }
 
 func StoredPickupTerms(raw json.RawMessage) *PickupChangeTerms {
@@ -18,17 +22,67 @@ func StoredPickupTerms(raw json.RawMessage) *PickupChangeTerms {
 	if json.Unmarshal(raw, &payload) != nil {
 		return nil
 	}
-	date, pickup, ok := pickupTerms(payload)
+	change, ok := pickupTerms(payload)
 	if !ok {
 		return nil
 	}
-	terms := &PickupChangeTerms{Date: date, PickupTime: pickup.Format("15:04")}
-	if raw, ok := payload["previous_pickup_time"].(string); ok {
-		if previous, err := parseWallClock(raw); err == nil {
-			terms.PreviousPickupTime = previous.Format("15:04")
+	terms := &PickupChangeTerms{Date: change.Date, DepartureMode: change.DepartureMode}
+	if change.PickupTime != nil {
+		terms.PickupTime = change.PickupTime.Format("15:04")
+		if raw, ok := payload["previous_pickup_time"].(string); ok {
+			if previous, err := parseWallClock(raw); err == nil {
+				terms.PreviousPickupTime = previous.Format("15:04")
+			}
 		}
 	}
+	if change.DepartureMode != "" {
+		terms.PreviousDepartureModes = storedModes(payload["previous_departure_modes"])
+	}
 	return terms
+}
+
+func storedModes(value any) []string {
+	list, _ := value.([]any)
+	modes := make([]string, 0, len(list))
+	for _, item := range list {
+		if mode, ok := item.(string); ok && mode != "" {
+			modes = append(modes, mode)
+		}
+	}
+	if len(modes) == 0 {
+		return nil
+	}
+	return modes
+}
+
+// PickupChangeEntries renders the requested legs of one day in a fixed
+// order: Abholzeit, then Abholart. oldPickup and oldModes are the values the
+// day had before; empty values leave the "before" side blank, as the
+// requested summary of a decided request does.
+func PickupChangeEntries(change PickupChange, oldPickup string, oldModes []string) []DiffEntry {
+	day := change.Date.Format("02.01.2006")
+	entries := make([]DiffEntry, 0, 2)
+	if change.PickupTime != nil {
+		entries = append(entries, DiffEntry{Label: day + " · Abholzeit", Old: oldPickup, New: change.PickupTime.Format("15:04"), CareKind: KindPickup})
+	}
+	if change.DepartureMode != "" {
+		entry := DiffEntry{Label: day + " · Abholart", New: departureLabel(change.DepartureMode), CareKind: KindDepartureMode, NewMode: change.DepartureMode}
+		if len(oldModes) > 0 {
+			entry.OldModes = append([]string(nil), oldModes...)
+			labels := make([]string, 0, len(oldModes))
+			for _, mode := range oldModes {
+				labels = append(labels, departureLabel(mode))
+			}
+			entry.Old = strings.Join(labels, " / ")
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+// DepartureModeLabel is the German label the review and the pills use.
+func DepartureModeLabel(mode string) string {
+	return departureLabel(mode)
 }
 
 // DecisionSnapshot stores the review comparison, not a projection of today's
@@ -84,8 +138,8 @@ func RequestedSummary(raw json.RawMessage) []DiffEntry {
 	if json.Unmarshal(raw, &payload) != nil {
 		return nil
 	}
-	if date, pickup, ok := pickupTerms(payload); ok {
-		return []DiffEntry{{Label: date.Format("02.01.2006") + " · Abholzeit", New: pickup.Format("15:04"), CareKind: KindPickup}}
+	if change, ok := pickupTerms(payload); ok {
+		return PickupChangeEntries(change, "", nil)
 	}
 	weekly, err := decodePayload[WeeklyChange](raw)
 	if err != nil {

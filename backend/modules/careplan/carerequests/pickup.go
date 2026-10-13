@@ -29,52 +29,99 @@ type PickupApproval struct {
 	RequireImpactToken  bool
 }
 
+// PickupApplied names the rows an approval wrote, so a later correction can
+// take back exactly those. A zero ID means that leg was not requested.
+type PickupApplied struct {
+	PickupExceptionID    int64
+	DepartureExceptionID int64
+}
+
 // PickupApprovals applies the pickup leg of an already authorized request
 // inside the caller's tenant transaction. The decision and snapshot remain
 // part of that same transaction.
 type PickupApprovals interface {
-	ApplyPickupApproval(context.Context, PickupApproval) (int64, error)
+	ApplyPickupApproval(context.Context, PickupApproval) (PickupApplied, error)
 	// SaveApprovedException writes an authorized staff value. The caller must
 	// hold the student/day lock and synchronize auto-excusal in the same transaction.
 	SaveApprovedException(context.Context, int64, int64, calendar.Date, time.Time, string, int64) (int64, error)
 }
 
+// PickupChange is the stored ask of one Abholänderungsanfrage: a Gehzeit, an
+// Abholart, or both, for one day (#3945). A request without a time leaves the
+// Gehzeit of that day untouched; one without a mode leaves the Abholart.
+type PickupChange struct {
+	Date          calendar.Date
+	PickupTime    *time.Time
+	DepartureMode string
+	Reason        string
+}
+
+// RequestableDepartureMode reports whether a guardian may ask for mode on one
+// day. It is the weekly request's set: "in Begleitung" needs a companion the
+// OGS links, so only the OGS sets it.
+func RequestableDepartureMode(mode string) bool {
+	switch mode {
+	case "alone", "bus", "pickup":
+		return true
+	default:
+		return false
+	}
+}
+
 // PickupTerms reads presentation terms without requiring a reason. Schools
-// may allow blank reasons, and history must remain readable.
-func PickupTerms(raw json.RawMessage) (calendar.Date, time.Time, bool) {
+// may allow blank reasons, and history must remain readable. ok is false for
+// an undecodable payload or one that asks for neither a time nor a mode.
+func PickupTerms(raw json.RawMessage) (PickupChange, bool) {
 	var payload map[string]any
 	if json.Unmarshal(raw, &payload) != nil {
-		return "", time.Time{}, false
+		return PickupChange{}, false
 	}
 	return pickupTerms(payload)
 }
 
-func pickupTerms(payload map[string]any) (calendar.Date, time.Time, bool) {
+func pickupTerms(payload map[string]any) (PickupChange, bool) {
 	dateRaw, _ := payload["date"].(string)
-	pickupRaw, _ := payload["pickup_time"].(string)
-	date, dateErr := calendar.ParseDate(dateRaw)
-	pickup, pickupErr := parseWallClock(pickupRaw)
-	if dateErr != nil || pickupErr != nil {
-		return "", time.Time{}, false
+	date, err := calendar.ParseDate(dateRaw)
+	if err != nil {
+		return PickupChange{}, false
 	}
-	return date, pickup, true
+	change := PickupChange{Date: date}
+	if pickupRaw, present := payload["pickup_time"]; present && pickupRaw != nil {
+		text, _ := pickupRaw.(string)
+		pickup, pickupErr := parseWallClock(text)
+		if pickupErr != nil {
+			return PickupChange{}, false
+		}
+		change.PickupTime = &pickup
+	}
+	if modeRaw, present := payload["departure_mode"]; present && modeRaw != nil {
+		mode, _ := modeRaw.(string)
+		if !RequestableDepartureMode(mode) {
+			return PickupChange{}, false
+		}
+		change.DepartureMode = mode
+	}
+	if change.PickupTime == nil && change.DepartureMode == "" {
+		return PickupChange{}, false
+	}
+	return change, true
 }
 
-func ParsePickup(raw json.RawMessage) (calendar.Date, time.Time, string, error) {
+// ParsePickup is the strict reading the apply paths use: a valid day, at
+// least one leg, and the stored reason.
+func ParsePickup(raw json.RawMessage) (PickupChange, error) {
 	var payload map[string]any
 	if json.Unmarshal(raw, &payload) != nil {
-		return "", time.Time{}, "", ErrInvalidPayload
+		return PickupChange{}, ErrInvalidPayload
 	}
-	dateRaw, dateOK := payload["date"].(string)
-	pickupRaw, pickupOK := payload["pickup_time"].(string)
+	change, ok := pickupTerms(payload)
 	reason, reasonOK := payload["reason"].(string)
-	date, dateErr := calendar.ParseDate(dateRaw)
-	pickup, pickupErr := parseWallClock(pickupRaw)
 	reason = strings.TrimSpace(reason)
-	if !dateOK || !pickupOK || !reasonOK || dateErr != nil || pickupErr != nil || reason == "" || utf8.RuneCountInString(reason) > 255 {
-		return "", time.Time{}, "", ErrInvalidPayload
+	if !ok || !reasonOK || reason == "" || utf8.RuneCountInString(reason) > 255 {
+		return PickupChange{}, ErrInvalidPayload
 	}
-	return date, pickup, reason, nil
+	change.Reason = reason
+	return change, nil
 }
 
 // PickupImpactContent canonically encodes the exact ordered blocks displayed to

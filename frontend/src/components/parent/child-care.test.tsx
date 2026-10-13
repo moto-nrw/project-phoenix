@@ -324,6 +324,97 @@ describe("PickupTimeModal — failed preload guard", () => {
     });
   });
 
+  // #3945: with the Abholart allowed, a request may change only the way
+  // home of the day. The time then stays empty.
+  it("submits only an Abholart for the day when the school allows it", () => {
+    const { onSubmit, reasonInput } = renderModal({
+      departureModeEnabled: true,
+    });
+
+    expect(screen.getByText("Abholung ändern")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Abholart an diesem Tag" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Wird abgeholt" }));
+    fireEvent.change(reasonInput!, { target: { value: "Oma holt ab" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pickupTime: "",
+        departureMode: "pickup",
+        reason: "Oma holt ab",
+      }),
+    );
+  });
+
+  it("asks for a time or an Abholart when neither is given", () => {
+    const { onSubmit, reasonInput } = renderModal({
+      departureModeEnabled: true,
+    });
+
+    fireEvent.change(reasonInput!, { target: { value: "Termin" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Bitte tragen Sie eine Abholzeit ein oder wählen Sie eine Abholart.",
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("shows the Abholart the OGS already set instead of the choice", () => {
+    renderModal({
+      departureModeEnabled: true,
+      careExceptions: [
+        {
+          date: todayISO(),
+          departure_mode: "bus",
+          source: "staff",
+          pickup_source: "",
+          updated_at: "2026-09-08T09:00:00Z",
+        },
+      ],
+    });
+
+    expect(
+      screen.getByText(
+        "Die OGS hat die Abholart für diesen Tag schon festgelegt: Bus.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: "Abholart an diesem Tag" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("names a pending Abholart in the request status", () => {
+    render(
+      <PickupTimeModal
+        careExceptions={[]}
+        careExceptionsLoaded
+        pickupChangeEnabled
+        departureModeEnabled
+        pickupChangeRequests={[
+          {
+            id: "7",
+            date: todayISO(),
+            pickup_time: null,
+            departure_mode: "pickup",
+            previous_departure_modes: ["alone"],
+            reason: "Oma holt ab",
+            status: "pending",
+            created_at: "2026-09-08T09:00:00Z",
+          },
+        ]}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Geht allein → Wird abgeholt")).toBeInTheDocument();
+    expect(screen.queryByText(/Neue Abholzeit/)).not.toBeInTheDocument();
+  });
+
   it("requires a reason for a changed pickup time", () => {
     const { onSubmit, pickupInput, reasonInput } = renderModal();
 

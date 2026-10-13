@@ -36,6 +36,15 @@ type excusalStoreSpy struct {
 	writes int
 }
 
+func (s *excusalStoreSpy) ListDepartureExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.DepartureException, error) {
+	return nil, nil
+}
+
+func (s *excusalStoreSpy) SaveDepartureException(_ context.Context, row careplan.DepartureException) (careplan.DepartureException, error) {
+	s.writes++
+	return row, nil
+}
+
 func (s *excusalStoreSpy) CreatePickupException(_ context.Context, row careplan.PickupException) (careplan.PickupException, error) {
 	s.writes++
 	return row, nil

@@ -56,7 +56,7 @@ type ClassDayDependencies struct {
 	Caller                 CallerReader
 	Rosters                DayRosters
 	StatusDays             StatusDays
-	PickupTimes            PickupTimeReader
+	PickupTimes            ClassDayPickupReader
 	ArrivalTimes           ArrivalTimeReader
 	CareDays               CareDayResolver
 	Companions             Companions
@@ -67,6 +67,13 @@ type ClassDayDependencies struct {
 	Settings               WriteScopeReader
 	BlockStarts            BlockStarts
 	Announcer              ArrivalScheduleAnnouncer
+}
+
+// ClassDayPickupReader is the pickup capability the day report reads: the
+// effective times and the Abholart of single days (#3945).
+type ClassDayPickupReader interface {
+	PickupTimeReader
+	GetBulkDayDepartureModesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]string, error)
 }
 
 // NewClassDay composes the school-portal capability.
@@ -135,10 +142,15 @@ func mapArrivalExceptionError(err error) error {
 	return err
 }
 
-// dayTimeBinding reads Care Plan's effective pickup and arrival times.
+// dayTimeBinding reads Care Plan's effective pickup and arrival times and
+// the Abholart of single days.
 type dayTimeBinding struct {
-	pickups  PickupTimeReader
+	pickups  ClassDayPickupReader
 	arrivals ArrivalTimeReader
+}
+
+func (b dayTimeBinding) DayDepartureModes(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]string, error) {
+	return b.pickups.GetBulkDayDepartureModesForDate(ctx, studentIDs, date)
 }
 
 func (b dayTimeBinding) EffectivePickups(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]application.EffectivePickup, error) {

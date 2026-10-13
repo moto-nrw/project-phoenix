@@ -130,6 +130,7 @@ var (
 	ErrPhotoConsentNotWithdrawn         = care.ErrPhotoConsentNotWithdrawn
 	ErrPickupChangeCutoffPassed         = care.ErrPickupChangeCutoffPassed
 	ErrPickupChangeDisabled             = care.ErrPickupChangeDisabled
+	ErrCareExceptionNotCareDay          = care.ErrCareExceptionNotCareDay
 	ErrPollClosed                       = messaging.ErrPollClosed
 	ErrRemoveDisabled                   = care.ErrRemoveDisabled
 	ErrRequestSharingForbidden          = messaging.ErrRequestSharingForbidden

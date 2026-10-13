@@ -191,7 +191,7 @@ var classDayModeLabels = map[peopledirectory.DepartureMode]string{
 // Enrollment's day roster carries — the current truth, present for every
 // child, enrolled or not. Companion names are attached only for children of
 // this very class (see classDayDeparture). Empty map on weekends.
-func (s *dayReports) classDayDepartures(ctx context.Context, students []DayRosterStudent, weekday string) (map[int64]string, error) {
+func (s *dayReports) classDayDepartures(ctx context.Context, students []DayRosterStudent, date timezone.Date, weekday string) (map[int64]string, error) {
 	out := make(map[int64]string, len(students))
 	if weekday == "" || len(students) == 0 {
 		return out, nil
@@ -201,6 +201,10 @@ func (s *dayReports) classDayDepartures(ctx context.Context, students []DayRoste
 	if err != nil {
 		return nil, err
 	}
+	dayModes, err := s.dayDepartureModes(ctx, studentIDs, date)
+	if err != nil {
+		return nil, fmt.Errorf("class roster report: %w", err)
+	}
 	// The class being served IS the disclosure boundary of this view, so it
 	// is also the set of names a companion entry may mention.
 	onSheet := make(map[int64]bool, len(studentIDs))
@@ -208,9 +212,33 @@ func (s *dayReports) classDayDepartures(ctx context.Context, students []DayRoste
 		onSheet[id] = true
 	}
 	for _, student := range students {
-		out[student.ID] = classDayDeparture(student.DepartureModes, weekday, companions[student.ID], onSheet)
+		out[student.ID] = classDayDeparture(withDayDeparture(student.DepartureModes, dayModes[student.ID]), weekday, companions[student.ID], onSheet)
 	}
 	return out, nil
+}
+
+// dayDepartureModes loads the Abholart the OGS set or approved for single
+// children on date (#3945). Without the binding every child keeps the
+// weekly plan.
+func (s *dayReports) dayDepartureModes(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]string, error) {
+	if s.times == nil || len(studentIDs) == 0 {
+		return map[int64]string{}, nil
+	}
+	modes, err := s.times.DayDepartureModes(ctx, studentIDs, date)
+	if err != nil {
+		return nil, fmt.Errorf("load day departure modes: %w", err)
+	}
+	return modes, nil
+}
+
+// withDayDeparture replaces the weekly modes by the one Abholart of the day
+// when the OGS set one; "in Begleitung" then still names the weekday's
+// companions, the only ones the sheet knows.
+func withDayDeparture(weekly []peopledirectory.DepartureMode, day string) []peopledirectory.DepartureMode {
+	if day == "" {
+		return weekly
+	}
+	return []peopledirectory.DepartureMode{peopledirectory.DepartureMode(day)}
 }
 
 // dayRosterStudentIDs lists each positive student id once.

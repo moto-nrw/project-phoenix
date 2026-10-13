@@ -20,18 +20,19 @@ type pickupScheduleService struct {
 	baselines    careplan.PickupBaselineReader
 	tx           ports.PickupScheduleTransaction
 	students     ports.PickupBulkStudents
+	departures   careplan.DepartureExceptions
 	logger       *slog.Logger
 }
 
 func NewPickupSchedules(schedules ports.PickupScheduleRepository, exceptions ports.EffectiveExceptionRepository[*careplan.PickupException],
 	notes ports.EffectiveNoteRepository[*careplan.PickupNote], tx ports.PickupScheduleTransaction,
 	baselines careplan.PickupBaselineReader, auto careplan.PickupAutoExcusal,
-	students ports.PickupBulkStudents, logger *slog.Logger,
+	students ports.PickupBulkStudents, departures careplan.DepartureExceptions, logger *slog.Logger,
 ) careplan.PickupScheduleService {
 	return &pickupScheduleService{
 		effectiveTimeCore: newEffectiveTimeCore(schedules, exceptions, notes, tx, PickupTimeDomain{}),
 		scheduleRepo:      schedules, autoExcusal: auto, baselines: baselines, tx: tx,
-		students: students, logger: logger,
+		students: students, departures: departures, logger: logger,
 	}
 }
 
