@@ -154,6 +154,9 @@ type Pickup struct {
 	IsException bool
 	Notes       string
 	DayNotes    []DayNote
+
+	// DayDepartureMode is the Abholart set for this day only (#3946).
+	DayDepartureMode string
 }
 
 // Day-planning reason codes are part of the students API wire contract

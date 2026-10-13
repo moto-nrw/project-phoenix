@@ -576,7 +576,8 @@ function editStudentTopic(): HelpTopic {
       },
     ],
     result:
-      "Die gespeicherten Angaben gelten sofort. Eine Notiz ohne Abholzeit steht auf der Kinderkarte unter `Kommt heute nicht`. Eine andere Abholart steht an diesem Tag auf der Kinderkarte und in der Klassenansicht. Eine Ausnahme ändert den regelmäßigen Wochenplan nicht.",
+      // #3946: student-card.tsx (dayHomeChange) zeigt unten einen orangen Streifen.
+      "Die gespeicherten Angaben gelten sofort. Eine Notiz ohne Abholzeit steht auf der Kinderkarte unter `Kommt heute nicht`. Eine andere Abholart steht an diesem Tag auf der Kinderkarte und in der Klassenansicht. Eine Ausnahme ändert den regelmäßigen Wochenplan nicht. Gilt heute eine andere Gehzeit oder Abholart, steht unten auf der Kinderkarte ein oranger Hinweis, zum Beispiel `Gehzeit heute geändert`.",
     differences: [
       "Die Kennzeichnung `Für Eltern sichtbar` zeigt Angaben, die Eltern sehen.",
       "Kommen die Betreuungstage aus Buchungen? Dann lassen sich die Tage nicht auswählen. Ändern Sie nur Zeiten an gebuchten Tagen.",
@@ -1667,6 +1668,8 @@ function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
       "Bei einer geänderten Abholzeit zeigt moto vorher betroffene Termine an.",
       // #3945: Tagesanfrage mit Abholart.
       "Eine Anfrage für einen einzelnen Tag kann die Abholzeit, die Abholart oder beides ändern. Die neue Abholart gilt nur an diesem Tag.",
+      // #3946: freigegebene Tagesänderung markiert die Kinderkarte.
+      "Ist der Tag heute, zeigt die Kinderkarte nach dem Freigeben unten einen orangen Hinweis.",
       "Anmeldungsänderungen öffnen Sie über `Prüfen`. Dafür brauchen Sie ein zusätzliches Recht.",
       // Ohne feste Gruppen gibt es keine Gruppenleitung, an der die
       // Freigabe haengen koennte.
@@ -3104,7 +3107,8 @@ function careTimesTopic(): HelpTopic {
       },
     ],
     result:
-      "Die Zeiten gelten sofort. Eine Notiz ohne Abholzeit steht auf der Kinderkarte unter `Kommt heute nicht`. Eine Ausnahme ändert den Wochenplan nicht.",
+      // #3946: student-card.tsx (dayHomeChange) zeigt unten einen orangen Streifen.
+      "Die Zeiten gelten sofort. Eine Notiz ohne Abholzeit steht auf der Kinderkarte unter `Kommt heute nicht`. Eine Ausnahme ändert den Wochenplan nicht. Gilt heute eine andere Gehzeit oder Abholart, steht unten auf der Kinderkarte ein oranger Hinweis, zum Beispiel `Abholart heute geändert: Wird abgeholt`.",
     notes: [
       "Ohne eigene Zeit gilt die Klassenzeit des Kindes.",
       // #3373: Ankunft nicht vor Abholung (comesOnlyIfLessonCancelled in

@@ -203,6 +203,32 @@ func seedCarePlanDeviations(rt *Runtime, studentIDs []int64) error {
 	}); err != nil {
 		return fmt.Errorf("seed care-plan deviation %s: %w", departurePath, err)
 	}
+	return seedTodayHomeChanges(rt, studentIDs)
+}
+
+// seedTodayHomeChanges gives two children a one-day change of their way home,
+// so the strip on the Kinderkarte shows on every dev machine (#3946): index 5
+// is picked up at 13:30 instead of its Gehzeit, index 4, who goes home alone
+// every weekday, is picked up today. The day Abholart of index 0 above does
+// not show, because that child is the group's sick one. On a weekend the
+// changes land on Monday, which has a plan to deviate from.
+func seedTodayHomeChanges(rt *Runtime, studentIDs []int64) error {
+	if len(studentIDs) < 6 {
+		return fmt.Errorf("today home change students not available")
+	}
+	day := seedWeekdayOnOrAfter(todaySeedDate())
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/pickup-exceptions", studentIDs[5]), map[string]any{
+		"exception_date": day.String(),
+		"pickup_time":    "13:30",
+		"reason":         "Arzttermin",
+	}); err != nil {
+		return fmt.Errorf("seed today pickup change: %w", err)
+	}
+	if _, err := rt.Client.Put(fmt.Sprintf("/api/students/%d/departure-exceptions/%s", studentIDs[4], day.String()), map[string]any{
+		"departure_mode": "pickup", "reason": "Die Oma holt heute ab.",
+	}); err != nil {
+		return fmt.Errorf("seed today departure change: %w", err)
+	}
 	return nil
 }
 
