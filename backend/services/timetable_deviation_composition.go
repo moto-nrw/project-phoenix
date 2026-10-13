@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -27,23 +25,23 @@ import (
 // timetableDeviationInputs compose the deviation writes over the retained
 // rows (Instances, InstanceStaff and the Audit Platform's DeviationEvents).
 // Lifecycle is the instance lifecycle the cancel branch and the
-// "deliberately unstaffed" acknowledgement hand over to.
+// "deliberately unstaffed" acknowledgement hand over to. The composition root
+// adds its database handle to the dependencies they bind.
 type timetableDeviationInputs struct {
 	Rows         timetableCompose.OwnerRows
 	Staff        usersModels.StaffRepository
 	Supervisions studentpresence.SupervisionRecords
 	Lifecycle    timetableCompose.DeviationLifecycle
 	Broadcaster  realtime.Broadcaster
-	DB           *bun.DB
 	Logger       *slog.Logger
 	Now          func() time.Time
 }
 
-func newTimetableStaffDeviations(in timetableDeviationInputs) (timetable.StaffDeviations, error) {
+func timetableStaffDeviationDependencies(in timetableDeviationInputs) (timetableCompose.StaffDeviationDependencies, error) {
 	if in.Lifecycle == nil || in.Rows.Deviations == nil || in.Broadcaster == nil {
-		return nil, errors.New("timetable staff deviations: lifecycle, protocol and broadcaster are required")
+		return timetableCompose.StaffDeviationDependencies{}, errors.New("timetable staff deviations: lifecycle, protocol and broadcaster are required")
 	}
-	return timetableCompose.NewStaffDeviations(timetableCompose.StaffDeviationDependencies{
+	return timetableCompose.StaffDeviationDependencies{
 		Instances:       in.Rows.Instances,
 		InstanceStaff:   in.Rows.InstanceStaff,
 		Staff:           in.Staff,
@@ -51,10 +49,9 @@ func newTimetableStaffDeviations(in timetableDeviationInputs) (timetable.StaffDe
 		Lifecycle:       in.Lifecycle,
 		Protocol:        in.Rows.Deviations,
 		ActivityUpdates: timetableActivityUpdates{broadcaster: in.Broadcaster},
-		DB:              in.DB,
 		Logger:          in.Logger,
 		Now:             in.Now,
-	})
+	}, nil
 }
 
 // newTimetableSubstituteConflicts composes the substitute time-overlap

@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
@@ -30,7 +28,8 @@ import (
 // (Instances, InstanceStaff, Participants, Templates, Students, Rooms,
 // DeviationEvents and the recovery Locks). Planning carries the retained
 // planning repositories the rows do not (IdempotencyRepo, ExceptionRepo,
-// CalendarPeriodRepo); every other field of it is filled here. Broadcaster
+// CalendarPeriodRepo) and the composition root's DB; every other field of it
+// is filled here. Broadcaster
 // and GuardianNotices are optional.
 type timetableLifecycleInputs struct {
 	Rows                timetableCompose.OwnerRows
@@ -49,7 +48,6 @@ type timetableLifecycleInputs struct {
 	StartConflicts      timetable.StartConflictQuery
 	SubstituteConflicts timetable.SubstituteConflictQuery
 	Broadcaster         realtime.Broadcaster
-	DB                  *bun.DB
 	Logger              *slog.Logger
 	Now                 func() time.Time
 	EnforceTimePolicy   bool
@@ -75,7 +73,7 @@ func newTimetableLifecycle(in timetableLifecycleInputs) (*timetableCompose.Insta
 	deps.Materialization, deps.RecurrenceLock = in.Materialization, in.RecurrenceLock
 	deps.StartConflicts, deps.SubstituteConflicts = in.StartConflicts, in.SubstituteConflicts
 	deps.ContentHash = securityruntime.Fingerprint
-	deps.DB, deps.Logger, deps.Now, deps.EnforceTimePolicy = in.DB, in.Logger, in.Now, in.EnforceTimePolicy
+	deps.Logger, deps.Now, deps.EnforceTimePolicy = in.Logger, in.Now, in.EnforceTimePolicy
 	return timetableCompose.NewInstanceLifecycle(deps)
 }
 

@@ -1416,7 +1416,7 @@ func newFactory(
 		InstanceStaff: timetableRepos.InstanceStaff, Participants: timetableRepos.InstanceStudent, Timeframes: timetableRepos.Timeframe,
 		CalendarPeriods: calendarPeriods, Exceptions: timetableRepos.ActivityException, EducationGroups: groupRepository,
 	}
-	materializationService, err := newTimetableMaterialization(timetableMaterializationInputs{
+	materializationDeps := timetableMaterializationDependencies(timetableMaterializationInputs{
 		Rows:       timetableTemplateRows,
 		CareBounds: studentRepository,
 		// Holidays and closing days carry no series occurrences unless the
@@ -1424,9 +1424,10 @@ func newFactory(
 		NonWorkingDays: calendar,
 		RecurrenceLock: recurrenceLock,
 		Broadcaster:    realtimeHub,
-		DB:             db,
 		Logger:         logger.With("service", "materialization"),
 	})
+	materializationDeps.DB = db
+	materializationService, err := arrivalTimetable.NewMaterialization(materializationDeps)
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable materialization: %w", err)
 	}
@@ -1468,6 +1469,7 @@ func newFactory(
 		Rows: timetableRows,
 		Planning: arrivalTimetable.InstanceLifecycleDependencies{
 			IdempotencyRepo: timetableRepos.InstanceIdempotency, ExceptionRepo: timetableRepos.ActivityException, CalendarPeriodRepo: calendarPeriods,
+			DB: db,
 		},
 		Staff:               staffRepository,
 		Sessions:            sessionRecords,
@@ -1483,7 +1485,6 @@ func newFactory(
 		StartConflicts:      timetableConflicts,
 		SubstituteConflicts: substituteConflicts,
 		Broadcaster:         realtimeHub,
-		DB:                  db,
 		Logger:              logger.With("service", "instance-lifecycle"),
 		Now:                 now,
 		// Development and test seed profiles create completed instances at the
@@ -1496,10 +1497,15 @@ func newFactory(
 	// The Timetable owner's deviation writes (Vertretungsplan, #3424 slice S3)
 	// hand the cancel branch and the understaffed acknowledgement to the
 	// lifecycle.
-	staffDeviations, err := newTimetableStaffDeviations(timetableDeviationInputs{
+	staffDeviationDeps, err := timetableStaffDeviationDependencies(timetableDeviationInputs{
 		Rows: timetableRows, Staff: staffRepository, Supervisions: groupSupervisions, Lifecycle: instanceService.DeviationLifecycle(),
-		Broadcaster: realtimeHub, DB: db, Logger: logger.With("service", "timetable-deviations"), Now: now,
+		Broadcaster: realtimeHub, Logger: logger.With("service", "timetable-deviations"), Now: now,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("compose timetable deviations: %w", err)
+	}
+	staffDeviationDeps.DB = db
+	staffDeviations, err := arrivalTimetable.NewStaffDeviations(staffDeviationDeps)
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable deviations: %w", err)
 	}
@@ -2807,7 +2813,7 @@ func newFactory(
 	// successor and re-plans the window through the materialization, keeping
 	// the instance lifecycle's Vertretungsplan overrides. Enrollment's roster
 	// resync reconciles offering-sourced rosters (#2137, #2147).
-	timetableTemplates, err := newTimetableTemplates(timetableTemplateInputs{
+	timetableTemplateDeps, err := timetableTemplateDependencies(timetableTemplateInputs{
 		Rows:                 timetableTemplateRows,
 		PlanningTracks:       planningTrackService,
 		Materialization:      materializationService,
@@ -2816,10 +2822,14 @@ func newFactory(
 		ResyncOfferingRoster: timetableOfferingRosterResync(careBookings),
 		RecurrenceLock:       recurrenceLock,
 		Broadcaster:          realtimeHub,
-		DB:                   db,
 		Logger:               logger.With("service", "timetable-templates"),
 		Today:                today,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("compose timetable templates: %w", err)
+	}
+	timetableTemplateDeps.DB = db
+	timetableTemplates, err := arrivalTimetable.NewTemplateAdministration(timetableTemplateDeps)
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable templates: %w", err)
 	}
