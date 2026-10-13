@@ -220,13 +220,6 @@ func PresenceStudents(db *bun.DB, source presenceStudentSource) presenceservice.
 	return BindPresenceStudents(source, care)
 }
 
-// NewEducationGroupRepository is the retained group store on the tenant
-// runtime of the School Structure owner over db, with only the given
-// dependencies bound.
-func NewEducationGroupRepository(db *bun.DB, options ...educationRepo.GroupRepositoryDependencies) *educationGroupRepository {
-	return newEducationGroupStore(educationRepo.NewLegacyRepositoryRuntime(db), options...)
-}
-
 // NewStaffMembershipRuntime composes the staff membership closures over the
 // service factory, with the offboarding workflow over db and an unobserved
 // Workforce employment owner.

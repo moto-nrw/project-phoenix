@@ -7,6 +7,7 @@ import (
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 
@@ -105,4 +106,12 @@ func NewWorkforceWithClock(db *bun.DB, membership schoolmembership.Capability, n
 		Observe:             func(workforceCompose.Observation) {},
 		Now:                 now,
 	})
+}
+
+// NewEducationGroupRepository is the retained group store on the tenant
+// runtime of the School Structure owner over db, with only the given
+// dependencies bound, for the test graphs whose test roles may not name the
+// School Structure composition.
+func NewEducationGroupRepository(db *bun.DB, options ...educationRepo.GroupRepositoryDependencies) *educationGroupRepository {
+	return newEducationGroupStore(educationRepo.NewLegacyRepositoryRuntime(db), options...)
 }
