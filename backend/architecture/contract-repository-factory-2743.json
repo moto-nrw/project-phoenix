@@ -98,7 +98,7 @@
     },
     "errors": {
       "state": "measured",
-      "result": "scripts/backend-architecture.sh check passed with 112 remaining keys (139 -> 112) and a composition surface of 490 -> 260; validate-ticket --all --base-ref f43408977360f4a63d23625409f57070dfc56290 covered all 27 debt retirements; golangci-lint ./... reported 0 issues; go test -count=1 -p 10 -parallel 8 ./... passed all 428 packages (277 with tests); scripts/test-changed.sh origin/development reported all 154 affected packages ok (139 with tests)."
+      "result": "scripts/backend-architecture.sh check passed with 112 remaining keys (139 -> 112) and a composition surface of 490 -> 260; validate-ticket --all --base-ref f43408977360f4a63d23625409f57070dfc56290 covered all 27 debt retirements; golangci-lint ./... reported 0 issues; go test -count=1 -p 10 -parallel 8 ./... passed all 277 packages with tests; scripts/test-changed.sh origin/development passed all 139 affected packages with tests (after merging development with #3755)."
     },
     "pool_wait": {
       "state": "not_applicable",
