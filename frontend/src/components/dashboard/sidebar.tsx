@@ -867,6 +867,16 @@ function SidebarContent({
   // Helper to determine active href for student detail pages based on referrer
   const getStudentDetailActiveHref = (from: string | null): string => {
     if (!from) return "/students/search";
+    // Gruppen- und Aufsichtsseiten bleiben als Arbeitsseiten erreichbar,
+    // teilen sich bei eingeschalteter Navigation aber den sichtbaren
+    // Einstieg „Alle Kinder“ – auch nach dem Öffnen einer Kindakte.
+    if (
+      childSearchOnlyNavigation &&
+      (from.startsWith("/ogs-groups") ||
+        from.startsWith("/active-supervisions"))
+    ) {
+      return "/students/search";
+    }
     if (from.startsWith("/ogs-groups")) return "/ogs-groups";
     if (from.startsWith("/active-supervisions")) return "/active-supervisions";
     if (from.startsWith("/day-log")) return "/day-log";

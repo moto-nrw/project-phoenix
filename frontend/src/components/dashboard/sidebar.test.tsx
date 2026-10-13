@@ -2670,6 +2670,26 @@ describe("Sidebar", () => {
         "bg-gray-100",
       );
     });
+
+    it.each([
+      ["Gruppenseite", "/ogs-groups?group=1"],
+      ["Aufsichtsseite", "/active-supervisions?session=70"],
+    ])(
+      "marks Alle Kinder on a child detail page opened from the %s",
+      (_source, from) => {
+        mockUseChildSearchOnlyNavigation.mockReturnValue(true);
+        mockUsePathname.mockReturnValue("/students/123");
+        mockUseSearchParams.mockReturnValue(
+          createMockSearchParams((key) => (key === "from" ? from : null)),
+        );
+
+        render(<Sidebar />);
+
+        expect(screen.getByText("Alle Kinder").closest("a")).toHaveClass(
+          "bg-gray-100",
+        );
+      },
+    );
   });
 
   describe("collapsible sidebar (#2825)", () => {
