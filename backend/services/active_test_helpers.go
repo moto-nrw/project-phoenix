@@ -7,6 +7,7 @@ import (
 	"time"
 
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -59,8 +60,8 @@ func (m ActiveTestModule) AttendancePeople() attendanceRoutePeople {
 	return NewAttendanceRoutePeople(m.Users)
 }
 
-func (m ActiveTestModule) AttendanceStaff() attendanceRouteStaff {
-	return NewAttendanceRouteStaff(m.UserContext)
+func (m ActiveTestModule) AttendanceStaff() peopleCompose.AttendanceRouteStaff {
+	return peopleCompose.NewAttendanceRouteStaff(m.UserContext)
 }
 
 // PresenceOperations binds the retained active service behind the presence

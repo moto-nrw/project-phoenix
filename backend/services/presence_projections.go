@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
@@ -25,7 +26,7 @@ func NewPartialAbsencePreview(db *bun.DB) timetableCompose.PartialAbsencePreview
 	if err != nil {
 		panic(fmt.Sprintf("partial absence preview: compose care plan exception queries: %v", err))
 	}
-	return newPartialAbsencePreview(mustPresenceReads(db), peopleDirectoryReads(db), exceptions)
+	return newPartialAbsencePreview(mustPresenceReads(db), peopleCompose.MustNewReads(db), exceptions)
 }
 
 // NewPresenceReads exposes the joined block, roster and attendance reads of

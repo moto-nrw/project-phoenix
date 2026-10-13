@@ -1497,7 +1497,7 @@ func mountPresenceRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceau
 	if err != nil {
 		return err
 	}
-	active := presenceAPI.NewResource(services.NewPresenceOperations(svc.Active, svc.OGSGroupLive, logger.With("service", "presence-operations")), activePeople{source: services.NewAttendanceRoutePeople(svc.Users)}, teacherGroupIDs(in.modules), services.NewSchulhofProjection(svc.Schulhof), activeStaffAccess{source: services.NewAttendanceRouteStaff(svc.UserContext)}, svc.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
+	active := presenceAPI.NewResource(services.NewPresenceOperations(svc.Active, svc.OGSGroupLive, logger.With("service", "presence-operations")), activePeople{source: services.NewAttendanceRoutePeople(svc.Users)}, teacherGroupIDs(in.modules), services.NewSchulhofProjection(svc.Schulhof), activeStaffAccess{source: peopleCompose.NewAttendanceRouteStaff(svc.UserContext)}, svc.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
 	active.SupervisionDashboardService = svc.SupervisionDashboard
 	iot, err := newIoTResource(in, deviceAuth, presence, openRoomMove)
 	if err != nil {
@@ -1840,13 +1840,20 @@ func mountPortalRoutes(root chi.Router, in routeInputs, limiters authRateLimiter
 	return nil
 }
 
+// caregiverCapabilityViews binds People Directory's caregiver capability for
+// the account and operator routes that toggle it (#2736); in.db opens the
+// administrative transaction of the operator routes.
+func caregiverCapabilityViews(in routeInputs) peopleCompose.CaregiverCapabilityViews {
+	return peopleCompose.NewCaregiverCapabilityViews(in.modules.services.CaregiverCapability, in.db)
+}
+
 // newAccountResource composes the tenant account routes. Their caregiver
 // capability is the one the operator routes provision with.
 func newAccountResource(in routeInputs) *authAPI.Resource {
 	svc := in.modules.services
 	authSchools := authSchoolDirectory{schools: svc.Schools, memberships: svc.Auth.ListActiveAccountSchoolIDs}
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, authSchools, svc.AccountAuthentication(), services.AccountRouteTenantRuntime())
-	resource.CaregiverCapabilityService = svc.CaregiverCapabilityViews(in.db)
+	resource.CaregiverCapabilityService = caregiverCapabilityViews(in)
 	resource.SettingsService = svc.Settings
 	resource.RoleGrants = services.RoleGrantPolicy{}
 	resource.MFAService = svc.MFA
@@ -1897,7 +1904,7 @@ func newOperatorResource(in routeInputs) (*operatorAPI.Resource, error) {
 		MFAService:           svc.OperatorMFA,
 		InvitationService:    svc.OperatorInvitation,
 		ProvisioningService:  svc.OperatorProvisioning,
-		Caregivers:           svc.CaregiverCapabilityViews(in.db),
+		Caregivers:           caregiverCapabilityViews(in),
 		AnnouncementsService: svc.Announcement,
 		UnregisteredTagScans: tagScanReview.Router(),
 		SchoolSettings:       schoolSettings,

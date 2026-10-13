@@ -207,7 +207,7 @@ func (p provisioningPeople) ListPersons(ctx context.Context, tenantIDs []int64) 
 		return []organizationCompose.PersonListing{}, err
 	}
 	personIDs, accountIDs := operatorPersonIDs(persons)
-	students, err := peopleRuntime(p.db).OperatorPersonStudentMembership(ctx, personIDs)
+	students, err := peopleCompose.NewLegacyRepositoryRuntime(p.db).OperatorPersonStudentMembership(ctx, personIDs)
 	if err != nil {
 		return nil, err
 	}

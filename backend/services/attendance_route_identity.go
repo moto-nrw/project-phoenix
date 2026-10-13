@@ -4,7 +4,6 @@ import (
 	"context"
 
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type attendanceRoutePeopleSource interface {
@@ -60,30 +59,4 @@ func (p attendanceRoutePeople) GetStudentByID(ctx context.Context, id int64) (in
 		return 0, nil, false, err
 	}
 	return row.ID, row.GroupID, true, err
-}
-
-type attendanceRouteStaffSource interface {
-	CurrentStaffID(context.Context) (int64, bool, error)
-	HasCurrentStaff(context.Context) (bool, error)
-}
-type attendanceRouteStaff struct{ source attendanceRouteStaffSource }
-
-// NewAttendanceRouteStaff retains the request-memoized current-staff lookup.
-func NewAttendanceRouteStaff(source attendanceRouteStaffSource) attendanceRouteStaff {
-	return attendanceRouteStaff{source: source}
-}
-
-// GetCurrentStaff reports the caller's staff member in the request's
-// tenant, the only tenant the staff read reaches. A caller who is no staff
-// member is not found, without an error, so the routes deny access instead
-// of reporting a lookup failure.
-func (p attendanceRouteStaff) GetCurrentStaff(ctx context.Context) (int64, int64, bool, error) {
-	staffID, found, err := p.source.CurrentStaffID(ctx)
-	if err != nil || !found {
-		return 0, 0, false, err
-	}
-	return staffID, tenant.FromContext(ctx), true, nil
-}
-func (p attendanceRouteStaff) HasCurrentStaff(ctx context.Context) (bool, error) {
-	return p.source.HasCurrentStaff(ctx)
 }
