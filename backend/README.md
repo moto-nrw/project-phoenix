@@ -31,8 +31,10 @@ Handler -> Service -> Repository -> Database
 | Repositories | `database/repositories/{domain}/` | Data access (Bun ORM) |
 | Models | `models/{domain}/` | Domain entities, shared across layers |
 
-Factory pattern for dependency injection:
-`repositories.NewFactory(db)` -> `services.NewFactory(repoFactory, db, logger)`
+Legacy dependency injection: `services.NewFactoryWithModules` builds the
+retained service graph over the owner module capabilities. There is no
+repository Factory (#2743); each retained repository is built where it is
+used, in its owner composition.
 
 ### Architecture checks
 
