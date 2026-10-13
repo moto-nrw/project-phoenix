@@ -13,6 +13,8 @@ import (
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	platform "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
+	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -38,6 +40,12 @@ func NewOrganizationTenancy(db *bun.DB) (organizationtenancy.Capability, error) 
 // record operator actions.
 func NewOperatorAuditLog(db *bun.DB) platform.OperatorAuditLogRepository {
 	return newOperatorAuditLog(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).OperatorAuditLog)
+}
+
+// NewCalendarReminderCommand binds the existing notification adapters to the
+// reminder workflow without constructing a repository or service factory.
+func NewCalendarReminderCommand(db *bun.DB, source CalendarReminderSource) reminder.Command {
+	return reminderCompose.NewCommand(db, calendarReminderDelivery(source))
 }
 
 // DemoAccessExpiry is the Identity & Access capability the demo process runs

@@ -135,7 +135,7 @@ func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) (identityacces
 func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) studentpresence.Presence {
 	repos := NewSessionCleanupRepositories(db, timetableCapability)
 	groups, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
-	settings := NewCleanupSettingsService(db, runtime, schools, logger)
+	settings := NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)
 	return presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
 		SchoolPresence:  newStudentPresence(db, logger),
@@ -166,7 +166,7 @@ func NewRetentionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 	_, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
 	return presenceservice.NewPresenceCleanup(
 		newStudentPresence(db, logger), supervisors, NewDeletionAudit(repos.Deletion),
-		PresenceSettings(NewCleanupSettingsService(db, runtime, schools, logger)),
+		PresenceSettings(NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)),
 	)
 }
 
@@ -176,7 +176,7 @@ func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 		Owner:      timetableCapability,
 		Deletions:  audits.DataDeletion,
 		Deviations: audits.DeviationEvent,
-		Settings:   NewCleanupSettingsService(db, runtime, schools, logger),
+		Settings:   NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger),
 		Logger:     logger,
 	})
 }
@@ -184,7 +184,7 @@ func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) timetracking.TimeTrackingCleanupService {
 	repos := NewTimeTrackingCleanupRepositories(db)
 	return timetracking.NewTimeTrackingCleanupService(
-		repos.Session, repos.Absence, NewTimeTrackingRetentionAudit(cleanupAuditRepositories(db, command).DataDeletion), PresenceSettings(NewCleanupSettingsService(db, runtime, schools, logger)), logger,
+		repos.Session, repos.Absence, NewTimeTrackingRetentionAudit(cleanupAuditRepositories(db, command).DataDeletion), PresenceSettings(NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)), logger,
 	)
 }
 

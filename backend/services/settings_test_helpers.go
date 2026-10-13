@@ -29,7 +29,7 @@ func NewSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (SettingsTestModu
 	if err != nil {
 		return SettingsTestModule{}, err
 	}
-	runtime := newSettingsRuntime(db, &unit)
+	runtime := settingsCompose.NewTenantSettingsRuntime(db, &unit)
 	repos := NewSettingsTestRepositories(runtime)
 	homeLayouts := settingsCompose.NewHomeLayoutService(settingsCompose.NewHomeLayoutRepository(runtime), runtime, slog.Default())
 	settings := settingsCompose.NewSettingsServiceWithHomeLayouts(

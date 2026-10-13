@@ -14,7 +14,7 @@ import (
 // reader's test can pin how it meets a row that no longer matches the
 // registry (#2736: the account-route tests may not name the repository).
 func StoreRawTenantSettingForTests(ctx context.Context, db *bun.DB, tenantID int64, key string, raw json.RawMessage) error {
-	repos := NewSettingsTestRepositories(newSettingsRuntime(db, nil))
+	repos := NewSettingsTestRepositories(settingsCompose.NewTenantSettingsRuntime(db, nil))
 	value := &configModels.SettingValue{SettingKey: key, Value: raw}
 	value.SetTenantID(tenantID)
 	return repos.Values.Upsert(ctx, value)

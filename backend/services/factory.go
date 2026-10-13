@@ -590,7 +590,7 @@ func newFactory(
 		Identity: peopleIdentity, Enrollment: enrollmentModule, Now: now,
 	}).WithSchools(organizations)
 	caregiverBindingLock := NewCaregiverBindingLocker(membership, workTime, newStudentPresence(db, logger), timetableCapability)
-	settingsRuntime := newSettingsRuntime(db, nil)
+	settingsRuntime := settingsCompose.NewTenantSettingsRuntime(db, nil)
 
 	mailer, err := email.NewMailer(email.MailerConfig{
 		Host:        cfg.EmailSMTPHost,
@@ -2988,7 +2988,7 @@ func newFactory(
 		SlotLists:            slotListsService,
 		Reminders: reminder.Module{
 			Query:                     remindersService,
-			Command:                   NewCalendarReminderCommand(db, calendarSvc),
+			Command:                   reminderCompose.NewCommand(db, calendarReminderDelivery(calendarSvc)),
 			ParentAnnouncementCommand: parentAnnouncementService,
 		},
 		Notifications:            notificationsService,

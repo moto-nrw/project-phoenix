@@ -86,7 +86,7 @@ func (f *Factory) SetTenantRuntime(runtime tenant.UnitOfWork) error {
 	if setter, ok := f.Settings.(interface {
 		SetRuntime(settingsCompose.SettingsRuntime)
 	}); ok {
-		setter.SetRuntime(newSettingsRuntime(f.settingsRuntimeDB, &runtime))
+		setter.SetRuntime(settingsCompose.NewTenantSettingsRuntime(f.settingsRuntimeDB, &runtime))
 	}
 	fields := reflect.ValueOf(f).Elem()
 	for i := 0; i < fields.NumField(); i++ {
