@@ -37,6 +37,7 @@ import { useOptionalSupervision } from "~/lib/supervision-context";
 import {
   useAttendanceWebEnabled,
   useNFCEnabled,
+  useChildSearchOnlyNavigation,
   useOpenCareGroupMode,
   usePresenceMode,
   useTenantSlugSafe,
@@ -45,7 +46,7 @@ import {
   firstOpenStaffStep,
   STAFF_NEXT_TOPICS,
   STAFF_ONBOARDING_STEP_CONTENT,
-  STAFF_ONBOARDING_TOURS,
+  staffOnboardingTours,
   staffOnboardingSteps,
 } from "./staff-onboarding-steps";
 import { useStaffOnboarding } from "./use-staff-onboarding";
@@ -113,6 +114,7 @@ function StaffOnboardingForPerson() {
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
   const openCareGroupMode = useOpenCareGroupMode();
+  const childSearchOnlyNavigation = useChildSearchOnlyNavigation();
   const webAttendance = useAttendanceWebEnabled();
   const tenantSlug = useTenantSlugSafe();
   const { groups } = useOptionalSupervision();
@@ -178,7 +180,11 @@ function StaffOnboardingForPerson() {
     setExpandedByPerson(true);
     setNotice(TOUR_LEFT);
   }, []);
-  const tour = useSetupTour(STAFF_ONBOARDING_TOURS, onTourFinished, onTourLeft);
+  const tours = useMemo(
+    () => staffOnboardingTours(childSearchOnlyNavigation),
+    [childSearchOnlyNavigation],
+  );
+  const tour = useSetupTour(tours, onTourFinished, onTourLeft);
 
   const visible =
     state !== null && !state.dismissed && state.schoolReady && steps.length > 0;

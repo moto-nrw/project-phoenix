@@ -42,6 +42,7 @@ vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: () => false,
   usePresenceMode: () => presenceMode,
   useOpenCareGroupMode: () => openCare,
+  useChildSearchOnlyNavigation: () => false,
   useAttendanceWebEnabled: () => webAttendance,
   useTenantSlugSafe: () => tenantSlug,
 }));
