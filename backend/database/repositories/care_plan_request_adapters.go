@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -160,7 +159,7 @@ func (r careScheduleRequestRepository) FindByID(ctx context.Context, raw any) (*
 	}
 	value, err := r.capability.FindCareScheduleRequest(ctx, id, false)
 	if errors.Is(err, careplan.ErrCareScheduleRequestNotFound) {
-		return nil, usersRepo.NotFoundError("find by id")
+		return nil, retainedNotFound("find by id")
 	}
 	if err != nil {
 		return nil, err
@@ -284,7 +283,7 @@ func (r studentDataRequestRepository) FindByID(ctx context.Context, raw any) (*u
 	}
 	value, err := r.capability.FindStudentDataRequest(ctx, id, false)
 	if errors.Is(err, careplan.ErrStudentDataRequestNotFound) {
-		return nil, usersRepo.NotFoundError("find by id")
+		return nil, retainedNotFound("find by id")
 	}
 	if err != nil {
 		return nil, err

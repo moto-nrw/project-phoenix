@@ -1,12 +1,12 @@
 package repositories
 
 import (
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -52,12 +52,12 @@ func NewStudentTestRepositories(db *bun.DB, members MembershipTestRepositories) 
 	}
 	return StudentTestRepositories{
 		CarePlan:                   care,
-		ParentRequestShare:         usersRepo.NewParentRequestShareEventRepository(peopleRuntime(db)),
+		ParentRequestShare:         peopleCompose.NewParentRequestShareEventRepository(db),
 		CareScheduleChangeRequest:  NewCareScheduleChangeRequestRepository(care),
 		ExcusedAbsenceRequest:      NewExcusedAbsenceRequestRepository(care),
-		ParentRequestEvent:         usersRepo.NewParentRequestEventRepository(peopleRuntime(db)),
+		ParentRequestEvent:         peopleCompose.NewParentRequestEventRepository(db),
 		StudentDataChangeRequest:   NewStudentDataChangeRequestRepository(care),
-		FamilyProtection:           usersRepo.NewFamilyProtectionEventRepository(peopleRuntime(db)),
+		FamilyProtection:           peopleCompose.NewFamilyProtectionEventRepository(db),
 		EnrollmentTestRepositories: enrollment,
 		CareWithdrawal:             lifecycle.CareWithdrawal,
 		ParentMessageThread:        parentStore.NewParentMessageThreadRepository(db, NewMessageableGuardianRepository(db)),

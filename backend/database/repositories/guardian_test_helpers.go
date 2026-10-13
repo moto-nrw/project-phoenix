@@ -1,9 +1,9 @@
 package repositories
 
 import (
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -17,5 +17,5 @@ type GuardianTestRepositories struct {
 }
 
 func NewGuardianTestRepositories(db *bun.DB) GuardianTestRepositories {
-	return GuardianTestRepositories{Phone: usersRepo.NewGuardianPhoneNumberRepository(peopleRuntime(db)), Financial: usersRepo.NewGuardianFinancialDataRepository(peopleRuntime(db))}
+	return GuardianTestRepositories{Phone: peopleCompose.NewGuardianPhoneNumberRepository(db), Financial: peopleCompose.NewGuardianFinancialDataRepository(db)}
 }

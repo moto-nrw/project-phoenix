@@ -1,4 +1,4 @@
-package repositories
+package compose
 
 import (
 	"context"
@@ -9,10 +9,9 @@ import (
 )
 
 // The retained People Directory repository suites (database/repositories/users)
-// may import neither that package nor this one (#2727). They compose the
-// retained repositories over the tenant runtime through the test support that
-// forwards these (services, api/testutil). Every entry goes with the last
-// suite that uses it.
+// may not import that package (#2727). They compose the retained repositories
+// over the tenant runtime through the test support that forwards these
+// (services, api/testutil). Every entry goes with the last suite that uses it.
 
 // Option and value types of the retained People Directory repositories.
 type (
@@ -32,31 +31,31 @@ type (
 // NewRetainedPersonRepository is the person repository without the Identity &
 // Access account lookup, so FindWithAccount fails closed.
 func NewRetainedPersonRepository(db *bun.DB) usersModels.PersonRepository {
-	return usersRepo.NewPersonRepository(peopleRuntime(db))
+	return usersRepo.NewPersonRepository(NewLegacyRepositoryRuntime(db))
 }
 
 // NewRetainedGuardianProfileRepository is the guardian profile repository with
 // only the given options bound.
 func NewRetainedGuardianProfileRepository(db *bun.DB, options ...RetainedGuardianProfileOption) usersModels.GuardianProfileRepository {
-	return usersRepo.NewGuardianProfileRepository(peopleRuntime(db), options...)
+	return usersRepo.NewGuardianProfileRepository(NewLegacyRepositoryRuntime(db), options...)
 }
 
 // NewRetainedGuardianRelationshipRepository is the relationship store with
 // only the given options bound.
 func NewRetainedGuardianRelationshipRepository(db *bun.DB, options ...RetainedGuardianRelationshipOption) usersModels.StudentGuardianRepository {
-	return usersRepo.NewGuardianRelationshipRepository(peopleRuntime(db), options...)
+	return usersRepo.NewGuardianRelationshipRepository(NewLegacyRepositoryRuntime(db), options...)
 }
 
 // NewRetainedMessageableGuardianRepository is the parent-message recipient
 // lookup over the given membership lookup.
 func NewRetainedMessageableGuardianRepository(db *bun.DB, memberships RetainedSchoolMembershipLookup) *usersRepo.MessageableGuardianRepository {
-	return usersRepo.NewMessageableGuardianRepository(peopleRuntime(db), memberships)
+	return usersRepo.NewMessageableGuardianRepository(NewLegacyRepositoryRuntime(db), memberships)
 }
 
 // NewRetainedMessageableStaffRepository is the colleague lookup over the given
 // owner queries.
 func NewRetainedMessageableStaffRepository(db *bun.DB, staffAccounts RetainedStaffAccountsFunc, identity RetainedStaffMessageIdentity) *usersRepo.MessageableStaffRepository {
-	return usersRepo.NewMessageableStaffRepository(peopleRuntime(db), staffAccounts, identity)
+	return usersRepo.NewMessageableStaffRepository(NewLegacyRepositoryRuntime(db), staffAccounts, identity)
 }
 
 // RetainedWithPortalMemberships binds the guardian profile reachability query.

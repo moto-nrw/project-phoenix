@@ -1,16 +1,16 @@
 package repositories
 
 import (
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/uptrace/bun"
 )
 
 // NewMessageableGuardianRepository binds the recipient lookup to the native
 // Identity capability for focused repository tests.
-func NewMessageableGuardianRepository(db *bun.DB) *usersRepo.MessageableGuardianRepository {
-	return usersRepo.NewMessageableGuardianRepository(peopleRuntime(db), newIdentityAccess(db, nil).FindActiveSchoolMemberships)
+func NewMessageableGuardianRepository(db *bun.DB) *peopleCompose.RetainedMessageableGuardians {
+	return peopleCompose.NewMessageableGuardians(db, newIdentityAccess(db, nil).FindActiveSchoolMemberships)
 }
 
 // ParentMessagingTestRepositories is the parent-conversation data layer for

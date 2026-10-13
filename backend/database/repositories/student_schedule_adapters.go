@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -147,13 +146,13 @@ func legacyScheduleQueryFilter(filter userModels.QueryFilter) *careplan.StudentS
 // operation.
 func legacyScheduleError(op string, err error) error {
 	if errors.Is(err, careplan.ErrStudentScheduleNotFound) {
-		return usersRepo.NotFoundError(op)
+		return retainedNotFound(op)
 	}
-	return usersRepo.WrapError(op, err)
+	return wrapRetainedError(op, err)
 }
 
 // noRowsError is the bare not-found sentinel pair without an operation.
-func noRowsError() error { return errors.Unwrap(usersRepo.NotFoundError("")) }
+func noRowsError() error { return errors.Unwrap(retainedNotFound("")) }
 
 func today() careplan.Date                         { return carePlanCompose.Today() }
 func date(value scheduleModels.Date) careplan.Date { return careplan.Date(value) }

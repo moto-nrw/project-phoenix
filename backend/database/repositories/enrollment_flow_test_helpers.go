@@ -1,11 +1,11 @@
 package repositories
 
 import (
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -46,7 +46,7 @@ func NewEnrollmentFlowTestRepositories(db *bun.DB, members MembershipTestReposit
 		School:                    organizations,
 		StudentGuardian:           members.StudentGuardian,
 		GuardianProfile:           members.GuardianProfile,
-		GuardianPhoneNumber:       usersRepo.NewGuardianPhoneNumberRepository(peopleRuntime(db)),
+		GuardianPhoneNumber:       peopleCompose.NewGuardianPhoneNumberRepository(db),
 		CareWithdrawal:            newCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
 	}, nil
 }

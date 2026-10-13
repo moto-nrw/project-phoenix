@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -113,7 +112,7 @@ func ReplaceStudentCompanions(ctx context.Context, links usersModels.StudentComp
 			StudentLowID: edge.StudentLowID, StudentHighID: edge.StudentHighID, Weekday: edge.Weekday,
 		})
 	}
-	return usersRepo.WrapError("replace student companions", repository.capability.ReplaceCompanionEdges(ctx, studentID, values))
+	return wrapRetainedError("replace student companions", repository.capability.ReplaceCompanionEdges(ctx, studentID, values))
 }
 
 // NewStudentCompanionEdge builds one stored "walks home with" edge between two

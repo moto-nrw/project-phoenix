@@ -37,17 +37,17 @@ type (
 	PeopleRepositorySuiteCareLifecycle         = repositories.CareLifecycleTestRepositories
 	PeopleRepositorySuiteAuditCommand          = auditModels.Command
 	PeopleRepositorySuiteAnnouncementAudience  = repositories.AnnouncementEnrollmentQueries
-	PeopleRepositorySuiteGuardianProfileOption = repositories.RetainedGuardianProfileOption
-	PeopleRepositorySuiteRelationshipOption    = repositories.RetainedGuardianRelationshipOption
-	PeopleRepositorySuitePortalMemberships     = repositories.RetainedPortalMembershipQuery
-	PeopleRepositorySuiteSchoolMemberships     = repositories.RetainedSchoolMembershipLookup
-	PeopleRepositorySuiteStaffAccounts         = repositories.RetainedStaffAccountsFunc
-	PeopleRepositorySuiteStaffMessageIdentity  = repositories.RetainedStaffMessageIdentity
-	PeopleRepositorySuiteSchoolRoleClass       = repositories.RetainedSchoolRoleClass
-	PeopleRepositorySuitePickupCommand         = repositories.RetainedGuardianPickupCommand
-	PeopleRepositorySuiteAccessCommand         = repositories.RetainedGuardianAccessCommand
-	PeopleRepositorySuiteRecipients            = repositories.RetainedMessageableGuardians
-	PeopleRepositorySuiteColleagues            = repositories.RetainedMessageableStaff
+	PeopleRepositorySuiteGuardianProfileOption = peopleCompose.RetainedGuardianProfileOption
+	PeopleRepositorySuiteRelationshipOption    = peopleCompose.RetainedGuardianRelationshipOption
+	PeopleRepositorySuitePortalMemberships     = peopleCompose.RetainedPortalMembershipQuery
+	PeopleRepositorySuiteSchoolMemberships     = peopleCompose.RetainedSchoolMembershipLookup
+	PeopleRepositorySuiteStaffAccounts         = peopleCompose.RetainedStaffAccountsFunc
+	PeopleRepositorySuiteStaffMessageIdentity  = peopleCompose.RetainedStaffMessageIdentity
+	PeopleRepositorySuiteSchoolRoleClass       = peopleCompose.RetainedSchoolRoleClass
+	PeopleRepositorySuitePickupCommand         = peopleCompose.RetainedGuardianPickupCommand
+	PeopleRepositorySuiteAccessCommand         = peopleCompose.RetainedGuardianAccessCommand
+	PeopleRepositorySuiteRecipients            = peopleCompose.RetainedMessageableGuardians
+	PeopleRepositorySuiteColleagues            = peopleCompose.RetainedMessageableStaff
 	PeopleRepositorySuitePeople                = peopledirectory.Capability
 	PeopleRepositorySuiteSchoolStructure       = schoolstructure.Capability
 	PeopleRepositorySuiteCarePlan              = careplan.Capability
@@ -262,63 +262,63 @@ func NewEnrollmentGuardianAutofillSuite(db *bun.DB) EnrollmentGuardianAutofill {
 
 // NewPeopleRepositorySuiteRecipients is the parent-message recipient lookup
 // as the composition root binds it.
-func NewPeopleRepositorySuiteRecipients(db *bun.DB) *repositories.RetainedMessageableGuardians {
+func NewPeopleRepositorySuiteRecipients(db *bun.DB) *peopleCompose.RetainedMessageableGuardians {
 	return repositories.NewMessageableGuardianRepository(db)
 }
 
 // NewPeopleRepositorySuiteRetainedPersons is the person store without the
 // account lookup.
 func NewPeopleRepositorySuiteRetainedPersons(db *bun.DB) usersModels.PersonRepository {
-	return repositories.NewRetainedPersonRepository(db)
+	return peopleCompose.NewRetainedPersonRepository(db)
 }
 
 // NewPeopleRepositorySuiteRetainedGuardianProfiles is the guardian profile
 // store with only the given options bound.
-func NewPeopleRepositorySuiteRetainedGuardianProfiles(db *bun.DB, options ...repositories.RetainedGuardianProfileOption) usersModels.GuardianProfileRepository {
-	return repositories.NewRetainedGuardianProfileRepository(db, options...)
+func NewPeopleRepositorySuiteRetainedGuardianProfiles(db *bun.DB, options ...peopleCompose.RetainedGuardianProfileOption) usersModels.GuardianProfileRepository {
+	return peopleCompose.NewRetainedGuardianProfileRepository(db, options...)
 }
 
 // NewPeopleRepositorySuiteRetainedRelationships is the relationship store
 // with only the given options bound.
-func NewPeopleRepositorySuiteRetainedRelationships(db *bun.DB, options ...repositories.RetainedGuardianRelationshipOption) usersModels.StudentGuardianRepository {
-	return repositories.NewRetainedGuardianRelationshipRepository(db, options...)
+func NewPeopleRepositorySuiteRetainedRelationships(db *bun.DB, options ...peopleCompose.RetainedGuardianRelationshipOption) usersModels.StudentGuardianRepository {
+	return peopleCompose.NewRetainedGuardianRelationshipRepository(db, options...)
 }
 
 // NewPeopleRepositorySuiteRetainedRecipients is the recipient lookup over the
 // given membership lookup.
-func NewPeopleRepositorySuiteRetainedRecipients(db *bun.DB, memberships repositories.RetainedSchoolMembershipLookup) *repositories.RetainedMessageableGuardians {
-	return repositories.NewRetainedMessageableGuardianRepository(db, memberships)
+func NewPeopleRepositorySuiteRetainedRecipients(db *bun.DB, memberships peopleCompose.RetainedSchoolMembershipLookup) *peopleCompose.RetainedMessageableGuardians {
+	return peopleCompose.NewRetainedMessageableGuardianRepository(db, memberships)
 }
 
 // NewPeopleRepositorySuiteRetainedColleagues is the colleague lookup over the
 // given owner queries.
-func NewPeopleRepositorySuiteRetainedColleagues(db *bun.DB, staffAccounts repositories.RetainedStaffAccountsFunc, identity repositories.RetainedStaffMessageIdentity) *repositories.RetainedMessageableStaff {
-	return repositories.NewRetainedMessageableStaffRepository(db, staffAccounts, identity)
+func NewPeopleRepositorySuiteRetainedColleagues(db *bun.DB, staffAccounts peopleCompose.RetainedStaffAccountsFunc, identity peopleCompose.RetainedStaffMessageIdentity) *peopleCompose.RetainedMessageableStaff {
+	return peopleCompose.NewRetainedMessageableStaffRepository(db, staffAccounts, identity)
 }
 
 // PeopleRepositorySuiteWithPortalMemberships binds the reachability query.
-func PeopleRepositorySuiteWithPortalMemberships(query repositories.RetainedPortalMembershipQuery) repositories.RetainedGuardianProfileOption {
-	return repositories.RetainedWithPortalMemberships(query)
+func PeopleRepositorySuiteWithPortalMemberships(query peopleCompose.RetainedPortalMembershipQuery) peopleCompose.RetainedGuardianProfileOption {
+	return peopleCompose.RetainedWithPortalMemberships(query)
 }
 
 // PeopleRepositorySuiteWithMemberships binds the relationship membership lookup.
-func PeopleRepositorySuiteWithMemberships(query repositories.RetainedSchoolMembershipLookup) repositories.RetainedGuardianRelationshipOption {
-	return repositories.RetainedWithGuardianRelationshipMemberships(query)
+func PeopleRepositorySuiteWithMemberships(query peopleCompose.RetainedSchoolMembershipLookup) peopleCompose.RetainedGuardianRelationshipOption {
+	return peopleCompose.RetainedWithGuardianRelationshipMemberships(query)
 }
 
 // PeopleRepositorySuiteWithOwners binds the relationship's owner halves.
-func PeopleRepositorySuiteWithOwners(pickup repositories.RetainedGuardianPickupCommand, access repositories.RetainedGuardianAccessCommand) repositories.RetainedGuardianRelationshipOption {
-	return repositories.RetainedWithGuardianRelationshipOwners(pickup, access)
+func PeopleRepositorySuiteWithOwners(pickup peopleCompose.RetainedGuardianPickupCommand, access peopleCompose.RetainedGuardianAccessCommand) peopleCompose.RetainedGuardianRelationshipOption {
+	return peopleCompose.RetainedWithGuardianRelationshipOwners(pickup, access)
 }
 
 // PeopleRepositorySuiteWithDefaultRole binds the default role preset.
-func PeopleRepositorySuiteWithDefaultRole() repositories.RetainedGuardianRelationshipOption {
-	return repositories.RetainedWithGuardianDefaultRole(applyDefaultGuardianRole)
+func PeopleRepositorySuiteWithDefaultRole() peopleCompose.RetainedGuardianRelationshipOption {
+	return peopleCompose.RetainedWithGuardianDefaultRole(applyDefaultGuardianRole)
 }
 
 // VerifyPeopleRepositorySuiteStudentSchema runs the students table check.
 func VerifyPeopleRepositorySuiteStudentSchema(ctx context.Context, db *bun.DB) error {
-	return repositories.VerifyRetainedStudentSchema(ctx, db)
+	return peopleCompose.VerifyRetainedStudentSchema(ctx, db)
 }
 
 // RepositoryTestFactory is the repository factory test graphs compose, next to

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
@@ -413,14 +412,14 @@ func shiftWallClockTime(value string) time.Time {
 // wrapShiftDatabaseError is the repository error envelope the row callers
 // classify on.
 func wrapShiftDatabaseError(operation string, err error) error {
-	return usersRepo.WrapError(operation, err)
+	return wrapRetainedError(operation, err)
 }
 
 // wrapShiftNoRowsDatabaseError is the missing-row answer: the
 // persistence-neutral not-found sentinel joined with the driver's no-rows
 // value, as the generic repositories returned it.
 func wrapShiftNoRowsDatabaseError(operation string) error {
-	return usersRepo.NotFoundError(operation)
+	return retainedNotFound(operation)
 }
 
 // shiftRowID narrows the untyped ID of the generic repository contract.
