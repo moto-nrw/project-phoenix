@@ -18,7 +18,7 @@ import (
 // 117 TableName methods; this ratchet keeps them from growing back.
 //
 // Three patterns, scanned over models/ excluding models/base (which hosts the
-// one canonical getter set):
+// canonical getter set; models/users keeps a local copy, see the M1 allowlist):
 //
 //	M1 — GetID/GetCreatedAt/GetUpdatedAt method declarations. Zero tolerated;
 //	     conventional models embed a base shape, while audit models keep their
@@ -39,7 +39,13 @@ var (
 
 // M1 — model entities use the shared base shapes or semantic audit fields;
 // no per-entity GetID/GetCreatedAt/GetUpdatedAt declarations remain.
-var modelGetterAllowlist = map[string]int{}
+// models/users/model.go is the one exception: the retained user models own a
+// local copy of the base row shape instead of importing models/base (#3991),
+// so its three getters are the shape's set, not per-entity redeclarations.
+// The entry goes with models/users.
+var modelGetterAllowlist = map[string]int{
+	"models/users/model.go": 3,
+}
 
 // M2 — TableName() declarations in models/. Empty: bun never calls them.
 var modelTableNameAllowlist = map[string]int{}

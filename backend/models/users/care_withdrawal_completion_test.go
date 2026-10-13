@@ -1,10 +1,9 @@
-package users_test
+package users
 
 import (
 	"testing"
 	"time"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
@@ -13,9 +12,9 @@ func TestCareWithdrawalCompletionUrgencyIsDerived(t *testing.T) {
 	t.Parallel()
 	reference := calendar.NewDate(2026, time.August, 23)
 
-	planned := userModels.CareWithdrawalCompletion{FirstBookinglessDay: reference.AddDays(1)}
-	overdue := userModels.CareWithdrawalCompletion{FirstBookinglessDay: reference}
+	planned := CareWithdrawalCompletion{FirstBookinglessDay: reference.AddDays(1)}
+	overdue := CareWithdrawalCompletion{FirstBookinglessDay: reference}
 
-	assert.Equal(t, userModels.CareWithdrawalUrgencyPlanned, planned.UrgencyOn(reference))
-	assert.Equal(t, userModels.CareWithdrawalUrgencyOverdue, overdue.UrgencyOn(reference))
+	assert.Equal(t, CareWithdrawalUrgencyPlanned, planned.UrgencyOn(reference))
+	assert.Equal(t, CareWithdrawalUrgencyOverdue, overdue.UrgencyOn(reference))
 }

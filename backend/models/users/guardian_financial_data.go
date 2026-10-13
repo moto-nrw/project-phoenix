@@ -3,8 +3,6 @@ package users
 import (
 	"context"
 	"errors"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // GuardianFinancialData is the 1:1 bank record of a guardian (#2608).
@@ -19,8 +17,8 @@ import (
 // guardians is actually charged is a property of the relationship
 // (StudentGuardian.IsPayer), not of the bank record.
 type GuardianFinancialData struct {
-	base.Model `bun:"schema:users,table:guardian_financial_data"`
-	base.TenantModel
+	Model `bun:"schema:users,table:guardian_financial_data"`
+	TenantModel
 	GuardianProfileID int64   `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
 	IBAN              *string `bun:"iban" json:"-"`
 	// AccountHolder names the Kontoinhaber when the account does not run on

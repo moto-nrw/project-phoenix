@@ -6,8 +6,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // StaffMessageThreadKindDirect is the only conversation shape in V1: exactly
@@ -20,8 +18,8 @@ const StaffMessageThreadKindDirect = "direct"
 // identified by ParticipantKey, so the send path is get-or-create against a
 // single unique index.
 type StaffMessageThread struct {
-	base.Model `bun:"schema:users,table:staff_message_threads"`
-	base.TenantModel
+	Model `bun:"schema:users,table:staff_message_threads"`
+	TenantModel
 	// ParticipantKey identifies the conversation independently of the row's id.
 	// For a direct chat it is DirectParticipantKey(a, b) — the two account ids
 	// sorted ascending, colon-joined. Unique per tenant.

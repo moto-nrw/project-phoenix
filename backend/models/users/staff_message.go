@@ -3,8 +3,6 @@ package users
 import (
 	"context"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // StaffMessage is a single message in an OGS-internal colleague conversation
@@ -12,8 +10,8 @@ import (
 // individually. SenderName is denormalized at send time so the history stays
 // readable after an account is renamed or deactivated.
 type StaffMessage struct {
-	base.Model `bun:"schema:users,table:staff_messages"`
-	base.TenantModel
+	Model `bun:"schema:users,table:staff_messages"`
+	TenantModel
 	ThreadID        int64  `bun:"thread_id,notnull" json:"thread_id"`
 	SenderAccountID int64  `bun:"sender_account_id,notnull" json:"sender_account_id"`
 	SenderName      string `bun:"sender_name,notnull" json:"sender_name"`

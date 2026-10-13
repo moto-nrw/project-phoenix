@@ -2,8 +2,6 @@ package users
 
 import (
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Student document categories (#777). Fixed enum, mirrored by the CHECK
@@ -55,8 +53,8 @@ var StudentDocumentCategoryLabels = map[string]string{
 // (UUID) name and are served exclusively through the permission-checked
 // download handler.
 type StudentDocument struct {
-	base.Model `bun:"schema:users,table:student_documents"`
-	base.TenantModel
+	Model `bun:"schema:users,table:student_documents"`
+	TenantModel
 	Category        string     `bun:"category,notnull" json:"category"`
 	FilenameDisplay string     `bun:"filename_display,notnull" json:"filename_display"`
 	FilenameStored  string     `bun:"filename_stored,notnull" json:"-"`
@@ -76,8 +74,8 @@ type StudentDocument struct {
 // document rows away; without a cleanup row that outlives the cascade, the
 // stored bytes would stay on disk forever with nothing pointing at them.
 type StudentDocumentFileCleanup struct {
-	base.Model `bun:"schema:users,table:student_document_file_cleanup"`
-	base.TenantModel
+	Model `bun:"schema:users,table:student_document_file_cleanup"`
+	TenantModel
 	OwnerID        int64      `bun:"owner_id,notnull"`
 	FilenameStored string     `bun:"filename_stored,notnull"`
 	RetryAfter     time.Time  `bun:"retry_after,notnull"`

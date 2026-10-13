@@ -3,8 +3,6 @@ package users
 import (
 	"context"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 const (
@@ -53,8 +51,8 @@ const (
 // time so the history stays stable if an account/profile is later renamed
 // or removed.
 type ParentMessage struct {
-	base.Model `bun:"schema:users,table:parent_messages"`
-	base.TenantModel
+	Model `bun:"schema:users,table:parent_messages"`
+	TenantModel
 	ThreadID        int64  `bun:"thread_id,notnull" json:"thread_id"`
 	StudentID       int64  `bun:"student_id,notnull" json:"student_id"`
 	SenderAccountID int64  `bun:"sender_account_id,notnull" json:"sender_account_id"`

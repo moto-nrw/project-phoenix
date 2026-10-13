@@ -2,8 +2,6 @@ package users
 
 import (
 	"testing"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestStudentGuardian_Validate(t *testing.T) {
@@ -113,7 +111,7 @@ func TestStudentGuardian_SetStudent(t *testing.T) {
 	t.Parallel()
 
 	student := &Student{
-		Model: base.Model{
+		Model: Model{
 			ID: 123,
 		},
 		PersonID:    1,

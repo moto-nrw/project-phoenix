@@ -3,18 +3,16 @@ package users
 import (
 	"context"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // StaffMessageParticipant links an account to a conversation. For a direct chat
 // there are exactly two rows, mirroring StaffMessageThread.ParticipantKey.
 type StaffMessageParticipant struct {
 	// Documents the source table; bun reads table tags only from bun.BaseModel.
-	base.TenantModel `bun:"table:users.staff_message_participants,alias:smp"`
-	ThreadID         int64     `bun:"thread_id,pk" json:"thread_id"`
-	AccountID        int64     `bun:"account_id,pk" json:"account_id"`
-	CreatedAt        time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
+	TenantModel `bun:"table:users.staff_message_participants,alias:smp"`
+	ThreadID    int64     `bun:"thread_id,pk" json:"thread_id"`
+	AccountID   int64     `bun:"account_id,pk" json:"account_id"`
+	CreatedAt   time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
 }
 
 // StaffMessageRead is one reader's cursor in one conversation. Unread is every
@@ -26,7 +24,7 @@ type StaffMessageParticipant struct {
 // it from the unread badge.
 type StaffMessageRead struct {
 	// Documents the source table; bun reads table tags only from bun.BaseModel.
-	base.TenantModel  `bun:"table:users.staff_message_reads,alias:smr"`
+	TenantModel       `bun:"table:users.staff_message_reads,alias:smr"`
 	ThreadID          int64     `bun:"thread_id,pk" json:"thread_id"`
 	AccountID         int64     `bun:"account_id,pk" json:"account_id"`
 	LastReadAt        time.Time `bun:"last_read_at,notnull" json:"last_read_at"`

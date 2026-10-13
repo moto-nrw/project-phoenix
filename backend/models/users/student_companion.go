@@ -1,7 +1,6 @@
 package users
 
 import (
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 )
 
@@ -49,8 +48,8 @@ var CompanionWeekdayKeys = map[int]string{
 // pair is stored exactly once per weekday. Care Plan's domain builds the edges;
 // this row is the People Directory read shape.
 type StudentCompanion struct {
-	base.Model `bun:"schema:users,table:student_companions"`
-	base.TenantModel
+	Model `bun:"schema:users,table:student_companions"`
+	TenantModel
 	StudentLowID  int64 `bun:"student_low_id,notnull" json:"student_low_id"`
 	StudentHighID int64 `bun:"student_high_id,notnull" json:"student_high_id"`
 	Weekday       int   `bun:"weekday,notnull" json:"weekday"`

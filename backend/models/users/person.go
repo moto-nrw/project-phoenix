@@ -5,14 +5,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Person represents a physical person in the system
 type Person struct {
-	base.Model `bun:"schema:users,table:persons"`
-	base.TenantModel
+	Model `bun:"schema:users,table:persons"`
+	TenantModel
 	FirstName string         `bun:"first_name,notnull" json:"first_name"`
 	LastName  string         `bun:"last_name,notnull" json:"last_name"`
 	Birthday  *calendar.Date `bun:"birthday,type:date" json:"birthday,omitempty"`
