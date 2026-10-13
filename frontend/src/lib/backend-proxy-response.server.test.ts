@@ -27,8 +27,11 @@ describe("forwardBackendResponse", () => {
     const response = forwardBackendResponse(
       new Response(
         JSON.stringify({
+          type: "about:blank",
+          title: "Internal Server Error",
+          status: 500,
           detail: "database at db.internal refused the connection",
-          code: "general.server",
+          code: "iot.schulhof_not_configured",
           details: { host: "db.internal" },
         }),
         {
@@ -43,10 +46,31 @@ describe("forwardBackendResponse", () => {
     expect(JSON.parse(body)).toMatchObject({
       status: 500,
       detail: "Internal Server Error",
-      code: "general.server",
+      code: "iot.schulhof_not_configured",
     });
     expect(body).not.toContain("db.internal");
     expect(body).not.toContain("refused the connection");
+  });
+
+  it("replaces an unregistered backend code with the status class", async () => {
+    const response = forwardBackendResponse(
+      new Response(
+        JSON.stringify({
+          type: "about:blank",
+          title: "Internal Server Error",
+          status: 500,
+          detail: "database at db.internal refused the connection",
+          code: "upstream.unknown_code",
+        }),
+        { status: 500 },
+      ),
+    );
+
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("keeps a no-content response bodyless", async () => {

@@ -233,6 +233,25 @@ describe("handleApiError", () => {
     expect(body).not.toContain("refused the connection");
   });
 
+  it("preserves a registered backend 5xx code while sanitizing diagnostics", async () => {
+    const response = handleApiError(
+      backendError(500, {
+        detail: "database host db.internal refused the connection",
+        code: "iot.schulhof_not_configured",
+        details: { host: "db.internal" },
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "iot.schulhof_not_configured",
+    });
+    expect(body).not.toContain("db.internal");
+  });
+
   it("replaces an incomplete JSON backend error with a class envelope", async () => {
     const response = handleApiError(
       new ServerApiResponseError(

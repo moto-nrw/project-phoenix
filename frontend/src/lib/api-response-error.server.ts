@@ -147,11 +147,12 @@ export function handleApiError(
     if (!isEnvelope || error.status >= 500) {
       // An invalid upstream body or a 5xx can carry proxy or backend
       // diagnostics. The body is logged above and never forwarded: the
-      // browser gets an envelope with the status title and class code.
+      // browser gets an envelope with the status title. A validated registry
+      // code remains the error identity; free-text extensions stay server-side.
       return problemResponse(
         error.status,
         problemTitle(error.status),
-        {},
+        safeProblemExtensions(parsed, error.status),
         headers,
       );
     }
@@ -207,6 +208,18 @@ function isProblemEnvelope(
     !("error" in body) &&
     !("message" in body)
   );
+}
+
+/**
+ * Keeps only a validated error identity when replacing a backend 5xx body.
+ * Other extensions can contain diagnostics just like `detail`, so a generic
+ * proxy cannot decide that they are safe to send to the browser.
+ */
+export function safeProblemExtensions(
+  value: unknown,
+  status: number,
+): Omit<Partial<ProblemBody>, "status" | "detail"> {
+  return isProblemEnvelope(value, status) ? { code: value.code } : {};
 }
 
 function hasNonEmptyString(
