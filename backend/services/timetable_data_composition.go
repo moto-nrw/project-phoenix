@@ -5,19 +5,17 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // timetableDataInputs are the retained rows and the owners the planner's
 // reads of the Timetable owner read through (#3551). ArrivalBaselines and
-// PickupBaselines are optional; Transactional binds the tenant runtime's
+// PickupBaselines are optional; BlockMetadata is the block display projection
+// the composition root binds; Transactional binds the tenant runtime's
 // advisory locks a spontaneous start takes.
 type timetableDataInputs struct {
 	Rows             timetableCompose.OwnerRows
@@ -27,7 +25,7 @@ type timetableDataInputs struct {
 	Groups           timetableCompose.DataGroups
 	Sessions         studentpresence.SessionRecords
 	ConflictAcks     timetable.ConflictAckCapability
-	DB               *bun.DB
+	BlockMetadata    timetableCompose.BlockDisplayMetadata
 	Transactional    bool
 	Logger           *slog.Logger
 }
@@ -53,7 +51,7 @@ func newTimetableData(in timetableDataInputs) (timetable.TimetableDataCapability
 		Visits:            in.Visits,
 		Templates:         templates,
 		Groups:            in.Groups,
-		BlockMetadata:     newTimetableBlockDisplayMetadata(in.DB),
+		BlockMetadata:     in.BlockMetadata,
 		Categories:        in.Rows.Categories,
 		Rooms:             in.Rows.RoomNames(),
 		RoomOccupancy:     timetableRoomOccupancy{sessions: in.Sessions},
@@ -83,15 +81,7 @@ func newTenantAdvisoryLocks(transactional bool) timetableCompose.AdvisoryLocks {
 	if !transactional {
 		return nil
 	}
-	return tenantAdvisoryLocks{}
-}
-
-// tenantAdvisoryLocks takes transaction-scoped advisory locks through the
-// tenant runtime's unit of work; they release at commit or rollback.
-type tenantAdvisoryLocks struct{}
-
-func (tenantAdvisoryLocks) AcquireXactLock(ctx context.Context, key string) error {
-	return tenant.AcquireLock(ctx, key, false)
+	return timetableCompose.NewTenantAdvisoryLocks()
 }
 
 // pickupBaselineProjector serves the Timetable pickup port from Care Plan's

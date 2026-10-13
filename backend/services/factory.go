@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
@@ -2794,7 +2795,7 @@ func newFactory(
 		Groups:           timetableCapability,
 		Sessions:         sessionRecords,
 		ConflictAcks:     timetableCapability,
-		DB:               db,
+		BlockMetadata:    arrivalTimetable.NewBlockDisplayMetadata(db, timetableblockdisplay.List),
 		Transactional:    true,
 		Logger:           logger.With("service", "timetable-data"),
 	})

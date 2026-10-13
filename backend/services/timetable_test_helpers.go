@@ -9,6 +9,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
@@ -163,7 +164,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	timetableData, err := newTimetableData(timetableDataInputs{
 		Rows: dataRows, ArrivalBaselines: arrival, PickupBaselines: pickup, Visits: newStudentPresence(db, logger),
 		Groups: r.Timetable, Sessions: r.ActiveGroup,
-		ConflictAcks: r.Timetable, DB: db, Transactional: true, Logger: logger,
+		ConflictAcks: r.Timetable, BlockMetadata: arrivalTimetable.NewBlockDisplayMetadata(db, timetableblockdisplay.List), Transactional: true, Logger: logger,
 	})
 	if err != nil {
 		return TimetableTestModule{}, err

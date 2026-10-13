@@ -18,6 +18,7 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -219,7 +220,7 @@ func newTimetableHTTPTestReads(db *bun.DB, r TimetableHTTPTestRows, rows timetab
 		Visits:            presence,
 		Templates:         templates,
 		Groups:            r.Timetable,
-		BlockMetadata:     newTimetableBlockDisplayMetadata(db),
+		BlockMetadata:     timetableCompose.NewBlockDisplayMetadata(db, timetableblockdisplay.List),
 		Categories:        r.ActivityCategory,
 		Rooms:             rows.RoomNames(),
 		RoomOccupancy:     timetableRoomOccupancy{sessions: r.ActiveGroup},
