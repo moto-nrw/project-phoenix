@@ -187,11 +187,13 @@ func TestTeacherRepository_Update(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates teacher specialization", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "Update", "Teacher")
+		teacherFixture := testpkg.CreateTestTeacher(t, db, "Update", "Teacher")
+		teacher, err := repo.FindByID(ctx, teacherFixture.ID)
+		require.NoError(t, err)
 
 		teacher.Specialization = "Physics"
 
-		err := repo.Update(ctx, teacher)
+		err = repo.Update(ctx, teacher)
 		require.NoError(t, err)
 
 		found, err := repo.FindByID(ctx, teacher.ID)
@@ -242,11 +244,13 @@ func TestTeacherRepository_FindBySpecialization(t *testing.T) {
 
 	t.Run("finds teachers by specialization (case-insensitive)", func(t *testing.T) {
 		// Create teacher with unique specialization
-		teacher := testpkg.CreateTestTeacher(t, db, "Spec", "Teacher")
+		teacherFixture := testpkg.CreateTestTeacher(t, db, "Spec", "Teacher")
+		teacher, err := repo.FindByID(ctx, teacherFixture.ID)
+		require.NoError(t, err)
 
 		uniqueSpec := fmt.Sprintf("UniqueSpec%d", time.Now().UnixNano())
 		teacher.Specialization = uniqueSpec
-		err := repo.Update(ctx, teacher)
+		err = repo.Update(ctx, teacher)
 		require.NoError(t, err)
 
 		// Search with different case
@@ -444,11 +448,13 @@ func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 
 	t.Run("filters teachers by specialization_like", func(t *testing.T) {
 		// Create teacher with unique specialization
-		teacher := testpkg.CreateTestTeacher(t, db, "FilterTest", "Teacher")
+		teacherFixture := testpkg.CreateTestTeacher(t, db, "FilterTest", "Teacher")
+		teacher, err := repo.FindByID(ctx, teacherFixture.ID)
+		require.NoError(t, err)
 
 		uniqueSpec := fmt.Sprintf("FilterSpec%d", time.Now().UnixNano())
 		teacher.Specialization = uniqueSpec
-		err := repo.Update(ctx, teacher)
+		err = repo.Update(ctx, teacher)
 		require.NoError(t, err)
 
 		// Use LIKE filter (tests applyTeacherStringLikeFilter)
@@ -469,12 +475,14 @@ func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 	})
 
 	t.Run("filters teachers by role_like", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "RoleTest", "Teacher")
+		teacherFixture := testpkg.CreateTestTeacher(t, db, "RoleTest", "Teacher")
+		teacher, err := repo.FindByID(ctx, teacherFixture.ID)
+		require.NoError(t, err)
 
 		// Set a unique role
 		uniqueRole := fmt.Sprintf("RoleFilter%d", time.Now().UnixNano())
 		teacher.Role = uniqueRole
-		err := repo.Update(ctx, teacher)
+		err = repo.Update(ctx, teacher)
 		require.NoError(t, err)
 
 		// Use role_like filter (tests applyTeacherStringLikeFilter)

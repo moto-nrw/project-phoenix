@@ -33,7 +33,9 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	owner, ownerAccountID := activeTeacher(t, db, "Robin", "Owner")
 	colleague, _ := activeTeacher(t, db, "Toni", "Kollege")
 	external := testpkg.CreateTestGuest(t, db, "Trommeln").Staff
-	expired := testpkg.CreateTestGuest(t, db, "Abgelaufen")
+	expiredFixture := testpkg.CreateTestGuest(t, db, "Abgelaufen")
+	expired, err := repos.Guest.FindByID(ctx, expiredFixture.ID)
+	require.NoError(t, err)
 	expiredUntil := calendar.TodayDate().AddDays(-1)
 	expired.EndDate = &expiredUntil
 	require.NoError(t, repos.Guest.Update(ctx, expired))

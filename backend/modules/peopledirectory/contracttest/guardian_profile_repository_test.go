@@ -127,12 +127,14 @@ func TestGuardianProfileRepository_Update(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates guardian profile", func(t *testing.T) {
-		profile := testpkg.CreateTestGuardianProfile(t, db, "update")
+		profileFixture := testpkg.CreateTestGuardianProfile(t, db, "update")
+		profile, err := repo.FindByID(ctx, profileFixture.ID)
+		require.NoError(t, err)
 
 		profile.FirstName = "Updated"
 		profile.LastName = "Name"
 
-		err := repo.Update(ctx, profile)
+		err = repo.Update(ctx, profile)
 		require.NoError(t, err)
 
 		found, err := repo.FindByID(ctx, profile.ID)
@@ -268,11 +270,15 @@ func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
 	})
 
 	t.Run("returns profiles ordered by last name", func(t *testing.T) {
-		profile1 := testpkg.CreateTestGuardianProfile(t, db, "orderz")
+		profile1Fixture := testpkg.CreateTestGuardianProfile(t, db, "orderz")
+		profile1, err := repo.FindByID(ctx, profile1Fixture.ID)
+		require.NoError(t, err)
 		profile1.LastName = "Zebra"
 		_ = repo.Update(ctx, profile1)
 
-		profile2 := testpkg.CreateTestGuardianProfile(t, db, "ordera")
+		profile2Fixture := testpkg.CreateTestGuardianProfile(t, db, "ordera")
+		profile2, err := repo.FindByID(ctx, profile2Fixture.ID)
+		require.NoError(t, err)
 		profile2.LastName = "Alpha"
 		_ = repo.Update(ctx, profile2)
 

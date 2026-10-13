@@ -95,6 +95,10 @@ func NewTimetablePeople(db *bun.DB) (services.TimetablePeople, error) {
 	return services.NewTimetableHTTPTestPeople(db)
 }
 
+// StaffAccountPeople is the operations' person port for suites that only need
+// the acting account's staff identity (#3966).
+type StaffAccountPeople = services.TimetableTestStaffAccountPeople
+
 // NewTimetableOfferingSources serves the offering-source support of the
 // timetable routes from the enrollment decision service over the test
 // database.

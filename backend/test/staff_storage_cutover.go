@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
 
@@ -129,7 +128,7 @@ func RestoreStaffStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 // insertHistoricalStaff writes a staff fixture into users.staff when a test has
 // restored it as the pre-cutover base table (RestoreStaffStorageBeforeCutover).
 // It reports false, and writes nothing, on the current schema.
-func insertHistoricalStaff(ctx context.Context, db bun.IDB, staff *users.Staff) (bool, error) {
+func insertHistoricalStaff(ctx context.Context, db bun.IDB, staff *Staff) (bool, error) {
 	var historical bool
 	if err := db.NewRaw(`SELECT to_regclass('users.staff') IS NOT NULL`).Scan(ctx, &historical); err != nil || !historical {
 		return false, err

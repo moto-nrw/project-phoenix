@@ -25,13 +25,13 @@ func TestGuardianAccountLink_PreservesExistingChildren(t *testing.T) {
 	testpkg.CreateTestStudentGuardianLink(t, db, child.ID, old.ID, "pickup_only")
 	require.NoError(t, repo.LinkAccount(ctx, old.ID, account.ID))
 	require.ErrorIs(t, repo.LinkAccount(ctx, next.ID, account.ID), userModels.ErrGuardianAccountConflict)
-	old, err := repo.FindByID(ctx, old.ID)
+	storedOld, err := repo.FindByID(ctx, old.ID)
 	require.NoError(t, err)
-	require.NotNil(t, old.AccountID)
-	assert.Equal(t, account.ID, *old.AccountID)
-	next, err = repo.FindByID(ctx, next.ID)
+	require.NotNil(t, storedOld.AccountID)
+	assert.Equal(t, account.ID, *storedOld.AccountID)
+	storedNext, err := repo.FindByID(ctx, next.ID)
 	require.NoError(t, err)
-	assert.Nil(t, next.AccountID)
+	assert.Nil(t, storedNext.AccountID)
 }
 
 func TestGuardianAccountLink_RejectsTakingOverAnotherAccount(t *testing.T) {
@@ -44,10 +44,10 @@ func TestGuardianAccountLink_RejectsTakingOverAnotherAccount(t *testing.T) {
 	profile := testpkg.CreateTestGuardianProfile(t, db, "owned-contact")
 	require.NoError(t, repo.LinkAccount(ctx, profile.ID, first.ID))
 	require.ErrorIs(t, repo.LinkAccount(ctx, profile.ID, second.ID), userModels.ErrGuardianAccountConflict)
-	profile, err := repo.FindByID(ctx, profile.ID)
+	stored, err := repo.FindByID(ctx, profile.ID)
 	require.NoError(t, err)
-	require.NotNil(t, profile.AccountID)
-	assert.Equal(t, first.ID, *profile.AccountID)
+	require.NotNil(t, stored.AccountID)
+	assert.Equal(t, first.ID, *stored.AccountID)
 }
 
 func TestGuardianAccountLink_DoesNotDetachAnotherSchool(t *testing.T) {
@@ -88,13 +88,13 @@ func TestGuardianAccountLink_RollsBackWithInvitation(t *testing.T) {
 		return rejected
 	})
 	require.ErrorIs(t, err, rejected)
-	old, err = repo.FindByID(ctx, old.ID)
+	storedOld, err := repo.FindByID(ctx, old.ID)
 	require.NoError(t, err)
-	require.NotNil(t, old.AccountID)
-	assert.Equal(t, account.ID, *old.AccountID)
-	next, err = repo.FindByID(ctx, next.ID)
+	require.NotNil(t, storedOld.AccountID)
+	assert.Equal(t, account.ID, *storedOld.AccountID)
+	storedNext, err := repo.FindByID(ctx, next.ID)
 	require.NoError(t, err)
-	assert.Nil(t, next.AccountID)
+	assert.Nil(t, storedNext.AccountID)
 }
 
 func TestGuardianAccountLink_ConcurrentReplacementsDoNotStealChildren(t *testing.T) {
@@ -129,7 +129,7 @@ func TestGuardianAccountLink_ConcurrentReplacementsDoNotStealChildren(t *testing
 		}
 	}
 	assert.Equal(t, 1, succeeded)
-	old, err := repo.FindByID(ctx, old.ID)
+	storedOld, err := repo.FindByID(ctx, old.ID)
 	require.NoError(t, err)
-	assert.Nil(t, old.AccountID)
+	assert.Nil(t, storedOld.AccountID)
 }

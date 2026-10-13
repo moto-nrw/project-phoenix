@@ -17,11 +17,11 @@ import (
 // ============================================================================
 
 // createTestStudentGuardian creates a student-guardian relationship in the database.
-func createTestStudentGuardian(t *testing.T, db *bun.DB, studentID, guardianProfileID int64, relType string, isPrimary bool) *userModels.StudentGuardian {
+func createTestStudentGuardian(t *testing.T, db *bun.DB, studentID, guardianProfileID int64, relType string, isPrimary bool) *testpkg.StudentGuardian {
 	t.Helper()
 
 	ctx := testpkg.Ctx(t)
-	sg := &userModels.StudentGuardian{
+	sg := &testpkg.StudentGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  guardianProfileID,
 		RelationshipType:   relType,
@@ -30,7 +30,7 @@ func createTestStudentGuardian(t *testing.T, db *bun.DB, studentID, guardianProf
 		CanPickup:          true,
 		Permissions:        map[string]interface{}{},
 	}
-	sg.SetTenantID(testpkg.Tenant(t))
+	sg.TenantID = testpkg.Tenant(t)
 
 	require.NoError(t, testpkg.InsertTestStudentGuardian(ctx, db, sg))
 
@@ -281,7 +281,7 @@ func TestStudentGuardianRepository_List_WithFilters(t *testing.T) {
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "list-guardian")
 
 	// Create primary guardian
-	sg := &userModels.StudentGuardian{
+	sg := &testpkg.StudentGuardian{
 		StudentID:          student.ID,
 		GuardianProfileID:  guardian.ID,
 		RelationshipType:   "parent",
@@ -290,7 +290,7 @@ func TestStudentGuardianRepository_List_WithFilters(t *testing.T) {
 		CanPickup:          true,
 		Permissions:        map[string]interface{}{},
 	}
-	sg.SetTenantID(testpkg.Tenant(t))
+	sg.TenantID = testpkg.Tenant(t)
 	require.NoError(t, testpkg.InsertTestStudentGuardian(ctx, db, sg))
 
 	// ACT
@@ -336,7 +336,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, inserted, "a brand-new link must report inserted=true")
 		assert.Equal(t, testpkg.GuardianRoleLegalGuardian, rel.GuardianRole)
-		assert.True(t, testpkg.StudentGuardianHasPermission(rel, testpkg.GuardianPermissionPortalAccess))
+		assert.True(t, testpkg.GuardianPermissionsGrant(rel.Permissions, testpkg.GuardianPermissionPortalAccess))
 	})
 
 	t.Run("treats a duplicate link as a no-op reporting not-inserted", func(t *testing.T) {
@@ -395,7 +395,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		require.True(t, inserted)
 		assert.Equal(t, testpkg.Tenant(t), rel.GetTenantID(), "tenant_id must be auto-set from context")
 		assert.Equal(t, testpkg.GuardianRoleLegalGuardian, rel.GuardianRole)
-		assert.True(t, testpkg.StudentGuardianHasPermission(rel, testpkg.GuardianPermissionPortalAccess))
+		assert.True(t, testpkg.GuardianPermissionsGrant(rel.Permissions, testpkg.GuardianPermissionPortalAccess))
 	})
 
 	t.Run("defaults pickup-style links without portal access", func(t *testing.T) {
@@ -413,7 +413,7 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, inserted)
 		assert.Equal(t, testpkg.GuardianRolePickupOnly, rel.GuardianRole)
-		assert.False(t, testpkg.StudentGuardianHasPermission(rel, testpkg.GuardianPermissionPortalAccess))
+		assert.False(t, testpkg.GuardianPermissionsGrant(rel.Permissions, testpkg.GuardianPermissionPortalAccess))
 	})
 }
 

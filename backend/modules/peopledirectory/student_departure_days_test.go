@@ -59,7 +59,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 	t.Run("unified plan derives legacy mirrors", func(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 
-		student := testpkg.CreateTestStudent(t, db, "Departure", "Roundtrip", "1a")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "Roundtrip", "1a")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		student.DepartureDays = departure.DepartureDays{
 			departure.PickupDayMonday:    departure.DepartureBus,
@@ -84,7 +86,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
-		student := testpkg.CreateTestStudent(t, db, "Departure", "Fold", "2a")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "Fold", "2a")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		// A legacy state can still say bus AND pickup on Monday. The exclusive
 		// departure_days projection uses pickup, but allowed_departure_modes
@@ -113,7 +117,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
-		student := testpkg.CreateTestStudent(t, db, "Departure", "Merge", "2b")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "Merge", "2b")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		student.AllowedDepartureModes = departure.AllowedDepartureModes{
 			departure.PickupDayMonday: []departure.DepartureMode{
@@ -167,7 +173,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
-		student := testpkg.CreateTestStudent(t, db, "Departure", "Accompanied", "2c")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "Accompanied", "2c")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		student.AllowedDepartureModes = departure.AllowedDepartureModes{
 			departure.PickupDayMonday:  []departure.DepartureMode{departure.DepartureAccompanied},
@@ -201,7 +209,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
-		student := testpkg.CreateTestStudent(t, db, "Departure", "NoteClear", "2d")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "NoteClear", "2d")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		note := "Geschwisterkind Mia"
 		student.AllowedDepartureModes = departure.AllowedDepartureModes{
@@ -258,7 +268,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		// legacy search/list/admin-filter consumers read pickup_status and would
 		// otherwise bucket a child who leaves with a companion as going home alone,
 		// which is safety-sensitive state (#1694).
-		student := testpkg.CreateTestStudent(t, db, "Departure", "AccompaniedStatus", "5a")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "AccompaniedStatus", "5a")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		note := "Geschwisterkind"
 		student.AllowedDepartureModes = departure.AllowedDepartureModes{
@@ -285,7 +297,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		// accompanied, so deriving pickup_status from it would drop the accompanied
 		// signal and bucket the child as a self-goer (#1694). The companion note must
 		// also survive because an accompanied day remains in the plan.
-		student := testpkg.CreateTestStudent(t, db, "Departure", "BusAndAccompanied", "5c")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "BusAndAccompanied", "5c")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		note := "Geschwisterkind Mia"
 		student.AllowedDepartureModes = departure.AllowedDepartureModes{
@@ -314,7 +328,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		// Seed an accompanied child with a coupled note.
-		student := testpkg.CreateTestStudent(t, db, "Departure", "LegacyDropAccompanied", "5b")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "LegacyDropAccompanied", "5b")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		note := "Geschwisterkind"
 		student.AllowedDepartureModes = departure.AllowedDepartureModes{
@@ -350,7 +366,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 	t.Run("unified replacement clears prior days", func(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 
-		student := testpkg.CreateTestStudent(t, db, "Departure", "Replace", "3a")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "Replace", "3a")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		student.DepartureDays = departure.DepartureDays{departure.PickupDayMonday: departure.DepartureBus}
 		require.NoError(t, repo.Update(ctx, student))
@@ -375,7 +393,9 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 	t.Run("hydrated unified update replaces stale legacy mirrors", func(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 
-		student := testpkg.CreateTestStudent(t, db, "Departure", "HydratedReplace", "4a")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "HydratedReplace", "4a")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		student.DepartureDays = departure.DepartureDays{departure.PickupDayMonday: departure.DepartureBus}
 		require.NoError(t, repo.Update(ctx, student))
@@ -432,7 +452,9 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 	t.Run("note round-trips through the explicit guarded write and hydration", func(t *testing.T) {
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
-		student := testpkg.CreateTestStudent(t, db, "Companion", "Present", "1a")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Companion", "Present", "1a")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		note := "Geschwisterkind Mia"
 		student.AllowedDepartureModes = departure.AllowedDepartureModes{
@@ -458,11 +480,13 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 	t.Run("missing column fails loudly and is rejected by the startup guard", func(t *testing.T) {
 		// Create the fixture BEFORE dropping the column: the insert path itself
 		// never references the scanonly note column.
-		student := testpkg.CreateTestStudent(t, db, "Companion", "Absent", "1a")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Companion", "Absent", "1a")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		// Rename the owner column in this isolated database. PostgreSQL keeps
 		// the rollback view valid, so the guard must inspect the owner table.
-		_, err := db.NewRaw(`ALTER TABLE users.student_care_profiles RENAME COLUMN departure_companion_note TO missing_companion_note`).Exec(ctx)
+		_, err = db.NewRaw(`ALTER TABLE users.student_care_profiles RENAME COLUMN departure_companion_note TO missing_companion_note`).Exec(ctx)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_, restoreErr := db.NewRaw(`ALTER TABLE users.student_care_profiles RENAME COLUMN missing_companion_note TO departure_companion_note`).Exec(context.Background())
@@ -508,7 +532,9 @@ func TestStudentRepository_StaleDeparturePlanIsRebased(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
-		student := testpkg.CreateTestStudent(t, db, "Departure", "Stale", "3a")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "Stale", "3a")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		student.DepartureDays = departure.DepartureDays{departure.PickupDayMonday: departure.DepartureBus}
 		require.NoError(t, repo.Update(ctx, student))
@@ -543,7 +569,9 @@ func TestStudentRepository_StaleDeparturePlanIsRebased(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 		requireStudentsAllowedDepartureModesColumn(t, db)
 
-		student := testpkg.CreateTestStudent(t, db, "Departure", "Intentional", "3b")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Departure", "Intentional", "3b")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		student.DepartureDays = departure.DepartureDays{departure.PickupDayMonday: departure.DepartureBus}
 		require.NoError(t, repo.Update(ctx, student))

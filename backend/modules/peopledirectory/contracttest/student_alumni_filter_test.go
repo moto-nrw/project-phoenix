@@ -6,7 +6,6 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,7 +49,7 @@ func TestStudentRepository_AlumniExcludedFromGroupReads(t *testing.T) {
 
 	assignGroup(t, db, activeStudent.ID, group.ID)
 	assignGroup(t, db, alumnusStudent.ID, group.ID)
-	testpkg.SetStudentLifecycle(t, db, alumnusStudent.ID, userModels.StudentStatusAlumnus, nil, nil)
+	testpkg.SetStudentLifecycle(t, db, alumnusStudent.ID, testpkg.StudentStatusAlumnus, nil, nil)
 
 	t.Run("FindByGroupID excludes alumni", func(t *testing.T) {
 		students, err := repos.Student.FindByGroupID(ctx, group.ID)
@@ -110,7 +109,7 @@ func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
 
 	assignGroup(t, db, activeStudent.ID, group.ID)
 	assignGroup(t, db, alumnusStudent.ID, group.ID)
-	testpkg.SetStudentLifecycle(t, db, alumnusStudent.ID, userModels.StudentStatusAlumnus, nil, nil)
+	testpkg.SetStudentLifecycle(t, db, alumnusStudent.ID, testpkg.StudentStatusAlumnus, nil, nil)
 
 	t.Run("FindAllWithGroups excludes alumni", func(t *testing.T) {
 		infos, err := repos.Student.FindAllWithGroups(ctx)
@@ -151,8 +150,8 @@ func TestStudentRepository_AlumniExcludedFromSchoolClasses(t *testing.T) {
 	testpkg.CreateTestStudent(t, db, "ClassMixedActive", "Kid", mixedClass)
 	alumnusMixed := testpkg.CreateTestStudent(t, db, "ClassMixedAlum", "Kid", mixedClass)
 
-	testpkg.SetStudentLifecycle(t, db, alumnusOnly.ID, userModels.StudentStatusAlumnus, nil, nil)
-	testpkg.SetStudentLifecycle(t, db, alumnusMixed.ID, userModels.StudentStatusAlumnus, nil, nil)
+	testpkg.SetStudentLifecycle(t, db, alumnusOnly.ID, testpkg.StudentStatusAlumnus, nil, nil)
+	testpkg.SetStudentLifecycle(t, db, alumnusMixed.ID, testpkg.StudentStatusAlumnus, nil, nil)
 
 	classes, err := repos.Student.ListSchoolClasses(ctx)
 	require.NoError(t, err)

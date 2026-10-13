@@ -776,14 +776,14 @@ func linkAccountGuardian(t *testing.T, db *bun.DB, studentID int64, seed string,
 	_, err := db.NewInsert().Model(profile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
 	require.NoError(t, err)
 
-	link := &userModels.StudentGuardian{
+	link := &testpkg.StudentGuardian{
 		StudentID:         studentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "parent",
 		EmergencyPriority: 3,
 		Permissions:       permissions,
 	}
-	link.SetTenantID(testpkg.Tenant(t))
+	link.TenantID = testpkg.Tenant(t)
 	err = testpkg.InsertTestStudentGuardian(ctx, db, link)
 	require.NoError(t, err)
 
@@ -875,7 +875,9 @@ func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role
 	t.Helper()
 	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
-	profile := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
+	profileFixture := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
+	profile, err := repos.GuardianProfile.FindByID(ctx, profileFixture.ID)
+	require.NoError(t, err)
 	profile.AddressStreet = ptr("Amtsstr. 5")
 	require.NoError(t, repos.GuardianProfile.Update(ctx, profile))
 

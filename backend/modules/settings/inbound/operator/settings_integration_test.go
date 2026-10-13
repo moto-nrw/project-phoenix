@@ -51,7 +51,6 @@ type operatorSettingsTestContext struct {
 	// enableBookingsAuthoritative writes the tenant setting directly through
 	// the settings service, without the operator's hook and guard.
 	enableBookingsAuthoritative func(ctx context.Context) error
-	careWithdrawals             testpkg.CareWithdrawalWriter
 	careLifecycle               careplan.CareLifecycle
 	resource                    *settingsoperator.SettingsResource
 	router                      chi.Router
@@ -78,9 +77,8 @@ func setupOperatorSettingsRoute(t *testing.T) *operatorSettingsTestContext {
 		enableBookingsAuthoritative: func(ctx context.Context) error {
 			return svc.Settings.SetValue(ctx, bookingsAuthoritativeKey, true, nil, nil)
 		},
-		careWithdrawals: svc.CareWithdrawals,
-		careLifecycle:   svc.CareLifecycle,
-		onValueSet:      svc.SettingsSideEffects.Dispatch,
+		careLifecycle: svc.CareLifecycle,
+		onValueSet:    svc.SettingsSideEffects.Dispatch,
 	}
 	// Pass nil schoolRepo: the integration tests cover the mutation contract
 	// (set/reset/permissions/hooks). Slug-resolution wiring is exercised end
@@ -281,7 +279,7 @@ func TestOperatorResetSchoolSettingValue_Success(t *testing.T) {
 	require.NoError(t, ctx.enableBookingsAuthoritative(tenantCtx))
 	student := testpkg.CreateTestStudent(t, ctx.db, "Reset", "Buchungsmodus", "2c")
 	studentID := student.ID
-	testpkg.CreateTestBookingExpiredCareWithdrawal(t, ctx.careWithdrawals, studentID)
+	testpkg.CreateTestBookingExpiredCareWithdrawal(t, ctx.db, studentID)
 	pendingFilter := careplan.CareWithdrawalFilter{StudentID: studentID, Page: 1, PageSize: 1}
 	_, pending, err := ctx.careLifecycle.ListPendingWithdrawals(tenantCtx, pendingFilter)
 	require.NoError(t, err)

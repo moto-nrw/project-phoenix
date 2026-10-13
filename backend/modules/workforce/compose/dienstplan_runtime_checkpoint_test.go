@@ -34,7 +34,7 @@ func TestDienstplanRuntimeEvidence(t *testing.T) {
 		staffIDs = append(staffIDs, testpkg.CreateTestStaff(t, db, "Runtime", fmt.Sprintf("Staff%d", i)).ID)
 	}
 	capability := buildPlanningWorkforce(t, db)
-	rooms := planningDependencies(t, db, capability, first).Rooms
+	rooms := planningDependencies(t, ctx, db, capability, first.ID).Rooms
 	export := func(txCtx context.Context, tx bun.Tx, renderer planexport.Renderer, params planexport.Params) (listexport.File, error) {
 		return dienstplanExport(dienstplanOverview(t, db, tx, capability, rooms), renderer).ExportDienstplan(txCtx, params)
 	}

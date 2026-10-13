@@ -89,7 +89,7 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 		rr := authExec(t, tc, req, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
-		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID()),
+		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.TenantID),
 			"a weekly Gehzeit update must broadcast pickup_schedule_changed to staff tabs")
 		assert.False(t, hasGlobalPickupScheduleBroadcast(tc.broadcaster),
 			"the event must stay scoped to the writing tenant, never fan out to every school")
@@ -110,7 +110,7 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
 		rr := authExec(t, tc, req, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
-		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID()),
+		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.TenantID),
 			"creating a pickup exception must broadcast pickup_schedule_changed")
 
 		exceptionID := latestPickupExceptionID(t, tc, student.ID)
@@ -122,7 +122,7 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 			fmt.Sprintf("/%d/pickup-exceptions/%d", student.ID, exceptionID), body)
 		rr = authExec(t, tc, req, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID()),
+		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.TenantID),
 			"editing a pickup exception must broadcast pickup_schedule_changed")
 
 		// Delete
@@ -131,7 +131,7 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 			fmt.Sprintf("/%d/pickup-exceptions/%d", student.ID, exceptionID), nil)
 		rr = authExec(t, tc, req, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID()),
+		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.TenantID),
 			"deleting a pickup exception must broadcast pickup_schedule_changed")
 		assert.False(t, hasGlobalPickupScheduleBroadcast(tc.broadcaster),
 			"the event must stay scoped to the writing tenant, never fan out to every school")
@@ -150,7 +150,7 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 		rr := authExec(t, tc, req, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 
-		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID()),
+		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.TenantID),
 			"creating a pickup day note must broadcast pickup_schedule_changed")
 	})
 }

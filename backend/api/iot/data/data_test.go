@@ -89,7 +89,7 @@ func TestGetAvailableTeachers_ReturnsTeacherRosterIndependentOfCaregiverState(t 
 	_, _ = testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Unmapped", "Teacher")
 	_, inactiveAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Inactive", "Teacher")
 
-	tenantID := linkedTeacher.GetTenantID()
+	tenantID := linkedTeacher.TenantID
 	testpkg.EnsureAccountTenant(t, ctx.db, linkedAccount.ID, tenantID)
 	testpkg.EnsureAccountTenant(t, ctx.db, inactiveAccount.ID, tenantID)
 

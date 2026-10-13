@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/settingstest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,7 +54,7 @@ func datevFullConfig() settingstest.Values {
 }
 
 func (f *overviewFixture) newDatevExportService(values settingstest.Values) timetracking.StaffTimeExportService {
-	payrollStatus := configSvc.NewPayrollStatusService(settingstest.New(values), testpkg.PersonnelNumberCounter(f.repos.Staff))
+	payrollStatus := configSvc.NewPayrollStatusService(settingstest.New(values), f.countPersonnelNumbers)
 	return timetracking.NewStaffTimeExportService(
 		f.svc,
 		f.newWorkSessionService(),
@@ -325,7 +324,7 @@ func TestDatevExport_NoFileWithoutAudit(t *testing.T) {
 
 	f := newDatevFixture(t)
 	actorID := f.newActorAccount(t)
-	payrollStatus := configSvc.NewPayrollStatusService(settingstest.New(datevFullConfig()), testpkg.PersonnelNumberCounter(f.repos.Staff))
+	payrollStatus := configSvc.NewPayrollStatusService(settingstest.New(datevFullConfig()), f.countPersonnelNumbers)
 	svc := timetracking.NewStaffTimeExportService(
 		f.svc, f.newWorkSessionService(), services.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{},
 		services.PayrollExportSettings{Source: payrollStatus}, nil,
@@ -341,4 +340,20 @@ func TestDatevExport_NoFileWithoutAudit(t *testing.T) {
 // dot so the test can flip it to the German comma explicitly.
 func activeMinutesToDecimal(minutes int) string {
 	return strconv.FormatFloat(float64(minutes)/60.0, 'f', 2, 64)
+}
+
+// countPersonnelNumbers counts the tenant's staff and those without a
+// personnel number, as the root's payroll status does.
+func (f *overviewFixture) countPersonnelNumbers(ctx context.Context) (int, int, error) {
+	staff, err := f.repos.Staff.List(ctx, nil)
+	if err != nil {
+		return 0, 0, err
+	}
+	withoutPersonnelNumber := 0
+	for _, member := range staff {
+		if member.PersonnelNumber == nil || *member.PersonnelNumber == "" {
+			withoutPersonnelNumber++
+		}
+	}
+	return len(staff), withoutPersonnelNumber, nil
 }

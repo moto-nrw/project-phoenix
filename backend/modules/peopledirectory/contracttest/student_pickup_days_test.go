@@ -110,7 +110,9 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 	t.Run("updates the weekday map on an existing student", func(t *testing.T) {
 		requireStudentsPickupDaysColumn(t, db)
 
-		student := testpkg.CreateTestStudent(t, db, "Pickup", "Update", "3a")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Pickup", "Update", "3a")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		student.PickupDays = userModels.PickupDays{userModels.PickupDayFriday: true}
 		require.NoError(t, repo.Update(ctx, student))
@@ -131,7 +133,9 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 		requireStudentsPickupDaysColumn(t, db)
 
 		t.Run("selected days derive picked-up", func(t *testing.T) {
-			student := testpkg.CreateTestStudent(t, db, "Pickup", "SyncPicked", "4a")
+			studentFixture := testpkg.CreateTestStudent(t, db, "Pickup", "SyncPicked", "4a")
+			student, err := repo.FindByID(ctx, studentFixture.ID)
+			require.NoError(t, err)
 
 			// Set only the map, leave PickupStatus nil (the stale-write case).
 			student.PickupStatus = nil
@@ -145,7 +149,9 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 		})
 
 		t.Run("explicit empty map derives goes-alone", func(t *testing.T) {
-			student := testpkg.CreateTestStudent(t, db, "Pickup", "SyncAlone", "4b")
+			studentFixture := testpkg.CreateTestStudent(t, db, "Pickup", "SyncAlone", "4b")
+			student, err := repo.FindByID(ctx, studentFixture.ID)
+			require.NoError(t, err)
 
 			// Seed a picked-up student, then clear the map to the empty answer.
 			picked := userModels.PickupStatusPickedUp

@@ -348,5 +348,5 @@ func TestGuardianRelationshipLinkWithoutRoleNeedsTheDefaultRolePolicy(t *testing
 	require.Len(t, links, 1)
 	stored := links[0]
 	require.Equal(t, testpkg.GuardianRoleLegalGuardian, stored.GuardianRole)
-	require.True(t, testpkg.StudentGuardianHasPermission(stored, testpkg.GuardianPermissionPortalAccess))
+	require.True(t, testpkg.GuardianPermissionsGrant(stored.Permissions, testpkg.GuardianPermissionPortalAccess))
 }

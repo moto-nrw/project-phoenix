@@ -52,7 +52,7 @@ func requireChildStillOpen(t *testing.T, harness offeringGuardHarness) {
 
 // matchExistingStudent turns the harness child into the re-enrollment of an
 // existing student in the given status.
-func matchExistingStudent(t *testing.T, db *bun.DB, harness offeringGuardHarness, status usersModels.StudentStatus) *usersModels.Student {
+func matchExistingStudent(t *testing.T, db *bun.DB, harness offeringGuardHarness, status usersModels.StudentStatus) *testpkg.Student {
 	t.Helper()
 	student := testpkg.CreateTestStudent(t, db, "Wieder", "Angemeldet", "1a")
 	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").

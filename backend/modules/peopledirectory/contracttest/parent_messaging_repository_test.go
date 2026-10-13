@@ -482,14 +482,14 @@ func TestParentMessaging_ListGuardiansForStudent_ExcludesNoPortalAccess(t *testi
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, pickupAccount.ID)
 	}()
 
-	pickupLink := &userModels.StudentGuardian{
+	pickupLink := &testpkg.StudentGuardian{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: pickupProfile.ID,
 		RelationshipType:  "other",
 		CanPickup:         true,
 	}
 	testpkg.ApplyStudentGuardianRole(pickupLink, testpkg.GuardianRolePickupOnly)
-	pickupLink.SetTenantID(chain.TenantID)
+	pickupLink.TenantID = chain.TenantID
 	require.NoError(t, testpkg.InsertTestStudentGuardian(context.Background(), db, pickupLink))
 	// The relationship for this student is cleaned by CleanupParentGuardianChain.
 
