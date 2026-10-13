@@ -233,10 +233,3 @@ func (w *problemWriter) Flush() {
 		}
 	}
 }
-
-// IsRegisteredCode reports whether code is an error code of
-// error-registry.json, the class codes included.
-func IsRegisteredCode(code string) bool {
-	_, ok := errorClassByCode[code]
-	return ok
-}
