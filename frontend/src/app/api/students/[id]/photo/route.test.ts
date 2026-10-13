@@ -127,18 +127,26 @@ describe("DELETE /api/students/[id]/photo — 401 retry", () => {
   });
 });
 
-// Backend failures retain their status and body through backendResponseError
-// and createDeleteHandler, including caller-shaped 4xx failures.
+// Valid backend 4xx envelopes retain their status and structured fields
+// through backendResponseError and createDeleteHandler.
 describe("DELETE /api/students/[id]/photo — backend status preservation", () => {
   it.each([
-    [403, "feature disabled"],
-    [404, "no photo"],
-    [409, "consent withdrawn"],
+    [403, "feature disabled", "Forbidden", "general.permission"],
+    [404, "no photo", "Not Found", "general.input"],
+    [409, "consent withdrawn", "Conflict", "general.business_rejection"],
   ])(
     "surfaces a backend %d as the same status code (not 500)",
-    async (status, body) => {
+    async (status, detail, title, code) => {
       mockAuth.mockResolvedValue(defaultSession);
-      mockFetch.mockResolvedValueOnce(jsonResponse(status, { error: body }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse(status, {
+          type: "about:blank",
+          title,
+          status,
+          detail,
+          code,
+        }),
+      );
 
       const { DELETE } = await import("./route");
       const response = await DELETE(createDeleteRequest("42"), {
@@ -146,7 +154,11 @@ describe("DELETE /api/students/[id]/photo — backend status preservation", () =
       });
 
       expect(response.status).toBe(status);
-      expect(await response.text()).toBe(JSON.stringify({ error: body }));
+      expect(await response.json()).toMatchObject({
+        status,
+        detail,
+        code,
+      });
     },
   );
 
@@ -169,7 +181,11 @@ describe("DELETE /api/students/[id]/photo — backend status preservation", () =
 
   it("forwards a 409 problem body with all structured fields", async () => {
     const body = JSON.stringify({
-      code: "PHOTO_CONFLICT",
+      type: "about:blank",
+      title: "Conflict",
+      status: 409,
+      detail: "photo conflict",
+      code: "general.business_rejection",
       details: { student_id: "42" },
       errors: [{ field: "photo", reason: "locked" }],
       instance: "/students/42/photo",

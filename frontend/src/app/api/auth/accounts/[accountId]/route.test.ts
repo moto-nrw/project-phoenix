@@ -118,7 +118,16 @@ describe("GET /api/auth/accounts/[accountId]", () => {
 
   it("forwards the backend error instead of fabricating an account", async () => {
     mockFetch.mockReturnValueOnce(
-      createMockResponse({ detail: "Not found" }, 404),
+      createMockResponse(
+        {
+          type: "about:blank",
+          title: "Not Found",
+          status: 404,
+          detail: "Not found",
+          code: "general.input",
+        },
+        404,
+      ),
     );
 
     const request = createMockRequest("/api/auth/accounts/456");
@@ -128,7 +137,7 @@ describe("GET /api/auth/accounts/[accountId]", () => {
     );
 
     expect(response.status).toBe(404);
-    expect(await response.json()).toEqual({ detail: "Not found" });
+    expect(await response.json()).toMatchObject({ detail: "Not found" });
   });
 
   it("handles user data without data wrapper", async () => {

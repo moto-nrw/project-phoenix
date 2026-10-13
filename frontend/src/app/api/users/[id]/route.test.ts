@@ -230,6 +230,8 @@ describe("PUT /api/users/[id]", () => {
       new ApiResponseError(
         403,
         JSON.stringify({
+          type: "about:blank",
+          title: "Forbidden",
           status: 403,
           detail: "users:update permission required",
           code: "general.permission",
@@ -253,6 +255,8 @@ describe("PUT /api/users/[id]", () => {
       new ApiResponseError(
         404,
         JSON.stringify({
+          type: "about:blank",
+          title: "Not Found",
           status: 404,
           detail: "person not found",
           code: "general.input",
@@ -302,6 +306,8 @@ describe("DELETE /api/users/[id]", () => {
       new ApiResponseError(
         403,
         JSON.stringify({
+          type: "about:blank",
+          title: "Forbidden",
           status: 403,
           detail: "users:delete permission required",
           code: "general.permission",
@@ -322,6 +328,8 @@ describe("DELETE /api/users/[id]", () => {
       new ApiResponseError(
         404,
         JSON.stringify({
+          type: "about:blank",
+          title: "Not Found",
           status: 404,
           detail: "person not found",
           code: "general.input",

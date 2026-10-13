@@ -241,7 +241,11 @@ describe("POST /api/auth/accounts", () => {
 
   it("forwards a backend conflict body and status unchanged", async () => {
     const body = JSON.stringify({
-      code: "ACCOUNT_CONFLICT",
+      type: "about:blank",
+      title: "Conflict",
+      status: 409,
+      detail: "account already exists",
+      code: "general.business_rejection",
       details: { account_id: "1" },
       errors: [{ field: "email", reason: "already_used" }],
       instance: "/auth/accounts/1",

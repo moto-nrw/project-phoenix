@@ -89,8 +89,8 @@ describe("GET /api/operator/provisioning/schools/summaries", () => {
     expect(json.code).toBe("general.permission");
   });
 
-  // Negative paths — ensure non-401 backend errors propagate verbatim.
-  it("forwards a backend 500 with the same status code", async () => {
+  // Backend diagnostics must not reach the browser on a 5xx.
+  it("sanitizes a backend 500 while preserving its status code", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
       new Response(JSON.stringify({ detail: "school summaries failed" }), {
@@ -106,7 +106,7 @@ describe("GET /api/operator/provisioning/schools/summaries", () => {
 
     expect(response.status).toBe(500);
     const json = (await response.json()) as { detail?: string };
-    expect(json.detail).toBe("school summaries failed");
+    expect(json.detail).toBe("Internal Server Error");
   });
 
   it("returns 500 when fetch throws a network error", async () => {

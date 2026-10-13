@@ -145,7 +145,7 @@ describe("POST /api/auth/password", () => {
     expect(json.success).toBe(true);
   });
 
-  it("handles backend error with message field", async () => {
+  it("replaces a backend error with a legacy message field", async () => {
     mockApiPost.mockRejectedValueOnce(
       new ApiResponseError(
         400,
@@ -162,12 +162,14 @@ describe("POST /api/auth/password", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({
-      message: "Aktuelles Passwort ist falsch",
+    expect(await response.json()).toMatchObject({
+      status: 400,
+      detail: "Bad Request",
+      code: "general.input",
     });
   });
 
-  it("handles backend error with error field", async () => {
+  it("replaces an incomplete backend error body", async () => {
     mockApiPost.mockRejectedValueOnce(
       new ApiResponseError(
         400,
@@ -185,7 +187,7 @@ describe("POST /api/auth/password", () => {
 
     expect(response.status).toBe(400);
     const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Passwort zu schwach");
+    expect(json.detail).toBe("Bad Request");
   });
 
   it("returns 500 on unexpected error", async () => {
@@ -209,6 +211,8 @@ describe("POST /api/auth/password", () => {
       new ApiResponseError(
         401,
         JSON.stringify({
+          type: "about:blank",
+          title: "Unauthorized",
           status: 401,
           detail: "invalid username or password",
           code: "general.permission",
@@ -233,6 +237,8 @@ describe("POST /api/auth/password", () => {
       new ApiResponseError(
         400,
         JSON.stringify({
+          type: "about:blank",
+          title: "Bad Request",
           status: 400,
           detail: "password doesn't meet complexity requirements",
           code: "general.input",

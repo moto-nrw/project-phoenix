@@ -133,6 +133,8 @@ describe("GET /api/feedback/student/[id]", () => {
       new ApiResponseError(
         403,
         JSON.stringify({
+          type: "about:blank",
+          title: "Forbidden",
           status: 403,
           detail: "feature disabled",
           code: "feedback.disabled",
@@ -146,7 +148,7 @@ describe("GET /api/feedback/student/[id]", () => {
 
     expect(response.status).toBe(403);
     const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json).toEqual({
+    expect(json).toMatchObject({
       status: 403,
       detail: "feature disabled",
       code: "feedback.disabled",
@@ -158,6 +160,8 @@ describe("GET /api/feedback/student/[id]", () => {
       new ApiResponseError(
         404,
         JSON.stringify({
+          type: "about:blank",
+          title: "Not Found",
           status: 404,
           detail: "not found",
           code: "general.input",
@@ -171,7 +175,7 @@ describe("GET /api/feedback/student/[id]", () => {
 
     expect(response.status).toBe(404);
     const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json).toEqual({
+    expect(json).toMatchObject({
       status: 404,
       detail: "not found",
       code: "general.input",

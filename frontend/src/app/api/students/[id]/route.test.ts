@@ -303,6 +303,8 @@ describe("PUT /api/students/[id]", () => {
       new ApiResponseError(
         409,
         JSON.stringify({
+          type: "about:blank",
+          title: "Conflict",
           status: 409,
           detail: "companions changed since the form was loaded",
           code: "students.companions_changed",

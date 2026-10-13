@@ -284,6 +284,8 @@ describe("POST /api/users", () => {
       new ApiResponseError(
         403,
         JSON.stringify({
+          type: "about:blank",
+          title: "Forbidden",
           status: 403,
           detail: "users:create permission required",
           code: "general.permission",
@@ -310,6 +312,8 @@ describe("POST /api/users", () => {
       new ApiResponseError(
         400,
         JSON.stringify({
+          type: "about:blank",
+          title: "Bad Request",
           status: 400,
           detail: "first name is required",
           code: "general.input",

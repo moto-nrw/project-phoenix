@@ -251,7 +251,7 @@ describe("GET /api/rooms/[id]/history", () => {
     mockApiGet.mockRejectedValueOnce(
       new ApiResponseError(
         403,
-        '{"status":403,"detail":"feature_disabled","code":"general.permission"}',
+        '{"type":"about:blank","title":"Forbidden","status":403,"detail":"feature_disabled","code":"general.permission"}',
       ),
     );
 
@@ -259,7 +259,7 @@ describe("GET /api/rooms/[id]/history", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(403);
-    expect(await response.json()).toEqual({
+    expect(await response.json()).toMatchObject({
       status: 403,
       detail: "feature_disabled",
       code: "general.permission",
