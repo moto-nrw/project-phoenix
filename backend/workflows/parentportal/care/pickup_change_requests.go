@@ -13,6 +13,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // EditPickupChangeRequest rewrites the caller's own pending one-day pickup
@@ -28,7 +29,7 @@ func (s *Service) EditPickupChangeRequest(
 	if err := child.RequireCareRunning(); err != nil {
 		return nil, err
 	}
-	if err := s.checkDayDepartureModeAllowed(ctx, child.TenantID, departureMode); err != nil {
+	if err := s.checkDayDepartureModeAllowed(ctx, child.TenantID, date, departureMode); err != nil {
 		return nil, err
 	}
 	if s.CareRequests == nil {
@@ -89,7 +90,7 @@ func (s *Service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 	if err != nil {
 		return nil, err
 	}
-	if err := s.checkDayDepartureModeAllowed(ctx, child.TenantID, departureMode); err != nil {
+	if err := s.checkDayDepartureModeAllowed(ctx, child.TenantID, date, departureMode); err != nil {
 		return nil, err
 	}
 	legs := pickupChangeLegs{pickupTime: !pickupTime.IsZero(), departureMode: departureMode != ""}
@@ -201,9 +202,16 @@ func (s *Service) checkPickupChangeAllowed(ctx context.Context, tenantID int64, 
 // (#3945). It needs the one-day change (checked by the caller) and the
 // school's permission to ask for a different Abholart at all, so a school
 // that keeps the Abholart with the OGS does not get it through the day path.
-func (s *Service) checkDayDepartureModeAllowed(ctx context.Context, tenantID int64, departureMode string) error {
+func (s *Service) checkDayDepartureModeAllowed(ctx context.Context, tenantID int64, date timezone.Date, departureMode string) error {
 	if departureMode == "" {
 		return nil
+	}
+	careDay, err := calendar.IsCareWeekday(ctx, calendar.Date(date))
+	if err != nil {
+		return fmt.Errorf("parent: resolve weekend plan for departure mode: %w", err)
+	}
+	if !careDay {
+		return ErrCareExceptionNotCareDay
 	}
 	if s.Settings == nil {
 		return errors.New("parent: settings service not configured")

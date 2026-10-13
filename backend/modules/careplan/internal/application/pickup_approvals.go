@@ -28,6 +28,15 @@ func (s *PickupApprovals) ApplyPickupApproval(ctx context.Context, input carereq
 	if err != nil {
 		return carerequests.PickupApplied{}, err
 	}
+	if change.DepartureMode != "" {
+		careDay, careDayErr := calendar.IsCareWeekday(ctx, change.Date)
+		if careDayErr != nil {
+			return carerequests.PickupApplied{}, fmt.Errorf("schedule: resolve weekend plan for pickup request decision: %w", careDayErr)
+		}
+		if !careDay {
+			return carerequests.PickupApplied{}, careplan.ErrDepartureExceptionNotCareDay
+		}
+	}
 	if err := s.lockApprovalDay(ctx, input, change); err != nil {
 		return carerequests.PickupApplied{}, err
 	}

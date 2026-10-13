@@ -233,6 +233,17 @@ func TestNativePickupApprovalWritesOnlyTheDayDeparture(t *testing.T) {
 	require.Equal(t, "Ausflug", *f.writtenDeparture.Reason)
 }
 
+func TestNativePickupApprovalRefusesDayDepartureOnNonCareWeekend(t *testing.T) {
+	t.Parallel()
+	f := newPickupApprovalFixture(t)
+	f.input.Payload = json.RawMessage(`{"date":"2026-09-26","departure_mode":"bus","reason":"Ausflug"}`)
+
+	_, err := approvalService(t, f).ApplyPickupApproval(context.Background(), f.input)
+	require.ErrorIs(t, err, careplan.ErrDepartureExceptionNotCareDay)
+	require.Empty(t, f.calls)
+	require.Nil(t, f.writtenDeparture)
+}
+
 // Both legs: the time first (with its impact and excusal), then the mode.
 func TestNativePickupApprovalWritesTimeAndDayDeparture(t *testing.T) {
 	t.Parallel()

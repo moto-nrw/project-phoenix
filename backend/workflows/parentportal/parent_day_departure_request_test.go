@@ -79,6 +79,21 @@ func TestDayDepartureRequestRefusesInBegleitung(t *testing.T) {
 	require.ErrorIs(t, err, parentService.ErrInvalidCareRequestPayload)
 }
 
+func TestDayDepartureRequestRefusesNonCareWeekend(t *testing.T) {
+	t.Parallel()
+
+	svc, db, _ := buildPickupChangeServiceWithRequests(t, withDepartureModeRequests(true))
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	date := timezone.TodayDate()
+	for date.Weekday() != time.Saturday {
+		date = date.AddDays(1)
+	}
+
+	_, err := svc.SubmitPickupChangeRequest(testpkg.Ctx(t), chain.AccountID, chain.StudentID,
+		date, time.Time{}, "bus", "Ausflug", nil)
+	require.ErrorIs(t, err, parentService.ErrCareExceptionNotCareDay)
+}
+
 // A day Abholart the OGS already set blocks a parent's Abholart request for
 // that day, but not a request for the Gehzeit alone.
 func TestDayDepartureRequestRespectsTheOGSDayValue(t *testing.T) {
@@ -89,6 +104,9 @@ func TestDayDepartureRequestRespectsTheOGSDayValue(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Day", "Departure")
 	ctx := testpkg.Ctx(t)
 	date := timezone.TodayDate().AddDays(4)
+	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		date = date.AddDays(1)
+	}
 
 	staffID := staff.ID
 	_, err := repos.CarePlan().SaveDepartureException(ctx, careplan.DepartureException{

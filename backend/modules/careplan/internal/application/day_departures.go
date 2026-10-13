@@ -35,8 +35,15 @@ func (s *pickupScheduleService) GetBulkDayDepartureModesForDate(ctx context.Cont
 }
 
 func (s *pickupScheduleService) SetDayDeparture(ctx context.Context, studentID int64, date calendar.Date, mode string, reason *string, staffID int64) (*careplan.DepartureException, error) {
+	careDay, err := calendar.IsCareWeekday(ctx, date)
+	if err != nil {
+		return nil, &careplan.ScheduleError{Op: "set day departure", Err: err}
+	}
+	if !careDay {
+		return nil, &careplan.ScheduleError{Op: "set day departure", Err: careplan.ErrDepartureExceptionNotCareDay}
+	}
 	var saved careplan.DepartureException
-	err := s.tx.WithinTenant(ctx, func(txCtx context.Context) error {
+	err = s.tx.WithinTenant(ctx, func(txCtx context.Context) error {
 		if err := s.tx.LockStudentAndExceptionDay(txCtx, studentID, date.String()); err != nil {
 			return err
 		}

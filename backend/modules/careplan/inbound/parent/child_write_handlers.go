@@ -651,6 +651,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareCareExceptionPastDate))
 	case errors.Is(err, parentService.ErrCareDateTooFar):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareCareExceptionTooFar))
+	case errors.Is(err, parentService.ErrCareExceptionNotCareDay):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, parentService.ErrInviteDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareInviteDisabled))
 	case errors.Is(err, parentService.ErrRemoveDisabled):

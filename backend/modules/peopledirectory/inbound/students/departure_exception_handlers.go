@@ -106,6 +106,10 @@ func (rs *Resource) putStudentDepartureException(w http.ResponseWriter, r *http.
 	}
 	saved, err := rs.PickupScheduleService.SetDayDeparture(r.Context(), student.ID, date, req.DepartureMode, req.Reason, staffID)
 	if err != nil {
+		if errors.Is(err, careplan.ErrDepartureExceptionNotCareDay) {
+			renderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

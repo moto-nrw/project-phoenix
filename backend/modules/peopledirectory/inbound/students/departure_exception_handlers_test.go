@@ -89,6 +89,25 @@ func TestStudentDepartureExceptionRejectsUnknownMode(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 }
 
+func TestStudentDepartureExceptionRejectsNonCareWeekend(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRoute(t)
+	student := testpkg.CreateTestStudent(t, tc.db, "Heimweg", "Wochenende", "HT3")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Heimweg", "Wochenende")
+	date := timezone.TodayDate()
+	for date.Weekday() != time.Saturday {
+		date = date.AddDays(1)
+	}
+
+	put := testutil.NewAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/%d/departure-exceptions/%s", student.ID, date), map[string]any{
+		"departure_mode": "bus",
+	})
+	rr := authExec(t, tc, put, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+	assert.Empty(t, listedDepartureModes(t, tc, testutil.AdminTestClaims(int(account.ID)), student.ID, date, false))
+}
+
 // listedDepartureModes reads the Kinderkarte projection of one child on date.
 func listedDepartureModes(t *testing.T, tc *testContext, claims jwt.AppClaims, studentID int64, date timezone.Date, wantException bool) []string {
 	t.Helper()
