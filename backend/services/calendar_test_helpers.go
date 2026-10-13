@@ -54,7 +54,7 @@ func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModu
 			StudentRepo:          repos.Student,
 			GuardianProfileRepo:  repositories.NewCalendarGuardianDirectory(repos.GuardianProfile, MustNewPeopleDirectory(db)),
 			StudentGuardianRepo:  repos.StudentGuardian,
-			ChildRepo:            parents.ParentChild,
+			ChildRepo:            parents.ParentChildLinks(),
 			GroupRepo:            repos.Group,
 			InstanceStaffRepo:    repos.InstanceStaff,
 			ActivityInstanceRepo: repos.ActivityInstance,

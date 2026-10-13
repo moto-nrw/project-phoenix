@@ -58,7 +58,7 @@ func calendarTestConfig(t *testing.T, db *bun.DB) calendarRuntime.CalendarDepend
 			StudentRepo:          repos.Student,
 			GuardianProfileRepo:  repositories.NewCalendarGuardianDirectory(repos.GuardianProfile, calendarRuntime.MustNewPeopleDirectory(db)),
 			StudentGuardianRepo:  repos.StudentGuardian,
-			ChildRepo:            repos.ParentChild,
+			ChildRepo:            repos.ParentChildLinks(),
 			GroupRepo:            repos.Group,
 			InstanceStaffRepo:    repos.InstanceStaff,
 			ActivityInstanceRepo: repos.ActivityInstance,

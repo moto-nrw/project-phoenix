@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -23,7 +23,7 @@ type CalendarFacts struct {
 	StudentRepo          userModels.StudentRepository
 	GuardianProfileRepo  calendarCompose.GuardianDirectory
 	StudentGuardianRepo  userModels.StudentGuardianRepository
-	ChildRepo            parentModels.ChildRepository
+	ChildRepo            ParentChildLinkSource
 	GroupRepo            EducationGroupRepository
 	InstanceStaffRepo    scheduleModels.InstanceStaffRepository
 	ActivityInstanceRepo scheduleModels.ActivityInstanceRepository
@@ -215,11 +215,17 @@ func (p calendarSchoolPort) FindByID(ctx context.Context, id int64) (*calendarCo
 	return &calendarCompose.School{Name: value.Name}, nil
 }
 
-type calendarChildPort struct{ source parentModels.ChildRepository }
+// ParentChildLinkSource lists the children a guardian account reaches
+// (carePlanCompose.ParentChildLinks).
+type ParentChildLinkSource interface {
+	ListByAccount(context.Context, int64) ([]carePlanCompose.ParentChildLink, error)
+}
+
+type calendarChildPort struct{ source ParentChildLinkSource }
 
 func (p calendarChildPort) ListByAccount(ctx context.Context, id int64) ([]*calendarCompose.ChildSummary, error) {
 	value, err := p.source.ListByAccount(ctx, id)
-	return calendarMapSlice(value, func(v *parentModels.ChildSummary) *calendarCompose.ChildSummary {
+	return calendarMapSlice(value, func(v carePlanCompose.ParentChildLink) *calendarCompose.ChildSummary {
 		return &calendarCompose.ChildSummary{StudentID: v.StudentID, GuardianProfileID: v.GuardianProfileID, TenantID: v.TenantID, SchoolName: v.SchoolName}
 	}), err
 }

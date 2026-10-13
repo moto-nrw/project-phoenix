@@ -298,3 +298,37 @@ func compareParentPortalStrings(left, right string) int {
 		return 0
 	}
 }
+
+// ParentChildLink is one child a guardian account reaches, with the school it
+// attends, as the parent calendar reads it.
+type ParentChildLink struct {
+	StudentID         int64
+	GuardianProfileID int64
+	TenantID          int64
+	SchoolName        string
+}
+
+// ParentChildLinks lists the children an account reaches through a guardian
+// child repository.
+type ParentChildLinks struct{ children parentModels.ChildRepository }
+
+// NewParentChildLinks reads the links through children.
+func NewParentChildLinks(children parentModels.ChildRepository) ParentChildLinks {
+	return ParentChildLinks{children: children}
+}
+
+// ListByAccount returns the account's children; the slice is nil when the
+// repository returns none.
+func (l ParentChildLinks) ListByAccount(ctx context.Context, accountID int64) ([]ParentChildLink, error) {
+	children, err := l.children.ListByAccount(ctx, accountID)
+	if children == nil {
+		return nil, err
+	}
+	result := make([]ParentChildLink, 0, len(children))
+	for _, child := range children {
+		result = append(result, ParentChildLink{
+			StudentID: child.StudentID, GuardianProfileID: child.GuardianProfileID, TenantID: child.TenantID, SchoolName: child.SchoolName,
+		})
+	}
+	return result, err
+}

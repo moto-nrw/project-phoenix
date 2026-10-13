@@ -2485,7 +2485,7 @@ func newFactory(
 			StudentRepo:          studentRepository,
 			GuardianProfileRepo:  repositories.NewCalendarGuardianDirectory(guardianProfileRepository, persons),
 			StudentGuardianRepo:  studentGuardianRepository,
-			ChildRepo:            parentPortal.ParentChild,
+			ChildRepo:            careplanCompose.NewParentChildLinks(parentPortal.ParentChild),
 			GroupRepo:            groupRepository,
 			InstanceStaffRepo:    timetableRepos.InstanceStaff,
 			ActivityInstanceRepo: timetableRepos.ActivityInstance,

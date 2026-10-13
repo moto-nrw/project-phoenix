@@ -3,7 +3,6 @@ package repositories
 import (
 	"context"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -12,7 +11,9 @@ import (
 )
 
 type ParentRouteTestRepositories struct {
-	ParentChild           parentModels.ChildRepository
+	// ParentPortalRepositories carries the guardian child repository
+	// (ParentChild) without the school names.
+	carePlanCompose.ParentPortalRepositories
 	Student               usersModels.StudentRepository
 	Person                usersModels.PersonRepository
 	GuardianProfile       usersModels.GuardianProfileRepository
@@ -23,6 +24,12 @@ type ParentRouteTestRepositories struct {
 	// ExcusedRequests is the Care Plan excused-absence workflow over the same
 	// graph, scoped school-wide because parent routes never decide requests.
 	ExcusedRequests careplan.ExcusedAbsenceRequests
+}
+
+// ParentChildLinks lists the children a guardian account reaches, as the
+// parent calendar reads them.
+func (r ParentRouteTestRepositories) ParentChildLinks() carePlanCompose.ParentChildLinks {
+	return carePlanCompose.NewParentChildLinks(r.ParentChild)
 }
 
 // SchoolWideReviewScope is the review scope of a caller who may decide every
@@ -54,7 +61,10 @@ func NewParentRouteTestRepositories(db *bun.DB, members MembershipTestRepositori
 		return ParentRouteTestRepositories{}, err
 	}
 	return ParentRouteTestRepositories{
-		ParentChild: carePlanCompose.NewParentChildRepository(newIdentityAccess(db, nil).ListActiveAccountSchoolIDs, parentPortalDirectory{people: people}), Student: members.Student, Person: members.Person,
+		ParentPortalRepositories: carePlanCompose.ParentPortalRepositories{
+			ParentChild: carePlanCompose.NewParentChildRepository(newIdentityAccess(db, nil).ListActiveAccountSchoolIDs, parentPortalDirectory{people: people}),
+		},
+		Student: members.Student, Person: members.Person,
 		GuardianProfile: members.GuardianProfile, StudentGuardian: members.StudentGuardian,
 		StudentStatusDay: NewStudentStatusDayRepository(care), CareExceptions: care, ExcusedAbsenceRequest: NewExcusedAbsenceRequestRepository(care),
 		ExcusedRequests: excusedRequests,

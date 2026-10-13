@@ -1,10 +1,10 @@
 package repositories
 
 import (
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -37,11 +37,13 @@ func NewAppointments(db *bun.DB) (appointments.Capability, error) {
 
 type CalendarTestRepositories struct {
 	TimetableTestRepositories
-	Profile                    identityaccess.AccountProfiles
-	StaffGroups                schoolstructure.StaffGroupQuery
-	GuardianProfile            userModels.GuardianProfileRepository
-	StudentGuardian            userModels.StudentGuardianRepository
-	ParentChild                parentModels.ChildRepository
+	Profile         identityaccess.AccountProfiles
+	StaffGroups     schoolstructure.StaffGroupQuery
+	GuardianProfile userModels.GuardianProfileRepository
+	StudentGuardian userModels.StudentGuardianRepository
+	// ParentPortalRepositories carries the guardian child repository
+	// (ParentChild) without the school names.
+	carePlanCompose.ParentPortalRepositories
 	StaffCalendarFeedToken     identityaccess.StaffCalendarFeeds
 	ParentCalendarFeed         identityaccess.ParentCalendarFeeds
 	CalendarStaffFeedTombstone schoolcalendar.FeedHistory
@@ -71,9 +73,15 @@ func NewCalendarTestRepositories(db *bun.DB, members MembershipTestRepositories)
 		TimetableTestRepositories: identity.Timetable,
 		Profile:                   identity.Profile, StaffGroups: identity.StaffGroups,
 		GuardianProfile: parents.GuardianProfile, StudentGuardian: parents.StudentGuardian,
-		ParentChild: parents.ParentChild, StaffCalendarFeedToken: feeds.StaffFeed, ParentCalendarFeed: feeds.ParentFeed,
+		ParentPortalRepositories: parents.ParentPortalRepositories, StaffCalendarFeedToken: feeds.StaffFeed, ParentCalendarFeed: feeds.ParentFeed,
 		CalendarStaffFeedTombstone: feeds.Tombstone, appointments: appointments, schoolCalendar: calendar,
 	}, nil
+}
+
+// ParentChildLinks lists the children a guardian account reaches, as the
+// parent calendar reads them.
+func (r CalendarTestRepositories) ParentChildLinks() carePlanCompose.ParentChildLinks {
+	return carePlanCompose.NewParentChildLinks(r.ParentChild)
 }
 
 func (r CalendarTestRepositories) Appointments() appointments.Capability     { return r.appointments }
