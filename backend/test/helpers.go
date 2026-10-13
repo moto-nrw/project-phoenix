@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/internal/testdb"
 	"github.com/moto-nrw/project-phoenix/models/audit"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -171,7 +171,7 @@ func SetupClosableTestDB(t *testing.T) *bun.DB {
 		return db
 	}
 
-	db, err := database.DBConn()
+	db, err := transactionruntime.OpenPool()
 	require.NoError(t, err, "Failed to open private test database pool")
 	return db
 }
@@ -188,7 +188,7 @@ func SetupServeTestDB(t *testing.T) *bun.DB {
 		require.NoError(t, err, "Failed to open private phoenix_auth isolated test database pool")
 		return db
 	}
-	db, err := database.DBConnForServe()
+	db, err := transactionruntime.OpenServePool()
 	require.NoError(t, err, "Failed to open private phoenix_auth test database pool")
 	return db
 }
@@ -202,8 +202,7 @@ func SetupServeTestDB(t *testing.T) *bun.DB {
 // Without tenant context, EnsureTenantID silently leaves tenant_id=0, which violates
 // FK constraints on tenant-scoped tables.
 func TenantContext(tenantID int64) context.Context {
-	ctx := tenant.WithTenantID(WithPackageTenantRuntime(context.Background()), tenantID)
-	return audit.WithTenantID(ctx, tenantID)
+	return tenant.WithTenantID(WithPackageTenantRuntime(context.Background()), tenantID)
 }
 
 // TenantScope owns a unique tenant for a test and provides the matching context.
@@ -232,8 +231,7 @@ func (s TenantScope) Context() context.Context {
 	if ctx == nil {
 		ctx = WithPackageTenantRuntime(context.Background())
 	}
-	ctx = tenant.WithTenantID(ctx, s.TenantID)
-	return audit.WithTenantID(ctx, s.TenantID)
+	return tenant.WithTenantID(ctx, s.TenantID)
 }
 
 var uniqueTestTenantCounter int64

@@ -137,3 +137,38 @@ needs a fixture target beyond `tenant-runtime/public`, #3970 registers it in a
 reviewed epoch with its own addendum here. The rest of the audit vocabulary and
 `models/platform` fall through #3967, the `models/users` keys through #3966,
 where the fixtures return their own row types.
+
+## Addendum (#3970)
+
+The bootstrap needed a target beyond `tenant-runtime/public`. `tenant` is the
+runtime's public seam and knows no adapter; offering a constructor port there
+would still leave the fixtures to import the adapter that fills it. The
+bootstrap therefore became a composition point of the Transaction Runtime,
+`modules/transactionruntime/compose`. `NewTenantRuntime` builds from a
+`*bun.DB` the `tenant.UnitOfWork` the fixtures and the composition roots run
+under: unit of work, retry classification, advisory locks, the repository
+detacher and context adapters, and the Audit context adapters, which it
+reaches through `modules/auditlog` (`audit-platform/public`), not
+`models/audit`. `NewDemoTenantRuntime` is the variant of the standing demo,
+`ObserveLockWaits` attaches the lock-wait hook, and `OpenPool` and
+`OpenServePool` open the pools. The Audit detacher the roots install is not
+repeated: detaching hands the context adapters nil, which already masks the
+Audit transaction.
+
+Policy epoch 37 registers `shared-fixtures.transaction-runtime-compose`. The
+bootstrap joins the shared fixture targets in a narrower shape than the
+targets above: only the fixture package's `test-support` role in production
+may reach it (`sharedFixtureBootstrapTargets`); the end-to-end suites take the
+runtime from the fixtures. The seam's own rules, to its Postgres adapter, the
+tenant runtime, the Audit contract and the ORM, and the rule for its
+integration suite, are anchored to the new package and registered in the same
+epoch.
+
+`test` builds its runtimes and pools through the bootstrap, and its contexts
+carry the Audit tenant through the runtime they are bound to instead of
+setting it themselves. `test -> database` falls. `test -> models/audit` stays
+for model types only, which #3967 removes. The two assertions that the fixture
+contexts carry the Audit tenant moved to the Audit integration suite, which
+reads the Audit context directly. `api`, `cmd` and `services.BindTenantRuntime`
+move onto the same seam with #2750 and #2747. No runtime write owner, table,
+route, status code or error string changes.

@@ -3389,6 +3389,15 @@ and the now unused rules `delivery.application.settings`,
 `calendar-view.adapter.settings-platform-application` and
 `group-live-view.adapter.settings-platform-application` are deleted
 (166 -> 164).
+[#3970](https://github.com/moto-nrw/project-phoenix/issues/3970) gives the
+PostgreSQL tenant runtime bootstrap an owner seam,
+`modules/transactionruntime/compose` (`transaction-runtime`/`compose`), and
+adds it to the shared fixture targets in a narrower shape: only the
+`test-support` role in production may reach it (the addendum to ADR 0047).
+Epoch 37 registers `shared-fixtures.transaction-runtime-compose` with the
+seam's own rules, which are anchored to the new package. The seam reaches the
+Audit context adapters through `modules/auditlog`; `test -> database` falls
+(112 -> 111).
 
 A reviewed epoch may also add the one owner-agnostic shared-kernel rule
 ([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),
