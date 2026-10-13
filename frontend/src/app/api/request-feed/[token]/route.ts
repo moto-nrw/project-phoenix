@@ -16,7 +16,7 @@ export async function GET(
     { cache: "no-store" },
   );
   if (!upstream.ok) {
-    const response = forwardBackendResponse(upstream);
+    const response = forwardBackendResponse(upstream, _request);
     response.headers.set("Cache-Control", "private, no-store");
     return response;
   }

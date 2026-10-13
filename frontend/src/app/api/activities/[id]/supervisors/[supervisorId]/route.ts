@@ -8,19 +8,13 @@ import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import {
+  createTokenExpiredResponse,
   createUnauthorizedResponse,
   encodePathSegment,
   extractParams,
   isStringParam,
   type RouteContext,
 } from "~/lib/route-wrapper-utils.server";
-
-function createTokenExpiredResponse(): NextResponse {
-  return NextResponse.json(
-    { error: "Token expired", code: "TOKEN_EXPIRED" },
-    { status: 401 },
-  );
-}
 
 /**
  * PUT handler for updating a supervisor's role for an activity (primarily is_primary status)
@@ -75,7 +69,7 @@ export const DELETE = withTenantAuth(
       const session = await auth();
 
       if (!session?.user?.token) {
-        return createUnauthorizedResponse();
+        return createUnauthorizedResponse(request);
       }
 
       const params = await extractParams(request, context);
@@ -119,15 +113,15 @@ export const DELETE = withTenantAuth(
         ) {
           response = await makeRequest(refreshed.user.token);
         } else {
-          return createTokenExpiredResponse();
+          return createTokenExpiredResponse(request);
         }
       }
 
       if (!response.ok) {
         if (response.status === 401) {
-          return createTokenExpiredResponse();
+          return createTokenExpiredResponse(request);
         }
-        return forwardBackendResponse(response);
+        return forwardBackendResponse(response, request);
       }
 
       return NextResponse.json({ success: true });

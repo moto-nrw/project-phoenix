@@ -155,13 +155,10 @@ describe("StudentDeletionModal", () => {
   });
 
   it("returns to a refreshed impact when the backend reports a conflict", async () => {
-    const { StudentDeletionApiError } = await import("~/lib/student-api");
     mockDeleteStudent.mockRejectedValueOnce(
-      new StudentDeletionApiError(
-        409,
-        "Die Daten haben sich geändert.",
-        "students.deletion_preview_changed",
-      ),
+      new ApiError("Die Daten haben sich geändert.", 409, {
+        code: "students.deletion_preview_changed",
+      }),
     );
     mockFetchImpact
       .mockResolvedValueOnce(impact)

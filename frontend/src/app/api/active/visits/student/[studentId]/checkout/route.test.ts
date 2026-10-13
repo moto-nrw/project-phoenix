@@ -164,7 +164,11 @@ describe("POST /api/active/visits/student/[studentId]/checkout", () => {
     );
 
     expect(response.status).toBe(404);
-    expect(await response.text()).toBe("Student not found");
+    expect(await response.json()).toMatchObject({
+      status: 404,
+      detail: "Not Found",
+      code: "general.input",
+    });
   });
 
   it("handles empty error response", async () => {
@@ -181,6 +185,10 @@ describe("POST /api/active/visits/student/[studentId]/checkout", () => {
     );
 
     expect(response.status).toBe(500);
-    expect(await response.text()).toBe("");
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 });

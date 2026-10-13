@@ -131,7 +131,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 
 	// 1. Feature gate
 	if !resolveBoolSetting(ctx, rs.SettingsService, settingAttendanceLogEnabled, false, logger) {
-		renderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
+		renderError(w, r, common.ErrorForbiddenWithCode(errors.New("feature_disabled"), common.CodeAttendanceLogDisabled))
 		return
 	}
 

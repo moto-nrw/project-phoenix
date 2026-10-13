@@ -96,8 +96,7 @@ func batchFailure(failure importapi.Failure) render.Renderer {
 		status = http.StatusConflict
 		details["rejection"] = map[string]any{"code": rejection.ErrorCode(), "details": rejection.ErrorDetails()}
 	}
-	return &common.ErrResponse{Err: failure.Cause, HTTPStatusCode: status,
-		Status: "error", ErrorText: failure.Message, Code: failure.Code, Details: details}
+	return &common.ErrResponse{Err: failure.Cause, HTTPStatusCode: status, Detail: failure.Message, Code: failure.Code, Details: details}
 }
 
 // codedFailure answers a refusal the client words itself from its code, such
@@ -107,8 +106,7 @@ func codedFailure(failure importapi.Failure) render.Renderer {
 	if text == "" && failure.Cause != nil {
 		text = failure.Cause.Error()
 	}
-	return &common.ErrResponse{Err: failure.Cause, HTTPStatusCode: failure.Status,
-		Status: "error", ErrorText: text, Code: failure.Code, Details: failure.Details}
+	return &common.ErrResponse{Err: failure.Cause, HTTPStatusCode: failure.Status, Detail: text, Code: failure.Code, Details: failure.Details}
 }
 
 func renderFailure(w http.ResponseWriter, r *http.Request, failure importapi.Failure) {

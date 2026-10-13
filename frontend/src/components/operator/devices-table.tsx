@@ -11,7 +11,7 @@ import {
   formatLastSeen,
 } from "~/lib/iot-helpers";
 import { createLogger } from "~/lib/logger";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { DataTable } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
 import {
@@ -105,7 +105,7 @@ export function DevicesTable({
   onDelete,
 }: Readonly<DevicesTableProps>) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const { error: toastError } = useToast();
+  const { showMessage } = useApiErrorDisplay();
 
   const handleCopyApiKey = useCallback(
     async (device: OperatorDevice) => {
@@ -118,10 +118,10 @@ export function DevicesTable({
         logger.error("clipboard_copy_failed", {
           error: "Failed to copy API key to clipboard",
         });
-        toastError(API_KEY_COPY_FAILED_MESSAGE);
+        showMessage(API_KEY_COPY_FAILED_MESSAGE);
       }
     },
-    [toastError],
+    [showMessage],
   );
 
   const columns = useMemo<DataTableColumn<OperatorDevice>[]>(() => {

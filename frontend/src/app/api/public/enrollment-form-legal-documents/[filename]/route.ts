@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 interface RouteContext {
   params: Promise<{ filename: string }>;
@@ -11,9 +12,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   const backendUrl = `${getServerApiUrl()}/public/enrollment-form-legal-documents/${encodeURIComponent(filename)}`;
   const response = await fetch(backendUrl, { cache: "no-store" });
 
-  if (!response.ok) return forwardBackendResponse(response);
-  if (!response.body)
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!response.ok) return forwardBackendResponse(response, _request);
+  if (!response.body) return problemResponse(404, "Not found", _request);
 
   return new NextResponse(response.body, {
     status: response.status,

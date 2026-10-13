@@ -619,15 +619,15 @@ function TimetablesContent() {
         // mit dem Weg zum Anlegen; ein zusätzlicher Fehler hülfe niemandem.
         // 403 (missing SchedulesCreate permission) is expected for
         // non-admin staff opening the planner — warn instead of error.
-        const httpStatus =
-          typeof err === "object" && err !== null && "httpStatus" in err
-            ? (err as { httpStatus?: unknown }).httpStatus
+        const status =
+          typeof err === "object" && err !== null && "status" in err
+            ? (err as { status?: unknown }).status
             : undefined;
         const context = {
           error: err instanceof Error ? err.message : String(err),
-          ...(typeof httpStatus === "number" ? { status: httpStatus } : {}),
+          ...(typeof status === "number" ? { status } : {}),
         };
-        if (httpStatus === 403) {
+        if (status === 403) {
           logger.warn("periods_bootstrap_failed", context);
         } else {
           logger.error("periods_bootstrap_failed", context);

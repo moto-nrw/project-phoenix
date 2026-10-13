@@ -65,7 +65,7 @@ describe("careOfferingIsAvailable", () => {
 describe("careOfferingAvailabilityRuleError", () => {
   it("identifies the invalid condition", () => {
     expect(careOfferingAvailabilityRuleError(rule("all", "in", []), 4)).toBe(
-      "Bedingung 1: Wähle mindestens eine Klassenstufe.",
+      "Bedingung 1: Wählen Sie mindestens eine Klassenstufe.",
     );
     expect(
       careOfferingAvailabilityRuleError(rule("all", "in", [5]), 4),

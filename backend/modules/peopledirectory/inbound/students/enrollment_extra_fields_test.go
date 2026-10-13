@@ -204,10 +204,10 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaLookupFails(t *testing.T
 
 	require.Equal(t, http.StatusInternalServerError, rr.Code, "body: %s", rr.Body.String())
 	var body struct {
-		Error string `json:"error"`
+		Detail string `json:"detail"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-	assert.Equal(t, "failed to load enrollment extra fields", body.Error)
+	assert.Equal(t, "failed to load enrollment extra fields", body.Detail)
 	assert.NotContains(t, rr.Body.String(), "schema repository unavailable")
 }
 
@@ -246,10 +246,10 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaIsMissing(t *testing.T) 
 
 	require.Equal(t, http.StatusInternalServerError, rr.Code, "body: %s", rr.Body.String())
 	var body struct {
-		Error string `json:"error"`
+		Detail string `json:"detail"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-	assert.Equal(t, "failed to load enrollment extra fields", body.Error)
+	assert.Equal(t, "failed to load enrollment extra fields", body.Detail)
 	assert.NotContains(t, rr.Body.String(), "enrollment schema 42 not found")
 }
 

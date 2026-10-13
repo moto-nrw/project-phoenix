@@ -3,6 +3,7 @@ package checkin_test
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -72,8 +73,8 @@ func TestErrorRoomCapacityExceeded(t *testing.T) {
 	renderer := checkin.ErrorRoomCapacityExceeded(42, "Test Room", 15, 10)
 	resp, ok := renderer.(*checkin.CapacityErrorResponse)
 	assert.True(t, ok)
-	assert.Equal(t, "error", resp.Status)
-	assert.Equal(t, "Room capacity exceeded", resp.Error)
+	assert.Equal(t, http.StatusConflict, resp.Status)
+	assert.Equal(t, "Room capacity exceeded", resp.Detail)
 	assert.Equal(t, "iot.room_capacity_exceeded", resp.Code)
 	assert.NotNil(t, resp.Details)
 	assert.Equal(t, int64(42), resp.Details.RoomID)
@@ -89,8 +90,8 @@ func TestErrorActivityCapacityExceeded(t *testing.T) {
 	renderer := checkin.ErrorActivityCapacityExceeded(77, "Test Activity", 25, 20)
 	resp, ok := renderer.(*checkin.ActivityCapacityErrorResponse)
 	assert.True(t, ok)
-	assert.Equal(t, "error", resp.Status)
-	assert.Equal(t, "Activity capacity exceeded", resp.Error)
+	assert.Equal(t, http.StatusConflict, resp.Status)
+	assert.Equal(t, "Activity capacity exceeded", resp.Detail)
 	assert.Equal(t, "iot.activity_capacity_exceeded", resp.Code)
 	assert.NotNil(t, resp.Details)
 	assert.Equal(t, int64(77), resp.Details.ActivityID)
@@ -103,17 +104,7 @@ func TestErrorActivityCapacityExceeded(t *testing.T) {
 func TestCapacityErrorResponse_Render(t *testing.T) {
 	t.Parallel()
 
-	resp := &checkin.CapacityErrorResponse{
-		Status: "error",
-		Error:  "Room capacity exceeded",
-		Code:   "iot.room_capacity_exceeded",
-		Details: &checkin.RoomCapacityExceededError{
-			RoomID:           1,
-			RoomName:         "Test Room",
-			CurrentOccupancy: 15,
-			MaxCapacity:      10,
-		},
-	}
+	resp := checkin.ErrorRoomCapacityExceeded(1, "Test Room", 15, 10)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
@@ -126,17 +117,7 @@ func TestCapacityErrorResponse_Render(t *testing.T) {
 func TestActivityCapacityErrorResponse_Render(t *testing.T) {
 	t.Parallel()
 
-	resp := &checkin.ActivityCapacityErrorResponse{
-		Status: "error",
-		Error:  "Activity capacity exceeded",
-		Code:   "iot.activity_capacity_exceeded",
-		Details: &checkin.ActivityCapacityExceededError{
-			ActivityID:       1,
-			ActivityName:     "Test Activity",
-			CurrentOccupancy: 25,
-			MaxCapacity:      20,
-		},
-	}
+	resp := checkin.ErrorActivityCapacityExceeded(1, "Test Activity", 25, 20)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)

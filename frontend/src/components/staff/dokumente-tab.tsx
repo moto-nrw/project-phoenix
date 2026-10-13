@@ -18,11 +18,7 @@ import {
   type SegmentedControlItem,
 } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
-import {
-  useApiErrorDisplay,
-  useApiFormError,
-  useToast,
-} from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -103,7 +99,6 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
   const [dragActive, setDragActive] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<StaffDocument | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const toast = useToast();
   const uploadErrors = useApiErrorDisplay();
   const deleteErrors = useApiFormError();
   // Ein Ladefehler steht an der Stelle der Liste, nie als „Noch keine
@@ -141,7 +136,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
       return;
     }
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      toast.error(
+      uploadErrors.showMessage(
         "Die Datei ist größer als 10 MB. Bitte wählen Sie eine kleinere Datei.",
       );
       return;

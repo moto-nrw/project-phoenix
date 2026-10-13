@@ -6,7 +6,8 @@ vi.mock("./session-cache", () => ({
   sessionFetch: mockSessionFetch,
 }));
 
-import { ShiftApiError, staffShiftSeriesService } from "./shift-api";
+import { ApiError } from "./api-error";
+import { staffShiftSeriesService } from "./shift-api";
 
 beforeEach(() => {
   mockSessionFetch.mockReset();
@@ -307,14 +308,18 @@ describe("staffShiftSeriesService", () => {
     );
   });
 
-  it("maps a failed rule load onto ShiftApiError", async () => {
+  it("maps a failed rule load onto an ApiError", async () => {
     mockSessionFetch.mockResolvedValueOnce(
-      Response.json({ error: "shift series not found" }, { status: 404 }),
+      Response.json({ detail: "shift series not found" }, { status: 404 }),
     );
 
-    await expect(staffShiftSeriesService.getSeries("5")).rejects.toMatchObject(
-      new ShiftApiError(404, "shift series not found"),
-    );
+    const failure = staffShiftSeriesService.getSeries("5");
+    await expect(failure).rejects.toBeInstanceOf(ApiError);
+    await expect(failure).rejects.toMatchObject({
+      status: 404,
+      message: "shift series not found",
+      code: "general.input",
+    });
   });
 
   it("ends a series from the given date", async () => {
@@ -332,25 +337,33 @@ describe("staffShiftSeriesService", () => {
     );
   });
 
-  it("maps failures onto ShiftApiError", async () => {
+  it("maps failures onto an ApiError", async () => {
     mockSessionFetch.mockResolvedValueOnce(
-      Response.json({ error: "invalid shift series" }, { status: 400 }),
+      Response.json({ detail: "invalid shift series" }, { status: 400 }),
     );
-    await expect(
-      staffShiftSeriesService.splitSeries("5", {
-        effectiveDate: "2026-10-05",
-        startTime: "10:00",
-        endTime: "14:00",
-        breakMinutes: 0,
-        shiftTypeId: null,
-      }),
-    ).rejects.toMatchObject(new ShiftApiError(400, "invalid shift series"));
+    const split = staffShiftSeriesService.splitSeries("5", {
+      effectiveDate: "2026-10-05",
+      startTime: "10:00",
+      endTime: "14:00",
+      breakMinutes: 0,
+      shiftTypeId: null,
+    });
+    await expect(split).rejects.toBeInstanceOf(ApiError);
+    await expect(split).rejects.toMatchObject({
+      status: 400,
+      message: "invalid shift series",
+      code: "general.input",
+    });
 
     mockSessionFetch.mockResolvedValueOnce(
-      Response.json({ error: "shift series not found" }, { status: 404 }),
+      Response.json({ detail: "shift series not found" }, { status: 404 }),
     );
-    await expect(
-      staffShiftSeriesService.endSeries("5", "2026-10-05"),
-    ).rejects.toMatchObject(new ShiftApiError(404, "shift series not found"));
+    const end = staffShiftSeriesService.endSeries("5", "2026-10-05");
+    await expect(end).rejects.toBeInstanceOf(ApiError);
+    await expect(end).rejects.toMatchObject({
+      status: 404,
+      message: "shift series not found",
+      code: "general.input",
+    });
   });
 });

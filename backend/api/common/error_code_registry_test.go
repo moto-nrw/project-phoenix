@@ -21,9 +21,6 @@ import (
 const (
 	backendModulePath = "github.com/moto-nrw/project-phoenix"
 	commonPackagePath = backendModulePath + "/api/common"
-	// Observability functions take a code as a metric label, never as the
-	// code of a response, so their parameters are not checked.
-	observabilityPackagePath = backendModulePath + "/observability"
 )
 
 var errorCodeShape = regexp.MustCompile(`^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$`)
@@ -76,9 +73,11 @@ type functionDefinition struct {
 // fallbackCode (a common helper or a package's own wrapper around one), the Code field of common.ErrResponse, the ErrorCode method of
 // a module's business rejection, or a package's own code constant. Packages
 // that may not import api/common declare their code once as a named constant
-// holding the registered value; call sites name that constant. The check is
-// syntactic: it follows named constants across packages, and a code that is
-// only known at run time is outside it.
+// holding the registered value; call sites name that constant. A parameter
+// that carries a metric label is named for it (codeLabel), not code. The
+// check is syntactic: it follows named constants across packages, and a
+// code that is only known at run time is outside it. It has no exception
+// list; generated files are skipped by their generated-code header.
 func TestErrorPathsAnswerWithRegisteredCodes(t *testing.T) {
 	t.Parallel()
 
@@ -130,7 +129,9 @@ func scanErrorCodes(t *testing.T, root string, registry errorCodeRegistry) []str
 	}
 	for _, pkg := range tree.packages {
 		for _, file := range pkg.files {
-			if strings.HasSuffix(tree.fset.Position(file.syntax.Pos()).Filename, "error_codes.generated.go") {
+			// The generated constants are where the registered codes are
+			// written as strings.
+			if ast.IsGenerated(file.syntax) {
 				continue
 			}
 			tree.checkFile(pkg, file, registry, report)
@@ -362,7 +363,9 @@ func loadSourceTree(t *testing.T, root string) *sourceTree {
 		}
 		if entry.IsDir() {
 			name := entry.Name()
-			if file != root && (name == "testdata" || name == "vendor" || name == "tmp" || strings.HasPrefix(name, ".")) {
+			// Fixtures, vendored third-party code and hidden directories are
+			// no backend source.
+			if file != root && (name == "testdata" || name == "vendor" || strings.HasPrefix(name, ".")) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -370,7 +373,7 @@ func loadSourceTree(t *testing.T, root string) *sourceTree {
 		if !strings.HasSuffix(file, ".go") || strings.HasSuffix(file, "_test.go") {
 			return nil
 		}
-		syntax, err := parser.ParseFile(tree.fset, file, nil, parser.SkipObjectResolution)
+		syntax, err := parser.ParseFile(tree.fset, file, nil, parser.SkipObjectResolution|parser.ParseComments)
 		if err != nil {
 			return err
 		}
@@ -456,7 +459,7 @@ func codeParameterPositions(packagePath string, syntax *ast.File) map[string][]i
 	positions := map[string][]int{}
 	for _, decl := range syntax.Decls {
 		function, ok := decl.(*ast.FuncDecl)
-		if !ok || function.Recv != nil || packagePath == observabilityPackagePath {
+		if !ok || function.Recv != nil {
 			continue
 		}
 		key := packagePath + "." + function.Name.Name

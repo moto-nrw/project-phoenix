@@ -13,7 +13,6 @@ import { mutate } from "~/lib/swr";
 import {
   listAvailableTenants,
   performTenantSwitch,
-  TenantSwitchError,
   type TenantSummary,
 } from "~/lib/tenant-api";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
@@ -26,6 +25,7 @@ import { clientEnv } from "~/env.client";
 import { Alert } from "~/components/ui/alert";
 import { credentialError } from "~/components/auth/credential-error";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import {
   BrandLink,
   BrandLogo,
@@ -157,8 +157,8 @@ export function BrandTenantSwitcher({
           target_slug: targetTenant.subdomain,
         });
         if (
-          err instanceof TenantSwitchError &&
-          err.reason === "use_school_portal"
+          err instanceof ApiError &&
+          err.code === "identity.use_school_portal"
         ) {
           let portalUrl: string | null = null;
           try {

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET, POST } from "./route";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 
 // ============================================================================
 // Types
@@ -25,30 +26,25 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: mockApiGet,
-  apiPost: mockApiPost,
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  extractParams: vi.fn((request: NextRequest) => {
-    const params = new URLSearchParams(request.nextUrl.search);
-    const result: Record<string, string> = {};
-    params.forEach((value, key) => {
-      result[key] = value;
-    });
-    return result;
-  }),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: mockApiGet,
+    apiPost: mockApiPost,
+    apiPut: vi.fn(),
+    apiDelete: vi.fn(),
+    extractParams: vi.fn((request: NextRequest) => {
+      const params = new URLSearchParams(request.nextUrl.search);
+      const result: Record<string, string> = {};
+      params.forEach((value, key) => {
+        result[key] = value;
+      });
+      return result;
+    }),
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 // ============================================================================
 // Test Helpers
@@ -297,7 +293,7 @@ describe("POST /api/active/visits", () => {
 
   it("returns 404 when student or group not found", async () => {
     mockApiPost.mockRejectedValueOnce(
-      new Error("Student or group not found (404)"),
+      new ApiResponseError(404, "Student or group not found"),
     );
 
     const request = createMockRequest("/api/active/visits", {

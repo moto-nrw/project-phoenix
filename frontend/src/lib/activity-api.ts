@@ -12,7 +12,7 @@ const logger = createLogger({ component: "ActivityAPI" });
 // shared display path.
 function handleActivityApiError(error: unknown, context: string): never {
   if (error instanceof ApiError) throw error;
-  handleDomainApiError(error, context, "ACTIVITY");
+  handleDomainApiError(error, context);
 }
 import {
   mapActivityResponse,

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET, PUT } from "./route";
 
 interface ExtendedSession extends Session {
@@ -17,21 +18,15 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: mockApiGet,
   apiPost: vi.fn(),
   apiPut: mockApiPut,
   apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
+  handleApiError: vi.fn(
+    (await import("~/test/helpers/handle-api-error")).mockHandleApiError,
+  ),
 }));
 
 function createMockRequest(
@@ -154,7 +149,9 @@ describe("PUT /api/me/profile", () => {
   });
 
   it("handles validation errors from backend", async () => {
-    mockApiPut.mockRejectedValueOnce(new Error("Backend error (500)"));
+    mockApiPut.mockRejectedValueOnce(
+      new ApiResponseError(500, "Backend error"),
+    );
 
     const request = createMockRequest("/api/me/profile", {
       method: "PUT",

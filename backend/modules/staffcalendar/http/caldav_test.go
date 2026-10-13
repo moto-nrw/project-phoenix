@@ -71,7 +71,7 @@ func TestStaffCalDAVRequiresUniformBasicAuthentication(t *testing.T) {
 	service.calDAVErr = calendarSvc.ErrNotFound
 	wrong := performCalDAVRequest(t, resource, "PROPFIND", calDAVPrincipalPath, "", true)
 	assert.Equal(t, http.StatusUnauthorized, wrong.Code)
-	assert.Equal(t, "Unauthorized\n", wrong.Body.String())
+	assert.JSONEq(t, `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Unauthorized","status":401,"detail":"Unauthorized","instance":"","code":"general.permission"}`, wrong.Body.String())
 	assert.Equal(t, "staff@example.org", service.calDAVUsername)
 	assert.Equal(t, "app-password", service.calDAVPassword)
 }

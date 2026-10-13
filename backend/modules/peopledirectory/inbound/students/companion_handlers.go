@@ -67,17 +67,11 @@ func companionPlanErrorRenderer(err error) render.Renderer {
 // CompanionConflictResponse is the 409 body: the companions whose own departure
 // plan does not permit the requested days. The client turns it into the
 // "Tom darf donnerstags noch nicht mit anderen Kindern gehen. Ergänzen?"
-// confirmation and resends with extend_companion_plans.
+// confirmation and resends with extend_companion_plans. The shared error
+// envelope carries status, detail and code; Conflicts is an extension member.
 type CompanionConflictResponse struct {
-	Status    string                       `json:"status"`
-	Error     string                       `json:"error"`
+	*common.ErrResponse
 	Conflicts []careplan.CompanionConflict `json:"conflicts"`
-}
-
-// Render satisfies render.Renderer.
-func (resp *CompanionConflictResponse) Render(_ http.ResponseWriter, r *http.Request) error {
-	render.Status(r, http.StatusConflict)
-	return nil
 }
 
 // CompanionEntry is one submitted link.

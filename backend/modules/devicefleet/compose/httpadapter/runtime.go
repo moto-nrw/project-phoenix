@@ -72,6 +72,10 @@ func renderFailure(
 	case displayHTTP.FailureInvalid:
 		apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
 	case displayHTTP.FailureForbidden:
+		if errors.Is(err, displayHTTP.ErrFeatureDisabled) {
+			apiCommon.RenderError(w, r, apiCommon.ErrorForbiddenWithCode(err, apiCommon.CodeDisplayDisabled))
+			return
+		}
 		apiCommon.RenderError(w, r, apiCommon.ErrorForbidden(err))
 	case displayHTTP.FailureNotFound:
 		apiCommon.RenderError(w, r, apiCommon.ErrorNotFound(err))

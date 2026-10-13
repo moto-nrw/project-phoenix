@@ -148,38 +148,13 @@ async function authHeaders(): Promise<HeadersInit> {
   return headers;
 }
 
-/**
- * Pulls the backend's diagnostic text out of its error envelope
- * ({ status, error }), falling back to the raw body and finally the status.
- * The text stays developer diagnosis; what the user reads comes from the code.
- */
-function errorMessage(text: string, status: number): string {
-  if (text) {
-    try {
-      const parsed: unknown = JSON.parse(text);
-      if (parsed && typeof parsed === "object") {
-        const body = parsed as { error?: unknown; status?: unknown };
-        if (typeof body.error === "string" && body.error.trim()) {
-          return body.error;
-        }
-        if (typeof body.status === "string" && body.status.trim()) {
-          return body.status;
-        }
-      }
-    } catch {
-      return text;
-    }
-  }
-  return `Anfrage fehlgeschlagen (${status})`;
-}
-
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     // ApiError keeps code, field errors and request ID for the shared error
     // path (#2513); the message is diagnosis only.
     const text = await response.text().catch(() => "");
     throw apiErrorFromText(
-      errorMessage(text, response.status),
+      `Anfrage fehlgeschlagen (${response.status})`,
       response.status,
       text,
     );

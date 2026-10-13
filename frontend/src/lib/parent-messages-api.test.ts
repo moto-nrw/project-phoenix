@@ -150,9 +150,9 @@ describe("fetchInboxWithFilters", () => {
   });
 
   it("throws with the backend error message on non-OK", async () => {
-    mockFetch(async () => jsonOk({ error: "Messaging deaktiviert" }, 403));
+    mockFetch(async () => jsonOk({ detail: "Messaging deaktiviert" }, 403));
     await expect(fetchInboxWithFilters({})).rejects.toThrow(
-      /Messaging deaktiviert/,
+      /Nachrichten konnten nicht geladen werden/,
     );
   });
 
@@ -168,7 +168,7 @@ describe("fetchInboxWithFilters", () => {
     mockFetch(async () =>
       jsonOk(
         {
-          error: "messaging disabled",
+          detail: "messaging disabled",
           code: "communication.parent_news_disabled",
           instance: "req-7",
         },
@@ -239,7 +239,7 @@ describe("fetchStudentThreads", () => {
 
   it("throws a coded error on non-OK", async () => {
     mockFetch(async () =>
-      jsonOk({ error: "verboten", code: "general.permission" }, 403),
+      jsonOk({ detail: "verboten", code: "general.permission" }, 403),
     );
     await expect(fetchStudentThreads("99")).rejects.toMatchObject({
       status: 403,
@@ -302,8 +302,10 @@ describe("fetchUnreadCount", () => {
   });
 
   it("throws with backend error on non-OK", async () => {
-    mockFetch(async () => jsonOk({ error: "Keine Berechtigung" }, 401));
-    await expect(fetchUnreadCount()).rejects.toThrow(/Keine Berechtigung/);
+    mockFetch(async () => jsonOk({ detail: "Keine Berechtigung" }, 401));
+    await expect(fetchUnreadCount()).rejects.toThrow(
+      /Ungelesene Nachrichten konnten nicht geladen werden/,
+    );
   });
 
   it("throws with German fallback on non-JSON error", async () => {
@@ -338,8 +340,10 @@ describe("fetchThread", () => {
   });
 
   it("throws with backend error on non-OK", async () => {
-    mockFetch(async () => jsonOk({ error: "Thread nicht gefunden" }, 404));
-    await expect(fetchThread("t1")).rejects.toThrow(/Thread nicht gefunden/);
+    mockFetch(async () => jsonOk({ detail: "Thread nicht gefunden" }, 404));
+    await expect(fetchThread("t1")).rejects.toThrow(
+      /Nachrichtenverlauf konnte nicht geladen werden/,
+    );
   });
 
   it("throws with German fallback when response is not JSON", async () => {
@@ -406,8 +410,10 @@ describe("postMessage", () => {
   });
 
   it("throws with backend error on non-OK", async () => {
-    mockFetch(async () => jsonOk({ error: "Nachricht zu lang" }, 422));
-    await expect(postMessage("t1", "hi")).rejects.toThrow(/Nachricht zu lang/);
+    mockFetch(async () => jsonOk({ detail: "Nachricht zu lang" }, 422));
+    await expect(postMessage("t1", "hi")).rejects.toThrow(
+      /Nachricht konnte nicht gesendet werden/,
+    );
   });
 
   it("throws with German fallback on non-JSON error", async () => {
@@ -437,9 +443,9 @@ describe("markThreadUnread", () => {
   });
 
   it("throws the backend error on failure", async () => {
-    mockFetch(async () => jsonOk({ error: "messaging: forbidden" }, 403));
+    mockFetch(async () => jsonOk({ detail: "messaging: forbidden" }, 403));
     await expect(markThreadUnread("t42")).rejects.toThrow(
-      "messaging: forbidden",
+      "Die Unterhaltung wurde nicht als ungelesen markiert.",
     );
   });
 });
@@ -459,8 +465,10 @@ describe("markAllMessagesRead", () => {
   });
 
   it("throws the backend error on failure", async () => {
-    mockFetch(async () => jsonOk({ error: "messaging: forbidden" }, 403));
-    await expect(markAllMessagesRead()).rejects.toThrow("messaging: forbidden");
+    mockFetch(async () => jsonOk({ detail: "messaging: forbidden" }, 403));
+    await expect(markAllMessagesRead()).rejects.toThrow(
+      "Die Nachrichten wurden nicht als gelesen markiert.",
+    );
   });
 });
 
@@ -491,10 +499,10 @@ describe("openThread", () => {
   });
 
   it("throws with backend error on non-OK", async () => {
-    mockFetch(async () => jsonOk({ error: "Schüler nicht gefunden" }, 404));
+    mockFetch(async () => jsonOk({ detail: "Schüler nicht gefunden" }, 404));
     await expect(
       openThread({ studentId: "99", guardianAccountId: "acc1" }),
-    ).rejects.toThrow(/Schüler nicht gefunden/);
+    ).rejects.toThrow(/Unterhaltung konnte nicht geöffnet werden/);
   });
 
   it("throws with German fallback on non-JSON body", async () => {
@@ -529,8 +537,10 @@ describe("fetchGuardians", () => {
   });
 
   it("throws with backend error on non-OK", async () => {
-    mockFetch(async () => jsonOk({ error: "kein Zugriff" }, 403));
-    await expect(fetchGuardians("42")).rejects.toThrow(/kein Zugriff/);
+    mockFetch(async () => jsonOk({ detail: "kein Zugriff" }, 403));
+    await expect(fetchGuardians("42")).rejects.toThrow(
+      /Bezugspersonen konnten nicht geladen werden/,
+    );
   });
 
   it("throws with German fallback on non-JSON body", async () => {
@@ -596,7 +606,7 @@ describe("message count setting", () => {
   // #2517: the card shows the catalog text; the client keeps status and code.
   it("throws an ApiError when saving fails", async () => {
     mockFetch(async () =>
-      jsonOk({ error: "messaging: invalid count scope" }, 400),
+      jsonOk({ detail: "messaging: invalid count scope" }, 400),
     );
     await expect(saveMessageCountScope("all")).rejects.toMatchObject({
       status: 400,

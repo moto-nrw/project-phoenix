@@ -69,7 +69,7 @@ describe("staffShiftService errors", () => {
 
   it("preserves status and backend error detail for save failures", async () => {
     mockSessionFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "shift overlaps existing row" }), {
+      new Response(JSON.stringify({ detail: "shift overlaps existing row" }), {
         status: 409,
         headers: { "content-type": "application/json" },
       }),
@@ -86,7 +86,7 @@ describe("staffShiftService errors", () => {
       }),
     ).rejects.toMatchObject({
       status: 409,
-      detail: "shift overlaps existing row",
+      message: "shift overlaps existing row",
     });
   });
 
@@ -99,13 +99,13 @@ describe("staffShiftService errors", () => {
       staffShiftService.getShifts("2026-07-06", "2026-07-10"),
     ).rejects.toMatchObject({
       status: 500,
-      detail: "database timeout",
+      message: "database timeout",
     });
   });
 
   it("preserves backend errors when the weekly overview fails", async () => {
     mockSessionFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "overview unavailable" }), {
+      new Response(JSON.stringify({ detail: "overview unavailable" }), {
         status: 503,
         headers: { "content-type": "application/json" },
       }),
@@ -115,7 +115,7 @@ describe("staffShiftService errors", () => {
       staffShiftService.getOverview("2026-07-06", "2026-07-10"),
     ).rejects.toMatchObject({
       status: 503,
-      detail: "overview unavailable",
+      message: "overview unavailable",
     });
   });
 
@@ -129,7 +129,7 @@ describe("staffShiftService errors", () => {
 
     await expect(staffShiftService.deleteShift("42")).rejects.toMatchObject({
       status: 400,
-      detail: "Schicht konnte nicht gelöscht werden",
+      message: "Schicht konnte nicht gelöscht werden",
     });
   });
 
@@ -152,7 +152,7 @@ describe("staffShiftService errors", () => {
       }),
     ).rejects.toMatchObject({
       status: 422,
-      detail: "Schicht konnte nicht gespeichert werden",
+      message: "Schicht konnte nicht gespeichert werden",
     });
   });
 });
@@ -487,7 +487,7 @@ describe("ownShiftService assignments (#1844)", () => {
 
   it("preserves the backend error detail when the assignments load fails", async () => {
     mockSessionFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "assignments unavailable" }), {
+      new Response(JSON.stringify({ detail: "assignments unavailable" }), {
         status: 500,
         headers: { "content-type": "application/json" },
       }),
@@ -497,7 +497,7 @@ describe("ownShiftService assignments (#1844)", () => {
       ownShiftService.getOwnAssignments("2026-07-06", "2026-07-10"),
     ).rejects.toMatchObject({
       status: 500,
-      detail: "assignments unavailable",
+      message: "assignments unavailable",
     });
   });
 
@@ -508,7 +508,7 @@ describe("ownShiftService assignments (#1844)", () => {
       ownShiftService.getOwnAssignments("2026-07-06", "2026-07-10"),
     ).rejects.toMatchObject({
       status: 502,
-      detail: "Einsätze konnten nicht geladen werden",
+      message: "Einsätze konnten nicht geladen werden",
     });
   });
 });

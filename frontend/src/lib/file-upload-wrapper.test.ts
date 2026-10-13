@@ -6,8 +6,10 @@ const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
 vi.mock("@sentry/nextjs", () => ({ captureException }));
 
 interface ErrorResponse {
-  error: string;
-  status?: number;
+  status: number;
+  detail: string;
+  code: string;
+  details?: Record<string, unknown>;
 }
 
 interface SuccessResponse<T> {
@@ -52,7 +54,11 @@ describe("createFileUploadHandler", () => {
       const data = (await response.json()) as ErrorResponse;
 
       expect(response.status).toBe(401);
-      expect(data).toEqual({ error: "Unauthorized" });
+      expect(data).toMatchObject({
+        status: 401,
+        detail: "Unauthorized",
+        code: "general.permission",
+      });
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -71,7 +77,11 @@ describe("createFileUploadHandler", () => {
       const data = (await response.json()) as ErrorResponse;
 
       expect(response.status).toBe(401);
-      expect(data).toEqual({ error: "Unauthorized" });
+      expect(data).toMatchObject({
+        status: 401,
+        detail: "Unauthorized",
+        code: "general.permission",
+      });
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -122,7 +132,12 @@ describe("createFileUploadHandler", () => {
 
       const response = await wrappedHandler(request, context);
 
+      const data = (await response.json()) as ErrorResponse;
       expect(response.status).toBe(413);
+      expect(data).toMatchObject({
+        code: "files.file_too_large",
+        details: { max_mb: 5 },
+      });
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -146,7 +161,12 @@ describe("createFileUploadHandler", () => {
 
       const response = await wrappedHandler(request, context);
 
+      const data = (await response.json()) as ErrorResponse;
       expect(response.status).toBe(413);
+      expect(data).toMatchObject({
+        code: "files.file_too_large",
+        details: { max_mb: 1 },
+      });
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -176,7 +196,11 @@ describe("createFileUploadHandler", () => {
       const data = (await response.json()) as ErrorResponse;
 
       expect(response.status).toBe(413);
-      expect(data.error).toContain("File size exceeds 5MB limit");
+      expect(data.detail).toContain("File size exceeds 5MB limit");
+      expect(data).toMatchObject({
+        code: "files.file_too_large",
+        details: { max_mb: 5 },
+      });
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -255,7 +279,8 @@ describe("createFileUploadHandler", () => {
       const data = (await response.json()) as ErrorResponse;
 
       expect(response.status).toBe(415);
-      expect(data.error).toContain("File type text/plain is not allowed");
+      expect(data.detail).toContain("File type text/plain is not allowed");
+      expect(data.code).toBe("files.file_type_not_allowed");
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -349,7 +374,8 @@ describe("createFileUploadHandler", () => {
       const data = (await response.json()) as ErrorResponse;
 
       expect(response.status).toBe(415);
-      expect(data.error).toContain("File extension not allowed");
+      expect(data.detail).toContain("File extension not allowed");
+      expect(data.code).toBe("files.file_type_not_allowed");
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -421,7 +447,8 @@ describe("createFileUploadHandler", () => {
       const data = (await response.json()) as ErrorResponse;
 
       expect(response.status).toBe(422);
-      expect(data.error).toBe("Invalid filename");
+      expect(data.detail).toBe("Invalid filename");
+      expect(data.code).toBe("files.file_name_invalid");
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -446,7 +473,8 @@ describe("createFileUploadHandler", () => {
       const data = (await response.json()) as ErrorResponse;
 
       expect(response.status).toBe(422);
-      expect(data.error).toBe("Invalid filename");
+      expect(data.detail).toBe("Invalid filename");
+      expect(data.code).toBe("files.file_name_invalid");
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -475,7 +503,7 @@ describe("createFileUploadHandler", () => {
       const data = (await response.json()) as ErrorResponse;
 
       expect(response.status).toBe(415);
-      expect(data.error).toContain("File type text/plain is not allowed");
+      expect(data.detail).toContain("File type text/plain is not allowed");
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -681,7 +709,8 @@ describe("createFileUploadHandler", () => {
       const data = (await response.json()) as ErrorResponse;
 
       expect(response.status).toBe(500);
-      expect(data.error).toBe("Upload failed");
+      expect(data.detail).toBe("Internal Server Error");
+      expect(JSON.stringify(data)).not.toContain("Upload failed");
       expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {
         tags: { request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10" },
       });

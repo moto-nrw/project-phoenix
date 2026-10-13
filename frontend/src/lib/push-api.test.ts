@@ -171,7 +171,7 @@ describe("push-api", () => {
     fetchMock.mockResolvedValueOnce(response({ public_key: vapidPublicKey }));
 
     await expect(subscribePush("tenant")).rejects.toMatchObject({
-      name: "PushApiError",
+      name: "ApiError",
       status: 403,
       message: "Benachrichtigungen wurden nicht erlaubt.",
     });
@@ -217,14 +217,15 @@ describe("push-api", () => {
     );
   });
 
-  it("uses the server error message when available", async () => {
+  it("keeps the server diagnostic separate when available", async () => {
     fetchMock.mockResolvedValueOnce(
-      response({ error: "push is disabled" }, 409),
+      response({ detail: "push is disabled" }, 409),
     );
 
     await expect(subscribePush("tenant")).rejects.toMatchObject({
       status: 409,
-      message: "push is disabled",
+      message: "Push-Anfrage fehlgeschlagen (409).",
+      detail: "push is disabled",
     });
   });
 
@@ -298,7 +299,7 @@ describe("push-api", () => {
   it("checks VAPID configuration when no browser subscription exists", async () => {
     getSubscription.mockResolvedValue(null);
     fetchMock.mockResolvedValueOnce(
-      response({ error: "web push is not configured" }, 404),
+      response({ detail: "web push is not configured" }, 404),
     );
 
     await expect(syncExistingPushSubscription("tenant")).rejects.toMatchObject({

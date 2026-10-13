@@ -73,6 +73,7 @@ vi.mock("~/lib/staff-onboarding-api", async (importOriginal) => ({
 }));
 
 import { StaffOnboardingWizard } from "./staff-onboarding-wizard";
+import { ApiError } from "~/lib/api-error";
 
 function newPerson(): StaffOnboardingState {
   return {
@@ -564,9 +565,8 @@ describe("StaffOnboardingWizard", () => {
   });
 
   it("says so when a step could not be saved", async () => {
-    const { StaffOnboardingError } = await import("~/lib/staff-onboarding-api");
     api.setStaffOnboardingStepState.mockRejectedValueOnce(
-      new StaffOnboardingError(500),
+      new ApiError("staff onboarding request failed (500)", 500),
     );
     render(<StaffOnboardingWizard />);
 

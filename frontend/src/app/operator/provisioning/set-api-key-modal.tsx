@@ -2,7 +2,7 @@ import { API_KEY_COPY_FAILED_MESSAGE } from "~/lib/operator/provisioning-helpers
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
-import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorDevice } from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
@@ -26,7 +26,7 @@ export function SetApiKeyModal({
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
   const { show: showError, clear: clearError } = formErrors;
-  const { error: toastError } = useToast();
+  const { showMessage } = useApiErrorDisplay();
 
   const [updatedDevice, setUpdatedDevice] = useState<OperatorDevice | null>(
     null,
@@ -78,9 +78,9 @@ export function SetApiKeyModal({
       logger.error("clipboard_copy_failed", {
         error: "Failed to copy API key to clipboard",
       });
-      toastError(API_KEY_COPY_FAILED_MESSAGE);
+      showMessage(API_KEY_COPY_FAILED_MESSAGE);
     }
-  }, [updatedDevice, toastError]);
+  }, [updatedDevice, showMessage]);
 
   const deviceLabel = device?.name ?? device?.deviceId ?? "Gerät";
 

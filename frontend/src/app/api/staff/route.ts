@@ -1,7 +1,6 @@
 // app/api/staff/route.ts
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers.server";
-import { ApiResponseError } from "~/lib/api-helpers.server";
 import {
   createGetHandler,
   createPostHandler,
@@ -175,66 +174,34 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
       );
     }
 
-    try {
-      const trimmedNotes = body.staff_notes?.trim();
-      const trimmedSpecialization = body.specialization?.trim();
-      const trimmedRole = body.role?.trim();
-      const trimmedQualifications = body.qualifications?.trim();
+    const trimmedNotes = body.staff_notes?.trim();
+    const trimmedSpecialization = body.specialization?.trim();
+    const trimmedRole = body.role?.trim();
+    const trimmedQualifications = body.qualifications?.trim();
 
-      const normalizedBody = {
-        ...body,
-        person_id: personId,
-        staff_notes: normalizeOptionalString(body.staff_notes, trimmedNotes),
-        specialization: normalizeOptionalString(
-          body.specialization,
-          trimmedSpecialization,
-        ),
-        role: normalizeOptionalString(body.role, trimmedRole),
-        qualifications: normalizeOptionalString(
-          body.qualifications,
-          trimmedQualifications,
-        ),
-      };
+    const normalizedBody = {
+      ...body,
+      person_id: personId,
+      staff_notes: normalizeOptionalString(body.staff_notes, trimmedNotes),
+      specialization: normalizeOptionalString(
+        body.specialization,
+        trimmedSpecialization,
+      ),
+      role: normalizeOptionalString(body.role, trimmedRole),
+      qualifications: normalizeOptionalString(
+        body.qualifications,
+        trimmedQualifications,
+      ),
+    };
 
-      // Create the staff member via the API
-      const response = await apiPost<BackendStaffResponse>(
-        "/api/staff",
-        token,
-        normalizedBody,
-      );
+    // Create the staff member via the API; a backend failure (403, 400)
+    // keeps its envelope and status.
+    const response = await apiPost<BackendStaffResponse>(
+      "/api/staff",
+      token,
+      normalizedBody,
+    );
 
-      return mapBackendStaff(response);
-    } catch (error) {
-      if (error instanceof ApiResponseError) throw error;
-      // Check for permission errors (403 Forbidden)
-      if (error instanceof Error && error.message.includes("403")) {
-        logger.error("permission denied when creating staff", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        throw new Error(
-          "Permission denied: You need the 'users:create' permission to create staff members.",
-          { cause: error },
-        );
-      }
-
-      // Check for validation errors
-      if (error instanceof Error && error.message.includes("400")) {
-        const errorMessage = error.message;
-        logger.error("validation error when creating staff", {
-          error: errorMessage,
-        });
-
-        // Extract specific error message if possible
-        if (errorMessage.includes("person not found")) {
-          throw new Error("Person not found with the specified ID", {
-            cause: error,
-          });
-        }
-        // No additional specialization validation anymore
-      }
-
-      // Re-throw other errors
-      throw error;
-    }
+    return mapBackendStaff(response);
   },
 );

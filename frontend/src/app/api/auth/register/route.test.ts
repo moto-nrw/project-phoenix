@@ -209,16 +209,10 @@ describe("POST /api/auth/register", () => {
     };
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          status: "error",
-          error: "Invalid email format",
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        },
-      ),
+      new Response(JSON.stringify({ detail: "Invalid email format" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      }),
     );
 
     const request = createMockRequest(
@@ -228,10 +222,8 @@ describe("POST /api/auth/register", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ status: string; error: string }>(
-      response,
-    );
-    expect(json.error).toBe("Invalid email format");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Invalid email format");
   });
 
   it("handles conflict error (user already exists)", async () => {
@@ -241,16 +233,10 @@ describe("POST /api/auth/register", () => {
     };
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          status: "error",
-          error: "User already exists",
-        }),
-        {
-          status: 409,
-          headers: { "Content-Type": "application/json" },
-        },
-      ),
+      new Response(JSON.stringify({ detail: "User already exists" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      }),
     );
 
     const request = createMockRequest(
@@ -260,13 +246,11 @@ describe("POST /api/auth/register", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(409);
-    const json = await parseJsonResponse<{ status: string; error: string }>(
-      response,
-    );
-    expect(json.error).toBe("User already exists");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("User already exists");
   });
 
-  it("handles non-JSON response from backend", async () => {
+  it("replaces a non-JSON backend server error with a safe problem envelope", async () => {
     const registrationPayload = {
       email: "test@example.com",
       password: "Test1234!",
@@ -286,8 +270,14 @@ describe("POST /api/auth/register", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    expect(response.headers.get("Content-Type")).toContain("text/plain");
-    expect(await response.text()).toBe("Server Error");
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/problem+json",
+    );
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("handles JSON parse error from backend", async () => {
@@ -336,7 +326,7 @@ describe("POST /api/auth/register", () => {
     expect(await response.text()).toBe("");
   });
 
-  it("returns fallback message when backend sends an empty non-JSON body", async () => {
+  it("replaces an empty backend server error with a safe problem envelope", async () => {
     const registrationPayload = {
       email: "test@example.com",
       password: "Test1234!",
@@ -356,7 +346,11 @@ describe("POST /api/auth/register", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    expect(await response.text()).toBe("");
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("returns 500 on fetch failure", async () => {
@@ -374,10 +368,12 @@ describe("POST /api/auth/register", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ message: string; error: string }>(
+    const json = await parseJsonResponse<{ detail: string; code: string }>(
       response,
     );
-    expect(json.message).toBe("An error occurred during registration");
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Network error");
+    expect(json.code).toBe("general.server");
   });
 
   it("rejects unreadable request JSON as a client error", async () => {
@@ -388,7 +384,7 @@ describe("POST /api/auth/register", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Invalid JSON");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Invalid JSON");
   });
 });

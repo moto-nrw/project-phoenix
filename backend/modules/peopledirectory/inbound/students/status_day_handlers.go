@@ -240,17 +240,26 @@ func datesBetweenInclusive(from, to timezone.Date) []timezone.Date {
 	return dates
 }
 
-// statusDayConflictResponse builds the shared 409 body for single and bulk
-// planned-status writes: a capped conflict sample plus the full total. The
-// code lets the frontend word the refusal without reading the sentence
-// (ADR 0006).
-func statusDayConflictResponse(conflictErr *studentpresence.StudentStatusDayConflictError) map[string]any {
-	return map[string]any{
-		"status":         "error",
-		"error":          "existing student status days were not overwritten",
-		"code":           common.CodeStudentsStatusDayConflict,
-		"conflicts":      newStudentStatusDayConflictResponses(conflictErr.SampleConflicts()),
-		"conflict_count": conflictErr.ConflictTotal(),
+// statusDayConflictBody is the shared 409 body for single and bulk
+// planned-status writes: the shared error envelope plus a capped conflict
+// sample and the full total as extension members. The code lets the frontend
+// word the refusal without reading the sentence (ADR 0006).
+type statusDayConflictBody struct {
+	*common.ErrResponse
+	Conflicts     []StudentStatusDayResponse `json:"conflicts"`
+	ConflictCount int                        `json:"conflict_count"`
+}
+
+func statusDayConflictResponse(conflictErr *studentpresence.StudentStatusDayConflictError) *statusDayConflictBody {
+	return &statusDayConflictBody{
+		ErrResponse: &common.ErrResponse{
+			Err:            conflictErr,
+			HTTPStatusCode: http.StatusConflict,
+			Detail:         "existing student status days were not overwritten",
+			Code:           common.CodeStudentsStatusDayConflict,
+		},
+		Conflicts:     newStudentStatusDayConflictResponses(conflictErr.SampleConflicts()),
+		ConflictCount: conflictErr.ConflictTotal(),
 	}
 }
 
@@ -286,12 +295,7 @@ func (rs *Resource) renderStatusDayCreateError(w http.ResponseWriter, r *http.Re
 	var conflictErr *studentpresence.StudentStatusDayConflictError
 	if errors.As(err, &conflictErr) {
 		refuse()
-		common.RespondWithJSON(
-			w,
-			r,
-			http.StatusConflict,
-			statusDayConflictResponse(conflictErr),
-		)
+		renderError(w, r, statusDayConflictResponse(conflictErr))
 		return
 	}
 	if errors.Is(err, studentpresence.ErrStudentStatusDayReassigned) {

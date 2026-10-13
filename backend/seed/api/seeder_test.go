@@ -146,7 +146,7 @@ func TestSeedStatisticsDemoStepCleansUpAfterFailure(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/students/101/rfid", "/api/iot/session/end":
 			w.WriteHeader(seedHTTPStatusInternalServerError)
-			_, _ = fmt.Fprint(w, `{"status":"error","error":"injected failure"}`)
+			_, _ = fmt.Fprint(w, `{"status":500,"detail":"injected failure","code":"general.server"}`)
 		case "/auth/login":
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"access_token":"staff-token"}}`)
 		case "/api/time-tracking/current":
@@ -1042,7 +1042,7 @@ func serveDevicePIN(t *testing.T, trace *fullSeedAPITrace, w seedHTTPResponseWri
 	trace.rejectedDevicePINs++
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(seedHTTPStatusUnauthorized)
-	_, _ = fmt.Fprint(w, `{"status":"error","error":"invalid staff PIN"}`)
+	_, _ = fmt.Fprint(w, `{"status":401,"detail":"invalid staff PIN","code":"iot.device_pin_invalid"}`)
 	return true
 }
 

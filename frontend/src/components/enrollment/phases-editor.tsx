@@ -254,7 +254,7 @@ export function PhasesEditor() {
   const formErrors = useApiFormError();
   const clearFormErrors = formErrors.clear;
   // List actions without a form (aktivieren, ausschalten): toast.
-  const { show: showActionError } = useApiErrorDisplay();
+  const { show: showActionError, showMessage } = useApiErrorDisplay();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PhaseInput | null>(null);
@@ -646,14 +646,14 @@ export function PhasesEditor() {
       const source = phases.find((phase) => phase.id === sourcePhaseID);
       if (!source) {
         // Folge eines Klicks (Hinweis oder Link): eine Meldung ohne Formular.
-        toast.error(
+        showMessage(
           "Die Anmeldephase wurde nicht gefunden. Bitte laden Sie die Seite neu.",
         );
         return;
       }
       startRollover(source);
     },
-    [phases, toast, startRollover],
+    [phases, showMessage, startRollover],
   );
 
   useEffect(() => {
@@ -1182,12 +1182,13 @@ function PhaseActions({
   const [lateInviteOpen, setLateInviteOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const toast = useToast();
+  const { showMessage } = useApiErrorDisplay();
   const { copy } = useClipboardCopy(`PhaseActions:${phase.id}`);
   const copyPhaseUrl = async (url: string) => {
     if (await copy(url)) {
       toast.success("Der Elternlink ist kopiert.");
     } else {
-      toast.error(
+      showMessage(
         "Der Link konnte nicht kopiert werden. Bitte versuchen Sie es noch einmal.",
       );
     }

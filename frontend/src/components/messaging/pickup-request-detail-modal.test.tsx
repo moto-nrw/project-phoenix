@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ModalProvider } from "~/components/dashboard/modal-context";
 import {
-  CareRequestApiError,
   fetchCareScheduleChangeRequest,
   type StaffCareRequestDetail,
 } from "~/lib/care-request-review-api";
@@ -169,7 +168,7 @@ describe("PickupRequestDetailModal", () => {
 
   it("erklärt eine entfernte Anfrage und fehlenden Zugriff verständlich", async () => {
     mockFetch.mockRejectedValue(
-      new CareRequestApiError("not found", "care.request_not_found", 404),
+      new ApiError("not found", 404, { code: "care.request_not_found" }),
     );
     const { unmount } = render(
       <PickupRequestDetailModal requestId="42" onClose={vi.fn()} />,
@@ -180,9 +179,7 @@ describe("PickupRequestDetailModal", () => {
     ).toBeInTheDocument();
     unmount();
 
-    mockFetch.mockRejectedValue(
-      new CareRequestApiError("forbidden", undefined, 403),
-    );
+    mockFetch.mockRejectedValue(new ApiError("forbidden", 403));
     render(<PickupRequestDetailModal requestId="42" onClose={vi.fn()} />, {
       wrapper: Wrapper,
     });

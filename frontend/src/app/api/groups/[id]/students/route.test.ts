@@ -77,8 +77,8 @@ describe("GET /api/groups/[id]/students", () => {
     const response = await GET(request, createMockContext({}));
 
     expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Group ID is required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Group ID is required");
   });
 
   it("fetches students in group from backend", async () => {

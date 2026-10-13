@@ -1,4 +1,5 @@
 import { createGetHandler, createPutHandler } from "~/lib/route-wrapper.server";
+import { isApiResponseError } from "~/lib/api-response-error.server";
 import { apiGet, apiPut } from "~/lib/api-helpers.server";
 
 interface PrivacyConsentBody {
@@ -41,9 +42,7 @@ export const GET = createGetHandler(async (request, token, params) => {
     );
     return response.data;
   } catch (error) {
-    // Check for 404 status in the error message or response
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage.includes("404")) {
+    if (isApiResponseError(error, 404)) {
       // No consent found, return null or a default response
       return {
         student_id: Number.parseInt(id, 10),

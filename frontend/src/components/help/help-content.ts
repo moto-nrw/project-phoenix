@@ -6903,7 +6903,7 @@ function teacherLoginTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "moto sagt, das Konto habe keinen Zugang zum Schul-Portal? Dann fehlt Ihnen die Rolle. Wenden Sie sich an die OGS-Verwaltung.",
-      "moto sagt `Ungültige E-Mail oder Passwort`? Prüfen Sie beides und versuchen Sie es erneut.",
+      "moto sagt `Die E-Mail-Adresse oder das Passwort stimmt nicht.`? Prüfen Sie beides und versuchen Sie es erneut.",
     ],
     related: [
       HELP_TOPICS.teacherAccess,
@@ -7319,7 +7319,7 @@ function teacherLoginProblemTopic(): HelpTopic {
     ],
     differences: [
       "`Dieses Konto hat keinen Zugang zum Schul-Portal.` Dann fehlt Ihrem Konto die Rolle. Wenden Sie sich an die OGS-Verwaltung.",
-      "`Ungültige E-Mail oder Passwort.` Prüfen Sie beides.",
+      "`Die E-Mail-Adresse oder das Passwort stimmt nicht.` Prüfen Sie beides.",
     ],
     troubleshootingDetails: [
       "Sie werden immer wieder abgemeldet? Melden Sie sich einmal neu an.",

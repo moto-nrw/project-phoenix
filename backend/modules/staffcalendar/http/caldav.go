@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 )
 
@@ -41,7 +42,7 @@ func (h *staffCalDAVHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	username, password, ok := r.BasicAuth()
 	if !ok {
-		h.unauthorized(w)
+		h.unauthorized(w, r)
 		return
 	}
 	snapshot, err := h.service.AuthenticateStaffCalDAV(r.Context(), username, password)
@@ -49,7 +50,7 @@ func (h *staffCalDAVHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !errors.Is(err, calendarService.ErrNotFound) && !errors.Is(err, calendarService.ErrForbidden) {
 			h.logger.ErrorContext(r.Context(), "authenticate caldav request", "error", err)
 		}
-		h.unauthorized(w)
+		h.unauthorized(w, r)
 		return
 	}
 	path := r.URL.EscapedPath()
@@ -69,18 +70,18 @@ func (h *staffCalDAVHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.getItem(w, r, path, snapshot)
 	default:
 		setCalDAVAllow(w, path)
-		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		common.RenderStatus(w, r, http.StatusMethodNotAllowed, "")
 	}
 }
 
-func (h *staffCalDAVHandler) unauthorized(w http.ResponseWriter) {
+func (h *staffCalDAVHandler) unauthorized(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("WWW-Authenticate", calDAVRealm)
-	http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+	common.RenderStatus(w, r, http.StatusUnauthorized, "")
 }
 
 func (*staffCalDAVHandler) options(w http.ResponseWriter, r *http.Request, path string) {
 	if !knownCalDAVPath(path) {
-		http.NotFound(w, r)
+		common.RenderStatus(w, r, http.StatusNotFound, "")
 		return
 	}
 	w.Header().Set("DAV", "1, 2, access-control, calendar-access")
@@ -106,7 +107,7 @@ func setCalDAVAllow(w http.ResponseWriter, path string) {
 func (h *staffCalDAVHandler) propfind(w http.ResponseWriter, r *http.Request, path string, snapshot *calendarService.StaffCalDAVCalendar) {
 	depth := r.Header.Get("Depth")
 	if depth != "" && depth != "0" && depth != "1" {
-		http.Error(w, "Only Depth 0 and 1 are supported", http.StatusBadRequest)
+		common.RenderStatus(w, r, http.StatusBadRequest, "Only Depth 0 and 1 are supported")
 		return
 	}
 
@@ -127,7 +128,7 @@ func (h *staffCalDAVHandler) propfind(w http.ResponseWriter, r *http.Request, pa
 	default:
 		item, ok := findCalDAVItem(path, snapshot)
 		if !ok {
-			http.NotFound(w, r)
+			common.RenderStatus(w, r, http.StatusNotFound, "")
 			return
 		}
 		responses = append(responses, calDAVItemResponse(calDAVItemPath(item), item, true))
@@ -137,12 +138,12 @@ func (h *staffCalDAVHandler) propfind(w http.ResponseWriter, r *http.Request, pa
 
 func (h *staffCalDAVHandler) report(w http.ResponseWriter, r *http.Request, path string, snapshot *calendarService.StaffCalDAVCalendar) {
 	if path != calDAVCalendarPath && path != strings.TrimSuffix(calDAVCalendarPath, "/") {
-		http.NotFound(w, r)
+		common.RenderStatus(w, r, http.StatusNotFound, "")
 		return
 	}
 	report, hrefs, err := parseCalDAVReport(r.Body)
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		common.RenderStatus(w, r, http.StatusBadRequest, "")
 		return
 	}
 
@@ -162,7 +163,7 @@ func (h *staffCalDAVHandler) report(w http.ResponseWriter, r *http.Request, path
 			responses = append(responses, calDAVItemResponse(calDAVItemPath(item), item, true))
 		}
 	default:
-		http.Error(w, "Unsupported CalDAV report", http.StatusForbidden)
+		common.RenderStatus(w, r, http.StatusForbidden, "Unsupported CalDAV report")
 		return
 	}
 	h.writeMultiStatus(w, responses)
@@ -171,7 +172,7 @@ func (h *staffCalDAVHandler) report(w http.ResponseWriter, r *http.Request, path
 func (*staffCalDAVHandler) getItem(w http.ResponseWriter, r *http.Request, path string, snapshot *calendarService.StaffCalDAVCalendar) {
 	item, ok := findCalDAVItem(path, snapshot)
 	if !ok {
-		http.NotFound(w, r)
+		common.RenderStatus(w, r, http.StatusNotFound, "")
 		return
 	}
 	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")

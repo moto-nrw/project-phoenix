@@ -7,27 +7,12 @@ import { ApiError } from "~/lib/api-error";
 // Mocks
 // ============================================================================
 
-const {
-  mockListAvailableTenants,
-  mockPerformTenantSwitch,
-  MockTenantSwitchError,
-} = vi.hoisted(() => {
-  class MockTenantSwitchError extends Error {
-    constructor(
-      public status: number,
-      public reason: "access_denied" | "use_school_portal" | "unknown",
-      message: string,
-    ) {
-      super(message);
-    }
-  }
-
-  return {
+const { mockListAvailableTenants, mockPerformTenantSwitch } = vi.hoisted(
+  () => ({
     mockListAvailableTenants: vi.fn(),
     mockPerformTenantSwitch: vi.fn(),
-    MockTenantSwitchError,
-  };
-});
+  }),
+);
 
 const { mockSignIn, mockUseSession } = vi.hoisted(() => ({
   mockSignIn: vi.fn(),
@@ -57,7 +42,6 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 vi.mock("~/lib/tenant-api", () => ({
   listAvailableTenants: mockListAvailableTenants,
   performTenantSwitch: mockPerformTenantSwitch,
-  TenantSwitchError: MockTenantSwitchError,
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -367,7 +351,9 @@ describe("BrandTenantSwitcher", () => {
   it("offers moto schule when the selected school only grants Lehrkraft access", async () => {
     mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
     mockPerformTenantSwitch.mockRejectedValue(
-      new MockTenantSwitchError(403, "use_school_portal", "wrong portal"),
+      new ApiError("wrong portal", 403, {
+        code: "identity.use_school_portal",
+      }),
     );
 
     render(<BrandTenantSwitcher />);

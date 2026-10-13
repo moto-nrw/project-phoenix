@@ -9,7 +9,6 @@ import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
 import { ApiError } from "~/lib/api-error";
-import { ParentApiError } from "~/lib/parent-api";
 import { catalogText } from "~/test/error-catalog-text";
 import { CareScheduleRequestModal } from "./care-schedule-request-modal";
 
@@ -187,15 +186,11 @@ describe("CareScheduleRequestModal Fehlerweg (#2518)", () => {
   it("erklärt eine schon offene Anfrage mit eigenem Text", async () => {
     renderModal(
       capabilities,
-      vi
-        .fn()
-        .mockRejectedValue(
-          new ParentApiError(
-            "pending",
-            409,
-            "care.care_request_already_pending",
-          ),
-        ),
+      vi.fn().mockRejectedValue(
+        new ApiError("pending", 409, {
+          code: "care.care_request_already_pending",
+        }),
+      ),
     );
 
     expect(await submitPickupChange()).toHaveTextContent(

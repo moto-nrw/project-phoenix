@@ -106,7 +106,7 @@ func TestStaffClock_FullNFCFlow(t *testing.T) {
 	})
 	require.Equal(t, 409, duplicateCode, "response: %v", duplicate)
 	assert.Equal(t, "iot.invalid_staff_clock_state", duplicate["code"])
-	assert.Equal(t, "already checked in", duplicate["error"])
+	assert.Equal(t, "already checked in", duplicate["detail"])
 
 	onBreak := route.stamp(t, "/staff-clock", map[string]string{
 		"rfid_tag": tag,
@@ -150,7 +150,7 @@ func TestStaffClock_FullNFCFlow(t *testing.T) {
 	})
 	require.Equal(t, 409, breakEndCode, "response: %v", breakEnd)
 	assert.Equal(t, "iot.invalid_staff_clock_state", breakEnd["code"])
-	assert.Equal(t, "no active break found", breakEnd["error"])
+	assert.Equal(t, "no active break found", breakEnd["detail"])
 }
 
 func TestStaffClock_RejectsStudentCard(t *testing.T) {
@@ -184,5 +184,5 @@ func TestStaffClock_ClassifiesCardAndRequestFailures(t *testing.T) {
 	code, parsed = route.call(t, "/staff-clock", map[string]string{"rfid_tag": "C1654FEED", "action": devicescan.StaffClockActionCheckIn})
 	assert.Equal(t, 400, code)
 	assert.Equal(t, "iot.invalid_staff_clock_request", parsed["code"])
-	assert.Equal(t, "status is required for check-in", parsed["error"])
+	assert.Equal(t, "status is required for check-in", parsed["detail"])
 }

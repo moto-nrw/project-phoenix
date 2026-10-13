@@ -188,7 +188,11 @@ describe("parent proxy factories", () => {
     );
 
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
+    await expect(response.json()).resolves.toMatchObject({
+      status: 401,
+      detail: "Unauthorized",
+      code: "general.permission",
+    });
     expect(mockFetch).not.toHaveBeenCalled();
   });
 

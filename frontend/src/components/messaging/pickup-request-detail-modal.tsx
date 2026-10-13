@@ -28,12 +28,11 @@ import {
 } from "~/components/ui/status-badge";
 import { HISTORY_STATUS_META } from "~/components/students/request-review-card";
 import {
-  CareRequestApiError,
   fetchCareScheduleChangeRequest,
   type StaffCareRequestDetail,
 } from "~/lib/care-request-review-api";
 import { useApiLoadError } from "~/contexts/ToastContext";
-import { wireErrorCode } from "~/lib/api-error";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { DEPARTURE_MODE_LABELS } from "~/lib/student-helpers";
@@ -117,14 +116,14 @@ export function PickupRequestDetailModal({
         // Eine entfernte Anfrage ist kein Fehler, sondern ein erklärter
         // Zustand: der Hinweis im Verlauf bleibt (#2517: am Code erkannt).
         if (
-          err instanceof CareRequestApiError &&
+          err instanceof ApiError &&
           wireErrorCode(err.code) === "care.request_not_found"
         ) {
           setState({ kind: "gone" });
           return;
         }
         if (
-          err instanceof CareRequestApiError &&
+          err instanceof ApiError &&
           wireErrorCode(err.code) === "general.permission"
         ) {
           setState({ kind: "forbidden" });

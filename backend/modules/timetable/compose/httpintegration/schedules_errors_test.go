@@ -29,8 +29,8 @@ func TestSchedulesErrorRenderer_DateframeNotFound(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok, "Expected *common.ErrResponse")
 	assert.Equal(t, http.StatusNotFound, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
-	assert.Contains(t, errResp.ErrorText, "dateframe not found")
+	assertEnvelope(t, errResp, "general.input")
+	assert.Contains(t, errResp.Detail, "dateframe not found")
 }
 
 func TestSchedulesErrorRenderer_TimeframeNotFound(t *testing.T) {
@@ -47,8 +47,8 @@ func TestSchedulesErrorRenderer_TimeframeNotFound(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok, "Expected *common.ErrResponse")
 	assert.Equal(t, http.StatusNotFound, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
-	assert.Contains(t, errResp.ErrorText, "timeframe not found")
+	assertEnvelope(t, errResp, "general.input")
+	assert.Contains(t, errResp.Detail, "timeframe not found")
 }
 
 func TestSchedulesErrorRenderer_TimeframeCareOfferingConflict(t *testing.T) {
@@ -65,7 +65,7 @@ func TestSchedulesErrorRenderer_TimeframeCareOfferingConflict(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok, "Expected *common.ErrResponse")
 	assert.Equal(t, http.StatusConflict, errResp.HTTPStatusCode)
-	assert.Contains(t, errResp.ErrorText, "geändert oder gelöscht")
+	assert.Contains(t, errResp.Detail, "geändert oder gelöscht")
 }
 
 func TestSchedulesErrorRenderer_RecurrenceRuleNotFound(t *testing.T) {
@@ -82,8 +82,8 @@ func TestSchedulesErrorRenderer_RecurrenceRuleNotFound(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok, "Expected *common.ErrResponse")
 	assert.Equal(t, http.StatusNotFound, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
-	assert.Contains(t, errResp.ErrorText, "recurrence rule not found")
+	assertEnvelope(t, errResp, "general.input")
+	assert.Contains(t, errResp.Detail, "recurrence rule not found")
 }
 
 func TestSchedulesErrorRenderer_InvalidDateRange(t *testing.T) {
@@ -100,8 +100,8 @@ func TestSchedulesErrorRenderer_InvalidDateRange(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok, "Expected *common.ErrResponse")
 	assert.Equal(t, http.StatusBadRequest, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
-	assert.Contains(t, errResp.ErrorText, "invalid date range")
+	assertEnvelope(t, errResp, "general.input")
+	assert.Contains(t, errResp.Detail, "invalid date range")
 }
 
 func TestSchedulesErrorRenderer_InvalidTimeRange(t *testing.T) {
@@ -118,8 +118,8 @@ func TestSchedulesErrorRenderer_InvalidTimeRange(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok, "Expected *common.ErrResponse")
 	assert.Equal(t, http.StatusBadRequest, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
-	assert.Contains(t, errResp.ErrorText, "invalid time range")
+	assertEnvelope(t, errResp, "general.input")
+	assert.Contains(t, errResp.Detail, "invalid time range")
 }
 
 func TestSchedulesErrorRenderer_InvalidDuration(t *testing.T) {
@@ -136,8 +136,8 @@ func TestSchedulesErrorRenderer_InvalidDuration(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok, "Expected *common.ErrResponse")
 	assert.Equal(t, http.StatusBadRequest, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
-	assert.Contains(t, errResp.ErrorText, "invalid duration")
+	assertEnvelope(t, errResp, "general.input")
+	assert.Contains(t, errResp.Detail, "invalid duration")
 }
 
 func TestSchedulesErrorRenderer_RoomCapacityExceeded(t *testing.T) {
@@ -167,8 +167,8 @@ func TestSchedulesErrorRenderer_UnknownScheduleError(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok, "Expected *common.ErrResponse")
 	assert.Equal(t, http.StatusInternalServerError, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
-	assert.Contains(t, errResp.ErrorText, "unknown schedule error")
+	assertEnvelope(t, errResp, "general.server")
+	assert.Contains(t, errResp.Detail, "unknown schedule error")
 }
 
 func TestSchedulesErrorRenderer_NonScheduleError(t *testing.T) {
@@ -183,8 +183,8 @@ func TestSchedulesErrorRenderer_NonScheduleError(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok, "Expected *common.ErrResponse")
 	assert.Equal(t, http.StatusInternalServerError, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
-	assert.Contains(t, errResp.ErrorText, "some random error")
+	assertEnvelope(t, errResp, "general.server")
+	assert.Contains(t, errResp.Detail, "some random error")
 }
 
 func TestSchedulesErrorRenderer_ScheduleErrorNilUnwrap(t *testing.T) {
@@ -202,5 +202,5 @@ func TestSchedulesErrorRenderer_ScheduleErrorNilUnwrap(t *testing.T) {
 	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok, "Expected *common.ErrResponse")
 	assert.Equal(t, http.StatusInternalServerError, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
+	assertEnvelope(t, errResp, "general.server")
 }

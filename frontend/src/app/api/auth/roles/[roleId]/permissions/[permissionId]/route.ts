@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 function rolePermissionPath(
   _request: Request,
@@ -12,9 +13,10 @@ function rolePermissionPath(
     typeof permissionId !== "string" ||
     !permissionId
   ) {
-    return NextResponse.json(
-      { error: "Role ID and Permission ID are required" },
-      { status: 400 },
+    return problemResponse(
+      400,
+      "Role ID and Permission ID are required",
+      _request,
     );
   }
   return `/auth/roles/${encodeURIComponent(roleId)}/permissions/${encodeURIComponent(permissionId)}`;

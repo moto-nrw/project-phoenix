@@ -14,6 +14,7 @@ import type {
   PendingInvitation,
 } from "~/lib/invitation-helpers";
 import { createLogger } from "~/lib/logger";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 
 const logger = createLogger({ component: "InvitationForm" });
 
@@ -223,15 +224,7 @@ export function InvitationForm({
             invalid={Boolean(roleError)}
             disabled={isSubmitting || isLoadingRoles}
           />
-          {roleError ? (
-            <p
-              id="invitation-role-error"
-              role="alert"
-              className="text-moto-red-strong mt-1 text-xs"
-            >
-              {roleError}
-            </p>
-          ) : null}
+          <FieldErrorHint id="invitation-role-error" message={roleError} live />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -58,6 +58,7 @@ path-scoped rules automatically.
 | Login, MFA, refresh, sessions, routing, tenant scoping, enrollment, IoT | [docs/agents/contracts.md](docs/agents/contracts.md); check affected session mint/renew paths and wrong-portal rejection |
 | Auth, permissions, crypto, certificates, uploads, sensitive data | [.claude/rules/security/project-security.md](.claude/rules/security/project-security.md); parent-child access also requires [.claude/rules/guardian-parent-permissions.md](.claude/rules/guardian-parent-permissions.md) |
 | Dates, attendance days, recurrence, clock times | [.claude/rules/calendar-dates.md](.claude/rules/calendar-dates.md); shifts/timetables also require backend Domain Knowledge |
+| Error responses, error codes, error display | [.claude/rules/error-path.md](.claude/rules/error-path.md) |
 | Tenant settings | [.claude/rules/settings-system.md](.claude/rules/settings-system.md) and the `settings` skill |
 | Env vars, Docker, SOPS, deployment | [.claude/rules/env-docker-sync.md](.claude/rules/env-docker-sync.md) and [docs/agents/operations.md](docs/agents/operations.md) |
 | User-visible UI, emails, kiosk, help | [.claude/rules/verstaendlichkeit.md](.claude/rules/verstaendlichkeit.md); load `moto-einfache-sprache` before German copy, [.claude/rules/frontend-ui-kit.md](.claude/rules/frontend-ui-kit.md) before frontend UI |

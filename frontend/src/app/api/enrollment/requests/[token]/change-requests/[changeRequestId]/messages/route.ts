@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { createPublicJsonProxy } from "~/lib/backend-proxy-route.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const path = (
   _request: Request,
@@ -12,9 +12,10 @@ const path = (
     typeof changeRequestId !== "string" ||
     !changeRequestId
   ) {
-    return NextResponse.json(
-      { error: "token and change request id required" },
-      { status: 400 },
+    return problemResponse(
+      400,
+      "token and change request id required",
+      _request,
     );
   }
   return `/api/enrollment/requests/${encodeURIComponent(token)}/change-requests/${encodeURIComponent(changeRequestId)}/messages`;

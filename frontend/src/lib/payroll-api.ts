@@ -83,8 +83,7 @@ export async function fetchPayrollStatus(): Promise<PayrollStatus> {
 
 /**
  * Saves one payroll setting. Throws an ApiError with code, field errors and
- * request ID, so the page shows the catalog text (#2517); the generic
- * `setSettingValue` returns a ready-made sentence instead.
+ * request ID, so the page shows the catalog text (#2517).
  */
 export async function savePayrollSetting(
   key: string,

@@ -4,7 +4,7 @@
  * tenant listing/switching (post-login).
  */
 
-import { ApiError, apiErrorFromBody, wireErrorCode } from "./api-error";
+import { apiErrorFromResponse } from "./api-error";
 import { clearSessionCache, sessionFetch } from "./session-cache";
 import { mapAccountTenant, type AccountTenantBackend } from "./account-tenants";
 
@@ -448,60 +448,6 @@ interface SwitchTenantResponse {
   refresh_token: string;
 }
 
-interface ErrorResponseBody {
-  error?: string;
-  message?: string;
-  code?: string;
-}
-
-type TenantSwitchReason = "access_denied" | "use_school_portal" | "unknown";
-
-/**
- * A failed switch. Carries the wire code, field errors and request ID like
- * every ApiError, so the shared error path can show the catalog text (#2517).
- * `reason` is the branch the switch UI takes.
- */
-export class TenantSwitchError extends ApiError {
-  reason: TenantSwitchReason;
-
-  constructor(
-    message: string,
-    status: number,
-    reason: TenantSwitchReason = "unknown",
-    body?: unknown,
-  ) {
-    super(message, status);
-    const wire = apiErrorFromBody(message, status, body);
-    this.name = "TenantSwitchError";
-    this.code = wire.code;
-    this.details = wire.details;
-    this.errors = wire.errors;
-    this.instance = wire.instance;
-    this.requestId = wire.requestId;
-    this.reason = reason;
-  }
-}
-
-async function parseErrorResponse(
-  response: Response,
-): Promise<{ message: string; body?: unknown }> {
-  const text = await response.text();
-
-  if (!text) {
-    return { message: "Failed to switch tenant" };
-  }
-
-  try {
-    const payload = JSON.parse(text) as ErrorResponseBody;
-    return {
-      message: payload.error ?? payload.message ?? text,
-      body: payload,
-    };
-  } catch {
-    return { message: text };
-  }
-}
-
 /**
  * Perform the full tenant switch sequence (steps 1-4 of the switch spec).
  * Returns the new tokens. Callers handle the final navigation/update (step 5).
@@ -555,19 +501,10 @@ export async function switchTenant(
     body: JSON.stringify({ tenant_slug: subdomain }),
   });
   if (!response.ok) {
-    const { message, body } = await parseErrorResponse(response);
-    const wireCode = wireErrorCode(
-      body && typeof body === "object" && "code" in body
-        ? (body as ErrorResponseBody).code
-        : undefined,
-    );
-    const reason =
-      wireCode === "identity.tenant_access_denied"
-        ? "access_denied"
-        : wireCode === "identity.use_school_portal"
-          ? "use_school_portal"
-          : "unknown";
-    throw new TenantSwitchError(message, response.status, reason, body);
+    // The switch UI branches on the code: identity.tenant_access_denied
+    // (401, no access to that school) or identity.use_school_portal (a
+    // teacher account that belongs in the school portal).
+    throw await apiErrorFromResponse(response, "Failed to switch tenant");
   }
   return (await response.json()) as SwitchTenantResponse;
 }

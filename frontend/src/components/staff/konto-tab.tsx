@@ -25,6 +25,7 @@ import { createLogger } from "~/lib/logger";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import type { Teacher } from "~/lib/teacher-api";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 
 const logger = createLogger({ component: "StaffKontoTab" });
 
@@ -637,15 +638,7 @@ function RoleField({
         invalid={Boolean(error)}
         disabled={disabled || !assignment}
       />
-      {error ? (
-        <p
-          id="konto-role-error"
-          role="alert"
-          className="text-moto-red-strong mt-1 text-xs"
-        >
-          {error}
-        </p>
-      ) : null}
+      <FieldErrorHint id="konto-role-error" message={error} live />
     </div>
   );
 }

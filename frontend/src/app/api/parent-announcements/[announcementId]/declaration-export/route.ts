@@ -14,6 +14,7 @@ import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "DeclarationExportDownload" });
 
@@ -27,16 +28,13 @@ async function GETHandler(
 
   const format = request.nextUrl.searchParams.get("format") ?? "";
   if (!FORMATS.has(format)) {
-    return NextResponse.json(
-      { status: "error", error: "format must be csv or pdf" },
-      { status: 400 },
-    );
+    return problemResponse(400, "format must be csv or pdf", request);
   }
 
   const session = await auth();
   const token = session?.user?.token;
   if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return problemResponse(401, "Unauthorized", request);
   }
 
   const backendUrl = `${getServerApiUrl()}/api/parent-announcements/${encodeURIComponent(announcementId)}/declaration-export?format=${format}`;
@@ -65,7 +63,7 @@ async function GETHandler(
       format,
       status: upstream.status,
     });
-    return forwardBackendResponse(upstream);
+    return forwardBackendResponse(upstream, request);
   }
 
   const headers = new Headers();

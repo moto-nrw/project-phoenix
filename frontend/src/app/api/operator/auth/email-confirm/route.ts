@@ -5,8 +5,18 @@ export const POST = createPublicJsonProxy({
   method: "POST",
   path: "/operator/auth/email-confirm",
   forwardClientHeaders: true,
-  invalidJsonResponse: () =>
-    operatorErrorResponse(400, "general.input", "Invalid JSON request body"),
-  networkErrorResponse: () =>
-    operatorErrorResponse(503, "general.unavailable", "Backend request failed"),
+  invalidJsonResponse: (request) =>
+    operatorErrorResponse(
+      400,
+      "general.input",
+      "Invalid JSON request body",
+      request,
+    ),
+  networkErrorResponse: (_error, request) =>
+    operatorErrorResponse(
+      503,
+      "general.unavailable",
+      "Backend request failed",
+      request,
+    ),
 });

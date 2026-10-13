@@ -20,16 +20,6 @@ const mockDatePickerValue = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/shift-api", () => ({
-  ShiftApiError: class ShiftApiError extends Error {
-    readonly status: number;
-    readonly detail: string;
-
-    constructor(status: number, detail: string) {
-      super(detail);
-      this.status = status;
-      this.detail = detail;
-    }
-  },
   staffShiftService: {
     createShift: vi.fn(),
     updateShift: (...args: unknown[]) => updateShift(...args) as unknown,

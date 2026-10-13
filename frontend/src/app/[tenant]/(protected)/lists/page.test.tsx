@@ -50,7 +50,6 @@ vi.mock("~/lib/slot-lists-api", async (importOriginal) => ({
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import {
-  SlotListExportError,
   SlotListExportSupersededError,
   type SlotListOptionsResult,
   type SlotListResult,
@@ -199,12 +198,10 @@ describe("SlotListsPage error paths (#2516)", () => {
 
   it("reports a failed export as a toast whose retry exports again", async () => {
     mocks.exportSlotList.mockRejectedValueOnce(
-      new SlotListExportError(
-        new ApiError("render failed", 500, {
-          code: "general.server",
-          instance: "req-export",
-        }),
-      ),
+      new ApiError("render failed", 500, {
+        code: "general.server",
+        instance: "req-export",
+      }),
     );
 
     render(<SlotListsPage />);
@@ -235,9 +232,9 @@ describe("SlotListsPage error paths (#2516)", () => {
 
   it("asks for a re-check after the backend's 409 drift refusal and reloads the preview", async () => {
     mocks.exportSlotList.mockRejectedValueOnce(
-      new SlotListExportError(
-        new ApiError("Die Liste hat sich seit der Vorschau geändert.", 409),
-      ),
+      new ApiError("list drifted since preview", 409, {
+        code: "timetable.slot_list_drifted",
+      }),
     );
 
     render(<SlotListsPage />);

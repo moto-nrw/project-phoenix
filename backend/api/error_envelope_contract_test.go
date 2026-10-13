@@ -54,7 +54,7 @@ func checkErrorEnvelopeOnEveryRoute(t *testing.T, apiInstance *serveGraph) {
 			continue
 		}
 		failures++
-		problems := routetest.ProblemEnvelopeViolations(rec.Body.Bytes(), true)
+		problems := routetest.ProblemEnvelopeViolations(rec.Body.Bytes(), rec.Code, true)
 		if contentType := rec.Header().Get("Content-Type"); contentType != "application/problem+json" {
 			problems = append(problems, "content type "+contentType)
 		}

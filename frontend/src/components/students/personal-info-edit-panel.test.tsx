@@ -410,16 +410,11 @@ describe("PersonalInfoEditPanel", () => {
     // save-failed toast would leave that instruction unread and the user with
     // no way to resolve the refusal.
     it("names the Laufgemeinschaft when a link would strand the other child", async () => {
-      const { CompanionDepartureRefusedError } = await import("~/lib/api");
+      const { ApiError } = await import("~/lib/api-error");
       mockOnSave.mockRejectedValue(
-        new CompanionDepartureRefusedError(
-          JSON.stringify({
-            status: "error",
-            error:
-              "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
-            code: "students.companion_would_lose_departure",
-          }),
-        ),
+        new ApiError("removing the link would strand a linked companion", 400, {
+          code: "students.companion_would_lose_departure",
+        }),
       );
 
       render(

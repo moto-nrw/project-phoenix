@@ -206,7 +206,7 @@ func (rs *DemoResource) resetAccess(w http.ResponseWriter, r *http.Request) {
 // branches on.
 func demoError(status int, code string) func(error) render.Renderer {
 	return func(err error) render.Renderer {
-		return &common.ErrResponse{Err: err, HTTPStatusCode: status, Status: "error", ErrorText: err.Error(), Code: code}
+		return &common.ErrResponse{Err: err, HTTPStatusCode: status, Detail: err.Error(), Code: code}
 	}
 }
 

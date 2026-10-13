@@ -11,27 +11,14 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
+import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
 const mockTrackTenantEvent = vi.fn();
-const { mockLoginWithPasskey, mockIsPasskeySupported, MockPasskeyApiError } =
-  vi.hoisted(() => {
-    class MockPasskeyApiError extends Error {
-      constructor(
-        public status: number,
-        message: string,
-        public code?: string,
-      ) {
-        super(message);
-      }
-    }
-
-    return {
-      mockLoginWithPasskey: vi.fn(),
-      mockIsPasskeySupported: vi.fn(() => false),
-      MockPasskeyApiError,
-    };
-  });
+const { mockLoginWithPasskey, mockIsPasskeySupported } = vi.hoisted(() => ({
+  mockLoginWithPasskey: vi.fn(),
+  mockIsPasskeySupported: vi.fn(() => false),
+}));
 
 vi.mock("~/lib/analytics", () => ({
   trackTenantEvent: (...args: unknown[]) => mockTrackTenantEvent(...args),
@@ -144,7 +131,6 @@ vi.mock("~/lib/passkey-api", () => ({
   isPasskeySupported: () => mockIsPasskeySupported(),
   isPasskeyCeremonyIncompleteError: () => false,
   loginWithPasskey: (...args: unknown[]) => mockLoginWithPasskey(...args),
-  PasskeyApiError: MockPasskeyApiError,
 }));
 
 // Mock next/image
@@ -750,10 +736,10 @@ describe("HomePage (Login)", () => {
   it("sends a Lehrkraft-only passkey login to moto schule", async () => {
     mockIsPasskeySupported.mockReturnValueOnce(true);
     mockLoginWithPasskey.mockRejectedValueOnce(
-      new MockPasskeyApiError(
-        403,
+      new ApiError(
         "school portal accounts must log in at the school portal",
-        "identity.use_school_portal",
+        403,
+        { code: "identity.use_school_portal" },
       ),
     );
     render(<HomePage />);
