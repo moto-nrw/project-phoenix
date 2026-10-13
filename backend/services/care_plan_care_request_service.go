@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // German pill texts. The staff portal renders these directly; the parents
@@ -130,6 +129,10 @@ type careScheduleRequestService struct {
 	shareVisibility communicationCompose.ParentShareVisibilityResolver
 	events          *parentRequestLedger
 	today           func() timezone.Date
+
+	// tenant reads the ambient school and schedules the effects that run
+	// after its transaction commits.
+	tenant compose.TenantHooks
 
 	// requests holds the native request capabilities, bound once at construction.
 	requests requestCapabilities
@@ -375,10 +378,10 @@ func newCareDecisionState(req *carerequests.Request, approve bool, reason string
 
 func (s *careScheduleRequestService) registerCareDecisionEffects(ctx context.Context, req *carerequests.Request, input carerequests.DecideInput, state careDecisionState, companionsChanged bool) error {
 	if input.Approve {
-		tenant.RegisterAfterCommit(ctx, func() { s.recordApplyAudit(req, input.ReviewedBy) })
+		s.tenant.AfterCommit(ctx, func() { s.recordApplyAudit(req, input.ReviewedBy) })
 		s.broadcastCareScheduleChanges(ctx, req.TenantID, req.StudentID, companionsChanged)
 	} else {
-		tenant.RegisterAfterCommit(ctx, func() {
+		s.tenant.AfterCommit(ctx, func() {
 			s.logger.Info("care request rejected",
 				"request_id", req.ID,
 				"student_id", req.StudentID,
@@ -482,7 +485,7 @@ func (s *careScheduleRequestService) emitRequestPillAfterCommit(ctx context.Cont
 	}
 	tenantID := req.TenantID
 	if tenantID <= 0 {
-		tenantID = tenant.FromContext(ctx)
+		tenantID = s.tenant.TenantID(ctx)
 	}
 	refID := req.ID
 	ev.RefTable = "schedule.care_schedule_change_requests"
@@ -492,7 +495,7 @@ func (s *careScheduleRequestService) emitRequestPillAfterCommit(ctx context.Cont
 	if err := s.emitter.EnqueueRequestDecision(ctx, tenantID, studentID, guardianAccountID, ev); err != nil {
 		return fmt.Errorf("schedule: enqueue care request decision: %w", err)
 	}
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.tenant.AfterCommit(ctx, func() {
 		s.emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, ev)
 	})
 	return nil
@@ -513,10 +516,10 @@ func (s *careScheduleRequestService) wakeGuardiansAfterCommit(ctx context.Contex
 	}
 	tenantID := req.TenantID
 	if tenantID <= 0 {
-		tenantID = tenant.FromContext(ctx)
+		tenantID = s.tenant.TenantID(ctx)
 	}
 	studentID := req.StudentID
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.tenant.AfterCommit(ctx, func() {
 		s.emitter.BroadcastChildUpdateToGuardians(tenantID, studentID)
 	})
 }
@@ -532,7 +535,7 @@ func (s *careScheduleRequestService) broadcastCareScheduleChanges(ctx context.Co
 	if s.broadcaster == nil {
 		return
 	}
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.tenant.AfterCommit(ctx, func() {
 		source := "parent_request"
 		studentEvent := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{Source: &source})
 		if err := s.broadcaster.BroadcastToTenant(tenantID, studentEvent); err != nil {
@@ -674,7 +677,7 @@ func (s *careScheduleRequestService) notifyOtherGuardiansAfterCommit(
 	}
 	tenantID := req.TenantID
 	if tenantID <= 0 {
-		tenantID = tenant.FromContext(ctx)
+		tenantID = s.tenant.TenantID(ctx)
 	}
 	neutral := ev
 	neutral.Body = careCoGuardianNoticeBody(req)
@@ -682,7 +685,7 @@ func (s *careScheduleRequestService) notifyOtherGuardiansAfterCommit(
 	// no requested time, no previous time (#3135).
 	neutral.Payload = nil
 	studentID := req.StudentID
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.tenant.AfterCommit(ctx, func() {
 		s.emitter.EmitDecisionAudience(tenantID, studentID, audience, ev, neutral)
 	})
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
@@ -15,7 +16,6 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // callerSettings resolves the tenant settings the caller context reads: the
@@ -100,7 +100,7 @@ func (p callerPeople) FindPersonByAccount(ctx context.Context, accountID int64) 
 
 func (p callerPeople) CreatePerson(ctx context.Context, accountID int64, firstName, lastName string) error {
 	person := &userModels.Person{AccountID: &accountID, FirstName: firstName, LastName: lastName}
-	person.SetTenantID(tenant.FromContext(ctx))
+	person.SetTenantID(peopleCompose.CallerTenantID(ctx))
 	return p.persons.Create(ctx, person)
 }
 
