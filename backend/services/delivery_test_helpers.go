@@ -59,7 +59,7 @@ func NewPushSubscriptionTestService(db *bun.DB, unit tenant.UnitOfWork, vapid no
 		return nil, err
 	}
 	service := notifications.NewPushSubscriptionService(db, deliveryCompose.NewPushSubscriptionRepository(db), identity, vapid, slog.Default())
-	service.(tenantRuntimeSetter).SetTenantRuntime(unit)
+	service.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
 	return service, nil
 }
 
@@ -104,11 +104,11 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 	service := notifications.NewServiceWithDeliveryObserver(settings.Settings, logger, func(string, string, string, time.Duration, error) {},
 		notifications.NewSSEChannel(deliveryCompose.NewRealtimeHub(logger), notifications.WithGuardianChildAccess(db, parents.StudentGuardian, logger)),
 		notifications.NewDurableWebPushChannel(db, pushRepo, vapid, deliveryCompose.NewDurablePushOutbox(delivery.Module), logger))
-	service.(tenantRuntimeSetter).SetTenantRuntime(unit)
+	service.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
 	push := notifications.NewPushSubscriptionService(db, pushRepo, members, vapid, logger)
-	push.(tenantRuntimeSetter).SetTenantRuntime(unit)
+	push.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
 	preferences := notifications.NewPreferenceService(NewNotificationConsentTestStore(db), settings.Settings, db, members)
-	preferences.(tenantRuntimeSetter).SetTenantRuntime(unit)
+	preferences.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
 	return DeliveryTestModule{Delivery: delivery.Module, EmailOutbox: emailoutbox.NewService(durableEmailAdapter{module: delivery.Module}),
 		Notifications: service, PushSubscriptions: push, NotificationPreferences: preferences}, nil
 }

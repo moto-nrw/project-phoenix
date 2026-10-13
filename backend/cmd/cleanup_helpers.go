@@ -152,12 +152,7 @@ func (root cleanupRoot) newContext() (*cleanupContext, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	tenantRuntime, err := services.BindTenantRuntime(
-		postgresRuntime.WithinTenant,
-		postgresRuntime.WithinAdmin,
-		postgresRuntime,
-		database.IsRetryableTransactionError,
-	)
+	tenantRuntime, err := api.BindTenantRuntime(postgresRuntime, database.IsRetryableTransactionError)
 	if err != nil {
 		_ = db.Close()
 		return nil, err

@@ -760,17 +760,12 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, t
 	defer func() {
 		resultErr = errors.Join(resultErr, buildResources.close())
 	}()
-	db.AddQueryHook(database.NewLockWaitQueryHook(services.ObserveUnitOfWorkLockWait)) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
-	postgresUnitOfWork, err := database.NewPostgresUnitOfWork(db, services.ObserveUnitOfWorkPoolWait)
+	db.AddQueryHook(database.NewLockWaitQueryHook(apiCommon.ObserveUnitOfWorkLockWait)) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
+	postgresUnitOfWork, err := database.NewPostgresUnitOfWork(db, apiCommon.ObserveUnitOfWorkPoolWait)
 	if err != nil {
 		return nil, workerReads{}, nil, err
 	}
-	tenantRuntime, err := services.BindTenantRuntime(
-		postgresUnitOfWork.WithinTenant,
-		postgresUnitOfWork.WithinAdmin,
-		postgresUnitOfWork,
-		database.IsRetryableTransactionError,
-	)
+	tenantRuntime, err := BindTenantRuntime(postgresUnitOfWork, database.IsRetryableTransactionError)
 	if err != nil {
 		return nil, workerReads{}, nil, err
 	}

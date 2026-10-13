@@ -137,3 +137,7 @@ func (o ownerCapabilities) factory(factory *Factory, err error) (*Factory, error
 	o.bindCalendarAdministration(factory.SchoolCalendarAdministration())
 	return factory, nil
 }
+
+// unboundTenantRuntime is the zero unit of work the test factories compose
+// with before a suite binds its own.
+func unboundTenantRuntime() tenant.UnitOfWork { return tenant.UnitOfWork{} }

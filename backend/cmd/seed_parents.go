@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -119,8 +120,7 @@ func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password str
 	if err != nil {
 		return err
 	}
-	runtime, err := services.BindTenantRuntime(postgresRuntime.WithinTenant, postgresRuntime.WithinAdmin,
-		postgresRuntime, database.IsRetryableTransactionError)
+	runtime, err := api.BindTenantRuntime(postgresRuntime, database.IsRetryableTransactionError)
 	if err != nil {
 		return err
 	}

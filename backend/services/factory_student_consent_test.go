@@ -38,7 +38,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		db,
 		slog.Default(),
 		cfg,
-		TenantRuntime{},
+		unboundTenantRuntime(),
 		owners.organizations,
 		owners.persons,
 		owners.groups,

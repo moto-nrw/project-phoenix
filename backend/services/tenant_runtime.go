@@ -2,73 +2,19 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
-	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-func BindTenantRuntime(
-	withinTenant func(context.Context, int64, func(context.Context, any) error) error,
-	withinAdmin func(context.Context, func(context.Context, any) error) error,
-	savepoints tenant.SavepointController,
-	retryable func(error) bool,
-) (tenant.UnitOfWork, error) {
-	lockController, _ := savepoints.(interface {
-		AcquireLock(context.Context, string, bool) error
-	})
-	var acquireLock func(context.Context, string, bool) error
-	if lockController != nil {
-		acquireLock = lockController.AcquireLock
-	}
-	runtime, err := tenant.NewUnitOfWork(
-		withinTenant,
-		withinAdmin,
-		tenant.SavepointFunc(savepoints),
-		retryable,
-		acquireLock,
-	)
-	if err != nil {
-		return tenant.UnitOfWork{}, err
-	}
-	if detacher, ok := savepoints.(interface {
-		ContextWithoutTransaction(context.Context) context.Context
-	}); ok {
-		runtime = runtime.WithTransactionDetacher(detacher.ContextWithoutTransaction)
-	}
-	if adapter, ok := savepoints.(interface {
-		ContextWithTenant(context.Context, int64) context.Context
-		ContextWithTransaction(context.Context, any) context.Context
-	}); ok {
-		runtime = runtime.WithContextAdapters(adapter.ContextWithTenant, adapter.ContextWithTransaction)
-	}
-	runtime = runtime.WithTransactionDetacher(func(ctx context.Context) context.Context {
-		return auditModels.WithTransaction(ctx, nil)
-	})
-	runtime = runtime.WithContextAdapters(auditModels.WithTenantID, auditModels.WithTransaction)
-	return runtime, nil
-}
-
-// ObserveUnitOfWorkPoolWait bridges the PostgreSQL adapter to the transaction
-// observer without exposing the tenant package to composition callers.
-func ObserveUnitOfWorkPoolWait(ctx context.Context, duration time.Duration) {
-	tenant.ObservePoolWait(ctx, duration)
-}
-
-func ObserveUnitOfWorkLockWait(ctx context.Context, duration time.Duration) {
-	tenant.ObserveLockWait(ctx, duration)
-}
-
-// TenantRuntime is the unit of work composed services run tenant work under.
-// Package-local callers name it through this alias so composition tests stay
-// free of the runtime package.
-type TenantRuntime = tenant.UnitOfWork
-
-type tenantRuntimeSetter interface {
-	SetTenantRuntime(tenant.UnitOfWork)
+// AuditTransactionContext names the Audit handoff the root's tenant runtime
+// attaches its tenant and transaction to, so audit appends join the unit of
+// work they record.
+func AuditTransactionContext() (func(context.Context, int64) context.Context, func(context.Context, any) context.Context) {
+	return auditModels.WithTenantID, auditModels.WithTransaction
 }
 
 // tenantRuntimeBinder is the shape a composed module exposes when its own
@@ -79,31 +25,54 @@ type tenantRuntimeBinder interface {
 	SetTenantRuntime(any) error
 }
 
-// SetTenantRuntime wires the runtime into every composed service that accepts
-// one. Fields are discovered by reflection so a new service with a
-// SetTenantRuntime method cannot be forgotten in a hand-maintained list.
-func (f *Factory) SetTenantRuntime(runtime tenant.UnitOfWork) error {
+// SetTenantRuntime wires the root's unit of work into every composed service
+// that accepts one. Fields are discovered by reflection so a new service with
+// a SetTenantRuntime method cannot be forgotten in a hand-maintained list. A
+// service whose SetTenantRuntime takes the unit of work's own type receives
+// it as such; one that takes an opaque value checks it itself (#3364).
+func (f *Factory) SetTenantRuntime(runtime any) error {
+	if runtime == nil {
+		return errors.New("bind tenant runtime: no unit of work given")
+	}
 	if setter, ok := f.Settings.(interface {
 		SetRuntime(settingsCompose.SettingsRuntime)
 	}); ok {
-		setter.SetRuntime(settingsCompose.NewTenantSettingsRuntime(f.settingsRuntimeDB, &runtime))
+		settingsRuntime, err := settingsCompose.BindTenantSettingsRuntime(f.settingsRuntimeDB, runtime)
+		if err != nil {
+			return fmt.Errorf("bind tenant runtime into Settings: %w", err)
+		}
+		setter.SetRuntime(settingsRuntime)
 	}
+	value := reflect.ValueOf(runtime)
 	fields := reflect.ValueOf(f).Elem()
 	for i := 0; i < fields.NumField(); i++ {
 		field := fields.Field(i)
 		if !field.CanInterface() || isNilValue(field) {
 			continue
 		}
-		switch setter := field.Interface().(type) {
-		case tenantRuntimeSetter:
-			setter.SetTenantRuntime(runtime)
-		case tenantRuntimeBinder:
-			if err := setter.SetTenantRuntime(runtime); err != nil {
+		if binder, ok := field.Interface().(tenantRuntimeBinder); ok {
+			if err := binder.SetTenantRuntime(runtime); err != nil {
 				return fmt.Errorf("bind tenant runtime into %s: %w", fields.Type().Field(i).Name, err)
 			}
+			continue
 		}
+		setTypedTenantRuntime(field, value)
 	}
 	return nil
+}
+
+// setTypedTenantRuntime calls field's SetTenantRuntime when it takes exactly
+// the unit of work's type and returns nothing.
+func setTypedTenantRuntime(field, runtime reflect.Value) {
+	method := field.MethodByName("SetTenantRuntime")
+	if !method.IsValid() {
+		return
+	}
+	signature := method.Type()
+	if signature.NumIn() != 1 || signature.NumOut() != 0 || signature.In(0) != runtime.Type() {
+		return
+	}
+	method.Call([]reflect.Value{runtime})
 }
 
 // isNilValue treats an interface holding a nil pointer as nil, matching the
