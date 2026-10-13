@@ -124,10 +124,6 @@ func NewPartialAbsencePreview(db *bun.DB) timetableCompose.PartialAbsencePreview
 	return newPartialAbsencePreview(mustPresenceReads(db), peopleCompose.MustNewReads(db), exceptions)
 }
 
-// NewPresenceReads exposes the joined block, roster and attendance reads of
-// the Timetable compose (#2762) to the retained services and their tests.
-func NewPresenceReads(db *bun.DB) timetableCompose.PresenceReads { return mustPresenceReads(db) }
-
 // NewPickupReviewBlocks previews the blocks a pickup change under review
 // would excuse over the joined presence reads of the database.
 func NewPickupReviewBlocks(db *bun.DB) carePlanCompose.PickupReviewBlocks {

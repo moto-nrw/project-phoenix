@@ -6,11 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -21,8 +17,6 @@ import (
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	platform "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -48,12 +42,6 @@ func NewOrganizationTenancy(db *bun.DB) (organizationtenancy.Capability, error) 
 // record operator actions.
 func NewOperatorAuditLog(db *bun.DB) platform.OperatorAuditLogRepository {
 	return newOperatorAuditLog(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).OperatorAuditLog)
-}
-
-// NewCalendarReminderCommand binds the existing notification adapters to the
-// reminder workflow without constructing a repository or service factory.
-func NewCalendarReminderCommand(db *bun.DB, source CalendarReminderSource) reminder.Command {
-	return reminderCompose.NewCommand(db, calendarReminderDelivery(source))
 }
 
 // DemoAccessExpiry is the Identity & Access capability the demo process runs
@@ -128,25 +116,4 @@ func NewDeviceFleet(db *bun.DB, onlineWindows ...func(context.Context) time.Dura
 		OnlineWindow: onlineWindow,
 		Observe:      func(devicefleetCompose.Observation) {},
 	})
-}
-
-// NewFacilities composes the unobserved room owner for the test and CLI
-// compositions that reach Facilities through the legacy composition.
-func NewFacilities(db *bun.DB) (facilitiesModule.Capability, error) {
-	return facilitiesCompose.NewUnobserved(db)
-}
-
-// NewManualPlanningQuery forwards to Enrollment's manual-planning query for
-// the Care Plan contract suites, which may not import Enrollment's
-// composition; the legacy composition calls the owner directly.
-func NewManualPlanningQuery(db *bun.DB) *enrollmentCompose.ManualPlanningQuery {
-	return enrollmentCompose.NewManualPlanningQuery(db)
-}
-
-// NewSickCascadeTimetableRows binds the sick cascade's Betreuungsplan rows to
-// the retained repositories and its day lock to the day-wide staffing lock
-// the Timetable owner's staffing writes take (#1840, #3551). The
-// shift-plan-sync workflow tests compose the cascade with it too.
-func NewSickCascadeTimetableRows(rows timetableCompose.OwnerRows, db *bun.DB) shiftplansyncCompose.TimetableRows {
-	return rows.SickCascadeRows(timetableCompose.SubstituteDayLock(db))
 }

@@ -95,11 +95,6 @@ func (a TokenAdapter) Caller(ctx context.Context) identityaccess.Caller {
 	}
 }
 
-// accountID returns the acting account of the request.
-func (a TokenAdapter) accountID(ctx context.Context) int64 {
-	return a.claims(ctx).AccountID
-}
-
 // auditActor returns the acting account of the request and the name the
 // audit records it under.
 func (a TokenAdapter) auditActor(ctx context.Context) (int64, string) {
