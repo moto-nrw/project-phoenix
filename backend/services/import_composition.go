@@ -1,7 +1,6 @@
 package services
 
 import (
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -17,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // importWiring is everything the Data Import needs (#2708): the owner

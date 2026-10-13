@@ -3,10 +3,10 @@ package services
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // registerCareWithdrawalSettingsSideEffects applies the booking-led care

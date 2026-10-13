@@ -4,12 +4,12 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ExcusedRequestTestOptions builds the Care Plan excused-absence workflow

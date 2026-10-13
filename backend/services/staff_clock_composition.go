@@ -3,10 +3,10 @@ package services
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
 )
 

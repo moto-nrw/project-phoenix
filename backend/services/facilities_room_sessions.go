@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func facilitiesGroupSupervisions(presence interface {

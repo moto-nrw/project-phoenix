@@ -4,9 +4,9 @@ import (
 	"context"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type timeTrackingAuditReader struct {

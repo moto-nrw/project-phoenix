@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -12,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type statisticsAuditLog struct {

@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type requestSubmissionAdapter struct{ s *careScheduleRequestService }
