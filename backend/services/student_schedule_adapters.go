@@ -9,45 +9,18 @@ import (
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
-// StudentScheduleRepositories contains the Care Plan compatibility adapters
-// still consumed by legacy schedule services.
-type StudentScheduleRepositories struct {
-	ArrivalSchedule  timetableCompose.CareArrivalScheduleRows
-	ArrivalException timetableCompose.CareArrivalExceptionRows
-	ArrivalNote      timetableCompose.CareArrivalNoteRows
-	PickupSchedule   timetableCompose.CarePickupScheduleRows
-	PickupException  timetableCompose.CarePickupExceptionRows
-	PickupNote       timetableCompose.CarePickupNoteRows
-	StatusDay        *StudentStatusDayRepository
-}
-
-// CareScheduleRepositories are the retained schedule repositories served by
-// the Care Plan owner.
-type CareScheduleRepositories = timetableCompose.CareScheduleRepositories
-
-// NewCareScheduleRepositories builds the retained schedule repositories over
-// the Care Plan capability.
-func NewCareScheduleRepositories(capability careplan.Capability) CareScheduleRepositories {
-	return timetableCompose.NewCareScheduleRepositories(NewCarePlanRows(capability))
-}
-
 func NewArrivalScheduleRepository(capability careplan.Capability) timetableCompose.CareArrivalScheduleRows {
 	return timetableCompose.NewCareArrivalScheduleRows(NewCarePlanRows(capability))
 }
 func NewArrivalExceptionRepository(capability careplan.Capability) timetableCompose.CareArrivalExceptionRows {
 	return timetableCompose.NewCareArrivalExceptionRows(NewCarePlanRows(capability))
 }
-func NewArrivalNoteRepository(capability careplan.Capability) timetableCompose.CareArrivalNoteRows {
-	return timetableCompose.NewCareArrivalNoteRows(NewCarePlanRows(capability))
-}
+
 func NewPickupScheduleRepository(capability careplan.Capability) timetableCompose.CarePickupScheduleRows {
 	return timetableCompose.NewCarePickupScheduleRows(NewCarePlanRows(capability))
 }
 func NewPickupExceptionRepository(capability careplan.Capability) timetableCompose.CarePickupExceptionRows {
 	return timetableCompose.NewCarePickupExceptionRows(NewCarePlanRows(capability))
-}
-func NewPickupNoteRepository(capability careplan.Capability) timetableCompose.CarePickupNoteRows {
-	return timetableCompose.NewCarePickupNoteRows(NewCarePlanRows(capability))
 }
 
 func legacyScheduleID(raw any) (int64, error) {

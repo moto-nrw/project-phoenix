@@ -8,8 +8,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/uptrace/bun"
 )
 
 // This file is the composition seam of the consent story (#3349): People
@@ -17,12 +15,6 @@ import (
 // shared portal projection, Audit Platform owns audit.student_consent_changes
 // and every entry appended to it. The retained services still pass
 // users.Student rows around, so the translation lives here.
-
-// NewStudentConsentHistory binds the Audit Platform consent trail behind the
-// People Directory projection seam.
-func NewStudentConsentHistory(db *bun.DB) peopleCompose.StudentConsentHistory {
-	return studentConsentHistory{repo: peopleDirectoryAudit(db).StudentConsentChange}
-}
 
 type studentConsentHistory struct {
 	repo auditModels.StudentConsentChangeRepository

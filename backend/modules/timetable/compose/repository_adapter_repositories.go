@@ -83,17 +83,6 @@ func NewActivityGroupRecords(capability timetable.Capability) activities.GroupRe
 	return timetableActivityGroupRepository{timetable: capability}
 }
 
-// InstanceReads are the block reads of the Workforce planning and the
-// shift-plan-sync workflow, in the owner's public vocabulary.
-func (r Repositories) InstanceReads() TimetableInstanceReads {
-	return NewTimetableInstanceReads(r.ActivityInstance)
-}
-
-// InstanceStaffReads are the staffing reads of the same consumers.
-func (r Repositories) InstanceStaffReads() TimetableInstanceStaffReads {
-	return NewTimetableInstanceStaffReads(r.InstanceStaff)
-}
-
 // GroupReads are the template reads of the same consumers.
 func (r Repositories) GroupReads() TimetableGroupReads {
 	return NewTimetableGroupReads(r.ActivityGroup)

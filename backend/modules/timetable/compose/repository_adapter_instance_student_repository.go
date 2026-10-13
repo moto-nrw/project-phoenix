@@ -36,13 +36,6 @@ type timetableInstanceStudentRepository struct {
 	presence  participantPresence
 }
 
-// NewInstanceStudentRepository serves the retained participant repository
-// over the Timetable owner and Student Presence; preview answers the partial
-// absence blocks a pickup change excuses.
-func NewInstanceStudentRepository(db *bun.DB, capability timetable.InstanceStudentCapability, presence participantPresence, preview PartialAbsences) scheduleModels.InstanceStudentRepository {
-	return newTimetableInstanceStudentRepository(db, capability, presence, preview)
-}
-
 func newTimetableInstanceStudentRepository(db *bun.DB, capability timetable.InstanceStudentCapability, presence participantPresence, preview PartialAbsences) timetableInstanceStudentRepository {
 	if db == nil || capability == nil || presence == nil || preview == nil {
 		panic("timetable instance student repository: database, timetable, student presence and partial absence preview are required")

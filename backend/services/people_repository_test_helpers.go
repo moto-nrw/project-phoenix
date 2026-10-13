@@ -195,11 +195,6 @@ func NewPeopleRepositorySuitePeople(db *bun.DB) peopledirectory.Capability {
 	return MustNewPeopleDirectory(db)
 }
 
-// NewPeopleRepositorySuiteSchoolStructure is the School Structure owner.
-func NewPeopleRepositorySuiteSchoolStructure(db *bun.DB) (schoolstructure.Capability, error) {
-	return NewSchoolStructure(db)
-}
-
 // NewPeopleRepositorySuiteCareLifecycle composes the care lifecycle; a nil
 // command records into the test audit store.
 func NewPeopleRepositorySuiteCareLifecycle(db *bun.DB, command auditModels.Command) (CareLifecycleTestRepositories, error) {
@@ -333,4 +328,18 @@ func NewRepositoryTestFactory(db *bun.DB, deps TimetableDependencies, clocks ...
 // suites that handle a composition error.
 func NewRepositoryTestFactoryWithPeopleDirectory(db *bun.DB, deps TimetableDependencies, clocks ...func() time.Time) (*RepositoryTestFactory, error) {
 	return newPeopleRepositorySuiteFactory(db, deps, clocks...), nil
+}
+
+// NewUnboundStudentRepository is the retained student repository without the
+// School Membership teacher assignments and the School Structure group names:
+// the teacher-scoped roster reads fail closed. Repository suites that only
+// read and write the child's row use it.
+func NewUnboundStudentRepository(db *bun.DB) usersModels.StudentRepository {
+	enrollment, err := NewSchoolMembership(db)
+	if err != nil {
+		panic(fmt.Sprintf("student repository: compose membership: %v", err))
+	}
+	return peopleCompose.NewStudentRepository(peopleCompose.StudentRepositoryDependencies{
+		DB: db, Directory: MustNewPeopleDirectory(db), Enrollment: enrollment,
+	})
 }

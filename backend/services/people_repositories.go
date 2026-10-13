@@ -102,20 +102,6 @@ func NewStudentRepository(db *bun.DB, membership groupAssignmentLister, groups s
 	return overlappingRosterGroupNames{StudentRepository: groupStudentRepository{StudentRepository: repository, groups: groups}, groups: groups}
 }
 
-// NewUnboundStudentRepository is the retained student repository without the
-// School Membership teacher assignments and the School Structure group names:
-// the teacher-scoped roster reads fail closed. Repository suites that only
-// read and write the child's row use it.
-func NewUnboundStudentRepository(db *bun.DB) userModels.StudentRepository {
-	enrollment, err := NewSchoolMembership(db)
-	if err != nil {
-		panic(fmt.Sprintf("student repository: compose membership: %v", err))
-	}
-	return peopleCompose.NewStudentRepository(peopleCompose.StudentRepositoryDependencies{
-		DB: db, Directory: MustNewPeopleDirectory(db), Enrollment: enrollment,
-	})
-}
-
 // groupAssignmentLister is the School Membership teacher-assignment read the
 // student roster resolves teacher groups through.
 type groupAssignmentLister interface {

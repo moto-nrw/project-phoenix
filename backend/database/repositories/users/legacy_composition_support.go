@@ -37,18 +37,6 @@ func WrapError(op string, err error) error {
 	return &usersModels.DatabaseError{Op: op, Err: err}
 }
 
-// IsNotFound reports whether err is a repository not-found error.
-func IsNotFound(err error) bool { return usersModels.IsRepositoryNoRows(err) }
-
-// CalendarDateString renders an optional calendar date as YYYY-MM-DD, empty
-// when unset.
-func CalendarDateString(value *calendar.Date) string {
-	if value == nil || value.IsZero() {
-		return ""
-	}
-	return value.String()
-}
-
 // ParseCalendarDate parses a YYYY-MM-DD value; an empty or malformed value
 // yields nil, which is how the legacy models spell "no date".
 func ParseCalendarDate(value string) *calendar.Date {
@@ -60,16 +48,4 @@ func ParseCalendarDate(value string) *calendar.Date {
 		return nil
 	}
 	return &parsed
-}
-
-// TodayCalendarDate is today in Berlin as YYYY-MM-DD.
-func TodayCalendarDate() string { return calendar.TodayDate().String() }
-
-// IsUniqueViolation reports whether err is a PostgreSQL unique violation.
-func IsUniqueViolation(err error) bool { return usersModels.IsUniqueViolation(err) }
-
-// IsUniqueViolationOn reports whether err is a unique violation of the named
-// constraint or index.
-func IsUniqueViolationOn(err error, name string) bool {
-	return usersModels.IsUniqueViolationOn(err, name)
 }

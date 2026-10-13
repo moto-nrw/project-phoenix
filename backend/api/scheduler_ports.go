@@ -270,12 +270,6 @@ func callOnDay[D ~string, R any](call func(context.Context, D) (R, error), ctx c
 	return call(ctx, D(day))
 }
 
-// transitionStudentStatus passes stored status values to the retained
-// compare-and-set, whose status parameter is such a named string type.
-func transitionStudentStatus[S ~string](transition func(context.Context, int64, S, S) (bool, error), ctx context.Context, studentID int64, expected, next string) (bool, error) {
-	return transition(ctx, studentID, S(expected), S(next))
-}
-
 // recordStudentStatusChange passes stored status values to the retained
 // status audit.
 func recordStudentStatusChange[S ~string](record func(context.Context, int64, S, S) error, ctx context.Context, studentID int64, before, after string) error {

@@ -139,13 +139,6 @@ type peopleDirectoryAuditRepositories struct {
 	StudentConsentChange auditModels.StudentConsentChangeRepository
 }
 
-// NewStudentNoteDeletionAudit binds the Audit Platform deletion ledger behind
-// the People Directory note command. The append uses the ambient tenant
-// transaction, so missing evidence rolls the note's soft deletion back.
-func NewStudentNoteDeletionAudit(db *bun.DB) peopleCompose.StudentNoteDeletionAudit {
-	return studentNoteDeletionAudit{repo: peopleDirectoryAudit(db).DataDeletion}
-}
-
 type studentNoteDeletionAudit struct {
 	repo auditModels.DataDeletionRepository
 }
@@ -169,14 +162,6 @@ func (a studentNoteDeletionAudit) RecordLegacyStudentNoteDeletion(
 	record.SetMetadata("student_note_id", noteID)
 	record.SetMetadata("source", "supervisor_notes")
 	return a.repo.Create(ctx, record)
-}
-
-// NewStudentFieldAuditLog binds the Audit Platform trail behind the People
-// Directory change-history seam. Audit Platform owns
-// audit.student_field_edits; this is the composition seam that hands the
-// directory an append and a read of it.
-func NewStudentFieldAuditLog(db *bun.DB) peopleCompose.StudentFieldAuditLog {
-	return studentFieldAuditLog{repo: peopleDirectoryAudit(db).StudentFieldEdit}
 }
 
 type studentFieldAuditLog struct {
