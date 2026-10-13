@@ -645,13 +645,9 @@ describe("createCrudService", () => {
       expect(caught).toBeInstanceOf(Error);
       expect(caught.status).toBe(409);
       expect(caught.body).toBe(conflictBody);
-      // The message is the envelope's diagnostic `detail`; the body is
-      // additive.
-      expect(caught.message).toBe(
-        "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
-      );
-      // ...and it is precisely why the body is needed: the structured part of
-      // the answer never survives into the message.
+      // The message stays a safe fallback; the raw body is retained for the
+      // caller's diagnostic handling.
+      expect(caught.message).toBe("API error: 409");
       expect(caught.message).not.toContain("conflicts");
     });
 
