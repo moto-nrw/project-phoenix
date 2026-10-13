@@ -23,6 +23,32 @@ describe("forwardBackendResponse", () => {
     expect(await response.text()).toBe(body);
   });
 
+  it("replaces a backend 5xx body with a safe problem envelope", async () => {
+    const response = forwardBackendResponse(
+      new Response(
+        JSON.stringify({
+          detail: "database at db.internal refused the connection",
+          code: "general.server",
+          details: { host: "db.internal" },
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/problem+json" },
+        },
+      ),
+    );
+
+    expect(response.status).toBe(500);
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
+    expect(body).not.toContain("db.internal");
+    expect(body).not.toContain("refused the connection");
+  });
+
   it("keeps a no-content response bodyless", async () => {
     const response = forwardBackendResponse(
       new Response(null, { status: 204 }),
