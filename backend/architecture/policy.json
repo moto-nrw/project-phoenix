@@ -5277,7 +5277,8 @@
       "source_owner": "legacy-composition",
       "source_role": "compose",
       "target_owner": "document-rendering",
-      "target_role": "contract"
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
     },
     {
       "id": "legacy-composition.to.transaction-runtime-public",
@@ -5288,7 +5289,8 @@
       "source_owner": "legacy-composition",
       "source_role": "compose",
       "target_owner": "transaction-runtime",
-      "target_role": "public"
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
     },
     {
       "id": "request-review-view.compose.impact-token",
@@ -6166,7 +6168,8 @@
       "source_owner": "data-import",
       "source_role": "compose",
       "target_owner": "data-import",
-      "target_role": "application"
+      "target_role": "application",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
     },
     {
       "id": "data-import.compose.production.school-structure.public",
@@ -6439,7 +6442,8 @@
       "source_owner": "audit-platform",
       "source_role": "compose",
       "target_owner": "audit-platform",
-      "target_role": "application"
+      "target_role": "application",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
     },
     {
       "id": "audit-platform.compose.vocabulary-domain",
@@ -6450,7 +6454,8 @@
       "source_owner": "audit-platform",
       "source_role": "compose",
       "target_owner": "audit-platform",
-      "target_role": "domain"
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
     },
     {
       "id": "audit-platform.native-corrections.compose.postgres",
@@ -10074,7 +10079,8 @@
       "source_owner": "legacy-composition",
       "source_role": "compose",
       "target_owner": "staff-clock",
-      "target_role": "compose"
+      "target_role": "compose",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
     },
     {
       "id": "meal-plan.port-domain",
