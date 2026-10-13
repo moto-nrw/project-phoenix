@@ -140,6 +140,13 @@ export interface TenantInfo {
    * stop skipping the weekend. Missing metadata is off.
    */
   weekendFollowsFriday?: boolean;
+  /**
+   * Staff find children through „Alle Kinder" alone
+   * (operations.child_search_only_navigation, #1321): „Meine Gruppe" and
+   * „Aktuelle Aufsicht" leave the navigation and become tabs there. Missing
+   * metadata is off, which keeps the separate entries.
+   */
+  childSearchOnlyNavigation?: boolean;
 }
 
 /** Identity-only tenant row returned by list/switch endpoints. Feature and
@@ -187,6 +194,7 @@ interface TenantResolveResponse {
   early_checkout_note_enabled?: boolean;
   early_checkout_note_tolerance_minutes?: number;
   weekend_follows_friday?: boolean;
+  child_search_only_navigation?: boolean;
 }
 
 /**
@@ -340,6 +348,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
         data.early_checkout_note_tolerance_minutes,
       ),
       weekendFollowsFriday: data.weekend_follows_friday === true,
+      childSearchOnlyNavigation: data.child_search_only_navigation === true,
     };
   } catch {
     return null;

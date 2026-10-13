@@ -15,6 +15,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceLogEnabled,
+  useChildSearchOnlyNavigation,
   useStaffMessagingEnabled,
   useDisplayEnabled,
   useNFCEnabled,
@@ -733,6 +734,9 @@ function SidebarContent({
   // festen Gruppen sinnvoll; bei offener Betreuung arbeiten ohnehin alle
   // Berechtigten mit allen Kindern.
   const openCareGroupMode = useOpenCareGroupMode();
+  // Kinder nur über „Alle Kinder“ (#1321): Meine Gruppen und Aktuelle
+  // Aufsicht verlassen die Leiste und stehen dort als Reiter.
+  const childSearchOnlyNavigation = useChildSearchOnlyNavigation();
 
   // Die Adresse hinter dem Eintrag `Hilfe` ganz unten, mit dem Kontext der
   // Sitzung. Die mobile Navigation holt sie aus demselben Hook (#3575).
@@ -935,6 +939,16 @@ function SidebarContent({
       return href === operatorDrillInHref;
     }
     if (href === "/home") return pathname === "/home";
+    // Ohne eigene Einträge gehören Gruppen- und Aufsichtsseite zu „Alle
+    // Kinder“, von wo aus sie geöffnet werden (#1321).
+    if (
+      href === STAFF_FLAT_PAGES.studentSearch.href &&
+      childSearchOnlyNavigation &&
+      (pathname.startsWith("/ogs-groups") ||
+        pathname.startsWith("/active-supervisions"))
+    ) {
+      return true;
+    }
     if (href === "/parents") return pathname === "/parents" || pathname === "/";
     // Planungsseiten zählen mit ihren Alt-Pfaden (/timetables,
     // /staff/dienstplan, /vertretungsplan), damit ein alter Link die richtige
@@ -1497,7 +1511,7 @@ function SidebarContent({
   // (#2826). Meine Gruppen mit Weitere Gruppen darunter: tenant staff/admin,
   // hidden in open-care mode.
   const renderGroupsSection = () =>
-    showGroupAccordion && !openCareGroupMode ? (
+    showGroupAccordion && !openCareGroupMode && !childSearchOnlyNavigation ? (
       <>
         <SidebarAccordionSection
           icon={GROUP_NAV_ICON}
@@ -1628,7 +1642,7 @@ function SidebarContent({
   // supervision has no meaning without visits). Offene Räume darunter wie
   // "Weitere Gruppen" unter "Meine Gruppen" (#3065).
   const renderSupervisionsSection = () =>
-    showStaffAccordions && !isBinaryMode ? (
+    showStaffAccordions && !isBinaryMode && !childSearchOnlyNavigation ? (
       <>
         <SidebarAccordionSection
           icon={SUPERVISION_NAV_ICON}
