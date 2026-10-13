@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -70,7 +71,7 @@ func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModu
 		DB:                     db,
 		CalendarRenderer:       schoolCalendarRendererAdapter{renderer: schoolCalendar},
 		Outbox:                 delivery.EmailOutbox,
-		PushOutbox:             durablePushAdapter{module: delivery.Delivery},
+		PushOutbox:             deliveryCompose.NewDurablePushOutbox(delivery.Delivery),
 		Settings:               settings.Settings,
 		StaffFeedTombstoneRepo: feeds.Tombstone,
 		ParentsURL:             cfg.ParentsURL,

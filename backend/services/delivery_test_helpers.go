@@ -91,8 +91,8 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 	delivery, err := deliveryCompose.New(deliveryCompose.Dependencies{
 		DB: db, People: guardianDisplayResolver{query: guardians}, Observe: func(deliveryModule.Observation) {},
 		Provider: &deliveryProvider{registry: emailoutbox.NewTemplateRegistry(nil), mailer: email.NewMockMailer(), mailIdentity: identity,
-			push:   deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{Subscriber: vapid.Subscriber, PublicKey: vapid.PublicKey, PrivateKey: vapid.PrivateKey}, newExpiredPushSubscriptionCleaner(db, pushRepo)),
-			logger: logger, db: db, pushAuthorized: newPushAuthorizationChecker(db, pushRepo)},
+			push:   deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{Subscriber: vapid.Subscriber, PublicKey: vapid.PublicKey, PrivateKey: vapid.PrivateKey}, newExpiredPushSubscriptionCleaner(deliveryCompose.NewTenantTransactions(db), pushRepo)),
+			logger: logger, tenants: deliveryCompose.NewTenantTransactions(db), pushAuthorized: newPushAuthorizationChecker(deliveryCompose.NewTenantTransactions(db), pushRepo)},
 	})
 	if err != nil {
 		return DeliveryTestModule{}, err
@@ -103,7 +103,7 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 	}
 	service := notifications.NewServiceWithDeliveryObserver(settings.Settings, logger, func(string, string, string, time.Duration, error) {},
 		notifications.NewSSEChannel(deliveryCompose.NewRealtimeHub(logger), notifications.WithGuardianChildAccess(db, parents.StudentGuardian, logger)),
-		notifications.NewDurableWebPushChannel(db, pushRepo, vapid, durablePushAdapter{module: delivery.Module}, logger))
+		notifications.NewDurableWebPushChannel(db, pushRepo, vapid, deliveryCompose.NewDurablePushOutbox(delivery.Module), logger))
 	service.(tenantRuntimeSetter).SetTenantRuntime(unit)
 	push := notifications.NewPushSubscriptionService(db, pushRepo, members, vapid, logger)
 	push.(tenantRuntimeSetter).SetTenantRuntime(unit)

@@ -1792,9 +1792,9 @@ func newFactory(
 			registry: emailTemplateRegistry, mailer: mailer, mailIdentity: tenantMailIdentity,
 			push: deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{
 				Subscriber: vapidConfig.Subscriber, PublicKey: vapidConfig.PublicKey, PrivateKey: vapidConfig.PrivateKey,
-			}, newExpiredPushSubscriptionCleaner(db, pushSubscriptions)),
-			logger: logger.With("service", "delivery"), db: db,
-			pushAuthorized: newPushAuthorizationChecker(db, pushSubscriptions),
+			}, newExpiredPushSubscriptionCleaner(deliveryCompose.NewTenantTransactions(db), pushSubscriptions)),
+			logger: logger.With("service", "delivery"), tenants: deliveryCompose.NewTenantTransactions(db),
+			pushAuthorized: newPushAuthorizationChecker(deliveryCompose.NewTenantTransactions(db), pushSubscriptions),
 		},
 		Observe: func(observation deliveryModule.Observation) {
 			observeDurableDelivery(string(observation.Transport), observation.Template, observation.Operation, observation.Duration, observation.Count, observation.Err)
@@ -2384,7 +2384,7 @@ func newFactory(
 			db, studentGuardianRepository, logger.With("channel", "sse"))),
 		notifications.NewDurableWebPushChannel(
 			db, pushSubscriptions, vapidConfig,
-			durablePushAdapter{module: deliveryRuntime.Module}, logger.With("channel", "web_push"),
+			deliveryCompose.NewDurablePushOutbox(deliveryRuntime.Module), logger.With("channel", "web_push"),
 		),
 	)
 	notificationPreferencesService := notifications.NewPreferenceService(
@@ -2501,7 +2501,7 @@ func newFactory(
 		DB:                     db,
 		CalendarRenderer:       schoolCalendarRendererAdapter{renderer: calendar},
 		Outbox:                 emailOutboxService,
-		PushOutbox:             durablePushAdapter{module: deliveryRuntime.Module},
+		PushOutbox:             deliveryCompose.NewDurablePushOutbox(deliveryRuntime.Module),
 		Settings:               settingsService,
 		CalDAVPolicy:           calendarCalDAVPolicy{settings: settingsService},
 		StaffFeedTombstoneRepo: schoolCalendarCompose.NewFeedHistory(db),
@@ -2585,7 +2585,7 @@ func newFactory(
 		Repo:             parentPortal.ParentAnnouncement,
 		Settings:         settingsService,
 		Outbox:           emailOutboxService,
-		PushOutbox:       durablePushAdapter{module: deliveryRuntime.Module},
+		PushOutbox:       deliveryCompose.NewDurablePushOutbox(deliveryRuntime.Module),
 		Notifier:         notificationsService,
 		ReminderNotifier: notificationsService,
 		Preferences:      notificationPreferencesService,
