@@ -5,18 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	platform "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
-	"github.com/uptrace/bun"
 )
-
-// NewOperatorAuditLog composes the operator ledger over the Audit handoff on
-// the context, with the root database as the fallback, for the roots that
-// record operator actions.
-func NewOperatorAuditLog(db *bun.DB) platform.OperatorAuditLogRepository {
-	return newOperatorAuditLog(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).OperatorAuditLog)
-}
 
 // newOperatorAuditLog serves the retained operator audit-log contract over
 // the Audit owner's platform ledger (#2720), which the Audit composition

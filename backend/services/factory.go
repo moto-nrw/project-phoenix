@@ -2629,17 +2629,17 @@ func newFactory(
 	// Operator provisioning belongs to Organisation & Tenancy (#3253); the
 	// retained owners it touches are bound through its provisioning seams.
 	provisioningAdapters, err := NewOperatorProvisioningAdapters(OperatorProvisioningDependencies{
-		DB:           db,
-		Devices:      deviceFleet,
-		Persons:      persons,
-		Membership:   membership,
-		PersonRepo:   personRepository,
-		StaffRepo:    staffRepository,
-		Accounts:     identityAccess,
-		ActiveGroups: sessionRecords,
-		Supervisors:  groupSupervisions,
-		Categories:   arrivalTimetable.NewActivityCategorySeeder(timetableRepos.ActivityCategory),
-		AuditLog:     operatorAuditLog,
+		PersonStudents: peopleCompose.NewLegacyRepositoryRuntime(db),
+		Devices:        deviceFleet,
+		Persons:        persons,
+		Membership:     membership,
+		PersonRepo:     personRepository,
+		StaffRepo:      staffRepository,
+		Accounts:       identityAccess,
+		ActiveGroups:   sessionRecords,
+		Supervisors:    groupSupervisions,
+		Categories:     arrivalTimetable.NewActivityCategorySeeder(timetableRepos.ActivityCategory),
+		AuditLog:       operatorAuditLog,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose operator provisioning adapters: %w", err)

@@ -2,12 +2,9 @@ package services
 
 import (
 	"context"
-	"time"
 
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	"github.com/uptrace/bun"
 )
 
 // AnnouncementEnrollmentQueries is the Enrollment capability the parent
@@ -18,14 +15,14 @@ type AnnouncementEnrollmentQueries interface {
 	PendingAnnouncementApplicantsForSchools(context.Context, []int64) ([]enrollmentCapability.PendingAnnouncementApplicant, error)
 }
 
-// NewParentAnnouncementRepository composes Communication's announcement store
-// and audience projection behind the existing repository contract, feeding it
-// Enrollment's pending applicants as plain values.
-func NewParentAnnouncementRepository(db *bun.DB, enrollment AnnouncementEnrollmentQueries, clocks ...func() time.Time) userModels.ParentAnnouncementRepository {
+// ParentAnnouncementApplicants feeds Communication's announcement audience
+// Enrollment's pending applicants as plain values; the caller composes the
+// store over it with parentstore.NewParentAnnouncementRepository.
+func ParentAnnouncementApplicants(enrollment AnnouncementEnrollmentQueries) parentStore.PendingApplicantSource {
 	if enrollment == nil {
 		panic("parent announcements require Enrollment audience queries")
 	}
-	return parentStore.NewParentAnnouncementRepository(db, pendingApplicantSource{enrollment: enrollment}, clocks...)
+	return pendingApplicantSource{enrollment: enrollment}
 }
 
 type pendingApplicantSource struct{ enrollment AnnouncementEnrollmentQueries }
