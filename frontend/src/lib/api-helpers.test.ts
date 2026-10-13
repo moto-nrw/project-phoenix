@@ -9,7 +9,7 @@ import {
   authFetch,
   fetchWithRetry,
 } from "./api-helpers";
-import { ApiError } from "./api-error";
+import { ApiError, errorClassCode, problemTitle } from "./api-error";
 import {
   extractParams,
   handleApiError,
@@ -140,7 +140,16 @@ describe("handleApiError", () => {
   const consoleSpies = suppressConsole("error", "warn");
 
   function backendError(status: number, body: unknown, retryAfter?: string) {
-    return new ServerApiResponseError(status, JSON.stringify(body), {
+    const envelope = {
+      type: "about:blank",
+      title: problemTitle(status),
+      status,
+      detail: problemTitle(status),
+      instance: "request-1",
+      code: errorClassCode(status),
+      ...(body as Record<string, unknown>),
+    };
+    return new ServerApiResponseError(status, JSON.stringify(envelope), {
       contentType: "application/problem+json",
       retryAfter,
     });
@@ -202,6 +211,45 @@ describe("handleApiError", () => {
       code: "general.unavailable",
     });
     expect(body).not.toContain("secret upstream");
+  });
+
+  it("does not forward a valid backend 5xx envelope to the browser", async () => {
+    const response = handleApiError(
+      backendError(500, {
+        detail: "database host db.internal refused the connection",
+        code: "general.server",
+        details: { host: "db.internal" },
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
+    expect(body).not.toContain("db.internal");
+    expect(body).not.toContain("refused the connection");
+  });
+
+  it("replaces an incomplete JSON backend error with a class envelope", async () => {
+    const response = handleApiError(
+      new ServerApiResponseError(
+        400,
+        JSON.stringify({ error: "upstream validation diagnostics" }),
+        { contentType: "application/problem+json" },
+      ),
+    );
+
+    expect(response.status).toBe(400);
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 400,
+      detail: "Bad Request",
+      code: "general.input",
+    });
+    expect(body).not.toContain("upstream validation diagnostics");
   });
 
   it("keeps an unknown error's message in the log, not in the response", async () => {
@@ -1092,13 +1140,13 @@ describe("apiGet (server-side)", () => {
     "forwards a %s conflict body and status unchanged through the proxy",
     async (method, endpoint, requestBody) => {
       const backendBody = JSON.stringify({
-        type: "/help/fehlermeldungen#konflikt",
+        type: "https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich",
         title: "Conflict",
         status: 409,
-        error: "item already exists",
-        code: "item_conflict",
+        detail: "item already exists",
+        code: "general.business_rejection",
         details: { item_id: "42" },
-        errors: [{ field: "name", code: "duplicate" }],
+        errors: [{ field: "name", reason: "duplicate" }],
         instance: "/api/items/42",
       });
       mockNextHeaders.mockResolvedValueOnce(new Headers());

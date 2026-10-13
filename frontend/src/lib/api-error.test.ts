@@ -30,6 +30,7 @@ describe("ApiError", () => {
     [403, "general.permission"],
     [409, "general.business_rejection"],
     [429, "general.unavailable"],
+    [413, "general.request_too_large"],
     [431, "general.request_too_large"],
     [503, "general.unavailable"],
     [500, "general.server"],

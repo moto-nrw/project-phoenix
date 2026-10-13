@@ -7,8 +7,10 @@ import {
   problemTitle,
   type ProblemBody,
 } from "./api-error";
+import { ERROR_CODES } from "./error-codes.generated";
 
 const logger = createLogger({ component: "ApiHelpers" });
+const registeredErrorCodes: ReadonlySet<string> = new Set(ERROR_CODES);
 
 type JsonBody = Record<string, unknown> | unknown[] | string | number | boolean;
 
@@ -130,9 +132,8 @@ export function handleApiError(
   request?: Request,
 ): NextResponse<ProblemBody> {
   if (error instanceof ApiResponseError) {
-    const parsed = error.body<Partial<ProblemBody>>();
-    const isEnvelope =
-      parsed !== null && typeof parsed === "object" && !Array.isArray(parsed);
+    const parsed = error.body<unknown>();
+    const isEnvelope = isProblemEnvelope(parsed, error.status);
     logApiRouteError(
       error.status,
       parsed === null
@@ -142,10 +143,10 @@ export function handleApiError(
     );
     const headers = new Headers();
     if (error.retryAfter) headers.set("Retry-After", error.retryAfter);
-    if (!isEnvelope) {
-      // A proxy or gateway answered with plain text or HTML. The body is
-      // logged above and never forwarded: the browser gets an envelope with
-      // the status title and the class code of the status.
+    if (!isEnvelope || error.status >= 500) {
+      // An invalid upstream body or a 5xx can carry proxy or backend
+      // diagnostics. The body is logged above and never forwarded: the
+      // browser gets an envelope with the status title and class code.
       return problemResponse(
         error.status,
         problemTitle(error.status),
@@ -178,6 +179,37 @@ export function handleApiError(
     error: error instanceof Error ? error.message : String(error),
   });
   return problemResponse(500, "internal error");
+}
+
+function isProblemEnvelope(
+  value: unknown,
+  status: number,
+): value is ProblemBody {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const body = value as Record<string, unknown>;
+  const code = body.code;
+  return (
+    body.status === status &&
+    hasNonEmptyString(body, "type") &&
+    hasNonEmptyString(body, "title") &&
+    hasNonEmptyString(body, "detail") &&
+    typeof code === "string" &&
+    code.trim() !== "" &&
+    registeredErrorCodes.has(code) &&
+    !("error" in body) &&
+    !("message" in body)
+  );
+}
+
+function hasNonEmptyString(
+  body: Record<string, unknown>,
+  member: string,
+): boolean {
+  const value = body[member];
+  return typeof value === "string" && value.trim() !== "";
 }
 
 function logApiRouteError(
