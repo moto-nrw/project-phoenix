@@ -18,11 +18,15 @@ var ErrPickupChangeCutoffPassed = errors.New("schedule: same-day pickup change c
 // clock at the write boundary, after any caller-held locks have been acquired.
 type DayCutoff interface{ Closed(calendar.Date) bool }
 
+// PickupChangeCreateInput asks for a Gehzeit, an Abholart, or both for one
+// day. A zero PickupTime or an empty DepartureMode leaves that leg unchanged
+// (#3945); at least one leg is required.
 type PickupChangeCreateInput struct {
 	StudentID         int64
 	GuardianAccountID int64
 	Date              calendar.Date
 	PickupTime        time.Time
+	DepartureMode     string
 	Reason            string
 	ReasonRequired    bool
 	Cutoff            DayCutoff
@@ -36,7 +40,9 @@ type Submissions interface {
 // ValidatePickupChange is shared by submission and guardian edits.
 func ValidatePickupChange(input PickupChangeCreateInput, today calendar.Date) (string, error) {
 	reason := strings.TrimSpace(input.Reason)
-	if input.StudentID <= 0 || input.GuardianAccountID <= 0 || input.Date.IsZero() || input.PickupTime.IsZero() ||
+	if input.StudentID <= 0 || input.GuardianAccountID <= 0 || input.Date.IsZero() ||
+		(input.PickupTime.IsZero() && input.DepartureMode == "") ||
+		(input.DepartureMode != "" && !RequestableDepartureMode(input.DepartureMode)) ||
 		(reason == "" && input.ReasonRequired) || utf8.RuneCountInString(reason) > 255 {
 		return "", ErrInvalidPayload
 	}

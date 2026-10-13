@@ -15,6 +15,9 @@ type RequestSubmissionRecords interface {
 
 type RequestSubmissionPickup interface {
 	PickupTime(context.Context, int64, calendar.Date) (*time.Time, error)
+	// DepartureModes is the Abholart that applies on the day before the
+	// request: the day value if the OGS set one, else the weekly plan's.
+	DepartureModes(context.Context, int64, calendar.Date) ([]string, error)
 }
 
 type RequestSubmissionEffects interface {

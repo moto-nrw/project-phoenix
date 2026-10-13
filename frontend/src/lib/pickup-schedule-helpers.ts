@@ -1,6 +1,7 @@
 // Pickup Schedule Type Definitions and Mapping Helpers
 import { toISODate as formatDateISO } from "./date-helpers";
 import type { StudentStatusKind } from "./student-status-days-api";
+import type { DepartureMode } from "./student-helpers";
 
 // Frontend Pickup Schedule Type
 export interface PickupSchedule {
@@ -94,11 +95,31 @@ export interface BackendPickupNote {
 }
 
 // Combined Pickup Data (schedules + exceptions + notes)
+// Abholart eines einzelnen Tages, von der OGS gesetzt oder bestätigt (#3945).
+export type { DepartureMode };
+
+export interface DepartureException {
+  id: string;
+  studentId: string;
+  exceptionDate: string; // YYYY-MM-DD
+  departureMode: DepartureMode;
+  reason?: string;
+}
+
+export interface BackendDepartureException {
+  id: number;
+  student_id: number;
+  exception_date: string;
+  departure_mode: DepartureMode;
+  reason?: string;
+}
+
 export interface PickupData {
   schedules: PickupSchedule[];
   effectiveSchedules?: DatedPickupSchedule[];
   exceptions: PickupException[];
   notes: PickupNote[];
+  departureExceptions?: DepartureException[];
 }
 
 export interface DatedPickupSchedule {
@@ -117,6 +138,7 @@ export interface BackendPickupData {
   }>;
   exceptions: BackendPickupException[];
   notes: BackendPickupNote[];
+  departure_exceptions?: BackendDepartureException[];
 }
 
 // Request types for creating/updating schedules
@@ -266,6 +288,21 @@ export function mapPickupDataResponse(data: BackendPickupData): PickupData {
     })),
     exceptions: (data.exceptions ?? []).map(mapPickupExceptionResponse),
     notes: (data.notes ?? []).map(mapPickupNoteResponse),
+    departureExceptions: (data.departure_exceptions ?? []).map(
+      mapDepartureExceptionResponse,
+    ),
+  };
+}
+
+export function mapDepartureExceptionResponse(
+  data: BackendDepartureException,
+): DepartureException {
+  return {
+    id: data.id.toString(),
+    studentId: data.student_id.toString(),
+    exceptionDate: data.exception_date,
+    departureMode: data.departure_mode,
+    reason: data.reason,
   };
 }
 
@@ -530,6 +567,8 @@ export interface DayData {
   notes: PickupNote[]; // Day-specific notes
   /** The recurring note of this weekday, if any (#3369). */
   weekdayNote?: PickupNote;
+  /** Die Abholart, die die OGS nur für diesen Tag gesetzt hat (#3945). */
+  departureException?: DepartureException;
 }
 
 /**
@@ -545,6 +584,7 @@ export function getDayData(
   statusForDate: StudentStatusKind | null = null,
   effectiveSchedules: DatedPickupSchedule[] = [],
   weekendFollowsFriday = false,
+  departureExceptions: DepartureException[] = [],
 ): DayData {
   const calendarWeekday = getWeekdayFromDate(date);
   const weekday = calendarWeekday ?? 5;
@@ -629,5 +669,8 @@ export function getDayData(
     isException: !!exception,
     notes: dayNotes,
     weekdayNote,
+    departureException: departureExceptions.find(
+      (entry) => entry.exceptionDate === dateStr,
+    ),
   };
 }

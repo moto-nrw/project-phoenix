@@ -826,7 +826,19 @@
       "statusRejected": "U refuzua: {reason}",
       "noDecisionReason": "Nuk u dha arsye",
       "submit": "Dërgo kërkesën",
-      "errorObject": "ora e marrjes"
+      "errorObject": "ora e marrjes",
+      "titleWithMode": "Ndryshoni marrjen",
+      "introWithMode": "Kërkoni për një ditë një orë tjetër ose një mënyrë tjetër marrjeje. Plani javor nuk ndryshon. Ndryshimi vlen pasi ta konfirmojë OGS-ja.",
+      "modeLabel": "Mënyra e marrjes në këtë ditë",
+      "modeUnchanged": "Si në planin javor",
+      "noTimeOrMode": "Ju lutemi shkruani një orë ose zgjidhni një mënyrë marrjeje.",
+      "reasonRequiredGeneric": "Ju lutemi shkruani shkurt pse ndryshon marrja.",
+      "pickupOptionalHint": "Lëreni bosh nëse ora mbetet e njëjtë.",
+      "modeStaffSet": "OGS-ja e ka caktuar tashmë mënyrën e marrjes për këtë ditë: {mode}.",
+      "pendingMode": "Mënyra e re e marrjes: {to}",
+      "pendingModeChange": "{from} → {to}",
+      "statusApprovedChange": "U konfirmua, ndryshimi u ruajt.",
+      "errorStaffConflictGeneric": "OGS-ja ka regjistruar tashmë një ndryshim për këtë ditë. Ju lutemi kontaktoni ekipin."
     },
     "actions": {
       "sick": {
@@ -1739,7 +1751,9 @@
     "eventRequestWithdrawn": "Kërkesa u tërhoq",
     "eventRequestCreatedCareOffering": "U kërkua ndryshimi i kujdesit të rezervuar",
     "eventRequestConfirmedCareOffering": "Kërkesa u miratua, kujdesi i rezervuar do të ndryshohet",
-    "eventRequestConfirmedCareOfferingDated": "Kërkesa u miratua, kujdesi i rezervuar do të ndryshohet nga {date}"
+    "eventRequestConfirmedCareOfferingDated": "Kërkesa u miratua, kujdesi i rezervuar do të ndryshohet nga {date}",
+    "eventRequestCreatedPickupChangeWithMode": "Kërkesa për marrjen u dërgua",
+    "eventRequestConfirmedPickupChangeWithMode": "Kërkesa u konfirmua, marrja u ndryshua"
   },
   "parentFeedback": {
     "kicker": "Reagim",
@@ -1804,7 +1818,10 @@
       "pickupHint": "Përshtat orën e marrjes për një ditë",
       "message": "Shkruaj një mesazh",
       "messageCompact": "Shkruaj një mesazh",
-      "messageHint": "Kontakto OGS-në për {name}"
+      "messageHint": "Kontakto OGS-në për {name}",
+      "pickupWithMode": "Ndrysho marrjen për {name}",
+      "pickupCompactWithMode": "Ndrysho marrjen",
+      "pickupHintWithMode": "Ndrysho orën ose mënyrën e marrjes për një ditë"
     }
   },
   "parentStart": {

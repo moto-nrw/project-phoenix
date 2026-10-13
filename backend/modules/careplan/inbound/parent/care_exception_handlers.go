@@ -5,9 +5,11 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -49,14 +51,16 @@ func formatCareExceptionTime(t *time.Time) *string {
 }
 
 // SubmitCareExceptionRequest is the wire shape for POST
-// /parent/me/children/{studentId}/care-exception. Parent requests require a
-// pickup time and a short explanation for the school team. ArrivalTime is
-// retained only to reject outdated clients explicitly.
+// /parent/me/children/{studentId}/care-exception. Parent requests carry a
+// pickup time, an Abholart for the day (#3945), or both, and a short
+// explanation for the school team. ArrivalTime is retained only to reject
+// outdated clients explicitly.
 type SubmitCareExceptionRequest struct {
-	Date        string  `json:"date"`         // YYYY-MM-DD
-	PickupTime  *string `json:"pickup_time"`  // HH:MM, required
-	ArrivalTime *string `json:"arrival_time"` // Unsupported for parents
-	Reason      string  `json:"reason"`
+	Date          string  `json:"date"`           // YYYY-MM-DD
+	PickupTime    *string `json:"pickup_time"`    // HH:MM
+	DepartureMode *string `json:"departure_mode"` // alone | bus | pickup
+	ArrivalTime   *string `json:"arrival_time"`   // Unsupported for parents
+	Reason        string  `json:"reason"`
 	// RecipientGuardianProfileIDs travel with the creation so the share is
 	// written in the same transaction (#2267); empty shares with nobody.
 	RecipientGuardianProfileIDs []string `json:"recipient_guardian_profile_ids"`
@@ -82,19 +86,26 @@ type CareExceptionResponse struct {
 	// tile to an absence, so a guardian is never told to expect a pickup for a
 	// child who is not coming. Omitted (false) for ordinary rows (#1725 review).
 	ArrivalAbsent bool `json:"arrival_absent,omitempty"`
+	// DepartureMode is the Abholart of the day the OGS set or approved
+	// (#3945); omitted when the weekly plan applies.
+	DepartureMode *string `json:"departure_mode,omitempty"`
 }
 
+// PickupChangeRequestResponse carries the stored ask. PickupTime and
+// DepartureMode are null for a leg the request leaves unchanged (#3945).
 type PickupChangeRequestResponse struct {
-	ID             string     `json:"id"`
-	Date           string     `json:"date"`
-	PickupTime     string     `json:"pickup_time"`
-	PreviousPickup *string    `json:"previous_pickup_time,omitempty"`
-	Reason         string     `json:"reason"`
-	Status         string     `json:"status"`
-	DecisionReason *string    `json:"decision_reason,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	ReviewedAt     *time.Time `json:"reviewed_at,omitempty"`
-	IsSelf         bool       `json:"is_self"`
+	ID                     string     `json:"id"`
+	Date                   string     `json:"date"`
+	PickupTime             *string    `json:"pickup_time"`
+	PreviousPickup         *string    `json:"previous_pickup_time,omitempty"`
+	DepartureMode          *string    `json:"departure_mode"`
+	PreviousDepartureModes []string   `json:"previous_departure_modes,omitempty"`
+	Reason                 string     `json:"reason"`
+	Status                 string     `json:"status"`
+	DecisionReason         *string    `json:"decision_reason,omitempty"`
+	CreatedAt              time.Time  `json:"created_at"`
+	ReviewedAt             *time.Time `json:"reviewed_at,omitempty"`
+	IsSelf                 bool       `json:"is_self"`
 }
 
 func toPickupChangeRequestResponse(req *careplan.CareScheduleChangeRequest, accountID int64) (PickupChangeRequestResponse, error) {
@@ -102,21 +113,28 @@ func toPickupChangeRequestResponse(req *careplan.CareScheduleChangeRequest, acco
 	if err := json.Unmarshal(req.Payload, &payload); err != nil {
 		return PickupChangeRequestResponse{}, errors.New("invalid pickup change request payload")
 	}
-	date, dateOK := payload["date"].(string)
-	pickup, pickupOK := payload["pickup_time"].(string)
+	// The reason may be blank under a school's reason policy; a missing key
+	// still marks a malformed row.
 	reason, reasonOK := payload["reason"].(string)
-	if !dateOK || !pickupOK || !reasonOK {
+	terms := carerequests.StoredPickupTerms(req.Payload)
+	if !reasonOK || terms == nil {
 		return PickupChangeRequestResponse{}, errors.New("invalid pickup change request payload")
 	}
-	var previousPickup *string
-	if value, ok := payload["previous_pickup_time"].(string); ok && value != "" {
-		previousPickup = &value
-	}
-	return PickupChangeRequestResponse{
-		ID: strconv.FormatInt(req.ID, 10), Date: date, PickupTime: pickup,
-		PreviousPickup: previousPickup, Reason: reason, Status: req.Status, DecisionReason: req.DecisionReason,
+	response := PickupChangeRequestResponse{
+		ID: strconv.FormatInt(req.ID, 10), Date: terms.Date.String(),
+		PreviousDepartureModes: terms.PreviousDepartureModes, Reason: reason, Status: req.Status, DecisionReason: req.DecisionReason,
 		CreatedAt: req.CreatedAt, ReviewedAt: req.ReviewedAt, IsSelf: req.SubmittedBy == accountID,
-	}, nil
+	}
+	if terms.PickupTime != "" {
+		response.PickupTime = &terms.PickupTime
+	}
+	if terms.PreviousPickupTime != "" {
+		response.PreviousPickup = &terms.PreviousPickupTime
+	}
+	if terms.DepartureMode != "" {
+		response.DepartureMode = &terms.DepartureMode
+	}
+	return response, nil
 }
 
 func toCareExceptionResponse(c *parentService.CareException) CareExceptionResponse {
@@ -130,6 +148,7 @@ func toCareExceptionResponse(c *parentService.CareException) CareExceptionRespon
 		UpdatedAt:     c.UpdatedAt,
 		PickupAbsent:  c.PickupAbsent,
 		ArrivalAbsent: c.ArrivalAbsent,
+		DepartureMode: c.DepartureMode,
 	}
 }
 
@@ -166,7 +185,11 @@ func (rs *Resource) submitCareException(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if pickup == nil {
+	departureMode := ""
+	if req.DepartureMode != nil {
+		departureMode = strings.TrimSpace(*req.DepartureMode)
+	}
+	if pickup == nil && departureMode == "" {
 		renderParentWriteError(w, r, parentService.ErrNoCareException)
 		return
 	}
@@ -174,7 +197,11 @@ func (rs *Resource) submitCareException(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	result, err := rs.ParentService.SubmitPickupChangeRequest(r.Context(), accountID, studentID, date, *pickup, req.Reason, recipients)
+	var pickupTime time.Time
+	if pickup != nil {
+		pickupTime = *pickup
+	}
+	result, err := rs.ParentService.SubmitPickupChangeRequest(r.Context(), accountID, studentID, date, pickupTime, departureMode, req.Reason, recipients)
 	if err != nil {
 		renderParentRequestError(w, r, err)
 		return

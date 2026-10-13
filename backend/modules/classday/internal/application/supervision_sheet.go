@@ -124,7 +124,11 @@ func (s *dayReports) supervisionDeparture(ctx context.Context, student *SheetStu
 	if err != nil {
 		return "", fmt.Errorf("supervision sheet: load departure companions: %w", err)
 	}
-	modes := weekdayDepartureModes(student.AllowedDepartureModes, student.DepartureDays, weekday)
+	dayModes, err := s.dayDepartureModes(ctx, []int64{student.ID}, date)
+	if err != nil {
+		return "", fmt.Errorf("supervision sheet: %w", err)
+	}
+	modes := withDayDeparture(weekdayDepartureModes(student.AllowedDepartureModes, student.DepartureDays, weekday), dayModes[student.ID])
 	if departure := classDayDeparture(modes, weekday, links[student.ID], onSheet); departure != "" {
 		return departure, nil
 	}

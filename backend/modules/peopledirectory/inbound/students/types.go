@@ -99,6 +99,9 @@ type StudentResponse struct {
 	DepartureDays           departure.DepartureDays         `json:"departure_days,omitempty"`
 	AllowedDepartureModes   departure.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
 	DepartureRuleConfigured bool                            `json:"-"`
+	// DayDepartureMode is the Abholart the OGS set or approved for the listed
+	// day (#3945). It overrides the weekly plan in the day projections.
+	DayDepartureMode string `json:"-"`
 	// DepartureCompanionNote is the free-text "mit wem" for the accompanied
 	// departure mode (#1694).
 	DepartureCompanionNote string `json:"departure_companion_note,omitempty"`

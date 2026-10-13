@@ -826,7 +826,19 @@
       "statusRejected": "Abgelehnt: {reason}",
       "noDecisionReason": "Keine Begründung angegeben",
       "submit": "Anfrage senden",
-      "errorObject": "die Abholzeit"
+      "errorObject": "die Abholzeit",
+      "titleWithMode": "Abholung ändern",
+      "introWithMode": "Fragen Sie für einen einzelnen Tag eine andere Abholzeit oder Abholart an. Der Wochenplan bleibt unverändert. Die Änderung gilt erst, wenn die OGS sie bestätigt.",
+      "modeLabel": "Abholart an diesem Tag",
+      "modeUnchanged": "Wie im Wochenplan",
+      "noTimeOrMode": "Bitte tragen Sie eine Abholzeit ein oder wählen Sie eine Abholart.",
+      "reasonRequiredGeneric": "Bitte geben Sie kurz an, warum sich die Abholung ändert.",
+      "pickupOptionalHint": "Leer lassen, wenn die Uhrzeit gleich bleibt.",
+      "modeStaffSet": "Die OGS hat die Abholart für diesen Tag schon festgelegt: {mode}.",
+      "pendingMode": "Neue Abholart: {to}",
+      "pendingModeChange": "{from} → {to}",
+      "statusApprovedChange": "Bestätigt, die Änderung wurde übernommen.",
+      "errorStaffConflictGeneric": "Für diesen Tag hat die OGS schon eine Änderung eingetragen. Bitte wenden Sie sich an das Team."
     },
     "actions": {
       "sick": {
@@ -1739,7 +1751,9 @@
     "eventRequestWithdrawn": "Anfrage zurückgezogen",
     "eventRequestCreatedCareOffering": "Anfrage zur gebuchten Betreuung gestellt",
     "eventRequestConfirmedCareOffering": "Anfrage bestätigt, gebuchte Betreuung wird umgestellt",
-    "eventRequestConfirmedCareOfferingDated": "Anfrage bestätigt, gebuchte Betreuung wird ab {date} umgestellt"
+    "eventRequestConfirmedCareOfferingDated": "Anfrage bestätigt, gebuchte Betreuung wird ab {date} umgestellt",
+    "eventRequestCreatedPickupChangeWithMode": "Anfrage zur Abholung gestellt",
+    "eventRequestConfirmedPickupChangeWithMode": "Anfrage bestätigt, Abholung geändert"
   },
   "parentFeedback": {
     "kicker": "Rückmeldung",
@@ -1804,7 +1818,10 @@
       "pickupHint": "Abholzeit für einen Tag anpassen",
       "message": "Nachrichten schreiben",
       "messageCompact": "Nachricht schreiben",
-      "messageHint": "OGS für {name} kontaktieren"
+      "messageHint": "OGS für {name} kontaktieren",
+      "pickupWithMode": "Abholung für {name} ändern",
+      "pickupCompactWithMode": "Abholung ändern",
+      "pickupHintWithMode": "Abholzeit oder Abholart für einen Tag ändern"
     }
   },
   "parentStart": {

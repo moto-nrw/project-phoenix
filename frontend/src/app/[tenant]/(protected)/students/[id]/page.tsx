@@ -2151,6 +2151,7 @@ function FullAccessView({
           onDeleteStatusDay={onDeleteStatusDay}
           canDeleteStatusDay={canDeleteStatusDay}
           onVisibleDateRangeChange={onVisibleDateRangeChange}
+          weeklyDepartureModes={student.allowed_departure_modes}
         />
       </StudentTabPanel>
 

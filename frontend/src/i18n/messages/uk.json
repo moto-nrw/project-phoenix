@@ -826,7 +826,19 @@
       "statusRejected": "Відхилено: {reason}",
       "noDecisionReason": "Причину не вказано",
       "submit": "Надіслати запит",
-      "errorObject": "час забирання"
+      "errorObject": "час забирання",
+      "titleWithMode": "Змінити забирання",
+      "introWithMode": "Запитайте на один день інший час або інший спосіб забирання. Тижневий розклад залишається без змін. Зміна діє лише після того, як OGS її підтвердить.",
+      "modeLabel": "Спосіб забирання цього дня",
+      "modeUnchanged": "Як у тижневому розкладі",
+      "noTimeOrMode": "Введіть час забирання або виберіть спосіб забирання.",
+      "reasonRequiredGeneric": "Коротко вкажіть, чому змінюється забирання.",
+      "pickupOptionalHint": "Залиште порожнім, якщо час не змінюється.",
+      "modeStaffSet": "OGS уже встановила спосіб забирання на цей день: {mode}.",
+      "pendingMode": "Новий спосіб забирання: {to}",
+      "pendingModeChange": "{from} → {to}",
+      "statusApprovedChange": "Підтверджено, зміну застосовано.",
+      "errorStaffConflictGeneric": "OGS уже внесла зміну на цей день. Зверніться до команди OGS."
     },
     "actions": {
       "sick": {
@@ -1739,7 +1751,9 @@
     "eventRequestWithdrawn": "Запит відкликано",
     "eventRequestCreatedCareOffering": "Надіслано запит щодо заброньованого догляду",
     "eventRequestConfirmedCareOffering": "Запит підтверджено, заброньований догляд буде змінено",
-    "eventRequestConfirmedCareOfferingDated": "Запит підтверджено, заброньований догляд буде змінено з {date}"
+    "eventRequestConfirmedCareOfferingDated": "Запит підтверджено, заброньований догляд буде змінено з {date}",
+    "eventRequestCreatedPickupChangeWithMode": "Запит щодо забирання надіслано",
+    "eventRequestConfirmedPickupChangeWithMode": "Запит підтверджено, забирання змінено"
   },
   "parentFeedback": {
     "kicker": "Відгук",
@@ -1804,7 +1818,10 @@
       "pickupHint": "Змінити час забирання на один день",
       "message": "Написати повідомлення",
       "messageCompact": "Написати повідомлення",
-      "messageHint": "Зв'язатися з OGS: {name}"
+      "messageHint": "Зв'язатися з OGS: {name}",
+      "pickupWithMode": "Змінити забирання: {name}",
+      "pickupCompactWithMode": "Змінити забирання",
+      "pickupHintWithMode": "Змінити час або спосіб забирання на один день"
     }
   },
   "parentStart": {

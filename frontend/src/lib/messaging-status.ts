@@ -206,6 +206,21 @@ const PARENT_REQUEST_CONFIRMED_I18N_KEYS: Readonly<Record<string, string>> = {
 };
 
 /**
+ * A one-day request that also changes the Abholart (#3945) names the whole
+ * Abholung, not only the Abholzeit. The pill payload carries the mode.
+ */
+function pickupChangeWithMode(message: {
+  readonly request_type?: string;
+  readonly payload?: Record<string, unknown>;
+}): boolean {
+  return (
+    message.request_type === "pickup_change" &&
+    typeof message.payload?.departure_mode === "string" &&
+    message.payload.departure_mode !== ""
+  );
+}
+
+/**
  * Descriptor for localizing a request-decision system event on the parents
  * portal. Backend system-event bodies are German ("Anfrage bestätigt",
  * "Anfrage abgelehnt: …", "Anfrage zurückgezogen"), so the parent side renders
@@ -232,6 +247,9 @@ export function parentEventI18nDescriptor(
   // announces it in the chat; the text differs per request_type so a guardian
   // reads which domain the request touches.
   if (message.event_type === "request_created") {
+    if (pickupChangeWithMode(message)) {
+      return { key: "eventRequestCreatedPickupChangeWithMode" };
+    }
     const key = message.request_type
       ? PARENT_REQUEST_CREATED_I18N_KEYS[message.request_type]
       : undefined;
@@ -259,6 +277,9 @@ export function parentEventI18nDescriptor(
           key: "eventRequestConfirmedCareOfferingDated",
           values: { date: formatDate(effectiveFrom, false, locale) },
         };
+      }
+      if (pickupChangeWithMode(message)) {
+        return { key: "eventRequestConfirmedPickupChangeWithMode" };
       }
       const key = message.request_type
         ? PARENT_REQUEST_CONFIRMED_I18N_KEYS[message.request_type]

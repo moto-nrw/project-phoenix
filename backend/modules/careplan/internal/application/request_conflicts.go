@@ -81,10 +81,11 @@ func (s *RequestConflicts) WriteStaffValue(ctx context.Context, write carereques
 }
 
 func (s *RequestConflicts) writePickupException(ctx context.Context, request carerequests.Request, reason string, pickup time.Time) error {
-	date, _, _, err := carerequests.ParsePickup(request.Payload)
+	change, err := carerequests.ParsePickup(request.Payload)
 	if err != nil {
 		return err
 	}
+	date := change.Date
 	if date.Before(s.Today()) {
 		return carerequests.ErrPickupChangeExpired
 	}

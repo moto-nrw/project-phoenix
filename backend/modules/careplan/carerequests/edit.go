@@ -20,6 +20,7 @@ type EditInput struct {
 	Payload           json.RawMessage
 	Date              calendar.Date
 	PickupTime        time.Time
+	DepartureMode     string
 	Reason            string
 }
 

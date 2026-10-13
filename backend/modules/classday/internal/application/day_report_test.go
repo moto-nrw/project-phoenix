@@ -61,8 +61,13 @@ func (f fakeCareDays) ResolveForDate(context.Context, []int64, timezone.Date) (m
 // fakeDayTimes serves fixed effective times for the bulk read the class day
 // view uses.
 type fakeDayTimes struct {
-	pickups  map[int64]EffectivePickup
-	arrivals map[int64]EffectiveArrival
+	pickups    map[int64]EffectivePickup
+	arrivals   map[int64]EffectiveArrival
+	departures map[int64]string
+}
+
+func (f fakeDayTimes) DayDepartureModes(context.Context, []int64, timezone.Date) (map[int64]string, error) {
+	return f.departures, nil
 }
 
 func (f fakeDayTimes) EffectivePickups(context.Context, []int64, timezone.Date) (map[int64]EffectivePickup, error) {

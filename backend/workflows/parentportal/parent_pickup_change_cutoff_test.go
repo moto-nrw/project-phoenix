@@ -124,7 +124,7 @@ func TestSubmitPickupChangeRequestHonoursSameDayCutoff(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			chain := testpkg.CreateTestParentGuardianChain(t, d.db)
 			svc := d.service(t, cutoffStub(tc.enabled, tc.clock), tc.now)
-			_, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, tc.date, cutoffPickupTime(), "Arzttermin", nil)
+			_, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, tc.date, cutoffPickupTime(), "", "Arzttermin", nil)
 			if tc.wantErr != nil {
 				require.ErrorIs(t, err, tc.wantErr)
 				return
@@ -157,7 +157,7 @@ func TestSubmitPickupChangeRequestRechecksCutoffAtWriteBoundary(t *testing.T) {
 		chain.AccountID,
 		chain.StudentID,
 		cutoffToday,
-		cutoffPickupTime(),
+		cutoffPickupTime(), "",
 		"Arzttermin",
 		nil,
 	)
@@ -192,7 +192,7 @@ func TestSubmitPickupChangeRequestRechecksEnablementAtWriteBoundary(t *testing.T
 		chain.AccountID,
 		chain.StudentID,
 		cutoffToday,
-		cutoffPickupTime(),
+		cutoffPickupTime(), "",
 		"Arzttermin",
 		nil,
 	)
@@ -238,16 +238,16 @@ func TestEditPickupChangeRequestHonoursSameDayCutoff(t *testing.T) {
 	settings := cutoffStub(true, "11:00")
 
 	created, err := d.service(t, settings, berlinClock(9, 30)).
-		SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, cutoffToday, cutoffPickupTime(), "Arzttermin", nil)
+		SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, cutoffToday, cutoffPickupTime(), "", "Arzttermin", nil)
 	require.NoError(t, err)
 
 	later := d.service(t, settings, berlinClock(11, 1))
 	_, err = later.EditPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, created.ID,
-		cutoffToday, cutoffPickupTime().Add(time.Hour), "Termin verschoben", "")
+		cutoffToday, cutoffPickupTime().Add(time.Hour), "", "Termin verschoben", "")
 	require.ErrorIs(t, err, parentService.ErrPickupChangeCutoffPassed)
 
 	_, err = later.EditPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, created.ID,
-		cutoffToday.AddDays(1), cutoffPickupTime(), "Termin verschoben", "")
+		cutoffToday.AddDays(1), cutoffPickupTime(), "", "Termin verschoben", "")
 	require.ErrorIs(t, err, parentService.ErrPickupChangeCutoffPassed, "moving today's request away is closed too")
 }
 

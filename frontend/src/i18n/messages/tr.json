@@ -826,7 +826,19 @@
       "statusRejected": "Reddedildi: {reason}",
       "noDecisionReason": "Neden belirtilmedi",
       "submit": "Talep gönder",
-      "errorObject": "teslim alma saati"
+      "errorObject": "teslim alma saati",
+      "titleWithMode": "Teslim almayı değiştir",
+      "introWithMode": "Tek bir gün için farklı bir teslim alma saati veya eve dönüş şekli talep edin. Haftalık plan değişmez. Değişiklik ancak OGS onayladıktan sonra geçerli olur.",
+      "modeLabel": "Bu gün teslim alma şekli",
+      "modeUnchanged": "Haftalık plandaki gibi",
+      "noTimeOrMode": "Lütfen bir teslim alma saati girin veya bir teslim alma şekli seçin.",
+      "reasonRequiredGeneric": "Lütfen teslim almanın neden değiştiğini kısaca belirtin.",
+      "pickupOptionalHint": "Saat değişmiyorsa boş bırakın.",
+      "modeStaffSet": "OGS bu gün için teslim alma şeklini zaten belirledi: {mode}.",
+      "pendingMode": "Yeni teslim alma şekli: {to}",
+      "pendingModeChange": "{from} → {to}",
+      "statusApprovedChange": "Onaylandı, değişiklik uygulandı.",
+      "errorStaffConflictGeneric": "OGS bu gün için zaten bir değişiklik girdi. Lütfen ekiple iletişime geçin."
     },
     "actions": {
       "sick": {
@@ -1739,7 +1751,9 @@
     "eventRequestWithdrawn": "Talep geri çekildi",
     "eventRequestCreatedCareOffering": "Kayıtlı bakım için talep gönderildi",
     "eventRequestConfirmedCareOffering": "Talep onaylandı, kayıtlı bakım değiştirilecek",
-    "eventRequestConfirmedCareOfferingDated": "Talep onaylandı, kayıtlı bakım {date} tarihinden itibaren değiştirilecek"
+    "eventRequestConfirmedCareOfferingDated": "Talep onaylandı, kayıtlı bakım {date} tarihinden itibaren değiştirilecek",
+    "eventRequestCreatedPickupChangeWithMode": "Teslim alma talebi gönderildi",
+    "eventRequestConfirmedPickupChangeWithMode": "Talep onaylandı, teslim alma değişti"
   },
   "parentFeedback": {
     "kicker": "Geri bildirim",
@@ -1804,7 +1818,10 @@
       "pickupHint": "Bir günlük teslim alma saatini ayarlayın",
       "message": "Mesaj yaz",
       "messageCompact": "Mesaj yaz",
-      "messageHint": "{name} için OGS ile iletişime geçin"
+      "messageHint": "{name} için OGS ile iletişime geçin",
+      "pickupWithMode": "{name} için teslim almayı değiştir",
+      "pickupCompactWithMode": "Teslim almayı değiştir",
+      "pickupHintWithMode": "Bir gün için teslim alma saatini veya şeklini değiştirin"
     }
   },
   "parentStart": {

@@ -60,6 +60,7 @@ type fakeParentService struct {
 	gotCareStudent   int64
 	gotCareDate      timezone.Date
 	gotCarePickup    *time.Time
+	gotCareMode      string
 	gotCareReason    string
 
 	childFeatures parentService.ChildFeatureFlags
@@ -157,7 +158,7 @@ func (f *fakeParentService) ListExcusedRequests(context.Context, int64, int64) (
 func (f *fakeParentService) EditExcusedRequest(context.Context, int64, int64, int64, []timezone.Date, string, string) (*careplan.ExcusedAbsenceRequest, error) {
 	return nil, nil
 }
-func (f *fakeParentService) EditPickupChangeRequest(context.Context, int64, int64, int64, timezone.Date, time.Time, string, string) (*careplan.CareScheduleChangeRequest, error) {
+func (f *fakeParentService) EditPickupChangeRequest(context.Context, int64, int64, int64, timezone.Date, time.Time, string, string, string) (*careplan.CareScheduleChangeRequest, error) {
 	return nil, nil
 }
 func (f *fakeParentService) EditCareScheduleRequest(context.Context, int64, int64, int64, map[string]any, string) (*parentService.ChildCareSchedule, error) {
@@ -271,16 +272,28 @@ func (f *fakeParentService) SubmitCareExceptionWithReason(_ context.Context, acc
 	return f.careException, f.careExceptionErr
 }
 
-func (f *fakeParentService) SubmitPickupChangeRequest(_ context.Context, accountID, studentID int64, date timezone.Date, pickup time.Time, reason string, _ []int64) (*careplan.CareScheduleChangeRequest, error) {
+func (f *fakeParentService) SubmitPickupChangeRequest(_ context.Context, accountID, studentID int64, date timezone.Date, pickup time.Time, departureMode, reason string, _ []int64) (*careplan.CareScheduleChangeRequest, error) {
 	f.gotCareAccount = accountID
 	f.gotCareStudent = studentID
 	f.gotCareDate = date
-	f.gotCarePickup = &pickup
+	if !pickup.IsZero() {
+		f.gotCarePickup = &pickup
+	}
+	f.gotCareMode = departureMode
 	f.gotCareReason = reason
 	if f.careExceptionErr != nil {
 		return nil, f.careExceptionErr
 	}
-	payload, err := json.Marshal(map[string]any{"date": date.String(), "pickup_time": pickup.Format("15:04"), "previous_pickup_time": "15:30", "reason": reason})
+	stored := map[string]any{"date": date.String(), "reason": reason}
+	if !pickup.IsZero() {
+		stored["pickup_time"] = pickup.Format("15:04")
+		stored["previous_pickup_time"] = "15:30"
+	}
+	if departureMode != "" {
+		stored["departure_mode"] = departureMode
+		stored["previous_departure_modes"] = []string{"alone"}
+	}
+	payload, err := json.Marshal(stored)
 	if err != nil {
 		return nil, err
 	}
@@ -488,6 +501,41 @@ func TestSubmitCareException_PassesRequiredReasonAndReturnsIt(t *testing.T) {
 	assert.Equal(t, reason, service.gotCareReason)
 	assert.Contains(t, w.Body.String(), `"reason":"Abholung durch die Großeltern"`)
 	assert.Contains(t, w.Body.String(), `"previous_pickup_time":"15:30"`)
+}
+
+// #3945: a request may change only the Abholart of the day. The handler
+// passes the mode through without a pickup time, and the response carries
+// the stored ask with a null time.
+func TestSubmitCareException_PassesDepartureModeWithoutPickupTime(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+
+	rs.submitCareException(w, careExceptionRequest(`{"date":"2026-08-18","departure_mode":"pickup","reason":"Oma holt ab"}`))
+
+	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+	assert.Nil(t, service.gotCarePickup)
+	assert.Equal(t, "pickup", service.gotCareMode)
+	assert.Contains(t, w.Body.String(), `"pickup_time":null`)
+	assert.Contains(t, w.Body.String(), `"departure_mode":"pickup"`)
+	assert.Contains(t, w.Body.String(), `"previous_departure_modes":["alone"]`)
+}
+
+// A request without a time and without a mode asks for nothing.
+func TestSubmitCareException_RejectsRequestWithoutTimeOrMode(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+
+	rs.submitCareException(w, careExceptionRequest(`{"date":"2026-08-18","reason":"Arzttermin"}`))
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"care.care_exception_no_time"`)
+	assert.Empty(t, service.gotCareReason)
 }
 
 func TestSubmitCareException_RejectsArrivalChange(t *testing.T) {

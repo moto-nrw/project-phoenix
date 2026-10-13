@@ -92,7 +92,7 @@ func (s *RequestDecisions) decide(ctx context.Context, input carerequests.Decide
 		return nil, err
 	}
 	snapshot := s.Plans.Snapshot(ctx, request)
-	companionsChanged, exceptionID, err := s.apply(ctx, request, input)
+	companionsChanged, applied, err := s.apply(ctx, request, input)
 	if err != nil {
 		return nil, err
 	}
@@ -120,30 +120,40 @@ func (s *RequestDecisions) decide(ctx context.Context, input carerequests.Decide
 		return nil, err
 	}
 	payload := map[string]any{"approve": input.Approve, "reason": reason}
-	if exceptionID > 0 {
-		payload["pickup_exception_id"] = exceptionID
-	}
+	appliedLedgerPayload(payload, applied)
 	if err := s.Effects.RecordDecision(ctx, item.Request, input.ReviewedBy, payload); err != nil {
 		return nil, err
 	}
 	return item, nil
 }
 
-func (s *RequestDecisions) apply(ctx context.Context, request *carerequests.Request, input carerequests.DecideInput) (bool, int64, error) {
+// appliedLedgerPayload records the rows an approval wrote; a correction
+// reads them back from the ledger to take exactly those back.
+func appliedLedgerPayload(payload map[string]any, applied carerequests.PickupApplied) {
+	if applied.PickupExceptionID > 0 {
+		payload["pickup_exception_id"] = applied.PickupExceptionID
+	}
+	if applied.DepartureExceptionID > 0 {
+		payload["departure_exception_id"] = applied.DepartureExceptionID
+	}
+}
+
+func (s *RequestDecisions) apply(ctx context.Context, request *carerequests.Request, input carerequests.DecideInput) (bool, carerequests.PickupApplied, error) {
+	var none carerequests.PickupApplied
 	if !input.Approve {
-		return false, 0, nil
+		return false, none, nil
 	}
 	allowed, err := s.People.GuardianHasAccess(ctx, request.StudentID, request.SubmittedBy)
 	if err != nil {
-		return false, 0, fmt.Errorf("schedule: care request guardian link check: %w", err)
+		return false, none, fmt.Errorf("schedule: care request guardian link check: %w", err)
 	}
 	if !allowed {
-		return false, 0, carerequests.ErrGuardianAccessRevoked
+		return false, none, carerequests.ErrGuardianAccessRevoked
 	}
 	if request.RequestKind == "pickup_change" {
-		id, err := s.Plans.ApplyPickup(ctx, request, input.ExpectedImpactToken, input.RequireImpactToken)
-		return false, id, err
+		applied, err := s.Plans.ApplyPickup(ctx, request, input.ExpectedImpactToken, input.RequireImpactToken)
+		return false, applied, err
 	}
 	changed, err := s.Plans.ApplyWeekly(ctx, request, input.ReviewedBy)
-	return changed, 0, err
+	return changed, none, err
 }

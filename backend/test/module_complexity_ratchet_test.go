@@ -78,7 +78,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/careplan/internal/application/offering_reviews.go:(*OfferingReviews).ListHistory":                   21,
 	"modules/careplan/internal/application/offering_reviews.go:(*OfferingReviews).ListPending":                   17,
 	"modules/careplan/internal/application/review_weekly_plan.go:(reviewPlanFacts).pickupWeek":                   25,
-	"modules/careplan/internal/application/schedule_review_pickup.go:(*ScheduleReviews).pickupDiff":              20,
 	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).ListPending":                   30,
 	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).plan":                          23,
 	// Moved in by PR #3408 (#3350) from services/users and

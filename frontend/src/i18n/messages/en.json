@@ -826,7 +826,19 @@
       "statusRejected": "Rejected: {reason}",
       "noDecisionReason": "No reason provided",
       "submit": "Send request",
-      "errorObject": "the pick-up time"
+      "errorObject": "the pick-up time",
+      "titleWithMode": "Change pick-up",
+      "introWithMode": "Request a different pick-up time or way home for one day. The weekly plan stays the same. The change applies only after the OGS confirms it.",
+      "modeLabel": "Way home on this day",
+      "modeUnchanged": "As in the weekly plan",
+      "noTimeOrMode": "Enter a pick-up time or choose a way home.",
+      "reasonRequiredGeneric": "Briefly state why the pick-up is changing.",
+      "pickupOptionalHint": "Leave empty if the time stays the same.",
+      "modeStaffSet": "The OGS has already set the way home for this day: {mode}.",
+      "pendingMode": "New way home: {to}",
+      "pendingModeChange": "{from} → {to}",
+      "statusApprovedChange": "Confirmed, the change has been applied.",
+      "errorStaffConflictGeneric": "The OGS has already set a change for this day. Please contact the team."
     },
     "actions": {
       "sick": {
@@ -1739,7 +1751,9 @@
     "eventRequestWithdrawn": "Request withdrawn",
     "eventRequestCreatedCareOffering": "Care offering change requested",
     "eventRequestConfirmedCareOffering": "Request confirmed, care offerings will be switched",
-    "eventRequestConfirmedCareOfferingDated": "Request confirmed, care offerings will be switched from {date}"
+    "eventRequestConfirmedCareOfferingDated": "Request confirmed, care offerings will be switched from {date}",
+    "eventRequestCreatedPickupChangeWithMode": "Pick-up request sent",
+    "eventRequestConfirmedPickupChangeWithMode": "Request confirmed, pick-up changed"
   },
   "parentFeedback": {
     "kicker": "Feedback",
@@ -1804,7 +1818,10 @@
       "pickupHint": "Adjust the pick-up time for one day",
       "message": "Write a message",
       "messageCompact": "Write a message",
-      "messageHint": "Contact the OGS about {name}"
+      "messageHint": "Contact the OGS about {name}",
+      "pickupWithMode": "Change pick-up for {name}",
+      "pickupCompactWithMode": "Change pick-up",
+      "pickupHintWithMode": "Change the pick-up time or way home for one day"
     }
   },
   "parentStart": {

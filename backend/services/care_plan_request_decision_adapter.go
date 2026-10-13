@@ -57,7 +57,7 @@ func (a requestDecisionAdapter) ApplyWeekly(ctx context.Context, request *carere
 	row := request
 	return a.s.applyCareScheduleRequest(ctx, row, actorID)
 }
-func (a requestDecisionAdapter) ApplyPickup(ctx context.Context, request *carerequests.Request, token *string, required bool) (int64, error) {
+func (a requestDecisionAdapter) ApplyPickup(ctx context.Context, request *carerequests.Request, token *string, required bool) (carerequests.PickupApplied, error) {
 	row := request
 	return a.s.applyPickupChangeRequest(ctx, row, token, required)
 }
