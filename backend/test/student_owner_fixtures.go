@@ -2,8 +2,10 @@ package test
 
 import (
 	"context"
+	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
@@ -52,4 +54,18 @@ func updateStudentMembershipFixture(ctx context.Context, db *bun.DB, studentID i
 	}
 	return db.NewUpdate().TableExpr("users.student_school_memberships").
 		Where("student_profile_id = ?", studentID).Where("deleted_at IS NULL"), nil
+}
+
+// ClearTestStudentCompanionNote drops the free-text "mit wem" note straight in
+// SQL, leaving a child whose companion is answered only by the structured
+// link — the state a note-carrying child reaches once it is linked and the
+// note is removed.
+func ClearTestStudentCompanionNote(tb testing.TB, db *bun.DB, studentID int64) {
+	tb.Helper()
+	_, err := db.NewUpdate().
+		TableExpr("users.student_care_profiles").
+		Set("departure_companion_note = NULL").
+		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", studentID).
+		Exec(context.Background())
+	require.NoError(tb, err)
 }

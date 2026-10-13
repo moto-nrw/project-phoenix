@@ -6771,17 +6771,6 @@
       "target_role": "compose"
     },
     {
-      "id": "people-directory.behavior-test.enrollment-support",
-      "description": "Announcement adapter tests compose Enrollment audience queries through owner test support.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "module-behavior-test",
-      "target_owner": "enrollment",
-      "target_role": "test-support"
-    },
-    {
       "id": "people-directory.contracttest.workforce.adapter",
       "description": "The staff offboarding suite of the People Directory contract suite seeds the retained staff-absence rows (#3422, moved from services/users with #3755).",
       "scopes": [
