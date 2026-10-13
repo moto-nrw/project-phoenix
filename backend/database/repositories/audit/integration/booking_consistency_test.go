@@ -14,7 +14,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func bookingConsistencyAuditTestRepository(t *testing.T) any {
+func bookingConsistencyAuditTestRepository(t *testing.T) testpkg.BookingConsistencyAudit {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repo := auditRepo.NewBookingConsistencyRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext), bookingAuditEnrollment{Module: enrollmentTest.New(), bookings: carePlanTest.NewOfferingBookings()})
@@ -26,7 +26,19 @@ func bookingConsistencyAuditTestRepository(t *testing.T) any {
 	repo.(interface {
 		BindCarePlan(auditRepo.CareOfferingDirectory)
 	}).BindCarePlan(testCareOfferingDirectory{query: carePlanTest.NewCarePlan(t, db)})
-	return repo
+	return func(ctx context.Context, auditDate string) (testpkg.BookingConsistencyFindings, error) {
+		report, err := repo.Audit(ctx, auditModels.Date(auditDate))
+		if err != nil {
+			return testpkg.BookingConsistencyFindings{}, err
+		}
+		return testpkg.BookingConsistencyFindings{
+			TenantID:                        report.TenantID,
+			PickupProjectionMissingDays:     report.PickupProjectionMissingDays,
+			ApprovedWithoutRequiredOffering: report.ApprovedWithoutRequiredOffering,
+			ApprovedWithoutOptionalOffering: report.ApprovedWithoutOptionalOffering,
+			TotalFindings:                   report.TotalFindings(),
+		}, nil
+	}
 }
 
 type bookingAuditEnrollment struct {
