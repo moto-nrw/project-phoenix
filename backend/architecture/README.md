@@ -2729,10 +2729,25 @@ candidate. The `inbound-parent.http.*` and `inbound-parent.adapter-test.*`
 compatibility rules this move added are converted (#3421): the 27 rules are
 gone from `policy.json`, and the 29 imports they allowed (12 production,
 11 internal-test, 6 external-test) are exact `legacy.jsonl` entries under
-#3421, which closes when the last of them falls. `root-composition.to.inbound-parent-http` (#2750) and
+#3421. Its second stage retired the last of them (20 after later carriers had
+taken nine, 81 -> 61): calendar dates come from `sharedkernel/calendar`; the
+retained People Directory, Care Plan and Enrollment values the workflow hands
+back are named through the workflow port's vocabulary, declared once in the
+flow package that returns them; the enrollment profile port returns the HTTP
+values the response renders, translated at the root; the locale check uses
+Delivery's notification copy; the enrollment routes open their transactions
+through `tenant.WithinTenant` and `tenant.WithinAdmin` and the resource holds
+no database; the handler suites take setting keys from `modules/settings`,
+compose through `api/testutil` and leave viper to the fixture package. The
+shared HTTP runtime, the session adapter and the tenant runtime are standing
+reaches of every HTTP point, so [ADR 0051](../../docs/adr/0051-guardian-portal-http-reaches-the-standing-http-runtimes.md)
+grants them in epoch 39 as four rules (`inbound-parent.http.inbound-common`,
+`inbound-parent.http.identity-adapter`, `inbound-parent.http.tenant-runtime`,
+`inbound-parent.adapter-test.identity-adapter`), and the module HTTP ORM
+ratchet loses both of the package's entries. `root-composition.to.inbound-parent-http` (#2750) and
 `test-support.e2e-test.inbound-parent-http` (#2748) are still compatibility
 permissions; convert them to exact debt with the rule above under their
-issues. The `modules/identityaccess/legacy/jwt` and `services/auth` edges wait for #2725. The move replaced
+issues. The move replaced
 the calendar, push, notification-preference and PWA-usage setters with a
 construction-time `ResourceConfig`, and the auth rate-limiter setter with
 `RouterWithAuthRateLimiter` (the school portal shape), because the
@@ -3337,7 +3352,7 @@ shift-plan-sync workflow's points are created by the candidate and need no
 exception. Everything else stays forbidden.
 
 The time-tracking compatibility package has the fifth such path
-([ADR 0051](../../docs/adr/0051-time-tracking-dissolution-replaces-legacy-permissions.md),
+([ADR 0052](../../docs/adr/0052-time-tracking-dissolution-replaces-legacy-permissions.md),
 #3413). In a reviewed epoch that no longer classifies
 `modules/workforce/legacy/timetracking` and whose base classifies it as
 `workforce`/`adapter` with `adapter-test` in both test scopes, the Workforce
@@ -3346,6 +3361,18 @@ roles that received the retired code (`application`, `compose`,
 in the same scope. No consumer replacement is needed: every consumer already
 reached Workforce's `public` and `compose` roles. Everything else stays
 forbidden.
+
+The guardian portal HTTP composition has a four-rule path
+([ADR 0051](../../docs/adr/0051-guardian-portal-http-reaches-the-standing-http-runtimes.md),
+#3421). In a reviewed epoch, `inbound-parent`/`http` may reach
+`inbound-common`/`http`, `identity-access`/`adapter` and
+`tenant-runtime`/`public` in production, and `inbound-parent`/`adapter-test`
+may reach `identity-access`/`adapter` in both test scopes: the standing
+reaches every other HTTP point holds. Epoch 39 registers them as
+`inbound-parent.http.inbound-common`, `inbound-parent.http.identity-adapter`,
+`inbound-parent.http.tenant-runtime` and
+`inbound-parent.adapter-test.identity-adapter`. Other owners, roles, targets,
+external classes and scopes stay forbidden.
 
 The repository Factory contraction has a two-permission path
 ([ADR 0049](../../docs/adr/0049-owner-compositions-construct-audit-and-settings-persistence.md),

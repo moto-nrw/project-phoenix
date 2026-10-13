@@ -15,13 +15,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -48,12 +46,12 @@ type fakeParentService struct {
 	gotMasterTarget  string
 	gotMasterField   string
 	gotMasterValue   json.RawMessage
-	submitRows       []*userModels.StudentDataChangeRequest
+	submitRows       []*parentService.StudentDataChangeRequest
 	submitErr        error
 	gotSubmitChanges []parentService.MasterDataFieldChange
-	listRows         []*userModels.StudentDataChangeRequest
+	listRows         []*parentService.StudentDataChangeRequest
 	listErr          error
-	submitStatus     *parentModels.GuardianSubmitStatus
+	submitStatus     *parentService.GuardianSubmitStatus
 	careException    *parentService.CareException
 	careExceptionErr error
 	gotCareAccount   int64
@@ -110,7 +108,7 @@ func (f *fakeParentService) UpdatePortalLocale(_ context.Context, _ int64, local
 	return f.updateProfile, f.updateProfileErr
 }
 
-func (f *fakeParentService) ListChildrenForAccount(context.Context, int64) ([]*parentModels.ChildSummary, error) {
+func (f *fakeParentService) ListChildrenForAccount(context.Context, int64) ([]*parentService.ChildSummary, error) {
 	return nil, nil
 }
 
@@ -119,16 +117,16 @@ func (f *fakeParentService) ListChildrenForAccount(context.Context, int64) ([]*p
 func (f *fakeParentService) GuardianAnnouncementTenant(context.Context, int64, int64) (int64, error) {
 	return 0, nil
 }
-func (f *fakeParentService) ListEnrollableForAccount(context.Context, int64) ([]*parentModels.EnrollablePhase, error) {
+func (f *fakeParentService) ListEnrollableForAccount(context.Context, int64) ([]*parentService.EnrollablePhase, error) {
 	return nil, nil
 }
-func (f *fakeParentService) GetEnrollmentSubmitStatus(context.Context, int64, int64) (*parentModels.GuardianSubmitStatus, error) {
+func (f *fakeParentService) GetEnrollmentSubmitStatus(context.Context, int64, int64) (*parentService.GuardianSubmitStatus, error) {
 	if f.submitStatus != nil {
 		return f.submitStatus, nil
 	}
-	return &parentModels.GuardianSubmitStatus{}, nil
+	return &parentService.GuardianSubmitStatus{}, nil
 }
-func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentModels.EnrollmentRequestSummary, error) {
+func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentService.EnrollmentRequestSummary, error) {
 	return nil, nil
 }
 func (f *fakeParentService) GetChildConsents(_ context.Context, accountID, studentID int64) ([]parentService.ChildConsent, error) {
@@ -164,7 +162,7 @@ func (f *fakeParentService) EditPickupChangeRequest(context.Context, int64, int6
 func (f *fakeParentService) EditCareScheduleRequest(context.Context, int64, int64, int64, map[string]any, string) (*parentService.ChildCareSchedule, error) {
 	return nil, nil
 }
-func (f *fakeParentService) EditMasterDataRequest(context.Context, int64, int64, int64, json.RawMessage, string) (*userModels.StudentDataChangeRequest, error) {
+func (f *fakeParentService) EditMasterDataRequest(context.Context, int64, int64, int64, json.RawMessage, string) (*parentService.StudentDataChangeRequest, error) {
 	return nil, nil
 }
 func (f *fakeParentService) EditOfferingChangeRequest(context.Context, int64, int64, int64, []careplan.OfferingChangeSelection, timezone.Date, string, bool, string) (*parentService.ChildCareOfferings, error) {
@@ -201,11 +199,11 @@ func (f *fakeParentService) RemoveRelatedAccount(context.Context, int64, int64, 
 	return nil
 }
 
-func (f *fakeParentService) ListMessageThreads(context.Context, int64) ([]*userModels.InboxThread, error) {
+func (f *fakeParentService) ListMessageThreads(context.Context, int64) ([]*parentService.InboxThread, error) {
 	return nil, nil
 }
 
-func (f *fakeParentService) ListChildThreads(context.Context, int64, int64) ([]*userModels.InboxThread, error) {
+func (f *fakeParentService) ListChildThreads(context.Context, int64, int64) ([]*parentService.InboxThread, error) {
 	return nil, nil
 }
 
@@ -299,7 +297,7 @@ func (f *fakeParentService) SubmitPickupChangeRequest(_ context.Context, account
 	}
 	return &careplan.CareScheduleChangeRequest{
 		Payload: payload,
-		Status:  scheduleModels.CareRequestStatusPending,
+		Status:  carerequests.StatusPending,
 	}, nil
 }
 
@@ -328,14 +326,14 @@ func (f *fakeParentService) UpdateMasterDataField(_ context.Context, accountID, 
 	return f.updateMasterData, f.updateMasterErr
 }
 
-func (f *fakeParentService) SubmitMasterDataChangeRequest(_ context.Context, accountID, studentID int64, changes []parentService.MasterDataFieldChange, _ []int64) ([]*userModels.StudentDataChangeRequest, error) {
+func (f *fakeParentService) SubmitMasterDataChangeRequest(_ context.Context, accountID, studentID int64, changes []parentService.MasterDataFieldChange, _ []int64) ([]*parentService.StudentDataChangeRequest, error) {
 	f.gotMasterAccount = accountID
 	f.gotMasterStudent = studentID
 	f.gotSubmitChanges = changes
 	return f.submitRows, f.submitErr
 }
 
-func (f *fakeParentService) ListMyMasterDataRequests(context.Context, int64, int64) ([]*userModels.StudentDataChangeRequest, error) {
+func (f *fakeParentService) ListMyMasterDataRequests(context.Context, int64, int64) ([]*parentService.StudentDataChangeRequest, error) {
 	return f.listRows, f.listErr
 }
 
@@ -357,7 +355,7 @@ func (f *fakeParentService) UpdateGuardianRelationship(context.Context, int64, i
 
 // Parent-news feed (#1669) — interface stubs; the announcement handlers have
 // their own tests.
-func (f *fakeParentService) ListAnnouncements(context.Context, int64) ([]*userModels.AnnouncementFeedItem, error) {
+func (f *fakeParentService) ListAnnouncements(context.Context, int64) ([]*parentService.AnnouncementFeedItem, error) {
 	return nil, nil
 }
 
@@ -377,7 +375,7 @@ func (f *fakeParentService) RespondToAnnouncement(context.Context, int64, int64,
 	return nil
 }
 
-func (f *fakeParentService) SubmitDeclaration(context.Context, int64, int64, parentService.DeclarationInput, parentService.PasswordConfirmer) (*userModels.DeclarationSubmission, bool, error) {
+func (f *fakeParentService) SubmitDeclaration(context.Context, int64, int64, parentService.DeclarationInput, parentService.PasswordConfirmer) (*parentService.DeclarationSubmission, bool, error) {
 	return nil, false, parentService.ErrAnnouncementNotFound
 }
 
@@ -767,7 +765,7 @@ func TestUpdateMyProfile_MapsMissingProfileToConflict(t *testing.T) {
 	t.Parallel()
 
 	fake := &fakeParentService{
-		updateProfileErr: fmt.Errorf("parent: update portal locale: %w", userModels.ErrGuardianProfileNotFound),
+		updateProfileErr: fmt.Errorf("parent: update portal locale: %w", parentService.ErrGuardianProfileNotFound),
 	}
 	rs := &Resource{ParentService: fake}
 	req := withClaims(

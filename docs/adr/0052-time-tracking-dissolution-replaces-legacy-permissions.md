@@ -74,7 +74,7 @@ external dependency, or bypass composition and runtime checks. Rules still
 need to be narrow and live. The base package and epoch conditions prevent a
 reuse after the cutover reaches the base.
 
-Epoch 39 uses it for `workforce.application.student-presence-public`,
+Epoch 40 uses it for `workforce.application.student-presence-public`,
 `workforce.application.time-records`, `workforce.compose.time-records` and
 the six `workforce.behaviour-test.*` rules of the moved suites
 (`audit-domain`, `transaction-domain`, `timetable-domain`,
@@ -84,6 +84,10 @@ rewritten as the rules above) and the package entry.
 The three `*.time-records` rules are temporary and name #3996, which retires
 the `timerecords` vocabulary; the six rules that named #3413 for that
 vocabulary are reassigned to #3996.
+
+Policy epoch 40 applies this cutover after the guardian portal HTTP rules
+entered development in epoch 39 (ADR 0051). Both exceptions remain bounded
+by their existing selectors.
 
 ## Verification
 

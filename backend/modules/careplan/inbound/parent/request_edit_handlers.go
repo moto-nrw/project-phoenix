@@ -11,10 +11,9 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -254,7 +253,7 @@ func (rs *Resource) editMasterDataRequest(w http.ResponseWriter, r *http.Request
 		return
 	}
 	common.Respond(w, r, http.StatusOK,
-		toMasterDataChangeResponses([]*usersModels.StudentDataChangeRequest{row}, target.accountID)[0], "Request updated")
+		toMasterDataChangeResponses([]*parentService.StudentDataChangeRequest{row}, target.accountID)[0], "Request updated")
 }
 
 func (rs *Resource) editOfferingChangeRequest(w http.ResponseWriter, r *http.Request) {

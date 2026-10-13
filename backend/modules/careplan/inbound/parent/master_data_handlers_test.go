@@ -13,8 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -48,19 +47,25 @@ func sampleMasterData() *parentService.ChildMasterData {
 		Email:                  &email,
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
-		AllowedDepartureModes: usersModels.AllowedDepartureModes{
-			"mon": []usersModels.DepartureMode{usersModels.DeparturePickup},
+		AllowedDepartureModes: parentService.AllowedDepartureModes{
+			"mon": []parentService.DepartureMode{parentService.DeparturePickup},
 		},
-		PendingChanges: []*usersModels.StudentDataChangeRequest{
-			{
-				Model:    usersModels.Model{ID: 900, CreatedAt: time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)},
-				Target:   usersModels.DataChangeTargetPerson,
-				FieldKey: "first_name",
-				NewValue: json.RawMessage(`"Lea"`),
-				Status:   usersModels.DataChangeStatusPending,
-			},
-		},
+		PendingChanges: []*parentService.StudentDataChangeRequest{pendingFirstNameChange(900)},
 	}
+}
+
+// pendingFirstNameChange is the guardian's pending first-name request with the
+// given row id, as the master-data flow returns it.
+func pendingFirstNameChange(id int64) *parentService.StudentDataChangeRequest {
+	row := &parentService.StudentDataChangeRequest{
+		Target:   parentService.DataChangeTargetPerson,
+		FieldKey: "first_name",
+		NewValue: json.RawMessage(`"Lea"`),
+		Status:   parentService.DataChangeStatusPending,
+	}
+	row.ID = id
+	row.CreatedAt = time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)
+	return row
 }
 
 func TestGetMasterData_ReturnsProjectedChildData(t *testing.T) {
@@ -94,7 +99,7 @@ func TestUpdateMasterDataField_ForwardsPathAndJSONValue(t *testing.T) {
 		"42",
 	)
 	rctx := chi.RouteContext(req.Context())
-	rctx.URLParams.Add("target", usersModels.DataChangeTargetStudent)
+	rctx.URLParams.Add("target", parentService.DataChangeTargetStudent)
 	rctx.URLParams.Add("field", "health_info")
 	w := httptest.NewRecorder()
 
@@ -103,7 +108,7 @@ func TestUpdateMasterDataField_ForwardsPathAndJSONValue(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(1234), fake.gotMasterAccount)
 	assert.Equal(t, int64(42), fake.gotMasterStudent)
-	assert.Equal(t, usersModels.DataChangeTargetStudent, fake.gotMasterTarget)
+	assert.Equal(t, parentService.DataChangeTargetStudent, fake.gotMasterTarget)
 	assert.Equal(t, "health_info", fake.gotMasterField)
 	assert.JSONEq(t, `"Neue Info"`, string(fake.gotMasterValue))
 }
@@ -120,7 +125,7 @@ func TestUpdateMasterDataField_RejectsMissingTargetOrBadBody(t *testing.T) {
 
 	req = parentRequestWithStudentID(http.MethodPatch, "/children/42/master-data/student/health_info", `{`, "42")
 	rctx := chi.RouteContext(req.Context())
-	rctx.URLParams.Add("target", usersModels.DataChangeTargetStudent)
+	rctx.URLParams.Add("target", parentService.DataChangeTargetStudent)
 	rctx.URLParams.Add("field", "health_info")
 	w = httptest.NewRecorder()
 	rs.updateMasterDataField(w, req)
@@ -130,14 +135,8 @@ func TestUpdateMasterDataField_RejectsMissingTargetOrBadBody(t *testing.T) {
 func TestSubmitAndListMasterDataRequests(t *testing.T) {
 	t.Parallel()
 
-	row := &usersModels.StudentDataChangeRequest{
-		Model:    usersModels.Model{ID: 901, CreatedAt: time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)},
-		Target:   usersModels.DataChangeTargetPerson,
-		FieldKey: "first_name",
-		NewValue: json.RawMessage(`"Lea"`),
-		Status:   usersModels.DataChangeStatusPending,
-	}
-	fake := &fakeParentService{submitRows: []*usersModels.StudentDataChangeRequest{row}, listRows: []*usersModels.StudentDataChangeRequest{row}}
+	row := pendingFirstNameChange(901)
+	fake := &fakeParentService{submitRows: []*parentService.StudentDataChangeRequest{row}, listRows: []*parentService.StudentDataChangeRequest{row}}
 	rs := &Resource{ParentService: fake}
 
 	req := parentRequestWithStudentID(
@@ -151,7 +150,7 @@ func TestSubmitAndListMasterDataRequests(t *testing.T) {
 
 	require.Equal(t, http.StatusCreated, w.Code)
 	require.Len(t, fake.gotSubmitChanges, 1)
-	assert.Equal(t, usersModels.DataChangeTargetPerson, fake.gotSubmitChanges[0].Target)
+	assert.Equal(t, parentService.DataChangeTargetPerson, fake.gotSubmitChanges[0].Target)
 	assert.JSONEq(t, `"Lea"`, string(fake.gotSubmitChanges[0].Value))
 	assert.Contains(t, w.Body.String(), `"id":"901"`)
 

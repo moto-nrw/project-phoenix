@@ -426,7 +426,7 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 			continue
 		}
 		if candidate.PolicyEpoch > base.PolicyEpoch &&
-			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) || reviewedSharedKernelRule(rule) || reviewedCommonHTTPRule(rule)) {
+			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) || reviewedSharedKernelRule(rule) || reviewedCommonHTTPRule(rule) || reviewedParentHTTPRule(rule)) {
 			continue
 		}
 		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
@@ -810,7 +810,8 @@ func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, base
 				!timeTrackingCutoverPermission(base, candidate, scope, baseSource, target) &&
 				!firstPartyAllowedByReviewedFixtureRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedSharedKernelRule(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedCommonHTTPRule(base, candidate, scope, source, target) {
+				!firstPartyAllowedByReviewedCommonHTTPRule(base, candidate, scope, source, target) &&
+				!firstPartyAllowedByReviewedParentHTTPRule(base, candidate, scope, source, target) {
 				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())
 			}
 		}

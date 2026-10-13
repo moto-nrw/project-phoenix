@@ -13,7 +13,7 @@ var timeTrackingRetiredPackage = Package{
 
 // timeTrackingCutoverPermission is the one-time #3413 dissolution of the
 // retained time-tracking package into the Workforce application layer (ADR
-// 0051): the services move to modules/workforce/internal/application/
+// 0052): the services move to modules/workforce/internal/application/
 // timetracking, and the adapters that served the public contracts from the
 // composition root move into the Workforce composition with the private row
 // mapping that replaces the work-session repository shim. Like the #3418 cutover it forgives no debt, changes no

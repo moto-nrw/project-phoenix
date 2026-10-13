@@ -31,9 +31,13 @@ func NewParentCareScheduleTestService(db *bun.DB, module StudentTestModule) (*pa
 	}), nil
 }
 
+// ParentPortalCareProfiles is Care Plan's care-profile commands as the
+// portal suites hold them without importing Care Plan.
+type ParentPortalCareProfiles = careplan.StudentProfileCommands
+
 // NewParentPortalCareProfiles builds Care Plan's care-profile commands the
 // guardian portal writes the child's health information and live absence
 // flags through, for tests that compose the portal.
-func NewParentPortalCareProfiles(db *bun.DB) (careplan.StudentProfileCommands, error) {
+func NewParentPortalCareProfiles(db *bun.DB) (ParentPortalCareProfiles, error) {
 	return careplanCompose.NewStudentProfiles(db, func(careplanCompose.Observation) {})
 }

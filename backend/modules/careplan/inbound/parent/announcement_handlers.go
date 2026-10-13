@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // AnnouncementResponse is one parent-news feed entry. IDs are stringified per
@@ -68,7 +68,7 @@ type AnnouncementPollChild struct {
 	SelectedOptions []string `json:"selected_options"`
 }
 
-func toAnnouncementResponse(item *usersModels.AnnouncementFeedItem) AnnouncementResponse {
+func toAnnouncementResponse(item *parentService.AnnouncementFeedItem) AnnouncementResponse {
 	options := make([]AnnouncementOption, 0, len(item.Options))
 	for _, o := range item.Options {
 		options = append(options, AnnouncementOption{
