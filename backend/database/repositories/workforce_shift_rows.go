@@ -3,468 +3,160 @@ package repositories
 import (
 	"context"
 	"errors"
-	"fmt"
-	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
-// The adapters in this file serve the retained models/schedule Dienstplan
-// row types over the Workforce capability (#2689) to the retained consumers
-// that still speak them: the Timetable coverage probe, the staff calendar
-// feed, the plan export and the legacy suites. They perform no persistence of
-// their own: every adapter maps the row models onto the public capability
-// types and preserves the error shapes those callers still classify on. The
-// Dienstplan services themselves speak Workforce's own rows since #3424.
+// The retained models/schedule Dienstplan rows are served by the Timetable
+// composition over the Workforce capability (#2689); the bindings below hand
+// it the capability in that composition's vocabulary.
 
-const shiftWallClockLayout = "15:04:05"
-
-// WorkforceShiftRows serves the concrete schedule.staff_shifts rows.
-type WorkforceShiftRows struct{ workforce workforce.Capability }
+// The two vocabularies spell the same order columns; a drift must not
+// compile: a false comparison repeats the false key of this map literal.
+var _ = map[bool]struct{}{
+	false: {},
+	string(workforce.StaffShiftOrderDate) == string(timetableCompose.WorkforceShiftOrderDate) &&
+		string(workforce.StaffShiftOrderStaffID) == string(timetableCompose.WorkforceShiftOrderStaffID) &&
+		string(workforce.StaffShiftOrderStartTime) == string(timetableCompose.WorkforceShiftOrderStartTime): {},
+}
 
 // NewWorkforceShiftRows binds the staff-shift rows to the Workforce capability.
-func NewWorkforceShiftRows(capability workforce.Capability) *WorkforceShiftRows {
+func NewWorkforceShiftRows(capability workforce.Capability) *timetableCompose.WorkforceShiftRows {
 	if capability == nil {
 		panic("staff shift rows: Workforce capability is required")
 	}
-	return &WorkforceShiftRows{workforce: capability}
+	return timetableCompose.NewWorkforceShiftRows(workforceShiftRecords{capability: capability}, peopleCompose.RetainedRecordErrors{})
 }
-
-func (r *WorkforceShiftRows) Create(ctx context.Context, shift *scheduleModels.StaffShift) error {
-	if shift == nil {
-		return errors.New("StaffShift cannot be nil or zero value")
-	}
-	if err := shift.Validate(); err != nil {
-		return err
-	}
-	created, err := r.workforce.CreateStaffShift(ctx, shiftToCapability(shift))
-	if err != nil {
-		return shiftWriteError("create", err)
-	}
-	applyShiftToRow(shift, created)
-	return nil
-}
-
-func (r *WorkforceShiftRows) FindByID(ctx context.Context, id any) (*scheduleModels.StaffShift, error) {
-	shiftID, err := shiftRowID(id)
-	if err != nil {
-		return nil, wrapShiftDatabaseError("find by id", err)
-	}
-	value, err := r.workforce.FindStaffShift(ctx, shiftID)
-	if err != nil {
-		return nil, shiftReadError("find by id", err, workforce.ErrStaffShiftNotFound)
-	}
-	return shiftToRow(value), nil
-}
-
-func (r *WorkforceShiftRows) Update(ctx context.Context, shift *scheduleModels.StaffShift) error {
-	if shift == nil {
-		return errors.New("StaffShift cannot be nil or zero value")
-	}
-	if err := shift.Validate(); err != nil {
-		return err
-	}
-	updated, err := r.workforce.UpdateStaffShift(ctx, shiftToCapability(shift))
-	if err != nil {
-		if errors.Is(err, workforce.ErrStaffShiftNotFound) {
-			return shiftRowsAffectedError("update StaffShift")
-		}
-		return shiftWriteError("update", err)
-	}
-	applyShiftToRow(shift, updated)
-	return nil
-}
-
-func (r *WorkforceShiftRows) Delete(ctx context.Context, id any) error {
-	shiftID, err := shiftRowID(id)
-	if err != nil {
-		return wrapShiftDatabaseError("delete", err)
-	}
-	if err := r.workforce.DeleteStaffShift(ctx, shiftID); err != nil {
-		return shiftWriteError("delete", err)
-	}
-	return nil
-}
-
-func (r *WorkforceShiftRows) FindByDateRange(ctx context.Context, start, end scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
-	return r.list(ctx, "find staff shifts by date range", workforce.StaffShiftFilter{
-		From: start.String(), To: end.String(),
-		Order: shiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStaffID, workforce.StaffShiftOrderStartTime),
-	})
-}
-
-func (r *WorkforceShiftRows) FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
-	return r.list(ctx, "find staff shifts by staff and date range", workforce.StaffShiftFilter{
-		StaffID: staffID, From: start.String(), To: end.String(),
-		Order: shiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStartTime),
-	})
-}
-
-func (r *WorkforceShiftRows) FindByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, start, end scheduleModels.Date) (map[int64][]*scheduleModels.StaffShift, error) {
-	result := make(map[int64][]*scheduleModels.StaffShift, len(staffIDs))
-	if len(staffIDs) == 0 {
-		return result, nil
-	}
-	shifts, err := r.list(ctx, "find staff shifts by staff IDs and date range", workforce.StaffShiftFilter{
-		StaffIDs: staffIDs, From: start.String(), To: end.String(),
-		Order: shiftOrder(workforce.StaffShiftOrderStaffID, workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStartTime),
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, shift := range shifts {
-		result[shift.StaffID] = append(result[shift.StaffID], shift)
-	}
-	return result, nil
-}
-
-func (r *WorkforceShiftRows) FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
-	if len(staffIDs) == 0 {
-		return nil, nil
-	}
-	return r.list(ctx, "find staff shifts by staff ids and date", workforce.StaffShiftFilter{
-		StaffIDs: staffIDs, Dates: []string{date.String()},
-		Order: shiftOrder(workforce.StaffShiftOrderStaffID, workforce.StaffShiftOrderStartTime),
-	})
-}
-
-func (r *WorkforceShiftRows) FindByOriginShiftID(ctx context.Context, originShiftID int64) ([]*scheduleModels.StaffShift, error) {
-	return r.list(ctx, "find staff shifts by origin shift id", workforce.StaffShiftFilter{
-		OriginShiftID: originShiftID, Order: shiftOrder(workforce.StaffShiftOrderStartTime),
-	})
-}
-
-func (r *WorkforceShiftRows) FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
-	if len(staffIDs) == 0 || len(dates) == 0 {
-		return nil, nil
-	}
-	days := make([]string, 0, len(dates))
-	for _, date := range dates {
-		days = append(days, date.String())
-	}
-	return r.list(ctx, "find staff shifts by staff IDs and dates", workforce.StaffShiftFilter{
-		StaffIDs: staffIDs, Dates: days,
-		Order: shiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStaffID, workforce.StaffShiftOrderStartTime),
-	})
-}
-
-func (r *WorkforceShiftRows) FindUsedCalendarWeeks(ctx context.Context, start, end scheduleModels.Date) ([]scheduleModels.Date, error) {
-	weeks, err := r.workforce.UsedStaffShiftWeeks(ctx, start.String(), end.String())
-	if err != nil {
-		return nil, shiftReadError("find used staff-shift calendar weeks", err, nil)
-	}
-	result := make([]scheduleModels.Date, 0, len(weeks))
-	for _, week := range weeks {
-		result = append(result, scheduleModels.Date(week))
-	}
-	return result, nil
-}
-
-func (r *WorkforceShiftRows) BulkCreate(ctx context.Context, shifts []*scheduleModels.StaffShift) error {
-	if len(shifts) == 0 {
-		return nil
-	}
-	values := make([]workforce.StaffShift, 0, len(shifts))
-	for _, shift := range shifts {
-		if shift == nil {
-			return errors.New("StaffShift cannot be nil or zero value")
-		}
-		values = append(values, shiftToCapability(shift))
-	}
-	created, err := r.workforce.CreateStaffShifts(ctx, values)
-	if err != nil {
-		return shiftWriteError("bulk create staff shifts", err)
-	}
-	for index, shift := range shifts {
-		if index < len(created) {
-			applyShiftToRow(shift, created[index])
-		}
-	}
-	return nil
-}
-
-func (r *WorkforceShiftRows) DeleteNonDetachedBySeriesFrom(ctx context.Context, seriesID int64, from scheduleModels.Date) (int64, error) {
-	deleted, err := r.workforce.DeleteRegenerableSeriesShifts(ctx, seriesID, from.String())
-	if err != nil {
-		return 0, shiftWriteError("delete non-detached staff shifts by series", err)
-	}
-	return deleted, nil
-}
-
-func (r *WorkforceShiftRows) RepointDetachedSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from scheduleModels.Date) (int64, error) {
-	moved, err := r.workforce.RepointDetachedSeriesShifts(ctx, fromSeriesID, toSeriesID, from.String())
-	if err != nil {
-		return 0, shiftWriteError("repoint detached staff shifts to successor series", err)
-	}
-	return moved, nil
-}
-
-func (r *WorkforceShiftRows) list(ctx context.Context, op string, filter workforce.StaffShiftFilter) ([]*scheduleModels.StaffShift, error) {
-	values, err := r.workforce.ListStaffShifts(ctx, filter)
-	if err != nil {
-		return nil, shiftReadError(op, err, nil)
-	}
-	// Empty, not nil: callers serialize the result straight to JSON.
-	result := make([]*scheduleModels.StaffShift, 0, len(values))
-	for _, value := range values {
-		result = append(result, shiftToRow(value))
-	}
-	return result, nil
-}
-
-func shiftOrder(fields ...workforce.StaffShiftOrderField) []workforce.StaffShiftOrder {
-	order := make([]workforce.StaffShiftOrder, 0, len(fields))
-	for _, field := range fields {
-		order = append(order, workforce.StaffShiftOrder{Field: field})
-	}
-	return order
-}
-
-// WorkforceShiftTypeRows serves the tenant-defined Schichtarten.
-type WorkforceShiftTypeRows struct{ workforce workforce.Capability }
 
 // NewWorkforceShiftTypeRows binds the shift-type rows to the Workforce capability.
-func NewWorkforceShiftTypeRows(capability workforce.Capability) *WorkforceShiftTypeRows {
+func NewWorkforceShiftTypeRows(capability workforce.Capability) *timetableCompose.WorkforceShiftTypeRows {
 	if capability == nil {
 		panic("shift type rows: Workforce capability is required")
 	}
-	return &WorkforceShiftTypeRows{workforce: capability}
+	return timetableCompose.NewWorkforceShiftTypeRows(workforceShiftRecords{capability: capability}, peopleCompose.RetainedRecordErrors{})
 }
 
-func (r *WorkforceShiftTypeRows) Create(ctx context.Context, shiftType *scheduleModels.ShiftType) error {
-	if shiftType == nil {
-		return errors.New("shift type cannot be nil")
-	}
-	if err := shiftType.Validate(); err != nil {
-		return err
-	}
-	created, err := r.workforce.CreateShiftType(ctx, shiftTypeToCapability(shiftType))
-	if err != nil {
-		return shiftWriteError("create", err)
-	}
-	applyShiftTypeToRow(shiftType, created)
-	return nil
-}
+// workforceShiftRecords translates between the Timetable composition's
+// vocabulary and Workforce's.
+type workforceShiftRecords struct{ capability workforce.Capability }
 
-func (r *WorkforceShiftTypeRows) FindByID(ctx context.Context, id any) (*scheduleModels.ShiftType, error) {
-	typeID, err := shiftRowID(id)
-	if err != nil {
-		return nil, wrapShiftDatabaseError("find by id", err)
-	}
-	value, err := r.workforce.FindShiftType(ctx, typeID)
-	if err != nil {
-		return nil, shiftReadError("find by id", err, workforce.ErrShiftTypeNotFound)
-	}
-	return shiftTypeToRow(value), nil
-}
-
-func (r *WorkforceShiftTypeRows) Update(ctx context.Context, shiftType *scheduleModels.ShiftType) error {
-	if shiftType == nil {
-		return errors.New("shift type cannot be nil")
-	}
-	if err := shiftType.Validate(); err != nil {
-		return err
-	}
-	updated, err := r.workforce.UpdateShiftType(ctx, shiftTypeToCapability(shiftType))
-	if err != nil {
-		if errors.Is(err, workforce.ErrShiftTypeNotFound) {
-			return shiftRowsAffectedError("update shift type")
-		}
-		return shiftWriteError("update shift type", err)
-	}
-	applyShiftTypeToRow(shiftType, updated)
-	return nil
-}
-
-func (r *WorkforceShiftTypeRows) Delete(ctx context.Context, id any) error {
-	typeID, err := shiftRowID(id)
-	if err != nil {
-		return wrapShiftDatabaseError("delete shift type", err)
-	}
-	if err := r.workforce.DeleteShiftType(ctx, typeID); err != nil {
-		return shiftWriteError("delete shift type", err)
-	}
-	return nil
-}
-
-func (r *WorkforceShiftTypeRows) ListAll(ctx context.Context) ([]*scheduleModels.ShiftType, error) {
-	values, err := r.workforce.ListShiftTypes(ctx)
-	if err != nil {
-		return nil, shiftReadError("list all shift types", err, nil)
-	}
-	result := make([]*scheduleModels.ShiftType, 0, len(values))
-	for _, value := range values {
-		result = append(result, shiftTypeToRow(value))
-	}
-	return result, nil
-}
-
-func (r *WorkforceShiftTypeRows) CreateIfAbsent(ctx context.Context, shiftType *scheduleModels.ShiftType) (bool, error) {
-	if shiftType == nil {
-		return false, errors.New("shift type cannot be nil")
-	}
-	if err := shiftType.Validate(); err != nil {
-		return false, err
-	}
-	created, inserted, err := r.workforce.CreateShiftTypeIfAbsent(ctx, shiftTypeToCapability(shiftType))
-	if err != nil {
-		return false, shiftWriteError("create shift type if absent", err)
-	}
-	if inserted {
-		applyShiftTypeToRow(shiftType, created)
-	}
-	return inserted, nil
-}
-
-// --- mapping ---
-
-func shiftToCapability(shift *scheduleModels.StaffShift) workforce.StaffShift {
-	value := workforce.StaffShift{
-		ID: shift.ID, TenantID: shift.TenantID, StaffID: shift.StaffID, Date: shift.Date.String(),
-		StartTime: shiftWallClock(shift.StartTime), EndTime: shiftWallClock(shift.EndTime), BreakMinutes: shift.BreakMinutes,
-		ShiftTypeID: shift.ShiftTypeID, Notes: shift.Notes, SeriesID: shift.SeriesID, Detached: shift.Detached,
-		Cancelled: shift.Cancelled, ChangeReason: shift.ChangeReason, OriginShiftID: shift.OriginShiftID,
-		SickAbsenceID: shift.SickAbsenceID, CreatedBy: shift.CreatedBy, UpdatedBy: shift.UpdatedBy,
-		CreatedAt: shift.CreatedAt, UpdatedAt: shift.UpdatedAt,
-	}
-	if shift.SeriesOccurrenceDate != nil {
-		value.SeriesOccurrenceDate = shift.SeriesOccurrenceDate.String()
-	}
-	return value
-}
-
-func shiftToRow(value workforce.StaffShift) *scheduleModels.StaffShift {
-	shift := &scheduleModels.StaffShift{}
-	applyShiftToRow(shift, value)
-	return shift
-}
-
-func applyShiftToRow(shift *scheduleModels.StaffShift, value workforce.StaffShift) {
-	shift.ID = value.ID
-	shift.CreatedAt = value.CreatedAt
-	shift.UpdatedAt = value.UpdatedAt
-	shift.TenantID = value.TenantID
-	shift.StaffID = value.StaffID
-	shift.Date = scheduleModels.Date(value.Date)
-	shift.StartTime = shiftWallClockTime(value.StartTime)
-	shift.EndTime = shiftWallClockTime(value.EndTime)
-	shift.BreakMinutes = value.BreakMinutes
-	shift.ShiftTypeID = value.ShiftTypeID
-	shift.Notes = value.Notes
-	shift.SeriesID = value.SeriesID
-	shift.Detached = value.Detached
-	shift.SeriesOccurrenceDate = nil
-	if value.SeriesOccurrenceDate != "" {
-		occurrence := scheduleModels.Date(value.SeriesOccurrenceDate)
-		shift.SeriesOccurrenceDate = &occurrence
-	}
-	shift.Cancelled = value.Cancelled
-	shift.ChangeReason = value.ChangeReason
-	shift.OriginShiftID = value.OriginShiftID
-	shift.SickAbsenceID = value.SickAbsenceID
-	shift.CreatedBy = value.CreatedBy
-	shift.UpdatedBy = value.UpdatedBy
-}
-
-func shiftTypeToCapability(shiftType *scheduleModels.ShiftType) workforce.ShiftType {
-	return workforce.ShiftType{
-		ID: shiftType.ID, TenantID: shiftType.TenantID, Name: shiftType.Name, Color: shiftType.Color,
-		Description: shiftType.Description, IsActive: shiftType.IsActive, CreatedAt: shiftType.CreatedAt, UpdatedAt: shiftType.UpdatedAt,
-	}
-}
-
-func shiftTypeToRow(value workforce.ShiftType) *scheduleModels.ShiftType {
-	shiftType := &scheduleModels.ShiftType{}
-	applyShiftTypeToRow(shiftType, value)
-	return shiftType
-}
-
-func applyShiftTypeToRow(shiftType *scheduleModels.ShiftType, value workforce.ShiftType) {
-	shiftType.ID = value.ID
-	shiftType.CreatedAt = value.CreatedAt
-	shiftType.UpdatedAt = value.UpdatedAt
-	shiftType.TenantID = value.TenantID
-	shiftType.Name = value.Name
-	shiftType.Color = value.Color
-	shiftType.Description = value.Description
-	shiftType.IsActive = value.IsActive
-}
-
-// shiftWallClock reads only the time-of-day components; the year anchor and
-// location a caller or driver attached are not part of a TIME value.
-func shiftWallClock(value time.Time) string {
-	return value.Format(shiftWallClockLayout)
-}
-
-// shiftWallClockTime restores the normalized wall clock the row callers
-// expect: the clock anchored at 0001-01-01 UTC.
-func shiftWallClockTime(value string) time.Time {
-	parsed, err := time.Parse(shiftWallClockLayout, value)
-	if err != nil {
-		return time.Time{}
-	}
-	return time.Date(1, time.January, 1, parsed.Hour(), parsed.Minute(), parsed.Second(), 0, time.UTC)
-}
-
-// --- errors ---
-
-// wrapShiftDatabaseError is the repository error envelope the row callers
-// classify on.
-func wrapShiftDatabaseError(operation string, err error) error {
-	return wrapRetainedError(operation, err)
-}
-
-// wrapShiftNoRowsDatabaseError is the missing-row answer: the
-// persistence-neutral not-found sentinel joined with the driver's no-rows
-// value, as the generic repositories returned it.
-func wrapShiftNoRowsDatabaseError(operation string) error {
-	return retainedNotFound(operation)
-}
-
-// shiftRowID narrows the untyped ID of the generic repository contract.
-func shiftRowID(id any) (int64, error) {
-	switch value := id.(type) {
-	case int64:
-		return value, nil
-	case int:
-		return int64(value), nil
-	case int32:
-		return int64(value), nil
-	case uint:
-		return int64(value), nil // #nosec G115 -- row ids fit int64
-	case uint32:
-		return int64(value), nil
-	case uint64:
-		return int64(value), nil // #nosec G115 -- row ids fit int64
+// workforceShiftError marks Workforce's answers for the rows.
+func workforceShiftError(err error) error {
+	switch {
+	case errors.Is(err, workforce.ErrStaffShiftNotFound):
+		return timetableCompose.MarkRecordError(timetableCompose.ErrWorkforceShiftNotFound, err)
+	case errors.Is(err, workforce.ErrShiftTypeNotFound):
+		return timetableCompose.MarkRecordError(timetableCompose.ErrWorkforceShiftTypeNotFound, err)
+	case errors.Is(err, workforce.ErrInvalidStaffShift), errors.Is(err, workforce.ErrInvalidShiftSeries),
+		errors.Is(err, workforce.ErrInvalidShiftType):
+		return timetableCompose.MarkRecordError(timetableCompose.ErrWorkforceShiftInvalid, err)
 	default:
-		return 0, fmt.Errorf("unsupported id type %T", id)
+		return err
 	}
 }
 
-// shiftReadError restores the repository read error: a missing row is the
-// not-found sentinel joined with the driver's no-rows value, every other
-// failure keeps its cause behind the operation.
-func shiftReadError(op string, err error, notFound error) error {
-	if notFound != nil && errors.Is(err, notFound) {
-		return wrapShiftNoRowsDatabaseError(op)
+func workforceShifts(values []workforce.StaffShift) []timetableCompose.WorkforceShift {
+	if values == nil {
+		return nil
 	}
-	return wrapShiftDatabaseError(op, err)
+	result := make([]timetableCompose.WorkforceShift, 0, len(values))
+	for _, value := range values {
+		result = append(result, timetableCompose.WorkforceShift(value))
+	}
+	return result
 }
 
-// shiftWriteError keeps the write error shape: validation failures surface
-// with their bare wording, as the model's own Validate() did, while staying
-// classifiable; everything else is a database error whose chain still reaches
-// the driver error of a rejected duplicate.
-func shiftWriteError(op string, err error) error {
-	if errors.Is(err, workforce.ErrInvalidStaffShift) || errors.Is(err, workforce.ErrInvalidShiftSeries) ||
-		errors.Is(err, workforce.ErrInvalidShiftType) {
-		return fmt.Errorf("%w", err)
-	}
-	return wrapShiftDatabaseError(op, err)
+func (r workforceShiftRecords) CreateStaffShift(ctx context.Context, shift timetableCompose.WorkforceShift) (timetableCompose.WorkforceShift, error) {
+	created, err := r.capability.CreateStaffShift(ctx, workforce.StaffShift(shift))
+	return timetableCompose.WorkforceShift(created), workforceShiftError(err)
 }
 
-// shiftRowsAffectedError is the result of an update that matched no row.
-func shiftRowsAffectedError(op string) error {
-	return wrapShiftDatabaseError(op, fmt.Errorf("expected %d rows affected, got %d", 1, 0))
+func (r workforceShiftRecords) CreateStaffShifts(ctx context.Context, shifts []timetableCompose.WorkforceShift) ([]timetableCompose.WorkforceShift, error) {
+	values := make([]workforce.StaffShift, 0, len(shifts))
+	for _, shift := range shifts {
+		values = append(values, workforce.StaffShift(shift))
+	}
+	created, err := r.capability.CreateStaffShifts(ctx, values)
+	return workforceShifts(created), workforceShiftError(err)
+}
+
+func (r workforceShiftRecords) FindStaffShift(ctx context.Context, id int64) (timetableCompose.WorkforceShift, error) {
+	value, err := r.capability.FindStaffShift(ctx, id)
+	return timetableCompose.WorkforceShift(value), workforceShiftError(err)
+}
+
+func (r workforceShiftRecords) UpdateStaffShift(ctx context.Context, shift timetableCompose.WorkforceShift) (timetableCompose.WorkforceShift, error) {
+	updated, err := r.capability.UpdateStaffShift(ctx, workforce.StaffShift(shift))
+	return timetableCompose.WorkforceShift(updated), workforceShiftError(err)
+}
+
+func (r workforceShiftRecords) DeleteStaffShift(ctx context.Context, id int64) error {
+	return workforceShiftError(r.capability.DeleteStaffShift(ctx, id))
+}
+
+func (r workforceShiftRecords) ListStaffShifts(ctx context.Context, filter timetableCompose.WorkforceShiftFilter) ([]timetableCompose.WorkforceShift, error) {
+	order := make([]workforce.StaffShiftOrder, 0, len(filter.Order))
+	for _, value := range filter.Order {
+		order = append(order, workforce.StaffShiftOrder{Field: workforce.StaffShiftOrderField(value.Field), Descending: value.Descending})
+	}
+	values, err := r.capability.ListStaffShifts(ctx, workforce.StaffShiftFilter{
+		StaffID: filter.StaffID, StaffIDs: filter.StaffIDs, From: filter.From, To: filter.To, Dates: filter.Dates,
+		SeriesID: filter.SeriesID, OriginShiftID: filter.OriginShiftID, OriginShiftIDs: filter.OriginShiftIDs,
+		SickAbsenceID: filter.SickAbsenceID, Cancelled: filter.Cancelled, Detached: filter.Detached,
+		Order: order, Limit: filter.Limit, Offset: filter.Offset,
+	})
+	return workforceShifts(values), workforceShiftError(err)
+}
+
+func (r workforceShiftRecords) UsedStaffShiftWeeks(ctx context.Context, from, to string) ([]string, error) {
+	weeks, err := r.capability.UsedStaffShiftWeeks(ctx, from, to)
+	return weeks, workforceShiftError(err)
+}
+
+func (r workforceShiftRecords) DeleteRegenerableSeriesShifts(ctx context.Context, seriesID int64, from string) (int64, error) {
+	deleted, err := r.capability.DeleteRegenerableSeriesShifts(ctx, seriesID, from)
+	return deleted, workforceShiftError(err)
+}
+
+func (r workforceShiftRecords) RepointDetachedSeriesShifts(ctx context.Context, fromSeriesID, toSeriesID int64, from string) (int64, error) {
+	moved, err := r.capability.RepointDetachedSeriesShifts(ctx, fromSeriesID, toSeriesID, from)
+	return moved, workforceShiftError(err)
+}
+
+func (r workforceShiftRecords) CreateShiftType(ctx context.Context, shiftType timetableCompose.WorkforceShiftType) (timetableCompose.WorkforceShiftType, error) {
+	created, err := r.capability.CreateShiftType(ctx, workforce.ShiftType(shiftType))
+	return timetableCompose.WorkforceShiftType(created), workforceShiftError(err)
+}
+
+func (r workforceShiftRecords) CreateShiftTypeIfAbsent(ctx context.Context, shiftType timetableCompose.WorkforceShiftType) (timetableCompose.WorkforceShiftType, bool, error) {
+	created, inserted, err := r.capability.CreateShiftTypeIfAbsent(ctx, workforce.ShiftType(shiftType))
+	return timetableCompose.WorkforceShiftType(created), inserted, workforceShiftError(err)
+}
+
+func (r workforceShiftRecords) FindShiftType(ctx context.Context, id int64) (timetableCompose.WorkforceShiftType, error) {
+	value, err := r.capability.FindShiftType(ctx, id)
+	return timetableCompose.WorkforceShiftType(value), workforceShiftError(err)
+}
+
+func (r workforceShiftRecords) UpdateShiftType(ctx context.Context, shiftType timetableCompose.WorkforceShiftType) (timetableCompose.WorkforceShiftType, error) {
+	updated, err := r.capability.UpdateShiftType(ctx, workforce.ShiftType(shiftType))
+	return timetableCompose.WorkforceShiftType(updated), workforceShiftError(err)
+}
+
+func (r workforceShiftRecords) DeleteShiftType(ctx context.Context, id int64) error {
+	return workforceShiftError(r.capability.DeleteShiftType(ctx, id))
+}
+
+func (r workforceShiftRecords) ListShiftTypes(ctx context.Context) ([]timetableCompose.WorkforceShiftType, error) {
+	values, err := r.capability.ListShiftTypes(ctx)
+	if values == nil {
+		return nil, workforceShiftError(err)
+	}
+	result := make([]timetableCompose.WorkforceShiftType, 0, len(values))
+	for _, value := range values {
+		result = append(result, timetableCompose.WorkforceShiftType(value))
+	}
+	return result, workforceShiftError(err)
 }

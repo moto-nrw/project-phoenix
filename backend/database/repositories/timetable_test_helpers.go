@@ -30,8 +30,8 @@ type TimetableTestRepositories struct {
 	Timetable           timetable.Capability
 	// Repositories are the retained Timetable adapters (#2743).
 	timetableCompose.Repositories
-	StaffShift              *WorkforceShiftRows
-	ShiftType               *WorkforceShiftTypeRows
+	StaffShift              *timetableCompose.WorkforceShiftRows
+	ShiftType               *timetableCompose.WorkforceShiftTypeRows
 	CalendarPeriod          scheduleModels.CalendarPeriodRepository
 	ClosingDay              scheduleModels.ClosingDayRepository
 	Dateframe               scheduleModels.DateframeRepository
