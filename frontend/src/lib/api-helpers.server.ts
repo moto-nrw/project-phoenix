@@ -33,7 +33,6 @@ export {
   ApiResponseError,
   backendResponseError,
   bffError,
-  isApiResponseError,
   handleApiError,
   problemResponse,
 } from "./api-response-error.server";
