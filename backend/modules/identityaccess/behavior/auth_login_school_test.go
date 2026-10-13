@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,6 +23,10 @@ import (
 // deferred closes run BEFORE the fixture cleanups registered later, so every
 // teardown query hit an already-closed pool and left its schools, accounts and
 // audit rows behind in the shared test database.
+
+// schoolScope is the wire value of the school-portal token scope
+// (tenant.ScopeSchool); the suite pins it as the token carries it.
+const schoolScope = "school"
 
 // decodeTokenClaims decodes a minted JWT and returns scope + tenant_id.
 func decodeTokenClaims(t *testing.T, token string) (scope string, tenantID int64) {
@@ -188,11 +191,11 @@ func TestLoginSchool_Lehrkraft_IssuesSchoolScopedTokens(t *testing.T) {
 	require.NotEmpty(t, result.RefreshToken)
 
 	scope, tokenTenantID := decodeTokenClaims(t, result.AccessToken)
-	assert.Equal(t, tenant.ScopeSchool, scope, "access token must carry the school scope")
+	assert.Equal(t, schoolScope, scope, "access token must carry the school scope")
 	assert.Equal(t, tenantID, tokenTenantID, "school token must be pinned to the resolved school")
 
 	refreshScope, refreshTenantID := decodeTokenClaims(t, result.RefreshToken)
-	assert.Equal(t, tenant.ScopeSchool, refreshScope, "refresh token must carry the school scope for the refresh round-trip")
+	assert.Equal(t, schoolScope, refreshScope, "refresh token must carry the school scope for the refresh round-trip")
 	assert.Equal(t, tenantID, refreshTenantID)
 }
 
@@ -231,7 +234,7 @@ func TestRefreshToken_SchoolScope_Preserved(t *testing.T) {
 	require.NotEmpty(t, refreshToken)
 
 	scope, tokenTenantID := decodeTokenClaims(t, accessToken)
-	assert.Equal(t, tenant.ScopeSchool, scope, "refreshed access token must stay school-scope")
+	assert.Equal(t, schoolScope, scope, "refreshed access token must stay school-scope")
 	assert.Equal(t, tenantID, tokenTenantID)
 }
 
@@ -261,7 +264,7 @@ func TestRefreshToken_SchoolScopeWithoutTenant_RejectedBeforeRotation(t *testing
 	tenantlessRefresh, err := tokenAuth.CreateRefreshJWT(authjwt.RefreshClaims{
 		ID:    int(accountID),
 		Token: sessionToken,
-		Scope: tenant.ScopeSchool,
+		Scope: schoolScope,
 	})
 	require.NoError(t, err)
 
@@ -276,7 +279,7 @@ func TestRefreshToken_SchoolScopeWithoutTenant_RejectedBeforeRotation(t *testing
 	accessToken, _, err := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "")
 	require.NoError(t, err, "the rejected refresh must not have consumed the session's token")
 	scope, tokenTenantID := decodeTokenClaims(t, accessToken)
-	assert.Equal(t, tenant.ScopeSchool, scope)
+	assert.Equal(t, schoolScope, scope)
 	assert.Equal(t, tenantID, tokenTenantID)
 }
 
@@ -339,7 +342,7 @@ func TestSwitchSchool_PortalRoleRequiredAtTarget(t *testing.T) {
 		require.NotEmpty(t, refreshToken)
 
 		scope, tokenTenantID := decodeTokenClaims(t, accessToken)
-		assert.Equal(t, tenant.ScopeSchool, scope)
+		assert.Equal(t, schoolScope, scope)
 		assert.Equal(t, tenantB, tokenTenantID)
 
 		// The switch must leave a trace at the TARGET school. Without the
@@ -486,7 +489,7 @@ func TestLoginSchool_TrustedDevice_SkipsChallenge(t *testing.T) {
 	assert.Equal(t, tenantID, verifiedTenantID, "the trusted device must be checked against the resolved school")
 
 	scope, tokenTenantID := decodeTokenClaimsWith(t, service.TokenAuth, result.AccessToken)
-	assert.Equal(t, tenant.ScopeSchool, scope)
+	assert.Equal(t, schoolScope, scope)
 	assert.Equal(t, tenantID, tokenTenantID)
 }
 
@@ -575,11 +578,11 @@ func TestIssueSchoolTokens_Lehrkraft_MintsSchoolScopedPair(t *testing.T) {
 	require.NotEmpty(t, refreshToken)
 
 	scope, tokenTenantID := decodeTokenClaims(t, accessToken)
-	assert.Equal(t, tenant.ScopeSchool, scope)
+	assert.Equal(t, schoolScope, scope)
 	assert.Equal(t, tenantID, tokenTenantID)
 
 	refreshScope, refreshTenantID := decodeTokenClaims(t, refreshToken)
-	assert.Equal(t, tenant.ScopeSchool, refreshScope)
+	assert.Equal(t, schoolScope, refreshScope)
 	assert.Equal(t, tenantID, refreshTenantID)
 }
 

@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +46,7 @@ func TestAccountMetadataSelfEdits(t *testing.T) {
 	require.Equal(t, 1, attempts)
 
 	rollback := errors.New("roll back self edits")
-	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+	err = testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		require.NoError(t, profiles.SetAccountUsername(txCtx, account.ID, ""))
 		require.NoError(t, profiles.SetAccountAvatar(txCtx, account.ID, ""))
 		value, readErr := profiles.FindAccountMetadata(txCtx, account.ID)

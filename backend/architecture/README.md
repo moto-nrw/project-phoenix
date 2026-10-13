@@ -1234,12 +1234,17 @@ them. The suites now pin the rows other owners persist for the identity flows
 by their stored values, read straight from the tables, and reach the
 Security Runtime hash, the Delivery Platform mail contract, the outbox
 capture and the guardian link presets through the neutral `test` support;
-their fourteen cross-owner implementation edges are gone. The four edges the
-legacy factory still forces on an `e2e-test` root — the module's own public
-contract, its token adapter `modules/identityaccess/legacy/jwt`, the refresh
-rotation application `auth/rotation` and the tenant runtime `tenant` — are
-exact `legacy.jsonl` debt under #3446 and go when the suites drive the module
-without the legacy factory. The school-portal router
+their fourteen cross-owner implementation edges are gone. The tenant runtime
+edge `tenant` went next: the suites open their tenant, admin and current-tenant
+transactions and name the savepoint failure through the tenant runtime helpers
+of `test`, which the `shared-fixtures.tenant-runtime-public` rule already lets
+reach `tenant`. The three edges the legacy factory still forces on an
+`e2e-test` root — the module's own public contract, its token adapter
+`modules/identityaccess/legacy/jwt` and the refresh rotation application
+`auth/rotation` — are exact `legacy.jsonl` debt under #3446. No rule lets
+`test` or a composition owner reach them either, so they go only with a
+decision on the suites' role or when the suites drive the module without the
+legacy factory. The school-portal router
 suites bind their runtimes through `modules/schoolportal/portaltest`
 (`inbound-school`/`test-support`), the owner's own test support, instead of
 naming the legacy composition from the suite; its three rules are anchored to

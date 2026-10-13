@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 13.10.2026 · Ratchet 86 · Composition 259 · Policy-Epoche 38 · 4 Regeln mit
+Stand 13.10.2026 · Ratchet 85 · Composition 259 · Policy-Epoche 38 · 4 Regeln mit
 `convert it to exact debt` · 19.312 LOC unter `modules/*/legacy`
 
-Summenprobe: 3 + 21 + 4 + 0 + 0 + 0 + 58 = 86 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 3 + 21 + 3 + 0 + 0 + 0 + 58 = 85 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -51,9 +51,9 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [x] [#3356](https://github.com/moto-nrw/project-phoenix/issues/3356) Settings-, Listenexport-, Messaging-, IoT-, Aktivitäts- und Schulstruktur-Kanten — `api/students` liest Settings, weckt Sorgeberechtigte, liest Gruppen und Anmeldungen und stößt den Regeltermin-Resync über eigene Ports an (`TenantSettings`, `GuardianWake`, `SchoolGroups`, `ActiveEnrollments`, `OfferingSourceResyncer`), die Root bindet die Owner; die vier Exporte füllen den neuen Document-Rendering-Vertrag `modules/documentrendering/lists` (drei Regeln am neuen Contract-Punkt); Audit-Vokabular und Sweep-Batchgröße (`careplan.StudentDocumentSweepBatchSize`) ohne `models/*`; 19 Keys weniger (463 → 444), Composition 604 → 604
 - [x] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier geschlossen — `api/students` Datei für Datei nach `modules/peopledirectory/inbound/students` (`people-directory`/`http`), Owner `inbound-students` gelöscht; Schülerzeilen über die People-Directory-Capability, Personen-Schreibpfade über den Port `PersonRecords` (`services.NewStudentRoutePersons`); alle 37 Keys plus `api -> api/students` (#2750) und `api/enrollment -> api/students` (#2734) weg, dazu drei `api/common`-Keys (#2738) mit dem umgezogenen Listen-Snapshot (444 → 402), Composition 604 → 603; die File-Storage-Ausnahme bleibt, jetzt unter #2706
 
-## Identity · 4 Keys
+## Identity · 3 Keys
 
-- [ ] [#3446](https://github.com/moto-nrw/project-phoenix/issues/3446) Fremde Implementierungs-Imports aus den Identity-Behavior-Suiten entfernen — 4
+- [ ] [#3446](https://github.com/moto-nrw/project-phoenix/issues/3446) Fremde Implementierungs-Imports aus den Identity-Behavior-Suiten entfernen — 3 (`tenant` über die Tenant-Runtime-Helfer von `test` entfernt, 86 → 85; offen: `modules/identityaccess`, `legacy/jwt` und `auth/rotation` — eine `e2e-test`-Wurzel darf keines davon importieren, auch nicht über `test` oder eine Composition; Abbau braucht eine Architekturentscheidung zur Rolle der Suite oder Suiten ohne Legacy-Factory)
 
 - [ ] [#3487](https://github.com/moto-nrw/project-phoenix/issues/3487) `legacy/jwt` aus dem `legacy/`-Pfad umbenennen — entschieden in ADR 0031: das Paket bleibt der Session-Adapter, der Umzug läuft zuletzt nach den Carriern und blockt nichts
 - [x] [#3230](https://github.com/moto-nrw/project-phoenix/issues/3230) `api/auth` → `modules/identityaccess/inbound/auth` — Relocation (Epoche 19), 3 Keys weniger (684 → 681), 26 bleiben unter dem neuen Pfad bei #2736
