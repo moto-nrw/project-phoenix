@@ -881,7 +881,7 @@ describe("timetableService", () => {
     );
   });
 
-  it("uses backend error payloads and generic messages for failed responses", async () => {
+  it("keeps backend diagnostics separate from generic messages", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
         { detail: "Zeitraum ungueltig", code: "INVALID_RANGE" },
@@ -890,7 +890,8 @@ describe("timetableService", () => {
     );
 
     await expect(timetableService.materialize("x", "y")).rejects.toMatchObject({
-      message: "Zeitraum ungueltig",
+      message: "Anfrage fehlgeschlagen (HTTP 400)",
+      detail: "Zeitraum ungueltig",
       status: 400,
       code: "INVALID_RANGE",
     });
@@ -1529,9 +1530,7 @@ describe("timetableService.applyBulkSubstitution (#2284)", () => {
         substituteStaffId: "12",
         dates: ["2026-08-18"],
       }),
-    ).rejects.toThrow(
-      "18.08.2026: die Ersatzperson ist am 18.08.2026 selbst abwesend",
-    );
+    ).rejects.toThrow("Anfrage fehlgeschlagen (HTTP 400)");
   });
 });
 

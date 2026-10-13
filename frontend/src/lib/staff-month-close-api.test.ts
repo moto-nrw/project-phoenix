@@ -143,7 +143,8 @@ describe("staffMonthCloseService", () => {
     await expect(failure).rejects.toMatchObject({
       code,
       status: 409,
-      message: "backend error",
+      message: "Monatsabschluss fehlgeschlagen",
+      detail: "backend error",
     });
   });
 

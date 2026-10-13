@@ -102,7 +102,8 @@ describe("guardian invitation API", () => {
       );
 
     await expect(validateGuardianInvitation("expired")).rejects.toMatchObject({
-      message: "Token abgelaufen",
+      message: "Einladung konnte nicht geprüft werden.",
+      detail: "Token abgelaufen",
       status: 410,
       code: "INVITE_EXPIRED",
     });

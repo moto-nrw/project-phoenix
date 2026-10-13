@@ -354,7 +354,7 @@ describe("timetableOperationsApi", () => {
     );
   });
 
-  it("uses backend error messages and falls back when JSON parsing fails", async () => {
+  it("uses fallback messages and retains diagnostics separately", async () => {
     const mockFetch = vi.mocked(globalThis.fetch);
     mockFetch
       .mockResolvedValueOnce(
@@ -368,7 +368,7 @@ describe("timetableOperationsApi", () => {
       } as Response);
 
     await expect(timetableOperationsApi.complete("136", [])).rejects.toThrow(
-      "Nicht erlaubt",
+      "Anfrage fehlgeschlagen (HTTP 403)",
     );
     await expect(timetableOperationsApi.complete("136", [])).rejects.toThrow(
       "Anfrage fehlgeschlagen (HTTP 418)",

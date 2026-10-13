@@ -217,14 +217,15 @@ describe("push-api", () => {
     );
   });
 
-  it("uses the server error message when available", async () => {
+  it("keeps the server diagnostic separate when available", async () => {
     fetchMock.mockResolvedValueOnce(
       response({ detail: "push is disabled" }, 409),
     );
 
     await expect(subscribePush("tenant")).rejects.toMatchObject({
       status: 409,
-      message: "push is disabled",
+      message: "Push-Anfrage fehlgeschlagen (409).",
+      detail: "push is disabled",
     });
   });
 

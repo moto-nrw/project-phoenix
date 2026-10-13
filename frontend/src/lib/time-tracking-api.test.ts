@@ -162,7 +162,7 @@ describe("TimeTrackingService", () => {
       );
 
       await expect(timeTrackingService.checkIn("present")).rejects.toThrow(
-        "Already checked in",
+        "Failed to check in",
       );
     });
 
@@ -268,7 +268,7 @@ describe("TimeTrackingService", () => {
       );
 
       await expect(timeTrackingService.checkOut()).rejects.toThrow(
-        "Not checked in",
+        "Failed to check out",
       );
     });
   });
@@ -724,7 +724,7 @@ describe("TimeTrackingService", () => {
       global.fetch = mockFetchResponse({ detail: "Not found" }, false, 404);
 
       await expect(timeTrackingService.deleteAbsence("999")).rejects.toThrow(
-        "Not found",
+        "Failed to delete absence",
       );
     });
   });
@@ -808,7 +808,7 @@ describe("TimeTrackingService", () => {
 
       await expect(
         timeTrackingService.resubmitAbsence("7", "Antwort"),
-      ).rejects.toThrow("Nur Rückfragen können erneut eingereicht werden");
+      ).rejects.toThrow("Antrag konnte nicht erneut eingereicht werden");
     });
   });
 

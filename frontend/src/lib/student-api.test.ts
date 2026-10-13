@@ -408,7 +408,7 @@ describe("student-api", () => {
       });
     });
 
-    it("preserves the status and original backend message on conflicts", async () => {
+    it("preserves the status and keeps conflict diagnostics separate", async () => {
       fetchMock.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
@@ -432,7 +432,8 @@ describe("student-api", () => {
       expect(error).toBeInstanceOf(ApiError);
       expect(error).toMatchObject({
         status: 409,
-        message: "Vorschau veraltet",
+        message: "Das Kind konnte nicht gelöscht werden.",
+        detail: "Vorschau veraltet",
         code: "students.deletion_preview_changed",
       });
     });
@@ -458,7 +459,8 @@ describe("student-api", () => {
 
       expect(error).toMatchObject({
         status: 409,
-        message: "Vorschau veraltet",
+        message: "Das Kind konnte nicht gelöscht werden.",
+        detail: "Vorschau veraltet",
         code: "students.deletion_preview_changed",
       });
     });

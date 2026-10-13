@@ -385,7 +385,7 @@ describe("profile-api", () => {
         code: "general.input",
       });
       expect(consoleErrorSpy).toHaveBeenCalledWith("failed to upload avatar", {
-        error: expect.stringContaining("File too large") as unknown,
+        error: expect.stringContaining("HTTP error! status: 400") as unknown,
       });
     });
 

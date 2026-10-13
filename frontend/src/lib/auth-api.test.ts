@@ -464,7 +464,7 @@ describe("auth-api", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
-        "Rate limit exceeded",
+        "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail",
       );
     });
 
@@ -671,7 +671,8 @@ describe("auth-api", () => {
       } catch (error) {
         const apiError = error as ApiError;
         expect(apiError.status).toBe(410);
-        expect(apiError.message).toBe("Token expired");
+        expect(apiError.message).toBe("Fehler beim Zurücksetzen des Passworts");
+        expect(apiError.detail).toBe("Token expired");
       }
     });
   });
@@ -808,7 +809,7 @@ describe("auth-api", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
-        "Validation failed",
+        "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail",
       );
     });
 

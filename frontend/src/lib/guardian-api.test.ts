@@ -173,7 +173,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(fetchStudentGuardians("999")).rejects.toThrow(
-        "Student not found",
+        "Failed to fetch guardians",
       );
     });
 
@@ -241,7 +241,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(fetchGuardianStudents("999")).rejects.toThrow(
-        "Guardian not found",
+        "Failed to fetch students",
       );
     });
 
@@ -304,7 +304,8 @@ describe("guardian-api functions", () => {
         status: 400,
         code: "general.input",
         requestId: "req-1",
-        message: "Diese E-Mail-Adresse ist bereits registriert",
+        message: "Failed to create guardian",
+        detail: "Diese E-Mail-Adresse ist bereits registriert",
       });
     });
 
@@ -384,7 +385,8 @@ describe("guardian-api functions", () => {
         name: "ApiError",
         status: 404,
         code: "general.input",
-        message: "guardian not found",
+        message: "Failed to update guardian",
+        detail: "guardian not found",
       });
     });
 
@@ -439,7 +441,9 @@ describe("guardian-api functions", () => {
         json: () => Promise.resolve({ detail: "Guardian not found" }),
       });
 
-      await expect(deleteGuardian("999")).rejects.toThrow("Guardian not found");
+      await expect(deleteGuardian("999")).rejects.toThrow(
+        "Failed to delete guardian",
+      );
     });
 
     it("appends force=true and expected link IDs to the URL for a full delete", async () => {
@@ -470,7 +474,8 @@ describe("guardian-api functions", () => {
       await expect(deleteGuardian("1")).rejects.toMatchObject({
         name: "ApiError",
         status: 409,
-        message: "Noch mit Kindern verknüpft",
+        message: "Failed to delete guardian",
+        detail: "Noch mit Kindern verknüpft",
       });
     });
   });
@@ -514,7 +519,8 @@ describe("guardian-api functions", () => {
       await expect(fetchGuardianDeletePreview("1")).rejects.toMatchObject({
         name: "ApiError",
         status: 403,
-        message: "nur Administratoren",
+        message: "Failed to load delete preview",
+        detail: "nur Administratoren",
       });
     });
   });
@@ -659,7 +665,7 @@ describe("guardian-api functions", () => {
 
       await expect(
         linkGuardianToStudent("123", mockLinkRequest),
-      ).rejects.toThrow("Relationship already exists");
+      ).rejects.toThrow("Failed to link guardian");
     });
   });
 
@@ -746,7 +752,7 @@ describe("guardian-api functions", () => {
 
       await expect(
         updateStudentGuardianRelationship("999", { isPrimary: true }),
-      ).rejects.toThrow("Relationship not found");
+      ).rejects.toThrow("Failed to update relationship");
     });
   });
 
@@ -792,7 +798,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(removeGuardianFromStudent("123", "999")).rejects.toThrow(
-        "Relationship not found",
+        "Failed to remove guardian",
       );
     });
   });
@@ -850,7 +856,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(searchGuardians("john")).rejects.toThrow(
-        "Not authenticated",
+        "Failed to search guardians",
       );
     });
 
@@ -961,7 +967,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(fetchGuardianPhoneNumbers("999")).rejects.toThrow(
-        "Guardian not found",
+        "Failed to fetch phone numbers",
       );
     });
 
@@ -1080,7 +1086,7 @@ describe("guardian-api functions", () => {
 
       await expect(
         addGuardianPhoneNumber("123", mockCreateRequest),
-      ).rejects.toThrow("validation failed");
+      ).rejects.toThrow("Failed to add phone number");
     });
 
     it("rejects a success answer without data", async () => {
@@ -1215,7 +1221,7 @@ describe("guardian-api functions", () => {
 
       await expect(
         updateGuardianPhoneNumber("999", "456", mockUpdateRequest),
-      ).rejects.toThrow("guardian not found");
+      ).rejects.toThrow("Failed to update phone number");
     });
 
     it("throws the fallback diagnostic when JSON parse fails", async () => {
@@ -1273,7 +1279,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(deleteGuardianPhoneNumber("123", "999")).rejects.toThrow(
-        "Phone number not found",
+        "Failed to delete phone number",
       );
     });
 
@@ -1320,7 +1326,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(setGuardianPrimaryPhone("123", "999")).rejects.toThrow(
-        "Phone number not found",
+        "Failed to set primary phone",
       );
     });
 
@@ -1344,7 +1350,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(setGuardianPrimaryPhone("999", "456")).rejects.toThrow(
-        "Guardian not found",
+        "Failed to set primary phone",
       );
     });
 
@@ -1356,7 +1362,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(setGuardianPrimaryPhone("123", "456")).rejects.toThrow(
-        "Unauthorized",
+        "Failed to set primary phone",
       );
     });
   });

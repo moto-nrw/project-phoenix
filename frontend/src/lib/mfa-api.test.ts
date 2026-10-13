@@ -38,7 +38,8 @@ describe("login error bodies", () => {
     await expect(rejection).rejects.toMatchObject({
       status: 403,
       code: "identity.use_parent_portal",
-      message: "guardian accounts must log in at the parents portal",
+      message: "Request failed (403)",
+      detail: "guardian accounts must log in at the parents portal",
     });
   });
 

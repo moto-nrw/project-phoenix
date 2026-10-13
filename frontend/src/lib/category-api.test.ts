@@ -122,7 +122,7 @@ describe("categoryService error handling", () => {
     vi.clearAllMocks();
   });
 
-  it("surfaces the backend message from a JSON error body", async () => {
+  it("keeps a backend diagnostic separate from the operation message", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       Response.json(
         { detail: "Eine Kategorie mit diesem Namen existiert bereits" },
@@ -133,7 +133,8 @@ describe("categoryService error handling", () => {
     await expect(categoryService.createCategory(payload)).rejects.toMatchObject(
       {
         status: 409,
-        message: "Eine Kategorie mit diesem Namen existiert bereits",
+        message: "Kategorie konnte nicht angelegt werden",
+        detail: "Eine Kategorie mit diesem Namen existiert bereits",
       },
     );
   });

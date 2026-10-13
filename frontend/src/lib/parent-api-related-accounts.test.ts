@@ -69,7 +69,9 @@ describe("parent-api related accounts", () => {
 
     it("throws on a non-ok response", async () => {
       mockFetch(async () => jsonResponse({ detail: "boom" }, { status: 500 }));
-      await expect(listRelatedAccounts("3")).rejects.toThrow("boom");
+      await expect(listRelatedAccounts("3")).rejects.toThrow(
+        "Request failed (500)",
+      );
     });
   });
 
@@ -113,7 +115,7 @@ describe("parent-api related accounts", () => {
         jsonResponse({ detail: "Einladen deaktiviert" }, { status: 403 }),
       );
       await expect(inviteRelatedAccount("3", "x@x.de")).rejects.toThrow(
-        "Einladen deaktiviert",
+        "Request failed (403)",
       );
     });
 
@@ -169,7 +171,7 @@ describe("parent-api related accounts", () => {
         jsonResponse({ detail: "Primär geschützt" }, { status: 403 }),
       );
       await expect(removeRelatedAccount("3", "10")).rejects.toThrow(
-        "Primär geschützt",
+        "Request failed (403)",
       );
     });
 

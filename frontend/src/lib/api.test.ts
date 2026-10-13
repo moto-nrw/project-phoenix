@@ -1158,7 +1158,7 @@ describe("api.ts helper functions", () => {
       const restore = setupBrowserEnv();
       try {
         await expect(groupService.deleteGroup("1")).rejects.toThrow(
-          "cannot delete group with students",
+          "API error: undefined",
         );
       } finally {
         restore();
@@ -1709,7 +1709,7 @@ describe("api.ts helper functions", () => {
             name: "Test Student",
             current_location: "",
           }),
-        ).rejects.toThrow("Validation failed");
+        ).rejects.toThrow("Error updating student 1: API error: 400");
       } finally {
         restore();
       }
@@ -2514,7 +2514,7 @@ describe("api.ts helper functions", () => {
             name: "Test User",
             current_location: "",
           }),
-        ).rejects.toThrow("Validation failed");
+        ).rejects.toThrow("Error creating student: API error: 400");
       } finally {
         restore();
       }

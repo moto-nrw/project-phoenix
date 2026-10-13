@@ -1978,7 +1978,7 @@ describe("staff-api", () => {
 
       await expect(
         staffAbsenceService.deleteVacationOpening("4", 2026),
-      ).rejects.toThrow("Keine Übernahme für dieses Jahr");
+      ).rejects.toThrow("Löschen fehlgeschlagen");
     });
 
     it("deletes a takeover for the given year", async () => {
@@ -2958,7 +2958,7 @@ describe("staff-api", () => {
           balanceMinutes: 600,
           note: "Übernahme",
         }),
-      ).rejects.toThrow("Stichtag liegt in der Zukunft");
+      ).rejects.toThrow("Eröffnungssaldo fehlgeschlagen");
     });
   });
 
@@ -3294,7 +3294,7 @@ describe("staff-api", () => {
           },
           "",
         ),
-      ).rejects.toThrow("Mitarbeiter gesperrt");
+      ).rejects.toThrow("Stammdaten konnten nicht gespeichert werden");
     });
 
     it("falls back to the generic save message on an empty error body", async () => {

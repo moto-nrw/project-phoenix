@@ -144,7 +144,7 @@ describe("invitation-api", () => {
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
       await expect(validateInvitation("invalid-token")).rejects.toThrow(
-        "Invitation not found",
+        "Einladung konnte nicht geprüft werden.",
       );
     });
 
@@ -396,7 +396,7 @@ describe("invitation-api", () => {
 
       await expect(
         acceptInvitation("test-token", acceptRequest),
-      ).rejects.toThrow("Account already exists");
+      ).rejects.toThrow("Einladung konnte nicht angenommen werden.");
     });
 
     it("uses fallback error message when response is empty", async () => {
@@ -467,7 +467,7 @@ describe("invitation-api", () => {
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
       await expect(createInvitation(createRequest)).rejects.toThrow(
-        "Email already has pending invitation",
+        "Einladung konnte nicht erstellt werden.",
       );
     });
 
@@ -538,7 +538,9 @@ describe("invitation-api", () => {
 
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-      await expect(listPendingInvitations()).rejects.toThrow("Forbidden");
+      await expect(listPendingInvitations()).rejects.toThrow(
+        "Offene Einladungen konnten nicht geladen werden.",
+      );
     });
 
     it("uses fallback error message on failure", async () => {
@@ -583,7 +585,7 @@ describe("invitation-api", () => {
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
       await expect(resendInvitation(999)).rejects.toThrow(
-        "Invitation not found",
+        "Einladung konnte nicht erneut gesendet werden.",
       );
     });
 
@@ -629,7 +631,7 @@ describe("invitation-api", () => {
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
       await expect(revokeInvitation(999)).rejects.toThrow(
-        "Invitation not found",
+        "Einladung konnte nicht widerrufen werden.",
       );
     });
 
@@ -665,7 +667,7 @@ describe("invitation-api", () => {
       );
     });
 
-    it("handles response with both error and message fields (error takes precedence)", async () => {
+    it("keeps response diagnostics separate from the validation fallback", async () => {
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -679,7 +681,7 @@ describe("invitation-api", () => {
       vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
       await expect(validateInvitation("test-token")).rejects.toThrow(
-        "Primary error message",
+        "Einladung konnte nicht geprüft werden.",
       );
     });
 

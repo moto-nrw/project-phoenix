@@ -53,7 +53,7 @@ describe("decideOfferingChangeRequest", () => {
     );
   });
 
-  it("throws the backend decision error", async () => {
+  it("keeps the backend decision diagnostic separate", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
       jsonResponse(
         {
@@ -68,7 +68,8 @@ describe("decideOfferingChangeRequest", () => {
       decideOfferingChangeRequest("77", false, "Zu spät"),
     ).rejects.toMatchObject({
       name: "ApiError",
-      message: "Kein gültiger Betreuungsvertrag mehr",
+      message: "Entscheidung konnte nicht gespeichert werden",
+      detail: "Kein gültiger Betreuungsvertrag mehr",
       code: "offering_change_no_enrollment",
     });
   });
@@ -136,7 +137,7 @@ describe("previewOfferingChangeRequest", () => {
     );
   });
 
-  it("throws the backend preview error", async () => {
+  it("keeps the backend preview diagnostic separate", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
       jsonResponse(
         {
@@ -151,7 +152,8 @@ describe("previewOfferingChangeRequest", () => {
       previewOfferingChangeRequest("77", ["9"]),
     ).rejects.toMatchObject({
       name: "ApiError",
-      message: "Diese Übersteuerung ist nicht mehr möglich",
+      message: "Vorschau konnte nicht aktualisiert werden",
+      detail: "Diese Übersteuerung ist nicht mehr möglich",
       code: "care.offering_change_invalid",
     });
   });

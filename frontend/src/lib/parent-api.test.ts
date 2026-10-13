@@ -244,7 +244,7 @@ describe("listMyChildren", () => {
     mockFetch(async () =>
       jsonResponse({ detail: "forbidden" }, { status: 403 }),
     );
-    await expect(listMyChildren()).rejects.toThrow(/forbidden/);
+    await expect(listMyChildren()).rejects.toThrow(/Request failed \(403\)/);
   });
 
   it("throws with generic message on non-OK non-JSON body", async () => {
@@ -279,7 +279,7 @@ describe("listMyEnrollments", () => {
 
   it("throws on non-OK", async () => {
     mockFetch(async () => jsonResponse({ detail: "boom" }, { status: 500 }));
-    await expect(listMyEnrollments()).rejects.toThrow(/boom/);
+    await expect(listMyEnrollments()).rejects.toThrow(/Request failed \(500\)/);
   });
 });
 
@@ -320,7 +320,9 @@ describe("listEnrollableSchools", () => {
 
   it("throws on non-OK", async () => {
     mockFetch(async () => jsonResponse({ detail: "boom" }, { status: 500 }));
-    await expect(listEnrollableSchools()).rejects.toThrow(/boom/);
+    await expect(listEnrollableSchools()).rejects.toThrow(
+      /Request failed \(500\)/,
+    );
   });
 });
 
@@ -605,7 +607,7 @@ describe("parent master-data API helpers", () => {
 
     await expect(
       updateMasterDataField("42", "student", "health_info", "x"),
-    ).rejects.toThrow(/field is locked/);
+    ).rejects.toThrow(/Request failed \(409\)/);
   });
 });
 
@@ -792,7 +794,7 @@ describe("submitSickNote", () => {
     );
     await expect(
       submitSickNote("84", ["2026-06-02"], "Fieber"),
-    ).rejects.toThrow(/Krankmeldung deaktiviert/);
+    ).rejects.toThrow(/Request failed \(403\)/);
   });
 
   it("redirects to /parents/login on 401", async () => {
@@ -1054,7 +1056,9 @@ describe("listChildThreads", () => {
     mockFetch(async () =>
       jsonResponse({ detail: "forbidden" }, { status: 403 }),
     );
-    await expect(listChildThreads("42")).rejects.toThrow(/forbidden/);
+    await expect(listChildThreads("42")).rejects.toThrow(
+      /Request failed \(403\)/,
+    );
   });
 });
 
@@ -1115,7 +1119,9 @@ describe("getChildConversation", () => {
     mockFetch(async () =>
       jsonResponse({ detail: "not found" }, { status: 404 }),
     );
-    await expect(getChildConversation("42")).rejects.toThrow(/not found/);
+    await expect(getChildConversation("42")).rejects.toThrow(
+      /Request failed \(404\)/,
+    );
   });
 });
 
@@ -1154,7 +1160,7 @@ describe("postChildMessage", () => {
       jsonResponse({ detail: "Messaging deaktiviert" }, { status: 403 }),
     );
     await expect(postChildMessage("42", "test")).rejects.toThrow(
-      /Messaging deaktiviert/,
+      /Request failed \(403\)/,
     );
   });
 });
@@ -1196,7 +1202,7 @@ describe("listAnnouncements", () => {
 
   it("throws an ApiError on a failed feed load", async () => {
     mockFetch(async () => jsonResponse({ detail: "kaputt" }, { status: 500 }));
-    await expect(listAnnouncements()).rejects.toThrow(/kaputt/);
+    await expect(listAnnouncements()).rejects.toThrow(/Request failed \(500\)/);
   });
 });
 
@@ -1251,7 +1257,7 @@ describe("markAnnouncementRead", () => {
     );
     await expect(
       markAnnouncementRead("5", "2026-07-01T08:00:00Z"),
-    ).rejects.toThrow(/veraltet/);
+    ).rejects.toThrow(/Request failed \(409\)/);
   });
 });
 
@@ -1276,7 +1282,7 @@ describe("acknowledgeAnnouncement", () => {
     );
     await expect(
       acknowledgeAnnouncement("5", "2026-07-01T08:00:00Z"),
-    ).rejects.toThrow(/veraltet/);
+    ).rejects.toThrow(/Request failed \(409\)/);
   });
 });
 

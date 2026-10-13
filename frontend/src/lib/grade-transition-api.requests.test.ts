@@ -139,12 +139,12 @@ describe("createGradeTransition", () => {
     });
   });
 
-  it("throws the backend error message on failure", async () => {
+  it("uses a status fallback while retaining the backend diagnostic", async () => {
     stubOnce(fail(400, { detail: "academic_year is required" }));
 
     await expect(
       createGradeTransition({ academicYear: "", mappings: [] }),
-    ).rejects.toThrow("academic_year is required");
+    ).rejects.toThrow("HTTP 400");
   });
 
   it("falls back to the status line when the body has no message", async () => {
@@ -221,7 +221,8 @@ describe("updateGradeTransition", () => {
     ).rejects.toMatchObject({
       name: "ApiError",
       code: NOT_DRAFT_CODE,
-      message: "transition is no longer a draft",
+      message: "HTTP 409",
+      detail: "transition is no longer a draft",
     });
   });
 });
@@ -248,7 +249,8 @@ describe("deleteGradeTransition", () => {
 
     const err = await deleteGradeTransition("7").catch((e: unknown) => e);
     expect((err as ApiError).code).toBe("general.server");
-    expect((err as ApiError).message).toBe("boom");
+    expect((err as ApiError).message).toBe("HTTP 500");
+    expect((err as ApiError).detail).toBe("boom");
   });
 });
 
@@ -298,12 +300,10 @@ describe("previewGradeTransition", () => {
     expect((await previewGradeTransition("7")).transitionId).toBe("7");
   });
 
-  it("throws the backend message on failure", async () => {
+  it("uses the status fallback on failure", async () => {
     stubOnce(fail(404, { detail: "transition not found" }));
 
-    await expect(previewGradeTransition("7")).rejects.toThrow(
-      "transition not found",
-    );
+    await expect(previewGradeTransition("7")).rejects.toThrow("HTTP 404");
   });
 });
 
@@ -439,10 +439,10 @@ describe("fetchTransitionClasses", () => {
     expect(await fetchTransitionClasses()).toEqual([]);
   });
 
-  it("throws the backend message on failure", async () => {
+  it("uses the status fallback on failure", async () => {
     stubOnce(fail(403, { detail: "forbidden" }));
 
-    await expect(fetchTransitionClasses()).rejects.toThrow("forbidden");
+    await expect(fetchTransitionClasses()).rejects.toThrow("HTTP 403");
   });
 });
 
@@ -510,12 +510,10 @@ describe("fetchTransitionHistory", () => {
     expect(await fetchTransitionHistory("7")).toEqual([]);
   });
 
-  it("throws the backend message on failure", async () => {
+  it("uses the status fallback on failure", async () => {
     stubOnce(fail(404, { detail: "transition not found" }));
 
-    await expect(fetchTransitionHistory("7")).rejects.toThrow(
-      "transition not found",
-    );
+    await expect(fetchTransitionHistory("7")).rejects.toThrow("HTTP 404");
   });
 });
 
@@ -528,12 +526,10 @@ describe("purgeGraduatedStudent", () => {
     expect(calls[0]?.init?.method).toBe("DELETE");
   });
 
-  it("throws the backend message on failure", async () => {
+  it("uses the status fallback on failure", async () => {
     stubOnce(fail(409, { detail: "child is not an alumnus" }));
 
-    await expect(purgeGraduatedStudent("99")).rejects.toThrow(
-      "child is not an alumnus",
-    );
+    await expect(purgeGraduatedStudent("99")).rejects.toThrow("HTTP 409");
   });
 
   it("falls back to the status line when the body is unreadable", async () => {
@@ -579,8 +575,6 @@ describe("listGradeTransitions request handling", () => {
   it("propagates a failing page", async () => {
     stubOnce(fail(500, { detail: "database unavailable" }));
 
-    await expect(listGradeTransitions()).rejects.toThrow(
-      "database unavailable",
-    );
+    await expect(listGradeTransitions()).rejects.toThrow("HTTP 500");
   });
 });

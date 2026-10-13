@@ -179,12 +179,12 @@ describe("deleteAnnouncement", () => {
     expect((init as RequestInit).method).toBe("DELETE");
   });
 
-  it("surfaces the backend error message on a failed delete", async () => {
+  it("uses the delete fallback on a failed delete", async () => {
     mockFetch(async () =>
       jsonResponse({ detail: "veröffentlichte Mitteilung" }, { status: 409 }),
     );
     await expect(deleteAnnouncement("7")).rejects.toThrow(
-      "veröffentlichte Mitteilung",
+      "Elternmitteilung konnte nicht gelöscht werden",
     );
   });
 });
@@ -278,11 +278,13 @@ describe("fetchAnnouncementRecipients", () => {
 });
 
 describe("error handling", () => {
-  it("prefers the backend error message over the German fallback", async () => {
+  it("uses the German fallback instead of a backend diagnostic", async () => {
     mockFetch(async () =>
       jsonResponse({ detail: "Titel fehlt" }, { status: 400 }),
     );
-    await expect(fetchAnnouncements()).rejects.toThrow("Titel fehlt");
+    await expect(fetchAnnouncements()).rejects.toThrow(
+      "Elternmitteilungen konnten nicht geladen werden",
+    );
   });
 
   it("keeps the German fallback when the error body is not JSON", async () => {

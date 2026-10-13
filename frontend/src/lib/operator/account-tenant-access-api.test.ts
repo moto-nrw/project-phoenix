@@ -141,7 +141,7 @@ describe("accountTenantAccessService", () => {
     );
   });
 
-  it("throws the backend message so the modal can show the real reason", async () => {
+  it("keeps the backend diagnostic separate from the modal message", async () => {
     mockFetch.mockResolvedValue(
       jsonResponse(
         {
@@ -155,15 +155,19 @@ describe("accountTenantAccessService", () => {
     await expect(
       accountTenantAccessService.updateRole("42", "7", "1"),
     ).rejects.toThrowError(
-      new ApiError("Diese Rolle existiert an der Zielschule nicht", 400),
+      new ApiError("school access request failed (400)", 400, {
+        detail: "Diese Rolle existiert an der Zielschule nicht",
+      }),
     );
   });
 
-  it("throws the backend error of an unauthorized request", async () => {
+  it("keeps the unauthorized backend diagnostic separate", async () => {
     mockFetch.mockResolvedValue(jsonResponse({ detail: "Unauthorized" }, 401));
 
     await expect(accountTenantAccessService.list("42")).rejects.toThrowError(
-      new ApiError("Unauthorized", 401),
+      new ApiError("school access request failed (401)", 401, {
+        detail: "Unauthorized",
+      }),
     );
   });
 

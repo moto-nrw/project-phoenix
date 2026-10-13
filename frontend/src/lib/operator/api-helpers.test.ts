@@ -100,7 +100,7 @@ describe("operatorFetch", () => {
     });
 
     await expect(operatorFetch("/api/test")).rejects.toThrow(ApiError);
-    await expect(operatorFetch("/api/test")).rejects.toThrow("Invalid input");
+    await expect(operatorFetch("/api/test")).rejects.toThrow("Bad Request");
 
     try {
       await operatorFetch("/api/test");
@@ -108,6 +108,7 @@ describe("operatorFetch", () => {
       expect(error).toBeInstanceOf(ApiError);
       expect((error as ApiError).status).toBe(400);
       expect((error as ApiError).code).toBe("general.input");
+      expect((error as ApiError).detail).toBe("Invalid input");
     }
   });
 

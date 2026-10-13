@@ -72,7 +72,8 @@ describe("Einverständnisse in the staff client (#3430)", () => {
     expect(error).toMatchObject({
       status: 409,
       code: "communication.declaration_has_submissions",
-      message: "declaration has submissions",
+      message: "Elternmitteilung konnte nicht gelöscht werden",
+      detail: "declaration has submissions",
     });
   });
 
@@ -132,7 +133,7 @@ describe("Einverständnisse in the staff client (#3430)", () => {
     );
 
     await expect(downloadDeclarationExport("42", "csv")).rejects.toThrow(
-      "not found",
+      "Die Datei konnte nicht erstellt werden",
     );
     expect(downloadBlobMock).not.toHaveBeenCalled();
   });

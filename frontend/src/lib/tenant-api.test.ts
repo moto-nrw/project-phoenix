@@ -719,7 +719,8 @@ describe("tenant-api", () => {
 
       await expect(switchTenant("nonexistent")).rejects.toMatchObject({
         name: "ApiError",
-        message: "account does not have access to this tenant",
+        message: "Failed to switch tenant",
+        detail: "account does not have access to this tenant",
         status: 401,
         code: "identity.tenant_access_denied",
       });

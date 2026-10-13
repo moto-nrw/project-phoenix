@@ -71,13 +71,14 @@ describe("fetchClassListEntries", () => {
     expect(entries[0]?.matchingStudentIds).toEqual([]);
   });
 
-  it("surfaces the backend error field verbatim", async () => {
+  it("keeps the backend diagnostic separate from the operation message", async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({ detail: "Ein Eintrag existiert bereits" }, false, 400),
     );
-    await expect(fetchClassListEntries()).rejects.toThrow(
-      "Ein Eintrag existiert bereits",
-    );
+    await expect(fetchClassListEntries()).rejects.toMatchObject({
+      message: "API error (400)",
+      detail: "Ein Eintrag existiert bereits",
+    });
   });
 
   it("falls back to the status code without a detail", async () => {

@@ -152,7 +152,7 @@ describe("fetchInboxWithFilters", () => {
   it("throws with the backend error message on non-OK", async () => {
     mockFetch(async () => jsonOk({ detail: "Messaging deaktiviert" }, 403));
     await expect(fetchInboxWithFilters({})).rejects.toThrow(
-      /Messaging deaktiviert/,
+      /Nachrichten konnten nicht geladen werden/,
     );
   });
 
@@ -303,7 +303,9 @@ describe("fetchUnreadCount", () => {
 
   it("throws with backend error on non-OK", async () => {
     mockFetch(async () => jsonOk({ detail: "Keine Berechtigung" }, 401));
-    await expect(fetchUnreadCount()).rejects.toThrow(/Keine Berechtigung/);
+    await expect(fetchUnreadCount()).rejects.toThrow(
+      /Ungelesene Nachrichten konnten nicht geladen werden/,
+    );
   });
 
   it("throws with German fallback on non-JSON error", async () => {
@@ -339,7 +341,9 @@ describe("fetchThread", () => {
 
   it("throws with backend error on non-OK", async () => {
     mockFetch(async () => jsonOk({ detail: "Thread nicht gefunden" }, 404));
-    await expect(fetchThread("t1")).rejects.toThrow(/Thread nicht gefunden/);
+    await expect(fetchThread("t1")).rejects.toThrow(
+      /Nachrichtenverlauf konnte nicht geladen werden/,
+    );
   });
 
   it("throws with German fallback when response is not JSON", async () => {
@@ -407,7 +411,9 @@ describe("postMessage", () => {
 
   it("throws with backend error on non-OK", async () => {
     mockFetch(async () => jsonOk({ detail: "Nachricht zu lang" }, 422));
-    await expect(postMessage("t1", "hi")).rejects.toThrow(/Nachricht zu lang/);
+    await expect(postMessage("t1", "hi")).rejects.toThrow(
+      /Nachricht konnte nicht gesendet werden/,
+    );
   });
 
   it("throws with German fallback on non-JSON error", async () => {
@@ -439,7 +445,7 @@ describe("markThreadUnread", () => {
   it("throws the backend error on failure", async () => {
     mockFetch(async () => jsonOk({ detail: "messaging: forbidden" }, 403));
     await expect(markThreadUnread("t42")).rejects.toThrow(
-      "messaging: forbidden",
+      "Die Unterhaltung wurde nicht als ungelesen markiert.",
     );
   });
 });
@@ -460,7 +466,9 @@ describe("markAllMessagesRead", () => {
 
   it("throws the backend error on failure", async () => {
     mockFetch(async () => jsonOk({ detail: "messaging: forbidden" }, 403));
-    await expect(markAllMessagesRead()).rejects.toThrow("messaging: forbidden");
+    await expect(markAllMessagesRead()).rejects.toThrow(
+      "Die Nachrichten wurden nicht als gelesen markiert.",
+    );
   });
 });
 
@@ -494,7 +502,7 @@ describe("openThread", () => {
     mockFetch(async () => jsonOk({ detail: "Schüler nicht gefunden" }, 404));
     await expect(
       openThread({ studentId: "99", guardianAccountId: "acc1" }),
-    ).rejects.toThrow(/Schüler nicht gefunden/);
+    ).rejects.toThrow(/Unterhaltung konnte nicht geöffnet werden/);
   });
 
   it("throws with German fallback on non-JSON body", async () => {
@@ -530,7 +538,9 @@ describe("fetchGuardians", () => {
 
   it("throws with backend error on non-OK", async () => {
     mockFetch(async () => jsonOk({ detail: "kein Zugriff" }, 403));
-    await expect(fetchGuardians("42")).rejects.toThrow(/kein Zugriff/);
+    await expect(fetchGuardians("42")).rejects.toThrow(
+      /Bezugspersonen konnten nicht geladen werden/,
+    );
   });
 
   it("throws with German fallback on non-JSON body", async () => {

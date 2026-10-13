@@ -154,7 +154,7 @@ describe("calendarPeriodService", () => {
     );
   });
 
-  it("surfaces backend error messages and generic non-JSON failures", async () => {
+  it("keeps backend diagnostics separate from generic non-JSON failures", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
         { detail: "Periode ueberlappt", code: "PERIOD_OVERLAP" },
@@ -162,7 +162,8 @@ describe("calendarPeriodService", () => {
       ),
     );
     await expect(calendarPeriodService.list()).rejects.toMatchObject({
-      message: "Periode ueberlappt",
+      message: "Anfrage fehlgeschlagen (HTTP 409)",
+      detail: "Periode ueberlappt",
       status: 409,
       code: "PERIOD_OVERLAP",
     });

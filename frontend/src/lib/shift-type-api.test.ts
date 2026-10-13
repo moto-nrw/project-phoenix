@@ -208,7 +208,7 @@ describe("shiftTypeService errors", () => {
     vi.clearAllMocks();
   });
 
-  it("preserves status and backend detail from JSON error bodies", async () => {
+  it("preserves backend detail separately from the operation message", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ detail: "name already exists" }), {
         status: 409,
@@ -223,7 +223,11 @@ describe("shiftTypeService errors", () => {
         description: "",
         isActive: true,
       }),
-    ).rejects.toMatchObject({ status: 409, message: "name already exists" });
+    ).rejects.toMatchObject({
+      status: 409,
+      message: "Schichtart konnte nicht gespeichert werden",
+      detail: "name already exists",
+    });
   });
 
   it("keeps the 409 problem fields in a domain error", async () => {

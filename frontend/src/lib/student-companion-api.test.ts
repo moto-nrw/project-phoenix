@@ -165,7 +165,7 @@ describe("student-companion-api", () => {
   });
 
   describe("error handling", () => {
-    it("surfaces the German error field from the backend envelope", async () => {
+    it("keeps the backend diagnostic separate from the status fallback", async () => {
       fetchSpy.mockResolvedValueOnce(
         mockFetchResponse(null, {
           ok: false,
@@ -178,7 +178,7 @@ describe("student-companion-api", () => {
       );
 
       await expect(fetchStudentCompanions("42")).rejects.toThrow(
-        "Ein Kind kann nicht mit sich selbst laufen.",
+        "Anfrage fehlgeschlagen (400)",
       );
     });
 

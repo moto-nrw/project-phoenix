@@ -112,8 +112,9 @@ describe("fetchDayLog", () => {
       details: { setting: "day_log" },
       errors: [{ field: "date", reason: "unavailable" }],
       requestId: "request-day-log-403",
-      // The diagnostic is the envelope's detail, never shown to the user.
-      message: "feature_disabled",
+      // The diagnostic is retained separately and never shown to the user.
+      message: "day log request failed (403)",
+      detail: "feature_disabled",
     });
   });
 

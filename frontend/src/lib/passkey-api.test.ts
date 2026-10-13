@@ -296,17 +296,21 @@ describe("passkey-api", () => {
 
   it.each([
     [{ detail: "Direkter Fehler" }, "Direkter Fehler"],
-    [{ message: "Backend-Nachricht" }, "Passkey-Anfrage fehlgeschlagen (403)."],
-    [{ error_text: "Legacy-Fehler" }, "Passkey-Anfrage fehlgeschlagen (403)."],
-  ])("takes the diagnostic only from detail: %j", async (body, expected) => {
-    mockAuthenticatedSession();
-    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse(403, body));
+    [{ message: "Backend-Nachricht" }, undefined],
+    [{ error_text: "Legacy-Fehler" }, undefined],
+  ])(
+    "keeps the diagnostic separate from the enrollment fallback: %j",
+    async (body, detail) => {
+      mockAuthenticatedSession();
+      vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse(403, body));
 
-    await expect(startPasskeyEnrollment("tenant")).rejects.toMatchObject({
-      status: 403,
-      message: expected,
-    });
-  });
+      await expect(startPasskeyEnrollment("tenant")).rejects.toMatchObject({
+        status: 403,
+        message: "Passkey-Anfrage fehlgeschlagen (403).",
+        detail,
+      });
+    },
+  );
 
   it("preserves a stable backend error code", async () => {
     mockAuthenticatedSession();

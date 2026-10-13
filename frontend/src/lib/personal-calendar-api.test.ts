@@ -379,7 +379,8 @@ describe("personal calendar API", () => {
 
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({
-      message: "calendar access forbidden",
+      message: "Anfrage fehlgeschlagen (HTTP 403)",
+      detail: "calendar access forbidden",
       status: 403,
       code: "general.permission",
       errors: [{ field: "title", reason: "required" }],

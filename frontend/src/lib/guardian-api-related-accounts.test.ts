@@ -95,10 +95,10 @@ describe("guardian-api related accounts", () => {
       );
     });
 
-    it("throws the error from a non-ok response body", async () => {
+    it("keeps the error diagnostic separate from a non-ok response", async () => {
       mockFetch(errStatus(400, { detail: "Ungültige E-Mail" }));
       await expect(inviteGuardianToStudent("5", "x")).rejects.toThrow(
-        "Ungültige E-Mail",
+        "Failed to invite guardian",
       );
     });
 
@@ -206,7 +206,7 @@ describe("guardian-api related accounts", () => {
     it("throws on a non-ok response", async () => {
       mockFetch(errStatus(403, { detail: "Keine Berechtigung" }));
       await expect(listPendingApprovals()).rejects.toThrow(
-        "Keine Berechtigung",
+        "Failed to load approvals",
       );
     });
   });
@@ -232,7 +232,9 @@ describe("guardian-api related accounts", () => {
 
     it("throws when the action response is not ok", async () => {
       mockFetch(errStatus(404, { detail: "not found" }));
-      await expect(rejectGuardianInvitation("7")).rejects.toThrow("not found");
+      await expect(rejectGuardianInvitation("7")).rejects.toThrow(
+        "Failed to reject invitation",
+      );
     });
   });
 });

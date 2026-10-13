@@ -56,14 +56,15 @@ describe("planningTrackService", () => {
     await expect(planningTrackService.list()).resolves.toEqual([]);
   });
 
-  it("uses the backend message when loading fails", async () => {
+  it("keeps the backend diagnostic separate when loading fails", async () => {
     sessionFetch.mockResolvedValueOnce(
       response({ detail: "Lesen nicht erlaubt" }, 403),
     );
 
     await expect(planningTrackService.list()).rejects.toMatchObject({
       name: "ApiError",
-      message: "Lesen nicht erlaubt",
+      message: "Planungsspuren konnten nicht geladen werden",
+      detail: "Lesen nicht erlaubt",
       status: 403,
     });
   });
@@ -209,13 +210,14 @@ describe("planningTrackService", () => {
     );
   });
 
-  it("reports restore failures with the backend message", async () => {
+  it("keeps restore diagnostics separate from the operation message", async () => {
     sessionFetch.mockResolvedValueOnce(
       response({ detail: "Name bereits vergeben" }, 409),
     );
 
     await expect(planningTrackService.restore("5")).rejects.toMatchObject({
-      message: "Name bereits vergeben",
+      message: "Planungsspur konnte nicht wiederhergestellt werden",
+      detail: "Name bereits vergeben",
       status: 409,
     });
   });
