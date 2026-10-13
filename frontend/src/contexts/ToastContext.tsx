@@ -494,9 +494,10 @@ function useApiErrorCore(
     const firstField = Object.keys(fieldErrors)[0];
     if (!firstField) return;
     // A closing focus trap restores its trigger during the current effect
-    // cycle. Focus afterwards so an API error from a confirmation dialog
-    // still lands on its first invalid field.
-    const focusTimer = setTimeout(() => {
+    // cycle. Focus immediately for direct form validation, then once more
+    // afterwards so an API error from a confirmation dialog still lands on
+    // its first invalid field.
+    const focusFirstField = () => {
       const controls = (formRef?.current ?? document).querySelectorAll<
         HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
       >("input[name], textarea[name], select[name]");
@@ -510,7 +511,9 @@ function useApiErrorCore(
             )
           : control;
       target?.focus();
-    }, 0);
+    };
+    focusFirstField();
+    const focusTimer = setTimeout(focusFirstField, 0);
     return () => clearTimeout(focusTimer);
   }, [fieldErrors, formRef]);
 
