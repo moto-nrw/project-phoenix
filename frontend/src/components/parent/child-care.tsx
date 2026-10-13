@@ -28,8 +28,10 @@ import {
   type ChildCareSchedule,
   type ChildFeatures,
   type ChildToday,
+  type DayDepartureMode,
   type ExcusedRequest,
   type PickupChangeRequest,
+  REQUESTABLE_DAY_DEPARTURE_MODES,
   type StatusDay,
   type StudentStatusKind,
   deleteCareException,
@@ -290,6 +292,7 @@ export interface ChildCare {
   saveCareException(params: {
     date: string;
     pickupTime: string;
+    departureMode?: DayDepartureMode | "";
     reason: string;
   }): Promise<void | string>;
   removeCareException(date: string): Promise<void>;
@@ -603,7 +606,12 @@ export function useChildCare(studentId: string): ChildCare {
   );
 
   const saveCareException = useCallback(
-    async (params: { date: string; pickupTime: string; reason: string }) => {
+    async (params: {
+      date: string;
+      pickupTime: string;
+      departureMode?: DayDepartureMode | "";
+      reason: string;
+    }) => {
       const saved = await submitCareException(studentId, params);
       // Bail if we navigated to another child mid-save — A's override must not
       // land in B's exception list (#1725 review).
@@ -952,6 +960,7 @@ export function PickupTimeModal({
   careExceptionsLoaded,
   pickupChangeRequestsLoaded = true,
   pickupChangeEnabled,
+  departureModeEnabled = false,
   childFirstName,
   today: childToday,
   onClose,
@@ -968,12 +977,15 @@ export function PickupTimeModal({
   careExceptionsLoaded: boolean;
   pickupChangeRequestsLoaded?: boolean;
   pickupChangeEnabled: boolean;
+  /** Die Anfrage darf auch die Abholart des Tages ändern (#3945). */
+  departureModeEnabled?: boolean;
   childFirstName?: string;
   today?: ChildToday;
   onClose: () => void;
   onSubmit: (params: {
     date: string;
     pickupTime: string;
+    departureMode?: DayDepartureMode | "";
     reason: string;
     recipientGuardianProfileIds?: string[];
   }) => Promise<void | string>;
@@ -988,6 +1000,7 @@ export function PickupTimeModal({
   onCutoffPassed?: () => void;
 }>) {
   const t = useTranslations("parentChildCare");
+  const tModes = useTranslations("parentMasterData");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const today = berlinTodayISO();
@@ -1019,6 +1032,8 @@ export function PickupTimeModal({
   })();
   const [date, setDate] = useState(initial);
   const [pickupTime, setPickupTime] = useState("");
+  // Leer heißt: die Abholart des Tages bleibt, wie sie ist (#3945).
+  const [departureMode, setDepartureMode] = useState<DayDepartureMode | "">("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   // Fehler aus dem offenen Dialog stehen im Dialog: ein Toast läge
@@ -1055,6 +1070,11 @@ export function PickupTimeModal({
   );
   const pending = request?.status === "pending";
   const staffOwned = existing?.pickup_source === "staff";
+  // Eine Abholart, die die OGS für den Tag eingetragen hat, ändern Eltern
+  // nicht per Anfrage; die Abholzeit bleibt trotzdem anfragbar (#3945).
+  const staffMode = existing?.departure_mode;
+  const modeField = departureModeEnabled && !staffMode;
+  const modeLabel = (mode: string) => tModes(`departureModes.${mode}`);
   const alreadyHome = date === today && childToday?.state === "left";
   // Nach der Frist ist heute für Eltern ganz zu: nicht anfragen, nicht
   // bearbeiten, nicht zurücknehmen. Spätere Tage bleiben offen (#3163).
@@ -1078,7 +1098,11 @@ export function PickupTimeModal({
         case "care.pickup_change_disabled":
           return t("pickup.errorDisabled");
         case "care.care_exception_conflict":
-          return t("pickup.errorStaffConflict");
+          return t(
+            departureModeEnabled
+              ? "pickup.errorStaffConflictGeneric"
+              : "pickup.errorStaffConflict",
+          );
         case "care.care_exception_already_left":
           return childFirstName
             ? t("pickup.alreadyHome", { name: childFirstName })
@@ -1126,6 +1150,11 @@ export function PickupTimeModal({
   // parent edits rather than blindly overwrites.
   useEffect(() => {
     setPickupTime(request?.pickup_time ?? existing?.pickup_time ?? "");
+    setDepartureMode(
+      request?.departure_mode && request.departure_mode !== "accompanied"
+        ? request.departure_mode
+        : "",
+    );
     setReason(request?.reason ?? existing?.reason ?? "");
     clearForm();
     setInvalidField(null);
@@ -1139,14 +1168,16 @@ export function PickupTimeModal({
       form.invalid(t("pickup.loadError"));
       return;
     }
-    if (!pickupTime) {
-      form.invalid(t("pickup.noTime"));
+    if (!pickupTime && !(modeField && departureMode)) {
+      form.invalid(t(modeField ? "pickup.noTimeOrMode" : "pickup.noTime"));
       setInvalidField("pickupTime");
       pickupTimeRef.current?.focus();
       return;
     }
     if (reasonRequired && !reason.trim()) {
-      form.invalid(t("pickup.reasonRequired"));
+      form.invalid(
+        t(modeField ? "pickup.reasonRequiredGeneric" : "pickup.reasonRequired"),
+      );
       setInvalidField("reason");
       reasonRef.current?.focus();
       return;
@@ -1158,6 +1189,7 @@ export function PickupTimeModal({
       await onSubmit({
         date,
         pickupTime,
+        ...(modeField ? { departureMode } : {}),
         reason: reason.trim(),
         recipientGuardianProfileIds: recipientIds,
       });
@@ -1173,14 +1205,16 @@ export function PickupTimeModal({
   // beim Senden festgelegt wurden; sie werden über "Anfrage teilen" geändert.
   const handleSaveEdit = async () => {
     if (!studentId || !request) return;
-    if (!pickupTime) {
-      form.invalid(t("pickup.noTime"));
+    if (!pickupTime && !(modeField && departureMode)) {
+      form.invalid(t(modeField ? "pickup.noTimeOrMode" : "pickup.noTime"));
       setInvalidField("pickupTime");
       pickupTimeRef.current?.focus();
       return;
     }
     if (reasonRequired && !reason.trim()) {
-      form.invalid(t("pickup.reasonRequired"));
+      form.invalid(
+        t(modeField ? "pickup.reasonRequiredGeneric" : "pickup.reasonRequired"),
+      );
       setInvalidField("reason");
       reasonRef.current?.focus();
       return;
@@ -1192,6 +1226,7 @@ export function PickupTimeModal({
       await updatePickupChangeRequest(studentId, request.id, {
         date,
         pickupTime,
+        ...(modeField ? { departureMode } : {}),
         reason: reason.trim(),
         expectedVersion: version,
       });
@@ -1261,7 +1296,7 @@ export function PickupTimeModal({
     <Modal
       isOpen
       onClose={onClose}
-      title={t("pickup.title")}
+      title={t(departureModeEnabled ? "pickup.titleWithMode" : "pickup.title")}
       closeLabel={t("close")}
       mobileSheet
       footer={
@@ -1332,7 +1367,9 @@ export function PickupTimeModal({
       }
     >
       <div className="space-y-4">
-        <p className="text-sm leading-6 text-gray-700">{t("pickup.intro")}</p>
+        <p className="text-sm leading-6 text-gray-700">
+          {t(departureModeEnabled ? "pickup.introWithMode" : "pickup.intro")}
+        </p>
         {(!careExceptionsLoaded || !pickupChangeRequestsLoaded) && (
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
             {t("pickup.loadError")}
@@ -1374,16 +1411,29 @@ export function PickupTimeModal({
 
         {pending && (
           <div className="bg-moto-orange-soft text-moto-orange-strong space-y-2 rounded-lg px-3 py-2.5">
-            <p className="text-base font-semibold tabular-nums">
-              {request.previous_pickup_time
-                ? t("pickup.pendingChange", {
-                    from: request.previous_pickup_time,
-                    to: request.pickup_time,
-                  })
-                : t("pickup.pendingRequested", {
-                    to: request.pickup_time,
-                  })}
-            </p>
+            {request.pickup_time && (
+              <p className="text-base font-semibold tabular-nums">
+                {request.previous_pickup_time
+                  ? t("pickup.pendingChange", {
+                      from: request.previous_pickup_time,
+                      to: request.pickup_time,
+                    })
+                  : t("pickup.pendingRequested", {
+                      to: request.pickup_time,
+                    })}
+              </p>
+            )}
+            {request.departure_mode && (
+              <p className="text-base font-semibold">
+                {request.previous_departure_modes?.length
+                  ? `${request.previous_departure_modes
+                      .map(modeLabel)
+                      .join(" / ")} → ${modeLabel(request.departure_mode)}`
+                  : t("pickup.pendingMode", {
+                      to: modeLabel(request.departure_mode),
+                    })}
+              </p>
+            )}
             <p className="mt-0.5 text-sm">{t("pickup.statusPending")}</p>
             {editedAt && (
               <p className="text-sm">
@@ -1415,7 +1465,11 @@ export function PickupTimeModal({
         )}
         {request?.status === "approved" && (
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
-            {t("pickup.statusApproved")}
+            {t(
+              request.departure_mode
+                ? "pickup.statusApprovedChange"
+                : "pickup.statusApproved",
+            )}
           </p>
         )}
         {request?.status === "rejected" && (
@@ -1439,6 +1493,39 @@ export function PickupTimeModal({
           </p>
         ) : (
           <div className="space-y-4">
+            {modeField && (
+              <div className="block">
+                <span
+                  id={`${errorId}-mode`}
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  {t("pickup.modeLabel")}
+                </span>
+                <CustomSelect
+                  value={departureMode}
+                  options={[
+                    { value: "", label: t("pickup.modeUnchanged") },
+                    ...REQUESTABLE_DAY_DEPARTURE_MODES.map((mode) => ({
+                      value: mode,
+                      label: modeLabel(mode),
+                    })),
+                  ]}
+                  onChange={(next) => {
+                    setDepartureMode(next as DayDepartureMode | "");
+                    if (invalidField === "pickupTime") {
+                      setInvalidField(null);
+                      form.clear();
+                    }
+                  }}
+                  ariaLabelledBy={`${errorId}-mode`}
+                />
+              </div>
+            )}
+            {departureModeEnabled && staffMode && (
+              <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                {t("pickup.modeStaffSet", { mode: modeLabel(staffMode) })}
+              </p>
+            )}
             <TimeField
               inputRef={pickupTimeRef}
               value={pickupTime}
@@ -1450,9 +1537,13 @@ export function PickupTimeModal({
                 }
               }}
               label={t("pickup.pickupLabel")}
-              hint={t("timeFormatHint")}
+              hint={
+                modeField
+                  ? `${t("pickup.pickupOptionalHint")} ${t("timeFormatHint")}`
+                  : t("timeFormatHint")
+              }
               placeholder={t("timeExample")}
-              required
+              required={!modeField}
               invalid={invalidField === "pickupTime"}
               describedBy={invalidField === "pickupTime" ? errorId : undefined}
             />

@@ -1,3 +1,4 @@
+import type { DepartureMode } from "~/lib/student-helpers";
 import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 /**
  * Staff client for the parent care-schedule change-request review queue
@@ -158,8 +159,12 @@ export interface StaffCareRequestDetail {
    */
   readonly pickup_change?: {
     readonly date: string;
-    readonly pickup_time: string;
+    /** Absent when the request leaves the Gehzeit of the day (#3945). */
+    readonly pickup_time?: string;
     readonly previous_pickup_time?: string;
+    /** The Abholart asked for the day, absent when it stays (#3945). */
+    readonly departure_mode?: DepartureMode;
+    readonly previous_departure_modes?: readonly DepartureMode[];
   };
 }
 

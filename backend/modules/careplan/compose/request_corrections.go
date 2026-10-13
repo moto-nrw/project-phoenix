@@ -15,6 +15,8 @@ type RequestCorrectionRecords interface {
 	RedecideCareScheduleRequest(context.Context, careplan.CareScheduleRequestDecision) error
 	FindPickupException(context.Context, int64, bool) (careplan.PickupException, error)
 	DeletePickupException(context.Context, int64) error
+	ListDepartureExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.DepartureException, error)
+	DeleteDepartureException(context.Context, int64) error
 }
 
 type RequestCorrectionEvent = ports.RequestCorrectionEvent
@@ -51,4 +53,11 @@ func (r requestCorrectionRecords) FindException(ctx context.Context, id int64) (
 }
 func (r requestCorrectionRecords) DeleteException(ctx context.Context, id int64) error {
 	return r.DeletePickupException(ctx, id)
+}
+func (r requestCorrectionRecords) FindDepartureException(ctx context.Context, id int64) (*careplan.DepartureException, error) {
+	rows, err := r.ListDepartureExceptions(ctx, careplan.StudentScheduleFilter{IDs: []int64{id}, LockForUpdate: true})
+	if err != nil || len(rows) == 0 {
+		return nil, err
+	}
+	return &rows[0], nil
 }

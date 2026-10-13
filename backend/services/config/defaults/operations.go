@@ -702,8 +702,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyParentCareModeRequestEnabled,
-		Label:           "Feste Abholart ändern (Eltern)",
-		Description:     "Eltern können im Elternportal eine neue feste Abholart für die Wochentage beantragen. Sie gilt erst nach Freigabe durch das Team.",
+		Label:           "Abholart ändern (Eltern)",
+		Description:     "Eltern können im Elternportal eine andere Abholart anfragen, für die Wochentage oder für einen einzelnen Tag. Sie gilt erst, wenn das Team sie bestätigt.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -774,8 +774,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyParentPickupChangeEnabled,
-		Label:           "Abholzeit für einen Tag ändern (Eltern)",
-		Description:     "Eltern können im Elternportal für einen einzelnen Tag eine andere Bring- oder Abholzeit eintragen. Im Betreuungsplan steht dann, dass die Eltern sie geändert haben.",
+		Label:           "Abholung für einen Tag ändern (Eltern)",
+		Description:     "Eltern können im Elternportal für einen einzelnen Tag eine andere Abholzeit anfragen. Ist „Abholart ändern (Eltern)“ an, auch eine andere Abholart. Die Änderung gilt erst, wenn das Team sie bestätigt.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",

@@ -17,11 +17,16 @@ type dailyDeparture struct {
 	Modes       []departure.DepartureMode
 	LegacyLabel string
 	Configured  bool
+	// Exception marks a day Abholart (#3945) that replaces the weekly plan.
+	Exception bool
 }
 
 func dailyDepartureForDate(student StudentResponse, date timezone.Date) dailyDeparture {
 	if !student.HasFullAccess {
 		return dailyDeparture{}
+	}
+	if student.DayDepartureMode != "" {
+		return dailyDeparture{Modes: []departure.DepartureMode{departure.DepartureMode(student.DayDepartureMode)}, Configured: true, Exception: true}
 	}
 	day, ok := departureDayKey(date.Weekday())
 	if !ok {
@@ -116,4 +121,32 @@ func departurePlanDate(ctx context.Context, date timezone.Date) (timezone.Date, 
 		return date, err
 	}
 	return date.AddDays(weekday - calendar.ISOWeekday(date)), nil
+}
+
+// applyDayDepartures loads the Abholart of the listed day (#3945) for every
+// full-access row in one read, before the pickup-rule filter and the
+// pagination run, so both see the day's value and not the weekly plan's.
+func (rs *Resource) applyDayDepartures(ctx context.Context, responses []StudentResponse, date timezone.Date) error {
+	if rs.PickupScheduleService == nil {
+		return nil
+	}
+	ids := make([]int64, 0, len(responses))
+	for i := range responses {
+		if responses[i].HasFullAccess {
+			ids = append(ids, responses[i].ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	modes, err := rs.PickupScheduleService.GetBulkDayDepartureModesForDate(ctx, ids, date)
+	if err != nil {
+		return err
+	}
+	for i := range responses {
+		if responses[i].HasFullAccess {
+			responses[i].DayDepartureMode = modes[responses[i].ID]
+		}
+	}
+	return nil
 }

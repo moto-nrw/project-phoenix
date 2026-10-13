@@ -21,6 +21,14 @@ func TestReviewedSharedFixtureRuleShape(t *testing.T) {
 		{"security contract", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{"production"}}, true},
 		{"settings contract", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "settings-platform", TargetRole: "public", Scopes: []string{"production"}}, true},
 		{"settings contract for the e2e role", Rule{SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "settings-platform", TargetRole: "public", Scopes: []string{"internal_test"}}, true},
+		{"transaction runtime bootstrap", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "transaction-runtime", TargetRole: "compose", Scopes: []string{"production"}}, true},
+		{"transaction runtime bootstrap for the e2e role", Rule{SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "transaction-runtime", TargetRole: "compose", Scopes: []string{"internal_test"}}, false},
+		{"transaction runtime bootstrap in a test scope", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "transaction-runtime", TargetRole: "compose", Scopes: []string{"production", "internal_test"}}, false},
+		{"transaction adapter", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "transaction-runtime", TargetRole: "postgres", Scopes: []string{"production"}}, false},
+		{"transaction application", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "transaction-runtime", TargetRole: "application", Scopes: []string{"production"}}, false},
+		{"audit contract", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "audit-platform", TargetRole: "public", Scopes: []string{"production"}}, false},
+		{"another owner's composition", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "audit-platform", TargetRole: "compose", Scopes: []string{"production"}}, false},
+		{"composition by owner kind", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwnerKind: "platform", TargetRole: "compose", Scopes: []string{"production"}}, false},
 		{"settings application", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "settings-platform", TargetRole: "application", Scopes: []string{"production"}}, false},
 		{"settings repository", Rule{SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "settings-platform", TargetRole: "postgres", Scopes: []string{"internal_test"}}, false},
 		{"no role", Rule{SourceOwner: "test-support", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"production"}}, false},
@@ -111,6 +119,9 @@ func TestSharedFixtureRulesPassOnlyInAReviewedEpoch(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "rule shared-fixtures.") {
 		t.Fatalf("shared-fixture rules passed without an epoch increase: %v", err)
 	}
+	if !strings.Contains(err.Error(), "rule shared-fixtures.transaction-runtime-compose ") {
+		t.Fatalf("the transaction runtime bootstrap rule passed without an epoch increase: %v", err)
+	}
 	for id := range ownerSuiteRuleIDs {
 		if !strings.Contains(err.Error(), "rule "+id) {
 			t.Fatalf("owner-suite rule %s passed without an epoch increase: %v", id, err)
@@ -125,6 +136,9 @@ func TestSharedFixtureEpochGrantsNothingElse(t *testing.T) {
 		{ID: "shared-fixtures.tenant-postgres", Description: "test", Scopes: []string{"production"}, SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "tenant-runtime", TargetRole: "postgres"},
 		{ID: "shared-fixtures.e2e-in-production", Description: "test", Scopes: []string{"production"}, SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "tenant-runtime", TargetRole: "public"},
 		{ID: "shared-fixtures.settings-application", Description: "test", Scopes: []string{"production"}, SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "settings-platform", TargetRole: "application"},
+		{ID: "shared-fixtures.transaction-adapter", Description: "test", Scopes: []string{"production"}, SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "transaction-runtime", TargetRole: "postgres"},
+		{ID: "shared-fixtures.e2e.transaction-bootstrap", Description: "test", Scopes: []string{"internal_test"}, SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "transaction-runtime", TargetRole: "compose"},
+		{ID: "shared-fixtures.audit-contract", Description: "test", Scopes: []string{"production"}, SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "audit-platform", TargetRole: "public"},
 		{ID: "owner-suite.audit-enrollment-domain", Description: "test", Scopes: []string{"external_test"}, SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "enrollment", TargetRole: "domain"},
 		{ID: "owner-suite.settings-security-production", Description: "test", Scopes: []string{"production"}, SourceOwner: "settings-platform", SourceRole: "application", TargetOwner: "security-runtime", TargetRole: "public"},
 		{ID: "shared-fixtures.foreign-owner", Description: "test", Scopes: []string{"production"}, SourceOwner: "care-plan", SourceRole: "test-support", TargetOwner: "tenant-runtime", TargetRole: "public"},

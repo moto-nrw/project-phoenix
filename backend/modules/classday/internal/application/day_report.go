@@ -167,7 +167,7 @@ func (s *dayReports) classDaySchoolDayFacts(ctx context.Context, roster *DayRost
 	if facts.statuses, facts.statusReportedAt, err = s.classDayStatuses(ctx, studentIDs, date); err != nil {
 		return facts, err
 	}
-	if facts.departures, err = s.classDayDepartures(ctx, roster.Students, weekday); err != nil {
+	if facts.departures, err = s.classDayDepartures(ctx, roster.Students, date, weekday); err != nil {
 		return facts, err
 	}
 	if err := s.classDayEffectiveTimes(ctx, studentIDs, date, &facts); err != nil {

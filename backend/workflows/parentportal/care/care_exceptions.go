@@ -13,6 +13,15 @@ type CareExceptions interface {
 	LockStudentAndExceptionDay(context.Context, int64, string) error
 	ListPickupExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.PickupException, error)
 	ListArrivalExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.ArrivalException, error)
+	ListDepartureExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.DepartureException, error)
+}
+
+func (s *Service) departureExceptionForDate(ctx context.Context, id int64, date careplan.Date) (*careplan.DepartureException, error) {
+	rows, err := s.CareExceptions.ListDepartureExceptions(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}, Date: date})
+	if err != nil || len(rows) == 0 {
+		return nil, err
+	}
+	return &rows[0], nil
 }
 
 func (s *Service) pickupExceptionForDate(ctx context.Context, id int64, date careplan.Date) (*careplan.PickupException, error) {

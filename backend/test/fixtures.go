@@ -24,6 +24,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -75,7 +76,7 @@ func InsertAuditTestWorkSession(ctx context.Context, db *bun.DB, session any) er
 	if !ok {
 		return fmt.Errorf("audit work-session fixture preparation is required")
 	}
-	fixture.PrepareAuditWorkSession(audit.TenantIDFromContext(ctx))
+	fixture.PrepareAuditWorkSession(tenant.FromContext(ctx))
 	_, err := db.NewInsert().Model(session).ModelTableExpr(`active.work_sessions AS "work_session"`).Exec(ctx)
 	return err
 }

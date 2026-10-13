@@ -23,6 +23,8 @@ const (
 	CareExitSourcePickupException  = "pickup_exception"
 	CareExitSourceArrivalSchedule  = "arrival_schedule"
 	CareExitSourceArrivalException = "arrival_exception"
+	// CareExitSourceDepartureException is a future day Abholart (#3945).
+	CareExitSourceDepartureException = "departure_exception"
 )
 
 var (
@@ -378,7 +380,7 @@ func (m *Module) RecordCareExitSourceRemovals(ctx context.Context, values []Care
 func validCareExitSource(kind string) bool {
 	switch kind {
 	case CareExitSourceBooking, CareExitSourcePickupSchedule, CareExitSourcePickupException,
-		CareExitSourceArrivalSchedule, CareExitSourceArrivalException:
+		CareExitSourceArrivalSchedule, CareExitSourceArrivalException, CareExitSourceDepartureException:
 		return true
 	default:
 		return false

@@ -177,6 +177,36 @@ describe("parentEventI18nDescriptor", () => {
     ).toEqual({ key: "eventRequestConfirmedCareSchedule" });
   });
 
+  // #3945: a one-day request with an Abholart names the whole Abholung.
+  it("names the Abholung when a pickup change carries an Abholart", () => {
+    const payload = { date: "2026-09-10", departure_mode: "pickup" };
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_created",
+        request_type: "pickup_change",
+        payload,
+      }),
+    ).toEqual({ key: "eventRequestCreatedPickupChangeWithMode" });
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_status",
+        request_status: "erledigt",
+        request_type: "pickup_change",
+        payload,
+      }),
+    ).toEqual({ key: "eventRequestConfirmedPickupChangeWithMode" });
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_created",
+        request_type: "pickup_change",
+        payload: { date: "2026-09-10", pickup_time: "14:30" },
+      }),
+    ).toEqual({ key: "eventRequestCreatedPickupChange" });
+  });
+
   it("falls back to a generic confirmed key for an unknown request type", () => {
     expect(
       parentEventI18nDescriptor({

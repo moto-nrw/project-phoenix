@@ -8,8 +8,8 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/migrations"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/spf13/cobra"
 	"github.com/uptrace/bun"
 )
@@ -30,7 +30,7 @@ type backfillRoot struct {
 
 var defaultBackfillRoot = backfillRoot{
 	openDatabase: func() (*bun.DB, func(), error) {
-		db, err := database.DBConn()
+		db, err := transactionruntime.OpenPool()
 		if err != nil {
 			return nil, nil, err
 		}

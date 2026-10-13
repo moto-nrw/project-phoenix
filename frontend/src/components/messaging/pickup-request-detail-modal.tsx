@@ -35,6 +35,7 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { DEPARTURE_MODE_LABELS } from "~/lib/student-helpers";
 
 const logger = createLogger({ component: "PickupRequestDetailModal" });
 
@@ -149,7 +150,9 @@ export function PickupRequestDetailModal({
     <Modal
       isOpen={requestId !== null}
       onClose={onClose}
-      title="Anfrage: Abholzeit"
+      title={detailTitle(
+        state.kind === "loaded" ? state.detail.pickup_change : undefined,
+      )}
       mobileSheet
       footer={
         <div className="flex flex-wrap justify-end gap-2">
@@ -199,6 +202,14 @@ export function PickupRequestDetailModal({
   );
 }
 
+/** „Anfrage: Abholzeit“, „Anfrage: Abholart“ oder beides (#3945). */
+function detailTitle(pickup: StaffCareRequestDetail["pickup_change"]): string {
+  if (pickup?.departure_mode && pickup.pickup_time)
+    return "Anfrage: Abholzeit und Abholart";
+  if (pickup?.departure_mode) return "Anfrage: Abholart";
+  return "Anfrage: Abholzeit";
+}
+
 function DetailBody({ detail }: Readonly<{ detail: StaffCareRequestDetail }>) {
   const closedMeta = CLOSED_STATUS_META[detail.status];
   const meta = HISTORY_STATUS_META[detail.status] ?? closedMeta ?? PENDING_META;
@@ -215,14 +226,34 @@ function DetailBody({ detail }: Readonly<{ detail: StaffCareRequestDetail }>) {
           <DataField label="Tag">
             {pickup ? formatDate(pickup.date) : "Keine Angabe"}
           </DataField>
-          <DataField label="Gewünschte Abholzeit">
-            {pickup ? clockLabel(pickup.pickup_time) : "Keine Angabe"}
-          </DataField>
-          <DataField label="Abholzeit vorher">
-            {pickup?.previous_pickup_time
-              ? clockLabel(pickup.previous_pickup_time)
-              : "Keine Angabe"}
-          </DataField>
+          {(!pickup || pickup.pickup_time) && (
+            <>
+              <DataField label="Gewünschte Abholzeit">
+                {pickup?.pickup_time
+                  ? clockLabel(pickup.pickup_time)
+                  : "Keine Angabe"}
+              </DataField>
+              <DataField label="Abholzeit vorher">
+                {pickup?.previous_pickup_time
+                  ? clockLabel(pickup.previous_pickup_time)
+                  : "Keine Angabe"}
+              </DataField>
+            </>
+          )}
+          {pickup?.departure_mode && (
+            <>
+              <DataField label="Gewünschte Abholart">
+                {DEPARTURE_MODE_LABELS[pickup.departure_mode]}
+              </DataField>
+              <DataField label="Abholart vorher">
+                {pickup.previous_departure_modes?.length
+                  ? pickup.previous_departure_modes
+                      .map((mode) => DEPARTURE_MODE_LABELS[mode])
+                      .join(", ")
+                  : "Keine Angabe"}
+              </DataField>
+            </>
+          )}
           <DataField label="Grund der Eltern" fullWidth>
             {detail.request_reason ?? "Keine Angabe"}
           </DataField>

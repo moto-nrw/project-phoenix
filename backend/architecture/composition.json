@@ -16372,17 +16372,17 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 163,
+          "line": 164,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 396,
+          "line": 397,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 442,
+          "line": 443,
           "declaration": "withFileStorageWiring"
         },
         {

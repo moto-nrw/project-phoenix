@@ -32,6 +32,7 @@ type PickupScheduleRecords interface {
 	DeletePickupNote(context.Context, int64) error
 	DeletePickupNotesByStudent(context.Context, int64) error
 	UpdatePickupNote(context.Context, careplan.PickupNote) error
+	careplan.DepartureExceptions
 }
 
 type PickupBulkStudents = ports.PickupBulkStudents
@@ -42,7 +43,7 @@ func NewPickupSchedules(db *bun.DB, records PickupScheduleRecords, baselines car
 		return nil, errors.New("pickup schedules: database, records, and baselines are required")
 	}
 	return application.NewPickupSchedules(pickupScheduleRecords(records), pickupExceptionRecords(records),
-		pickupNoteRecords(records), pickupScheduleTransaction{excusalTransaction{db}}, baselines, auto, students, logger), nil
+		pickupNoteRecords(records), pickupScheduleTransaction{excusalTransaction{db}}, baselines, auto, students, records, logger), nil
 }
 
 type pickupScheduleTransaction struct{ excusalTransaction }

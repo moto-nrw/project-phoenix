@@ -11,20 +11,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // EditPickupChangeRequest rewrites the caller's own pending one-day pickup
 // change (#2267, story 37).
 func (s *Service) EditPickupChangeRequest(
 	ctx context.Context, accountID, studentID, requestID int64,
-	date timezone.Date, pickupTime time.Time, reason, expectedVersion string,
+	date timezone.Date, pickupTime time.Time, departureMode, reason, expectedVersion string,
 ) (*carerequests.Request, error) {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
 	if err != nil {
 		return nil, err
 	}
 	if err := child.RequireCareRunning(); err != nil {
+		return nil, err
+	}
+	if err := s.checkDayDepartureModeAllowed(ctx, child.TenantID, date, departureMode); err != nil {
 		return nil, err
 	}
 	if s.CareRequests == nil {
@@ -50,6 +55,7 @@ func (s *Service) EditPickupChangeRequest(
 			ExpectedVersion:   expectedVersion,
 			Date:              date,
 			PickupTime:        pickupTime,
+			DepartureMode:     departureMode,
 			Reason:            reason,
 			// The reason is mandatory only while the school asks the family
 			// for one (#2267, story 28).
@@ -68,9 +74,12 @@ func (s *Service) EditPickupChangeRequest(
 	return out, nil
 }
 
-func (s *Service) SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, reason string, recipientGuardianProfileIDs []int64) (*carerequests.Request, error) {
+// SubmitPickupChangeRequest asks the OGS for a different Gehzeit, a different
+// Abholart (#3945), or both, on one day. A zero pickupTime or an empty
+// departureMode leaves that leg of the day unchanged.
+func (s *Service) SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, departureMode, reason string, recipientGuardianProfileIDs []int64) (*carerequests.Request, error) {
 	reason = strings.TrimSpace(reason)
-	if err := validatePickupChangeShape(pickupTime, reason); err != nil {
+	if err := validatePickupChangeShape(pickupTime, departureMode, reason); err != nil {
 		return nil, err
 	}
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
@@ -81,9 +90,13 @@ func (s *Service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 	if err != nil {
 		return nil, err
 	}
+	if err := s.checkDayDepartureModeAllowed(ctx, child.TenantID, date, departureMode); err != nil {
+		return nil, err
+	}
+	legs := pickupChangeLegs{pickupTime: !pickupTime.IsZero(), departureMode: departureMode != ""}
 	var result *carerequests.Request
 	err = InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		if err := s.lockPickupChangeDay(txCtx, studentID, date, today); err != nil {
+		if err := s.lockPickupChangeDay(txCtx, studentID, date, today, legs); err != nil {
 			return err
 		}
 		policy, err := s.pickupChangePolicyInTx(txCtx, child.TenantID)
@@ -98,6 +111,7 @@ func (s *Service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 			GuardianAccountID: accountID,
 			Date:              date,
 			PickupTime:        pickupTime,
+			DepartureMode:     departureMode,
 			Reason:            reason,
 			// The reason is mandatory only while the school asks the family
 			// for one (#2267, story 28).
@@ -124,9 +138,12 @@ func (s *Service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 }
 
 // validatePickupChangeShape runs the cheap input checks that need no tenant.
-func validatePickupChangeShape(pickupTime time.Time, reason string) error {
-	if pickupTime.IsZero() {
+func validatePickupChangeShape(pickupTime time.Time, departureMode, reason string) error {
+	if pickupTime.IsZero() && departureMode == "" {
 		return ErrNoCareException
+	}
+	if departureMode != "" && !carerequests.RequestableDepartureMode(departureMode) {
+		return ErrInvalidCareRequestPayload
 	}
 	if utf8.RuneCountInString(reason) > 255 {
 		return ErrCareExceptionReasonTooLong
@@ -181,10 +198,44 @@ func (s *Service) checkPickupChangeAllowed(ctx context.Context, tenantID int64, 
 	return today, nil
 }
 
+// checkDayDepartureModeAllowed gates the Abholart leg of a one-day request
+// (#3945). It needs the one-day change (checked by the caller) and the
+// school's permission to ask for a different Abholart at all, so a school
+// that keeps the Abholart with the OGS does not get it through the day path.
+func (s *Service) checkDayDepartureModeAllowed(ctx context.Context, tenantID int64, date timezone.Date, departureMode string) error {
+	if departureMode == "" {
+		return nil
+	}
+	careDay, err := calendar.IsCareWeekday(ctx, calendar.Date(date))
+	if err != nil {
+		return fmt.Errorf("parent: resolve weekend plan for departure mode: %w", err)
+	}
+	if !careDay {
+		return ErrCareExceptionNotCareDay
+	}
+	if s.Settings == nil {
+		return errors.New("parent: settings service not configured")
+	}
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyParentCareModeRequestEnabled)
+	if err != nil {
+		return fmt.Errorf("parent: resolve departure-mode request setting: %w", err)
+	}
+	if !enabled {
+		return ErrCareRequestFieldDisabled
+	}
+	return nil
+}
+
+// pickupChangeLegs names what a one-day request changes.
+type pickupChangeLegs struct {
+	pickupTime    bool
+	departureMode bool
+}
+
 // lockPickupChangeDay locks the student and the exception day, then refuses a
-// day the child's care has ended on, a staff-owned day, or a day the child has
-// already left.
-func (s *Service) lockPickupChangeDay(txCtx context.Context, studentID int64, date, today timezone.Date) error {
+// day the child's care has ended on, a leg the OGS already set for that day,
+// or a day the child has already left.
+func (s *Service) lockPickupChangeDay(txCtx context.Context, studentID int64, date, today timezone.Date, legs pickupChangeLegs) error {
 	student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 	if err != nil {
 		return err
@@ -195,12 +246,23 @@ func (s *Service) lockPickupChangeDay(txCtx context.Context, studentID int64, da
 	if err := s.CareExceptions.LockStudentAndExceptionDay(txCtx, studentID, date.String()); err != nil {
 		return err
 	}
-	staffOwned, checkErr := s.pickupHasStaffException(txCtx, studentID, date)
-	if checkErr != nil {
-		return checkErr
+	if legs.pickupTime {
+		staffOwned, checkErr := s.pickupHasStaffException(txCtx, studentID, date)
+		if checkErr != nil {
+			return checkErr
+		}
+		if staffOwned {
+			return ErrCareExceptionConflict
+		}
 	}
-	if staffOwned {
-		return ErrCareExceptionConflict
+	if legs.departureMode {
+		set, checkErr := s.departureExceptionForDate(txCtx, studentID, careplan.Date(date))
+		if checkErr != nil {
+			return checkErr
+		}
+		if set != nil {
+			return ErrCareExceptionConflict
+		}
 	}
 	alreadyLeft, checkErr := s.childAlreadyLeftToday(txCtx, studentID, date, today)
 	if checkErr != nil {

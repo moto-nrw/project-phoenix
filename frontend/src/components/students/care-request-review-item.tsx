@@ -70,11 +70,35 @@ export function careTypeLabel(
   return requestKind === "pickup_change" ? "Einzelner Tag" : undefined;
 }
 
+/**
+ * Was eine Anfrage für einen Tag ändert: die Abholzeit, die Abholart (#3945)
+ * oder beides. Ohne lesbare Einträge bleibt es bei der Abholzeit, die jede
+ * Anfrage vor #3945 trug.
+ */
+function pickupChangeLegs(diff: readonly RequestDiffEntry[]): {
+  time: boolean;
+  mode: boolean;
+} {
+  const mode = diff.some((entry) => entry.care_kind === "departure_mode");
+  const time = diff.some((entry) => entry.care_kind === "pickup") || !mode;
+  return { time, mode };
+}
+
 function decisionNotice(row: StaffCareRequest, approve: boolean): string {
-  if (row.request_kind === "pickup_change")
+  if (row.request_kind === "pickup_change") {
+    const { time, mode } = pickupChangeLegs(row.diff);
+    if (time && mode)
+      return approve
+        ? "Abholzeit und Abholart sind übernommen."
+        : "Die Anfrage zur Abholung ist abgelehnt.";
+    if (mode)
+      return approve
+        ? "Die Abholart ist übernommen."
+        : "Die Anfrage zur Abholart ist abgelehnt.";
     return approve
       ? "Die Abholzeit ist übernommen."
       : "Die Anfrage zur Abholzeit ist abgelehnt.";
+  }
   return approve
     ? "Die Betreuungszeiten sind übernommen."
     : "Die Anfrage zu den Betreuungszeiten ist abgelehnt.";
@@ -259,7 +283,10 @@ function CareRequestDetails({ row }: Readonly<{ row: StaffCareRequest }>) {
           </p>
         )}
         <RequestDiffRows diff={row.diff} />
-        {row.request_kind === "pickup_change" && <PickupImpact row={row} />}
+        {/* Nur eine neue Abholzeit verschiebt Termine; eine Abholart allein
+            ändert am Betreuungsplan nichts (#3945). */}
+        {row.request_kind === "pickup_change" &&
+          pickupChangeLegs(row.diff).time && <PickupImpact row={row} />}
       </ReviewDiffPanel>
     </>
   );

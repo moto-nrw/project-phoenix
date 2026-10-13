@@ -71,6 +71,9 @@ type ChildFeatureFlags struct {
 	// quick actions (care schedule / master data) in the parent UI.
 	RequestSubmitEnabled bool
 	PickupChangeEnabled  bool
+	// PickupChangeModeEnabled is true when the one-day change may also ask
+	// for a different Abholart (#3945).
+	PickupChangeModeEnabled bool
 	// PickupChangeCutoffTime is the school's same-day cutoff for the one-day
 	// pickup change as HH:MM (#3163); empty when there is none or the pickup
 	// change is off. PickupChangeTodayClosed says the cutoff has passed, so
@@ -153,6 +156,10 @@ type CareException struct {
 	// guardian is never told to expect a pickup for a child who is not coming
 	// (#1725 review).
 	ArrivalAbsent bool
+	// DepartureMode is the Abholart the OGS set or approved for this day
+	// (#3945); nil keeps the weekly plan's. It never makes the Gehzeit of the
+	// day staff-owned: PickupSource stays the pickup leg's own.
+	DepartureMode *string
 }
 
 // Profile carries the parent's explicit parents-portal locale choice.

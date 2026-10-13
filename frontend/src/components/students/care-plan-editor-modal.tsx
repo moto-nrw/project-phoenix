@@ -23,6 +23,11 @@ import {
 } from "~/lib/arrival-schedule-helpers";
 import type { DayData as PickupDayData } from "~/lib/pickup-schedule-helpers";
 import {
+  type AllowedDepartureModes,
+  type DepartureMode,
+  DEPARTURE_MODE_LABELS,
+} from "~/lib/student-helpers";
+import {
   formatPickupTime,
   pickupScheduleSourceLabel,
 } from "~/lib/pickup-schedule-helpers";
@@ -49,13 +54,27 @@ export type CareLegSubmit =
   | { kind: "time"; time: string; reason: string | null }
   | { kind: "none"; reason: string | null };
 
+/** Die Abholart des Tages (#3945): wie im Wochenplan oder eine eigene. */
+export type DepartureLegSubmit =
+  | { kind: "regular" }
+  | { kind: "mode"; mode: DepartureMode; reason: string | null };
+
 export interface CareExceptionSubmit {
   /** The single ISO day this exception applies to. */
   readonly date: string;
   /** null = this leg was not touched and must stay exactly as it is. */
   readonly arrival: CareLegSubmit | null;
   readonly pickup: CareLegSubmit | null;
+  readonly departure?: DepartureLegSubmit | null;
 }
+
+const DEPARTURE_OPTION_ORDER: readonly DepartureMode[] = [
+  "alone",
+  "bus",
+  "pickup",
+  "accompanied",
+];
+const WEEKDAY_KEYS = ["", "mon", "tue", "wed", "thu", "fri"] as const;
 
 interface NoteDeletionTarget {
   readonly content: string;
@@ -69,6 +88,8 @@ interface CarePlanEditorModalProps {
   readonly arrivalDay: ArrivalDayData | null;
   readonly pickupDay: PickupDayData | null;
   readonly onSubmitException: (payload: CareExceptionSubmit) => Promise<void>;
+  /** Abholarten des Wochenplans; nennen „Regulär“ der Abholart (#3945). */
+  readonly weeklyDepartureModes?: AllowedDepartureModes;
   /** Setzt die reguläre Gehzeit des Wochentags auf die Angebots-Gehzeit
    * zurück (#2290); nur angeboten, wenn der Tag von Hand gepflegt ist. */
   readonly onResetPickupToOffering?: (
@@ -106,6 +127,7 @@ export function CarePlanEditorModal({
   arrivalDay,
   pickupDay,
   onSubmitException,
+  weeklyDepartureModes,
   onResetPickupToOffering,
   onCreateArrivalNote = noopNoteAction,
   onUpdateArrivalNote = noopNoteAction,
@@ -124,6 +146,8 @@ export function CarePlanEditorModal({
   const [pickupTime, setPickupTime] = useState("");
   const [isResettingPickup, setIsResettingPickup] = useState(false);
   const [pickupReason, setPickupReason] = useState("");
+  const [departureMode, setDepartureMode] = useState<string>("regular");
+  const [departureReason, setDepartureReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const errors = useApiFormError(formRef);
@@ -165,6 +189,10 @@ export function CarePlanEditorModal({
     setPickupMode(pickupInit.mode);
     setPickupTime(pickupInit.time);
     setPickupReason(pickupInit.reason);
+
+    const departureInit = departureInitialState(pickupDay);
+    setDepartureMode(departureInit.mode);
+    setDepartureReason(departureInit.reason);
   }, [isOpen, isException, arrivalDay, pickupDay, clearErrors]);
 
   if (!isOpen || !arrivalDay || !pickupDay) return null;
@@ -181,6 +209,11 @@ export function CarePlanEditorModal({
   const pickupChanged = legChanged(
     { mode: pickupMode, time: pickupTime, reason: pickupReason },
     pickupInit,
+  );
+  const departureInit = departureInitialState(pickupDay);
+  const departureChanged = legChanged(
+    { mode: departureMode, time: "", reason: departureReason },
+    departureInit,
   );
 
   const parentAuthored =
@@ -204,8 +237,8 @@ export function CarePlanEditorModal({
       errors.invalid("Bitte geben Sie eine gültige Abholzeit ein.");
       return;
     }
-    if (!arrivalChanged && !pickupChanged) {
-      errors.invalid("Bitte ändern Sie zuerst eine Zeit.");
+    if (!arrivalChanged && !pickupChanged && !departureChanged) {
+      errors.invalid("Bitte ändern Sie zuerst eine Zeit oder die Abholart.");
       return;
     }
     if (overwritesParent) {
@@ -272,6 +305,9 @@ export function CarePlanEditorModal({
         pickup: pickupChanged
           ? toLegSubmit(pickupMode, pickupTime, pickupReason)
           : null,
+        ...(departureChanged
+          ? { departure: toDepartureSubmit(departureMode, departureReason) }
+          : {}),
       });
       toast.success("Die Ausnahme ist gespeichert.");
       setShowParentConfirm(false);
@@ -402,6 +438,30 @@ export function CarePlanEditorModal({
                   showReason={pickupMode !== "regular"}
                 />
               </div>
+              <LegSection
+                label="Abholart"
+                icon={<MotoConceptIcon concept="pickup" size={18} />}
+                regularLabel={`Regulär: ${formatRegularDeparture(pickupDay, weeklyDepartureModes)}`}
+                mode={departureMode}
+                onModeChange={setDepartureMode}
+                options={[
+                  ["regular", "Wie im Wochenplan"],
+                  ...DEPARTURE_OPTION_ORDER.map(
+                    (mode) =>
+                      [mode, DEPARTURE_MODE_LABELS[mode]] as readonly [
+                        string,
+                        string,
+                      ],
+                  ),
+                ]}
+                optionsClassName="sm:grid-cols-2"
+                time=""
+                onTimeChange={() => undefined}
+                reason={departureReason}
+                onReasonChange={setDepartureReason}
+                showTime={false}
+                showReason={departureMode !== "regular"}
+              />
               {pickupPulledForward(pickupMode, pickupTime, pickupDay) ? (
                 <div className="border-moto-amber/40 bg-moto-amber-soft text-moto-amber-strong flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm">
                   <Clock
@@ -520,6 +580,7 @@ function LegSection({
   onReasonChange,
   showTime,
   showReason,
+  optionsClassName = "",
 }: {
   readonly label: string;
   readonly icon: React.ReactNode;
@@ -533,6 +594,8 @@ function LegSection({
   readonly onReasonChange: (value: string) => void;
   readonly showTime: boolean;
   readonly showReason: boolean;
+  /** Zusätzliche Rasterklassen für viele Optionen (Abholart, #3945). */
+  readonly optionsClassName?: string;
 }) {
   const timeId = `exception-${label.toLowerCase()}-time`;
   const reasonId = `exception-${label.toLowerCase()}-reason`;
@@ -548,7 +611,7 @@ function LegSection({
         </div>
       </div>
 
-      <div className="grid gap-2">
+      <div className={`grid gap-2 ${optionsClassName}`}>
         {options.map(([value, text]) => (
           <Button
             key={value}
@@ -906,6 +969,42 @@ function pickupInitialState(day: PickupDayData | null): {
     time: day?.effectiveTime ? formatPickupTime(day.effectiveTime) : "",
     reason: "",
   };
+}
+
+function departureInitialState(day: PickupDayData | null): {
+  mode: string;
+  time: string;
+  reason: string;
+} {
+  const current = day?.departureException;
+  if (current) {
+    return {
+      mode: current.departureMode,
+      time: "",
+      reason: current.reason ?? "",
+    };
+  }
+  return { mode: "regular", time: "", reason: "" };
+}
+
+function toDepartureSubmit(mode: string, reason: string): DepartureLegSubmit {
+  if (mode === "regular") return { kind: "regular" };
+  return {
+    kind: "mode",
+    mode: mode as DepartureMode,
+    reason: reason.trim() ? reason.trim() : null,
+  };
+}
+
+/** Die Abholarten des Wochentags, wie der Wochenplan sie führt. */
+function formatRegularDeparture(
+  day: PickupDayData | null,
+  weekly: AllowedDepartureModes | undefined,
+): string {
+  const key = WEEKDAY_KEYS[day?.weekday ?? 0];
+  const modes = key && weekly ? (weekly[key] ?? []) : [];
+  if (modes.length === 0) return "nicht festgelegt";
+  return modes.map((mode) => DEPARTURE_MODE_LABELS[mode]).join(", ");
 }
 
 function formatRegularArrival(day: ArrivalDayData | null): string {

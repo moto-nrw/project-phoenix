@@ -9,9 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/audit"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -80,34 +79,13 @@ func WithinAdminTransaction(ctx context.Context, fn func(context.Context) error)
 }
 
 func AttachLockWaitEvidence(db *bun.DB) {
-	db.AddQueryHook(database.NewLockWaitQueryHook(tenant.ObserveLockWait)) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
+	transactionruntime.ObserveLockWaits(db)
 }
 
 var packageTenantRuntime atomic.Pointer[tenant.UnitOfWork]
 
-func newTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
-	postgresRuntime, err := database.NewPostgresUnitOfWork(db, tenant.ObservePoolWait)
-	if err != nil {
-		return tenant.UnitOfWork{}, err
-	}
-	runtime, err := tenant.NewUnitOfWork(
-		postgresRuntime.WithinTenant,
-		postgresRuntime.WithinAdmin,
-		tenant.SavepointFunc(postgresRuntime),
-		database.IsRetryableTransactionError,
-		postgresRuntime.AcquireLock,
-	)
-	if err != nil {
-		return tenant.UnitOfWork{}, err
-	}
-	runtime = runtime.WithTransactionDetacher(postgresRuntime.ContextWithoutTransaction)
-	runtime = runtime.WithTransactionDetacher(func(ctx context.Context) context.Context { return audit.WithTransaction(ctx, nil) })
-	runtime = runtime.WithContextAdapters(postgresRuntime.ContextWithTenant, postgresRuntime.ContextWithTransaction)
-	return runtime.WithContextAdapters(audit.WithTenantID, audit.WithTransaction), nil
-}
-
 func bindPackageTenantRuntime(db *bun.DB) error {
-	runtime, err := newTenantRuntime(db)
+	runtime, err := transactionruntime.NewTenantRuntime(db)
 	if err != nil {
 		return err
 	}
@@ -118,7 +96,7 @@ func bindPackageTenantRuntime(db *bun.DB) error {
 // TenantRuntime builds the production tenant runtime against a test database.
 func TenantRuntime(tb testing.TB, db *bun.DB) tenant.UnitOfWork {
 	tb.Helper()
-	runtime, err := newTenantRuntime(db)
+	runtime, err := transactionruntime.NewTenantRuntime(db)
 	if err != nil {
 		tb.Fatalf("create tenant runtime: %v", err)
 	}
@@ -318,11 +296,7 @@ func (r SettingsRuntimeAdapter) AcquireLock(ctx context.Context, key string, sha
 
 func WithTenantTx(tb testing.TB, ctx context.Context, db *bun.DB, tenantID int64, fn func(context.Context, bun.Tx) error) error {
 	tb.Helper()
-	return tenant.WithTenantTx(WithTenantRuntime(tb, ctx, db), db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
-		txCtx = audit.WithTenantID(txCtx, tenantID)
-		txCtx = audit.WithTransaction(txCtx, tx)
-		return fn(txCtx, tx)
-	})
+	return tenant.WithTenantTx(WithTenantRuntime(tb, ctx, db), db, tenantID, fn)
 }
 
 func WithinTenantContext(tb testing.TB, ctx context.Context, db *bun.DB, tenantID int64, fn func(context.Context) error) error {
@@ -353,7 +327,7 @@ func WithinAdminContext(tb testing.TB, ctx context.Context, db *bun.DB, fn func(
 // production mounts those routes outside TenantTxMiddleware, so they pass
 // through here as well.
 func TenantTxMiddleware(db *bun.DB) func(http.Handler) http.Handler {
-	runtime, err := newTenantRuntime(db)
+	runtime, err := transactionruntime.NewTenantRuntime(db)
 	if err != nil {
 		panic(err)
 	}

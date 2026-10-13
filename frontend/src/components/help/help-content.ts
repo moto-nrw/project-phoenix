@@ -568,13 +568,15 @@ function editStudentTopic(): HelpTopic {
           "Wählen Sie auf der Karte des Tages `Ausnahme`.",
           "Wählen Sie unter `Ankunft` `Regulär`, `Andere Zeit` oder `Kommt nicht`.",
           "Wählen Sie unter `Abholung` `Regulär`, `Andere Zeit` oder `Keine Abholung`.",
+          // #3945: eigener Abschnitt unter Ankunft und Abholung.
+          "Geht das Kind an diesem Tag anders nach Hause? Wählen Sie unter `Abholart` zum Beispiel `Wird abgeholt`. `Wie im Wochenplan` nimmt die Änderung zurück.",
           "Tragen Sie bei Bedarf unter `Hinweise nur für diesen Tag` etwas ein.",
           "Wählen Sie `Speichern`.",
         ],
       },
     ],
     result:
-      "Die gespeicherten Angaben gelten sofort. Eine Notiz ohne Abholzeit steht auf der Kinderkarte unter `Kommt heute nicht`. Eine Ausnahme ändert den regelmäßigen Wochenplan nicht.",
+      "Die gespeicherten Angaben gelten sofort. Eine Notiz ohne Abholzeit steht auf der Kinderkarte unter `Kommt heute nicht`. Eine andere Abholart steht an diesem Tag auf der Kinderkarte und in der Klassenansicht. Eine Ausnahme ändert den regelmäßigen Wochenplan nicht.",
     differences: [
       "Die Kennzeichnung `Für Eltern sichtbar` zeigt Angaben, die Eltern sehen.",
       "Kommen die Betreuungstage aus Buchungen? Dann lassen sich die Tage nicht auswählen. Ändern Sie nur Zeiten an gebuchten Tagen.",
@@ -1663,6 +1665,8 @@ function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
       "moto übernimmt die freigegebene Änderung. Die Bezugsperson sieht die Entscheidung in der Eltern-App.",
     differences: [
       "Bei einer geänderten Abholzeit zeigt moto vorher betroffene Termine an.",
+      // #3945: Tagesanfrage mit Abholart.
+      "Eine Anfrage für einen einzelnen Tag kann die Abholzeit, die Abholart oder beides ändern. Die neue Abholart gilt nur an diesem Tag.",
       "Anmeldungsänderungen öffnen Sie über `Prüfen`. Dafür brauchen Sie ein zusätzliches Recht.",
       // Ohne feste Gruppen gibt es keine Gruppenleitung, an der die
       // Freigabe haengen koennte.
@@ -3094,7 +3098,7 @@ function careTimesTopic(): HelpTopic {
         steps: [
           "Öffnen Sie beim Kind den Bereich `Betreuungszeiten`.",
           "Wählen Sie beim gewünschten Tag `Ausnahme`.",
-          "Ändern Sie `Ankunft` oder `Abholung`.",
+          "Ändern Sie `Ankunft`, `Abholung` oder `Abholart`.",
           "Wählen Sie `Speichern`.",
         ],
       },
@@ -5342,7 +5346,7 @@ function parentVisibilityTopic(): HelpTopic {
     ],
     result: "Eltern sehen die Änderung, wenn sie moto das nächste Mal öffnen.",
     notes: [
-      "Einzeln schaltbar sind zum Beispiel `Nachrichten von Eltern`, `Abholzeit für einen Tag ändern (Eltern)` und `Stammdaten bearbeiten (Eltern)`.",
+      "Einzeln schaltbar sind zum Beispiel `Nachrichten von Eltern`, `Abholung für einen Tag ändern (Eltern)` und `Stammdaten bearbeiten (Eltern)`.",
       "Wählen Sie bei `Krankmeldungen durch Eltern` die Möglichkeit `Erst bestätigen`, wenn Ihr Team jede Meldung freigeben soll.",
       "Bei `Wer gibt Änderungswünsche von Eltern frei?` wählen Sie, wer Anfragen zu Stammdaten, Abholung und Angeboten freigibt.",
       "`Berechtigtes Team` heißt: alle, die Kinderdaten bearbeiten dürfen. Das passt auch für ein gemeinsames Tablet.",
@@ -6185,13 +6189,19 @@ function parentReportAbsenceTopic(): HelpTopic {
   };
 }
 
-/** Abholzeit fuer einen Tag (i18n `parentChildCare.pickup`). Immer Anfrage. */
+/**
+ * Abholzeit fuer einen Tag (i18n `parentChildCare.pickup`). Immer Anfrage.
+ * Seit #3945 auch die Abholart, wenn die Schule das erlaubt; dann heisst der
+ * Knopf `Abholung für ... ändern`.
+ */
 function parentPickupChangeTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.parentPickupChange,
-    title: "Die Abholzeit für einen Tag ändern",
-    question: "Wie ändere ich die Abholzeit für einen einzelnen Tag?",
-    summary: "Sie fragen eine andere Abholzeit an. Der Wochenplan bleibt.",
+    title: "Die Abholung für einen Tag ändern",
+    question:
+      "Wie ändere ich die Abholzeit oder die Abholart für einen einzelnen Tag?",
+    summary:
+      "Sie fragen eine andere Abholzeit oder Abholart an. Der Wochenplan bleibt.",
     group: "mein-kind",
     audience: "parent",
     icon: "Clock3",
@@ -6205,6 +6215,10 @@ function parentPickupChangeTopic(): HelpTopic {
     ],
     result:
       "Die Änderung gilt erst, nachdem die OGS sie bestätigt hat. Der reguläre Wochenplan bleibt unverändert.",
+    differences: [
+      "Steht dort `Abholung für ... ändern`? Dann können Sie auch die Abholart ändern. Wählen Sie bei `Abholart an diesem Tag` zum Beispiel `Wird abgeholt`. Lassen Sie `Abholzeit` leer, wenn die Uhrzeit gleich bleibt.",
+      "Hat die OGS die Abholart für den Tag schon festgelegt? Dann steht sie im Fenster. Für eine Änderung schreiben Sie der OGS.",
+    ],
     notes: [
       "Der Grund ist Pflicht und darf höchstens 255 Zeichen lang sein.",
       "Soll sich die Zeit dauerhaft ändern? Dann fragen Sie eine Änderung der Betreuung an.",
@@ -6307,7 +6321,7 @@ function parentCareChangeTopic(): HelpTopic {
       "Bis zur Bestätigung bleibt alles wie bisher. Die Anfrage trägt `In Prüfung`.",
     notes: [
       "Eine Änderung am Wochenplan ist dauerhaft und gilt jede Woche.",
-      "Geht es nur um einen Tag? Ändern Sie stattdessen die Abholzeit.",
+      "Geht es nur um einen Tag? Ändern Sie stattdessen die Abholung für diesen Tag.",
       "Eine offene Anfrage lässt sich mit `Anfrage bearbeiten` noch ändern.",
       "Betreut Ihre OGS am Wochenende? Dann gilt der Freitagsplan auch für Samstag und Sonntag.",
     ],

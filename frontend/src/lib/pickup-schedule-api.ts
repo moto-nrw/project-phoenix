@@ -13,8 +13,12 @@ import type {
   BackendPickupData,
   BackendPickupException,
   BackendPickupNote,
+  BackendDepartureException,
+  DepartureException,
+  DepartureMode,
 } from "./pickup-schedule-helpers";
 import {
+  mapDepartureExceptionResponse,
   mapPickupDataResponse,
   mapPickupExceptionResponse,
   mapPickupNoteResponse,
@@ -414,6 +418,57 @@ export async function deleteStudentPickupException(
   if (!response.ok) {
     await throwResponseError(response, "Failed to delete pickup exception");
   }
+}
+
+/**
+ * Setzt die Abholart eines einzelnen Tages (#3945). Ein Tag hat höchstens
+ * einen Wert; erneutes Speichern ersetzt ihn.
+ */
+export async function setStudentDepartureException(
+  studentId: string,
+  date: string,
+  data: { departureMode: DepartureMode; reason?: string },
+): Promise<DepartureException> {
+  const response = await transportFetch(
+    `/api/students/${studentId}/departure-exceptions/${date}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        departure_mode: data.departureMode,
+        reason: data.reason,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    await throwResponseError(response, "Failed to set departure exception");
+  }
+
+  const result = await parseApiResult<BackendDepartureException>(
+    response,
+    "Failed to set departure exception",
+  );
+  return mapDepartureExceptionResponse(result);
+}
+
+/**
+ * Gibt den Tag an den Wochenplan zurück: die Abholart des Tages entfällt.
+ */
+export async function deleteStudentDepartureException(
+  studentId: string,
+  date: string,
+): Promise<void> {
+  const response = await transportFetch(
+    `/api/students/${studentId}/departure-exceptions/${date}`,
+    { method: "DELETE" },
+  );
+
+  if (!response.ok) {
+    await throwResponseError(response, "Failed to delete departure exception");
+  }
+
+  await handleDeleteResponse(response, "Failed to delete departure exception");
 }
 
 // =============================================================================
