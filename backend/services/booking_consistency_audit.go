@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -17,15 +17,16 @@ type BookingConsistencyAudit func(context.Context, auditModels.Date) (*auditMode
 
 // NewBookingConsistencyAudit composes the booking drift audit the Worker runs
 // (ADR 0049). The Audit composition builds it over the caller's tenant
-// transaction; People Directory names the alumni the audit excludes, Care Plan
-// supplies the offerings and Enrollment the approved bookings, each through a
-// port the Audit composition declares.
+// transaction, with the root database as the fallback outside one; People
+// Directory names the alumni the audit excludes, Care Plan supplies the
+// offerings and Enrollment the approved bookings, each through a port the
+// Audit composition declares.
 func NewBookingConsistencyAudit(db *bun.DB, students peopledirectory.StudentQuery, carePlan careplan.Query) (BookingConsistencyAudit, error) {
 	if db == nil || students == nil || carePlan == nil {
 		return nil, fmt.Errorf("booking consistency audit: database, People Directory and Care Plan are required")
 	}
 	audits, err := auditCompose.NewPersistence(auditCompose.PersistenceDependencies{
-		Reads:      tenantAuditReads(db),
+		DB:         db,
 		Enrollment: NewEnrollmentBookingProjection(enrollmentCompose.New()),
 		Students:   auditStudentDirectory{students: students},
 		CarePlan:   auditCarePlanDirectory{query: carePlan},
@@ -34,26 +35,6 @@ func NewBookingConsistencyAudit(db *bun.DB, students peopledirectory.StudentQuer
 		return nil, err
 	}
 	return audits.BookingConsistency.Audit, nil
-}
-
-// tenantAuditReads reads through the caller's tenant transaction and falls back
-// to the root database outside one or for any other transaction value, as the
-// retained repository Factory's Audit runtime did.
-func tenantAuditReads(db *bun.DB) auditCompose.Runtime {
-	return func(ctx context.Context) (bun.IDB, int64) {
-		tenantID := auditModels.TenantIDFromContext(ctx)
-		if raw, ok := auditModels.TransactionFromContext(ctx); ok {
-			switch tx := raw.(type) {
-			case bun.Tx:
-				return tx, tenantID
-			case *bun.Tx:
-				if tx != nil {
-					return tx, tenantID
-				}
-			}
-		}
-		return db, tenantID
-	}
 }
 
 // auditStudentDirectory serves the Audit composition's alumni read from the

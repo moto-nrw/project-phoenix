@@ -9,8 +9,8 @@ import (
 
 	"github.com/uptrace/bun"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -18,6 +18,7 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -84,7 +85,7 @@ func NewTimetableHTTPTestModule(db *bun.DB, options TimetableHTTPTestOptions) (T
 		clock := options.Clock
 		today = func() calendar.Date { return calendar.DateFromTime(clock()) }
 	}
-	lock, err := NewTimetableRecurrenceLock(db)
+	lock, err := newTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return TimetableHTTPTestModule{}, err
 	}
@@ -219,7 +220,7 @@ func newTimetableHTTPTestReads(db *bun.DB, r TimetableHTTPTestRows, rows timetab
 		Visits:            presence,
 		Templates:         templates,
 		Groups:            r.Timetable,
-		BlockMetadata:     newTimetableBlockDisplayMetadata(db),
+		BlockMetadata:     timetableCompose.NewBlockDisplayMetadata(db, timetableblockdisplay.List),
 		Categories:        r.ActivityCategory,
 		Rooms:             rows.RoomNames(),
 		RoomOccupancy:     timetableRoomOccupancy{sessions: r.ActiveGroup},
@@ -297,7 +298,7 @@ func NewTimetableHTTPTestSessionRecords(db *bun.DB) *presenceCompose.SessionReco
 // NewTimetableHTTPTestRecurrenceLock is the Timetable owner's tenant
 // recurrence gate over the test database.
 func NewTimetableHTTPTestRecurrenceLock(db *bun.DB) (timetable.RecurrenceWriteLock, error) {
-	return NewTimetableRecurrenceLock(db)
+	return newTimetableTestRecurrenceLock(db)
 }
 
 // NewTimetableHTTPTestPeople serves the People port of the timetable routes

@@ -1,11 +1,11 @@
 package services
 
 import (
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/uptrace/bun"
 )
 

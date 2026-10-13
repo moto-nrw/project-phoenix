@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // WithAttendanceStaff binds the staff identity already verified by the web
@@ -25,3 +26,11 @@ func AttendancePrincipal(ctx context.Context) studentpresence.RequestPrincipal {
 	}
 	return result
 }
+
+// AttendanceTenantID is the school the web attendance request acts for, 0
+// when none.
+func AttendanceTenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
+
+// MarkAttendanceRollback marks the web attendance request's tenant
+// transaction for rollback.
+func MarkAttendanceRollback(ctx context.Context) { tenant.MarkRollback(ctx) }

@@ -1,8 +1,8 @@
 package services
 
 import (
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"

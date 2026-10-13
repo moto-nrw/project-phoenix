@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // timeClock serves workforce.TimeClock from the retained work session service
@@ -177,15 +177,11 @@ func timeClockDay(day string) (timezone.Date, error) {
 	return date, nil
 }
 
-// classifyCheckInError adds the raced-insert classification to the shared
-// mapping. A concurrent stamp of the same card is a state conflict, not a
-// server fault; the duplicate INSERT left the request transaction aborted, so
-// the rollback is requested explicitly. The Workforce store reports the
-// violated open-block index (#2402) as ErrWorkSessionAlreadyOpen.
+// classifyCheckInError adds the raced-insert classification Workforce owns
+// to the shared mapping.
 func classifyCheckInError(ctx context.Context, err error) error {
-	if errors.Is(err, workforce.ErrWorkSessionAlreadyOpen) {
-		tenant.MarkRollback(ctx)
-		return &workforce.TimeTrackingError{Kind: workforce.ErrCheckInRaced, Cause: err}
+	if raced := workforceCompose.RacedCheckIn(ctx, err); raced != nil {
+		return raced
 	}
 	return MapTimeTrackingError(err)
 }

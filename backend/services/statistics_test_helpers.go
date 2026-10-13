@@ -5,13 +5,14 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -19,7 +20,7 @@ import (
 type StatisticsTestModule struct {
 	Statistics     studentpresence.StatisticsReports
 	SchoolCalendar schoolcalendar.Calendar
-	ListExport     *listexport.RendererService
+	ListExport     *lists.RendererService
 	// CreateClosingDay stores a closure range through the calendar owner.
 	CreateClosingDay func(ctx context.Context, start, end timezone.Date, reason string) error
 }
@@ -29,7 +30,7 @@ func NewStatisticsTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func(
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
@@ -41,7 +42,7 @@ func NewStatisticsTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func(
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
@@ -51,8 +52,9 @@ func NewStatisticsTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func(
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	service := newStatistics(db, slog.Default(), presenceCompose.StatisticsDependencies{
-		StatusDays: statisticsStatusDays{r.CarePlan}, Courses: newCourseStatistics(db),
+	service := newStatistics(slog.Default(), presenceCompose.StatisticsDependencies{
+		DB:         db,
+		StatusDays: statisticsStatusDays{r.CarePlan}, Courses: newCourseStatistics(mustPresenceReads(db)),
 		Holidays:    tenantHolidays{calendar: calendar},
 		ClosingDays: tenantClosingDays{calendar: calendar}, Periods: statisticsReportPeriods{calendar}, Students: statisticsReportStudents{students}, Rooms: statisticsReportRooms{rooms},
 		AccessLog: statisticsAuditLog{r.AccessLog}, Retention: statisticsRetention{settings.Settings}, Logger: slog.Default(), Now: optionalClock(clocks),
@@ -63,5 +65,5 @@ func NewStatisticsTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func(
 		}})
 		return err
 	}
-	return StatisticsTestModule{Statistics: service, SchoolCalendar: calendar, ListExport: listexport.NewService(), CreateClosingDay: createClosingDay}, nil
+	return StatisticsTestModule{Statistics: service, SchoolCalendar: calendar, ListExport: lists.NewRendererService(), CreateClosingDay: createClosingDay}, nil
 }

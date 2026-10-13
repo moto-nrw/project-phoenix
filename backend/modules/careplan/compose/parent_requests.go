@@ -71,7 +71,7 @@ func NewMasterDataDecisions(deps MasterDataDecisionDependencies) (*MasterDataDec
 	}
 	return application.NewMasterDataDecisions(application.MasterDataDecisionDependencies{
 		Requests: deps.CarePlan, People: deps.People, Records: deps.Records, Scope: deps.Scope,
-		Hooks: tenantHooks{}, Today: deps.Today, Logger: deps.Logger, Messenger: deps.Messenger,
+		Hooks: TenantHooks{}, Today: deps.Today, Logger: deps.Logger, Messenger: deps.Messenger,
 		Broadcaster: deps.Broadcaster, Ledger: deps.Ledger, Shares: deps.Shares,
 	})
 }
@@ -107,14 +107,14 @@ func NewParentRequestCoordinator(deps ParentRequestCoordinatorDependencies) (par
 	}
 	excused := excusedParentRequests{requests: deps.Excused}
 	return application.NewParentRequestCoordinator(application.ParentRequestCoordinatorDependencies{
-		Rights: deps.Rights, Rollback: tenantHooks{}, MasterData: deps.MasterData, Excused: excused,
+		Rights: deps.Rights, Rollback: TenantHooks{}, MasterData: deps.MasterData, Excused: excused,
 		MasterDataConflicts: deps.MasterData, ExcusedConflicts: excused,
 		CareConflicts: deps.Care, OfferingConflicts: deps.Offering, Ledger: deps.Ledger,
 	})
 }
 
 // MarkRollback asks the ambient tenant transaction to roll back.
-func (tenantHooks) MarkRollback(ctx context.Context) { tenant.MarkRollback(ctx) }
+func (TenantHooks) MarkRollback(ctx context.Context) { tenant.MarkRollback(ctx) }
 
 // excusedParentRequests presents the excused-absence workflow to the
 // cross-kind commands in the coordinator's vocabulary.

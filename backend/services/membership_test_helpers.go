@@ -2,8 +2,14 @@ package services
 
 import (
 	"fmt"
+	"time"
 
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 
 	"github.com/uptrace/bun"
 )
@@ -20,7 +26,7 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 	if err != nil {
 		return MembershipTestRepositories{}, err
 	}
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return MembershipTestRepositories{}, err
 	}
@@ -81,4 +87,31 @@ type (
 // composition.
 func NewStudentDirectory(directory peopleCompose.StudentDirectoryCapability) *peopleCompose.StudentDirectory {
 	return peopleCompose.NewStudentDirectory(directory)
+}
+
+// NewWorkforce composes the work-time owner unobserved for the test graphs
+// whose test roles may not name the Workforce composition. Production roots compose the
+// module themselves (api/base.go) so runtime evidence is kept.
+func NewWorkforce(db *bun.DB, membership schoolmembership.Capability) (workforce.Capability, error) {
+	return NewWorkforceWithClock(db, membership, nil)
+}
+
+// NewWorkforceWithClock is NewWorkforce with a pinned clock for the live
+// work-session window and the calendar day; nil means the wall clock.
+func NewWorkforceWithClock(db *bun.DB, membership schoolmembership.Capability, now func() time.Time) (workforce.Capability, error) {
+	return workforceCompose.New(workforceCompose.Dependencies{
+		LockStaffAssignment: WorkforceStaffAssignmentLock(membership),
+		DB:                  db,
+		LiveStaffIDs:        WorkforceLiveStaffIDs(membership),
+		Observe:             func(workforceCompose.Observation) {},
+		Now:                 now,
+	})
+}
+
+// NewEducationGroupRepository is the retained group store on the tenant
+// runtime of the School Structure owner over db, with only the given
+// dependencies bound, for the test graphs whose test roles may not name the
+// School Structure composition.
+func NewEducationGroupRepository(db *bun.DB, options ...educationRepo.GroupRepositoryDependencies) *educationGroupRepository {
+	return newEducationGroupStore(educationRepo.NewLegacyRepositoryRuntime(db), options...)
 }

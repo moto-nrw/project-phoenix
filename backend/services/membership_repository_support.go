@@ -2,12 +2,12 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -21,7 +21,7 @@ import (
 // repositoryNotFound builds the not-found shape every retained repository
 // returns.
 func repositoryNotFound(op string) error {
-	return &userModels.DatabaseError{Op: op, Err: errors.Join(userModels.ErrRepositoryNotFound, sql.ErrNoRows)}
+	return &userModels.DatabaseError{Op: op, Err: errors.Join(userModels.ErrRepositoryNotFound, transactionruntime.ErrNoRows)}
 }
 
 // repositoryError wraps err in the retained repository error shape,

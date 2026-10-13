@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 )
 
 type SimpleListColumn struct {
@@ -31,27 +31,27 @@ type SimpleListFile struct {
 type SimpleListRenderer func(SimpleListDocument, string, string) (SimpleListFile, error)
 
 func NewSimpleListRenderer() SimpleListRenderer {
-	renderer := listexport.NewService()
+	renderer := lists.NewRendererService()
 	return func(input SimpleListDocument, format, filename string) (SimpleListFile, error) {
-		columns := make([]listexport.Column, 0, len(input.Columns))
+		columns := make([]lists.Column, 0, len(input.Columns))
 		for _, column := range input.Columns {
-			columns = append(columns, listexport.Column{ID: listexport.ColumnID(column.ID), Label: column.Label})
+			columns = append(columns, lists.Column{ID: lists.ColumnID(column.ID), Label: column.Label})
 		}
-		rows := make([]listexport.Row, 0, len(input.Rows))
+		rows := make([]lists.Row, 0, len(input.Rows))
 		for rowIndex, inputRow := range input.Rows {
 			if len(inputRow) != len(columns) {
 				return SimpleListFile{}, fmt.Errorf("simple list export: row %d has %d values for %d columns", rowIndex, len(inputRow), len(columns))
 			}
-			values := make(map[listexport.ColumnID]string, len(columns))
+			values := make(map[lists.ColumnID]string, len(columns))
 			for columnIndex, column := range columns {
-				values[column.ID] = listexport.SanitizeUserText(inputRow[columnIndex])
+				values[column.ID] = lists.SanitizeUserText(inputRow[columnIndex])
 			}
-			rows = append(rows, listexport.Row{Values: values})
+			rows = append(rows, lists.Row{Values: values})
 		}
-		file, err := renderer.Render(listexport.Document{
+		file, err := renderer.Render(lists.Document{
 			Title: input.Title, Subtitle: input.Subtitle, GeneratedAt: input.GeneratedAt,
 			Filters: input.Filters, Columns: columns, Rows: rows, Footer: input.Footer,
-		}, listexport.Format(format), filename)
+		}, lists.Format(format), filename)
 		if err != nil {
 			return SimpleListFile{}, err
 		}

@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 func (s *careScheduleRequestService) applyCareScheduleRequest(ctx context.Context, request *carerequests.Request, actorID int64) (bool, error) {

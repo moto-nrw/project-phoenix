@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type statisticsAuditLog struct {

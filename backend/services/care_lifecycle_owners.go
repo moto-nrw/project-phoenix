@@ -7,19 +7,21 @@ import (
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/uptrace/bun"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
 // CareLifecycleOwnerSources are the owners the Care Plan lifecycle (#3427)
 // drives around a care exit: the child rows and memberships, the persons and
-// bracelets, the timetable, the school calendar. Enrollment and Student
-// Presence are composed from the database here.
+// bracelets, the timetable, the school calendar, the unlogged Student
+// Presence and the Timetable plan reads joined with its attendance. Enrollment
+// is composed here.
 type CareLifecycleOwnerSources struct {
 	Students   users.StudentRepository
 	Persons    users.PersonRepository
@@ -27,18 +29,20 @@ type CareLifecycleOwnerSources struct {
 	People     peopledirectory.Capability
 	Timetable  timetable.Capability
 	Calendar   schoolcalendar.Query
+	Presence   *studentpresence.Module
+	PlanReads  timetableCompose.PresenceReads
 }
 
 // NewCareLifecycleOwners binds the lifecycle's ports to their owners. The
 // change trail arrives from the caller, which holds the audit service.
-func NewCareLifecycleOwners(db *bun.DB, sources CareLifecycleOwnerSources, changeTrail carePlanCompose.CareEndRecorder) carePlanCompose.CareLifecycleOwners {
-	presence := newUnloggedStudentPresence(db)
+func NewCareLifecycleOwners(sources CareLifecycleOwnerSources, changeTrail carePlanCompose.CareEndRecorder) carePlanCompose.CareLifecycleOwners {
+	presence := sources.Presence
 	return carePlanCompose.CareLifecycleOwners{
 		Students: CareStudents{
 			students: sources.Students, persons: sources.Persons,
 			membership: sources.Membership, people: sources.People,
 		},
-		Roster:      newCareExitRoster(db, sources.Timetable, presence),
+		Roster:      newCareExitRoster(sources.PlanReads, sources.Timetable, presence),
 		Bookings:    careExitBookings{capability: sources.Timetable},
 		Enrollment:  careExitEnrollment{projection: NewEnrollmentBookingProjection(enrollmentCompose.New())},
 		Presence:    careExitPresence{presence: presence},

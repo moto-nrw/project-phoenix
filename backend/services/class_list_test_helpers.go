@@ -1,8 +1,8 @@
 package services
 
 import (
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/uptrace/bun"
 )
 
@@ -23,7 +23,7 @@ func NewClassListTestModule(db *bun.DB) (ClassListTestModule, error) {
 	if err != nil {
 		return ClassListTestModule{}, err
 	}
-	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return ClassListTestModule{}, err
 	}

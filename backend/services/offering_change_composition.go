@@ -2,20 +2,19 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -39,7 +38,9 @@ type offeringChangeInputs struct {
 	Planning    carePlanCompose.OfferingChangePlanning
 	Bookings    careplan.BookingMaterializationCapability
 	Reviews     offeringChangeReviewPolicy
-	Emitter     *parentmessaging.Emitter
+	// Permissions reads the permissions of the request claims.
+	Permissions func(context.Context) []string
+	Emitter     *communicationCompose.ParentEventEmitter
 	Events      usersModels.ParentRequestEventRepository
 	Shares      carePlanCompose.ShareVisibility
 	Today       func() calendar.Date
@@ -47,8 +48,8 @@ type offeringChangeInputs struct {
 }
 
 func newOfferingChanges(inputs offeringChangeInputs) (careplan.OfferingChangeCapability, error) {
-	if inputs.CarePlan == nil || inputs.Enrollment == nil || inputs.Students == nil || inputs.Reviews == nil {
-		return nil, errors.New("offering changes: care plan, enrollment, students and review policy are required")
+	if inputs.CarePlan == nil || inputs.Enrollment == nil || inputs.Students == nil || inputs.Reviews == nil || inputs.Permissions == nil {
+		return nil, errors.New("offering changes: care plan, enrollment, students, review policy and request permissions are required")
 	}
 	var messenger carePlanCompose.RequestMessenger
 	if inputs.Emitter != nil {
@@ -70,7 +71,7 @@ func newOfferingChanges(inputs offeringChangeInputs) (careplan.OfferingChangeCap
 		Settings:   offeringChangeSettings{bookingSettings{settings: inputs.Settings}, inputs.Settings},
 		Planning:   inputs.Planning,
 		Bookings:   inputs.Bookings,
-		Scope:      offeringChangeReviewScope(inputs.Reviews),
+		Scope:      offeringChangeReviewScope(inputs.Reviews, inputs.Permissions),
 		Messenger:  messenger,
 		Ledger:     ledger,
 		Shares:     inputs.Shares,
@@ -91,9 +92,9 @@ type offeringChangeReviewPolicy interface {
 
 // offeringChangeReviewScope applies the identity-owned review policy with
 // the permissions of the request claims.
-func offeringChangeReviewScope(policy offeringChangeReviewPolicy) carePlanCompose.ReviewScopeResolver {
+func offeringChangeReviewScope(policy offeringChangeReviewPolicy, permissions func(context.Context) []string) carePlanCompose.ReviewScopeResolver {
 	return func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
-		schoolWide, groupIDs, err := policy.Scope(ctx, authjwt.PermissionsFromCtx(ctx))
+		schoolWide, groupIDs, err := policy.Scope(ctx, permissions(ctx))
 		if err != nil {
 			return carePlanCompose.ReviewScope{}, err
 		}
@@ -199,7 +200,7 @@ func (r offeringChangeRows) Find(ctx context.Context, id int64) (careplan.Offeri
 
 func (r offeringChangeRows) FindForUpdate(ctx context.Context, id int64) (careplan.OfferingChangeRequest, error) {
 	row, err := r.find(ctx, id, true, "find offering change request for update")
-	if errors.Is(err, careplan.ErrOfferingChangeNotFound) || errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, careplan.ErrOfferingChangeNotFound) || errors.Is(err, transactionruntime.ErrNoRows) {
 		return careplan.OfferingChangeRequest{}, careplan.ErrOfferingChangeNotFound
 	}
 	return row, err
@@ -208,7 +209,7 @@ func (r offeringChangeRows) FindForUpdate(ctx context.Context, id int64) (carepl
 func (r offeringChangeRows) find(ctx context.Context, id int64, lock bool, op string) (careplan.OfferingChangeRequest, error) {
 	row, err := r.carePlan.FindOfferingChange(ctx, id, lock)
 	if errors.Is(err, careplan.ErrOfferingChangeNotFound) {
-		return careplan.OfferingChangeRequest{}, offeringChangeDatabaseError(op, sql.ErrNoRows)
+		return careplan.OfferingChangeRequest{}, offeringChangeDatabaseError(op, transactionruntime.ErrNoRows)
 	}
 	if err != nil {
 		return careplan.OfferingChangeRequest{}, offeringChangeDatabaseError(op, err)

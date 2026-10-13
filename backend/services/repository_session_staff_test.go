@@ -1,10 +1,9 @@
-package services_test
+package services
 
 import (
 	"encoding/json"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +14,7 @@ func TestSessionStaffPreservesMembershipAndPersonWireFields(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Jane", "Smith")
 	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
 	testpkg.CreateTestGroupSupervisor(t, db, staff.ID, group.ID, "supervisor")
-	repos, err := services.NewActiveTestRepositories(db, services.MustNewMembershipTestRepositories(db))
+	repos, err := NewActiveTestRepositories(db, MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	want, err := repos.Staff.FindByID(ctx, staff.ID)

@@ -66,7 +66,7 @@ func newCareScheduleRequestService(
 	return services.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		requestRepo, people, arrival, pickup, nil, nil, nil,
 		factory.UserContext, emitter, broadcaster,
-		testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: factory.UserContext}, nil, logger,
+		testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: factory.UserContext}, testpkg.PermissionsFromContext, nil, logger,
 		factory.StudentAudit,
 	)
 }
@@ -117,7 +117,7 @@ func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, o
 		sf.UserContext,
 		emitter, // pill emission is best-effort and after-commit; nil no-ops
 		nil,     // broadcaster — cache-invalidation fan-out; nil no-ops
-		testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: sf.UserContext},
+		testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: sf.UserContext}, testpkg.PermissionsFromContext,
 		nil,
 		slog.Default(),
 		sf.StudentAudit,

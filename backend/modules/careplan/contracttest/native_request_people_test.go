@@ -74,7 +74,7 @@ func TestRequestApprovalPreservesNativePlanAndAuditSnapshots(t *testing.T) {
 			service := services.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 				f.repos.CarePlan(), directory, f.sf.ArrivalSchedule, f.sf.PickupSchedule,
 				nil, nil, nil, f.sf.UserContext, nil, nil,
-				testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: f.sf.UserContext}, nil, slog.Default(), audit,
+				testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: f.sf.UserContext}, testpkg.PermissionsFromContext, nil, slog.Default(), audit,
 			)
 			request := f.createPending(t, careWeekdays(map[string]any{"weekday": 5, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"}))
 			_, err = service.Decide(ctx, carerequests.DecideInput{RequestID: request.ID, Approve: true, ReviewedBy: f.staffAccount})

@@ -16377,17 +16377,17 @@
         },
         {
           "file": "api/base.go",
-          "line": 397,
+          "line": 394,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
           "line": 443,
-          "declaration": "withFileStorageWiring"
+          "declaration": "withRootWiring"
         },
         {
           "file": "api/base.go",
-          "line": 691,
+          "line": 701,
           "declaration": "type serveGraph"
         },
         {

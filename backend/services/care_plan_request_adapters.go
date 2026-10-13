@@ -8,9 +8,9 @@ import (
 
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 // ExcusedAbsenceRequestRepository serves the retained excused-absence request

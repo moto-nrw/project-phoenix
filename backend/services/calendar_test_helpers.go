@@ -3,8 +3,9 @@ package services
 import (
 	"log/slog"
 
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -12,7 +13,7 @@ import (
 type CalendarTestModule struct{ Calendar calendarCompose.Application }
 
 func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModule, error) {
-	command, err := auditService.NewCommand(NewTestAuditStore(db), func(auditService.AppendObservation) {})
+	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
@@ -67,10 +68,10 @@ func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModu
 		},
 		Appointments:           appointments,
 		UserContext:            identity.UserContext.Caller(),
-		DB:                     db,
+		Runtime:                calendarCompose.NewTenantRuntime(db),
 		CalendarRenderer:       schoolCalendarRendererAdapter{renderer: schoolCalendar},
 		Outbox:                 delivery.EmailOutbox,
-		PushOutbox:             durablePushAdapter{module: delivery.Delivery},
+		PushOutbox:             deliveryCompose.NewDurablePushOutbox(delivery.Delivery),
 		Settings:               settings.Settings,
 		StaffFeedTombstoneRepo: feeds.Tombstone,
 		ParentsURL:             cfg.ParentsURL,

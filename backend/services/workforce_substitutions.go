@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // substitutionCodeInvalidPeriod is the registered error code of a rejected

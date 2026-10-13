@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 37,
+  "policy_epoch": 38,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -563,6 +563,13 @@
     },
     {
       "path": "modules/auditlog/compose",
+      "owner": "audit-platform",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/compose/vocabulary",
       "owner": "audit-platform",
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
@@ -1521,6 +1528,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/dataimport/compose/retained",
+      "owner": "data-import",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/dataimport/fileformat",
       "owner": "data-import",
       "role": "adapter",
@@ -1850,6 +1864,20 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/delivery/compose/email",
+      "owner": "delivery-platform",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/compose/realtime",
+      "owner": "delivery-platform",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/delivery/internal/application",
       "owner": "delivery-platform",
       "role": "application",
@@ -1888,6 +1916,13 @@
       "path": "services/iot/staffclock",
       "owner": "staff-clock",
       "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/staffclock/compose",
+      "owner": "staff-clock",
+      "role": "compose",
       "internal_test_role": "workflow-decision-test",
       "external_test_role": "workflow-integration-test"
     },
@@ -1934,6 +1969,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/organizationtenancy/compose/vocabulary",
+      "owner": "organization-tenancy",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/organizationtenancy/internal/application",
       "owner": "organization-tenancy",
       "role": "application",
@@ -1956,6 +1998,13 @@
     },
     {
       "path": "modules/peopledirectory/compose",
+      "owner": "people-directory",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/compose/vocabulary",
       "owner": "people-directory",
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
@@ -3174,6 +3223,13 @@
     },
     {
       "path": "modules/settings/compose",
+      "owner": "settings-platform",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/settings/compose/vocabulary",
       "owner": "settings-platform",
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
@@ -5224,6 +5280,30 @@
       "target_role": "compose"
     },
     {
+      "id": "legacy-composition.to.document-rendering-lists",
+      "description": "The legacy composition hands the list renderer and the list vocabulary to the retained exports through the Document Rendering list contract (#2747).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "contract",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
+    },
+    {
+      "id": "legacy-composition.to.transaction-runtime-public",
+      "description": "The legacy composition binds the dashboard database statistics to the owners' counters through the Transaction Runtime public package (#2747).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "transaction-runtime",
+      "target_role": "public",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
+    },
+    {
       "id": "request-review-view.compose.impact-token",
       "description": "Render the existing SHA-256 pickup-impact wire token from native facts (#3179).",
       "scopes": [
@@ -6091,6 +6171,18 @@
       "target_role": "public"
     },
     {
+      "id": "data-import.compose.retained-application",
+      "description": "The Data Import composition names its retained import services for the legacy composition (#2747).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "compose",
+      "target_owner": "data-import",
+      "target_role": "application",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
+    },
+    {
       "id": "data-import.compose.production.school-structure.public",
       "description": "Bind import reference lookups to native tenant-scoped owner queries (#2744).",
       "scopes": [
@@ -6351,6 +6443,30 @@
       "source_role": "compose",
       "target_owner": "audit-platform",
       "target_role": "public"
+    },
+    {
+      "id": "audit-platform.compose.retained-application",
+      "description": "The Audit Platform composition names its retained append command, consent recorder and tag-scan log for the legacy composition (#2747).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "application",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
+    },
+    {
+      "id": "audit-platform.compose.vocabulary-domain",
+      "description": "The Audit Platform composition re-exports the audit records and repositories the legacy composition still binds (#2747).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "domain",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
     },
     {
       "id": "audit-platform.native-corrections.compose.postgres",
@@ -9942,6 +10058,29 @@
       "source_role": "application",
       "target_owner": "process-device-scan",
       "target_role": "public"
+    },
+    {
+      "id": "staff-clock.compose.application",
+      "description": "The Staff Clock composition names the workflow service and its ports for the compositions that bind it (#2747).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-clock",
+      "source_role": "compose",
+      "target_owner": "staff-clock",
+      "target_role": "application"
+    },
+    {
+      "id": "legacy-composition.to.staff-clock-compose",
+      "description": "The legacy composition binds the Staff Clock workflow to the identity, work-session and card owners through its composition (#2747).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "staff-clock",
+      "target_role": "compose",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
     },
     {
       "id": "meal-plan.port-domain",

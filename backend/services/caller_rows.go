@@ -5,8 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )

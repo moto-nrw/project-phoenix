@@ -5,10 +5,11 @@ import (
 	"log/slog"
 	"time"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
@@ -18,12 +19,12 @@ import (
 
 type RemindersTestModule struct {
 	Reminders   reminder.Query
-	Settings    config.SettingsService
+	Settings    settingsCompose.SettingsService
 	UserContext *CallerRows
 }
 
 func NewRemindersTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (RemindersTestModule, error) {
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return RemindersTestModule{}, err
 	}
@@ -58,12 +59,16 @@ func NewRemindersTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		return RemindersTestModule{}, err
 	}
 	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db, Records: carePlan, Baselines: baseline, Blocks: newStudentPresence(db, slog.Default()), Preview: newPickupExcusalTimetable(r.Timetable, db),
+		DB: db, Records: carePlan, Baselines: baseline, Blocks: newStudentPresence(db, slog.Default()), Preview: newPickupExcusalTimetable(r.Timetable, NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
 		return RemindersTestModule{}, err
 	}
-	pickup, err := NewPickupSchedules(db, carePlan, students, baseline, autoExcusal, slog.Default())
+	pickupStudents, err := PickupPlanStudents(students)
+	if err != nil {
+		return RemindersTestModule{}, err
+	}
+	pickup, err := careplanCompose.NewPickupSchedules(db, carePlan, baseline, autoExcusal, pickupStudents, slog.Default())
 	if err != nil {
 		return RemindersTestModule{}, err
 	}

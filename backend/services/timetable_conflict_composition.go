@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // TimetableConflictReaders are the retained readers the Timetable conflict

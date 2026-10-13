@@ -6,16 +6,15 @@ import (
 	"errors"
 	"fmt"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/uptrace/bun"
 )
 
 // deviceAPIKeyConstraint is the unique constraint PostgreSQL generated for
@@ -28,17 +27,24 @@ type accountEmailQuery interface {
 	CountActiveAccountsBySchoolGroups(context.Context, map[int64][]int64) (map[int64]int, error)
 }
 
+// operatorPersonStudents is the operator person listing's student-facts port.
+type operatorPersonStudents interface {
+	OperatorPersonStudentMembership(ctx context.Context, personIDs []int64) (map[int64]bool, error)
+}
+
 // OperatorProvisioningDependencies are the owner capabilities and retained
 // repositories the Organisation & Tenancy provisioning seams (#3253) bind to.
 type OperatorProvisioningDependencies struct {
-	DB           *bun.DB
-	Devices      devicefleet.Capability
-	Persons      peopledirectory.Query
-	Membership   schoolmembership.Query
-	PersonRepo   userModels.PersonRepository
-	StaffRepo    userModels.StaffRepository
-	Accounts     accountEmailQuery
-	ActiveGroups interface {
+	// PersonStudents marks which persons of the operator listing are
+	// students (peopleCompose.LegacyRepositoryRuntime).
+	PersonStudents operatorPersonStudents
+	Devices        devicefleet.Capability
+	Persons        peopledirectory.Query
+	Membership     schoolmembership.Query
+	PersonRepo     userModels.PersonRepository
+	StaffRepo      userModels.StaffRepository
+	Accounts       accountEmailQuery
+	ActiveGroups   interface {
 		FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*studentpresence.SessionDetail, error)
 	}
 	Supervisors interface {
@@ -62,7 +68,7 @@ type OperatorProvisioningAdapters struct {
 
 // NewOperatorProvisioningAdapters binds the provisioning seams.
 func NewOperatorProvisioningAdapters(deps OperatorProvisioningDependencies) (OperatorProvisioningAdapters, error) {
-	if deps.DB == nil || deps.Devices == nil || deps.Persons == nil || deps.Membership == nil || deps.PersonRepo == nil ||
+	if deps.PersonStudents == nil || deps.Devices == nil || deps.Persons == nil || deps.Membership == nil || deps.PersonRepo == nil ||
 		deps.StaffRepo == nil || deps.Accounts == nil || deps.ActiveGroups == nil || deps.Supervisors == nil ||
 		deps.Categories == nil || deps.AuditLog == nil {
 		return OperatorProvisioningAdapters{}, errors.New("operator provisioning adapters: all dependencies are required")
@@ -72,7 +78,7 @@ func NewOperatorProvisioningAdapters(deps OperatorProvisioningDependencies) (Ope
 		People: provisioningPeople{
 			persons: deps.Persons, membership: deps.Membership, childQuota: schoolMembershipCompose.NewChildQuotaCounts(),
 			personRepo: deps.PersonRepo,
-			staffRepo:  deps.StaffRepo, accounts: deps.Accounts, db: deps.DB,
+			staffRepo:  deps.StaffRepo, accounts: deps.Accounts, students: deps.PersonStudents,
 		},
 		Presence:            provisioningPresence{groups: deps.ActiveGroups, supervisors: deps.Supervisors},
 		Categories:          provisioningCategories{categories: deps.Categories},
@@ -185,7 +191,7 @@ type provisioningPeople struct {
 	personRepo userModels.PersonRepository
 	staffRepo  userModels.StaffRepository
 	accounts   accountEmailQuery
-	db         *bun.DB
+	students   operatorPersonStudents
 }
 
 func (p provisioningPeople) CountPersonsByTenant(ctx context.Context) (map[int64]int, error) {
@@ -207,7 +213,7 @@ func (p provisioningPeople) ListPersons(ctx context.Context, tenantIDs []int64) 
 		return []organizationCompose.PersonListing{}, err
 	}
 	personIDs, accountIDs := operatorPersonIDs(persons)
-	students, err := peopleRuntime(p.db).OperatorPersonStudentMembership(ctx, personIDs)
+	students, err := p.students.OperatorPersonStudentMembership(ctx, personIDs)
 	if err != nil {
 		return nil, err
 	}

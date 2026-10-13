@@ -3,9 +3,9 @@ package services
 import (
 	"github.com/uptrace/bun"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 )
 
 // Test bindings for Care Plan's contract suite (#3565), which drives the

@@ -6,7 +6,7 @@ import (
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
@@ -88,7 +88,7 @@ func NewEnrollmentFlowStudentAudit(db *bun.DB, actor peopleCompose.RequestAuditA
 // way the root binds it; extensions also records the pickup extensions the
 // Timetable owner keeps.
 func NewEnrollmentFlowPickupExcusal(db *bun.DB, records careplan.Capability, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) (careplan.PickupAutoExcusal, error) {
-	adapter := newPickupExcusalTimetable(tt, db)
+	adapter := newPickupExcusalTimetable(tt, NewPartialAbsencePreview(db))
 	deps := careplanCompose.PickupExcusalDependencies{
 		DB: db, Records: records, Baselines: baselines, Blocks: newStudentPresence(db, slog.Default()), Preview: adapter,
 	}

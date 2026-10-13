@@ -541,6 +541,25 @@ rows; their seams `CarePlanRecords` and `WorkforceShiftRecords` carry only the
 methods the remaining callers reach (50 -> 40 and 15 -> 9). The evidence
 record is `contract-repository-factory-2743.json`.
 
+#2747 contracts the service Factory in part (ADR 0050, policy epoch raised to 38).
+`services` names the retained activity, facility, IoT, staff-clock, import,
+audit, settings, parent-event, list-export and database-statistics services
+through the owners' compositions or contracts, and the records and keys of
+`models/{config,platform,audit,users}` through the owners'
+`compose/vocabulary` packages. Mail and live events come through
+`modules/delivery/compose/{email,realtime}`, calendar dates through
+`sharedkernel/calendar`, the missing-row sentinel through
+`modules/transactionruntime`. The root builds the analytics tracker, and the
+legacy composition's own suites run as internal tests. Five pairs between
+existing points are granted by `serviceFactoryCutoverPermission`. 23 of the
+26 #2747 keys fell (109 -> 86), and the composition surface dropped from 260
+to 259. The production adapters no longer hold a database handle, tenant
+transaction or JWT read: those live in the owner compositions or arrive as
+built values from the root. The `bun`, `tenant` and `legacy/jwt` keys remain,
+because the builders that compose several owners over one database
+(`services/*_roots.go`, `command_roots.go`, `cleanup_composition.go`,
+`factory.go`) and the test hooks still need them. The Factory still exists.
+
 #2734 closed the carrier of `api/enrollment`: its 26 remaining keys, the
 root's `api -> api/enrollment` key (#2750) and three parent-portal keys of
 #3421 (the production and internal-test import of `api/enrollment`, and the

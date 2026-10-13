@@ -5,8 +5,8 @@ import (
 
 	"github.com/uptrace/bun"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 // TestPersonDirectorySources are the retained repositories a test person
@@ -39,7 +39,7 @@ func NewTestPersonDirectory(db *bun.DB, sources TestPersonDirectorySources) *peo
 	}
 	if sources.Staff != nil {
 		deps.StaffDirectory = NewStaffDirectory(StaffDirectoryDependencies{
-			DB: db, Persons: sources.Persons, Staff: sources.Staff, Teachers: sources.Teachers,
+			Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: sources.Persons, Staff: sources.Staff, Teachers: sources.Teachers,
 		})
 	}
 	return peopleCompose.NewPersonDirectory(deps)

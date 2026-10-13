@@ -7,13 +7,14 @@ import (
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -63,7 +64,7 @@ func NewTimetableTestRepositoriesWithMembers(db *bun.DB, members MembershipTestR
 		now = clocks[0]
 	}
 	persons := members.People
-	timetableRooms, err := NewFacilities(db)
+	timetableRooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
@@ -87,7 +88,7 @@ func NewTimetableTestRepositoriesWithMembers(db *bun.DB, members MembershipTestR
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
@@ -164,10 +165,20 @@ func (r TimetableTestRepositories) RosterMaintenance(logger *slog.Logger, now fu
 	return timetableCompose.NewRosterReconciler(r.ActivityInstance, r.InstanceStudent, r.StudentEnrollment, logger, now)
 }
 
-// MustNewTimetableRecurrenceLock is NewTimetableRecurrenceLock for test
+// newTimetableTestRecurrenceLock composes the Timetable owner's tenant
+// recurrence gate over the test database and School Structure's
+// grade-transition key, as the composition roots do.
+func newTimetableTestRecurrenceLock(db *bun.DB) (timetable.RecurrenceWriteLock, error) {
+	return timetableCompose.NewRecurrenceWriteLock(timetableCompose.RecurrenceLockDependencies{
+		DB:                     db,
+		GradeTransitionLockKey: schoolstructure.TransitionsLockKey,
+	})
+}
+
+// MustNewTimetableRecurrenceLock is newTimetableTestRecurrenceLock for test
 // fixtures; it panics on a nil database.
 func MustNewTimetableRecurrenceLock(db *bun.DB) timetable.RecurrenceWriteLock {
-	lock, err := NewTimetableRecurrenceLock(db)
+	lock, err := newTimetableTestRecurrenceLock(db)
 	if err != nil {
 		panic(err)
 	}

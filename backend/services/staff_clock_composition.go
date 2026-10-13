@@ -3,11 +3,11 @@ package services
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
-	"github.com/moto-nrw/project-phoenix/services/iot/staffclock"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
 )
 
 // staffClockClock is the wall clock and the Berlin calendar day the kiosk

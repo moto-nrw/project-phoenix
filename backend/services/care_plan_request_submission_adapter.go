@@ -4,17 +4,16 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type requestSubmissionAdapter struct{ s *careScheduleRequestService }
 
-func (a requestSubmissionAdapter) PickupTime(ctx context.Context, id int64, date timezone.Date) (*time.Time, error) {
+func (a requestSubmissionAdapter) PickupTime(ctx context.Context, id int64, date calendar.Date) (*time.Time, error) {
 	if a.s.pickup == nil {
 		return nil, nil
 	}
@@ -28,7 +27,7 @@ func (a requestSubmissionAdapter) PickupTime(ctx context.Context, id int64, date
 // DepartureModes is the Abholart of the day before a request changes it: the
 // OGS's day value (#3945), else the weekly plan's set for the plan weekday.
 // A weekday without a configured set is "alone", the weekly diff's reading.
-func (a requestSubmissionAdapter) DepartureModes(ctx context.Context, id int64, date timezone.Date) ([]string, error) {
+func (a requestSubmissionAdapter) DepartureModes(ctx context.Context, id int64, date calendar.Date) ([]string, error) {
 	days, err := a.s.requestRecords.ListDepartureExceptions(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}, Date: careplan.Date(date)})
 	if err != nil {
 		return nil, err
@@ -36,7 +35,7 @@ func (a requestSubmissionAdapter) DepartureModes(ctx context.Context, id int64, 
 	if len(days) > 0 {
 		return []string{days[0].DepartureMode}, nil
 	}
-	weekday, err := calendar.PlanWeekday(ctx, calendar.Date(date))
+	weekday, err := calendar.PlanWeekday(ctx, date)
 	if err != nil || weekday < 1 || weekday > 5 {
 		return nil, err
 	}
@@ -64,7 +63,7 @@ func (a requestSubmissionAdapter) RecordSubmission(ctx context.Context, request 
 
 func (a requestSubmissionAdapter) NotifySubmission(ctx context.Context, request *carerequests.Request) error {
 	row := request
-	event := parentmessaging.ChildEvent{EventType: "request_created", ActorKind: usersModels.ParentMessageSenderGuardian,
+	event := communicationCompose.ParentChildEvent{EventType: "request_created", ActorKind: usersModels.ParentMessageSenderGuardian,
 		ActorAccountID: row.SubmittedBy, Body: careRequestCreatedBody, RequestType: usersModels.ParentMessageRequestCareSchedule, RequestStatus: usersModels.ParentMessageRequestStatusOpen}
 	if row.RequestKind == "pickup_change" {
 		event.Body = withPickupDetail(pickupPillBody(pickupRequestCreatedVerb, row), row)

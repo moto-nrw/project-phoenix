@@ -105,6 +105,7 @@ type demoDayClient struct {
 	blocks     []demoBlock
 	arrivals   map[int64]string
 	pickups    map[int64]string
+	dayChanges map[int64]bool
 	writes     []string
 	exceptions map[string]map[string]any
 	created    []map[string]any
@@ -116,6 +117,7 @@ func newDemoDayClient(blocks ...demoBlock) *demoDayClient {
 		blocks:     blocks,
 		arrivals:   map[int64]string{},
 		pickups:    map[int64]string{},
+		dayChanges: map[int64]bool{},
 		exceptions: map[string]map[string]any{},
 	}
 }
@@ -123,6 +125,22 @@ func newDemoDayClient(blocks ...demoBlock) *demoDayClient {
 func (c *demoDayClient) Get(path string) ([]byte, error) {
 	if path == "/api/timetable/pickup-extensions" {
 		return json.Marshal(map[string]any{"data": map[string]any{"tasks": c.tasks}})
+	}
+	if strings.Contains(path, "-schedules?") {
+		base, query, _ := strings.Cut(path, "?")
+		values, err := url.ParseQuery(query)
+		if err != nil {
+			return nil, err
+		}
+		date := values.Get("date")
+		if date == "" {
+			date = values.Get("from")
+		}
+		exceptions := []map[string]any{}
+		if row, ok := c.exceptions[strings.Replace(base, "-schedules", "-exceptions", 1)]; ok && row["exception_date"] == date {
+			exceptions = append(exceptions, row)
+		}
+		return json.Marshal(map[string]any{"data": map[string]any{"exceptions": exceptions}})
 	}
 	if !strings.HasPrefix(path, "/api/timetable/instances?") {
 		return nil, fmt.Errorf("unexpected GET %s", path)
@@ -144,6 +162,21 @@ func (c *demoDayClient) Get(path string) ([]byte, error) {
 func (c *demoDayClient) Put(path string, body any) ([]byte, error) {
 	c.writes = append(c.writes, "PUT "+path)
 	values := body.(map[string]any)
+	if strings.Contains(path, "-exceptions/") {
+		base := path[:strings.LastIndex(path, "/")]
+		if c.exceptions[base]["id"] == nil {
+			return nil, fmt.Errorf("exception not found: %s", path)
+		}
+		values["id"] = c.exceptions[base]["id"]
+		values["source"] = "staff"
+		c.exceptions[base] = values
+		studentID := studentIDFromPath(base)
+		if strings.Contains(base, "/arrival-") {
+			c.arrivals[studentID] = values["expected_arrival"].(string)
+		} else {
+			c.pickups[studentID] = values["pickup_time"].(string)
+		}
+	}
 	for i := range c.blocks {
 		if path == fmt.Sprintf("/api/timetable/instances/%d", c.blocks[i].ID) {
 			c.blocks[i].StartTime, c.blocks[i].EndTime = values["start_time"].(string), values["end_time"].(string)
@@ -161,7 +194,14 @@ func (c *demoDayClient) Post(path string, body any) ([]byte, error) {
 		}
 		var rows []map[string]any
 		for _, studentID := range body.(map[string]any)["student_ids"].([]int64) {
-			row := map[string]any{"student_id": studentID}
+			row := map[string]any{"student_id": studentID, "is_exception": c.dayChanges[studentID]}
+			kind := "arrival"
+			if field == "pickup_time" {
+				kind = "pickup"
+			}
+			if exception, ok := c.exceptions[fmt.Sprintf("/api/students/%d/%s-exceptions", studentID, kind)]; ok {
+				row["is_exception"], row["notes"] = true, exception["reason"]
+			}
 			if clock, ok := source[studentID]; ok {
 				row[field] = clock
 			}
@@ -169,7 +209,12 @@ func (c *demoDayClient) Post(path string, body any) ([]byte, error) {
 		}
 		return json.Marshal(map[string]any{"data": rows})
 	case strings.HasSuffix(path, "-exceptions"):
+		if c.dayChanges[studentIDFromPath(path)] || c.exceptions[path] != nil {
+			// A staff exception already holds the day; the care plan refuses a second one.
+			return nil, fmt.Errorf("POST %s failed: 409 (students.care_exception_raced)", path)
+		}
 		values := body.(map[string]any)
+		values["id"], values["source"] = studentIDFromPath(path), "staff"
 		c.exceptions[path] = values
 		if strings.Contains(path, "/arrival-") {
 			c.arrivals[studentIDFromPath(path)] = values["expected_arrival"].(string)
@@ -249,6 +294,25 @@ func TestDemoDayMovesTheEveningAndRunsIt(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "completed", client.blocks[1].Status)
 	assert.Equal(t, "completed", client.blocks[2].Status)
+}
+
+// The school moved one child's pickup for today itself (the seed's
+// "Arzttermin"): the care plan holds one staff exception per day, so the
+// demo keeps that child's day instead of writing a second one.
+func TestDemoDayKeepsAChildsOwnChangeForToday(t *testing.T) {
+	t.Parallel()
+	client := newDemoDayClient(plannedBlock(1, "14:45", "17:00", 5, 11, 12))
+	client.arrivals[11], client.pickups[11] = "11:45", "16:30"
+	client.arrivals[12], client.pickups[12] = "11:45", "13:30"
+	client.dayChanges[12] = true
+	var day demoDay
+
+	_, err := day.sync(client, demoDayAt(t, "20:00"), []int64{11, 12}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "21:15", client.exceptions["/api/students/11/pickup-exceptions"]["pickup_time"])
+	assert.NotContains(t, client.exceptions, "/api/students/12/arrival-exceptions")
+	assert.NotContains(t, client.exceptions, "/api/students/12/pickup-exceptions")
+	assert.Equal(t, "13:30", client.pickups[12], "the school's own change stays")
 }
 
 func TestDemoDayMovesNearMidnightWithoutLeavingBlocksBehind(t *testing.T) {
@@ -771,4 +835,33 @@ func TestDemoTickRunsAWeekendThatFollowsFridaysPlan(t *testing.T) {
 	require.NoError(t, ticker.Tick(t.Context()))
 	assert.Equal(t, "active", client.blocks[0].Status, "the Saturday block from Friday's plan runs")
 	assert.Zero(t, client.device.sessionsStarted, "no kiosk session on a planned weekend")
+}
+
+func TestDemoDayReanchorsSimulatorExceptionsAndKeepsSchoolChanges(t *testing.T) {
+	t.Parallel()
+	client := newDemoDayClient()
+	students := []int64{11, 12}
+	client.arrivals[11], client.pickups[11] = "11:45", "16:30"
+	client.arrivals[12], client.pickups[12] = "11:45", "16:30"
+	day := demoDay{date: "2026-09-11"}
+
+	// The first move creates staff exceptions, just like the real API.
+	require.NoError(t, day.move(client, 60, students))
+	require.Equal(t, "12:45", client.arrivals[11])
+	// The school edits one of those exceptions before the next visit.
+	client.exceptions["/api/students/12/pickup-exceptions"]["reason"] = "Arzttermin"
+	client.pickups[12] = "14:00"
+
+	// A fresh day view must still recognize the simulator's persisted writes.
+	day = demoDay{date: "2026-09-11"}
+	require.NoError(t, day.reanchor(client, students, 19*60))
+	assert.Equal(t, "18:00", client.arrivals[11])
+	assert.Equal(t, "20:30", client.pickups[11])
+	assert.Equal(t, "12:45", client.arrivals[12], "a school edit preserves the entire child's day")
+	assert.Equal(t, "14:00", client.pickups[12])
+
+	require.NoError(t, day.reanchor(client, students, 22*60))
+	assert.Equal(t, "21:00", client.arrivals[11])
+	assert.Equal(t, "23:30", client.pickups[11])
+	assert.Equal(t, "14:00", client.pickups[12])
 }

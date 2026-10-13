@@ -3,7 +3,7 @@ package services
 import (
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/uptrace/bun"
 )

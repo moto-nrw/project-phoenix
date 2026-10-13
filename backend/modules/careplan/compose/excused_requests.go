@@ -64,17 +64,18 @@ func NewExcusedAbsenceRequests(deps ExcusedRequestDependencies) (*ExcusedAbsence
 		observe = ports.Observer(deps.Observe)
 	}
 	return application.NewExcusedRequests(application.ExcusedRequestDependencies{
-		CarePlan: deps.CarePlan, Students: deps.Students, Scope: deps.Scope, Hooks: tenantHooks{},
+		CarePlan: deps.CarePlan, Students: deps.Students, Scope: deps.Scope, Hooks: TenantHooks{},
 		Today: deps.Today, Observe: observe, Logger: deps.Logger,
 		Messenger: deps.Messenger, Broadcaster: deps.Broadcaster, Notifier: deps.Notifier,
 		Ledger: deps.Ledger, Shares: deps.Shares,
 	})
 }
 
-// tenantHooks binds the workflow's after-commit effects to the ambient
-// tenant transaction.
-type tenantHooks struct{}
+// TenantHooks binds the workflow's after-commit effects to the ambient
+// tenant transaction. The zero value is ready; the legacy composition's care
+// request service schedules its effects through it too (#2747).
+type TenantHooks struct{}
 
-func (tenantHooks) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
+func (TenantHooks) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
 
-func (tenantHooks) AfterCommit(ctx context.Context, fn func()) { tenant.RegisterAfterCommit(ctx, fn) }
+func (TenantHooks) AfterCommit(ctx context.Context, fn func()) { tenant.RegisterAfterCommit(ctx, fn) }

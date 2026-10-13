@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
@@ -19,9 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
@@ -31,9 +30,10 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	auditService "github.com/moto-nrw/project-phoenix/services/audit"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
 	"github.com/uptrace/bun"
@@ -84,7 +84,7 @@ func (w studentAccessAuditWriter) Create(ctx context.Context, entry *auditModels
 }
 
 func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter studentdeletioncompose.Feedback, clocks ...func() time.Time) (StudentTestModule, error) {
-	auditCommand, err := auditService.NewCommand(NewTestAuditStore(db), func(auditService.AppendObservation) {})
+	auditCommand, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return StudentTestModule{}, err
 	}
@@ -155,6 +155,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		return NewStudentPhotos(persons, guardian.PhotoRuntime, StudentPhotoRuntimeDependencies{
 			Settings: settingsService, Broadcaster: broadcaster, Unlinker: unlinker,
 			Consents: studentConsentService, Logger: logger,
+			ActingAccount: testRequestTokens.accountID,
 		})
 	}
 	studentPhotoService := newStudentPhotos(realtimeHub, nil)
@@ -167,13 +168,13 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		return StudentTestModule{}, err
 	}
 	pickupAutoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db, Records: repos.CarePlan, Baselines: pickupBaselines, Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(repos.Timetable, db),
+		DB: db, Records: repos.CarePlan, Baselines: pickupBaselines, Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(repos.Timetable, NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
 		return StudentTestModule{}, err
 	}
 	rosterReconciler := timetableCompose.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, logger, now)
-	recurrenceLock, err := NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
@@ -292,6 +293,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		pillEmitter,
 		realtimeHub,
 		requestReviewPolicy,
+		testRequestTokens.Permissions,
 		parentRequestEvents,
 		logger.With("service", "care-requests"),
 		studentAuditService,
@@ -300,8 +302,8 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	offeringChanges, err := newOfferingChanges(offeringChangeInputs{
 		CarePlan: repos.CarePlan, Enrollment: repos.Enrollment(), Students: repos.Student,
 		Withdrawals: repos.CareWithdrawal, Settings: settingsService,
-		Planning: manualPlanningReader{db: db, courseGroups: repos.Timetable},
-		Bookings: careBookings, Reviews: requestReviewPolicy, Emitter: pillEmitter,
+		Planning: manualPlanningReader{query: enrollmentCompose.NewManualPlanningQuery(db), courseGroups: repos.Timetable},
+		Bookings: careBookings, Reviews: requestReviewPolicy, Permissions: testRequestTokens.Permissions, Emitter: pillEmitter,
 		Events: parentRequestEvents, Today: today, Logger: logger.With("service", "offering-change-requests"),
 	})
 	if err != nil {
@@ -320,7 +322,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	}
 	excusedRequestService, err := newExcusedAbsenceRequests(excusedRequestWiring{
 		carePlan: repos.CarePlan, students: repos.Student, persons: repos.Person,
-		scope:   parentRequestReviewScope(requestReviewPolicy),
+		scope:   parentRequestReviewScope(requestReviewPolicy, testRequestTokens.Permissions),
 		emitter: pillEmitter, broadcaster: realtimeHub, events: parentRequestEvents,
 		logger: logger.With("service", "excused-requests"),
 	})
@@ -329,7 +331,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	}
 	masterDataDecisions, err := newMasterDataDecisions(masterDataDecisionWiring{
 		carePlan: repos.CarePlan, fields: persons, students: repos.Student, persons: repos.Person,
-		audit: studentAuditService, scope: parentRequestWriteScope(requestReviewPolicy),
+		audit: studentAuditService, scope: parentRequestWriteScope(requestReviewPolicy, testRequestTokens.Permissions),
 		emitter: pillEmitter, broadcaster: realtimeHub, events: parentRequestEvents,
 		logger: logger.With("service", "master-data-review"),
 	})
@@ -339,6 +341,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	parentRequestCoordinator, err := newParentRequestCoordinator(parentRequestCoordinatorWiring{
 		masterData: masterDataDecisions, excused: excusedRequestService, care: careRequestService,
 		offering: offeringChangeConflictPort{changes: offeringChanges}, events: parentRequestEvents,
+		permissions: testRequestTokens.Permissions,
 	})
 	if err != nil {
 		return StudentTestModule{}, err

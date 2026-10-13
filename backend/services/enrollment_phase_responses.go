@@ -3,10 +3,10 @@ package services
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // phaseResponseRoster feeds the response overview (#3379) with the children

@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -42,7 +43,12 @@ func NewFactoryForTests(repos *RepositoryTestFactory, db *bun.DB, logger *slog.L
 	if err != nil {
 		return nil, err
 	}
-	return owners.factory(newFactory(repos.CarePlan(), db, logger, currentTestFactoryConfig(), tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, owners.appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...))
+	cfg := currentTestFactoryConfig()
+	tokens, err := testTokensFor(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return owners.factory(newFactory(repos.CarePlan(), db, logger, cfg, tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, owners.appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, nil, FileStorageWiring{}, tokens, true, clocks...))
 }
 
 func NewFactoryForTestsWithConfig(repos *RepositoryTestFactory, db *bun.DB, logger *slog.Logger, cfg FactoryConfig, clocks ...func() time.Time) (*Factory, error) {
@@ -50,7 +56,11 @@ func NewFactoryForTestsWithConfig(repos *RepositoryTestFactory, db *bun.DB, logg
 	if err != nil {
 		return nil, err
 	}
-	return owners.factory(newFactory(repos.CarePlan(), db, logger, cfg, tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, owners.appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...))
+	tokens, err := testTokensFor(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return owners.factory(newFactory(repos.CarePlan(), db, logger, cfg, tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, owners.appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, nil, FileStorageWiring{}, tokens, true, clocks...))
 }
 
 func currentTestFactoryConfig() FactoryConfig {
@@ -86,7 +96,7 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
@@ -127,3 +137,7 @@ func (o ownerCapabilities) factory(factory *Factory, err error) (*Factory, error
 	o.bindCalendarAdministration(factory.SchoolCalendarAdministration())
 	return factory, nil
 }
+
+// unboundTenantRuntime is the zero unit of work the test factories compose
+// with before a suite binds its own.
+func unboundTenantRuntime() tenant.UnitOfWork { return tenant.UnitOfWork{} }

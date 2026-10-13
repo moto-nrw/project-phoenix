@@ -16,7 +16,11 @@ func NewCarePlan(db *bun.DB, students peopledirectory.Capability, slots timetabl
 	if students == nil || slots == nil {
 		return nil, errors.New("compose Care Plan: People Directory and instance-student repository are required")
 	}
-	statusStudents, err := CarePlanStatusStudents(db, students)
+	profiles, err := carePlanCompose.NewStudentProfiles(db, func(carePlanCompose.Observation) {})
+	if err != nil {
+		return nil, err
+	}
+	statusStudents, err := CarePlanStatusStudents(students, profiles)
 	if err != nil {
 		return nil, err
 	}

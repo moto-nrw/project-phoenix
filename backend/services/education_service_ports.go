@@ -7,8 +7,8 @@ import (
 	"golang.org/x/text/collate"
 	"golang.org/x/text/language"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 )

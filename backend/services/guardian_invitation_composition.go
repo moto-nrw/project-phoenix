@@ -4,19 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -39,7 +37,7 @@ type GuardianInvitationCapability interface {
 // seams are bound to. outbox is read at call time because the delivery
 // module is composed after the identity module.
 type guardianInvitationWiring struct {
-	settings    config.SettingsService
+	settings    settingsCompose.SettingsService
 	schools     organizationtenancy.Query
 	outbox      func() platformModels.OutboxResultEnqueuer
 	enrollments guardianEnrollmentClaims
@@ -70,7 +68,7 @@ func guardianInvitationDependencies(wiring *guardianInvitationWiring) (identitya
 	if !wiring.complete() {
 		return nil, nil, errors.New("identity access composition: the guardian invitation seams need the school directory, the e-mail outbox and the enrollment claim")
 	}
-	return guardianInvitationDelivery{wiring: wiring}, guardianEnrollments{claims: wiring.enrollments}, nil
+	return guardianInvitationDelivery{wiring: wiring}, identityaccessCompose.NewSavepointGuardianEnrollments(wiring.enrollments), nil
 }
 
 // unsentGuardianMail serves a root composed without the guardian mail — a
@@ -104,7 +102,7 @@ func (d guardianInvitationDelivery) logger() *slog.Logger {
 // InvitationExpiry follows the tenant override, then the registry default,
 // and falls back to the invitation lifetime the deployment configured.
 func (d guardianInvitationDelivery) InvitationExpiry(ctx context.Context) time.Duration {
-	hours := config.ResolveIntOrDefault(ctx, d.wiring.settings, configModels.KeyGuardianInvitationTokenExpiryHours, 0, d.logger())
+	hours := settingsCompose.ResolveIntOrDefault(ctx, d.wiring.settings, configModels.KeyGuardianInvitationTokenExpiryHours, 0, d.logger())
 	if hours > 0 {
 		return time.Duration(hours) * time.Hour
 	}
@@ -162,11 +160,7 @@ func (d guardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, pro
 // failure; only a savepoint that could not be controlled is reported here.
 // Without a transaction there is nothing to protect.
 func (d guardianInvitationDelivery) inSavepoint(ctx context.Context, step func(context.Context) error) {
-	if _, inTransaction := tenant.TransactionFromContext(ctx); !inTransaction {
-		_ = step(ctx)
-		return
-	}
-	if err := tenant.WithSavepoint(ctx, step); errors.Is(err, tenant.ErrSavepointControl) {
+	if err := identityaccessCompose.RunMailStep(ctx, step); err != nil {
 		d.logger().Error("guardian welcome email: savepoint failed",
 			slog.String("error", err.Error()))
 	}
@@ -174,31 +168,6 @@ func (d guardianInvitationDelivery) inSavepoint(ctx context.Context, step func(c
 
 func guardianMailRecipient(profile identityaccessCompose.GuardianProfile) GuardianMailRecipient {
 	return GuardianMailRecipient{FirstName: profile.FirstName, LastName: profile.LastName, Email: profile.Email}
-}
-
-// --- enrollment claim -------------------------------------------------------
-
-type guardianEnrollments struct{ claims guardianEnrollmentClaims }
-
-// ClaimGuardianEnrollments runs inside a savepoint: the claim is
-// best-effort, and a failed statement must not leave the acceptance's
-// transaction aborted. A savepoint that could not be controlled is the
-// exception — the owner aborts the acceptance rather than commit on top of
-// a transaction whose state nobody knows.
-func (e guardianEnrollments) ClaimGuardianEnrollments(ctx context.Context, accountID int64, email string) (int, error) {
-	claimed := 0
-	err := tenant.WithSavepoint(ctx, func(savepointCtx context.Context) error {
-		var claimErr error
-		claimed, claimErr = e.claims.BackfillGuardianAccountID(savepointCtx, accountID, email)
-		return claimErr
-	})
-	if errors.Is(err, tenant.ErrSavepointControl) {
-		return 0, fmt.Errorf("%w: %w", identityaccess.ErrTransactionUnusable, err)
-	}
-	if err != nil {
-		return 0, err
-	}
-	return claimed, nil
 }
 
 // --- the invitation reads other owners' flows need ---------------------------

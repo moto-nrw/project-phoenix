@@ -18,23 +18,27 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 	owners, err := newOwnerCapabilitiesForTests(db)
 	require.NoError(t, err)
 
+	cfg := FactoryConfig{
+		JWTSecret:        "test-secret-must-be-at-least-32-chars-long-for-real",
+		JWTExpiry:        15 * time.Minute,
+		JWTRefreshExpiry: 24 * time.Hour,
+		FrontendURL:      "http://localhost:3000",
+		PublicAPIURL:     "http://localhost:8080",
+		ParentsURL:       "http://parents.localhost:3000",
+		SchoolURL:        "http://schule.localhost:3000",
+		TenantDomain:     "localhost",
+		OperatorHostname: "operator.localhost:3000",
+	}
+	tokens, err := testTokensFor(cfg)
+	require.NoError(t, err)
+
 	observedAppends := 0
 	factory, err := newFactory(
 		carePlan,
 		db,
 		slog.Default(),
-		FactoryConfig{
-			JWTSecret:        "test-secret-must-be-at-least-32-chars-long-for-real",
-			JWTExpiry:        15 * time.Minute,
-			JWTRefreshExpiry: 24 * time.Hour,
-			FrontendURL:      "http://localhost:3000",
-			PublicAPIURL:     "http://localhost:8080",
-			ParentsURL:       "http://parents.localhost:3000",
-			SchoolURL:        "http://schule.localhost:3000",
-			TenantDomain:     "localhost",
-			OperatorHostname: "operator.localhost:3000",
-		},
-		TenantRuntime{},
+		cfg,
+		unboundTenantRuntime(),
 		owners.organizations,
 		owners.persons,
 		owners.groups,
@@ -57,7 +61,9 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		func(string, time.Duration, int64, int64, time.Duration, string, error) {},
 		owners.workforce,
 		func(DataImportObservation) {},
+		nil,
 		FileStorageWiring{},
+		tokens,
 		true,
 	)
 	require.NoError(t, err)

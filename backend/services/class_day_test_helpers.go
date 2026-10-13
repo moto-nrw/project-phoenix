@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"time"
 
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -11,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -33,7 +33,7 @@ func NewClassDayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
-	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}

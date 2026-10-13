@@ -28,6 +28,17 @@ func NewStaffEmployment(db *bun.DB, observe func(Observation)) (workforce.StaffE
 	return staffEmployment{store: postgres.New(databaseRuntime(db)), observe: observe}, nil
 }
 
+// MustNewStaffEmployment composes the staff employment owner without
+// observations, for compositions and test graphs that treat a composition
+// failure as a programming error. Production roots compose it observed.
+func MustNewStaffEmployment(db *bun.DB) workforce.StaffEmployments {
+	employment, err := NewStaffEmployment(db, nil)
+	if err != nil {
+		panic(err)
+	}
+	return employment
+}
+
 type staffEmployment struct {
 	store   *postgres.Store
 	observe func(Observation)

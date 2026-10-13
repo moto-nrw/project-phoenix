@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/uptrace/bun"
 )
 
@@ -14,7 +14,7 @@ import (
 // reader's test can pin how it meets a row that no longer matches the
 // registry (#2736: the account-route tests may not name the repository).
 func StoreRawTenantSettingForTests(ctx context.Context, db *bun.DB, tenantID int64, key string, raw json.RawMessage) error {
-	repos := NewSettingsTestRepositories(newSettingsRuntime(db, nil))
+	repos := NewSettingsTestRepositories(settingsCompose.NewTenantSettingsRuntime(db, nil))
 	value := &configModels.SettingValue{SettingKey: key, Value: raw}
 	value.SetTenantID(tenantID)
 	return repos.Values.Upsert(ctx, value)
@@ -24,5 +24,5 @@ func StoreRawTenantSettingForTests(ctx context.Context, db *bun.DB, tenantID int
 // cache production requests run with, for tests that mount a route without
 // the root router.
 func WithSettingsRequestCacheForTests(ctx context.Context) context.Context {
-	return config.WithSettingsRequestCache(ctx)
+	return settingsCompose.WithSettingsRequestCache(ctx)
 }

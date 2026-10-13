@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -133,13 +134,13 @@ func claimsContext(claims authjwt.AppClaims, permissions ...string) context.Cont
 func TestCallerFromClaimsWithoutClaimsIsUnauthenticated(t *testing.T) {
 	t.Parallel()
 
-	assert.Zero(t, services.CallerFromClaims(context.Background()))
+	assert.Zero(t, api.CallerFromClaims(context.Background()))
 }
 
 func TestCallerFromClaimsMapsTheVerifiedPrincipal(t *testing.T) {
 	t.Parallel()
 
-	caller := services.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10, Scope: "tenant", IsAdmin: true}, "users:update"))
+	caller := api.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10, Scope: "tenant", IsAdmin: true}, "users:update"))
 
 	assert.True(t, caller.Authenticated)
 	assert.Equal(t, int64(42), caller.AccountID)
@@ -155,8 +156,8 @@ func TestCallerFromClaimsMapsTheVerifiedPrincipal(t *testing.T) {
 func TestCallerFromClaimsMarksTheSchoolPortal(t *testing.T) {
 	t.Parallel()
 
-	assert.True(t, services.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10, Scope: "school"})).SchoolScope)
-	assert.False(t, services.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10, Scope: "tenant"})).SchoolScope)
+	assert.True(t, api.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10, Scope: "school"})).SchoolScope)
+	assert.False(t, api.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10, Scope: "tenant"})).SchoolScope)
 }
 
 // A system-wide admin permission counts as effective admin without the admin
@@ -166,10 +167,10 @@ func TestCallerFromClaimsDetectsTheAdminWildcard(t *testing.T) {
 
 	for _, permission := range []string{"admin:*", "*:*"} {
 		t.Run(permission, func(t *testing.T) {
-			caller := services.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10}, permission))
+			caller := api.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10}, permission))
 			assert.True(t, caller.AdminWildcard)
 			assert.False(t, caller.AdminRole)
 		})
 	}
-	assert.False(t, services.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10}, "users:update")).AdminWildcard)
+	assert.False(t, api.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10}, "users:update")).AdminWildcard)
 }

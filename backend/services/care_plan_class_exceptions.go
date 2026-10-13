@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type classArrivalStudentDirectory interface {

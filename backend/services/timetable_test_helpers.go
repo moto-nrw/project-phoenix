@@ -5,18 +5,19 @@ import (
 	"log/slog"
 	"time"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -48,7 +49,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	recurrenceLock, err := NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
@@ -124,9 +125,11 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		return TimetableTestModule{}, err
 	}
 	rows := r.TimetableTemplateRows()
-	materialization, err := newTimetableMaterialization(timetableMaterializationInputs{
-		Rows: rows, CareBounds: r.Student, NonWorkingDays: calendar, RecurrenceLock: recurrenceLock, Broadcaster: hub, DB: db, Logger: logger,
+	materializationDeps := timetableMaterializationDependencies(timetableMaterializationInputs{
+		Rows: rows, CareBounds: r.Student, NonWorkingDays: calendar, RecurrenceLock: recurrenceLock, Broadcaster: hub, Logger: logger,
 	})
+	materializationDeps.DB = db
+	materialization, err := arrivalTimetable.NewMaterialization(materializationDeps)
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
@@ -148,12 +151,12 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	lifecycleRows.Locks = recovery
 	instance, err := newTimetableLifecycle(timetableLifecycleInputs{
 		Rows: lifecycleRows, Planning: arrivalTimetable.InstanceLifecycleDependencies{
-			IdempotencyRepo: r.InstanceIdempotency, ExceptionRepo: r.ActivityException, CalendarPeriodRepo: r.CalendarPeriod,
+			IdempotencyRepo: r.InstanceIdempotency, ExceptionRepo: r.ActivityException, CalendarPeriodRepo: r.CalendarPeriod, DB: db,
 		},
 		Staff: r.Staff, Sessions: r.ActiveGroup, Supervisions: r.GroupSupervisor,
 		Presence: newStudentPresence(db, logger), SessionEnder: ender, CareDays: careDay, CareDayLocks: carePlan,
 		Settings: settings.Settings, Materialization: materialization, RecurrenceLock: recurrenceLock,
-		StartConflicts: conflicts, SubstituteConflicts: substituteConflicts, Broadcaster: hub, DB: db, Logger: logger, Now: now,
+		StartConflicts: conflicts, SubstituteConflicts: substituteConflicts, Broadcaster: hub, Logger: logger, Now: now,
 	})
 	if err != nil {
 		return TimetableTestModule{}, err
@@ -163,23 +166,33 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	timetableData, err := newTimetableData(timetableDataInputs{
 		Rows: dataRows, ArrivalBaselines: arrival, PickupBaselines: pickup, Visits: newStudentPresence(db, logger),
 		Groups: r.Timetable, Sessions: r.ActiveGroup,
-		ConflictAcks: r.Timetable, DB: db, Transactional: true, Logger: logger,
+		ConflictAcks: r.Timetable, BlockMetadata: arrivalTimetable.NewBlockDisplayMetadata(db, timetableblockdisplay.List), Transactional: true, Logger: logger,
 	})
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	templates, err := newTimetableTemplates(timetableTemplateInputs{
+	templateDeps, err := timetableTemplateDependencies(timetableTemplateInputs{
 		Rows: rows, PlanningTracks: arrivalTimetable.NewPlanningTrackAdministration(r.Timetable, db),
 		Materialization: materialization, Deviations: instance.SeriesDeviations(), CareOfferings: offerings,
-		RecurrenceLock: recurrenceLock, Broadcaster: hub, DB: db, Logger: logger, Today: today,
+		RecurrenceLock: recurrenceLock, Broadcaster: hub, Logger: logger, Today: today,
 	})
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	deviations, err := newTimetableStaffDeviations(timetableDeviationInputs{
+	templateDeps.DB = db
+	templates, err := arrivalTimetable.NewTemplateAdministration(templateDeps)
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
+	deviationDeps, err := timetableStaffDeviationDependencies(timetableDeviationInputs{
 		Rows: r.OwnerRows(), Staff: r.Staff, Supervisions: r.GroupSupervisor,
-		Lifecycle: instance.DeviationLifecycle(), Broadcaster: hub, DB: db, Logger: logger, Now: now,
+		Lifecycle: instance.DeviationLifecycle(), Broadcaster: hub, Logger: logger, Now: now,
 	})
+	if err != nil {
+		return TimetableTestModule{}, err
+	}
+	deviationDeps.DB = db
+	deviations, err := arrivalTimetable.NewStaffDeviations(deviationDeps)
 	if err != nil {
 		return TimetableTestModule{}, err
 	}

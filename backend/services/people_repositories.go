@@ -3,18 +3,16 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/uptrace/bun"
 )
 
 // The retained People Directory repositories are built where they are used
@@ -22,12 +20,6 @@ import (
 // legacy runtime, and this composition binds what other owners hold — the
 // accounts and memberships of Identity & Access, the enrollment and teacher
 // assignments of School Membership, the group names of School Structure.
-
-// NewPersonRepository is the person repository with the Identity & Access
-// account lookup FindWithAccount attaches (#2720).
-func NewPersonRepository(db *bun.DB) userModels.PersonRepository {
-	return peopleCompose.NewPersonRepository(db, accountLookup(newPeopleIdentityAccess(db, nil)))
-}
 
 // accountLookup adapts the owner's by-id read to the People Directory
 // lookup: a missing account resolves to nil, as the former LEFT JOIN did.
@@ -45,32 +37,6 @@ func accountLookup(accounts identityaccess.AccountProfiles) peopleCompose.Accoun
 	}
 }
 
-// NewGuardianProfileRepository is the guardian profile repository with the
-// Identity & Access active-membership and login-ready-membership queries its
-// portal reachability check joins (#2720, #2721).
-func NewGuardianProfileRepository(db *bun.DB) userModels.GuardianProfileRepository {
-	identity := newPeopleIdentityAccess(db, nil)
-	return peopleCompose.NewGuardianProfileRepository(db,
-		identity.FindActiveGuardianMemberships, identity.FindLoginReadyGuardianMemberships)
-}
-
-// NewStudentGuardianRepository is the relationship store over native Identity
-// membership facts, unobserved, for graphs that do not compose the serving
-// root.
-func NewStudentGuardianRepository(db *bun.DB) userModels.StudentGuardianRepository {
-	return newStudentGuardianRepository(db, newPeopleIdentityAccess(db, nil), nil)
-}
-
-// newStudentGuardianRepository is the relationship store with its membership
-// lookup, both owner halves and the default role bound.
-func newStudentGuardianRepository(db *bun.DB, memberships activeSchoolMemberships, observe IdentityAccessObserver) userModels.StudentGuardianRepository {
-	pickup, access := newGuardianRelationshipOwners(db, observe)
-	return peopleCompose.NewGuardianRelationshipRepository(db, peopleCompose.GuardianRelationshipDependencies{
-		Memberships: memberships.FindActiveSchoolMemberships,
-		Pickup:      pickup, Access: access, DefaultRole: applyDefaultGuardianRole,
-	})
-}
-
 // applyDefaultGuardianRole gives a link without a role or permissions the
 // authorization policy's default preset and the permissions it grants.
 func applyDefaultGuardianRole(relationship *userModels.StudentGuardian) {
@@ -84,22 +50,15 @@ func applyDefaultGuardianRole(relationship *userModels.StudentGuardian) {
 	relationship.SetGuardianAuthorizationData(role, permissions)
 }
 
-// NewStudentRepository composes the retained student repository over an
-// unobserved People Directory and School Membership, the owners its reads and
-// writes translate to (#3349). The teacher-scoped roster reads resolve their
-// groups through the given membership; the roster and birthday reads name the
-// groups through School Structure.
-func NewStudentRepository(db *bun.DB, membership groupAssignmentLister, groups schoolstructure.Query) userModels.StudentRepository {
-	enrollment, err := NewSchoolMembership(db)
-	if err != nil {
-		panic(fmt.Sprintf("student repository: compose membership: %v", err))
-	}
-	repository := peopleCompose.NewStudentRepository(peopleCompose.StudentRepositoryDependencies{
-		DB: db, Directory: MustNewPeopleDirectory(db), Enrollment: enrollment,
-		TeacherGroupIDs:      teacherGroupIDs(membership),
-		TeacherStaffGroupIDs: teacherStaffGroupIDs(membership),
-	})
-	return overlappingRosterGroupNames{StudentRepository: groupStudentRepository{StudentRepository: repository, groups: groups}, groups: groups}
+// BindStudentRepository binds the retained student repository to the
+// teacher assignments of School Membership and the group names of School
+// Structure. repository carries the database, the directory and the
+// enrollment owner the caller composed.
+func BindStudentRepository(repository peopleCompose.StudentRepositoryDependencies, membership groupAssignmentLister, groups schoolstructure.Query) userModels.StudentRepository {
+	repository.TeacherGroupIDs = teacherGroupIDs(membership)
+	repository.TeacherStaffGroupIDs = teacherStaffGroupIDs(membership)
+	students := peopleCompose.NewStudentRepository(repository)
+	return overlappingRosterGroupNames{StudentRepository: groupStudentRepository{StudentRepository: students, groups: groups}, groups: groups}
 }
 
 // groupAssignmentLister is the School Membership teacher-assignment read the
@@ -181,10 +140,4 @@ func (o caregiverBindingOwners) LockPlannedSupervisors(ctx context.Context) erro
 type GuardianSeedRepositories struct {
 	GuardianProfile userModels.GuardianProfileRepository
 	StudentGuardian userModels.StudentGuardianRepository
-}
-
-// NewGuardianSeedRepositories composes the guardian rows over unobserved
-// owners, for the seed command.
-func NewGuardianSeedRepositories(db *bun.DB) GuardianSeedRepositories {
-	return GuardianSeedRepositories{GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: NewStudentGuardianRepository(db)}
 }

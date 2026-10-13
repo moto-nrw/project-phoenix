@@ -6,17 +6,16 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // callerSettings resolves the tenant settings the caller context reads: the
@@ -40,6 +39,9 @@ type callerContextWiring struct {
 	Presence             *studentpresence.Module
 	Settings             callerSettings
 	Logger               *slog.Logger
+	// Tokens reads the verified principal and the request identity memo
+	// (#2099) the request middleware attached.
+	Tokens TokenAdapter
 }
 
 // newCallerContext composes the Identity & Access caller context (#3501)
@@ -54,8 +56,8 @@ func newCallerContext(wiring callerContextWiring) (identityaccess.CallerContext,
 		AbsenceReadRequired:   securityruntime.ErrAbsenceReadRequired,
 	}
 	deps := identityCompose.CallerContextDependencies{
-		Caller:     CallerFromClaims,
-		Memo:       requestIdentityMemo,
+		Caller:     wiring.Tokens.Caller,
+		Memo:       wiring.Tokens.memo,
 		Accounts:   wiring.Accounts,
 		People:     callerPeople{persons: wiring.Persons},
 		Membership: callerMembership{membership: wiring.Membership},
@@ -83,32 +85,6 @@ func newCallerRows(wiring callerContextWiring, sources CallerRowSources) (*Calle
 	return NewCallerRows(caller, sources), nil
 }
 
-// requestIdentityMemo resolves the request identity memo the request
-// middleware attached (#2099).
-func requestIdentityMemo(ctx context.Context) identityCompose.CallerMemo {
-	if cache := authjwt.RequestIdentityCacheFrom(ctx); cache != nil {
-		return cache
-	}
-	return nil
-}
-
-// CallerFromClaims resolves the principal the authenticator verified.
-func CallerFromClaims(ctx context.Context) identityaccess.Caller {
-	claims, ok := ctx.Value(authjwt.CtxClaims).(authjwt.AppClaims)
-	if !ok {
-		return identityaccess.Caller{}
-	}
-	return identityaccess.Caller{
-		Authenticated:  true,
-		AccountID:      int64(claims.ID),
-		ClaimsTenantID: claims.TenantID,
-		Scope:          claims.Scope,
-		SchoolScope:    claims.IsSchoolScope(),
-		AdminRole:      claims.IsAdmin,
-		AdminWildcard:  securityruntime.HasAdminWildcard(authjwt.PermissionsFromCtx(ctx)),
-	}
-}
-
 type callerPeople struct{ persons userModels.PersonRepository }
 
 func (p callerPeople) FindPersonByAccount(ctx context.Context, accountID int64) (identityaccess.CallerPerson, bool, error) {
@@ -124,7 +100,7 @@ func (p callerPeople) FindPersonByAccount(ctx context.Context, accountID int64) 
 
 func (p callerPeople) CreatePerson(ctx context.Context, accountID int64, firstName, lastName string) error {
 	person := &userModels.Person{AccountID: &accountID, FirstName: firstName, LastName: lastName}
-	person.SetTenantID(tenant.FromContext(ctx))
+	person.SetTenantID(peopleCompose.CallerTenantID(ctx))
 	return p.persons.Create(ctx, person)
 }
 

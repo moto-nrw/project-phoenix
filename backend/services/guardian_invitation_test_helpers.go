@@ -5,12 +5,12 @@ import (
 	"log/slog"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -42,7 +42,7 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	}
 	audit := cfg.Audit
 	if audit == nil {
-		command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+		command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 		if err != nil {
 			return nil, err
 		}
@@ -82,7 +82,7 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	if err != nil {
 		return nil, err
 	}
-	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+	identityAccess, err := newIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db}, accountAuthenticationWiring{
 		repos: sessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db)), codec: codec, audit: audit, logger: logger,
 		lifecycle: &lifecycleWiring{
 			audit: audit, caregivers: caregivers,

@@ -5,7 +5,6 @@ import (
 
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // AttendancePrincipal binds attendance to the device authentication projection.
@@ -16,7 +15,3 @@ func AttendancePrincipal(ctx context.Context) presenceservice.RequestPrincipal {
 func WithAttendanceStaff(ctx context.Context, staffID, tenantID int64) context.Context {
 	return devicescanCompose.WithAttendanceStaff(ctx, staffID, tenantID)
 }
-
-func AttendanceTenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
-
-func MarkAttendanceRollback(ctx context.Context) { tenant.MarkRollback(ctx) }

@@ -3,15 +3,13 @@ package services
 import (
 	"log/slog"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
-	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -19,7 +17,7 @@ import (
 type OperatorSettingsTestModule struct {
 	ActiveTestModule
 	CareLifecycle       careplan.CareLifecycle
-	SettingsSideEffects *sideeffects.Registry
+	SettingsSideEffects *settingsCompose.SideEffectRegistry
 	// CareWithdrawals stores the pending withdrawal tasks a booking
 	// authority test starts from.
 	CareWithdrawals userModels.CareWithdrawalCompletionRepository
@@ -45,8 +43,8 @@ func NewOperatorSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (Operator
 	if err != nil {
 		return OperatorSettingsTestModule{}, err
 	}
-	registry := sideeffects.NewRegistry()
-	wc := facilities.NewWCService(active.Facilities, facilitiesLegacy.ActivityCatalog(active.Activities), slog.Default())
+	registry := settingsCompose.NewSideEffectRegistry()
+	wc := facilitiesCompose.NewWCService(active.Facilities, facilitiesLegacy.ActivityCatalog(active.Activities), slog.Default())
 	facilitiesLegacy.RegisterSettingsSideEffects(registry, active.Schulhof, wc)
 	registerCareWithdrawalSettingsSideEffects(registry, care.CareLifecycle)
 	return OperatorSettingsTestModule{
@@ -63,16 +61,16 @@ func NewOperatorSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (Operator
 // api/base.go does, over this module's services: the presence-mode guard
 // reads the module's Student Presence and the booking authority preview its
 // Care Plan. onValueSet is the write side-effect hook; the broadcast is off.
-func (m OperatorSettingsTestModule) OperatorSchoolSettings(onValueSet config.OperatorValueSetHook) settings.OperatorSchoolSettings {
+func (m OperatorSettingsTestModule) OperatorSchoolSettings(onValueSet settingsCompose.OperatorValueSetHook) settings.OperatorSchoolSettings {
 	return m.OperatorSchoolSettingsWith(OperatorSchoolSettingsTestOptions{OnValueSet: onValueSet})
 }
 
 // OperatorSchoolSettingsTestOptions varies the root's optional dependencies
 // of the operator's school settings.
 type OperatorSchoolSettingsTestOptions struct {
-	OnValueSet config.OperatorValueSetHook
+	OnValueSet settingsCompose.OperatorValueSetHook
 	// Notify receives the broadcast; nil disables it.
-	Notify config.SettingsChangedNotifier
+	Notify settingsCompose.SettingsChangedNotifier
 	// WithoutCarePlan composes a deployment without the Care Plan booking
 	// authority.
 	WithoutCarePlan bool

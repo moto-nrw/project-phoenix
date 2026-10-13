@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services/iot/staffclock"
+	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
 )
 
 // staffClockTimeClock serves the kiosk workflow's TimeClock port from the

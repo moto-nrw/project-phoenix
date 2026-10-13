@@ -5,18 +5,17 @@ import (
 	"errors"
 	"log/slog"
 
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The Stammdaten decision and the cross-kind parent-request commands are
@@ -33,7 +32,7 @@ type masterDataDecisionWiring struct {
 	persons     usersModels.PersonRepository
 	audit       peopleCompose.StudentChangeRecorder
 	scope       carePlanCompose.ReviewScopeResolver
-	emitter     *parentmessaging.Emitter
+	emitter     *communicationCompose.ParentEventEmitter
 	broadcaster realtime.Broadcaster
 	events      usersModels.ParentRequestEventRepository
 	shares      carePlanCompose.ShareVisibility
@@ -73,6 +72,8 @@ type parentRequestCoordinatorWiring struct {
 	care       any
 	offering   carePlanCompose.ParentRequestConflicts
 	events     usersModels.ParentRequestEventRepository
+	// permissions reads the permissions of the request claims.
+	permissions func(context.Context) []string
 }
 
 func newParentRequestCoordinator(wiring parentRequestCoordinatorWiring) (parentrequests.Coordinator, error) {
@@ -81,7 +82,7 @@ func newParentRequestCoordinator(wiring parentRequestCoordinatorWiring) (parentr
 		return nil, errors.New("parent request coordinator: the care request service is not a conflict port")
 	}
 	deps := carePlanCompose.ParentRequestCoordinatorDependencies{
-		Rights: parentRequestRights, MasterData: wiring.masterData, Excused: wiring.excused,
+		Rights: parentRequestRights(wiring.permissions), MasterData: wiring.masterData, Excused: wiring.excused,
 		Care: care, Offering: wiring.offering,
 	}
 	if wiring.events != nil {
@@ -92,9 +93,11 @@ func newParentRequestCoordinator(wiring parentRequestCoordinatorWiring) (parentr
 
 // parentRequestRights evaluates the request claims: users:update decides every
 // queue, users:absence the sick and excused queue only.
-func parentRequestRights(ctx context.Context) carePlanCompose.ParentRequestRights {
-	writeQueues, absences := securityruntime.ParentRequestReviewRights(authjwt.PermissionsFromCtx(ctx))
-	return carePlanCompose.ParentRequestRights{WriteQueues: writeQueues, Absences: absences}
+func parentRequestRights(permissions func(context.Context) []string) func(context.Context) carePlanCompose.ParentRequestRights {
+	return func(ctx context.Context) carePlanCompose.ParentRequestRights {
+		writeQueues, absences := securityruntime.ParentRequestReviewRights(permissions(ctx))
+		return carePlanCompose.ParentRequestRights{WriteQueues: writeQueues, Absences: absences}
+	}
 }
 
 // parentRequestWriteScope adapts the identity-owned review policy to the
@@ -102,9 +105,9 @@ func parentRequestRights(ctx context.Context) carePlanCompose.ParentRequestRight
 // Angebote queues are listed with, from the request claims.
 func parentRequestWriteScope(policy interface {
 	Scope(ctx context.Context, permissions []string) (bool, []int64, error)
-}) carePlanCompose.ReviewScopeResolver {
+}, permissions func(context.Context) []string) carePlanCompose.ReviewScopeResolver {
 	return func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
-		schoolWide, groupIDs, err := policy.Scope(ctx, authjwt.PermissionsFromCtx(ctx))
+		schoolWide, groupIDs, err := policy.Scope(ctx, permissions(ctx))
 		if err != nil {
 			return carePlanCompose.ReviewScope{}, err
 		}

@@ -1,10 +1,8 @@
-package services_test
+package services
 
 import (
 	"context"
 	"testing"
-
-	"github.com/moto-nrw/project-phoenix/services"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +13,7 @@ import (
 // the group-enriched adapters could not name a group, so it refuses.
 func TestNewFactoryRequiresSchoolStructure(t *testing.T) {
 	t.Parallel()
-	assert.Panics(t, func() { services.NewRepositoryTestFactory(nil, services.TimetableDependencies{}) })
+	assert.Panics(t, func() { NewRepositoryTestFactory(nil, TimetableDependencies{}) })
 }
 
 // The supervision blocker read used to LEFT JOIN education.groups on
@@ -33,7 +31,7 @@ func TestSupervisionBlockersResolveGroupNamesThroughTheOwner(t *testing.T) {
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	supervision := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, group.ID, "supervisor")
 
-	factory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 
 	err := testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
 		rows, err := factory.GroupSupervisor.ListActiveSupervisionBlockers(ctx, staff.ID)
@@ -64,7 +62,7 @@ func TestSupervisionBlockersExcludeFutureSupervisions(t *testing.T) {
 		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 
-	factory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 	err = testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
 		rows, err := factory.GroupSupervisor.ListActiveSupervisionBlockers(ctx, staff.ID)
 		require.NoError(t, err)
@@ -79,7 +77,7 @@ func TestStudentRosterGroupNamesAreEmptyWithoutGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	testpkg.CreateTestStudent(t, db, "Ohne", "Gruppe", "1a")
 
-	factory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
 
 	rows, err := factory.Student.FindAllWithGroups(testpkg.Ctx(t))
 	require.NoError(t, err)

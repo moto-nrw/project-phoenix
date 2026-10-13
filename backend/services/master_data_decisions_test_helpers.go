@@ -4,15 +4,15 @@ import (
 	"errors"
 	"log/slog"
 
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // MasterDataDecisionTestOptions builds the Care Plan Stammdaten decision over
@@ -25,7 +25,7 @@ type MasterDataDecisionTestOptions struct {
 	Persons     usersModels.PersonRepository
 	Audit       peopleCompose.StudentChangeRecorder
 	Scope       carePlanCompose.ReviewScopeResolver
-	Emitter     *parentmessaging.Emitter
+	Emitter     *communicationCompose.ParentEventEmitter
 	Broadcaster realtime.Broadcaster
 	Events      usersModels.ParentRequestEventRepository
 	Shares      carePlanCompose.ShareVisibility

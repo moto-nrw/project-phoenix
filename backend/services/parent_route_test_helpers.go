@@ -3,9 +3,10 @@ package services
 import (
 	"context"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
@@ -41,7 +42,7 @@ func SchoolWideReviewScope(context.Context) (carePlanCompose.ReviewScope, error)
 
 func NewParentRouteTestRepositories(db *bun.DB, members MembershipTestRepositories) (ParentRouteTestRepositories, error) {
 	people := members.People
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
@@ -62,7 +63,7 @@ func NewParentRouteTestRepositories(db *bun.DB, members MembershipTestRepositori
 	}
 	return ParentRouteTestRepositories{
 		ParentPortalRepositories: carePlanCompose.ParentPortalRepositories{
-			ParentChild: carePlanCompose.NewParentChildRepository(newIdentityAccess(db, nil).ListActiveAccountSchoolIDs, parentPortalDirectory{people: people}),
+			ParentChild: carePlanCompose.NewParentChildRepository(newPeopleIdentityAccess(db, nil).ListActiveAccountSchoolIDs, parentPortalDirectory{people: people}),
 		},
 		Student: members.Student, Person: members.Person,
 		GuardianProfile: members.GuardianProfile, StudentGuardian: members.StudentGuardian,

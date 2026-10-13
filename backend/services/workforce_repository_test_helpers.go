@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"

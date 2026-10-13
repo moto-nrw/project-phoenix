@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/uptrace/bun"
 )
@@ -48,6 +48,7 @@ func NewCareLifecycleTestRepositoriesWithMembers(db *bun.DB, members MembershipT
 		sources: CareLifecycleOwnerSources{
 			Students: tt.Student, Persons: tt.Person, Membership: membership,
 			People: people, Timetable: tt.Timetable, Calendar: calendar,
+			Presence: newUnloggedStudentPresence(db), PlanReads: mustPresenceReads(db),
 		},
 	}, nil
 }
@@ -72,7 +73,7 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 	}
 	return carePlanCompose.NewCareLifecycle(carePlanCompose.CareLifecycleDependencies{
 		DB: r.db, Records: r.CarePlan,
-		Owners:                NewCareLifecycleOwners(r.db, r.sources, NewCareEndRecorder(config.Audit)),
+		Owners:                NewCareLifecycleOwners(r.sources, NewCareEndRecorder(config.Audit)),
 		LockCareBookingWrites: lock,
 		BookingsAuthoritative: config.BookingsAuthoritative,
 		Fingerprint:           securityruntime.Fingerprint,
