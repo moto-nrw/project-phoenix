@@ -2,20 +2,20 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -199,7 +199,7 @@ func (r offeringChangeRows) Find(ctx context.Context, id int64) (careplan.Offeri
 
 func (r offeringChangeRows) FindForUpdate(ctx context.Context, id int64) (careplan.OfferingChangeRequest, error) {
 	row, err := r.find(ctx, id, true, "find offering change request for update")
-	if errors.Is(err, careplan.ErrOfferingChangeNotFound) || errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, careplan.ErrOfferingChangeNotFound) || errors.Is(err, transactionruntime.ErrNoRows) {
 		return careplan.OfferingChangeRequest{}, careplan.ErrOfferingChangeNotFound
 	}
 	return row, err
@@ -208,7 +208,7 @@ func (r offeringChangeRows) FindForUpdate(ctx context.Context, id int64) (carepl
 func (r offeringChangeRows) find(ctx context.Context, id int64, lock bool, op string) (careplan.OfferingChangeRequest, error) {
 	row, err := r.carePlan.FindOfferingChange(ctx, id, lock)
 	if errors.Is(err, careplan.ErrOfferingChangeNotFound) {
-		return careplan.OfferingChangeRequest{}, offeringChangeDatabaseError(op, sql.ErrNoRows)
+		return careplan.OfferingChangeRequest{}, offeringChangeDatabaseError(op, transactionruntime.ErrNoRows)
 	}
 	if err != nil {
 		return careplan.OfferingChangeRequest{}, offeringChangeDatabaseError(op, err)

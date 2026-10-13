@@ -2,17 +2,17 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -395,7 +395,7 @@ func mapGuardianPaymentError(err error) error {
 		return nil
 	}
 	switch {
-	case errors.Is(err, sql.ErrNoRows), errors.Is(err, userModels.ErrGuardianProfileNotFound):
+	case errors.Is(err, transactionruntime.ErrNoRows), errors.Is(err, userModels.ErrGuardianProfileNotFound):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianNotFound, err)
 	case errors.Is(err, peopleCompose.ErrGuardianIBANInvalid):
 		return peopledirectory.ErrGuardianIBANInvalid

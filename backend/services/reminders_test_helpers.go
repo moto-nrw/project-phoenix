@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"

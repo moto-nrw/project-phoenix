@@ -1,7 +1,7 @@
 package services
 
 import (
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"

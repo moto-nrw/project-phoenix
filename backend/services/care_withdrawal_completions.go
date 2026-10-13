@@ -9,8 +9,8 @@ import (
 	"slices"
 	"time"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 // careWithdrawalCompletionRepository preserves the retained users model

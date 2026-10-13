@@ -2,13 +2,13 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"strings"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -151,7 +151,7 @@ func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, i
 		}
 
 		existing, err := s.staff.FindByPersonID(ctx, input.PersonID)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		if err != nil && !errors.Is(err, transactionruntime.ErrNoRows) {
 			return err
 		}
 		if existing != nil && existing.DeletedAt == nil {
@@ -267,7 +267,7 @@ func (s *staffMembershipDirectory) liveTeacherForStaff(ctx context.Context, staf
 // Failures are non-fatal by design (see CreateStaffWithTeacher).
 func (s *staffMembershipDirectory) ensureTeacherForStaff(ctx context.Context, staffID int64, input peopleCompose.CreateStaffInput) (*userModels.Teacher, bool) {
 	existing, err := s.teachers.FindByStaffID(ctx, staffID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, transactionruntime.ErrNoRows) {
 		return nil, true
 	}
 	if existing != nil && existing.DeletedAt == nil {

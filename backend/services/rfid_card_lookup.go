@@ -2,12 +2,12 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
 )
 
@@ -57,7 +57,7 @@ func (l staffClockStaffLookup) ResolveStaffByTag(ctx context.Context, tag string
 	}
 	staff, err := l.people.GetStaffByPersonID(ctx, person.ID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, transactionruntime.ErrNoRows) {
 			return staffclock.StaffIdentity{}, staffclock.ErrRFIDTagNotStaff
 		}
 		return staffclock.StaffIdentity{}, err

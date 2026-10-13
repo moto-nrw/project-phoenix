@@ -3,9 +3,9 @@ package services
 import (
 	"context"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/uptrace/bun"
 )
 

@@ -2,9 +2,9 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -30,7 +30,7 @@ func (q staffScheduleAssignments) ScheduleAssignment(ctx context.Context, staffI
 	}
 	profile, ok := profiles[staffID]
 	if !ok {
-		return nil, fmt.Errorf("staff %d has no employment profile: %w", staffID, sql.ErrNoRows)
+		return nil, fmt.Errorf("staff %d has no employment profile: %w", staffID, transactionruntime.ErrNoRows)
 	}
 	var anchor *timezone.Date
 	if profile.RotationAnchorDate != "" {

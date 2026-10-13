@@ -3,9 +3,9 @@ package services
 import (
 	"context"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 

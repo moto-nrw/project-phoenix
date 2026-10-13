@@ -2,21 +2,21 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	calendarPortal "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -74,8 +74,8 @@ type CalendarLogoResolver interface {
 // calendar's narrow fact ports. It does not build a legacy factory.
 func NewCalendarPortal(d CalendarDependencies) calendarCompose.Application {
 	cfg := NewCalendarFacts(d.CalendarFacts)
-	cfg.MissingRecord = func(err error) bool { return errors.Is(err, sql.ErrNoRows) }
-	cfg.MissingRecordCause = sql.ErrNoRows
+	cfg.MissingRecord = func(err error) bool { return errors.Is(err, transactionruntime.ErrNoRows) }
+	cfg.MissingRecordCause = transactionruntime.ErrNoRows
 	cfg.Appointments = d.Appointments
 	cfg.CalendarRenderer = d.CalendarRenderer
 	cfg.PushOutbox = d.PushOutbox

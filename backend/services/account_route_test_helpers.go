@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/uptrace/bun"
 )
 

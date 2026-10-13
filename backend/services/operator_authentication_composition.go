@@ -2,19 +2,19 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 // Identity & Access owns operator login, the MFA-proven token issue, refresh,
@@ -221,7 +221,7 @@ func (p schoolIdentityProvisioner) ListAccountPersons(ctx context.Context, accou
 func (p schoolIdentityProvisioner) personIsStudent(ctx context.Context, personID int64) (bool, error) {
 	student, err := p.students.FindByPersonID(ctx, personID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, transactionruntime.ErrNoRows) {
 			return false, nil
 		}
 		return false, err

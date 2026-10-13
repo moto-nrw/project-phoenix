@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 

@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/uptrace/bun"
 )
 

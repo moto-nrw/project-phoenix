@@ -20,6 +20,7 @@ var serviceFactoryCutoverGrants = map[[2]ownerRolePair]bool{
 	{{"legacy-composition", "compose"}, {"document-rendering", "contract"}}: true,
 	{{"data-import", "compose"}, {"data-import", "application"}}:            true,
 	{{"audit-platform", "compose"}, {"audit-platform", "application"}}:      true,
+	{{"audit-platform", "compose"}, {"audit-platform", "domain"}}:           true,
 	{{"legacy-composition", "compose"}, {"transaction-runtime", "public"}}:  true,
 }
 

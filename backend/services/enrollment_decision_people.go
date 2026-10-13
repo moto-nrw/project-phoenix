@@ -2,14 +2,14 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	importService "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 // The bindings below connect Enrollment's decision flow (#3564) to the People
@@ -206,7 +206,7 @@ func (g enrollmentGuardianProfiles) GuardianProfileByAccount(ctx context.Context
 
 func (g enrollmentGuardianProfiles) GuardianProfileByEmail(ctx context.Context, email string) (*enrollmentCompose.GuardianProfile, error) {
 	row, err := g.repo.FindByEmail(ctx, email)
-	if errors.Is(err, userModels.ErrGuardianProfileNotFound) || errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, userModels.ErrGuardianProfileNotFound) || errors.Is(err, transactionruntime.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {

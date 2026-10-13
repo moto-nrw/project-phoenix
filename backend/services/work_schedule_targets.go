@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/config"
+	config "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )

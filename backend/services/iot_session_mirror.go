@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"strconv"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
