@@ -3,7 +3,6 @@ package services
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -21,19 +20,19 @@ func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModu
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
-	parents, err := repositories.NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
+	parents, err := NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
-	appointments, err := repositories.NewAppointments(db)
+	appointments, err := NewAppointments(db)
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
-	schoolCalendar, err := repositories.NewSchoolCalendar(db)
+	schoolCalendar, err := NewSchoolCalendar(db)
 	if err != nil {
 		return CalendarTestModule{}, err
 	}
-	feeds := repositories.NewCalendarFeedTestRepositories(db)
+	feeds := NewCalendarFeedTestRepositories(db)
 	identity, err := NewUserContextTestModule(db, unit)
 	if err != nil {
 		return CalendarTestModule{}, err
@@ -49,10 +48,10 @@ func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModu
 	logger := slog.Default()
 	cfg := currentFactoryConfig()
 	calendarSvc := NewCalendarPortal(CalendarDependencies{
-		CalendarFacts: repositories.CalendarFacts{
+		CalendarFacts: CalendarFacts{
 			StaffRepo:            repos.Staff,
 			StudentRepo:          repos.Student,
-			GuardianProfileRepo:  repositories.NewCalendarGuardianDirectory(repos.GuardianProfile, MustNewPeopleDirectory(db)),
+			GuardianProfileRepo:  NewCalendarGuardianDirectory(repos.GuardianProfile, MustNewPeopleDirectory(db)),
 			StudentGuardianRepo:  repos.StudentGuardian,
 			ChildRepo:            parents.ParentChildLinks(),
 			GroupRepo:            repos.Group,

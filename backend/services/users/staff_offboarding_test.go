@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -43,9 +42,9 @@ type offboardingIdentity interface {
 type offboardingScenario struct {
 	db        *bun.DB
 	repos     *services.RepositoryTestFactory
-	timetable repositories.TimetableRepositories
+	timetable services.TimetableRepositories
 	workTime  workforce.Capability
-	rows      repositories.TimetableTestRepositories
+	rows      services.TimetableTestRepositories
 	authSvc   offboardingIdentity
 	svc       *offboardingTestRunner
 	deps      offboardingcompose.Dependencies
@@ -62,7 +61,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 		db = databases[0]
 	}
 
-	rows, err := repositories.NewTimetableTestRepositories(db, services.MustNewMembershipTestRepositories(db))
+	rows, err := services.NewTimetableTestRepositoriesWithMembers(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	owners := services.NewUnobservedTimetableDependencies(db)
 	repos := services.NewRepositoryTestFactory(db, owners)
@@ -77,7 +76,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
 	deps := offboardingcompose.Dependencies{
 		DB: db, Access: services.StaffOffboardingAccess(authService),
-		Employment: repositories.MembershipStaffEmployment(repositories.MustNewStaffEmployment(db)),
+		Employment: services.MembershipStaffEmployment(services.MustNewStaffEmployment(db)),
 		Authorize: func(ctx context.Context) (staffoffboarding.Actor, error) {
 			actor, _ := ctx.Value(offboardingTestActorKey{}).(staffoffboarding.Actor)
 			actor.AccountID = actorAccount.ID
@@ -91,7 +90,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	return &offboardingScenario{
 		db:        db,
 		repos:     repos,
-		timetable: repositories.NewTimetableRepositories(db, owners),
+		timetable: services.NewTimetableRepositories(db, owners),
 		workTime:  owners.Workforce,
 		rows:      rows,
 		authSvc:   authService,
@@ -318,7 +317,7 @@ func TestOffboardingRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	sc := newOffboardingScenario(t, testpkg.SetupIsolatedTestDB(t))
 	actor := testpkg.CreateTestStaff(t, sc.db, "Runtime", "Actor")
-	queue, err := repositories.NewStaffDocumentCleanup(sc.db, nil)
+	queue, err := services.NewStaffDocumentCleanup(sc.db, nil)
 	require.NoError(t, err)
 	sc.deps.Cleanup = queue.Enqueue
 	workflow, err := offboardingcompose.New(sc.deps)

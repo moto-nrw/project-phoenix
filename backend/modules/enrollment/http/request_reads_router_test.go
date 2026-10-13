@@ -16,7 +16,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -35,7 +34,7 @@ type unreadEnv struct {
 	router   http.Handler
 	tenantID int64
 	phaseID  int64
-	repos    repositories.EnrollmentTestRepositories
+	repos    services.EnrollmentTestRepositories
 	requests enrollmentAPI.RequestService
 }
 

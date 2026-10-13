@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
@@ -40,7 +39,7 @@ func NewGradeTransitionTestModule(db *bun.DB, resync OfferingResync, clocks ...f
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
@@ -48,7 +47,7 @@ func NewGradeTransitionTestModule(db *bun.DB, resync OfferingResync, clocks ...f
 		resync = func(context.Context, timezone.Date) error { return nil }
 	}
 	clock := optionalClock(clocks)
-	recurrenceLock, err := repositories.NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := NewTimetableRecurrenceLock(db)
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}

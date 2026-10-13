@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -36,7 +35,7 @@ func NewTestExcusedAbsenceRequests(options ExcusedRequestTestOptions) (*carePlan
 	}
 	scope := options.Scope
 	if scope == nil {
-		scope = repositories.SchoolWideReviewScope
+		scope = SchoolWideReviewScope
 	}
 	return newExcusedAbsenceRequests(excusedRequestWiring{
 		carePlan: options.CarePlan, students: options.Students, persons: options.Persons,

@@ -9,7 +9,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -30,7 +29,7 @@ import (
 
 // TimetableHTTPTestRows are the retained repositories the timetable route
 // suites arrange and assert through.
-type TimetableHTTPTestRows = repositories.TimetableTestRepositories
+type TimetableHTTPTestRows = TimetableTestRepositories
 
 // NewTimetableHTTPTestRows composes the retained repositories over the test
 // database.
@@ -85,7 +84,7 @@ func NewTimetableHTTPTestModule(db *bun.DB, options TimetableHTTPTestOptions) (T
 		clock := options.Clock
 		today = func() calendar.Date { return calendar.DateFromTime(clock()) }
 	}
-	lock, err := repositories.NewTimetableRecurrenceLock(db)
+	lock, err := NewTimetableRecurrenceLock(db)
 	if err != nil {
 		return TimetableHTTPTestModule{}, err
 	}
@@ -162,7 +161,7 @@ func newTimetableHTTPTestReads(db *bun.DB, r TimetableHTTPTestRows, rows timetab
 	if err != nil {
 		return nil, nil, err
 	}
-	carePlan, err := repositories.NewCarePlan(db, people, r.InstanceStudent)
+	carePlan, err := NewCarePlan(db, people, r.InstanceStudent)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -292,13 +291,13 @@ func (timetableHTTPTestNoPreservedDeviations) Reapply(context.Context, int64, *i
 // supervisions over the test database, for suites that arrange a running
 // block.
 func NewTimetableHTTPTestSessionRecords(db *bun.DB) *presenceCompose.SessionRecords {
-	return repositories.NewPresenceSessionRecords(db)
+	return NewPresenceSessionRecords(db)
 }
 
 // NewTimetableHTTPTestRecurrenceLock is the Timetable owner's tenant
 // recurrence gate over the test database.
 func NewTimetableHTTPTestRecurrenceLock(db *bun.DB) (timetable.RecurrenceWriteLock, error) {
-	return repositories.NewTimetableRecurrenceLock(db)
+	return NewTimetableRecurrenceLock(db)
 }
 
 // NewTimetableHTTPTestPeople serves the People port of the timetable routes

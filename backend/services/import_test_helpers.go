@@ -3,7 +3,6 @@ package services
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -61,11 +60,11 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 	if err != nil {
 		return ImportTestModule{}, err
 	}
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return ImportTestModule{}, err
 	}
-	workTime, err := repositories.NewWorkforce(db, membership)
+	workTime, err := NewWorkforce(db, membership)
 	if err != nil {
 		return ImportTestModule{}, err
 	}
@@ -80,19 +79,19 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 
 	observations := &[]importService.ImportObservation{}
 	persons := guardians.PeopleDirectory
-	groups, err := repositories.NewSchoolStructure(db)
+	groups, err := NewSchoolStructure(db)
 	if err != nil {
 		return ImportTestModule{}, err
 	}
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := NewFacilities(db)
 	if err != nil {
 		return ImportTestModule{}, err
 	}
-	organizations, err := repositories.NewOrganizationTenancy(db)
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return ImportTestModule{}, err
 	}
-	rfid, err := repositories.NewIdentityAccessForTests(db)
+	rfid, err := NewIdentityAccessForTests(db)
 	if err != nil {
 		return ImportTestModule{}, err
 	}
@@ -101,7 +100,7 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 		Organizations: organizations,
 		Groups:        groups, Rooms: rooms,
 		Persons: persons, Membership: membership, Workforce: workTime,
-		CarePlan: repos.CarePlan, Presence: repositories.NewStudentPresenceForTests(db),
+		CarePlan: repos.CarePlan, Presence: NewStudentPresenceForTests(db),
 		InvitationService: auth.Invitation,
 		ConsentHistory:    auditService.NewConsentRecorder(command),
 		OpeningBalance: importService.OpeningBalanceImportDeps{

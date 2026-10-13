@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -128,12 +127,12 @@ func resolveTeacherStaff(ctx context.Context, membership staffLookup, assigned [
 // School Structure and the staff members through School Membership; the
 // Workforce adapter names neither (#3556).
 type groupSubstitutions struct {
-	repositories.GroupSubstitutionRows
+	GroupSubstitutionRows
 	groups     func(ctx context.Context, ids []int64) (map[int64]*educationRepo.Group, error)
 	membership staffLookup
 }
 
-func newGroupSubstitutions(rows repositories.GroupSubstitutionRows, groups func(context.Context, []int64) (map[int64]*educationRepo.Group, error), membership staffLookup) groupSubstitutions {
+func newGroupSubstitutions(rows GroupSubstitutionRows, groups func(context.Context, []int64) (map[int64]*educationRepo.Group, error), membership staffLookup) groupSubstitutions {
 	return groupSubstitutions{GroupSubstitutionRows: rows, groups: groups, membership: membership}
 }
 

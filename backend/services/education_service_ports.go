@@ -7,7 +7,6 @@ import (
 	"golang.org/x/text/collate"
 	"golang.org/x/text/language"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -155,12 +154,12 @@ func educationCaregiver(caregiver *userModels.ActiveCaregiver) *educationRepo.Ca
 // retained group substitution repository. Workforce owns the rows; the
 // binding translates them into the School Structure values (#3556).
 type EducationHandovers struct {
-	substitutions repositories.GroupSubstitutionRepository
+	substitutions GroupSubstitutionRepository
 }
 
 // NewEducationHandovers binds the handover store to the group substitution
 // repository.
-func NewEducationHandovers(substitutions repositories.GroupSubstitutionRepository) EducationHandovers {
+func NewEducationHandovers(substitutions GroupSubstitutionRepository) EducationHandovers {
 	return EducationHandovers{substitutions: substitutions}
 }
 

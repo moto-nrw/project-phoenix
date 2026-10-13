@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -23,7 +23,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	today := timezone.NewDate(2026, 8, 24)
-	repo := sessionSupervisors(repositories.NewPresenceSessionRecords(db, func() time.Time {
+	repo := sessionSupervisors(services.NewPresenceSessionRecords(db, func() time.Time {
 		return today.BerlinMidnight()
 	}))
 	ctx := testpkg.Ctx(t)

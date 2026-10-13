@@ -7,16 +7,15 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
 type classTeacherRepository struct{ membership schoolmembership.Capability }
 
-var _ repositories.ClassTeacherRepository = (*classTeacherRepository)(nil)
+var _ ClassTeacherRepository = (*classTeacherRepository)(nil)
 
-func newClassTeacherRepository(membership schoolmembership.Capability) repositories.ClassTeacherRepository {
+func newClassTeacherRepository(membership schoolmembership.Capability) ClassTeacherRepository {
 	return &classTeacherRepository{membership: membership}
 }
 
@@ -98,12 +97,12 @@ func (r *classTeacherRepository) FindByStaff(ctx context.Context, staffID int64)
 
 type groupTeacherRepository struct {
 	membership schoolmembership.Capability
-	groups     repositories.EducationGroupRepository
+	groups     EducationGroupRepository
 }
 
-var _ repositories.GroupTeacherRepository = (*groupTeacherRepository)(nil)
+var _ GroupTeacherRepository = (*groupTeacherRepository)(nil)
 
-func newGroupTeacherRepository(membership schoolmembership.Capability, groups repositories.EducationGroupRepository) repositories.GroupTeacherRepository {
+func newGroupTeacherRepository(membership schoolmembership.Capability, groups EducationGroupRepository) GroupTeacherRepository {
 	return &groupTeacherRepository{membership: membership, groups: groups}
 }
 

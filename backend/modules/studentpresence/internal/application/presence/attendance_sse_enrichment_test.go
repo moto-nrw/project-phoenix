@@ -24,7 +24,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -49,7 +48,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 
 	owners := services.NewUnobservedTimetableDependencies(db)
 	repos := services.NewRepositoryTestFactory(db, owners)
-	timetableRepos := repositories.NewTimetableRepositories(db, owners)
+	timetableRepos := services.NewTimetableRepositories(db, owners)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
@@ -61,9 +60,9 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	devices, err := repositories.NewDeviceRepository(db)
+	devices, err := services.NewDeviceRepository(db)
 	require.NoError(t, err)
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := services.NewFacilities(db)
 	require.NoError(t, err)
 	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		GroupRepo:          sessionGroups(repos.ActiveGroup),
@@ -72,7 +71,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
-		ActivityGroupRepo:  repositories.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityGroupRepo:  services.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    services.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
@@ -212,7 +211,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 
 	owners := services.NewUnobservedTimetableDependencies(db)
 	repos := services.NewRepositoryTestFactory(db, owners)
-	timetableRepos := repositories.NewTimetableRepositories(db, owners)
+	timetableRepos := services.NewTimetableRepositories(db, owners)
 	suffix := time.Now().UnixNano()
 	syncer := newAttendanceMirror(t,
 		timetableRepos.ActivityInstance,
@@ -221,9 +220,9 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	devices, err := repositories.NewDeviceRepository(db)
+	devices, err := services.NewDeviceRepository(db)
 	require.NoError(t, err)
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := services.NewFacilities(db)
 	require.NoError(t, err)
 	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		GroupRepo:          sessionGroups(repos.ActiveGroup),
@@ -232,7 +231,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
-		ActivityGroupRepo:  repositories.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityGroupRepo:  services.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    services.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),

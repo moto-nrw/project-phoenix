@@ -5,12 +5,13 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -62,7 +63,7 @@ func newCompanionSyncApplier(
 		ArrivalSchedules:    repoFactory.EnrollmentArrivalSchedules(),
 		GuardianAccess:      testGuardianAccess(env.db),
 		StudentEnrollment:   testStudentEnrollment(env.db),
-		Companions:          repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
+		Companions:          services.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:    repoFactory.CarePlan().DeleteCompanionEdges,
 		Broadcaster:         bc,
 		FrontendURL:         "http://localhost:3000",
@@ -158,9 +159,9 @@ func linkCompanionPartnerOnTuesday(t *testing.T, env *decisionTestEnv, studentID
 	stored.DepartureCompanionNote = &note
 	require.NoError(t, env.repos.Student.Update(ctx, stored))
 
-	edge, err := repositories.NewStudentCompanionEdge(studentID, partner.ID, 2)
+	edge, err := services.NewStudentCompanionEdge(studentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(env.repos.CarePlan()), studentID,
+	require.NoError(t, services.ReplaceStudentCompanions(ctx, services.NewStudentCompanionRepository(env.repos.CarePlan()), studentID,
 		[]*usersModels.StudentCompanion{edge}))
 
 	if !withOwnNote {
@@ -240,7 +241,7 @@ func TestDecisionService_SyncApprovedChildData_CompanionRefusalSurfacesWithoutRe
 	require.NoError(t, ferr)
 	assert.True(t, usersModels.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)[usersModels.PickupDayTuesday],
 		"the refused correction must roll back, leaving the accompanied Tuesday in place")
-	edges, eerr := repositories.NewStudentCompanionRepository(env.repos.CarePlan()).ListForStudent(ctx, studentID)
+	edges, eerr := services.NewStudentCompanionRepository(env.repos.CarePlan()).ListForStudent(ctx, studentID)
 	require.NoError(t, eerr)
 	require.Len(t, edges, 1, "the refused correction must not drop the link")
 	far, ok := edges[0].Other(studentID)
@@ -291,7 +292,7 @@ func TestDecisionService_SyncApprovedChildData_CompanionEventOnlyOnEffectiveTrim
 		assert.True(t, bc.HasEventType(realtime.EventStudentCompanionsChanged),
 			"Tuesday no longer allows 'Anderes Kind', so the link is gone from the partner's card too")
 
-		edges, err := repositories.NewStudentCompanionRepository(env.repos.CarePlan()).ListForStudent(testpkg.Ctx(t), studentID)
+		edges, err := services.NewStudentCompanionRepository(env.repos.CarePlan()).ListForStudent(testpkg.Ctx(t), studentID)
 		require.NoError(t, err)
 		assert.Empty(t, edges, "the announced sync must actually have trimmed the link")
 	})

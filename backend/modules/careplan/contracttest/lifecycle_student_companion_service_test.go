@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -22,7 +21,7 @@ import (
 // the mock.
 func newCompanionTestService(db *bun.DB) careplan.StudentCompanions {
 	factory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	return repositories.MustNewStudentCompanions(factory.CarePlan(), factory.Student, services.MustNewPeopleDirectory(db), nil)
+	return services.MustNewStudentCompanions(factory.CarePlan(), factory.Student, services.MustNewPeopleDirectory(db), nil)
 }
 
 // studentPlans is the child repository the departure-plan fixture writes
@@ -210,7 +209,7 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 	factory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	trail := services.NewStudentAudit(db)
 	audit := services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, trail)
-	service := repositories.MustNewStudentCompanions(factory.CarePlan(), factory.Student, services.MustNewPeopleDirectory(db), audit)
+	service := services.MustNewStudentCompanions(factory.CarePlan(), factory.Student, services.MustNewPeopleDirectory(db), audit)
 
 	subject := testpkg.CreateTestStudent(t, db, "AuditSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "AuditCompanion", "Companion", "1a")

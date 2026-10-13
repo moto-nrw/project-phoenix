@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -71,7 +70,7 @@ func (m ActiveTestModule) PresenceOperations() presenceservice.PresenceOperation
 }
 
 func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (ActiveTestModule, error) {
-	r, err := repositories.NewActiveTestRepositories(db, MustNewMembershipTestRepositories(db), clocks...)
+	r, err := NewActiveTestRepositories(db, MustNewMembershipTestRepositories(db), clocks...)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -96,11 +95,11 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	devices, err := repositories.NewDeviceRepository(db)
+	devices, err := NewDeviceRepository(db)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	organizations, err := repositories.NewOrganizationTenancy(db)
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -114,7 +113,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	carePlan, err := repositories.NewCarePlan(db, students, r.InstanceStudent)
+	carePlan, err := NewCarePlan(db, students, r.InstanceStudent)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -149,11 +148,11 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	displayGroups, err := repositories.NewSchoolStructure(db)
+	displayGroups, err := NewSchoolStructure(db)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := NewFacilities(db)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -166,7 +165,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		GroupRepo:       sessionGroups, SessionStartLock: r.SessionStartLock, SupervisorRepo: sessionSupervisors,
 		StudentStatusRepo: r.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: newActiveSchoolQuery(organizations),
 		StudentRepo: PresenceStudents(db, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff), RoomRepo: NewAttendanceRooms(r.Room),
-		ActivityGroupRepo: repositories.NewSessionActivities(r.GroupReads()), ActivityCatRepo: NewAttendanceActivityCategories(r.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),
+		ActivityGroupRepo: NewSessionActivities(r.GroupReads()), ActivityCatRepo: NewAttendanceActivityCategories(r.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),
 		StaffNames: NewAttendanceStaffNames(r.Staff, data.Users), DB: db, Broadcaster: hub, WorkSessionService: work.WorkSession,
 		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge, Logger: logger, Now: optionalClock(clocks),
@@ -193,7 +192,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -209,7 +208,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	timetableOwner, err := repositories.NewTimetable(db, students, rooms)
+	timetableOwner, err := NewTimetable(db, students, rooms)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}

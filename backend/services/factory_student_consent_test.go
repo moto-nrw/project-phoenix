@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +13,7 @@ import (
 func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	carePlan, err := repositories.NewUnobservedCarePlan(db, NewUnobservedTimetableDependencies(db))
+	carePlan, err := NewUnobservedCarePlan(db, NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	owners, err := newOwnerCapabilitiesForTests(db)
 	require.NoError(t, err)

@@ -7,8 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-
 	careCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -58,7 +56,7 @@ func TestStudentOwnerWritesRollbackWhenCallerCatchesFailure(t *testing.T) {
 			db := testpkg.SetupTestDB(t)
 			ctx := testpkg.Ctx(t)
 			person := testpkg.CreateTestPerson(t, db, "Atomic", stage)
-			membership, err := repositories.NewSchoolMembership(db)
+			membership, err := services.NewSchoolMembership(db)
 			require.NoError(t, err)
 			care, err := careCompose.NewStudentProfiles(db, func(careCompose.Observation) {})
 			require.NoError(t, err)
@@ -91,7 +89,7 @@ func TestStudentOwnerUpdatesRollbackWhenCallerCatchesFailure(t *testing.T) {
 				db := testpkg.SetupTestDB(t)
 				ctx := testpkg.Ctx(t)
 				student := testpkg.CreateTestStudent(t, db, "Atomic", command, "1a")
-				membership, err := repositories.NewSchoolMembership(db)
+				membership, err := services.NewSchoolMembership(db)
 				require.NoError(t, err)
 				care, err := careCompose.NewStudentProfiles(db, func(careCompose.Observation) {})
 				require.NoError(t, err)

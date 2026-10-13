@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -76,12 +75,12 @@ func newCallerContext(wiring callerContextWiring) (identityaccess.CallerContext,
 
 // newCallerRows composes the caller context and the rows its retained
 // consumers read through it.
-func newCallerRows(wiring callerContextWiring, sources repositories.CallerRowSources) (*repositories.CallerRows, error) {
+func newCallerRows(wiring callerContextWiring, sources CallerRowSources) (*CallerRows, error) {
 	caller, err := newCallerContext(wiring)
 	if err != nil {
 		return nil, fmt.Errorf("compose caller context: %w", err)
 	}
-	return repositories.NewCallerRows(caller, sources), nil
+	return NewCallerRows(caller, sources), nil
 }
 
 // requestIdentityMemo resolves the request identity memo the request

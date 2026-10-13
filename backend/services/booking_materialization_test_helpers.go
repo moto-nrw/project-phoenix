@@ -8,7 +8,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -150,7 +149,7 @@ func (s bookingTestOverlaySettings) ResolveInt(ctx context.Context, key string) 
 	return s.ints.ResolveInt(ctx, key)
 }
 
-func bookingTestCatalog(r repositories.TimetableTestRepositories, settings bookingTestSettingsReads, options BookingMaterializationTestOptions) (careplan.CareOfferingCatalogCapability, error) {
+func bookingTestCatalog(r TimetableTestRepositories, settings bookingTestSettingsReads, options BookingMaterializationTestOptions) (careplan.CareOfferingCatalogCapability, error) {
 	if options.Catalog != nil {
 		return options.Catalog, nil
 	}

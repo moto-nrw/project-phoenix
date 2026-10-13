@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
@@ -96,9 +95,9 @@ func (f masterDataFixture) linkCompanionOnTuesday(t *testing.T) {
 		student.DepartureCompanionNote = &note
 		require.NoError(t, f.repos.Student.Update(ctx, student))
 	}
-	edge, err := repositories.NewStudentCompanionEdge(f.chain.StudentID, partner.ID, 2)
+	edge, err := services.NewStudentCompanionEdge(f.chain.StudentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*userModels.StudentCompanion{edge}))
+	require.NoError(t, services.ReplaceStudentCompanions(ctx, services.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*userModels.StudentCompanion{edge}))
 }
 
 func (f masterDataFixture) personFirstName(t *testing.T) string {
@@ -175,7 +174,7 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	svc := f.decisions(t)
-	queue := f.queue(t, repositories.SchoolWideReviewScope)
+	queue := f.queue(t, services.SchoolWideReviewScope)
 	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
 	require.NoError(t, f.inTx(t, func(ctx context.Context) error {
@@ -217,7 +216,7 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 func TestMasterDataReview_ListHistory(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	queue := f.queue(t, repositories.SchoolWideReviewScope)
+	queue := f.queue(t, services.SchoolWideReviewScope)
 	_, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, f.db, "Rieke", "Reviewer")
 
 	// One row per terminal state, plus a pending row that must never surface.

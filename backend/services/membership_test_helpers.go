@@ -5,33 +5,32 @@ import (
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/uptrace/bun"
 )
 
 // NewMembershipTestRepositories composes the People Directory and School
 // Membership repositories the repository test graphs read through, over
 // unobserved owners (#2743).
-func NewMembershipTestRepositories(db *bun.DB) (repositories.MembershipTestRepositories, error) {
-	membership, err := repositories.NewSchoolMembership(db)
+func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, error) {
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
-		return repositories.MembershipTestRepositories{}, err
+		return MembershipTestRepositories{}, err
 	}
 	people, err := NewPeopleDirectory(db)
 	if err != nil {
-		return repositories.MembershipTestRepositories{}, err
+		return MembershipTestRepositories{}, err
 	}
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := NewFacilities(db)
 	if err != nil {
-		return repositories.MembershipTestRepositories{}, err
+		return MembershipTestRepositories{}, err
 	}
-	workTime, err := repositories.NewWorkforce(db, membership)
+	workTime, err := NewWorkforce(db, membership)
 	if err != nil {
-		return repositories.MembershipTestRepositories{}, err
+		return MembershipTestRepositories{}, err
 	}
-	groups, err := repositories.NewSchoolStructure(db)
+	groups, err := NewSchoolStructure(db)
 	if err != nil {
-		return repositories.MembershipTestRepositories{}, err
+		return MembershipTestRepositories{}, err
 	}
 	members := newMembershipRepositories(db, NewPersonRepository(db), newPeopleIdentityAccess(db, nil), membership, rooms, workTime)
 	members.People = people
@@ -45,7 +44,7 @@ func NewMembershipTestRepositories(db *bun.DB) (repositories.MembershipTestRepos
 // MustNewMembershipTestRepositories is NewMembershipTestRepositories for test
 // graphs that cannot return an error; composing only fails on missing
 // dependencies, which is a programming error at wiring time.
-func MustNewMembershipTestRepositories(db *bun.DB) repositories.MembershipTestRepositories {
+func MustNewMembershipTestRepositories(db *bun.DB) MembershipTestRepositories {
 	members, err := NewMembershipTestRepositories(db)
 	if err != nil {
 		panic(fmt.Sprintf("compose membership test repositories: %v", err))
@@ -63,7 +62,7 @@ func authTestIdentityChain(db *bun.DB) (lifecycleRepositories, error) {
 	return identityChainOf(db, members), nil
 }
 
-func identityChainOf(db *bun.DB, members repositories.MembershipTestRepositories) lifecycleRepositories {
+func identityChainOf(db *bun.DB, members MembershipTestRepositories) lifecycleRepositories {
 	return lifecycleRepositories{
 		persons: members.Person, staff: members.Staff, teachers: members.Teacher, students: NewUnboundStudentRepository(db),
 		guardianProfiles: members.GuardianProfile, studentGuardians: members.StudentGuardian,
@@ -73,8 +72,8 @@ func identityChainOf(db *bun.DB, members repositories.MembershipTestRepositories
 // The test graph vocabulary the root tests reach through api/testutil, which
 // may not name the repository composition.
 type (
-	MembershipTestDependencies = repositories.MembershipTestRepositories
-	TimetableTestDependencies  = repositories.TimetableDependencies
+	MembershipTestDependencies = MembershipTestRepositories
+	TimetableTestDependencies  = TimetableDependencies
 )
 
 // NewStudentDirectory adapts the People Directory's directory read to the

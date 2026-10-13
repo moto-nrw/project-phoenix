@@ -25,7 +25,6 @@ import (
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -348,7 +347,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		require.ErrorIs(t, err, timetable.ErrSplitInvalidInput)
 
 		assert.Nil(t, reloadSplitSchedule(t, s, s.schedule.ID).ValidUntil)
-		series, seriesErr := repositories.NewTimetableRepositories(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, s.template.ID)
+		series, seriesErr := bookingFixtures.NewTimetableRepositories(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, s.template.ID)
 		require.NoError(t, seriesErr)
 		require.Len(t, series, 1)
 		assert.Equal(t, s.template.ID, series[0].ID)
@@ -2078,7 +2077,7 @@ func TestTemplateSplit_SecondSuccessorKeepsOriginalSeriesRoot(t *testing.T) {
 	secondSuccessor := reloadSplitGroup(t, s, second.NewTemplateID)
 	require.NotNil(t, secondSuccessor.SeriesRootID)
 	assert.Equal(t, s.template.ID, *secondSuccessor.SeriesRootID)
-	series, err := repositories.NewTimetableRepositories(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, second.NewTemplateID)
+	series, err := bookingFixtures.NewTimetableRepositories(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, second.NewTemplateID)
 	require.NoError(t, err)
 	assert.Len(t, series, 3)
 }

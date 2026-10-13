@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -29,7 +28,7 @@ import (
 
 type wiredMFAFixture struct {
 	svc      identityaccess.AccountMFA
-	repos    repositories.MembershipTestRepositories
+	repos    services.MembershipTestRepositories
 	db       *bun.DB
 	tenantID int64
 	mailer   *testpkg.CapturingMailer

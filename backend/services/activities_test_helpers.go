@@ -1,7 +1,6 @@
 package services
 
 import (
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/services/activities"
@@ -12,7 +11,7 @@ type ActivitiesTestModule struct {
 	Activities  activities.ActivityService
 	Timetable   timetable.Capability
 	Users       *peopleCompose.PersonDirectory
-	UserContext *repositories.CallerRows
+	UserContext *CallerRows
 }
 
 func NewActivitiesTestModule(db *bun.DB) (ActivitiesTestModule, error) {

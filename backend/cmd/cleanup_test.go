@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -50,7 +49,7 @@ func render(fn func(io.Writer)) string {
 // setupTestCleanupContext creates a cleanupContext with test database
 func setupTestCleanupContext(t *testing.T) *cleanupContext {
 	db := testpkg.SetupTestDB(t)
-	schools, err := repositories.NewOrganizationTenancy(db)
+	schools, err := testutil.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	ctx := &cleanupContext{
 		Schools:       schools,
@@ -68,14 +67,14 @@ func setupTestCleanupContext(t *testing.T) *cleanupContext {
 func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	db := testpkg.SetupTestDB(t)
 	owners := testutil.NewUnobservedTimetableDependencies(db)
-	sessionDevices, err := repositories.NewDeviceFleet(db)
+	sessionDevices, err := testutil.NewDeviceFleet(db)
 	require.NoError(t, err)
-	sessions := repositories.NewSessionRecords(db, repositories.SessionRecordOwners{
+	sessions := testutil.NewSessionRecords(db, testutil.SessionRecordOwners{
 		Devices: sessionDevices, Rooms: owners.Rooms, Timetable: owners.Capability, Membership: owners.Membership, Persons: owners.Students,
 	})
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	devices, err := repositories.NewDeviceRepository(db)
+	devices, err := testutil.NewDeviceRepository(db)
 	require.NoError(t, err)
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(sessions)
 	sessionService := presenceservice.NewPresence(presenceservice.PresenceDependencies{
@@ -95,12 +94,12 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 			},
 			updateRoomID: devices.UpdateRoomID,
 		},
-		TimetableBridgeCompleter: repositories.NewTimetableRepositories(db, owners).ActivityInstance,
+		TimetableBridgeCompleter: testutil.NewRetainedTimetableRepositories(db, owners).ActivityInstance,
 		DB:                       db,
 		Logger:                   slog.Default(),
 	}, presenceservice.WithPresenceSettings(detailedPresenceSettings{}))
 	cleanupSvc := buildRetentionCleanupService(&cleanupContext{DB: db, Audit: testutil.NewTestAuditStore(db)})
-	schools, err := repositories.NewOrganizationTenancy(db)
+	schools, err := testutil.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	return &cleanupContext{
 		Schools:               schools,

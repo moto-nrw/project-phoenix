@@ -17,7 +17,6 @@ import (
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -210,7 +209,7 @@ type Factory struct {
 	Guardian                  *users.GuardianService
 	PeopleDirectory           peopledirectory.Capability
 	GuardianProfileLoader     *users.GuardianProfileLoader
-	UserContext               *repositories.CallerRows
+	UserContext               *CallerRows
 	Database                  database.DatabaseService
 	DatabaseStatsCapabilities func(context.Context) database.StatsCapabilities
 	Import                    *importService.ImportService[importModels.StudentImportRow]        // Student import service
@@ -545,7 +544,7 @@ func newFactory(
 	roomRepository := NewRoomRepository(rooms)
 	// The retained activities and schedule repositories belong to Timetable;
 	// they are built over the capabilities this graph binds (#2743).
-	timetableRepos := repositories.NewTimetableRepositories(db, repositories.TimetableDependencies{
+	timetableRepos := NewTimetableRepositories(db, TimetableDependencies{
 		Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms,
 		Calendar: calendar, Membership: membership, Workforce: workTime,
 	})
@@ -572,19 +571,19 @@ func newFactory(
 	// The repositories the retained services read are built here, over the
 	// owners this graph binds (#2743).
 	enrollmentModule := enrollmentCompose.New()
-	enrollmentRecords := repositories.NewEnrollmentBookingProjection(enrollmentModule)
-	sessionDevices, err := repositories.NewDeviceFleet(db)
+	enrollmentRecords := NewEnrollmentBookingProjection(enrollmentModule)
+	sessionDevices, err := NewDeviceFleet(db)
 	if err != nil {
 		return nil, fmt.Errorf("compose session device fleet: %w", err)
 	}
-	sessionRecords := repositories.NewSessionRecords(db, repositories.SessionRecordOwners{
+	sessionRecords := NewSessionRecords(db, SessionRecordOwners{
 		Now: now, Devices: sessionDevices, Rooms: rooms, Timetable: timetableCapability, Membership: membership, Persons: persons,
 	})
-	groupSupervisions := repositories.NewGroupSupervisionRecords(sessionRecords, groups)
-	staffAbsences := repositories.NewStaffAbsenceRepository(workTime, membership, persons)
+	groupSupervisions := NewGroupSupervisionRecords(sessionRecords, groups)
+	staffAbsences := NewStaffAbsenceRepository(workTime, membership, persons)
 	calendarPeriods := arrivalTimetable.NewCalendarPeriodRepository(calendar, arrivalTimetable.NewPlanningCalendarPeriodUsage(enrollmentModule, timetableCapability))
-	statusDays := repositories.NewStudentStatusDayRepository(carePlan)
-	parentPortal := repositories.NewParentPortalRepositories(db, repositories.ParentPortalOwners{
+	statusDays := NewStudentStatusDayRepository(carePlan)
+	parentPortal := NewParentPortalRepositories(db, ParentPortalOwners{
 		People: persons, Groups: groups, Membership: membership,
 		Identity: peopleIdentity, Enrollment: enrollmentModule, Now: now,
 	}).WithSchools(organizations)
@@ -751,7 +750,7 @@ func newFactory(
 		groupRepository,
 		groupTeacherRepository,
 		classTeacherRepository,
-		repositories.NewEducationRooms(rooms),
+		NewEducationRooms(rooms),
 		NewEducationTeachers(teacherRepository),
 		NewEducationStaff(staffRepository),
 		studentRepository,
@@ -771,7 +770,7 @@ func newFactory(
 	)
 	// The Timetable owner's tenant recurrence gate (#3424 slice S2) orders
 	// every recurrence writer the factory composes.
-	recurrenceLock, err := repositories.NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := NewTimetableRecurrenceLock(db)
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable recurrence lock: %w", err)
 	}
@@ -951,7 +950,7 @@ func newFactory(
 	// The retained device and unregistered-tag-scan contracts read the
 	// unobserved Device Fleet composition the repository factory built
 	// (#2676); the observed module composed below serves the IoT routes.
-	legacyDeviceFleet, err := repositories.NewDeviceFleet(db)
+	legacyDeviceFleet, err := NewDeviceFleet(db)
 	if err != nil {
 		return nil, err
 	}
@@ -985,7 +984,7 @@ func newFactory(
 	var overrideMonths timetracking.WorkTimeMonthService
 
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
-	workSessionService := timetracking.NewWorkSessionService(workSessions, workSessionBreaks, NewWorkSessionAudit(audits.WorkSessionEdit), staffAbsences, groupSupervisions, sessionRecords, WorkSessionStaff(staffRepository, repositories.MustNewStaffEmployment(db)), NewWorkSessionSchedules(staffWorkSchedules), NewWorkSessionTimeModels(workTimeModels), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
+	workSessionService := timetracking.NewWorkSessionService(workSessions, workSessionBreaks, NewWorkSessionAudit(audits.WorkSessionEdit), staffAbsences, groupSupervisions, sessionRecords, WorkSessionStaff(staffRepository, MustNewStaffEmployment(db)), NewWorkSessionSchedules(staffWorkSchedules), NewWorkSessionTimeModels(workTimeModels), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
 		// Planned-shift lookups for the auto-checkout job (#1798).
 		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(workTime)),
 		timetracking.WithWorkSessionEvents(timeTrackingEvents),
@@ -1002,7 +1001,7 @@ func newFactory(
 		workSessions,
 		workSessionBreaks,
 		staffAbsences,
-		StaffScheduleAssignments(repositories.MustNewStaffEmployment(db)),
+		StaffScheduleAssignments(MustNewStaffEmployment(db)),
 		NewWorkScheduleTargets(staffWorkSchedules),
 		NewWorkTimeTargetModels(workTimeModels),
 		NewTimeTrackingShifts(workTime),
@@ -1194,12 +1193,12 @@ func newFactory(
 		Templates:         timetableRepos.ActivityGroup,
 		Categories:        timetableRepos.ActivityCategory,
 		Students:          studentRepository,
-		EducationGroups:   repositories.TimetableEducationGroupNames(groupRepository),
+		EducationGroups:   TimetableEducationGroupNames(groupRepository),
 		Rooms:             facilitiesCompose.NewRoomNameDirectory(roomRepository),
-		PickupExceptions:  repositories.NewPickupExceptionRepository(carePlan),
-		ArrivalExceptions: repositories.NewArrivalExceptionRepository(carePlan),
+		PickupExceptions:  NewPickupExceptionRepository(carePlan),
+		ArrivalExceptions: NewArrivalExceptionRepository(carePlan),
 	}
-	timetableRows.DeviationEvents, timetableRows.Deviations = repositories.TimetableDeviationPorts(audits.DeviationEvent)
+	timetableRows.DeviationEvents, timetableRows.Deviations = TimetableDeviationPorts(audits.DeviationEvent)
 	timetableBridgeService, err := NewTimetableEndedSessionCompletion(timetableRows, careDayService)
 	if err != nil {
 		return nil, fmt.Errorf("compose ended session completion: %w", err)
@@ -1215,13 +1214,13 @@ func newFactory(
 		SessionStartLock:         newStudentPresence(db, logger),
 		SupervisorRepo:           sessionSupervisors,
 		StudentStatusRepo:        statusDays,
-		CrossTenantRepo:          repositories.NewCrossTenantQuery(newStudentPresence(db, logger), persons, groups),
+		CrossTenantRepo:          NewCrossTenantQuery(newStudentPresence(db, logger), persons, groups),
 		Schools:                  newActiveSchoolQuery(organizations),
 		StudentRepo:              PresenceStudents(db, studentRepository),
 		StaffRepo:                NewAttendanceStaffDirectory(staffRepository),
 		RoomRepo:                 NewAttendanceRooms(roomRepository),
 		YardRoomColor:            yardRoomColorQuery(rooms),
-		ActivityGroupRepo:        repositories.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityGroupRepo:        NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:          NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo:       NewAttendanceEducationGroups(groupRepository, studentRepository),
 		DeviceRepo:               NewSessionDeviceDirectory(legacyDevices, settingsService, activeLogger),
@@ -1372,8 +1371,8 @@ func newFactory(
 	// The retained-row readers the Timetable coverage probe, the staff
 	// calendar feed and the plan export still speak, served over the same
 	// facade by the legacy row adapters (#3418, #3424).
-	shiftRows := repositories.NewWorkforceShiftRows(workTime)
-	shiftTypeRows := repositories.NewWorkforceShiftTypeRows(workTime)
+	shiftRows := NewWorkforceShiftRows(workTime)
+	shiftTypeRows := NewWorkforceShiftTypeRows(workTime)
 
 	// Couples pulled-forward day pickup times with the per-block partial
 	// absences (#2360). Shared by the staff pickup-exception writers and the
@@ -1471,7 +1470,7 @@ func newFactory(
 		Schedules:         timetableRepos.ActivitySchedule,
 		Staff:             staffRepository,
 		CalendarPeriods:   calendarPeriods,
-		ArrivalExceptions: repositories.NewArrivalExceptionRepository(carePlan),
+		ArrivalExceptions: NewArrivalExceptionRepository(carePlan),
 		Sessions:          sessionRecords,
 		Shifts:            shiftRows,
 		Presence:          newStudentPresence(db, logger),
@@ -1829,7 +1828,7 @@ func newFactory(
 		TeacherRepo:            teacherRepository,
 		GroupTeacherRepo:       groupTeacherRepository,
 		GroupSubstitutionRepo:  groupSubstitutionRepository,
-		GroupSupervisorRepo:    repositories.CaregiverSupervisionBlockers{Records: groupSupervisions},
+		GroupSupervisorRepo:    CaregiverSupervisionBlockers{Records: groupSupervisions},
 		ActivitySupervisorRepo: arrivalTimetable.CaregiverPlannedSupervisionBlockers{Supervisors: timetableRepos.ActivitySupervisor},
 		RoleAssignments:        identityRoles,
 	})
@@ -1837,7 +1836,7 @@ func newFactory(
 	// The Identity & Access caller context (#3501) resolves the caller's
 	// chain through the owners of each link; the rows serve the consumers
 	// that still speak the retained records.
-	staffGroups, err := repositories.NewUserContextStaffGroups(groups, membership, workTime)
+	staffGroups, err := NewUserContextStaffGroups(groups, membership, workTime)
 	if err != nil {
 		return nil, err
 	}
@@ -1850,7 +1849,7 @@ func newFactory(
 		Presence:             newStudentPresence(db, logger),
 		Settings:             settingsService,
 		Logger:               usercontextLogger,
-	}, repositories.CallerRowSources{
+	}, CallerRowSources{
 		Groups: groupRepository, Staff: staffRepository, Teachers: teacherRepository, Students: studentRepository,
 		Activities: arrivalTimetable.NewCallerActivityGroups(timetableRepos.ActivityGroup), Sessions: sessionRecords, Logger: usercontextLogger,
 	})
@@ -2024,10 +2023,10 @@ func newFactory(
 	studentAuditService := peopleCompose.NewStudentAuditService(requestAuditActor, NewStudentAuditFor(persons))
 	careLifecycleService, err := careplanCompose.NewCareLifecycle(careplanCompose.CareLifecycleDependencies{
 		DB: db, Records: carePlan,
-		Owners: repositories.NewCareLifecycleOwners(db, repositories.CareLifecycleOwnerSources{
+		Owners: NewCareLifecycleOwners(db, CareLifecycleOwnerSources{
 			Students: studentRepository, Persons: personRepository, Membership: membership,
 			People: persons, Timetable: timetableCapability, Calendar: calendar,
-		}, repositories.NewCareEndRecorder(studentAuditService)),
+		}, NewCareEndRecorder(studentAuditService)),
 		LockCareBookingWrites: recurrenceLock.LockRecurrenceWrites,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
@@ -2097,14 +2096,14 @@ func newFactory(
 		Staff:                  staffRepository,
 		Students:               studentRepository,
 		StudentEnrollment:      persons,
-		Companions:             repositories.NewStudentCompanionRepository(carePlan),
+		Companions:             NewStudentCompanionRepository(carePlan),
 		DeleteCompanions:       carePlan.DeleteCompanionEdges,
 		StudentGuardians:       studentGuardianRepository,
 		GuardianFinancialAudit: audits.GuardianFinancialChange,
 		GuardianProfiles:       guardianProfileRepository,
 		GuardianPhones:         guardianPhoneRepository,
-		PickupSchedules:        arrivalTimetable.NewEnrollmentPickupSchedules(repositories.NewPickupScheduleRepository(carePlan)),
-		ArrivalSchedules:       arrivalTimetable.NewEnrollmentArrivalSchedules(repositories.NewArrivalScheduleRepository(carePlan)),
+		PickupSchedules:        arrivalTimetable.NewEnrollmentPickupSchedules(NewPickupScheduleRepository(carePlan)),
+		ArrivalSchedules:       arrivalTimetable.NewEnrollmentArrivalSchedules(NewArrivalScheduleRepository(carePlan)),
 		CareBookings:           careBookings,
 		GuardianAccess:         guardianAccess,
 		StudentAudit:           studentAuditService,
@@ -2213,7 +2212,7 @@ func newFactory(
 		Persons:           personRepository,
 		Groups:            NewGroupNames(groupRepository),
 		StudentGuardians:  studentGuardianRepository,
-		Companions:        repositories.NewStudentCompanionRepository(carePlan),
+		Companions:        NewStudentCompanionRepository(carePlan),
 		ClassListEntries:  NewClassListEntryRosterReader(membership),
 		PickupSchedules:   pickupScheduleService,
 		CareParticipation: careLifecycleService,
@@ -2229,7 +2228,7 @@ func newFactory(
 		PickupTimes:            pickupScheduleService,
 		ArrivalTimes:           arrivalScheduleService,
 		CareDays:               careDayService,
-		Companions:             repositories.NewStudentCompanionRepository(carePlan),
+		Companions:             NewStudentCompanionRepository(carePlan),
 		Students:               studentRepository,
 		Persons:                personRepository,
 		StudentGuardians:       studentGuardianRepository,
@@ -2248,7 +2247,7 @@ func newFactory(
 	)
 	// Created before the change-request service: its multi-child approval takes
 	// the companion lock order through this service.
-	companionService, err := careplanCompose.NewCompanions(carePlan, repositories.NewCompanionStudents(studentRepository, persons, studentAuditService))
+	companionService, err := careplanCompose.NewCompanions(carePlan, NewCompanionStudents(studentRepository, persons, studentAuditService))
 	if err != nil {
 		return nil, fmt.Errorf("compose care plan companions: %w", err)
 	}
@@ -2350,7 +2349,7 @@ func newFactory(
 	// through the same review.
 	offeringChanges, err := newOfferingChanges(offeringChangeInputs{
 		CarePlan: carePlan, Enrollment: enrollmentRecords, Students: studentRepository,
-		Withdrawals: repositories.NewCareWithdrawalCompletionRepository(carePlan), Settings: settingsService,
+		Withdrawals: NewCareWithdrawalCompletionRepository(carePlan), Settings: settingsService,
 		Planning: manualPlanningReader{db: db, courseGroups: timetableCapability},
 		Bookings: careBookings, Reviews: requestReviewPolicy, Emitter: pillEmitter,
 		Events: parentRequestEvents, Shares: requestShares, Today: today,
@@ -2481,10 +2480,10 @@ func newFactory(
 	})
 
 	calendarSvc := NewCalendarPortal(CalendarDependencies{
-		CalendarFacts: repositories.CalendarFacts{
+		CalendarFacts: CalendarFacts{
 			StaffRepo:            staffRepository,
 			StudentRepo:          studentRepository,
-			GuardianProfileRepo:  repositories.NewCalendarGuardianDirectory(guardianProfileRepository, persons),
+			GuardianProfileRepo:  NewCalendarGuardianDirectory(guardianProfileRepository, persons),
 			StudentGuardianRepo:  studentGuardianRepository,
 			ChildRepo:            careplanCompose.NewParentChildLinks(parentPortal.ParentChild),
 			GroupRepo:            groupRepository,
@@ -2541,9 +2540,9 @@ func newFactory(
 		Settings:                  settingsService,
 		Broadcaster:               realtimeHub,
 		PersonRepo:                personRepository,
-		ChangeRequestRepo:         repositories.NewStudentDataChangeRequestRepository(carePlan),
-		CareRequestRepo:           repositories.NewCareScheduleChangeRequestRepository(carePlan),
-		ExcusedRequestRepo:        repositories.NewExcusedAbsenceRequestRepository(carePlan),
+		ChangeRequestRepo:         NewStudentDataChangeRequestRepository(carePlan),
+		CareRequestRepo:           NewCareScheduleChangeRequestRepository(carePlan),
+		ExcusedRequestRepo:        NewExcusedAbsenceRequestRepository(carePlan),
 		OfferingChangeRequestRepo: enrollmentCompose.NewOfferingChangeRecords(carePlan),
 		FamilyProtectionEvents:    familyProtectionRepository,
 		ParentRequestShares:       parentRequestShareRepository,
@@ -2630,7 +2629,7 @@ func newFactory(
 
 	// Operator provisioning belongs to Organisation & Tenancy (#3253); the
 	// retained owners it touches are bound through its provisioning seams.
-	provisioningAdapters, err := repositories.NewOperatorProvisioningAdapters(repositories.OperatorProvisioningDependencies{
+	provisioningAdapters, err := NewOperatorProvisioningAdapters(OperatorProvisioningDependencies{
 		DB:           db,
 		Devices:      deviceFleet,
 		Persons:      persons,
@@ -2647,7 +2646,7 @@ func newFactory(
 		return nil, fmt.Errorf("compose operator provisioning adapters: %w", err)
 	}
 	operatorProvisioningService, err := newOperatorProvisioning(operatorProvisioningSources{
-		accounts:       repositories.NewOperatorAccountDirectory(identityAccess, persons, membership, organizations),
+		accounts:       NewOperatorAccountDirectory(identityAccess, persons, membership, organizations),
 		organizations:  organizations,
 		adapters:       provisioningAdapters,
 		sessions:       identityAccess,

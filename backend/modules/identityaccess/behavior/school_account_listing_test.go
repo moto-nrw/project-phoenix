@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -20,7 +19,7 @@ import (
 func TestSchoolAccountListingsScopeAndInvitationSuppression(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	query, err := repositories.NewIdentityAccessForTests(db)
+	query, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
@@ -67,15 +66,15 @@ func TestOperatorAccountListingCaregiverEnrichment(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Ada", "Listing")
-	query, err := repositories.NewIdentityAccessForTests(db)
+	query, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	persons, err := services.NewPeopleDirectory(db)
 	require.NoError(t, err)
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := services.NewSchoolMembership(db)
 	require.NoError(t, err)
-	schools, err := repositories.NewOrganizationTenancy(db)
+	schools, err := services.NewOrganizationTenancy(db)
 	require.NoError(t, err)
-	directory := repositories.NewOperatorAccountDirectory(query, persons, membership, schools)
+	directory := services.NewOperatorAccountDirectory(query, persons, membership, schools)
 	ctx := testpkg.Ctx(t)
 	rows, err := directory.ListAccountsByTenantID(ctx, testpkg.Tenant(t))
 	require.NoError(t, err)

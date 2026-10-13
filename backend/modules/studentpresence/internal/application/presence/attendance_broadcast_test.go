@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -115,12 +114,12 @@ func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *tes
 
 	owners := services.NewUnobservedTimetableDependencies(db)
 	repos := services.NewRepositoryTestFactory(db, owners)
-	timetableRepos := repositories.NewTimetableRepositories(db, owners)
+	timetableRepos := services.NewTimetableRepositories(db, owners)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	devices, err := repositories.NewDeviceRepository(db)
+	devices, err := services.NewDeviceRepository(db)
 	require.NoError(t, err)
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := services.NewFacilities(db)
 	require.NoError(t, err)
 	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		GroupRepo:          sessionGroups(repos.ActiveGroup),
@@ -129,7 +128,7 @@ func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *tes
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
-		ActivityGroupRepo:  repositories.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityGroupRepo:  services.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    services.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),

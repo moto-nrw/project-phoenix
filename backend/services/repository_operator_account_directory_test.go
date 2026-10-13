@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,17 +14,17 @@ import (
 )
 
 // newProjectedOperatorAccountDirectory uses the serving owner projection.
-func newProjectedOperatorAccountDirectory(t *testing.T, db *bun.DB) repositories.OperatorAccountDirectory {
+func newProjectedOperatorAccountDirectory(t *testing.T, db *bun.DB) services.OperatorAccountDirectory {
 	t.Helper()
-	schools, err := repositories.NewOrganizationTenancy(db)
+	schools, err := services.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	persons, err := services.NewPeopleDirectory(db)
 	require.NoError(t, err)
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := services.NewSchoolMembership(db)
 	require.NoError(t, err)
-	identity, err := repositories.NewIdentityAccessForTests(db)
+	identity, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
-	return repositories.NewOperatorAccountDirectory(identity, persons, membership, schools)
+	return services.NewOperatorAccountDirectory(identity, persons, membership, schools)
 }
 
 func TestOperatorAccountDirectory_ListAccountsByTenantID(t *testing.T) {
@@ -200,7 +199,7 @@ func TestOperatorAccountDirectory_ListAllAccounts(t *testing.T) {
 }
 
 // containsAccount reports whether the result list includes an entry for the given email.
-func containsAccount(accounts []repositories.OrgAccountInfo, email string) bool {
+func containsAccount(accounts []services.OrgAccountInfo, email string) bool {
 	for _, a := range accounts {
 		if a.Email == email {
 			return true

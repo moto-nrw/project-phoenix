@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -47,7 +46,7 @@ type careFixture struct {
 	svc          carerequests.Service
 	sf           *services.Factory
 	repos        *services.RepositoryTestFactory
-	timetable    repositories.TimetableRepositories
+	timetable    services.TimetableRepositories
 	chain        testpkg.ParentChain
 	staffAccount int64
 	staffID      int64
@@ -133,7 +132,7 @@ func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, o
 		svc:          svc,
 		sf:           sf,
 		repos:        repos,
-		timetable:    repositories.NewTimetableRepositories(db, timetableDeps),
+		timetable:    services.NewTimetableRepositories(db, timetableDeps),
 		chain:        chain,
 		staffAccount: staffAccount.ID,
 		staffID:      staff.ID,
@@ -1070,9 +1069,9 @@ func (f *careFixture) linkCompanionOnTuesday(t *testing.T) {
 	accompaniedTuesday(partner.ID)
 	accompaniedTuesday(f.chain.StudentID)
 
-	edge, err := repositories.NewStudentCompanionEdge(f.chain.StudentID, partner.ID, 2)
+	edge, err := services.NewStudentCompanionEdge(f.chain.StudentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*usersModels.StudentCompanion{edge}))
+	require.NoError(t, services.ReplaceStudentCompanions(ctx, services.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*usersModels.StudentCompanion{edge}))
 }
 
 // TestDecide_BogusIDNotFound covers the staff-decision lock on a missing row:

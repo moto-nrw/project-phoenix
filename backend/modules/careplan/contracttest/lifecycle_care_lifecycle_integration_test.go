@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -46,9 +45,9 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repos.ActiveGroup)
-	devices, err := repositories.NewDeviceRepository(db)
+	devices, err := services.NewDeviceRepository(db)
 	require.NoError(t, err)
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := services.NewFacilities(db)
 	require.NoError(t, err)
 	svc := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader:    services.AttendancePrincipal,
@@ -58,7 +57,7 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
-		ActivityGroupRepo:  repositories.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityGroupRepo:  services.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    services.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),

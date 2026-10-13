@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -13,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/uptrace/bun"
 
 	"github.com/stretchr/testify/assert"
@@ -261,7 +262,7 @@ func TestOfferingChangeRequestService_Create_StripsChangedCurrentAutomaticOfferi
 	// This row represents an offering materialized from another selection. A
 	// crafted request must not be able to change its days and persist it as a
 	// manual booking.
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &enrollmentTest.RequestChildOffering{
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &enrollmentTest.RequestChildOffering{
 		RequestChildID:        fx.childID,
 		CareOfferingID:        automatic.ID,
 		SelectedDays:          []string{"mon"},
@@ -1255,7 +1256,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 		o.ActivityGroupID = &parentChoiceGroup.ID
 		o.CountsAsCare, o.CountsAsCareSet = true, true
 	})
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &enrollmentTest.RequestChildOffering{
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &enrollmentTest.RequestChildOffering{
 		RequestChildID: fx.childID,
 		CareOfferingID: parentChoiceOffering.ID,
 		SelectedDays:   []string{},
@@ -1477,7 +1478,7 @@ func TestManualPlanningReaderRejectsInvalidCalendarWindows(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	student := testpkg.CreateTestStudent(t, db, "Planning", "Validation", "2a")
-	reader := repositories.NewManualPlanningQuery(nil)
+	reader := services.NewManualPlanningQuery(nil)
 	for _, tc := range []struct {
 		name, from, to string
 	}{
@@ -1499,7 +1500,7 @@ func TestManualPlanningReaderRejectsInvalidCalendarWindows(t *testing.T) {
 }
 
 func (r manualPlanningFixture) ListManualPlanningOccurrences(ctx context.Context, studentID int64, from, to string) ([]careplanCompose.ManualPlanningOccurrence, error) {
-	rows, err := repositories.NewManualPlanningQuery(r.db).ListManualPlanningOccurrences(ctx, studentID, from, to)
+	rows, err := services.NewManualPlanningQuery(r.db).ListManualPlanningOccurrences(ctx, studentID, from, to)
 	if err != nil {
 		return nil, err
 	}

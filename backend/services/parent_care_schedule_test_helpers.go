@@ -3,7 +3,6 @@ package services
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -16,7 +15,7 @@ func NewParentCareScheduleTestService(db *bun.DB, module StudentTestModule) (*pa
 	if err != nil {
 		return nil, err
 	}
-	parents, err := repositories.NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
+	parents, err := NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return nil, err
 	}

@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -12,7 +11,7 @@ import (
 
 // groupLiveCaller serves the caller context to the live-group adapters in
 // their own group records.
-type groupLiveCaller struct{ *repositories.CallerRows }
+type groupLiveCaller struct{ *CallerRows }
 
 var _ grouplivelegacy.CallerContext = groupLiveCaller{}
 
@@ -32,7 +31,7 @@ func (c groupLiveCaller) MyGroupRecords(ctx context.Context) ([]grouplive.GroupR
 
 // supervisionCaller serves the caller context to the supervision adapters
 // in their own group records.
-type supervisionCaller struct{ *repositories.CallerRows }
+type supervisionCaller struct{ *CallerRows }
 
 var _ supervisiondashboardlegacy.CallerContext = supervisionCaller{}
 

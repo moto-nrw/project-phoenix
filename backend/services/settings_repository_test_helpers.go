@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -36,16 +35,16 @@ func NewSettingsTestRepositories(runtime settingsCompose.PersistenceRuntime) Set
 // aggregates with the settings stores the dashboard resolves its feature
 // switch through.
 type DisplayTestRepositories struct {
-	repositories.DisplayTestRepositories
+	DisplayReadRepositories
 	SettingsTestRepositories
 }
 
 // NewDisplayTestRepositories composes the dashboard's read dependencies.
 func NewDisplayTestRepositories(db *bun.DB, runtime settingsCompose.PersistenceRuntime) (DisplayTestRepositories, error) {
-	readers, err := repositories.NewDisplayTestRepositories(db, MustNewMembershipTestRepositories(db))
+	readers, err := NewDisplayTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return DisplayTestRepositories{}, err
 	}
 	readers.TimetableTestRepositories = withTimetableTestAudit(db, readers.TimetableTestRepositories)
-	return DisplayTestRepositories{DisplayTestRepositories: readers, SettingsTestRepositories: NewSettingsTestRepositories(runtime)}, nil
+	return DisplayTestRepositories{DisplayReadRepositories: readers, SettingsTestRepositories: NewSettingsTestRepositories(runtime)}, nil
 }

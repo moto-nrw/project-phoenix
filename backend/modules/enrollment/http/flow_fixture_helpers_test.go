@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -171,14 +170,14 @@ func (f recordCareBookingsFunc) RecordCareBookings(ctx context.Context, childID 
 	return f(ctx, childID, bookings)
 }
 
-func testRepositories(t *testing.T, db *bun.DB) *repositories.EnrollmentFlowTestRepositories {
+func testRepositories(t *testing.T, db *bun.DB) *services.EnrollmentFlowTestRepositories {
 	t.Helper()
 	return flowRepositories(t, db)
 }
 
 // flowRepositories composes the repositories the enrollment flow suites run
 // on over the suite's database.
-func flowRepositories(t testing.TB, db *bun.DB) *repositories.EnrollmentFlowTestRepositories {
+func flowRepositories(t testing.TB, db *bun.DB) *services.EnrollmentFlowTestRepositories {
 	t.Helper()
 	repos, err := services.NewEnrollmentFlowTestRepositories(db)
 	require.NoError(t, err)

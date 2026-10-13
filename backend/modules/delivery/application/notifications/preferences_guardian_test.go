@@ -10,7 +10,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -27,7 +26,7 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	identity, err := repositories.NewIdentityAccessForTests(db)
+	identity, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() {

@@ -6,7 +6,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -57,7 +56,7 @@ func NewCareOfferingCatalogTestModule(db *bun.DB, unit tenant.UnitOfWork, option
 
 // newTestCareOfferingCatalog binds the catalog to the owners of a test
 // repository set.
-func newTestCareOfferingCatalog(r repositories.TimetableTestRepositories, settings careOfferingSettingsReads, options CareOfferingCatalogTestOptions) (careplan.CareOfferingCatalogCapability, error) {
+func newTestCareOfferingCatalog(r TimetableTestRepositories, settings careOfferingSettingsReads, options CareOfferingCatalogTestOptions) (careplan.CareOfferingCatalogCapability, error) {
 	return newCareOfferingCatalog(careOfferingCatalogInputs{
 		Records: r.CarePlan, Phases: r.Enrollment(), Bookings: r.Enrollment(),
 		Timetable: r.Timetable, Calendar: r.SchoolCalendar(), Settings: settings,

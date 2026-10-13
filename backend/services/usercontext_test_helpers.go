@@ -5,13 +5,12 @@ import (
 
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type UserContextTestModule struct {
-	UserContext *repositories.CallerRows
+	UserContext *CallerRows
 }
 
 func NewUserContextTestModule(db *bun.DB, unit tenant.UnitOfWork) (UserContextTestModule, error) {
@@ -28,12 +27,12 @@ func NewUserContextTestModule(db *bun.DB, unit tenant.UnitOfWork) (UserContextTe
 
 // newCallerRowsForTests composes the caller context over the same owners as
 // production. settings may be nil.
-func newCallerRowsForTests(db *bun.DB, settings callerSettings) (*repositories.CallerRows, error) {
-	r, err := repositories.NewUserContextTestRepositories(db, MustNewMembershipTestRepositories(db))
+func newCallerRowsForTests(db *bun.DB, settings callerSettings) (*CallerRows, error) {
+	r, err := NewUserContextTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return nil, err
 	}
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +42,7 @@ func newCallerRowsForTests(db *bun.DB, settings callerSettings) (*repositories.C
 		SupervisedActivities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup).SupervisedActivityGroupIDs,
 		Presence:             newStudentPresence(db, slog.Default()),
 		Settings:             settings,
-	}, repositories.CallerRowSources{
+	}, CallerRowSources{
 		Groups: tt.Group, Staff: tt.Staff, Teachers: tt.Teacher, Students: tt.Student,
 		Activities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup), Sessions: tt.ActiveGroup,
 	})

@@ -129,7 +129,7 @@
     "sources": [
       "backend/modules/schoolstructure/internal/adapters/postgres/groups/group.go",
       "backend/modules/schoolstructure/internal/adapters/postgres/groups/runtime.go",
-      "backend/database/repositories/education_service_ports.go",
+      "backend/services/education_service_ports_repositories.go",
       "backend/modules/schoolstructure/compose/legacy_repository_runtime.go",
       "backend/modules/schoolstructure/http/api.go",
       "backend/modules/schoolstructure/internal/application/groups/ports.go",

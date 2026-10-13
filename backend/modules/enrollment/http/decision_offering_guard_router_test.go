@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
@@ -47,7 +46,7 @@ type offeringGuardHarness struct {
 	router             http.Handler
 	requestID, childID int64
 	token              string
-	repos              repositories.EnrollmentTestRepositories
+	repos              services.EnrollmentTestRepositories
 	ctx                context.Context
 }
 
@@ -142,7 +141,7 @@ func setupOfferingGuardRouterTest(
 	return offeringGuardHarness{testpkg.TenantRuntimeMiddleware(t, db)(resource.Router()), request.ID, child.ID, token, repos, ctx}
 }
 
-func createOfferingGuardPhase(t *testing.T, repos repositories.EnrollmentTestRepositories, ctx context.Context, mode string) *capability.Phase {
+func createOfferingGuardPhase(t *testing.T, repos services.EnrollmentTestRepositories, ctx context.Context, mode string) *capability.Phase {
 	t.Helper()
 	phase := &capability.Phase{
 		Name:                      "Angebotspruefung " + t.Name(),
@@ -158,7 +157,7 @@ func createOfferingGuardPhase(t *testing.T, repos repositories.EnrollmentTestRep
 	return phase
 }
 
-func createOfferingGuardChild(t *testing.T, repos repositories.EnrollmentTestRepositories, ctx context.Context, phaseID int64) (*capability.Request, *capability.RequestChild) {
+func createOfferingGuardChild(t *testing.T, repos services.EnrollmentTestRepositories, ctx context.Context, phaseID int64) (*capability.Request, *capability.RequestChild) {
 	t.Helper()
 	request := &capability.Request{
 		PhaseID:           phaseID,
@@ -188,7 +187,7 @@ func createOfferingGuardChild(t *testing.T, repos repositories.EnrollmentTestRep
 	return request, child
 }
 
-func attachOfferingGuardLink(t *testing.T, repos repositories.EnrollmentTestRepositories, ctx context.Context, phase *capability.Phase, childID int64, fixture offeringLinkFixture) {
+func attachOfferingGuardLink(t *testing.T, repos services.EnrollmentTestRepositories, ctx context.Context, phase *capability.Phase, childID int64, fixture offeringLinkFixture) {
 	t.Helper()
 	if fixture == noOffering {
 		return
@@ -240,13 +239,13 @@ func datePointers(from, until calendar.Date) (*capability.Date, *capability.Date
 	return &start, &end
 }
 
-func newOfferingGuardDecisionService(repos repositories.EnrollmentTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment TestDecisionStudentEnrollment, bookings TestDecisionBookings) enrollmentAPI.DecisionService {
+func newOfferingGuardDecisionService(repos services.EnrollmentTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment TestDecisionStudentEnrollment, bookings TestDecisionBookings) enrollmentAPI.DecisionService {
 	return enrollmentAPI.NewDecisionService(testutil.PublicEnrollmentDecisions(newOfferingGuardDecisions(repos, offeringsEnabled, children, guardianAccess, studentEnrollment, bookings)))
 }
 
 // newOfferingGuardDecisions composes the decision flow the guard suites
 // drive, the way the root binds it.
-func newOfferingGuardDecisions(repos repositories.EnrollmentTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment TestDecisionStudentEnrollment, bookings TestDecisionBookings) *TestDecisions {
+func newOfferingGuardDecisions(repos services.EnrollmentTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment TestDecisionStudentEnrollment, bookings TestDecisionBookings) *TestDecisions {
 	return testutil.NewEnrollmentDecisions(testutil.EnrollmentDecisionSources{
 		Requests: repos.Enrollment(), Children: children, Guardians: repos.Enrollment(),
 		LateInvites: repos.Enrollment(), CareOfferings: testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan),

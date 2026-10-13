@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -39,7 +38,7 @@ func isolationTenants(tb testing.TB, db *bun.DB) (tenantA, tenantB int64) {
 
 func testRoomRepository(t *testing.T, db *bun.DB) *facilitiesRepositoryAdapter.Repository {
 	t.Helper()
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := services.NewFacilities(db)
 	require.NoError(t, err)
 	repository := facilitiesRepositoryAdapter.New()
 	repository.Bind(rooms)
@@ -203,7 +202,7 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	tfA := CreateTestTimeframeForTenant(t, db, tenantA, "TimeframeA")
 	tfB := CreateTestTimeframeForTenant(t, db, tenantB, "TimeframeB")
 
-	repos := repositories.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
+	repos := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
 	repo := repos.Timeframe
 
 	// --- Tenant A ---
@@ -252,7 +251,7 @@ func TestTenantIsolation_DeviceVisibility(t *testing.T) {
 
 	// Device reads go through the Device Fleet owner (#2676), which resolves
 	// room names through the Facilities owner.
-	repo, err := repositories.NewDeviceRepository(db)
+	repo, err := services.NewDeviceRepository(db)
 	require.NoError(t, err)
 
 	// --- Tenant A ---
@@ -296,7 +295,7 @@ func TestTenantIsolation_DisplayVisibility(t *testing.T) {
 	db := SetupTestDB(t)
 	tenantA, tenantB := isolationTenants(t, db)
 
-	fleet, err := repositories.NewDeviceFleet(db)
+	fleet, err := services.NewDeviceFleet(db)
 	require.NoError(t, err)
 
 	ctxA := ctxForTenant(tenantA)
@@ -359,7 +358,7 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	agA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	agB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	repo := repositories.NewSessionCleanupRepositories(db, services.NewUnobservedTimetableDependencies(db).Capability).Sessions
+	repo := services.NewSessionCleanupRepositories(db, services.NewUnobservedTimetableDependencies(db).Capability).Sessions
 	presence := PresenceModule(t, db)
 
 	// --- Tenant A ---
@@ -406,7 +405,7 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 	catA := CreateTestActivityCategoryForTenant(t, db, tenantA, "CatA")
 	catB := CreateTestActivityCategoryForTenant(t, db, tenantB, "CatB")
 
-	repo := repositories.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db)).ActivityCategory
+	repo := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db)).ActivityCategory
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)

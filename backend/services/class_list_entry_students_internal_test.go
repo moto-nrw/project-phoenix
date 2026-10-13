@@ -3,7 +3,6 @@ package services
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,7 +63,7 @@ func TestClassListEntryStudentsIgnoreGraduates(t *testing.T) {
 	class := "grad-1a"
 
 	graduate := testpkg.CreateTestStudent(t, db, "Namensvetter", "Kid", class)
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := NewSchoolMembership(db)
 	require.NoError(t, err)
 	graduated, err := membership.Graduate(ctx, []int64{graduate.ID})
 	require.NoError(t, err)

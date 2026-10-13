@@ -155,7 +155,7 @@ and `database/repositories` and `services` translate the retained rows into
 it. `models/education` carries its row columns itself instead of the shared
 base shapes, keeps the room as its own `GroupRoom` projection and the
 substitution's staff as `SubstitutionStaff`; the repository contracts moved
-to the legacy composition (`database/repositories/education_repositories.go`).
+to the legacy composition (`services/education_repositories.go`).
 `database/repositories/education` runs on the same runtime, reads and writes
 `education.groups` with explicit statements and no longer serves the
 Timetable owner's `education.class_arrival_times`. The suites compose through
@@ -307,7 +307,7 @@ the document file sweep is `StudentDocumentCommands.SweepStudentDocumentFiles`.
 Every read that takes a set of foreign ids pages it by
 `careplan.MaxCareExitBatchSize`. The People Directory, Enrollment, Timetable,
 Presence, School Calendar and change-history owners reach the lifecycle as
-consumer-owned ports bound in `database/repositories/care_lifecycle_owners.go`.
+consumer-owned ports bound in `services/care_lifecycle_owners.go`.
 The 46 compatibility permissions and the `care-exit-view` owner are gone; the
 two consumers that could only reach the adapter and the moved behavior suites
 use the one-time replacement path of
@@ -609,7 +609,7 @@ were observed or are not booked through its consumer-owned `SessionFacts`
 port (`timetable/compose.NewPresenceSessionFacts`); Student Presence resolves
 the participants of its attendance rules (reported day statuses, partial
 excusals, block end) through its `PlannedRoster` port, bound in
-`database/repositories/presence_bindings.go`. The retained list endpoints
+`services/presence_bindings.go`. The retained list endpoints
 still read one row per block or participant, so the tenant-safe projection
 `modules/presenceprojection` (owner `presence-legacy-view`) joins the plan
 with the owner rows in one statement each (`ListLegacyInstances`,

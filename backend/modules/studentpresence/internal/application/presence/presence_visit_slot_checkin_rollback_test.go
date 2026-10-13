@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
@@ -66,7 +65,7 @@ func TestVisitCheckInRollsBackAfterEachSlotWriteAndRetries(t *testing.T) {
 			testpkg.OwnTenant(t)
 			db := testpkg.SetupTestDB(t)
 			module := testSchoolPresence(t, db)
-			syncRows := repositories.NewAttendanceSyncTestRepositories(db, services.NewUnobservedTimetableDependencies(db).Capability)
+			syncRows := services.NewAttendanceSyncTestRepositories(db, services.NewUnobservedTimetableDependencies(db).Capability)
 			instances, assignments := syncRows.Instances, syncRows.Participants
 			injected := errors.New("fail after visit slot write")
 			rows := &failingVisitSlotCheckIn{InstanceStudentRepository: assignments, failAt: tc.failAt, err: injected}

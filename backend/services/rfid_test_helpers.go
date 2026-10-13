@@ -1,7 +1,6 @@
 package services
 
 import (
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/uptrace/bun"
@@ -20,7 +19,7 @@ func NewRFIDTestModule(db *bun.DB) (RFIDTestModule, error) {
 	if err != nil {
 		return RFIDTestModule{}, err
 	}
-	accounts, err := repositories.NewIdentityAccessForTests(db)
+	accounts, err := NewIdentityAccessForTests(db)
 	if err != nil {
 		return RFIDTestModule{}, err
 	}

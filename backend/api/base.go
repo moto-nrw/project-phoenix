@@ -37,7 +37,6 @@ import (
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	"github.com/moto-nrw/project-phoenix/database"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
@@ -196,11 +195,11 @@ func NewCleanupTimetable(db *bun.DB) (timetableModule.Capability, error) {
 	if err != nil {
 		return nil, err
 	}
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := services.NewFacilities(db)
 	if err != nil {
 		return nil, err
 	}
-	return repositories.NewTimetable(db, students, rooms)
+	return services.NewTimetable(db, students, rooms)
 }
 
 func composeTimetable(db *bun.DB, persons *peopleModule.Module, rooms *facilitiesModule.Module, membership *schoolMembershipModule.Module) (*timetableModule.Module, error) {
@@ -209,7 +208,7 @@ func composeTimetable(db *bun.DB, persons *peopleModule.Module, rooms *facilitie
 			_, err := membership.FindStaffForMutation(ctx, staffID)
 			return err
 		},
-		DB: db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), Sessions: repositories.NewPresenceFacts(db),
+		DB: db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), Sessions: services.NewPresenceFacts(db),
 		Observe: func(observation timetableCompose.Observation) {
 			observability.ObserveTimetableActivitiesOperation(
 				observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
@@ -269,7 +268,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		Observe: func(observation schoolMembershipCompose.Observation) {
 			observability.ObserveSchoolMembershipOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolMembershipModule.ErrorCode(observation.Err), observation.Err)
 		},
-		Employment: repositories.MembershipStaffEmployment(staffEmployment),
+		Employment: services.MembershipStaffEmployment(staffEmployment),
 		// Every counting membership write is checked against the school's
 		// Kinderkontingent, which Organisation & Tenancy owns (#3567).
 		ChildQuota: organizationCompose.NewChildQuotaLimits(),
@@ -303,7 +302,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 			return err
 		},
 		DB:           db,
-		LiveStaffIDs: repositories.WorkforceLiveStaffIDs(membership),
+		LiveStaffIDs: services.WorkforceLiveStaffIDs(membership),
 		// A Sonderarbeitszeit never sets a target on a statutory holiday.
 		StatutoryHolidays: calendar.TenantHolidayDates,
 		Observe: func(observation workforceCompose.Observation) {
@@ -313,14 +312,14 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
-	timetableDependencies := repositories.TimetableDependencies{
+	timetableDependencies := services.TimetableDependencies{
 		Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime,
 		ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
 	}
 	// The retained activities and schedule repositories belong to Timetable
 	// (#2743); the Care Plan slots, the kiosk session mirror and the Worker
 	// read the same adapters.
-	timetableRepositories := repositories.NewTimetableRepositories(db, timetableDependencies)
+	timetableRepositories := services.NewTimetableRepositories(db, timetableDependencies)
 	appointmentCapability, err := appointmentsCompose.New(appointmentsCompose.Dependencies{
 		DB: db,
 		Observe: func(observation appointmentsCompose.Observation) {
@@ -351,7 +350,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
-	carePlan, err := composeCarePlan(db, persons, repositories.CarePlanStatusSlots(timetableRepositories.InstanceStudent))
+	carePlan, err := composeCarePlan(db, persons, services.CarePlanStatusSlots(timetableRepositories.InstanceStudent))
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -431,7 +430,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	}
 	legacyFacilities = factory.Facilities
 	calendarAdministration = factory.SchoolCalendarAdministration()
-	studentStatusDays := repositories.NewStudentStatusDayRepository(carePlan)
+	studentStatusDays := services.NewStudentStatusDayRepository(carePlan)
 	return moduleServices{carePlan: carePlan, studentStatusDays: studentStatusDays, timetableRepositories: timetableRepositories, services: factory, demoAccess: authAPI.ComposedDemoAccess(factory.AccountAuthentication().DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff}, nil
 }
 
@@ -466,7 +465,7 @@ func observeDataImport(observation services.DataImportObservation) {
 func composeFacilities(db *bun.DB, legacyFacilities *interface {
 	ValidateRoomDeletion(context.Context, int64) error
 }) (*facilitiesModule.Module, error) {
-	recurrenceLock, err := repositories.NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := services.NewTimetableRecurrenceLock(db)
 	if err != nil {
 		return nil, err
 	}
@@ -486,7 +485,7 @@ func composeFacilities(db *bun.DB, legacyFacilities *interface {
 }
 
 func composeCarePlan(db *bun.DB, persons *peopleModule.Module, slots carePlanCompose.StatusSlotDirectory) (*carePlanModule.Module, error) {
-	statusStudents, err := repositories.CarePlanStatusStudents(db, persons)
+	statusStudents, err := services.CarePlanStatusStudents(db, persons)
 	if err != nil {
 		return nil, err
 	}
@@ -1333,7 +1332,7 @@ func requestReviewDependencies(modules moduleServices, db *bun.DB) (requestrevie
 			return svc.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
 		Today:  carePlanCompose.Today,
-		Blocks: repositories.NewPickupReviewBlocks(db),
+		Blocks: services.NewPickupReviewBlocks(db),
 		ObserveCare: func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		},
@@ -1527,7 +1526,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		Active:     svc.Active,
 		Users:      svc.Users,
 		Activities: svc.Activities,
-		Rosters:    repositories.SessionRosters{Sessions: presence, Roster: modules.timetable},
+		Rosters:    services.SessionRosters{Sessions: presence, Roster: modules.timetable},
 		Education:  svc.Education,
 		Pickups:    svc.PickupSchedule,
 		// A destination chosen at the kiosk runs the phone's open-room
@@ -2179,7 +2178,7 @@ func newSessionTokenAuth() (*projectJWT.TokenAuth, error) {
 // root with its attendance rules bound to the Timetable planned roster and
 // the Care Plan reads (#2762).
 func newStudentPresence(db *bun.DB, logger *slog.Logger) *studentpresence.Module {
-	module, err := repositories.NewStudentPresence(db, func(o presenceCompose.Observation) {
+	module, err := services.NewStudentPresence(db, func(o presenceCompose.Observation) {
 		logger.Debug("student presence operation",
 			"operation", o.Operation,
 			"duration", o.Duration,

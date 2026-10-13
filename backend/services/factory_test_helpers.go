@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -67,7 +66,7 @@ func caregiverProfilesForTests(db *bun.DB) (caregiverProfiles, error) {
 	if err != nil {
 		return caregiverProfiles{}, err
 	}
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return caregiverProfiles{}, err
 	}
@@ -75,7 +74,7 @@ func caregiverProfilesForTests(db *bun.DB) (caregiverProfiles, error) {
 }
 
 func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
-	organizations, err := repositories.NewOrganizationTenancy(db)
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
@@ -83,32 +82,32 @@ func newOwnerCapabilitiesForTests(db *bun.DB) (ownerCapabilities, error) {
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
-	groups, err := repositories.NewSchoolStructure(db)
+	groups, err := NewSchoolStructure(db)
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := NewFacilities(db)
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
 	var calendarAdministration schoolCalendarCompose.AdministrationRuntime
-	calendar, err := repositories.NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
+	calendar, err := NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
-	timetableCapability, err := repositories.NewTimetable(db, persons, rooms)
+	timetableCapability, err := NewTimetable(db, persons, rooms)
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
-	workTime, err := repositories.NewWorkforce(db, membership)
+	workTime, err := NewWorkforce(db, membership)
 	if err != nil {
 		return ownerCapabilities{}, err
 	}
-	appointmentCapability, err := repositories.NewAppointments(db)
+	appointmentCapability, err := NewAppointments(db)
 	if err != nil {
 		return ownerCapabilities{}, err
 	}

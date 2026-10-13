@@ -1,7 +1,6 @@
 package services
 
 import (
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/uptrace/bun"
@@ -24,7 +23,7 @@ func NewInvitationPersistence(db *bun.DB) (*InvitationPersistence, error) {
 	if err != nil {
 		return nil, err
 	}
-	organizations, err := repositories.NewOrganizationTenancy(db)
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return nil, err
 	}
@@ -39,12 +38,12 @@ func NewInvitationPersistence(db *bun.DB) (*InvitationPersistence, error) {
 // newInvitationMembershipRepositories composes only the staff and teacher adapters
 // over School Membership, without constructing the legacy repository graph.
 func newInvitationMembershipRepositories(db *bun.DB) (userModels.StaffRepository, userModels.TeacherRepository, error) {
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return nil, nil, err
 	}
-	deps := newStaffMembershipDeps(NewPersonRepository(db), newPeopleIdentityAccess(db, nil), repositories.MustNewStaffEmployment(db))
+	deps := newStaffMembershipDeps(NewPersonRepository(db), newPeopleIdentityAccess(db, nil), MustNewStaffEmployment(db))
 	groupTeachers := newGroupTeacherRepository(membership, NewEducationGroupRepository(db))
-	deps.groupTeachers = func() repositories.GroupTeacherRepository { return groupTeachers }
+	deps.groupTeachers = func() GroupTeacherRepository { return groupTeachers }
 	return staffMembershipRepository{membership: membership, deps: deps}, teacherMembershipRepository{membership: membership, deps: deps}, nil
 }

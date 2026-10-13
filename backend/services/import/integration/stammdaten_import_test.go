@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
@@ -24,13 +23,13 @@ import (
 // records, both importers support update mode, and the child import carries
 // address, RFID and the guardian role preset.
 
-func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels.StaffInviter) (*importService.StaffImportConfig, *services.RepositoryTestFactory, repositories.TimetableDependencies) {
+func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels.StaffInviter) (*importService.StaffImportConfig, *services.RepositoryTestFactory, services.TimetableDependencies) {
 	t.Helper()
 	owners := services.NewUnobservedTimetableDependencies(db)
 	repos := services.NewRepositoryTestFactory(db, owners)
-	organizations, err := repositories.NewOrganizationTenancy(db)
+	organizations, err := services.NewOrganizationTenancy(db)
 	require.NoError(t, err)
-	identity, err := repositories.NewIdentityAccessForTests(db)
+	identity, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	config := importService.NewStaffImportConfig(importService.StaffImportDeps{RolePolicy: dataImportCompose.NewSchoolRolePolicy(), Authorization: dataImportCompose.NewAuthorization(), Transactions: dataImportCompose.NewTransactions(),
 		Invitations:         invitations,
@@ -231,18 +230,18 @@ func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*importService.Studen
 	// person, student, schedule and consent paths.
 	owners := services.NewUnobservedTimetableDependencies(db)
 	repos := services.NewRepositoryTestFactory(db, owners)
-	groups, err := repositories.NewSchoolStructure(db)
+	groups, err := services.NewSchoolStructure(db)
 	require.NoError(t, err)
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := services.NewFacilities(db)
 	require.NoError(t, err)
 	references := dataImportCompose.NewReferences(groups, rooms)
-	rfid, err := repositories.NewIdentityAccessForTests(db)
+	rfid, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	config := importService.NewStudentImportConfig(importService.StudentImportDeps{Transactions: dataImportCompose.NewTransactions(),
 		Persons:         owners.Students,
 		Students:        owners.Students,
 		Schedules:       repos.CarePlan(),
-		PrivacyConsents: repositories.NewStudentPresenceForTests(db),
+		PrivacyConsents: services.NewStudentPresenceForTests(db),
 		FindRFIDCard:    rfid.FindRFIDCard,
 		Resolver:        importService.NewRelationshipResolver(references.Groups, references.Rooms),
 	})

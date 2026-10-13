@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
@@ -23,7 +22,7 @@ import (
 )
 
 type CalendarDependencies struct {
-	repositories.CalendarFacts
+	CalendarFacts
 	Appointments appointmentcap.Capability
 	// RoomRepo resolves room names for timetable events in one batch per
 	// window (#2078). Optional: nil leaves Location empty instead of failing
@@ -74,7 +73,7 @@ type CalendarLogoResolver interface {
 // NewCalendarPortal adapts the existing composition's dependencies to the
 // calendar's narrow fact ports. It does not build a legacy factory.
 func NewCalendarPortal(d CalendarDependencies) calendarCompose.Application {
-	cfg := repositories.NewCalendarFacts(d.CalendarFacts)
+	cfg := NewCalendarFacts(d.CalendarFacts)
 	cfg.MissingRecord = func(err error) bool { return errors.Is(err, sql.ErrNoRows) }
 	cfg.MissingRecordCause = sql.ErrNoRows
 	cfg.Appointments = d.Appointments

@@ -7,7 +7,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -33,10 +32,10 @@ import (
 
 // The composed graphs and the values the suites pass back into them.
 type (
-	PeopleRepositorySuiteParentMessaging       = repositories.ParentMessagingTestRepositories
-	PeopleRepositorySuiteCareLifecycle         = repositories.CareLifecycleTestRepositories
+	PeopleRepositorySuiteParentMessaging       = ParentMessagingTestRepositories
+	PeopleRepositorySuiteCareLifecycle         = CareLifecycleTestRepositories
 	PeopleRepositorySuiteAuditCommand          = auditModels.Command
-	PeopleRepositorySuiteAnnouncementAudience  = repositories.AnnouncementEnrollmentQueries
+	PeopleRepositorySuiteAnnouncementAudience  = AnnouncementEnrollmentQueries
 	PeopleRepositorySuiteGuardianProfileOption = peopleCompose.RetainedGuardianProfileOption
 	PeopleRepositorySuiteRelationshipOption    = peopleCompose.RetainedGuardianRelationshipOption
 	PeopleRepositorySuitePortalMemberships     = peopleCompose.RetainedPortalMembershipQuery
@@ -59,16 +58,16 @@ type (
 // repositories, and the retained repositories the retired repository factory
 // held, each built over the same owners (#2743).
 type PeopleRepositorySuiteFactory struct {
-	repositories.MembershipTestRepositories
-	repositories.CareScheduleRepositories
+	MembershipTestRepositories
+	CareScheduleRepositories
 	timetableCompose.SchoolCalendarRepositories
-	repositories.ParentPortalRepositories
+	ParentPortalRepositories
 	GuardianPhoneNumber   usersModels.GuardianPhoneNumberRepository
 	GuardianFinancialData usersModels.GuardianFinancialDataRepository
 	FamilyProtection      usersModels.FamilyProtectionEventRepository
 	ParentRequestShare    usersModels.ParentRequestShareEventRepository
 	ParentRequestEvent    usersModels.ParentRequestEventRepository
-	GroupSubstitution     repositories.GroupSubstitutionRepository
+	GroupSubstitution     GroupSubstitutionRepository
 	CaregiverBindingLock  usersModels.CaregiverBindingLocker
 	// RFIDCard and Profile are the Identity & Access cards and account
 	// profiles the factory used to hand out.
@@ -77,11 +76,11 @@ type PeopleRepositorySuiteFactory struct {
 
 	CareWithdrawal           usersModels.CareWithdrawalCompletionRepository
 	StudentDataChangeRequest usersModels.StudentDataChangeRequestRepository
-	StudentStatusDay         *repositories.StudentStatusDayRepository
-	ExcusedAbsenceRequest    *repositories.ExcusedAbsenceRequestRepository
+	StudentStatusDay         *StudentStatusDayRepository
+	ExcusedAbsenceRequest    *ExcusedAbsenceRequestRepository
 	ActiveGroup              studentpresence.SessionRecords
 	GroupSupervisor          studentpresence.SupervisionRecords
-	CrossTenant              repositories.CrossTenantQuery
+	CrossTenant              CrossTenantQuery
 	StaffAbsence             timerecords.StaffAbsenceRepository
 	SessionStartLock         interface {
 		LockSessionStart(context.Context, int64) error
@@ -103,8 +102,8 @@ func (f *PeopleRepositorySuiteFactory) SchoolMembership() schoolmembership.Capab
 func (f *PeopleRepositorySuiteFactory) CarePlan() careplan.Capability { return f.carePlan }
 
 // Enrollment is the Enrollment booking projection of the graph.
-func (f *PeopleRepositorySuiteFactory) Enrollment() repositories.EnrollmentBookingProjection {
-	return repositories.NewEnrollmentBookingProjection(f.enrollment)
+func (f *PeopleRepositorySuiteFactory) Enrollment() EnrollmentBookingProjection {
+	return NewEnrollmentBookingProjection(f.enrollment)
 }
 
 // SchoolCalendar is the calendar owner the period, closing day and dateframe
@@ -128,7 +127,7 @@ func NewPeopleRepositorySuiteFactory(db *bun.DB, clocks ...func() time.Time) *Pe
 	return newPeopleRepositorySuiteFactory(db, NewUnobservedTimetableDependencies(db), clocks...)
 }
 
-func newPeopleRepositorySuiteFactory(db *bun.DB, deps repositories.TimetableDependencies, clocks ...func() time.Time) *PeopleRepositorySuiteFactory {
+func newPeopleRepositorySuiteFactory(db *bun.DB, deps TimetableDependencies, clocks ...func() time.Time) *PeopleRepositorySuiteFactory {
 	if deps.Capability == nil || deps.Students == nil || deps.Groups == nil || deps.Rooms == nil || deps.Calendar == nil || deps.Membership == nil || deps.Workforce == nil {
 		panic("repository test factory: timetable and projection dependencies are required")
 	}
@@ -143,28 +142,28 @@ func newPeopleRepositorySuiteFactory(db *bun.DB, deps repositories.TimetableDepe
 	// through unobserved Care Plan, School Calendar, Student Presence, Device
 	// Fleet and Enrollment owners of db, bound at construction (#2743). The
 	// school projections are bound by WithSchoolProjections.
-	carePlan, err := repositories.NewUnobservedCarePlan(db, deps)
+	carePlan, err := NewUnobservedCarePlan(db, deps)
 	if err != nil {
 		panic(fmt.Sprintf("repository test factory: compose care plan: %v", err))
 	}
-	calendar, err := repositories.NewSchoolCalendar(db)
+	calendar, err := NewSchoolCalendar(db)
 	if err != nil {
 		panic(fmt.Sprintf("repository test factory: compose school calendar: %v", err))
 	}
-	devices, err := repositories.NewDeviceFleet(db)
+	devices, err := NewDeviceFleet(db)
 	if err != nil {
 		panic(fmt.Sprintf("repository test factory: compose device fleet: %v", err))
 	}
-	presence := repositories.NewStudentPresenceForTests(db)
+	presence := NewStudentPresenceForTests(db)
 	enrollment := enrollmentCompose.New()
-	sessions := repositories.NewSessionRecords(db, repositories.SessionRecordOwners{
+	sessions := NewSessionRecords(db, SessionRecordOwners{
 		Now: now, Devices: devices, Rooms: deps.Rooms, Timetable: deps.Capability, Membership: deps.Membership, Persons: deps.Students,
 	})
 	return &PeopleRepositorySuiteFactory{
 		MembershipTestRepositories: members,
-		CareScheduleRepositories:   repositories.NewCareScheduleRepositories(carePlan),
+		CareScheduleRepositories:   NewCareScheduleRepositories(carePlan),
 		SchoolCalendarRepositories: timetableCompose.NewSchoolCalendarRepositories(calendar, timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), deps.Capability)),
-		ParentPortalRepositories: repositories.NewParentPortalRepositories(db, repositories.ParentPortalOwners{
+		ParentPortalRepositories: NewParentPortalRepositories(db, ParentPortalOwners{
 			People: deps.Students, Groups: deps.Groups, Membership: deps.Membership,
 			Identity: newPeopleIdentityAccess(db, IdentityAccessObserver(deps.ObserveIdentityAccess)), Enrollment: enrollment, Now: now,
 		}),
@@ -174,17 +173,17 @@ func newPeopleRepositorySuiteFactory(db *bun.DB, deps repositories.TimetableDepe
 		ParentRequestShare:       peopleCompose.NewParentRequestShareEventRepository(db),
 		ParentRequestEvent:       peopleCompose.NewParentRequestEventRepository(db),
 		GroupSubstitution:        newGroupSubstitutionRepository(members.Group, deps.Membership, deps.Workforce),
-		CaregiverBindingLock:     NewCaregiverBindingLocker(deps.Membership, deps.Workforce, repositories.NewStudentPresenceForTests(db), deps.Capability),
+		CaregiverBindingLock:     NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability),
 		RFIDCard:                 identity,
 		Profile:                  identity,
-		CareWithdrawal:           repositories.NewCareWithdrawalCompletionRepository(carePlan),
-		StudentDataChangeRequest: repositories.NewStudentDataChangeRequestRepository(carePlan),
-		StudentStatusDay:         repositories.NewStudentStatusDayRepository(carePlan),
-		ExcusedAbsenceRequest:    repositories.NewExcusedAbsenceRequestRepository(carePlan),
+		CareWithdrawal:           NewCareWithdrawalCompletionRepository(carePlan),
+		StudentDataChangeRequest: NewStudentDataChangeRequestRepository(carePlan),
+		StudentStatusDay:         NewStudentStatusDayRepository(carePlan),
+		ExcusedAbsenceRequest:    NewExcusedAbsenceRequestRepository(carePlan),
 		ActiveGroup:              sessions,
-		GroupSupervisor:          repositories.NewGroupSupervisionRecords(sessions, deps.Groups),
-		CrossTenant:              repositories.NewCrossTenantQuery(presence, deps.Students, deps.Groups),
-		StaffAbsence:             repositories.NewStaffAbsenceRepository(deps.Workforce, deps.Membership, deps.Students),
+		GroupSupervisor:          NewGroupSupervisionRecords(sessions, deps.Groups),
+		CrossTenant:              NewCrossTenantQuery(presence, deps.Students, deps.Groups),
+		StaffAbsence:             NewStaffAbsenceRepository(deps.Workforce, deps.Membership, deps.Students),
 		SessionStartLock:         presence,
 		carePlan:                 carePlan,
 		enrollment:               enrollment,
@@ -199,46 +198,46 @@ func NewPeopleRepositorySuitePeople(db *bun.DB) peopledirectory.Capability {
 
 // NewPeopleRepositorySuiteSchoolStructure is the School Structure owner.
 func NewPeopleRepositorySuiteSchoolStructure(db *bun.DB) (schoolstructure.Capability, error) {
-	return repositories.NewSchoolStructure(db)
+	return NewSchoolStructure(db)
 }
 
 // NewPeopleRepositorySuiteCareLifecycle composes the care lifecycle; a nil
 // command records into the test audit store.
-func NewPeopleRepositorySuiteCareLifecycle(db *bun.DB, command auditModels.Command) (repositories.CareLifecycleTestRepositories, error) {
+func NewPeopleRepositorySuiteCareLifecycle(db *bun.DB, command auditModels.Command) (CareLifecycleTestRepositories, error) {
 	return NewCareLifecycleTestRepositories(db, command)
 }
 
 // NewPeopleRepositorySuiteParentMessaging composes the parent messaging stores.
-func NewPeopleRepositorySuiteParentMessaging(db *bun.DB) (repositories.ParentMessagingTestRepositories, error) {
-	return repositories.NewParentMessagingTestRepositories(db)
+func NewPeopleRepositorySuiteParentMessaging(db *bun.DB) (ParentMessagingTestRepositories, error) {
+	return NewParentMessagingTestRepositories(db)
 }
 
 // NewPeopleRepositorySuiteAnnouncements is the parent announcement store over
 // the given Enrollment audience queries.
-func NewPeopleRepositorySuiteAnnouncements(db *bun.DB, audience repositories.AnnouncementEnrollmentQueries, clocks ...func() time.Time) usersModels.ParentAnnouncementRepository {
-	return repositories.NewParentAnnouncementRepository(db, audience, clocks...)
+func NewPeopleRepositorySuiteAnnouncements(db *bun.DB, audience AnnouncementEnrollmentQueries, clocks ...func() time.Time) usersModels.ParentAnnouncementRepository {
+	return NewParentAnnouncementRepository(db, audience, clocks...)
 }
 
 // NewPeopleRepositorySuiteCaregiverBindingLocker is the caregiver binding
 // lock over the four owners that hold caregiver capability.
 func NewPeopleRepositorySuiteCaregiverBindingLocker(db *bun.DB) usersModels.CaregiverBindingLocker {
 	deps := NewUnobservedTimetableDependencies(db)
-	return NewCaregiverBindingLocker(deps.Membership, deps.Workforce, repositories.NewStudentPresenceForTests(db), deps.Capability)
+	return NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability)
 }
 
 // NewPeopleRepositorySuiteCompanions is the companion store over Care Plan.
 func NewPeopleRepositorySuiteCompanions(capability careplan.Capability) usersModels.StudentCompanionRepository {
-	return repositories.NewStudentCompanionRepository(capability)
+	return NewStudentCompanionRepository(capability)
 }
 
 // NewPeopleRepositorySuiteCompanionEdge validates one companion edge.
 func NewPeopleRepositorySuiteCompanionEdge(studentID, companionID int64, weekday int) (*usersModels.StudentCompanion, error) {
-	return repositories.NewStudentCompanionEdge(studentID, companionID, weekday)
+	return NewStudentCompanionEdge(studentID, companionID, weekday)
 }
 
 // ReplacePeopleRepositorySuiteCompanions replaces a child's companion edges.
 func ReplacePeopleRepositorySuiteCompanions(ctx context.Context, links usersModels.StudentCompanionRepository, studentID int64, edges []*usersModels.StudentCompanion) error {
-	return repositories.ReplaceStudentCompanions(ctx, links, studentID, edges)
+	return ReplaceStudentCompanions(ctx, links, studentID, edges)
 }
 
 // NewPeopleRepositorySuiteRelationships is the relationship store with its
@@ -263,7 +262,7 @@ func NewEnrollmentGuardianAutofillSuite(db *bun.DB) EnrollmentGuardianAutofill {
 // NewPeopleRepositorySuiteRecipients is the parent-message recipient lookup
 // as the composition root binds it.
 func NewPeopleRepositorySuiteRecipients(db *bun.DB) *peopleCompose.RetainedMessageableGuardians {
-	return repositories.NewMessageableGuardianRepository(db)
+	return NewMessageableGuardianRepository(db)
 }
 
 // NewPeopleRepositorySuiteRetainedPersons is the person store without the
@@ -327,12 +326,12 @@ func VerifyPeopleRepositorySuiteStudentSchema(ctx context.Context, db *bun.DB) e
 type RepositoryTestFactory = PeopleRepositorySuiteFactory
 
 // NewRepositoryTestFactory composes the test graph over deps.
-func NewRepositoryTestFactory(db *bun.DB, deps repositories.TimetableDependencies, clocks ...func() time.Time) *RepositoryTestFactory {
+func NewRepositoryTestFactory(db *bun.DB, deps TimetableDependencies, clocks ...func() time.Time) *RepositoryTestFactory {
 	return newPeopleRepositorySuiteFactory(db, deps, clocks...)
 }
 
 // NewRepositoryTestFactoryWithPeopleDirectory is NewRepositoryTestFactory for
 // suites that handle a composition error.
-func NewRepositoryTestFactoryWithPeopleDirectory(db *bun.DB, deps repositories.TimetableDependencies, clocks ...func() time.Time) (*RepositoryTestFactory, error) {
+func NewRepositoryTestFactoryWithPeopleDirectory(db *bun.DB, deps TimetableDependencies, clocks ...func() time.Time) (*RepositoryTestFactory, error) {
 	return newPeopleRepositorySuiteFactory(db, deps, clocks...), nil
 }

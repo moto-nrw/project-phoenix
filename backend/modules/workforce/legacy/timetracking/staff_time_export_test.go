@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -42,7 +41,7 @@ func (f *overviewFixture) newWorkSessionService() timetracking.WorkSessionServic
 	// reading export rows.
 	return timetracking.NewWorkSessionService(
 		workforceLegacy.NewWorkSessionRepository(f.workforce), workforceLegacy.NewWorkSessionBreakRepository(f.workforce), services.NewWorkSessionAudit(services.NewTestAuditPersistence(f.db, nil).WorkSessionEdit),
-		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff, repositories.MustNewStaffEmployment(f.db)),
+		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff, services.MustNewStaffEmployment(f.db)),
 		services.NewWorkSessionSchedules(services.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkSessionTimeModels(services.NewWorkTimeModelRepository(f.workforce)),
 		nil,
 		nil,
@@ -162,7 +161,7 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 		accountStart: timezone.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
 	}
 	monthSvc := timetracking.NewWorkTimeMonthService(
-		workforceLegacy.NewWorkSessionRepository(f.workforce), workforceLegacy.NewWorkSessionBreakRepository(f.workforce), f.repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(f.db)),
+		workforceLegacy.NewWorkSessionRepository(f.workforce), workforceLegacy.NewWorkSessionBreakRepository(f.workforce), f.repos.StaffAbsence, services.StaffScheduleAssignments(services.MustNewStaffEmployment(f.db)),
 		services.NewWorkScheduleTargets(services.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkTimeTargetModels(services.NewWorkTimeModelRepository(f.workforce)), services.NewTimeTrackingShifts(f.workforce),
 		settings, nil,
 		timetracking.WithMonthAdjustments(workforceLegacy.NewStaffBalanceAdjustmentRepository(f.workforce)),

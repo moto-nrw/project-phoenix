@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -122,7 +121,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		return StudentTestModule{}, err
 	}
 	persons := guardian.PeopleDirectory
-	contextRepos, err := repositories.NewUserContextTestRepositories(db, MustNewMembershipTestRepositories(db))
+	contextRepos, err := NewUserContextTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return StudentTestModule{}, err
 	}
@@ -174,7 +173,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		return StudentTestModule{}, err
 	}
 	rosterReconciler := timetableCompose.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, logger, now)
-	recurrenceLock, err := repositories.NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := NewTimetableRecurrenceLock(db)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
@@ -251,7 +250,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		CareBookings:           careBookings,
 		GuardianAccess:         guardianAccess,
 		StudentEnrollment:      persons,
-		Companions:             repositories.NewStudentCompanionRepository(repos.CarePlan),
+		Companions:             NewStudentCompanionRepository(repos.CarePlan),
 		DeleteCompanions:       repos.CarePlan.DeleteCompanionEdges,
 		StudentAudit:           studentAuditService,
 		StudentConsents:        studentConsentService,

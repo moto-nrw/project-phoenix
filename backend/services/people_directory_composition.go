@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -69,7 +68,7 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 	if err != nil {
 		return nil, nil, err
 	}
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return nil, nil, err
 	}

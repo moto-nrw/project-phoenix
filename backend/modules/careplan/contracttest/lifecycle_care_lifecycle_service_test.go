@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -54,7 +53,7 @@ func newCareLifecycleServiceWithLockAt(
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := services.NewCareLifecycleTestRepositories(db, nil)
 	require.NoError(t, err)
-	svc, err := repos.NewCareLifecycle(repositories.CareLifecycleTestConfig{
+	svc, err := repos.NewCareLifecycle(services.CareLifecycleTestConfig{
 		Audit:                 services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, services.NewStudentAudit(db)),
 		LockCareBookingWrites: lockCareBookingWrites,
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },

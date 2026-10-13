@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -18,7 +17,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func newStaffIdentityForTests(db *bun.DB) (*repositories.CallerRows, repositories.MembershipTestRepositories, error) {
+func newStaffIdentityForTests(db *bun.DB) (*CallerRows, MembershipTestRepositories, error) {
 	members, err := NewMembershipTestRepositories(db)
 	if err != nil {
 		return nil, members, err
@@ -32,7 +31,7 @@ func newStaffIdentityForTests(db *bun.DB) (*repositories.CallerRows, repositorie
 
 type AbsenceTypeTestModule struct {
 	Catalog     workforce.Capability
-	UserContext *repositories.CallerRows
+	UserContext *CallerRows
 }
 
 func NewAbsenceTypeTestModule(db *bun.DB) (AbsenceTypeTestModule, error) {
@@ -40,12 +39,12 @@ func NewAbsenceTypeTestModule(db *bun.DB) (AbsenceTypeTestModule, error) {
 	if err != nil {
 		return AbsenceTypeTestModule{}, err
 	}
-	return AbsenceTypeTestModule{Catalog: repositories.NewAbsenceTypeTestCapability(db), UserContext: identity}, nil
+	return AbsenceTypeTestModule{Catalog: NewAbsenceTypeTestCapability(db), UserContext: identity}, nil
 }
 
 type BirthdayTestModule struct {
 	Birthdays   peopledirectory.Birthdays
-	UserContext *repositories.CallerRows
+	UserContext *CallerRows
 	Settings    config.SettingsService
 	ListExport  *listexport.RendererService
 }
@@ -81,14 +80,14 @@ func NewBirthdayCapabilityForTests(db *bun.DB, settings BirthdaySettingsSource, 
 type ShiftTypeTestModule struct {
 	ShiftTypes   workforce.ShiftTypeAdministration
 	Activities   activities.ActivityService
-	Repositories repositories.ShiftTypeTestRepositories
+	Repositories ShiftTypeTestRepositories
 }
 
 // NewShiftTypeTestModule composes the shift-type administration the way the
 // factory does: the Workforce planning composition over the timetable test
 // repositories, with the Kategorie↔Schichtart linker of the activity service.
 func NewShiftTypeTestModule(db *bun.DB) (ShiftTypeTestModule, error) {
-	repos := repositories.NewShiftTypeTestRepositories(db, MustNewMembershipTestRepositories(db))
+	repos := NewShiftTypeTestRepositories(db, MustNewMembershipTestRepositories(db))
 	linker, err := activities.NewService(repos.Timetable, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		return ShiftTypeTestModule{}, err
@@ -98,7 +97,7 @@ func NewShiftTypeTestModule(db *bun.DB) (ShiftTypeTestModule, error) {
 		return ShiftTypeTestModule{}, err
 	}
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
-		Workforce: repositories.NewAbsenceTypeTestCapability(db), Staff: timetable.Staff, CalendarPeriods: timetable.SchoolCalendar(),
+		Workforce: NewAbsenceTypeTestCapability(db), Staff: timetable.Staff, CalendarPeriods: timetable.SchoolCalendar(),
 		Instances: timetableCompose.NewTimetableInstanceReads(timetable.ActivityInstance), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(timetable.InstanceStaff),
 		Rooms: timetable.Room, ActivityGroups: timetableCompose.NewTimetableGroupReads(timetable.ActivityGroup),
 		CategoryLinker: timetableCompose.ShiftTypeCategoryLinker(linker.SetCategoryShiftTypeLinks), DB: db, Logger: slog.Default(),
@@ -116,7 +115,7 @@ func NewDeviceTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeviceTestModule, 
 	if err != nil {
 		return DeviceTestModule{}, err
 	}
-	fleet, err := repositories.NewDeviceFleet(db, devicefleetLegacy.NewOnlineWindowResolver(settings.Settings, nil))
+	fleet, err := NewDeviceFleet(db, devicefleetLegacy.NewOnlineWindowResolver(settings.Settings, nil))
 	if err != nil {
 		return DeviceTestModule{}, err
 	}

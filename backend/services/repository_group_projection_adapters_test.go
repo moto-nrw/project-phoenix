@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +15,7 @@ import (
 // the group-enriched adapters could not name a group, so it refuses.
 func TestNewFactoryRequiresSchoolStructure(t *testing.T) {
 	t.Parallel()
-	assert.Panics(t, func() { services.NewRepositoryTestFactory(nil, repositories.TimetableDependencies{}) })
+	assert.Panics(t, func() { services.NewRepositoryTestFactory(nil, services.TimetableDependencies{}) })
 }
 
 // The supervision blocker read used to LEFT JOIN education.groups on

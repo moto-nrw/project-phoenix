@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -34,7 +33,7 @@ import (
 // lifecycle drives.
 func newInstancePresence(t *testing.T, db *bun.DB) studentpresence.Capability {
 	t.Helper()
-	return repositories.NewStudentPresenceForTests(db)
+	return services.NewStudentPresenceForTests(db)
 }
 
 // lifecycleSetup bundles the wired lifecycle + common fixtures. Rows belong
@@ -45,7 +44,7 @@ type lifecycleSetup struct {
 	factory  *services.Factory
 	repos    *services.RepositoryTestFactory
 	// timetable are the retained Timetable adapters over the same owners.
-	timetable repositories.TimetableRepositories
+	timetable services.TimetableRepositories
 	db        *bun.DB
 	ctx       context.Context
 	roomID    int64
@@ -92,7 +91,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 		presence:  newInstancePresence(t, db),
 		factory:   serviceFactory,
 		repos:     repoFactory,
-		timetable: repositories.NewTimetableRepositories(db, timetableDependencies),
+		timetable: services.NewTimetableRepositories(db, timetableDependencies),
 		db:        db,
 		ctx:       ctx,
 		roomID:    room.ID,
@@ -143,7 +142,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 	if err != nil {
 		panic(err)
 	}
-	rooms, err := repositories.NewFacilities(s.db)
+	rooms, err := services.NewFacilities(s.db)
 	if err != nil {
 		panic(err)
 	}
@@ -168,7 +167,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		RecurrenceLock:      s.factory.TimetableData.RecurrenceLock,
 		CareDays:            lifecycleCareDays{query: s.factory.CareDay},
 		CareDayLocks:        s.repos.CarePlan(),
-		Protocol:            repositories.TimetableDeviationProtocol(audits.DeviationEvent),
+		Protocol:            services.TimetableDeviationProtocol(audits.DeviationEvent),
 		ContentHash:         securityruntime.Fingerprint,
 		DB:                  s.db,
 		Logger:              slog.Default(),

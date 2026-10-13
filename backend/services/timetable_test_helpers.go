@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -49,7 +48,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	recurrenceLock, err := repositories.NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := NewTimetableRecurrenceLock(db)
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
@@ -61,7 +60,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	carePlan, err := repositories.NewCarePlan(db, students, r.InstanceStudent)
+	carePlan, err := NewCarePlan(db, students, r.InstanceStudent)
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
@@ -105,7 +104,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		PrincipalReader: AttendancePrincipal,
 		SchoolPresence:  newStudentPresence(db, logger),
 		GroupRepo:       sessionGroups, SupervisorRepo: sessionSupervisors,
-		StudentRepo: PresenceStudents(db, r.Student), RoomRepo: NewAttendanceRooms(r.Room), ActivityGroupRepo: repositories.NewSessionActivities(r.GroupReads()),
+		StudentRepo: PresenceStudents(db, r.Student), RoomRepo: NewAttendanceRooms(r.Room), ActivityGroupRepo: NewSessionActivities(r.GroupReads()),
 		EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff),
 		DB: db, Broadcaster: hub, Logger: logger, Now: now,
 		AttendanceSyncer:         attendanceMirror,
@@ -120,7 +119,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	calendarAdministration := schoolCalendarAdministration(settings.Settings,
 		recurrenceLock.LockRecurrenceWrites,
 		offerings)
-	calendar, err := repositories.NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
+	calendar, err := NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
 	if err != nil {
 		return TimetableTestModule{}, err
 	}

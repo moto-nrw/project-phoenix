@@ -14,7 +14,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -27,7 +26,7 @@ func newSchoolProjectionFactory(t *testing.T, db *bun.DB) *services.RepositoryTe
 	t.Helper()
 	factory, err := services.NewRepositoryTestFactoryWithPeopleDirectory(db, services.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
-	capability, err := repositories.NewOrganizationTenancy(db)
+	capability, err := services.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	return factory.WithSchoolProjections(capability)
 }

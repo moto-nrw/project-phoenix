@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -509,7 +508,7 @@ func TestGroupSupervisorRepository_UsesInjectedClockForActiveSupervisions(t *tes
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	today := timezone.NewDate(2020, 1, 2)
-	repo := sessionSupervisors(repositories.NewPresenceSessionRecords(db, func() time.Time {
+	repo := sessionSupervisors(services.NewPresenceSessionRecords(db, func() time.Time {
 		return today.BerlinMidnight()
 	}))
 

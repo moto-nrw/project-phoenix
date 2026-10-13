@@ -22,7 +22,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -1979,7 +1978,7 @@ func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Simulate a live check-in for student1 via the monotonic mirror path.
-	timetableRepos := repositories.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db))
+	timetableRepos := services.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db))
 	updated, err := timetableRepos.InstanceStudent.UpdateAttendanceFromCheckin(
 		s.ctx, ai.ID, s.student1, time.Now(),
 	)
@@ -2110,7 +2109,7 @@ func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
 	_, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
 
-	timetableRepos := repositories.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db))
+	timetableRepos := services.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db))
 	_, err = timetableRepos.InstanceStudent.UpdateAttendanceFromCheckin(
 		s.ctx, ai.ID, s.student1, time.Now(),
 	)

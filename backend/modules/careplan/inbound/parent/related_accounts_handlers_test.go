@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -74,7 +73,7 @@ func (relAcctSocialWorkerInvites) RevokeAccess(context.Context, parentService.Gu
 
 func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove bool) http.Handler {
 	t.Helper()
-	repos, repoErr := repositories.NewParentRouteTestRepositories(db, services.MustNewMembershipTestRepositories(db))
+	repos, repoErr := services.NewParentRouteTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CareExceptions,
@@ -183,7 +182,7 @@ func (s *relAcctCaptureInvites) RevokeAccess(context.Context, parentService.Guar
 
 func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService.GuardianAccess) http.Handler {
 	t.Helper()
-	repos, repoErr := repositories.NewParentRouteTestRepositories(db, services.MustNewMembershipTestRepositories(db))
+	repos, repoErr := services.NewParentRouteTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CareExceptions,

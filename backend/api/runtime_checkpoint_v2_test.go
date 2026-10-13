@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -271,9 +270,9 @@ func (w *targetRiskWorkload) pendingWithdrawal(t *testing.T, production *Runtime
 	tenantID, err := tenant.NewTenantID(w.tenantID)
 	require.NoError(t, err)
 	ctx := tenant.WithUnitOfWork(testpkg.Ctx(w.fixtures), production.graph.tenantRuntime)
-	carePlan, err := repositories.NewUnobservedCarePlan(production.graph.db, testutil.NewUnobservedTimetableDependencies(production.graph.db))
+	carePlan, err := testutil.NewUnobservedCarePlan(production.graph.db, testutil.NewUnobservedTimetableDependencies(production.graph.db))
 	require.NoError(t, err)
-	writer := tenantScopedUpsert(repositories.NewCareWithdrawalCompletionRepository(carePlan).UpsertPending, func(fn func(context.Context) error) error {
+	writer := tenantScopedUpsert(testutil.NewCareWithdrawalCompletionRepository(carePlan).UpsertPending, func(fn func(context.Context) error) error {
 		return tenant.WithinTenant(ctx, tenantID, fn)
 	})
 	return testpkg.CreateTestCareWithdrawalCompletion(w.fixtures, writer, studentID, w.accountID, "2026-09-14").ID

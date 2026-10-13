@@ -7,18 +7,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // newExtraMFAService composes the second factor over the test database and
 // returns an account to drive it with.
-func newExtraMFAService(t *testing.T) (identityaccess.AccountMFA, repositories.MembershipTestRepositories, int64) {
+func newExtraMFAService(t *testing.T) (identityaccess.AccountMFA, services.MembershipTestRepositories, int64) {
 	t.Helper()
 	scenario := newMFATestScenario(t)
 	return scenario.MFA, scenario.Repos, scenario.AccountID

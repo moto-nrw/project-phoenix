@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -28,7 +27,7 @@ func NewBookingConsistencyAudit(db *bun.DB, students peopledirectory.StudentQuer
 	}
 	audits, err := auditCompose.NewPersistence(auditCompose.PersistenceDependencies{
 		Reads:      tenantAuditReads(db),
-		Enrollment: repositories.NewEnrollmentBookingProjection(enrollmentCompose.New()),
+		Enrollment: NewEnrollmentBookingProjection(enrollmentCompose.New()),
 		Students:   auditStudentDirectory{students: students},
 		CarePlan:   auditCarePlanDirectory{query: carePlan},
 	})

@@ -20,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -46,7 +45,7 @@ func buildPlannedConflictSetup(t *testing.T) *plannedConflictSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repos, err := repositories.NewTimetableTestRepositories(db, services.MustNewMembershipTestRepositories(db))
+	repos, err := services.NewTimetableTestRepositoriesWithMembers(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	suffix := time.Now().UnixNano()
 
@@ -322,7 +321,7 @@ func (planningOnlyPresence) QueryGroupSupervisions(context.Context, studentprese
 
 // newConflictDetection composes the Timetable owner's conflict detection and
 // staffing capability over the retained repositories, the way the root does.
-func newConflictDetection(t *testing.T, repos repositories.TimetableTestRepositories) timetable.ConflictDetectionCapability {
+func newConflictDetection(t *testing.T, repos services.TimetableTestRepositories) timetable.ConflictDetectionCapability {
 	t.Helper()
 	detection, err := services.NewTimetableConflictDetection(services.TimetableConflictReaders{
 		Instances:         repos.ActivityInstance,

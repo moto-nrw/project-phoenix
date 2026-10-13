@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -26,7 +25,7 @@ import (
 const nonexistentCallerRowID int64 = 999999999
 
 // setupCallerRows composes the caller context over db.
-func setupCallerRows(t *testing.T, db *bun.DB) *repositories.CallerRows {
+func setupCallerRows(t *testing.T, db *bun.DB) *services.CallerRows {
 	t.Helper()
 	module, err := services.NewUserContextTestModule(db, testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)

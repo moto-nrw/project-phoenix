@@ -11,7 +11,6 @@ import (
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -986,8 +985,8 @@ func testRepositories(t *testing.T, db *bun.DB) *services.RepositoryTestFactory 
 
 // testTimetableRepositories builds the retained Timetable adapters over the
 // unobserved owners of the test database (#2743).
-func testTimetableRepositories(db *bun.DB) repositories.TimetableRepositories {
-	return repositories.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
+func testTimetableRepositories(db *bun.DB) services.TimetableRepositories {
+	return services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
 }
 
 func testActivityScheduleRepository(t *testing.T, db *bun.DB) activitiesModels.ScheduleRepository {

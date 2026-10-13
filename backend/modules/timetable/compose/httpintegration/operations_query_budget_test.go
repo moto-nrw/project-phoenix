@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -73,14 +72,14 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staff *usersModels.
 	t.Helper()
 	owners := services.NewUnobservedTimetableDependencies(db)
 	repos := services.NewRepositoryTestFactory(db, owners)
-	timetableRepos := repositories.NewTimetableRepositories(db, owners)
+	timetableRepos := services.NewTimetableRepositories(db, owners)
 	stand := newTimetableOpsDeps()
 	stand.personService.accountPerson = staff.Person
 	stand.personService.staffByPersonID[staff.PersonID] = staff
 	deps := stand.dependencies()
 	deps.Sessions = repos.ActiveGroup
 	deps.Supervisions = repos.GroupSupervisor
-	deps.Visits = repositories.NewStudentPresenceForTests(db)
+	deps.Visits = services.NewStudentPresenceForTests(db)
 	deps.PlanningTracks = nil
 	deps.Now = func() time.Time { return now }
 	rows := compose.OwnerRows{
@@ -89,7 +88,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staff *usersModels.
 		Participants:    timetableRepos.InstanceStudent,
 		Templates:       timetableRepos.ActivityGroup,
 		Students:        repos.Student,
-		EducationGroups: repositories.TimetableEducationGroupNames(repos.Group),
+		EducationGroups: services.TimetableEducationGroupNames(repos.Group),
 		Rooms:           services.NewTimetableRoomNames(owners.Rooms),
 	}
 	templates, err := rows.OperationTemplates()

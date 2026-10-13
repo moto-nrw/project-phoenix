@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
@@ -59,7 +58,7 @@ func (snapshotSessionSettings) TimeTrackingRetentionDays(context.Context) (int, 
 func (f *snapshotFixture) newAdminSessionService() timetracking.WorkSessionService {
 	return timetracking.NewWorkSessionService(
 		workforceLegacy.NewWorkSessionRepository(f.workforce), workforceLegacy.NewWorkSessionBreakRepository(f.workforce), services.NewWorkSessionAudit(services.NewTestAuditPersistence(f.db, nil).WorkSessionEdit), f.repos.StaffAbsence,
-		f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff, repositories.MustNewStaffEmployment(f.db)), services.NewWorkSessionSchedules(services.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkSessionTimeModels(services.NewWorkTimeModelRepository(f.workforce)),
+		f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff, services.MustNewStaffEmployment(f.db)), services.NewWorkSessionSchedules(services.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkSessionTimeModels(services.NewWorkTimeModelRepository(f.workforce)),
 		snapshotSessionSettings{}, nil, f.db, services.RenderTimeTrackingPDF,
 		services.RenderTimeTrackingWorkbook,
 	)
@@ -116,7 +115,7 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 
 	settings := wtmIntSettings{accountStart: "2025-01-01"}
 	monthSvc := timetracking.NewWorkTimeMonthService(
-		workforceLegacy.NewWorkSessionRepository(owners.Workforce), workforceLegacy.NewWorkSessionBreakRepository(owners.Workforce), repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(db)),
+		workforceLegacy.NewWorkSessionRepository(owners.Workforce), workforceLegacy.NewWorkSessionBreakRepository(owners.Workforce), repos.StaffAbsence, services.StaffScheduleAssignments(services.MustNewStaffEmployment(db)),
 		services.NewWorkScheduleTargets(services.NewStaffWorkScheduleRepository(owners.Workforce)), services.NewWorkTimeTargetModels(services.NewWorkTimeModelRepository(owners.Workforce)), services.NewTimeTrackingShifts(owners.Workforce),
 		settings, nil,
 		timetracking.WithMonthSnapshots(services.MonthSnapshotCapability(owners.Workforce)),

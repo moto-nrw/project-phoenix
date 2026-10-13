@@ -20,7 +20,6 @@ import (
 
 	displayHTTP "github.com/moto-nrw/project-phoenix/api/display"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -68,13 +67,13 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 	require.NoError(t, err)
 	approvedOfferings, err := testutil.NewApprovedOfferingProjection(db, repos.Enrollment())
 	require.NoError(t, err)
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := services.NewFacilities(db)
 	require.NoError(t, err)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
-	carePlan, err := repositories.NewCarePlan(db, services.MustNewPeopleDirectory(db), repos.InstanceStudent)
+	carePlan, err := services.NewCarePlan(db, services.MustNewPeopleDirectory(db), repos.InstanceStudent)
 	require.NoError(t, err)
 	pickup, err := careplanCompose.NewPickupSchedules(db, carePlan, newPickupBaselineService(carePlan, approvedOfferings), nil, nil, nil)
 	require.NoError(t, err)

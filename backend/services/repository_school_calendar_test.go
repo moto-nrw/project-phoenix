@@ -17,7 +17,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -409,7 +408,7 @@ func TestCapacityOccurrencesReadPeriodsThroughTheCalendarOwner(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := repositories.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
+	factory := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Kapazität", testpkg.Date(2030, time.September, 2), testpkg.Date(2030, time.September, 6))

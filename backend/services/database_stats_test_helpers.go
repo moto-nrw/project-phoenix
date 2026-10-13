@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -17,11 +16,11 @@ func NewDatabaseStatsTestReader(db *bun.DB) (DatabaseStatsReader, error) {
 	if err != nil {
 		return nil, err
 	}
-	auth, err := repositories.NewIdentityAccessForTests(db)
+	auth, err := NewIdentityAccessForTests(db)
 	if err != nil {
 		return nil, err
 	}
-	device, err := repositories.NewDeviceRepository(db)
+	device, err := NewDeviceRepository(db)
 	if err != nil {
 		return nil, err
 	}

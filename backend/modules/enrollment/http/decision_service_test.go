@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -144,7 +143,7 @@ func newDecisionServiceForTestWithPickupExtensions(
 	outboxes ...platformModels.OutboxEnqueuer,
 ) enrollmentAPI.DecisionService {
 	if careWithdrawal == nil {
-		careWithdrawal = newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
+		careWithdrawal = newTestCareLifecycle(env.db, services.CareLifecycleTestConfig{
 			BookingsAuthoritative: testBookingsAuthority(settings),
 		})
 	}
@@ -163,7 +162,7 @@ func newBookingsForTest(
 	careWithdrawal TestCareWithdrawalReconciler,
 ) careplan.BookingMaterializationCapability {
 	if careWithdrawal == nil {
-		careWithdrawal = newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
+		careWithdrawal = newTestCareLifecycle(env.db, services.CareLifecycleTestConfig{
 			BookingsAuthoritative: testBookingsAuthority(settings),
 		})
 	}
@@ -239,7 +238,7 @@ func newDecisionsForTestWithBookings(
 		outbox = outboxes[0]
 	}
 	if careWithdrawal == nil {
-		careWithdrawal = newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
+		careWithdrawal = newTestCareLifecycle(env.db, services.CareLifecycleTestConfig{
 			BookingsAuthoritative: testBookingsAuthority(settings),
 		})
 	}
@@ -269,7 +268,7 @@ func newDecisionsForTestWithBookings(
 		CareBookings:           bookings,
 		GuardianAccess:         testGuardianAccess(env.db),
 		StudentEnrollment:      testStudentEnrollment(env.db),
-		Companions:             repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
+		Companions:             services.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:       repoFactory.CarePlan().DeleteCompanionEdges,
 		StudentAudit:           testutil.NewEnrollmentFlowStudentAudit(env.db, testpkg.RequestAuditActor),
 		StudentConsents:        studentConsents,
@@ -369,7 +368,7 @@ func assertOfferingAdjustmentWaitsForRecurrenceGate(
 	holderDone := make(chan error, 1)
 	go func() {
 		holderDone <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-			if err := repositories.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(txCtx); err != nil {
+			if err := services.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(txCtx); err != nil {
 				return err
 			}
 			close(holderAcquired)
@@ -3553,7 +3552,7 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 		env.rolloverTestEnv,
 		nil,
 		func(lockCtx context.Context) error {
-			return repositories.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(lockCtx)
+			return services.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(lockCtx)
 		},
 	)
 	assertOfferingAdjustmentWaitsForRecurrenceGate(t, env, lockedDecision, enrollmentAPI.UpdateChildOfferingsInput{
@@ -4077,7 +4076,7 @@ func createChildOfferingLink(
 		ValidUntil:     (*capability.Date)(validUntil),
 	}
 	link.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
 }
 
 // #2185: the staff view and the parent portal must judge "starts later" from
@@ -4758,7 +4757,7 @@ func (d offeringStudentTestDirectory) ListOfferingStudents(ctx context.Context, 
 	return rows, nil
 }
 
-func approvedOfferingTestProjection(repos *repositories.EnrollmentFlowTestRepositories) *TestApprovedOfferingProjection {
+func approvedOfferingTestProjection(repos *services.EnrollmentFlowTestRepositories) *TestApprovedOfferingProjection {
 	return NewTestApprovedOfferingProjection(repos.Enrollment(), offeringStudentTestDirectory{repos.Student})
 }
 
@@ -4774,7 +4773,7 @@ func newPickupExcusal(t *testing.T, db *bun.DB, records careplan.Capability, bas
 // newTestCareLifecycle composes Care Plan's lifecycle over the test database,
 // with its owners bound the way the production graph binds them. The care-end
 // history goes to the ordinary student audit unless the config names another.
-func newTestCareLifecycle(db *bun.DB, config repositories.CareLifecycleTestConfig) careplan.CareLifecycle {
+func newTestCareLifecycle(db *bun.DB, config services.CareLifecycleTestConfig) careplan.CareLifecycle {
 	repos, err := services.NewCareLifecycleTestRepositories(db, nil)
 	if err != nil {
 		panic(err)

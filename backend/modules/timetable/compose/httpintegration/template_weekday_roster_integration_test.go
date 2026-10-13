@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -52,7 +51,7 @@ type weekdayRosterScenario struct {
 
 func ownedStudentEnrollmentRepository(t *testing.T, db *bun.DB) activitiesModels.StudentEnrollmentRepository {
 	t.Helper()
-	repos := repositories.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
+	repos := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
 	return repos.StudentEnrollment
 }
 
@@ -240,7 +239,7 @@ func TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback(t *te
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
 	weekday := activitiesModels.WeekdayMonday
-	repos := repositories.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db))
+	repos := services.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db))
 	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
 		StaffID:   s.staffA,
 		GroupID:   result.TemplateID,
@@ -743,7 +742,7 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 	}
 	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, inconsistentProtected))
 
-	rows, err := repositories.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
+	rows, err := services.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
 	require.NoError(t, err)
 
 	type rosterKey struct {
@@ -803,7 +802,7 @@ func TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays(t *testing.
 	require.NoError(t, err)
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
-	repos := repositories.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db))
+	repos := services.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db))
 	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
 		StaffID:   s.staffA,
 		GroupID:   result.TemplateID,
@@ -894,7 +893,7 @@ func TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster(t *te
 	}
 	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
 
-	rows, err := repositories.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
+	rows, err := services.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
 	require.NoError(t, err)
 	protectedWeekdays := make([]int, 0)
 	for _, row := range rows {
@@ -961,7 +960,7 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 	require.NoError(t, err)
 
 	weekday := activitiesModels.WeekdayMonday
-	repos := repositories.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db))
+	repos := services.NewTimetableRepositories(s.db, services.NewUnobservedTimetableDependencies(s.db))
 	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
 		StaffID:          s.staffB,
 		GroupID:          result.TemplateID,

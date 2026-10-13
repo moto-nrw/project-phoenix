@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -87,7 +86,7 @@ func setupAutoExcusalHarnessWithExtensions(t *testing.T, withBaseline, withExten
 	syncer := newPickupExcusal(t, db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), tt, withExtensions)
 	svc, err := services.NewPickupSchedules(db, repos.CarePlan(), services.MustNewPeopleDirectory(db), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), syncer, nil)
 	require.NoError(t, err)
-	partial, err := compose.NewPartialAbsences(db, repos.CarePlan(), repositories.NewStudentPresenceForTests(db), syncer)
+	partial, err := compose.NewPartialAbsences(db, repos.CarePlan(), services.NewStudentPresenceForTests(db), syncer)
 	require.NoError(t, err)
 
 	student := testpkg.CreateTestStudent(t, db, "Auto", "Excusal", "AE1")
@@ -575,8 +574,8 @@ func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
 // repositories, including its Care Plan reads and student-before-day locks.
 func newPickupExcusal(t *testing.T, db *bun.DB, records compose.PickupExcusalRecords, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
 	t.Helper()
-	adapter := pickupExcusalTimetable{partialAbsencePreview{reads: repositories.NewPartialAbsencePreview(db)}, tt, db}
-	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: repositories.NewStudentPresenceForTests(db), Preview: adapter}
+	adapter := pickupExcusalTimetable{partialAbsencePreview{reads: services.NewPartialAbsencePreview(db)}, tt, db}
+	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: services.NewStudentPresenceForTests(db), Preview: adapter}
 	if extensions {
 		deps.Extensions = adapter
 	}

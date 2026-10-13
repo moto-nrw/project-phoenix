@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -48,12 +47,12 @@ func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.St
 
 	owners := services.NewUnobservedTimetableDependencies(db)
 	repos := services.NewRepositoryTestFactory(db, owners)
-	timetableRepos := repositories.NewTimetableRepositories(db, owners)
+	timetableRepos := services.NewTimetableRepositories(db, owners)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	devices, err := repositories.NewDeviceRepository(db)
+	devices, err := services.NewDeviceRepository(db)
 	require.NoError(t, err)
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := services.NewFacilities(db)
 	require.NoError(t, err)
 	deps := active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		GroupRepo:          sessionGroups(repos.ActiveGroup),
@@ -64,7 +63,7 @@ func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.St
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
-		ActivityGroupRepo:  repositories.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityGroupRepo:  services.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    services.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
@@ -225,11 +224,11 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 
 	owners := services.NewUnobservedTimetableDependencies(db)
 	repos := services.NewRepositoryTestFactory(db, owners)
-	timetableRepos := repositories.NewTimetableRepositories(db, owners)
+	timetableRepos := services.NewTimetableRepositories(db, owners)
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	devices, err := repositories.NewDeviceRepository(db)
+	devices, err := services.NewDeviceRepository(db)
 	require.NoError(t, err)
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := services.NewFacilities(db)
 	require.NoError(t, err)
 	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		GroupRepo:          sessionGroups(repos.ActiveGroup),
@@ -238,7 +237,7 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
-		ActivityGroupRepo:  repositories.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityGroupRepo:  services.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    services.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),

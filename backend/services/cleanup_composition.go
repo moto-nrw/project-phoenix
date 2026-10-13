@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -29,10 +28,6 @@ type School = organizationtenancy.School
 type SchoolQuery = organizationtenancy.Query
 type SchoolCapability = organizationtenancy.Capability
 type TimetableCapability = timetable.Capability
-
-func NewOrganizationTenancy(db *bun.DB) (SchoolCapability, error) {
-	return repositories.NewOrganizationTenancy(db)
-}
 
 // NewCleanupAuditCommand builds the same fail-closed Audit command used by
 // the HTTP service graph. Cleanup producers must already be inside their
@@ -96,7 +91,7 @@ func (f *Factory) AuthMaintenanceRuntime() *AuthMaintenance {
 // are Identity & Access flows (#3251); the module is composed with the
 // cleanup repositories and a signer the sweep never uses.
 func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.Logger, command AuditCommand) (*AuthMaintenance, error) {
-	repos := repositories.NewAuthCleanupRepositories(db)
+	repos := NewAuthCleanupRepositories(db)
 	audits := cleanupAuditRepositories(db, command)
 	tokenAuth, err := configuredTokenAuth()
 	if err != nil {
@@ -138,7 +133,7 @@ func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) (identityacces
 }
 
 func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) studentpresence.Presence {
-	repos := repositories.NewSessionCleanupRepositories(db, timetableCapability)
+	repos := NewSessionCleanupRepositories(db, timetableCapability)
 	groups, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
 	settings := NewCleanupSettingsService(db, runtime, schools, logger)
 	return presenceservice.NewPresence(presenceservice.PresenceDependencies{
@@ -161,7 +156,7 @@ type RetentionCleanupRepositories struct {
 // with the deletion ledger routed through command.
 func NewRetentionCleanupRepositories(db *bun.DB, command AuditCommand) RetentionCleanupRepositories {
 	return RetentionCleanupRepositories{
-		Sessions: repositories.NewPresenceSessionRecords(db),
+		Sessions: NewPresenceSessionRecords(db),
 		Deletion: cleanupAuditRepositories(db, command).DataDeletion,
 	}
 }
@@ -187,7 +182,7 @@ func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 }
 
 func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) timetracking.TimeTrackingCleanupService {
-	repos := repositories.NewTimeTrackingCleanupRepositories(db)
+	repos := NewTimeTrackingCleanupRepositories(db)
 	return timetracking.NewTimeTrackingCleanupService(
 		repos.Session, repos.Absence, NewTimeTrackingRetentionAudit(cleanupAuditRepositories(db, command).DataDeletion), PresenceSettings(NewCleanupSettingsService(db, runtime, schools, logger)), logger,
 	)

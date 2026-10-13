@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
@@ -39,7 +38,7 @@ func NewEnrollmentAdminSubscribersForTests(db *bun.DB) (enrollmentCompose.AdminM
 	if err != nil {
 		return nil, nil, err
 	}
-	identity, err := repositories.NewIdentityAccessForTests(db)
+	identity, err := NewIdentityAccessForTests(db)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -55,7 +54,7 @@ type DeliveryTestModule struct {
 }
 
 func NewPushSubscriptionTestService(db *bun.DB, unit tenant.UnitOfWork, vapid notifications.VAPIDConfig) (notifications.PushSubscriptionService, error) {
-	identity, err := repositories.NewIdentityAccessForTests(db)
+	identity, err := NewIdentityAccessForTests(db)
 	if err != nil {
 		return nil, err
 	}
@@ -69,11 +68,11 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
-	members, err := repositories.NewIdentityAccessForTests(db)
+	members, err := NewIdentityAccessForTests(db)
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
-	organizations, err := repositories.NewOrganizationTenancy(db)
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
@@ -98,7 +97,7 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}
-	parents, err := repositories.NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
+	parents, err := NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return DeliveryTestModule{}, err
 	}

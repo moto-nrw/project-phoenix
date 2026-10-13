@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -42,7 +41,7 @@ func (m *cancelingMFAMailer) SendContext(_ context.Context, _ testpkg.EmailMessa
 func newSynchronousDeliveryMFAService(
 	t *testing.T,
 	mailer testpkg.Mailer,
-) (identityaccess.AccountMFA, repositories.MembershipTestRepositories, *bun.DB, *authjwt.TokenAuth) {
+) (identityaccess.AccountMFA, services.MembershipTestRepositories, *bun.DB, *authjwt.TokenAuth) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module := newMFATestModule(t, db,

@@ -1,7 +1,6 @@
 package services
 
 import (
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/uptrace/bun"
 )
@@ -12,7 +11,7 @@ type ApprovedOfferingTestProjection = enrollmentCompose.ApprovedOfferingProjecti
 type ApprovedSelectionTestReader = enrollmentCompose.ApprovedSelections
 
 func NewOwnerApprovedOfferingTestProjection(db *bun.DB) (*ApprovedOfferingTestProjection, error) {
-	return NewApprovedOfferingTestProjection(db, repositories.NewEnrollmentBookingProjection(enrollmentCompose.New()))
+	return NewApprovedOfferingTestProjection(db, NewEnrollmentBookingProjection(enrollmentCompose.New()))
 }
 
 func NewApprovedOfferingTestProjection(db *bun.DB, selections enrollmentCompose.ApprovedSelections) (*enrollmentCompose.ApprovedOfferingProjection, error) {

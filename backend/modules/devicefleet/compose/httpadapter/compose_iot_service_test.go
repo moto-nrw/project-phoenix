@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -20,7 +21,7 @@ import (
 // setupIoTService drives the retained IoT service shape against the real
 // Device Fleet owner and a real database.
 func setupIoTService(t *testing.T, db *bun.DB) iot.Service {
-	fleet, err := repositories.NewDeviceFleet(db)
+	fleet, err := services.NewDeviceFleet(db)
 	require.NoError(t, err, "Failed to compose the device fleet")
 	return iot.NewService(fleet)
 }

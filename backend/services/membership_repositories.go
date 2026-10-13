@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -23,12 +22,12 @@ import (
 // over membership, with the group store and the teaching assignments they
 // resolve through. members.People, Person, Student and the guardian fields
 // stay unset; the caller composes them.
-func newMembershipRepositories(db *bun.DB, persons userModels.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) repositories.MembershipTestRepositories {
+func newMembershipRepositories(db *bun.DB, persons userModels.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) MembershipTestRepositories {
 	group := NewGroupRepository(db, rooms, membership, workTime)
 	groupTeachers := newGroupTeacherRepository(membership, group)
-	deps := newStaffMembershipDeps(persons, identity, repositories.MustNewStaffEmployment(db))
-	deps.groupTeachers = func() repositories.GroupTeacherRepository { return groupTeachers }
-	return repositories.MembershipTestRepositories{
+	deps := newStaffMembershipDeps(persons, identity, MustNewStaffEmployment(db))
+	deps.groupTeachers = func() GroupTeacherRepository { return groupTeachers }
+	return MembershipTestRepositories{
 		Person:       persons,
 		Staff:        staffMembershipRepository{membership: membership, deps: deps},
 		Teacher:      teacherMembershipRepository{membership: membership, deps: deps},
@@ -43,7 +42,7 @@ func newMembershipRepositories(db *bun.DB, persons userModels.PersonRepository, 
 // newGroupSubstitutionRepository serves the retained group substitution
 // contract over Workforce (#2688): the rows are Workforce's, the groups
 // resolve through the group store and the staff through School Membership.
-func newGroupSubstitutionRepository(groups repositories.EducationGroupRepository, membership staffLookup, workTime workforce.Capability) repositories.GroupSubstitutionRepository {
+func newGroupSubstitutionRepository(groups EducationGroupRepository, membership staffLookup, workTime workforce.Capability) GroupSubstitutionRepository {
 	return newGroupSubstitutions(
 		workforceLegacy.NewGroupSubstitutionRepository(workTime, func(ctx context.Context, ids []int64) (map[int64]string, error) {
 			return NewGroupNames(groups).GroupNamesByID(ctx, ids)

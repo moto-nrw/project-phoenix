@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	repoFactory "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -41,7 +40,7 @@ func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 
 	owners := services.NewUnobservedTimetableDependencies(db)
-	svc := timetracking.NewTimeTrackingCleanupService(workforceLegacy.NewWorkSessionRepository(owners.Workforce), repoFactory.NewStaffAbsenceRepository(owners.Workforce, owners.Membership, owners.Students), services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workforceLegacy.NewWorkSessionRepository(owners.Workforce), services.NewStaffAbsenceRepository(owners.Workforce, owners.Membership, owners.Students), services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -84,7 +83,7 @@ func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
 	freshAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(20))
 
 	owners := services.NewUnobservedTimetableDependencies(db)
-	svc := timetracking.NewTimeTrackingCleanupService(workforceLegacy.NewWorkSessionRepository(owners.Workforce), repoFactory.NewStaffAbsenceRepository(owners.Workforce, owners.Membership, owners.Students), services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workforceLegacy.NewWorkSessionRepository(owners.Workforce), services.NewStaffAbsenceRepository(owners.Workforce, owners.Membership, owners.Students), services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -113,7 +112,7 @@ func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
 	oldAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(900))
 
 	owners := services.NewUnobservedTimetableDependencies(db)
-	svc := timetracking.NewTimeTrackingCleanupService(workforceLegacy.NewWorkSessionRepository(owners.Workforce), repoFactory.NewStaffAbsenceRepository(owners.Workforce, owners.Membership, owners.Students), services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workforceLegacy.NewWorkSessionRepository(owners.Workforce), services.NewStaffAbsenceRepository(owners.Workforce, owners.Membership, owners.Students), services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -141,7 +140,7 @@ func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
 	freshAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(10))
 
 	owners := services.NewUnobservedTimetableDependencies(db)
-	svc := timetracking.NewTimeTrackingCleanupService(workforceLegacy.NewWorkSessionRepository(owners.Workforce), repoFactory.NewStaffAbsenceRepository(owners.Workforce, owners.Membership, owners.Students), services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workforceLegacy.NewWorkSessionRepository(owners.Workforce), services.NewStaffAbsenceRepository(owners.Workforce, owners.Membership, owners.Students), services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -171,7 +170,7 @@ func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 
 	owners := services.NewUnobservedTimetableDependencies(db)
-	svc := timetracking.NewTimeTrackingCleanupService(workforceLegacy.NewWorkSessionRepository(owners.Workforce), repoFactory.NewStaffAbsenceRepository(owners.Workforce, owners.Membership, owners.Students), services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workforceLegacy.NewWorkSessionRepository(owners.Workforce), services.NewStaffAbsenceRepository(owners.Workforce, owners.Membership, owners.Students), services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -195,7 +194,7 @@ func TestTimeTrackingCleanup_AuditRequired(t *testing.T) {
 	insertSession(t, db, staff.ID, daysAgo(800))
 
 	owners := services.NewUnobservedTimetableDependencies(db)
-	svc := timetracking.NewTimeTrackingCleanupService(workforceLegacy.NewWorkSessionRepository(owners.Workforce), repoFactory.NewStaffAbsenceRepository(owners.Workforce, owners.Membership, owners.Students), nil, nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workforceLegacy.NewWorkSessionRepository(owners.Workforce), services.NewStaffAbsenceRepository(owners.Workforce, owners.Membership, owners.Students), nil, nil, nil)
 	_, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "audit repo not configured")
@@ -215,7 +214,7 @@ func TestTimeTrackingCleanup_UsesBusinessDatesNotCreatedAt(t *testing.T) {
 	oldBusinessAbsenceID := insertAbsenceWithBusinessDates(t, db, staff.ID, daysAgo(10), daysAgo(900), daysAgo(900))
 
 	owners := services.NewUnobservedTimetableDependencies(db)
-	svc := timetracking.NewTimeTrackingCleanupService(workforceLegacy.NewWorkSessionRepository(owners.Workforce), repoFactory.NewStaffAbsenceRepository(owners.Workforce, owners.Membership, owners.Students), services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workforceLegacy.NewWorkSessionRepository(owners.Workforce), services.NewStaffAbsenceRepository(owners.Workforce, owners.Membership, owners.Students), services.NewTimeTrackingRetentionAudit(services.NewTestAuditPersistence(db, nil).DataDeletion), nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)

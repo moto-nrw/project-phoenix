@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -355,7 +354,7 @@ func TestGuardianInvitationBelongsToItsSchoolOnly(t *testing.T) {
 	assert.Equal(t, *profile.Email, preview.Email)
 	assert.Equal(t, profile.FirstName, preview.FirstName)
 	assert.Equal(t, profile.LastName, preview.LastName)
-	organizations, err := repositories.NewOrganizationTenancy(env.db)
+	organizations, err := services.NewOrganizationTenancy(env.db)
 	require.NoError(t, err)
 	school, err := organizations.FindSchool(testpkg.Ctx(t), testpkg.Tenant(t))
 	require.NoError(t, err)

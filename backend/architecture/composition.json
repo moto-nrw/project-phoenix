@@ -16372,22 +16372,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 164,
+          "line": 163,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 397,
+          "line": 396,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 443,
+          "line": 442,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 691,
+          "line": 690,
           "declaration": "type serveGraph"
         },
         {
@@ -16484,7 +16484,6 @@
     "api/route_table_golden_test.go#TestFullProductionRouterGolden",
     "api/testutil/helpers_test.go#TestSetupAuthModule",
     "cmd/root_test.go#TestRootCmd_HasCommands",
-    "database/repositories/room_deletion_test.go#TestDefaultFacilitiesDeletesRoomWithoutGuard",
     "internal/architecture/composition_inventory_test.go#TestCompositionLegacyCallerInventory",
     "services/factory_test.go#TestNewFactory",
     "test/composition_inventory_test.go#TestCompositionInventory",
@@ -16515,14 +16514,6 @@
       "file": "cmd/main_test.go",
       "declaration": "TestMain",
       "smoke_test": "cmd/root_test.go#TestRootCmd_HasCommands",
-      "tables": []
-    },
-    {
-      "id": "database-repositories-tests",
-      "kind": "test-binary",
-      "file": "database/repositories/main_test.go",
-      "declaration": "TestMain",
-      "smoke_test": "database/repositories/room_deletion_test.go#TestDefaultFacilitiesDeletesRoomWithoutGuard",
       "tables": []
     },
     {

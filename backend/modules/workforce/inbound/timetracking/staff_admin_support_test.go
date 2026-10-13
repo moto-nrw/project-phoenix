@@ -11,7 +11,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -50,7 +49,7 @@ func testIdentity(ctx context.Context) Identity {
 	return Identity{AccountID: int64(claims.ID), Roles: claims.Roles, Permissions: permissions, DisplayName: name}
 }
 
-func newWorkforceTestRepositories(t *testing.T, db *bun.DB) repositories.WorkforceTestRepositories {
+func newWorkforceTestRepositories(t *testing.T, db *bun.DB) services.WorkforceTestRepositories {
 	t.Helper()
 	repos, err := services.NewWorkforceTestRepositories(db, services.NewTestAuditStore(db))
 	require.NoError(t, err)
@@ -61,13 +60,13 @@ func newWorkforceTestRepositories(t *testing.T, db *bun.DB) repositories.Workfor
 // from, pinned to the given clock when one is supplied.
 func newWorkforceCapability(t *testing.T, db *bun.DB, clocks ...func() time.Time) workforce.Capability {
 	t.Helper()
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := services.NewSchoolMembership(db)
 	require.NoError(t, err)
 	var now func() time.Time
 	if len(clocks) > 0 {
 		now = clocks[0]
 	}
-	capability, err := repositories.NewWorkforceWithClock(db, membership, now)
+	capability, err := services.NewWorkforceWithClock(db, membership, now)
 	require.NoError(t, err)
 	return capability
 }
@@ -88,7 +87,7 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 
 	db, svc := testutil.SetupWorkforceModule(t, clocks...)
 	capabilities := testCapabilities(svc)
-	cleanup, err := repositories.NewStaffDocumentCleanup(db, nil)
+	cleanup, err := services.NewStaffDocumentCleanup(db, nil)
 	require.NoError(t, err)
 	workforceCapability := newWorkforceCapability(t, db, clocks...)
 

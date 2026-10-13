@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -22,9 +21,9 @@ import (
 // Communication owns the conversations, cursors and inbox projection (#3221),
 // and the colleague lookups filter through the School Membership and
 // Identity & Access owners.
-func newRepositories(t *testing.T, db *bun.DB) repositories.StaffMessagingTestRepositories {
+func newRepositories(t *testing.T, db *bun.DB) services.StaffMessagingTestRepositories {
 	t.Helper()
-	repos, err := repositories.NewStaffMessagingTestRepositories(db, services.MustNewMembershipTestRepositories(db))
+	repos, err := services.NewStaffMessagingTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	return repos
 }

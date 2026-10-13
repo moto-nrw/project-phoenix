@@ -13,7 +13,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -144,7 +143,7 @@ type decisionTestEnv struct {
 	db    *bun.DB
 	repos *services.RepositoryTestFactory
 	// timetable are the retained Timetable adapters over the same owners.
-	timetable repositories.TimetableRepositories
+	timetable services.TimetableRepositories
 	// requestSvc is the parent-facing intake.
 	requestSvc *enrollmentTest.Intake
 	// offeringCatalog is the Care Plan catalog over the test database; its
@@ -248,7 +247,7 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings testutil.EnrollmentDe
 		tb:              t,
 		db:              db,
 		repos:           repoFactory,
-		timetable:       repositories.NewTimetableRepositories(db, timetableDeps),
+		timetable:       services.NewTimetableRepositories(db, timetableDeps),
 		requestSvc:      intake,
 		offeringCatalog: catalog,
 		settings:        settings,
@@ -316,7 +315,7 @@ func newDecisionServiceForTestWithCareWithdrawal(
 	careWithdrawal enrollmentTest.CareWithdrawalReconciler,
 ) enrollmentTest.PublicDecisions {
 	if careWithdrawal == nil {
-		careWithdrawal = newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
+		careWithdrawal = newTestCareLifecycle(env.db, services.CareLifecycleTestConfig{
 			BookingsAuthoritative: testBookingsAuthority(settings),
 		})
 	}
@@ -346,7 +345,7 @@ func composeBookings(
 	careWithdrawal enrollmentTest.CareWithdrawalReconciler,
 ) careplan.BookingMaterializationCapability {
 	if careWithdrawal == nil {
-		careWithdrawal = newTestCareLifecycle(db, repositories.CareLifecycleTestConfig{
+		careWithdrawal = newTestCareLifecycle(db, services.CareLifecycleTestConfig{
 			BookingsAuthoritative: testBookingsAuthority(settings),
 		})
 	}
@@ -378,7 +377,7 @@ func composeDecisions(
 	careWithdrawal enrollmentTest.CareWithdrawalReconciler,
 ) *enrollmentTest.Decisions {
 	if careWithdrawal == nil {
-		careWithdrawal = newTestCareLifecycle(db, repositories.CareLifecycleTestConfig{
+		careWithdrawal = newTestCareLifecycle(db, services.CareLifecycleTestConfig{
 			BookingsAuthoritative: testBookingsAuthority(settings),
 		})
 	}
@@ -409,7 +408,7 @@ func composeDecisions(
 		CareBookings:           bookings,
 		GuardianAccess:         guardianAccess,
 		StudentEnrollment:      students,
-		Companions:             repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
+		Companions:             services.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:       repoFactory.CarePlan().DeleteCompanionEdges,
 		StudentAudit:           services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, services.NewStudentAudit(db)),
 		CareWithdrawal:         careWithdrawal,
@@ -434,7 +433,7 @@ func testBookingsAuthority(settings testutil.EnrollmentDecisionSettings) func(co
 // newTestCareLifecycle composes Care Plan's lifecycle over the test database,
 // with its owners bound the way the production graph binds them. The care-end
 // history goes to the ordinary student audit unless the config names another.
-func newTestCareLifecycle(db *bun.DB, config repositories.CareLifecycleTestConfig) careplan.CareLifecycle {
+func newTestCareLifecycle(db *bun.DB, config services.CareLifecycleTestConfig) careplan.CareLifecycle {
 	repos, err := services.NewCareLifecycleTestRepositories(db, nil)
 	if err != nil {
 		panic(err)
@@ -492,7 +491,7 @@ type factorySchools struct{ schools services.SchoolCapability }
 
 func newFactorySchools(t *testing.T, db *bun.DB) factorySchools {
 	t.Helper()
-	organizations, err := repositories.NewOrganizationTenancy(db)
+	organizations, err := services.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	return factorySchools{schools: organizations}
 }

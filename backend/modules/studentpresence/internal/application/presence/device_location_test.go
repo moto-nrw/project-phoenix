@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -28,7 +27,7 @@ func TestDeviceLocation_UpdatedOnSessionStart(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := buildDeviceLocationService(t, db)
-	deviceRepo, err := repositories.NewDeviceRepository(db)
+	deviceRepo, err := services.NewDeviceRepository(db)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 

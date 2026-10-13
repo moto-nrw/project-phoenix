@@ -5,7 +5,6 @@ import (
 
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -54,7 +53,7 @@ func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 	testpkg.CreateTestInstanceStaff(t, db, lernzeit.ID, other.ID, testpkg.InstanceStaffOpts{})
 
 	owners := services.NewUnobservedTimetableDependencies(db)
-	timetableRepos := repositories.NewTimetableRepositories(db, owners)
+	timetableRepos := services.NewTimetableRepositories(db, owners)
 	service := planning.NewStaffAssignmentService(planning.StaffAssignmentDependencies{
 		InstanceStaffRepo:    timetableRepos.InstanceStaffReads(),
 		ActivityInstanceRepo: timetableRepos.InstanceReads(),

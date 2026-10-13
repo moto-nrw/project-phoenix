@@ -12,7 +12,6 @@ import (
 
 	enrollmentFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -30,7 +29,7 @@ func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) carep
 
 func lockedBookingAuthorityService(t *testing.T, db *bun.DB) careplan.CareLifecycle {
 	t.Helper()
-	return newBookingAuthorityLifecycle(t, db, true, repositories.MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites)
+	return newBookingAuthorityLifecycle(t, db, true, bookingFixtures.MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites)
 }
 
 func newBookingAuthorityLifecycle(t *testing.T, db *bun.DB, authoritative bool, lock func(context.Context) error) careplan.CareLifecycle {
@@ -38,7 +37,7 @@ func newBookingAuthorityLifecycle(t *testing.T, db *bun.DB, authoritative bool, 
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := bookingFixtures.NewCareLifecycleTestRepositories(db, nil)
 	require.NoError(t, err)
-	svc, err := repos.NewCareLifecycle(repositories.CareLifecycleTestConfig{
+	svc, err := repos.NewCareLifecycle(bookingFixtures.CareLifecycleTestConfig{
 		Audit:                 bookingFixtures.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, bookingFixtures.NewStudentAudit(db)),
 		LockCareBookingWrites: lock,
 		BookingsAuthoritative: func(context.Context) (bool, error) { return authoritative, nil },

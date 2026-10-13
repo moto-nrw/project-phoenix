@@ -1,14 +1,13 @@
 package services
 
 import (
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/uptrace/bun"
 )
 
 type RFIDTestRepositories struct {
-	Membership repositories.MembershipTestRepositories
+	Membership MembershipTestRepositories
 	RFID       identityaccess.RFIDCards
 	Student    usersModels.StudentRepository
 }

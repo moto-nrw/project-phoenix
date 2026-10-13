@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -91,7 +90,7 @@ func applyDefaultGuardianRole(relationship *userModels.StudentGuardian) {
 // groups through the given membership; the roster and birthday reads name the
 // groups through School Structure.
 func NewStudentRepository(db *bun.DB, membership groupAssignmentLister, groups schoolstructure.Query) userModels.StudentRepository {
-	enrollment, err := repositories.NewSchoolMembership(db)
+	enrollment, err := NewSchoolMembership(db)
 	if err != nil {
 		panic(fmt.Sprintf("student repository: compose membership: %v", err))
 	}
@@ -108,7 +107,7 @@ func NewStudentRepository(db *bun.DB, membership groupAssignmentLister, groups s
 // the teacher-scoped roster reads fail closed. Repository suites that only
 // read and write the child's row use it.
 func NewUnboundStudentRepository(db *bun.DB) userModels.StudentRepository {
-	enrollment, err := repositories.NewSchoolMembership(db)
+	enrollment, err := NewSchoolMembership(db)
 	if err != nil {
 		panic(fmt.Sprintf("student repository: compose membership: %v", err))
 	}

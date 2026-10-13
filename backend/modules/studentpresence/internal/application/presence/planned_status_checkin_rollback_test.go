@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
@@ -108,9 +107,9 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos, err := repositories.NewActiveTestRepositories(db, services.MustNewMembershipTestRepositories(db))
+	repos, err := services.NewActiveTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
-	devices, err := repositories.NewDeviceRepository(db)
+	devices, err := services.NewDeviceRepository(db)
 	require.NoError(t, err)
 	deviceFault := activeService.NewCheckinDeviceFault(services.NewSessionDeviceDirectory(devices, nil, nil))
 	groupFault := &checkinAttributionFault{ActiveGroupRepository: sessionGroups(repos.ActiveGroup)}
@@ -122,7 +121,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 		SchoolPresence: presence, StudentRepo: students, StudentStatusRepo: statuses,
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student), GroupRepo: groupFault, DeviceRepo: deviceFault,
-		RoomRepo: services.NewAttendanceRooms(repos.Room), ActivityGroupRepo: repositories.NewSessionActivities(repos.GroupReads()),
+		RoomRepo: services.NewAttendanceRooms(repos.Room), ActivityGroupRepo: services.NewSessionActivities(repos.GroupReads()),
 		DB: db, Broadcaster: broadcaster,
 	})
 	activeService.ConfigureForTest(svc, activeService.WithTenantRuntime(testpkg.TenantRuntime(t, db)))

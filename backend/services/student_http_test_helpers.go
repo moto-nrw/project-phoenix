@@ -5,7 +5,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -22,7 +21,7 @@ import (
 
 // StudentHTTPTestRows are the retained repositories the student route suites
 // arrange and assert through.
-type StudentHTTPTestRows = repositories.StudentTestRepositories
+type StudentHTTPTestRows = StudentTestRepositories
 
 // StudentHTTPTestAuditCommand is the audit command the suite's rows record
 // into.
@@ -61,11 +60,11 @@ func NewStudentHTTPTestPeople(db *bun.DB) peopledirectory.Capability {
 // suite's rows. audit may be nil only for suites that never widen a
 // companion's plan.
 func NewStudentHTTPTestCompanions(rows StudentHTTPTestRows, people peopledirectory.Capability, audit peopleCompose.StudentChangeRecorder) careplan.StudentCompanions {
-	var recorder repositories.StudentChangeAudit
+	var recorder StudentChangeAudit
 	if audit != nil {
 		recorder = audit
 	}
-	return repositories.MustNewStudentCompanions(rows.CarePlan, rows.Student, people, recorder)
+	return MustNewStudentCompanions(rows.CarePlan, rows.Student, people, recorder)
 }
 
 // StudentHTTPTestConsents is the consent projection and trail the student
@@ -81,13 +80,13 @@ func NewStudentHTTPTestConsents(db *bun.DB) StudentHTTPTestConsents {
 // NewStudentHTTPTestPickupReviewBlocks are the timetable blocks a pickup
 // review shows, over the test database.
 func NewStudentHTTPTestPickupReviewBlocks(db *bun.DB) carePlanCompose.PickupReviewBlocks {
-	return repositories.NewPickupReviewBlocks(db)
+	return NewPickupReviewBlocks(db)
 }
 
 // NewStudentHTTPTestMembership is the School Membership owner over the test
 // database.
 func NewStudentHTTPTestMembership(db *bun.DB) (schoolmembership.Capability, error) {
-	return repositories.NewSchoolMembership(db)
+	return NewSchoolMembership(db)
 }
 
 // StudentHTTPTestCareLifecycle tunes the Care Plan lifecycle a student route
@@ -106,7 +105,7 @@ func NewStudentHTTPTestCareLifecycle(db *bun.DB, config StudentHTTPTestCareLifec
 	if err != nil {
 		return nil, err
 	}
-	return repos.NewCareLifecycle(repositories.CareLifecycleTestConfig{
+	return repos.NewCareLifecycle(CareLifecycleTestConfig{
 		Audit:                 peopleCompose.NewStudentAuditService(config.AuditActor, NewStudentAudit(db)),
 		BookingsAuthoritative: config.BookingsAuthoritative,
 		Today:                 config.Today,

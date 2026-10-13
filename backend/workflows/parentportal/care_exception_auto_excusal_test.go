@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -149,8 +148,8 @@ func TestDeleteCareException_ReleasesAutoExcusedBlocks(t *testing.T) {
 // repositories, including its Care Plan reads and student-before-day locks.
 func newPickupExcusal(t *testing.T, db *bun.DB, records compose.PickupExcusalRecords, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
 	t.Helper()
-	adapter := pickupExcusalTimetable{partialAbsencePreview{reads: repositories.NewPartialAbsencePreview(db)}, tt, db}
-	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: repositories.NewStudentPresenceForTests(db), Preview: adapter}
+	adapter := pickupExcusalTimetable{partialAbsencePreview{reads: services.NewPartialAbsencePreview(db)}, tt, db}
+	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: services.NewStudentPresenceForTests(db), Preview: adapter}
 	if extensions {
 		deps.Extensions = adapter
 	}

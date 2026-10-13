@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -44,7 +43,7 @@ type attendanceSyncSetup struct {
 	syncer      studentpresence.AttendanceSyncer
 	instRepo    scheduleModels.ActivityInstanceRepository
 	isRepo      scheduleModels.InstanceStudentRepository
-	statusRepo  *repositories.StudentStatusDayRepository
+	statusRepo  *services.StudentStatusDayRepository
 	groupRepo   studentpresence.SessionRecords
 	db          *bun.DB
 	ctx         context.Context
@@ -83,7 +82,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 	owners := services.NewUnobservedTimetableDependencies(db)
 	repoFactory := services.NewRepositoryTestFactory(db, owners)
-	timetableRepos := repositories.NewTimetableRepositories(db, owners)
+	timetableRepos := services.NewTimetableRepositories(db, owners)
 	instanceStudentRepo := timetableRepos.InstanceStudent
 
 	// Register parent cleanup first because t.Cleanup executes LIFO: the
@@ -99,7 +98,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 		instRepo:    timetableRepos.ActivityInstance,
 		isRepo:      instanceStudentRepo,
 		statusRepo:  repoFactory.StudentStatusDay,
-		groupRepo:   repositories.NewPresenceSessionRecords(db),
+		groupRepo:   services.NewPresenceSessionRecords(db),
 		db:          db,
 		ctx:         ctx,
 		roomID:      room.ID,

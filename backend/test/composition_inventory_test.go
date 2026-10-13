@@ -33,7 +33,6 @@ var expectedCompositionSmokeTests = []string{
 	"api/route_table_golden_test.go#TestFullProductionRouterGolden",
 	"api/testutil/helpers_test.go#TestSetupAuthModule",
 	"cmd/root_test.go#TestRootCmd_HasCommands",
-	"database/repositories/room_deletion_test.go#TestDefaultFacilitiesDeletesRoomWithoutGuard",
 	"internal/architecture/composition_inventory_test.go#TestCompositionLegacyCallerInventory",
 	"services/factory_test.go#TestNewFactory",
 	"test/composition_inventory_test.go#TestCompositionInventory",
@@ -46,7 +45,6 @@ var compositionTestPackages = []string{
 	"api",
 	"api/testutil",
 	"cmd",
-	"database/repositories",
 	"services",
 	"test",
 	"test/e2e/calendar",
@@ -54,14 +52,13 @@ var compositionTestPackages = []string{
 }
 
 var compositionTestSmokeByPackage = map[string]string{
-	"api":                   "api/route_table_golden_test.go#TestFullProductionRouterGolden",
-	"api/testutil":          "api/testutil/helpers_test.go#TestSetupAuthModule",
-	"cmd":                   "cmd/root_test.go#TestRootCmd_HasCommands",
-	"database/repositories": "database/repositories/room_deletion_test.go#TestDefaultFacilitiesDeletesRoomWithoutGuard",
-	"services":              "services/factory_test.go#TestNewFactory",
-	"test":                  "test/composition_inventory_test.go#TestCompositionInventory",
-	"test/e2e/calendar":     "test/e2e/calendar/parent_calendar_flow_test.go#TestParentCalendarHTTPFlow_ViewICSAndFeed",
-	"test/e2e/timetable":    "test/e2e/timetable/flow_a_happy_path_test.go#TestFlowA_PlanToReport",
+	"api":                "api/route_table_golden_test.go#TestFullProductionRouterGolden",
+	"api/testutil":       "api/testutil/helpers_test.go#TestSetupAuthModule",
+	"cmd":                "cmd/root_test.go#TestRootCmd_HasCommands",
+	"services":           "services/factory_test.go#TestNewFactory",
+	"test":               "test/composition_inventory_test.go#TestCompositionInventory",
+	"test/e2e/calendar":  "test/e2e/calendar/parent_calendar_flow_test.go#TestParentCalendarHTTPFlow_ViewICSAndFeed",
+	"test/e2e/timetable": "test/e2e/timetable/flow_a_happy_path_test.go#TestFlowA_PlanToReport",
 }
 
 type compositionInventory struct {

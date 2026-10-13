@@ -3,7 +3,6 @@ package services
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
@@ -56,7 +55,7 @@ func NewFileStoreTestModule(db *bun.DB, unit tenant.UnitOfWork, objects UploadsB
 		return FileStoreTestModule{}, err
 	}
 	announcements := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
-		Repo: repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New()), Settings: settings.Settings, Logger: slog.Default(),
+		Repo: NewParentAnnouncementRepository(db, enrollmentAudience.New()), Settings: settings.Settings, Logger: slog.Default(),
 	})
 	files, err := filestorageCompose.New(filestorageCompose.Dependencies{
 		DB:            db,

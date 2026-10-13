@@ -5,7 +5,6 @@ import (
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -37,11 +36,11 @@ func NewCareLifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork) (CareLifecyc
 		return CareLifecycleTestModule{}, err
 	}
 	audit := peopleCompose.NewStudentAuditService(requestAuditActor, NewStudentAudit(db))
-	recurrenceLock, err := repositories.NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := NewTimetableRecurrenceLock(db)
 	if err != nil {
 		return CareLifecycleTestModule{}, err
 	}
-	lifecycle, err := r.NewCareLifecycle(repositories.CareLifecycleTestConfig{
+	lifecycle, err := r.NewCareLifecycle(CareLifecycleTestConfig{
 		Audit:                 audit,
 		LockCareBookingWrites: recurrenceLock.LockRecurrenceWrites,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {

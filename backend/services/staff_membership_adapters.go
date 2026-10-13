@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -37,7 +36,7 @@ type staffMembershipDeps struct {
 	// (#2753): notes and the birthday opt-out.
 	employment workforce.StaffEmploymentCommand
 	// groupTeachers is lazy because School Membership may be rebound after construction.
-	groupTeachers func() repositories.GroupTeacherRepository
+	groupTeachers func() GroupTeacherRepository
 }
 
 func newStaffMembershipDeps(persons userModels.PersonRepository, identity staffIdentityQuery, employment workforce.StaffEmploymentCommand) *staffMembershipDeps {

@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -97,7 +96,7 @@ func registerSourcedTemplateCleanup(t *testing.T, s *scenarioSetup, templateID i
 
 func loadTemplateGroup(t *testing.T, s *scenarioSetup, templateID int64) *activitiesModels.Group {
 	t.Helper()
-	group, err := repositories.NewTimetableRepositories(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindByID(s.ctx, templateID)
+	group, err := bookingFixtures.NewTimetableRepositories(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindByID(s.ctx, templateID)
 	require.NoError(t, err)
 	require.NotNil(t, group)
 	return group

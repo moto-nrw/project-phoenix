@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
@@ -42,7 +41,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificat
 	// it before the school projections, as the service graph does.
 	repos, err := services.NewRepositoryTestFactoryWithPeopleDirectory(db, services.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
-	organizationTenancy, err := repositories.NewOrganizationTenancy(db)
+	organizationTenancy, err := services.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	repos = repos.WithSchoolProjections(organizationTenancy)
 	bc := testpkg.NewRecordingBroadcaster()

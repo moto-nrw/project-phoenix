@@ -7,7 +7,6 @@ import (
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -20,11 +19,11 @@ import (
 type RemindersTestModule struct {
 	Reminders   reminder.Query
 	Settings    config.SettingsService
-	UserContext *repositories.CallerRows
+	UserContext *CallerRows
 }
 
 func NewRemindersTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (RemindersTestModule, error) {
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := NewFacilities(db)
 	if err != nil {
 		return RemindersTestModule{}, err
 	}
@@ -48,7 +47,7 @@ func NewRemindersTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return RemindersTestModule{}, err
 	}
-	carePlan, err := repositories.NewCarePlan(db, students, r.InstanceStudent)
+	carePlan, err := NewCarePlan(db, students, r.InstanceStudent)
 	if err != nil {
 		return RemindersTestModule{}, err
 	}

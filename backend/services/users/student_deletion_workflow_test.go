@@ -17,7 +17,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -44,15 +43,15 @@ type deletionFixture struct {
 // through the repository contract the retained student services read, so the
 // deletion tests read links without driving the companion capability itself.
 func companionLinks(db *bun.DB) userModels.StudentCompanionRepository {
-	return repositories.NewStudentCompanionRepository(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CarePlan())
+	return services.NewStudentCompanionRepository(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CarePlan())
 }
 
 // linkCompanions stages one Monday link between two children.
 func linkCompanions(t *testing.T, ctx context.Context, db *bun.DB, subjectID, companionID int64) {
 	t.Helper()
-	edge, err := repositories.NewStudentCompanionEdge(subjectID, companionID, 1)
+	edge, err := services.NewStudentCompanionEdge(subjectID, companionID, 1)
 	require.NoError(t, err)
-	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, companionLinks(db), subjectID, []*userModels.StudentCompanion{edge}))
+	require.NoError(t, services.ReplaceStudentCompanions(ctx, companionLinks(db), subjectID, []*userModels.StudentCompanion{edge}))
 }
 
 // studentPlans is the child repository the departure-plan fixture writes
@@ -93,7 +92,7 @@ func newDeletionFixture(t *testing.T, db *bun.DB) *deletionFixture {
 	deps, err := studentdeletioncompose.Assemble(studentdeletioncompose.Dependencies{
 		DB: db, Directory: people, CarePlan: repos.CarePlan(), Timetable: timetableDeps.Capability, Feedback: feedback,
 		IsVerifiedStaff:       func(context.Context) (bool, error) { return true, nil },
-		LockCareBookingWrites: repositories.MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
+		LockCareBookingWrites: services.MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
 	})
 	require.NoError(t, err)
 	deps.Authorize = func(ctx context.Context) (studentdeletion.Actor, error) {

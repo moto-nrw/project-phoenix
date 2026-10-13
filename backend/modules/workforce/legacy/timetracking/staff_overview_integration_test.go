@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
@@ -39,7 +38,7 @@ type overviewFixture struct {
 	db        *testpkg.DB
 	repos     *services.RepositoryTestFactory
 	workforce workforce.Capability
-	rows      repositories.TimetableTestRepositories
+	rows      services.TimetableTestRepositories
 	ctx       context.Context
 	staff     []int64
 	svc       timetracking.StaffOverviewService
@@ -57,7 +56,7 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	owners := services.NewUnobservedTimetableDependencies(db)
-	rows, err := repositories.NewTimetableTestRepositories(db, services.MustNewMembershipTestRepositories(db))
+	rows, err := services.NewTimetableTestRepositoriesWithMembers(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 	repos := services.NewRepositoryTestFactory(db, owners)
 	ctx := testpkg.WithTestTenantRuntime(t, testpkg.TenantContext(tenantID))
@@ -94,7 +93,7 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 	monthStart := timezone.NewDate(today.Year(), today.Month(), 1)
 	settings := wtmIntSettings{accountStart: monthStart.String()}
 	f.monthSvc = timetracking.NewWorkTimeMonthService(
-		workforceLegacy.NewWorkSessionRepository(owners.Workforce), workforceLegacy.NewWorkSessionBreakRepository(owners.Workforce), repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(db)),
+		workforceLegacy.NewWorkSessionRepository(owners.Workforce), workforceLegacy.NewWorkSessionBreakRepository(owners.Workforce), repos.StaffAbsence, services.StaffScheduleAssignments(services.MustNewStaffEmployment(db)),
 		services.NewWorkScheduleTargets(services.NewStaffWorkScheduleRepository(owners.Workforce)), services.NewWorkTimeTargetModels(services.NewWorkTimeModelRepository(owners.Workforce)), services.NewTimeTrackingShifts(owners.Workforce),
 		settings, nil,
 		timetracking.WithMonthAdjustments(workforceLegacy.NewStaffBalanceAdjustmentRepository(owners.Workforce)),
@@ -269,7 +268,7 @@ func TestTimeTrackingOverview_AccountStartAfterRequestedMonthMatchesDetail(t *te
 	}
 	svc := f.newOverviewService(settings)
 	monthSvc := timetracking.NewWorkTimeMonthService(
-		workforceLegacy.NewWorkSessionRepository(f.workforce), workforceLegacy.NewWorkSessionBreakRepository(f.workforce), f.repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(f.db)),
+		workforceLegacy.NewWorkSessionRepository(f.workforce), workforceLegacy.NewWorkSessionBreakRepository(f.workforce), f.repos.StaffAbsence, services.StaffScheduleAssignments(services.MustNewStaffEmployment(f.db)),
 		services.NewWorkScheduleTargets(services.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkTimeTargetModels(services.NewWorkTimeModelRepository(f.workforce)), services.NewTimeTrackingShifts(f.workforce),
 		settings, nil,
 		timetracking.WithMonthAdjustments(workforceLegacy.NewStaffBalanceAdjustmentRepository(f.workforce)),
@@ -668,7 +667,7 @@ func TestTimeTrackingOverview_RespectsFrozenMonths(t *testing.T) {
 	prevMonth := timezone.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
 	settings := wtmIntSettings{accountStart: timezone.NewDate(prevMonth.Year(), prevMonth.Month(), 1).String()}
 	monthSvc := timetracking.NewWorkTimeMonthService(
-		workforceLegacy.NewWorkSessionRepository(f.workforce), workforceLegacy.NewWorkSessionBreakRepository(f.workforce), f.repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(f.db)),
+		workforceLegacy.NewWorkSessionRepository(f.workforce), workforceLegacy.NewWorkSessionBreakRepository(f.workforce), f.repos.StaffAbsence, services.StaffScheduleAssignments(services.MustNewStaffEmployment(f.db)),
 		services.NewWorkScheduleTargets(services.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkTimeTargetModels(services.NewWorkTimeModelRepository(f.workforce)), services.NewTimeTrackingShifts(f.workforce),
 		settings, nil,
 		timetracking.WithMonthAdjustments(workforceLegacy.NewStaffBalanceAdjustmentRepository(f.workforce)),
@@ -701,7 +700,7 @@ func TestTimeTrackingOverview_ClosedMonthUsesFrozenBalance(t *testing.T) {
 		accountStart: timezone.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
 	}
 	monthSvc := timetracking.NewWorkTimeMonthService(
-		workforceLegacy.NewWorkSessionRepository(f.workforce), workforceLegacy.NewWorkSessionBreakRepository(f.workforce), f.repos.StaffAbsence, services.StaffScheduleAssignments(repositories.MustNewStaffEmployment(f.db)),
+		workforceLegacy.NewWorkSessionRepository(f.workforce), workforceLegacy.NewWorkSessionBreakRepository(f.workforce), f.repos.StaffAbsence, services.StaffScheduleAssignments(services.MustNewStaffEmployment(f.db)),
 		services.NewWorkScheduleTargets(services.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkTimeTargetModels(services.NewWorkTimeModelRepository(f.workforce)), services.NewTimeTrackingShifts(f.workforce),
 		settings, nil,
 		timetracking.WithMonthAdjustments(workforceLegacy.NewStaffBalanceAdjustmentRepository(f.workforce)),

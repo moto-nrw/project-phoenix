@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +16,7 @@ func TestSessionCleanupRootResolvesRoomsThroughOwner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	repos := repositories.NewSessionCleanupRepositories(db, timetabletest.New(t, db))
+	repos := services.NewSessionCleanupRepositories(db, timetabletest.New(t, db))
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 	activity := testpkg.CreateTestActivityGroup(t, db, "Room Activity")
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
@@ -41,7 +40,7 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	factory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	devices, err := repositories.NewDeviceRepository(db)
+	devices, err := services.NewDeviceRepository(db)
 	require.NoError(t, err)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "Room Activity")

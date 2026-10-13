@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -26,11 +25,11 @@ func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	factory, err := services.NewRepositoryTestFactoryWithPeopleDirectory(db, services.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
-	identity, err := repositories.NewIdentityAccessForTests(db)
+	identity, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
-	organizations, err := repositories.NewOrganizationTenancy(db)
+	organizations, err := services.NewOrganizationTenancy(db)
 	require.NoError(t, err)
-	staff, err := repositories.NewStaffMessagingTestRepositories(db, services.MustNewMembershipTestRepositories(db))
+	staff, err := services.NewStaffMessagingTestRepositories(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

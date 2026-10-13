@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -142,7 +141,7 @@ func TestMasterDataReview_ScopedToWritableChildren(t *testing.T) {
 	assert.ErrorIs(t, err, masterdatarequests.ErrReviewForbidden)
 
 	err = f.inTx(t, func(ctx context.Context) error {
-		items, _, listErr := f.queue(t, repositories.SchoolWideReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
+		items, _, listErr := f.queue(t, services.SchoolWideReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
 		require.NoError(t, listErr)
 		require.Len(t, items, 1)
 		_, decideErr := f.decisions(t).Decide(ctx, masterdatarequests.DecideInput{RequestID: row.ID, Approve: false, Reason: "closing", ReviewedBy: f.chain.AccountID})
@@ -358,7 +357,7 @@ func TestMasterDataReview_ListPendingEnrichesStudentNames(t *testing.T) {
 	var items []*careplan.MasterDataReviewItem
 	require.NoError(t, f.inTx(t, func(ctx context.Context) error {
 		var err error
-		items, _, err = f.queue(t, repositories.SchoolWideReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
+		items, _, err = f.queue(t, services.SchoolWideReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
 		return err
 	}))
 	require.Len(t, items, 2)
@@ -375,7 +374,7 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 	svc := f.decisions(t)
 
 	err := f.inTx(t, func(ctx context.Context) error {
-		items, _, listErr := f.queue(t, repositories.SchoolWideReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
+		items, _, listErr := f.queue(t, services.SchoolWideReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
 		require.NoError(t, listErr)
 		assert.Empty(t, items)
 		_, decideErr := svc.Decide(ctx, masterdatarequests.DecideInput{RequestID: 0, Approve: true})

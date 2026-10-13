@@ -1,7 +1,6 @@
 package services
 
 import (
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/uptrace/bun"
@@ -16,7 +15,7 @@ type ClassListTestModule struct {
 }
 
 func NewClassListTestModule(db *bun.DB) (ClassListTestModule, error) {
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return ClassListTestModule{}, err
 	}

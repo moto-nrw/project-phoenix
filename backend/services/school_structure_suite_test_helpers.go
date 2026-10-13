@@ -8,7 +8,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -23,7 +22,7 @@ import (
 
 // SchoolStructureRepositorySuiteDependencies are the owner capabilities the
 // repository factory reads through.
-type SchoolStructureRepositorySuiteDependencies = repositories.TimetableDependencies
+type SchoolStructureRepositorySuiteDependencies = TimetableDependencies
 
 // NewSchoolStructureRepositorySuiteGraph is the legacy repository factory
 // over the unobserved timetable dependencies, with a second set of those
@@ -69,7 +68,7 @@ type (
 	SchoolStructureSuiteClassTeacher       = schoolmembership.ClassAssignment
 	SchoolStructureSuiteStaffGroupID       = education.StaffGroupID
 	SchoolStructureSuiteSubstitutionChange = education.SubstitutionChange
-	SchoolStructureSuiteSubstitutionRow    = repositories.GroupSubstitutionRow
+	SchoolStructureSuiteSubstitutionRow    = GroupSubstitutionRow
 )
 
 const (
@@ -104,12 +103,12 @@ func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db *bun.DB, b
 	if len(broadcasters) > 0 {
 		broadcaster = broadcasters[0]
 	}
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := NewFacilities(db)
 	if err != nil {
 		panic(fmt.Sprintf("education suite: compose facilities: %v", err))
 	}
 	service := education.NewService(repos.Group, repos.GroupTeacher, repos.ClassTeacher,
-		repositories.NewEducationRooms(rooms), NewEducationTeachers(repos.Teacher),
+		NewEducationRooms(rooms), NewEducationTeachers(repos.Teacher),
 		NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
 		education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: broadcaster, Audit: NewEducationClassAssignmentAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).StaffMasterDataChange)})
 
@@ -171,14 +170,14 @@ func NewGradeTransitionSuiteOwners(db *bun.DB, clock func() time.Time) (GradeTra
 	if err != nil {
 		return GradeTransitionSuiteOwners{}, err
 	}
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return GradeTransitionSuiteOwners{}, err
 	}
 	return GradeTransitionSuiteOwners{
 		People: people, Membership: membership,
 		Rosters:              rows.RosterMaintenance(slog.Default(), clock),
-		LockRecurrenceWrites: repositories.MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
+		LockRecurrenceWrites: MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
 	}, nil
 }
 

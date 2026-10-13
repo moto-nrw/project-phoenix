@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -24,7 +23,7 @@ type partialAbsenceBlocks struct {
 }
 
 func newPartialAbsenceBlocks(db *bun.DB) partialAbsenceBlocks {
-	return partialAbsenceBlocks{preview: repositories.NewPartialAbsencePreview(db)}
+	return partialAbsenceBlocks{preview: NewPartialAbsencePreview(db)}
 }
 
 func (p partialAbsenceBlocks) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date timezone.Date, clock time.Time) ([]carerequests.Block, error) {
@@ -45,7 +44,7 @@ type courseStatistics struct {
 }
 
 func newCourseStatistics(db *bun.DB) courseStatistics {
-	return courseStatistics{reads: repositories.NewPresenceReads(db)}
+	return courseStatistics{reads: NewPresenceReads(db)}
 }
 
 func (c courseStatistics) CourseInstances(ctx context.Context, from, to, today timezone.Date) ([]presenceCompose.CourseInstance, error) {

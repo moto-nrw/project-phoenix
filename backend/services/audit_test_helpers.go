@@ -3,7 +3,6 @@ package services
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
@@ -62,30 +61,30 @@ func NewDataDeletionTestRepository(db *bun.DB, command auditModels.Command) audi
 
 // NewTimetableTestRepositories composes the Timetable test graph with its
 // deviation protocol.
-func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (repositories.TimetableTestRepositories, error) {
-	result, err := repositories.NewTimetableTestRepositories(db, MustNewMembershipTestRepositories(db), clocks...)
+func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (TimetableTestRepositories, error) {
+	result, err := NewTimetableTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db), clocks...)
 	if err != nil {
-		return repositories.TimetableTestRepositories{}, err
+		return TimetableTestRepositories{}, err
 	}
 	return withTimetableTestAudit(db, result), nil
 }
 
-func withTimetableTestAudit(db *bun.DB, timetable repositories.TimetableTestRepositories) repositories.TimetableTestRepositories {
+func withTimetableTestAudit(db *bun.DB, timetable TimetableTestRepositories) TimetableTestRepositories {
 	timetable.DeviationEvent = NewTestAuditPersistence(db, nil).DeviationEvent
 	return timetable
 }
 
 // NewWorkSessionTestRepositories composes the work-session test graph with its
 // edit trail.
-func NewWorkSessionTestRepositories(db *bun.DB, clocks ...func() time.Time) (repositories.WorkSessionTestRepositories, error) {
-	result, err := repositories.NewWorkSessionTestRepositories(db, MustNewMembershipTestRepositories(db), clocks...)
+func NewWorkSessionTestRepositories(db *bun.DB, clocks ...func() time.Time) (WorkSessionTestRepositories, error) {
+	result, err := NewWorkSessionTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db), clocks...)
 	if err != nil {
-		return repositories.WorkSessionTestRepositories{}, err
+		return WorkSessionTestRepositories{}, err
 	}
 	return withWorkSessionTestAudit(db, result), nil
 }
 
-func withWorkSessionTestAudit(db *bun.DB, sessions repositories.WorkSessionTestRepositories) repositories.WorkSessionTestRepositories {
+func withWorkSessionTestAudit(db *bun.DB, sessions WorkSessionTestRepositories) WorkSessionTestRepositories {
 	sessions.TimetableTestRepositories = withTimetableTestAudit(db, sessions.TimetableTestRepositories)
 	sessions.WorkSessionEdit = NewTestAuditPersistence(db, nil).WorkSessionEdit
 	return sessions
@@ -93,10 +92,10 @@ func withWorkSessionTestAudit(db *bun.DB, sessions repositories.WorkSessionTestR
 
 // NewWorkforceTestRepositories composes the Workforce test graph with its
 // audit trails.
-func NewWorkforceTestRepositories(db *bun.DB, command auditModels.Command, clocks ...func() time.Time) (repositories.WorkforceTestRepositories, error) {
-	result, err := repositories.NewWorkforceTestRepositories(db, MustNewMembershipTestRepositories(db), clocks...)
+func NewWorkforceTestRepositories(db *bun.DB, command auditModels.Command, clocks ...func() time.Time) (WorkforceTestRepositories, error) {
+	result, err := NewWorkforceTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db), clocks...)
 	if err != nil {
-		return repositories.WorkforceTestRepositories{}, err
+		return WorkforceTestRepositories{}, err
 	}
 	result.WorkSessionTestRepositories = withWorkSessionTestAudit(db, result.WorkSessionTestRepositories)
 	audits := NewTestAuditPersistence(db, command)
@@ -108,15 +107,15 @@ func NewWorkforceTestRepositories(db *bun.DB, command auditModels.Command, clock
 
 // NewEnrollmentTestRepositories composes the enrollment test graph with its
 // access log.
-func NewEnrollmentTestRepositories(db *bun.DB, command auditModels.Command) (repositories.EnrollmentTestRepositories, error) {
-	result, err := repositories.NewEnrollmentTestRepositories(db, MustNewMembershipTestRepositories(db))
+func NewEnrollmentTestRepositories(db *bun.DB, command auditModels.Command) (EnrollmentTestRepositories, error) {
+	result, err := NewEnrollmentTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
-		return repositories.EnrollmentTestRepositories{}, err
+		return EnrollmentTestRepositories{}, err
 	}
 	return withEnrollmentTestAudit(db, command, result), nil
 }
 
-func withEnrollmentTestAudit(db *bun.DB, command auditModels.Command, enrollment repositories.EnrollmentTestRepositories) repositories.EnrollmentTestRepositories {
+func withEnrollmentTestAudit(db *bun.DB, command auditModels.Command, enrollment EnrollmentTestRepositories) EnrollmentTestRepositories {
 	enrollment.TimetableTestRepositories = withTimetableTestAudit(db, enrollment.TimetableTestRepositories)
 	enrollment.DataAccessLog = NewTestAuditPersistence(db, command).DataAccessLog
 	return enrollment
@@ -124,8 +123,8 @@ func withEnrollmentTestAudit(db *bun.DB, command auditModels.Command, enrollment
 
 // NewEnrollmentFlowTestRepositories composes the enrollment flow suites'
 // repositories with the audit repositories the flows read and write.
-func NewEnrollmentFlowTestRepositories(db *bun.DB) (*repositories.EnrollmentFlowTestRepositories, error) {
-	result, err := repositories.NewEnrollmentFlowTestRepositories(db, MustNewMembershipTestRepositories(db))
+func NewEnrollmentFlowTestRepositories(db *bun.DB) (*EnrollmentFlowTestRepositories, error) {
+	result, err := NewEnrollmentFlowTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return nil, err
 	}
@@ -140,10 +139,10 @@ func NewEnrollmentFlowTestRepositories(db *bun.DB) (*repositories.EnrollmentFlow
 
 // NewCareLifecycleTestRepositories composes the care-lifecycle test graph with
 // its field-edit trail.
-func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (repositories.CareLifecycleTestRepositories, error) {
-	result, err := repositories.NewCareLifecycleTestRepositories(db, MustNewMembershipTestRepositories(db))
+func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (CareLifecycleTestRepositories, error) {
+	result, err := NewCareLifecycleTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
-		return repositories.CareLifecycleTestRepositories{}, err
+		return CareLifecycleTestRepositories{}, err
 	}
 	result.TimetableTestRepositories = withTimetableTestAudit(db, result.TimetableTestRepositories)
 	audits := NewTestAuditPersistence(db, command)
@@ -153,10 +152,10 @@ func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (
 
 // NewStudentTestRepositories composes the student test graph with its audit
 // trails.
-func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (repositories.StudentTestRepositories, error) {
-	result, err := repositories.NewStudentTestRepositories(db, MustNewMembershipTestRepositories(db))
+func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (StudentTestRepositories, error) {
+	result, err := NewStudentTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
-		return repositories.StudentTestRepositories{}, err
+		return StudentTestRepositories{}, err
 	}
 	result.EnrollmentTestRepositories = withEnrollmentTestAudit(db, command, result.EnrollmentTestRepositories)
 	audits := NewTestAuditPersistence(db, command)
@@ -173,10 +172,10 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (reposi
 
 // NewStatisticsTestRepositories composes the statistics test graph with its
 // access log.
-func NewStatisticsTestRepositories(db *bun.DB, command auditModels.Command, clocks ...func() time.Time) (repositories.StatisticsTestRepositories, error) {
-	result, err := repositories.NewStatisticsTestRepositories(db, MustNewMembershipTestRepositories(db), clocks...)
+func NewStatisticsTestRepositories(db *bun.DB, command auditModels.Command, clocks ...func() time.Time) (StatisticsTestRepositories, error) {
+	result, err := NewStatisticsTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db), clocks...)
 	if err != nil {
-		return repositories.StatisticsTestRepositories{}, err
+		return StatisticsTestRepositories{}, err
 	}
 	result.Timetable = withTimetableTestAudit(db, result.Timetable)
 	audits := NewTestAuditPersistence(db, command)
@@ -186,8 +185,8 @@ func NewStatisticsTestRepositories(db *bun.DB, command auditModels.Command, cloc
 
 // NewGuardianTestRepositories composes the guardian test repositories with
 // their financial-change and access trails.
-func NewGuardianTestRepositories(db *bun.DB, command auditModels.Command) repositories.GuardianTestRepositories {
-	result := repositories.NewGuardianTestRepositories(db)
+func NewGuardianTestRepositories(db *bun.DB, command auditModels.Command) GuardianTestRepositories {
+	result := NewGuardianTestRepositoriesWithoutAudit(db)
 	audits := NewTestAuditPersistence(db, command)
 	result.FinancialAudit, result.AccessLog = audits.GuardianFinancialChange, audits.DataAccessLog
 	return result

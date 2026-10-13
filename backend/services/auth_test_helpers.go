@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -45,7 +44,7 @@ type AuthTestModule struct {
 	OperatorPasskeys identityaccess.OperatorPasskeyFlows
 	// Repos and TokenAuth let a behaviour test read the rows the flows
 	// wrote and mint the tokens they expect.
-	Repos     repositories.MembershipTestRepositories
+	Repos     MembershipTestRepositories
 	TokenAuth *authjwt.TokenAuth
 }
 
@@ -181,11 +180,11 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		return AuthTestModule{}, err
 	}
 	r := identityChainOf(db, members)
-	parentPortal, err := repositories.NewAuthTestParentPortal(db)
+	parentPortal, err := NewAuthTestParentPortal(db)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	organizations, err := repositories.NewOrganizationTenancy(db)
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -343,7 +342,7 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, db *bun.DB, logger *sl
 	if err != nil {
 		return nil, err
 	}
-	organizations, err := repositories.NewOrganizationTenancy(db)
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return nil, err
 	}

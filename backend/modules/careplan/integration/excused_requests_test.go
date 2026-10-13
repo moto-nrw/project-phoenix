@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -50,9 +49,9 @@ func newExcusedFixture(t *testing.T) *excusedFixture {
 
 func newExcusedRequests(t *testing.T, repos *services.RepositoryTestFactory, capability careplan.Capability) careplan.ExcusedAbsenceRequests {
 	t.Helper()
-	requests, err := repositories.NewExcusedAbsenceRequests(repositories.ExcusedRequestWiring{
+	requests, err := services.NewExcusedAbsenceRequests(services.ExcusedRequestWiring{
 		CarePlan: capability, Students: repos.Student, Persons: repos.Person,
-		Scope: repositories.SchoolWideReviewScope, Today: func() careplan.Date { return excusedToday },
+		Scope: services.SchoolWideReviewScope, Today: func() careplan.Date { return excusedToday },
 	})
 	require.NoError(t, err)
 	return requests

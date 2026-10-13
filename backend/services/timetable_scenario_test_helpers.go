@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -18,7 +17,7 @@ type TimetableScenarioTestModule struct {
 	TimetableTestModule
 	Active           studentpresence.Presence
 	Users            *peopleCompose.PersonDirectory
-	UserContext      *repositories.CallerRows
+	UserContext      *CallerRows
 	Settings         config.SettingsService
 	TimetableCleanup timetable.TimetableCleanup
 	// People serves the People port of the timetable routes from Users, as

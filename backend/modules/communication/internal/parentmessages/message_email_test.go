@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
@@ -84,7 +83,7 @@ func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) 
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	organizations, err := repositories.NewOrganizationTenancy(db)
+	organizations, err := services.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	outbox := &recordingMessageOutbox{}
 	svc := messaging.NewService(messaging.Config{
