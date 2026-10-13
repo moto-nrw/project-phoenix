@@ -4,7 +4,7 @@ import type { Session } from "next-auth";
 
 // Type definitions for API responses
 interface ErrorResponse {
-  error: string;
+  detail: string;
 }
 
 interface SuccessResponse {
@@ -69,7 +69,7 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
 
     expect(response.status).toBe(401);
     const data = (await response.json()) as ErrorResponse;
-    expect(data.error).toBe("Unauthorized");
+    expect(data.detail).toBe("Unauthorized");
   });
 
   it("returns error when studentId is missing", async () => {
@@ -90,7 +90,8 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
 
     expect(response.status).toBe(500);
     const data = (await response.json()) as ErrorResponse;
-    expect(data.error).toContain("Student ID is required");
+    expect(data.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(data)).not.toContain("Student ID is required");
   });
 
   it("returns error when active_group_id is missing in body", async () => {
@@ -111,7 +112,8 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
 
     expect(response.status).toBe(500);
     const data = (await response.json()) as ErrorResponse;
-    expect(data.error).toContain("active_group_id is required");
+    expect(data.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(data)).not.toContain("active_group_id is required");
   });
 
   it("returns error when backend fetch fails", async () => {
@@ -138,7 +140,11 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
     const response = await POST(request, context);
 
     expect(response.status).toBe(500);
-    expect(await response.text()).toBe("Backend error");
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("returns success with visit data on successful checkin", async () => {

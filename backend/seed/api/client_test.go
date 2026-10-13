@@ -477,7 +477,7 @@ func TestLogAPIResponse_SuccessJSON(t *testing.T) {
 func TestLogAPIResponse_ErrorStatus(t *testing.T) {
 	t.Parallel()
 
-	body := []byte(`{"status":"error","message":"not found"}`)
+	body := []byte(`{"status":404,"detail":"not found","code":"general.input"}`)
 	logAPIResponse(404, body)
 }
 

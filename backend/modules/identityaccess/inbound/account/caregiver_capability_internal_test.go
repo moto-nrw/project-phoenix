@@ -240,8 +240,8 @@ func TestEnableCaregiverCapability_EmptyBody(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	responseBody := decodeResponseBody(t, rr)
-	assert.Equal(t, "error", responseBody["status"])
-	assert.Equal(t, "EOF", responseBody["error"])
+	assert.Equal(t, float64(rr.Code), responseBody["status"])
+	assert.Equal(t, "EOF", responseBody["detail"])
 }
 
 func TestEnableCaregiverCapability_RendersUsersValidationError(t *testing.T) {
@@ -283,8 +283,8 @@ func TestDisableCaregiverCapability_RendersBlockedConflict(t *testing.T) {
 
 	require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
 	responseBody := decodeResponseBody(t, rr)
-	assert.Equal(t, "error", responseBody["status"])
-	assert.Equal(t, "caregiver capability cannot be removed while active bindings exist", responseBody["error"])
+	assert.Equal(t, float64(rr.Code), responseBody["status"])
+	assert.Equal(t, "caregiver capability cannot be removed while active bindings exist", responseBody["detail"])
 	assert.Equal(t, []any{"active_group_supervisions"}, responseBody["blockers"])
 }
 
@@ -300,7 +300,7 @@ func TestCaregiverCapabilityErrorRenderer_MapsMissingAccountToNotFound(t *testin
 
 	rr := renderCaregiverCapabilityError(t, fmt.Errorf("get caregiver capability: %w", fakeCaregiverMissing{}))
 	require.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
-	assert.Equal(t, "account not found", decodeResponseBody(t, rr)["error"])
+	assert.Equal(t, "account not found", decodeResponseBody(t, rr)["detail"])
 }
 
 func TestCaregiverCapabilityErrorRenderer_MapsUsersErrorToBadRequest(t *testing.T) {
@@ -308,7 +308,7 @@ func TestCaregiverCapabilityErrorRenderer_MapsUsersErrorToBadRequest(t *testing.
 
 	rr := renderCaregiverCapabilityError(t, fakeCaregiverInvalid{cause: fmt.Errorf("invalid caregiver capability request")})
 	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
-	assert.Equal(t, "invalid caregiver capability request", decodeResponseBody(t, rr)["error"])
+	assert.Equal(t, "invalid caregiver capability request", decodeResponseBody(t, rr)["detail"])
 }
 
 func TestCaregiverCapabilityErrorRenderer_MapsUsersOperationalErrorToInternalServerError(t *testing.T) {

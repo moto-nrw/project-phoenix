@@ -24,22 +24,17 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: mockApiGet,
+    apiPost: vi.fn(),
+    apiPut: vi.fn(),
+    apiDelete: vi.fn(),
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 // ============================================================================
 // Test Helpers
@@ -133,8 +128,9 @@ describe("GET /api/active/supervisors/staff/[staffId]/active", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Invalid staffId parameter");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Invalid staffId parameter");
   });
 
   it("returns error when staffId is not a string", async () => {
@@ -147,7 +143,8 @@ describe("GET /api/active/supervisors/staff/[staffId]/active", () => {
     );
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Invalid staffId parameter");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Invalid staffId parameter");
   });
 });

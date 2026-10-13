@@ -50,6 +50,7 @@ import {
   parseDecimalHours,
 } from "./arbeitszeit-hours";
 import { SonderarbeitszeitenSection } from "./sonderarbeitszeiten-section";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 
 export {
   formatDecimalHours,
@@ -965,15 +966,11 @@ function CustomEditor({
                   placeholder="z. B. 4,45"
                   className="text-center tabular-nums"
                 />
-                {isInvalid && (
-                  <p
-                    id={errorId}
-                    role="alert"
-                    className="text-moto-red-strong mt-1 text-xs"
-                  >
-                    Bitte 0 bis 12 eingeben.
-                  </p>
-                )}
+                <FieldErrorHint
+                  id={errorId}
+                  message={isInvalid ? "Bitte 0 bis 12 eingeben." : undefined}
+                  live
+                />
               </div>
               <span className="text-xs text-gray-400">Dezimalstd.</span>
               <label className="flex items-center gap-1 text-xs text-gray-500">

@@ -1620,29 +1620,19 @@ class StaffSessionService {
 }
 
 // The ApiError keeps code, field errors and request ID for the shared error
-// display (#2511); callers that still show `message` read it unchanged.
+// display (#2511); its message is the envelope's diagnostic `detail`.
 async function readStaffAPIError(
   response: Response,
   fallback: string,
 ): Promise<ApiError> {
   const text = await response.text().catch(() => "");
-  if (!text) return apiErrorFromText(fallback, response.status, text);
-
   try {
-    const payload = JSON.parse(text) as {
-      error?: unknown;
-      message?: unknown;
-    };
-    const message =
-      typeof payload.error === "string"
-        ? payload.error
-        : typeof payload.message === "string"
-          ? payload.message
-          : fallback;
-    return apiErrorFromText(message, response.status, text);
+    JSON.parse(text);
   } catch {
-    return apiErrorFromText(text, response.status, text);
+    // A plain-text body (proxy or gateway) is the best diagnostic there is.
+    if (text) return apiErrorFromText(text, response.status, text);
   }
+  return apiErrorFromText(fallback, response.status, text);
 }
 
 // Stundenkonto lifecycle (#1420): payout / comp-time transactions and the

@@ -403,8 +403,6 @@ function DefaultThreadFrame({
             title={empty.title}
             description={empty.description}
           />
-        ) : typeof error === "string" ? (
-          <Alert type="error" message={error} />
         ) : (
           <LoadErrorAlert error={error} />
         )}

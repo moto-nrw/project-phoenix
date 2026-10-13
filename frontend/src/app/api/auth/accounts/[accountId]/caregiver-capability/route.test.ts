@@ -44,7 +44,11 @@ describe("/api/auth/accounts/[accountId]/caregiver-capability", () => {
     );
 
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
+    await expect(response.json()).resolves.toMatchObject({
+      status: 401,
+      detail: "Unauthorized",
+      code: "general.permission",
+    });
   });
 
   it("returns 400 when the account id is missing", async () => {
@@ -56,8 +60,10 @@ describe("/api/auth/accounts/[accountId]/caregiver-capability", () => {
     );
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      error: "Invalid accountId parameter",
+    await expect(response.json()).resolves.toMatchObject({
+      status: 400,
+      detail: "Invalid accountId parameter",
+      code: "general.input",
     });
   });
 
@@ -91,7 +97,7 @@ describe("/api/auth/accounts/[accountId]/caregiver-capability", () => {
     mockUncachedAuth.mockResolvedValue({ user: { token: "refreshed-token" } });
     mockFetch
       .mockResolvedValueOnce(
-        Response.json({ error: "expired" }, { status: 401 }),
+        Response.json({ detail: "expired" }, { status: 401 }),
       )
       .mockResolvedValueOnce(Response.json({ success: true }));
 

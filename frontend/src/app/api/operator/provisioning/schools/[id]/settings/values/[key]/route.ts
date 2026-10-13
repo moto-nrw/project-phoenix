@@ -10,6 +10,7 @@ import {
   operatorApiDelete,
 } from "~/lib/operator/route-wrapper.server";
 import { TENANT_RESOLVE_AFFECTING_KEYS } from "~/lib/settings-keys";
+import { bffError } from "~/lib/api-response-error.server";
 
 const logger = createLogger({
   component: "OperatorSchoolSettingsValuesRoute",
@@ -85,7 +86,7 @@ export const PUT = createOperatorPutHandler(
     }
     const key = params.key as string;
     if (!VALID_KEY_PATTERN.test(key)) {
-      throw new Error("API error (400): Invalid settings key format");
+      throw bffError(400, "Invalid settings key format");
     }
     const result = await operatorApiPut(
       `/operator/schools/${params.id}/settings/values/${key}`,
@@ -108,7 +109,7 @@ export const DELETE = createOperatorDeleteHandler(
     }
     const key = params.key as string;
     if (!VALID_KEY_PATTERN.test(key)) {
-      throw new Error("API error (400): Invalid settings key format");
+      throw bffError(400, "Invalid settings key format");
     }
     const result = await operatorApiDelete(
       `/operator/schools/${params.id}/settings/values/${key}`,

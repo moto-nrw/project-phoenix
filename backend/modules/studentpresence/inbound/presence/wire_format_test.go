@@ -44,31 +44,31 @@ func TestWireFormat_Active_ErrorRenderer(t *testing.T) {
 			name:       "ErrRoomConflict",
 			err:        studentpresence.ErrRoomConflict,
 			wantStatus: 409,
-			wantBody:   "{\"status\":\"error\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich\",\"title\":\"Conflict\",\"detail\":\"room is already occupied by another active group\",\"instance\":\"\",\"error\":\"room is already occupied by another active group\",\"code\":\"general.business_rejection\"}\n",
+			wantBody:   "{\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich\",\"title\":\"Conflict\",\"status\":409,\"detail\":\"room is already occupied by another active group\",\"instance\":\"\",\"code\":\"general.business_rejection\"}\n",
 		},
 		{
 			name:       "ErrActiveGroupNotFound",
 			err:        studentpresence.ErrGroupNotFound,
 			wantStatus: 404,
-			wantBody:   "{\"status\":\"error\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen\",\"title\":\"Not Found\",\"detail\":\"active group not found\",\"instance\":\"\",\"error\":\"active group not found\",\"code\":\"general.input\"}\n",
+			wantBody:   "{\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen\",\"title\":\"Not Found\",\"status\":404,\"detail\":\"active group not found\",\"instance\":\"\",\"code\":\"general.input\"}\n",
 		},
 		{
 			name:       "ErrStudentAlreadyActive",
 			err:        studentpresence.ErrStudentAlreadyActive,
 			wantStatus: 409,
-			wantBody:   "{\"status\":\"error\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich\",\"title\":\"Conflict\",\"detail\":\"student already has an active visit\",\"instance\":\"\",\"error\":\"student already has an active visit\",\"code\":\"general.business_rejection\"}\n",
+			wantBody:   "{\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich\",\"title\":\"Conflict\",\"status\":409,\"detail\":\"student already has an active visit\",\"instance\":\"\",\"code\":\"general.business_rejection\"}\n",
 		},
 		{
 			name:       "ErrStudentMoveForbidden",
 			err:        studentpresence.ErrStudentMoveForbidden,
 			wantStatus: 403,
-			wantBody:   "{\"status\":\"error\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen\",\"title\":\"Forbidden\",\"detail\":\"not authorized to move the selected students\",\"instance\":\"\",\"error\":\"not authorized to move the selected students\",\"code\":\"general.permission\"}\n",
+			wantBody:   "{\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen\",\"title\":\"Forbidden\",\"status\":403,\"detail\":\"not authorized to move the selected students\",\"instance\":\"\",\"code\":\"general.permission\"}\n",
 		},
 		{
 			name:       "unmapped error defaults to 500",
 			err:        errors.New("boom"),
 			wantStatus: 500,
-			wantBody:   "{\"status\":\"error\",\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler\",\"title\":\"Internal Server Error\",\"detail\":\"boom\",\"instance\":\"\",\"error\":\"boom\",\"code\":\"general.server\"}\n",
+			wantBody:   "{\"type\":\"https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler\",\"title\":\"Internal Server Error\",\"status\":500,\"detail\":\"boom\",\"instance\":\"\",\"code\":\"general.server\"}\n",
 		},
 	}
 

@@ -167,6 +167,72 @@ describe("MFAEnrollmentScreen", () => {
     });
   });
 
+  it("keeps a refused confirmation code in the form", async () => {
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
+    const startMock = mockResponse(204, null);
+    const confirmMock = mockResponse(401, {
+      status: 401,
+      detail: "invalid code",
+      code: "identity.mfa_code_invalid",
+    });
+    let callCount = 0;
+    global.fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        callCount++;
+        if (callCount === 1) return startMock(input, init);
+        return confirmMock(input, init);
+      },
+    ) as unknown as typeof global.fetch;
+    render(<MFAEnrollmentScreen {...props} onComplete={vi.fn()} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Code an meine E-Mail senden" }),
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByRole("group", { name: "6-stelliger Bestätigungscode" }),
+      ).toBeInTheDocument();
+    });
+    const inputs = screen.getAllByRole("textbox").slice(0, 6);
+    await act(async () => {
+      fireEvent.change(inputs[0]!, { target: { value: "111111" } });
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          catalogText("identity.mfa_code_invalid", "die Prüfung des Codes"),
+        ),
+      ).toBeInTheDocument();
+    });
+    expect(assign).not.toHaveBeenCalled();
+    assign.mockRestore();
+  });
+
+  // An expired enrollment token answers 401 without a refusal code. The
+  // screen no longer invents identity.invalid_credentials (ADR 0006); the
+  // person has to log in again.
+  it("sends an expired enrollment session to the login screen", async () => {
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
+    global.fetch = mockResponse(401, { status: 401, detail: "Unauthorized" });
+    render(<MFAEnrollmentScreen {...props} onComplete={vi.fn()} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Code an meine E-Mail senden" }),
+    );
+
+    await waitFor(() => {
+      expect(assign).toHaveBeenCalledWith(
+        expect.stringContaining("error=SessionExpired"),
+      );
+    });
+    assign.mockRestore();
+  });
+
   it("renders error when enroll/start fails", async () => {
     global.fetch = mockResponse(429, {
       error: "rate limited",

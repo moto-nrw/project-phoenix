@@ -4,6 +4,7 @@ import {
   updateBirthdayOptOut,
 } from "~/lib/birthdays-api.server";
 import { createGetHandler, createPutHandler } from "~/lib/route-wrapper.server";
+import { bffError } from "~/lib/api-helpers.server";
 
 /**
  * GET/PUT /api/birthdays/opt-out — the caller's own birthday display setting
@@ -32,7 +33,7 @@ export const PUT = createPutHandler<unknown, { opt_out?: unknown }>(
     // existing opt-out and put the person's name back on the shared dashboard
     // — the one outcome this setting exists to prevent.
     if (typeof body.opt_out !== "boolean") {
-      throw new Error("API error (400): opt_out must be a boolean");
+      throw bffError(400, "opt_out must be a boolean");
     }
     return await updateBirthdayOptOut(token, body.opt_out);
   },

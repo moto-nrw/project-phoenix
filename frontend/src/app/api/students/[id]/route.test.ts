@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET, PUT, PATCH, DELETE } from "./route";
 
 // ============================================================================
@@ -26,23 +27,13 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+// The real handleApiError: the consent marker test reads the forwarded envelope.
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: mockApiGet,
   apiPost: vi.fn(),
   apiPut: mockApiPut,
   apiDelete: mockApiDelete,
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(400)")
-      ? 400
-      : message.includes("(401)")
-        ? 401
-        : message.includes("(404)")
-          ? 404
-          : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
 }));
 
 vi.mock("~/lib/student-privacy-helpers", () => ({
@@ -309,12 +300,16 @@ describe("PUT /api/students/[id]", () => {
     // updatePrivacyConsent is mocked at module level and resolves, so the
     // consent half of this request commits; the student PUT is what fails.
     mockApiPut.mockRejectedValueOnce(
-      new Error(
-        `API error (409): ${JSON.stringify({
-          error: "Die Laufgemeinschaft wurde zwischenzeitlich geändert.",
+      new ApiResponseError(
+        409,
+        JSON.stringify({
+          type: "about:blank",
+          title: "Conflict",
+          status: 409,
+          detail: "companions changed since the form was loaded",
           code: "students.companions_changed",
           conflicts: [{ companion_student_id: "7" }],
-        })}`,
+        }),
       ),
     );
 
@@ -328,26 +323,32 @@ describe("PUT /api/students/[id]", () => {
     });
     const response = await PUT(request, createMockContext({ id: "123" }));
 
-    expect(response.status).not.toBe(200);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    const payload = JSON.parse(
-      json.error.substring(json.error.indexOf("{")),
-    ) as {
-      error: string;
+    expect(response.status).toBe(409);
+    const payload = await parseJsonResponse<{
+      status: number;
+      detail: string;
       code?: string;
       conflicts?: unknown[];
       details?: Record<string, unknown>;
-    };
+    }>(response);
     expect(payload.details?.privacy_consent_saved).toBe(true);
     // Everything the browser branches on has to survive the re-shaping.
     expect(payload.code).toBe("students.companions_changed");
     expect(payload.conflicts).toHaveLength(1);
-    expect(json.error).toContain("API error (409)");
+    expect(payload.status).toBe(409);
+    expect(payload.detail).toBe("companions changed since the form was loaded");
   });
 
   it("leaves the failure untouched when no consent was written", async () => {
     mockApiPut.mockRejectedValueOnce(
-      new Error(`API error (400): ${JSON.stringify({ error: "invalid" })}`),
+      new ApiResponseError(
+        400,
+        JSON.stringify({
+          status: 400,
+          detail: "invalid",
+          code: "general.input",
+        }),
+      ),
     );
 
     const request = createMockRequest("/api/students/123", {
@@ -356,8 +357,13 @@ describe("PUT /api/students/[id]", () => {
     });
     const response = await PUT(request, createMockContext({ id: "123" }));
 
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).not.toContain("privacy_consent_saved");
+    expect(response.status).toBe(400);
+    const json = await parseJsonResponse<{
+      code: string;
+      details?: Record<string, unknown>;
+    }>(response);
+    expect(json.code).toBe("general.input");
+    expect(json.details?.privacy_consent_saved).toBeUndefined();
   });
 
   // Everything is committed by the time the read-back runs — failing the

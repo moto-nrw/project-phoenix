@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { ApiError } from "./api-error";
 
 import {
   decideCareScheduleChangeRequest,
-  CareRequestApiError,
   type StaffCareRequest,
 } from "./care-request-review-api";
 import type { RequestDiffEntry } from "~/lib/messaging-status";
@@ -153,10 +153,8 @@ describe("decideCareScheduleChangeRequest", () => {
       undefined,
       "impact-v1",
     ).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(CareRequestApiError);
-    expect((err as CareRequestApiError).code).toBe(
-      "students.change_request_not_pending",
-    );
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).code).toBe("students.change_request_not_pending");
     expect(err).toMatchObject({
       status: 409,
       details: { request_id: "r1" },
@@ -173,7 +171,7 @@ describe("decideCareScheduleChangeRequest", () => {
       undefined,
       "impact-v1",
     ).catch((e: unknown) => e);
-    expect((err as CareRequestApiError).message).toBe(
+    expect((err as ApiError).message).toBe(
       "Entscheidung konnte nicht gespeichert werden",
     );
   });

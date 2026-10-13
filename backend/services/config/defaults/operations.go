@@ -549,6 +549,24 @@ func init() {
 		SortOrder: 50,
 	})
 
+	// One child navigation instead of three (#1321): "Meine Gruppe" and
+	// "Aktuelle Aufsicht" leave the sidebar and the bottom bar; the child
+	// search carries both as tabs. Group and supervision pages stay reachable
+	// from its menu, because handovers and block work are not a search.
+	// Default off keeps every school's navigation.
+	config.Register(config.Definition{
+		Key:             config.KeyChildSearchOnlyNavigation,
+		Label:           "Kinder nur über „Alle Kinder“ finden",
+		Description:     "In der Navigation steht nur noch „Alle Kinder“. Dort wählen Sie oben „Meine Gruppe“ oder „Meine Aufsicht“. Gruppenseite und Aufsicht öffnen Sie über das Menü (⋮) auf dieser Seite.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "organisation",
+		SortOrder:       2,
+	})
+
 	config.Register(config.Definition{
 		Key:             config.KeyRequirePickupOfferingReview,
 		Label:           "Abgleich fester Abholzeiten mit dem Angebot",

@@ -375,12 +375,10 @@ describe("TagesplanView", () => {
   });
 
   it("explains missing permission with the catalog text (403)", async () => {
-    const { TimetableOperationsApiError } =
-      await import("~/lib/timetable-operations-api");
     setSWR({
       data: undefined,
       isLoading: false,
-      error: new TimetableOperationsApiError("forbidden", 403),
+      error: new ApiError("forbidden", 403),
     });
 
     render(<TagesplanView />);

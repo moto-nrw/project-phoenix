@@ -16,21 +16,14 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-helpers.server", () => ({
+vi.mock("@/lib/api-helpers.server", async () => ({
   apiGet: vi.fn(),
   apiPost: mockApiPost,
   apiPut: vi.fn(),
   apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
+  handleApiError: vi.fn(
+    (await import("~/test/helpers/handle-api-error")).mockHandleApiError,
+  ),
 }));
 
 function createMockRequest(
@@ -126,7 +119,8 @@ describe("POST /api/students/arrival-schedules/bulk", () => {
     const response = await POST(request, createMockContext());
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Backend failure");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Backend failure");
   });
 });

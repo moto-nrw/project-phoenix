@@ -144,7 +144,7 @@ func newGuardianHarness(t *testing.T, directory *fakeGuardianDirectory) *guardia
 		},
 		Failure: func(w http.ResponseWriter, r *http.Request, kind usersHTTP.FailureKind, err error) {
 			h.rendered = append(h.rendered, string(kind))
-			_ = render.Render(w, r, errorResponse{StatusCode: statusOf[kind], Status: "error", Kind: string(kind), Error: err.Error()})
+			_ = render.Render(w, r, errorResponse{StatusCode: statusOf[kind], Status: statusOf[kind], Kind: string(kind), Detail: err.Error()})
 		},
 		ObserveResponse: func(status int, code string) { h.observed = append(h.observed, http.StatusText(status)+":"+code) },
 		ActorID:         func(*http.Request) int64 { return h.actorID },

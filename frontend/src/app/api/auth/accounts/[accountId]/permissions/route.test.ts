@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET } from "./route";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 
 // ============================================================================
 // Types
@@ -88,8 +89,9 @@ describe("GET /api/auth/accounts/[accountId]/permissions", () => {
     const response = await GET(request, createMockContext({}));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Account ID is required");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Account ID is required");
   });
 
   it("fetches permissions for valid accountId", async () => {
@@ -153,7 +155,7 @@ describe("GET /api/auth/accounts/[accountId]/permissions", () => {
 
   it("handles API errors gracefully", async () => {
     mockApiGet.mockRejectedValueOnce(
-      new Error("API error (404): Account not found"),
+      new ApiResponseError(404, "Account not found"),
     );
 
     const request = createMockRequest("/api/auth/accounts/999/permissions");
@@ -163,7 +165,8 @@ describe("GET /api/auth/accounts/[accountId]/permissions", () => {
     );
 
     expect(response.status).toBe(404);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Account not found");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Not Found");
+    expect(JSON.stringify(json)).not.toContain("Account not found");
   });
 });

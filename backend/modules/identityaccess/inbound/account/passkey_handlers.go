@@ -262,6 +262,10 @@ func mapPasskeyLoginError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityPasskeyLoginFailed))
 	case errors.Is(cause, identityaccess.ErrTenantAccessDenied):
 		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrTenantAccessDenied, common.CodeIdentityPasskeyLoginFailed))
+	case errors.Is(cause, identityaccess.ErrPasskeyOriginInvalid):
+		// A login from a foreign origin is a refused login like the rest,
+		// not an expired session; the operator passkey login names it alike.
+		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrPasskeyOriginInvalid, common.CodeIdentityPasskeyLoginFailed))
 	default:
 		mapPasskeyError(w, r, err)
 	}

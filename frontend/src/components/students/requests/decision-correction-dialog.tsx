@@ -8,6 +8,7 @@
  */
 
 import { useLayoutEffect, useRef, useState } from "react";
+import { ApiError } from "~/lib/api-error";
 
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -17,7 +18,6 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
-  ChangeRequestStaleError,
   correctRequestDecision,
   type ParentRequestKind,
 } from "~/lib/change-request-list-api";
@@ -97,7 +97,8 @@ export function DecisionCorrectionDialog({
         // Veraltet: erst neu laden, dann neu entscheiden. Ein Wiederholen mit
         // der alten Fassung schlüge wieder fehl.
         retry:
-          err instanceof ChangeRequestStaleError
+          err instanceof ApiError &&
+          err.code === "students.change_request_stale"
             ? undefined
             : () => void latestSaveRef.current(),
       });

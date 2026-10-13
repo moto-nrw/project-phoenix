@@ -102,7 +102,7 @@ func TestBinaryOwnerFailureWire(t *testing.T) {
 	rr := httptest.NewRecorder()
 	rs.exportSnapshot(rr, httptest.NewRequest(http.MethodPost, "/snapshot/export", nil))
 	require.Equal(t, 500, rr.Code)
-	require.JSONEq(t, `{"status":"error","error":"active: GetStudentsAttendanceStatuses: database operation failed","code":"general.server","type":"https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler","title":"Internal Server Error","detail":"active: GetStudentsAttendanceStatuses: database operation failed","instance":""}`, rr.Body.String())
+	require.JSONEq(t, `{"status":500,"code":"general.server","type":"https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler","title":"Internal Server Error","detail":"active: GetStudentsAttendanceStatuses: database operation failed","instance":""}`, rr.Body.String())
 }
 
 func TestExportSnapshotStreamsTheFile(t *testing.T) {
@@ -126,7 +126,7 @@ func TestExportSnapshotReportsProjectionFailures(t *testing.T) {
 	rs.exportSnapshot(rr, httptest.NewRequest(http.MethodPost, "/snapshot/export", nil))
 
 	require.Equal(t, http.StatusInternalServerError, rr.Code)
-	assert.Contains(t, rr.Body.String(), "error")
+	assert.Contains(t, rr.Body.String(), `"code":"general.server"`)
 }
 
 func TestExportSnapshotRejectsMissingProjection(t *testing.T) {

@@ -2,26 +2,23 @@ import { describe, expect, it } from "vitest";
 
 import { ApiError } from "./api-error";
 import { isTimetableOperationForbidden } from "./timetable-operation-access";
-import { TimetableOperationsApiError } from "./timetable-operations-api";
 
 describe("isTimetableOperationForbidden", () => {
   it("recognises the backend's planning denial by its code", () => {
     expect(
       isTimetableOperationForbidden(
-        new TimetableOperationsApiError(
-          "timetable operation forbidden",
-          403,
-          "timetable.operation_not_planned",
-        ),
+        new ApiError("timetable operation forbidden", 403, {
+          code: "timetable.operation_not_planned",
+        }),
       ),
     ).toBe(true);
   });
 
   it.each([
-    ["another 403", new TimetableOperationsApiError("forbidden", 403)],
+    ["another 403", new ApiError("forbidden", 403)],
     [
       "the denial text without its code",
-      new TimetableOperationsApiError("timetable operation forbidden", 403),
+      new ApiError("timetable operation forbidden", 403),
     ],
     [
       "an admin without a staff profile",

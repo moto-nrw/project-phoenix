@@ -37,6 +37,7 @@ const (
 	KeyEnrollmentGradeLevelMax               = configModel.KeyEnrollmentGradeLevelMax
 	KeyEnrollmentLegalAGBDocumentURL         = configModel.KeyEnrollmentLegalAGBDocumentURL
 	KeyEnrollmentWaitlistEnabled             = configModel.KeyEnrollmentWaitlistEnabled
+	KeyChildSearchOnlyNavigation             = configModel.KeyChildSearchOnlyNavigation
 	KeyFeedbackEnabled                       = configModel.KeyFeedbackEnabled
 	KeyGroupMode                             = configModel.KeyGroupMode
 	KeyOperationalOverviewScope              = configModel.KeyOperationalOverviewScope

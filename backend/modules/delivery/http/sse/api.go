@@ -35,7 +35,7 @@ func (rs *Resource) Router() chi.Router {
 func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel, ok := withSSETokenDeadline(r.Context())
 	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeSSEProblem(w, http.StatusUnauthorized, codeGeneralPermission, "Unauthorized")
 		return
 	}
 	defer cancel()
@@ -44,7 +44,7 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	conn, statusCode := rs.setupSSEConnection(w)
 	if conn == nil {
 		slog.WarnContext(ctx, "SSE streaming unsupported by client")
-		http.Error(w, "Streaming unsupported", statusCode)
+		writeSSEProblem(w, statusCode, codeGeneralServer, "Streaming unsupported")
 		return
 	}
 
@@ -68,7 +68,7 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	// Step 4: Send initial "connected" event
 	if err := conn.sendConnectedEvent(topics); err != nil {
 		slog.ErrorContext(ctx, "SSE failed to send connected event", slog.String("error", err.Error()))
-		http.Error(w, "Failed to initialize SSE stream", http.StatusInternalServerError)
+		writeSSEProblem(w, http.StatusInternalServerError, codeGeneralServer, "Failed to initialize SSE stream")
 		return
 	}
 
@@ -102,9 +102,9 @@ func (rs *Resource) writeSSESetupError(w http.ResponseWriter, ctx context.Contex
 	var setupErr SetupRejection
 	if errors.As(err, &setupErr) {
 		slog.WarnContext(ctx, "SSE setup failed", slog.String("error", setupErr.SetupMessage()))
-		http.Error(w, setupErr.SetupMessage(), setupErr.SetupStatus())
+		writeSSEProblem(w, setupErr.SetupStatus(), setupProblemCode(setupErr.SetupStatus()), setupErr.SetupMessage())
 		return
 	}
 	slog.ErrorContext(ctx, "SSE failed to determine supervised groups", slog.String("error", err.Error()))
-	http.Error(w, "Failed to determine supervised groups", http.StatusInternalServerError)
+	writeSSEProblem(w, http.StatusInternalServerError, codeGeneralServer, "Failed to determine supervised groups")
 }

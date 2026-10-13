@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { apiDelete } from "~/lib/api-helpers.server";
+import { apiDelete, problemResponse } from "~/lib/api-helpers.server";
 import { createTenantApiAdapter } from "~/lib/backend-proxy-route.server";
 
 export const DELETE = createTenantApiAdapter(
@@ -13,9 +13,10 @@ export const DELETE = createTenantApiAdapter(
       typeof permissionId !== "string" ||
       !permissionId
     ) {
-      return NextResponse.json(
-        { error: "Account ID and Permission ID are required" },
-        { status: 400 },
+      return problemResponse(
+        400,
+        "Account ID and Permission ID are required",
+        _request,
       );
     }
     await apiDelete(

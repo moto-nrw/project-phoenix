@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "./api-error";
 import {
   bulkApproveParentRequests,
-  ChangeRequestStaleError,
   fetchPendingEnrollmentChangeRequestCount,
   getFamilyProtection,
   listAggregatedOpenRequests,
@@ -122,7 +121,7 @@ describe("change request list API", () => {
     });
   });
 
-  it("turns a stale write into ChangeRequestStaleError with its code", async () => {
+  it("keeps the stale code of a write that lost the race", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ code: "students.change_request_stale" }), {
         status: 409,
@@ -132,7 +131,6 @@ describe("change request list API", () => {
     const error = (await markRequestDone("excused", "7", "v1").catch(
       (err: unknown) => err,
     )) as ApiError;
-    expect(error).toBeInstanceOf(ChangeRequestStaleError);
     expect(error).toBeInstanceOf(ApiError);
     expect(error.code).toBe("students.change_request_stale");
   });

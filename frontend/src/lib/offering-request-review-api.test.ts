@@ -53,11 +53,11 @@ describe("decideOfferingChangeRequest", () => {
     );
   });
 
-  it("throws the backend decision error", async () => {
+  it("keeps the backend decision diagnostic separate", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
       jsonResponse(
         {
-          error: "Kein gültiger Betreuungsvertrag mehr",
+          detail: "Kein gültiger Betreuungsvertrag mehr",
           code: "offering_change_no_enrollment",
         },
         { status: 409 },
@@ -67,8 +67,9 @@ describe("decideOfferingChangeRequest", () => {
     await expect(
       decideOfferingChangeRequest("77", false, "Zu spät"),
     ).rejects.toMatchObject({
-      name: "OfferingRequestApiError",
-      message: "Kein gültiger Betreuungsvertrag mehr",
+      name: "ApiError",
+      message: "Entscheidung konnte nicht gespeichert werden",
+      detail: "Kein gültiger Betreuungsvertrag mehr",
       code: "offering_change_no_enrollment",
     });
   });
@@ -136,11 +137,11 @@ describe("previewOfferingChangeRequest", () => {
     );
   });
 
-  it("throws the backend preview error", async () => {
+  it("keeps the backend preview diagnostic separate", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
       jsonResponse(
         {
-          error: "Diese Übersteuerung ist nicht mehr möglich",
+          detail: "Diese Übersteuerung ist nicht mehr möglich",
           code: "care.offering_change_invalid",
         },
         { status: 422 },
@@ -150,8 +151,9 @@ describe("previewOfferingChangeRequest", () => {
     await expect(
       previewOfferingChangeRequest("77", ["9"]),
     ).rejects.toMatchObject({
-      name: "OfferingRequestApiError",
-      message: "Diese Übersteuerung ist nicht mehr möglich",
+      name: "ApiError",
+      message: "Vorschau konnte nicht aktualisiert werden",
+      detail: "Diese Übersteuerung ist nicht mehr möglich",
       code: "care.offering_change_invalid",
     });
   });

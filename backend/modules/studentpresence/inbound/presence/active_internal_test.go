@@ -26,7 +26,6 @@ func TestErrResponse_Render(t *testing.T) {
 
 	errResp := &common.ErrResponse{
 		HTTPStatusCode: testutil.StatusNotFound,
-		Status:         "Not Found",
 	}
 
 	req := httptest.NewRequest("GET", "/test", nil)
@@ -73,9 +72,9 @@ func TestErrorRenderer_AllNotFoundErrors(t *testing.T) {
 			errResp, ok := renderer.(*common.ErrResponse)
 			require.True(t, ok)
 			assert.Equal(t, testutil.StatusNotFound, errResp.HTTPStatusCode)
-			assert.Equal(t, "error", errResp.Status)
+			assertEnvelope(t, errResp, "general.input")
 			assert.ErrorIs(t, errResp.Err, tt.err)
-			assert.Equal(t, tt.err.Error(), errResp.ErrorText)
+			assert.Equal(t, tt.err.Error(), errResp.Detail)
 		})
 	}
 }
@@ -135,9 +134,9 @@ func TestErrorRenderer_AllBadRequestErrors(t *testing.T) {
 			errResp, ok := renderer.(*common.ErrResponse)
 			require.True(t, ok)
 			assert.Equal(t, testutil.StatusBadRequest, errResp.HTTPStatusCode)
-			assert.Equal(t, "error", errResp.Status)
+			assertEnvelope(t, errResp, "general.input")
 			assert.ErrorIs(t, errResp.Err, tt.err)
-			assert.Equal(t, tt.err.Error(), errResp.ErrorText)
+			assert.Equal(t, tt.err.Error(), errResp.Detail)
 		})
 	}
 }

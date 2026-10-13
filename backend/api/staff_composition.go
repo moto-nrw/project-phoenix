@@ -224,7 +224,7 @@ func staffPermissionGate(required ...string) staffHTTP.Middleware {
 func serveStaffAvatar(w http.ResponseWriter, r *http.Request, avatarPath string) {
 	filePath, err := apiCommon.ResolveStoredPath("public", avatarPath, "/uploads/avatars/")
 	if err != nil {
-		http.NotFound(w, r)
+		apiCommon.RenderStatus(w, r, http.StatusNotFound, "")
 		return
 	}
 	apiCommon.ServeImage(w, r, filepath.Dir(filePath), filepath.Base(filePath), "private, max-age=86400")

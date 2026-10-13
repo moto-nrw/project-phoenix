@@ -6,10 +6,11 @@ import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "EmergencyExportRoute" });
 
-async function proxyExport(token: string) {
+async function proxyExport(request: NextRequest, token: string) {
   const { getServerApiUrl } = await import("~/lib/server-api-url");
   const response = await fetch(
     `${getServerApiUrl()}/api/emergency/snapshot/export`,
@@ -24,7 +25,7 @@ async function proxyExport(token: string) {
   );
 
   if (!response.ok) {
-    return forwardBackendResponse(response);
+    return forwardBackendResponse(response, request);
   }
 
   const contentType =
@@ -43,10 +44,10 @@ async function POSTHandler(_request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return problemResponse(401, "Unauthorized", _request);
     }
 
-    const response = await proxyExport(session.user.token);
+    const response = await proxyExport(_request, session.user.token);
     if (response.status !== 401) return response;
 
     const refreshed = await uncachedAuth();
@@ -56,12 +57,12 @@ async function POSTHandler(_request: NextRequest) {
     ) {
       return response;
     }
-    return proxyExport(refreshed.user.token);
+    return proxyExport(_request, refreshed.user.token);
   } catch (error) {
     captureBffException(error, _request);
     const message = error instanceof Error ? error.message : "Export failed";
     logger.error("emergency_export_route_failed", { error: message });
-    return NextResponse.json({ error: message }, { status: 500 });
+    return problemResponse(500, message, _request);
   }
 }
 

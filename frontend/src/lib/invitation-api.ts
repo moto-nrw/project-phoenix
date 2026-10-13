@@ -47,12 +47,8 @@ const createApiError = async (
   try {
     const contentType = response.headers.get("Content-Type") ?? "";
     if (contentType.includes("json")) {
-      const body = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
-      message = body.error ?? body.message ?? fallbackMessage;
-      payload = body;
+      // The envelope's `detail` becomes the diagnostic message.
+      payload = await response.json();
     } else {
       const text = (await response.text()).trim();
       if (text) {

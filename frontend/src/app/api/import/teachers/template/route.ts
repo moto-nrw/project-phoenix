@@ -5,6 +5,7 @@ import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "StaffTemplateRoute" });
 
@@ -12,7 +13,7 @@ async function GETHandler(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return problemResponse(401, "Unauthorized", request);
     }
 
     const searchParams = request.nextUrl.searchParams;
@@ -27,7 +28,7 @@ async function GETHandler(request: NextRequest) {
       },
     );
 
-    if (!response.ok) return forwardBackendResponse(response);
+    if (!response.ok) return forwardBackendResponse(response, request);
 
     const contentType =
       response.headers.get("Content-Type") ?? "text/csv; charset=utf-8";
@@ -47,10 +48,7 @@ async function GETHandler(request: NextRequest) {
     logger.error("template_download_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return problemResponse(500, "Internal server error", request);
   }
 }
 

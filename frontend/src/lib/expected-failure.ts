@@ -52,8 +52,8 @@ export function expectedFailure(
 }
 
 /**
- * The HTTP status an API error carries (`status`, or `httpStatus` on
- * TimetableOperationsApiError), for the `status` field of a log entry.
+ * The HTTP status an API error carries (`status`, or an older `httpStatus`
+ * field), for the `status` field of a log entry.
  */
 export function errorStatus(err: unknown): number | undefined {
   if (!err || typeof err !== "object") return undefined;

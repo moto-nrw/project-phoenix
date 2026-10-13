@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { POST } from "./route";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 
 // ============================================================================
 // Types
@@ -24,21 +25,17 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: vi.fn(),
-  apiPost: mockApiPost,
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    // Match the real handleApiError regex pattern
-    const regex = /API error[:\s(]+(\d{3})/;
-    const match = error instanceof Error ? regex.exec(error.message) : null;
-    const status = match?.[1] ? Number.parseInt(match[1], 10) : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: vi.fn(),
+    apiPost: mockApiPost,
+    apiPut: vi.fn(),
+    apiDelete: vi.fn(),
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 // ============================================================================
 // Test Helpers
@@ -157,7 +154,7 @@ describe("POST /api/active/visits/[id]/end", () => {
   });
 
   it("handles backend errors gracefully", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("API error (404)"));
+    mockApiPost.mockRejectedValueOnce(new ApiResponseError(404, ""));
 
     const request = createMockRequest("/api/active/visits/999/end", {
       method: "POST",
@@ -168,7 +165,7 @@ describe("POST /api/active/visits/[id]/end", () => {
   });
 
   it("handles visit already ended", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("API error (400)"));
+    mockApiPost.mockRejectedValueOnce(new ApiResponseError(400, ""));
 
     const request = createMockRequest("/api/active/visits/123/end", {
       method: "POST",

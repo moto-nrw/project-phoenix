@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { problemResponse } from "~/lib/api-response-error.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
@@ -51,7 +52,7 @@ export async function forwardJsonPost(
       body: bodyJson,
     });
 
-    const out = forwardBackendResponse(response);
+    const out = forwardBackendResponse(response, request);
     mirrorSetCookies(response, out);
     return out;
   } catch (error) {
@@ -60,9 +61,6 @@ export async function forwardJsonPost(
       path: backendPath,
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
+    return problemResponse(500, "Internal Server Error", request);
   }
 }

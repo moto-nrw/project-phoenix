@@ -1,11 +1,7 @@
 // app/api/staff/[id]/route.ts
 import type { NextRequest } from "next/server";
-import {
-  ApiResponseError,
-  apiGet,
-  apiPut,
-  apiDelete,
-} from "~/lib/api-helpers.server";
+import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import {
   createGetHandler,
   createPutHandler,
@@ -260,31 +256,13 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
     const id = params.id as string;
     if (!id) throw new Error("Staff ID is required");
 
-    try {
-      const response = await apiPut<BackendStaffResponse>(
-        `/api/staff/${id}`,
-        token,
-        normalizeStaffBody(body),
-      );
-      return mapStaffResponse(response);
-    } catch (error) {
-      if (error instanceof ApiResponseError) throw error;
-      if (!(error instanceof Error)) throw error;
-
-      if (error.message.includes("403")) {
-        throw new Error(
-          "Sie dürfen Mitarbeiterdaten nicht ändern. Bitte wenden Sie sich an Ihre OGS-Leitung.",
-          { cause: error },
-        );
-      }
-      if (
-        error.message.includes("400") &&
-        error.message.includes("staff member not found")
-      ) {
-        throw new Error("Staff member not found", { cause: error });
-      }
-      throw error;
-    }
+    // A backend failure (403, 400, 404) keeps its envelope and status.
+    const response = await apiPut<BackendStaffResponse>(
+      `/api/staff/${id}`,
+      token,
+      normalizeStaffBody(body),
+    );
+    return mapStaffResponse(response);
   },
 );
 
@@ -304,33 +282,10 @@ export const DELETE = createDeleteHandler(
       throw new Error("Staff ID is required");
     }
 
-    try {
-      // Delete the staff member via the API
-      await apiDelete(`/api/staff/${id}`, token);
+    // A backend failure (403, 404) keeps its envelope and status.
+    await apiDelete(`/api/staff/${id}`, token);
 
-      // Return null to indicate success with no content
-      return null;
-    } catch (error) {
-      if (error instanceof ApiResponseError) throw error;
-      // Check for permission errors (403 Forbidden)
-      if (error instanceof Error && error.message.includes("403")) {
-        logger.error("permission denied when deleting staff", {
-          staff_id: id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        throw new Error(
-          "Permission denied: You need the 'users:delete' permission to delete staff members.",
-          { cause: error },
-        );
-      }
-
-      // Check for not found errors
-      if (error instanceof Error && error.message.includes("404")) {
-        throw new Error("Staff member not found", { cause: error });
-      }
-
-      // Re-throw other errors
-      throw error;
-    }
+    // Return null to indicate success with no content
+    return null;
   },
 );

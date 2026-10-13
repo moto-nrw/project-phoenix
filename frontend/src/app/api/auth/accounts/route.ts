@@ -1,5 +1,5 @@
 import { createGetHandler } from "@/lib/route-wrapper.server";
-import { apiGet, apiPut } from "~/lib/api-helpers.server";
+import { apiGet, apiPut, problemResponse } from "~/lib/api-helpers.server";
 import { createTenantApiAdapter } from "~/lib/backend-proxy-route.server";
 
 export const GET = createGetHandler(async (request, token, _params) => {
@@ -30,11 +30,12 @@ export const POST = createTenantApiAdapter(
     try {
       body = (await request.json()) as typeof body;
     } catch {
-      return Response.json({ error: "Invalid JSON" }, { status: 400 });
+      return problemResponse(400, "Invalid JSON", request);
     }
     const { id, ...updateData } = body;
     const response = await apiPut(`/auth/accounts/${id}`, token, updateData);
     return Response.json(response);
   },
-  () => Response.json({ error: "Failed to update account" }, { status: 500 }),
+  (_error, request) =>
+    problemResponse(500, "Failed to update account", request),
 );

@@ -4,7 +4,7 @@ Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes s
 `gh issue list --search "2580 in:body" --state closed`.
 
 Stand 13.10.2026 · Ratchet 86 · Composition 252 · Policy-Epoche 39 · 4 Regeln mit
-`convert it to exact debt` · 4.827 LOC unter `modules/*/legacy`
+`convert it to exact debt` · 4.826 LOC unter `modules/*/legacy`
 
 Summenprobe: 3 + 21 + 4 + 0 + 0 + 0 + 58 = 86 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.

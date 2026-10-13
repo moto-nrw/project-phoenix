@@ -4,11 +4,11 @@ package checkin
 // flow. Moved verbatim from the deleted api/iot/common in issue #575 B7 —
 // checkin is the only flow that emits them.
 //
-// WIRE CONTRACT (PyrePortal): the Code values, error strings, and details
-// field names below are matched by the kiosk
-// (PyrePortal/src/services/apiErrors.ts) and pinned byte-for-byte by
-// wire_format_test.go. Since issue #1879 PyrePortal reads the activity
-// details via current_occupancy/max_capacity (same keys as the room error).
+// WIRE CONTRACT (PyrePortal): the Code values and details field names below
+// are matched by the kiosk (PyrePortal/src/services/apiErrors.ts) and pinned
+// byte-for-byte by wire_test.go; the detail text is diagnostics. Since issue
+// #1879 PyrePortal reads the activity details via
+// current_occupancy/max_capacity (same keys as the room error).
 //
 // Whether the capacity 409s carry the `details` object at all is gated per
 // tenant by the checkin.*_capacity_details_enabled settings — see
@@ -34,6 +34,20 @@ const (
 	codeStudentAlreadyActive     = "iot.student_already_active"
 )
 
+// conflictEnvelope is the shared error envelope (ADR 0006) of a check-in
+// conflict: the HTTP status number, the diagnostic text and the registered
+// code. This package may not import api/common; ProblemResponseMiddleware
+// adds type, title and instance like for every error answer.
+type conflictEnvelope struct {
+	Status int    `json:"status"`
+	Detail string `json:"detail"`
+	Code   string `json:"code"`
+}
+
+func newConflictEnvelope(code, detail string) conflictEnvelope {
+	return conflictEnvelope{Status: http.StatusConflict, Detail: detail, Code: code}
+}
+
 // Common error variables
 var (
 	ErrRoomCapacityExceeded     = errors.New("room capacity exceeded")
@@ -55,9 +69,7 @@ func (e *RoomCapacityExceededError) Error() string {
 
 // CapacityErrorResponse is a structured error response for capacity exceeded errors
 type CapacityErrorResponse struct {
-	Status  string                     `json:"status"`
-	Error   string                     `json:"error"`
-	Code    string                     `json:"code"`
+	conflictEnvelope
 	Details *RoomCapacityExceededError `json:"details"`
 }
 
@@ -70,9 +82,7 @@ func (e *CapacityErrorResponse) Render(_ http.ResponseWriter, r *http.Request) e
 // ErrorRoomCapacityExceeded returns a 409 Conflict error response with capacity details
 func ErrorRoomCapacityExceeded(roomID int64, roomName string, currentOccupancy, maxCapacity int) render.Renderer {
 	return &CapacityErrorResponse{
-		Status: "error",
-		Error:  "Room capacity exceeded",
-		Code:   codeRoomCapacityExceeded,
+		conflictEnvelope: newConflictEnvelope(codeRoomCapacityExceeded, "Room capacity exceeded"),
 		Details: &RoomCapacityExceededError{
 			RoomID:           roomID,
 			RoomName:         roomName,
@@ -97,9 +107,7 @@ func (e *ActivityCapacityExceededError) Error() string {
 
 // ActivityCapacityErrorResponse is a structured error response for activity capacity exceeded errors
 type ActivityCapacityErrorResponse struct {
-	Status  string                         `json:"status"`
-	Error   string                         `json:"error"`
-	Code    string                         `json:"code"`
+	conflictEnvelope
 	Details *ActivityCapacityExceededError `json:"details"`
 }
 
@@ -112,9 +120,7 @@ func (e *ActivityCapacityErrorResponse) Render(_ http.ResponseWriter, r *http.Re
 // ErrorActivityCapacityExceeded returns a 409 Conflict error response with activity capacity details
 func ErrorActivityCapacityExceeded(activityID int64, activityName string, currentOccupancy, maxCapacity int) render.Renderer {
 	return &ActivityCapacityErrorResponse{
-		Status: "error",
-		Error:  "Activity capacity exceeded",
-		Code:   codeActivityCapacityExceeded,
+		conflictEnvelope: newConflictEnvelope(codeActivityCapacityExceeded, "Activity capacity exceeded"),
 		Details: &ActivityCapacityExceededError{
 			ActivityID:       activityID,
 			ActivityName:     activityName,
@@ -130,9 +136,7 @@ func ErrorActivityCapacityExceeded(activityID int64, activityName string, curren
 // the struct at all, so the key is absent from the JSON and PyrePortal falls
 // back to its generic German message.
 type capacityErrorNoDetails struct {
-	Status string `json:"status"`
-	Error  string `json:"error"`
-	Code   string `json:"code"`
+	conflictEnvelope
 }
 
 // Render implements the render.Renderer interface
@@ -145,9 +149,7 @@ func (e *capacityErrorNoDetails) Render(_ http.ResponseWriter, r *http.Request) 
 // without the details object.
 func ErrorRoomCapacityExceededNoDetails() render.Renderer {
 	return &capacityErrorNoDetails{
-		Status: "error",
-		Error:  "Room capacity exceeded",
-		Code:   codeRoomCapacityExceeded,
+		conflictEnvelope: newConflictEnvelope(codeRoomCapacityExceeded, "Room capacity exceeded"),
 	}
 }
 
@@ -155,9 +157,7 @@ func ErrorRoomCapacityExceededNoDetails() render.Renderer {
 // 409 without the details object.
 func ErrorActivityCapacityExceededNoDetails() render.Renderer {
 	return &capacityErrorNoDetails{
-		Status: "error",
-		Error:  "Activity capacity exceeded",
-		Code:   codeActivityCapacityExceeded,
+		conflictEnvelope: newConflictEnvelope(codeActivityCapacityExceeded, "Activity capacity exceeded"),
 	}
 }
 
@@ -196,9 +196,7 @@ func (e *StudentAlreadyActiveError) Error() string {
 // CapacityErrorResponse so PyrePortal can parse all checkin-conflict
 // responses through a single decoder.
 type StudentAlreadyActiveErrorResponse struct {
-	Status  string                     `json:"status"`
-	Error   string                     `json:"error"`
-	Code    string                     `json:"code"`
+	conflictEnvelope
 	Details *StudentAlreadyActiveError `json:"details"`
 }
 
@@ -216,9 +214,7 @@ func (e *StudentAlreadyActiveErrorResponse) Render(_ http.ResponseWriter, r *htt
 // rather than serialized as the Go zero value.
 func ErrorStudentAlreadyActive(studentID, existingVisitID int64, entryTime *time.Time, roomID *int64, roomName string) render.Renderer {
 	return &StudentAlreadyActiveErrorResponse{
-		Status: "error",
-		Error:  devicescan.MessageStudentAlreadyActive,
-		Code:   codeStudentAlreadyActive,
+		conflictEnvelope: newConflictEnvelope(codeStudentAlreadyActive, devicescan.MessageStudentAlreadyActive),
 		Details: &StudentAlreadyActiveError{
 			StudentID:       studentID,
 			ExistingVisitID: existingVisitID,

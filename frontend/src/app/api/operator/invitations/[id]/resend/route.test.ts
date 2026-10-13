@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-// Smoke test only — full proxy behavior (401 retry, TOKEN_EXPIRED envelope,
+// Smoke test only — full proxy behavior (401 retry, 401 envelope after a failed refresh,
 // non-JSON fallback, error forwarding, etc.) is covered by the helper tests
 // in src/lib/operator/route-wrapper.test.ts. This file exists to pin the
 // exact backend endpoint string and HTTP method that route.ts wires to, so a

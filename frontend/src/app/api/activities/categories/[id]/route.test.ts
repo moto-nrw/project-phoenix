@@ -17,17 +17,17 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: vi.fn(),
-  apiPost: vi.fn(),
-  apiPut: mockApiPut,
-  apiDelete: mockApiDelete,
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    return new Response(JSON.stringify({ error: message }), { status: 500 });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: vi.fn(),
+    apiPost: vi.fn(),
+    apiPut: mockApiPut,
+    apiDelete: mockApiDelete,
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 const defaultSession: ExtendedSession = {
   user: { id: "1", token: "test-token", name: "Test User" },

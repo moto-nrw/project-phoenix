@@ -106,7 +106,7 @@ func TestProvisioningErrorRendererHidesInvalidDataText(t *testing.T) {
 	resp, ok := ProvisioningErrorRenderer(&organizationtenancy.InvalidProvisioningDataError{Err: errors.New("pq: secret detail")}).(*common.ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
-	assert.Equal(t, "invalid input data", resp.ErrorText)
+	assert.Equal(t, "invalid input data", resp.Detail)
 	assert.Empty(t, resp.Errors)
 }
 

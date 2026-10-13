@@ -1,10 +1,10 @@
 import { captureBffException } from "~/lib/sentry-bff.server";
-import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 import { withInvitationOwnerSession } from "~/lib/invitation-owner-session.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "InvitationAcceptRoute" });
 
@@ -24,13 +24,10 @@ export async function POST(request: NextRequest) {
     try {
       body = (await request.clone().json()) as AcceptInvitationBody;
     } catch {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+      return problemResponse(400, "Invalid JSON", request);
     }
     if (!body.token) {
-      return NextResponse.json(
-        { error: "Missing invitation token" },
-        { status: 400 },
-      );
+      return problemResponse(400, "Missing invitation token", request);
     }
 
     const { token, ...rest } = body;
@@ -54,7 +51,7 @@ export async function POST(request: NextRequest) {
         },
       );
 
-      return forwardBackendResponse(response);
+      return forwardBackendResponse(response, request);
     };
     return body.existingAccount
       ? await withInvitationOwnerSession(request, forward)
@@ -64,9 +61,6 @@ export async function POST(request: NextRequest) {
     logger.error("invitation accept failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
+    return problemResponse(500, "Internal Server Error", request);
   }
 }

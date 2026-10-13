@@ -11,6 +11,7 @@
  */
 
 import { useLayoutEffect, useRef, useState } from "react";
+import { ApiError } from "~/lib/api-error";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -28,7 +29,6 @@ import { formatDate } from "~/lib/date-helpers";
 import { DEPARTURE_WEEKDAYS } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 import {
-  ChangeRequestStaleError,
   conflictResolutionKind,
   resolveRequestConflict,
   type ParentRequestKind,
@@ -281,7 +281,8 @@ export function ConflictDecisionGroup({
       setConfirming(false);
       // Veraltet: der Katalog nennt den Grund, die Liste lädt die neue
       // Fassung. Ein Wiederholen mit dem alten Stand wäre sinnlos.
-      const stale = err instanceof ChangeRequestStaleError;
+      const stale =
+        err instanceof ApiError && err.code === "students.change_request_stale";
       await errors.show(err, {
         object: "die Entscheidung",
         retry: stale ? undefined : () => void latestSaveRef.current(),

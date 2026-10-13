@@ -5,6 +5,7 @@
  * sidebar badge.
  */
 
+import { ApiError, apiErrorFromResponse } from "~/lib/api-error";
 import {
   isParentRequestReviewAccess,
   isStudentRequestReviewCoverage,
@@ -39,14 +40,17 @@ export async function fetchChangeRequestAccess(): Promise<ParentRequestReviewAcc
     cache: "no-store",
   });
   if (!response.ok) {
-    throw new Error(`Change request access failed: ${response.status}`);
+    throw await apiErrorFromResponse(
+      response,
+      `Change request access failed: ${response.status}`,
+    );
   }
   const json = (await response.json()) as Envelope<{
     review_access?: unknown;
   }>;
   const access = json.data?.review_access;
   if (!isParentRequestReviewAccess(access)) {
-    throw new Error("Change request access response is invalid");
+    throw new ApiError("Change request access response is invalid", 500);
   }
   return access;
 }
@@ -68,14 +72,18 @@ export async function fetchStudentRequestReviewCoverage(
     },
   );
   if (!response.ok) {
-    throw new Error(
+    throw await apiErrorFromResponse(
+      response,
       `Student request review coverage failed: ${response.status}`,
     );
   }
   const json = (await response.json()) as Envelope<{ student?: unknown }>;
   const coverage = json.data?.student;
   if (!isStudentRequestReviewCoverage(coverage)) {
-    throw new Error("Student request review coverage response is invalid");
+    throw new ApiError(
+      "Student request review coverage response is invalid",
+      500,
+    );
   }
   return coverage;
 }

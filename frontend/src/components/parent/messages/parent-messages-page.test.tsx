@@ -1,12 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
-import {
-  ParentApiError,
-  listMessageThreads,
-  listMyChildren,
-} from "~/lib/parent-api";
+import { listMessageThreads, listMyChildren } from "~/lib/parent-api";
 import { catalogText } from "~/test/error-catalog-text";
 import { ParentMessagesPage } from "./parent-messages-page";
 
@@ -224,7 +221,7 @@ describe("ParentMessagesPage", () => {
   it("zeigt einen Ladefehler mit Wiederholen statt einer leeren Seite", async () => {
     mockedChildren
       .mockRejectedValueOnce(
-        new ParentApiError("db kaputt", 503, "general.unavailable"),
+        new ApiError("db kaputt", 503, { code: "general.unavailable" }),
       )
       .mockResolvedValueOnce([felix]);
     renderPage();

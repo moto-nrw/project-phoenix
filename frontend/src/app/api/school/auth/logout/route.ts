@@ -1,11 +1,12 @@
 import { captureBffException } from "~/lib/sentry-bff.server";
-import { type NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { schoolAuth } from "~/server/auth/school";
 import { withSchoolAuth } from "~/server/auth/school-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "SchoolAuthLogoutRoute" });
 
@@ -18,7 +19,7 @@ async function POSTHandler(request: NextRequest) {
 
     const refreshToken = session?.user?.refreshToken;
     if (!refreshToken) {
-      return NextResponse.json({ error: "No active session" }, { status: 401 });
+      return problemResponse(401, "No active session", request);
     }
 
     // The backend /auth/logout route is guarded by AuthenticateRefreshJWT,
@@ -32,13 +33,13 @@ async function POSTHandler(request: NextRequest) {
       },
     });
 
-    return forwardBackendResponse(response);
+    return forwardBackendResponse(response, request);
   } catch (error) {
     captureBffException(error, request);
     logger.error("logout failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-    return NextResponse.json({ error: "Backend unavailable" }, { status: 502 });
+    return problemResponse(502, "Backend unavailable", request);
   }
 }
 

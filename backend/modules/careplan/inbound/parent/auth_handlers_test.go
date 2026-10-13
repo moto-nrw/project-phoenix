@@ -129,8 +129,8 @@ func postPasswordResetConfirm(t *testing.T, rs *parent.Resource, body map[string
 }
 
 type loginErrorBody struct {
-	Status string `json:"status"`
-	Error  string `json:"error"`
+	Status int    `json:"status"`
+	Detail string `json:"detail"`
 	Code   string `json:"code"`
 }
 

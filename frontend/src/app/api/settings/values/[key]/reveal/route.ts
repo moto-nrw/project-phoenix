@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
+import { bffError } from "~/lib/api-response-error.server";
 
 const VALID_KEY_PATTERN = /^[a-z0-9_.]{1,255}$/;
 
@@ -12,7 +13,7 @@ export const GET = createGetHandler(
   ) => {
     const key = params.key as string;
     if (!VALID_KEY_PATTERN.test(key)) {
-      throw new Error("API error (400): Invalid settings key format");
+      throw bffError(400, "Invalid settings key format");
     }
     return await apiGet(`/api/settings/values/${key}/reveal`, token);
   },

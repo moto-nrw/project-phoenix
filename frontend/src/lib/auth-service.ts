@@ -141,10 +141,7 @@ interface PasswordResetResponse {
   message: string;
 }
 
-interface ApiErrorResponseBody {
-  error?: string;
-  message?: string;
-}
+type ApiErrorResponseBody = Record<string, unknown>;
 
 function parseRetryAfter(value: string | null | undefined): number | null {
   if (!value) {
@@ -169,19 +166,10 @@ async function buildFetchApiError(
   response: Response,
   fallbackMessage: string,
 ): Promise<ApiError> {
-  let message = fallbackMessage;
   let text = "";
 
   try {
     text = await response.text();
-    if (text) {
-      try {
-        const payload = JSON.parse(text) as ApiErrorResponseBody;
-        message = payload.error ?? payload.message ?? fallbackMessage;
-      } catch {
-        message = text.trim();
-      }
-    }
   } catch (readError) {
     logger.warn("failed to parse password reset error response", {
       error: readError instanceof Error ? readError.message : String(readError),
@@ -189,8 +177,9 @@ async function buildFetchApiError(
   }
 
   // A real ApiError with code, field errors and request ID, so the shared
-  // error path can show the catalog text (#2517).
-  const apiError = apiErrorFromText(message, response.status, text);
+  // error path can show the catalog text (#2517). The envelope's `detail`
+  // becomes the diagnostic message.
+  const apiError = apiErrorFromText(fallbackMessage, response.status, text);
 
   const retryAfterSeconds = parseRetryAfter(
     response.headers.get("Retry-After"),
@@ -216,8 +205,6 @@ function buildAxiosApiError(
   if (data) {
     if (typeof data === "string") {
       message = data;
-    } else {
-      message = data.error ?? data.message ?? fallbackMessage;
     }
   } else if (error.message) {
     message = error.message;
@@ -524,7 +511,11 @@ export const authService = {
             status: response.status,
             error_text: errorText.substring(0, 200),
           });
-          throw new Error(`Login failed: ${response.status}`);
+          throw apiErrorFromText(
+            `Login failed: ${response.status}`,
+            response.status,
+            errorText,
+          );
         }
 
         return (await response.json()) as TokenResponse;
@@ -565,7 +556,11 @@ export const authService = {
             status: response.status,
             error_text: errorText.substring(0, 200),
           });
-          throw new Error(`Registration failed: ${response.status}`);
+          throw apiErrorFromText(
+            `Registration failed: ${response.status}`,
+            response.status,
+            errorText,
+          );
         }
 
         const responseData =
@@ -645,7 +640,11 @@ export const authService = {
             status: response.status,
             error_text: errorText.substring(0, 200),
           });
-          throw new Error(`Token refresh failed: ${response.status}`);
+          throw apiErrorFromText(
+            `Token refresh failed: ${response.status}`,
+            response.status,
+            errorText,
+          );
         }
 
         return (await response.json()) as TokenResponse;
@@ -688,7 +687,11 @@ export const authService = {
             status: response.status,
             error_text: errorText.substring(0, 200),
           });
-          throw new Error(`Password reset failed: ${response.status}`);
+          throw apiErrorFromText(
+            `Password reset failed: ${response.status}`,
+            response.status,
+            errorText,
+          );
         }
       } else {
         await api.post(url, data);

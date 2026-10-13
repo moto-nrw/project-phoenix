@@ -63,7 +63,7 @@ describe("GET /api/tenant/list", () => {
 
   it("forwards non-200 status from backend", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "not found" }), {
+      new Response(JSON.stringify({ detail: "not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
       }),
@@ -98,7 +98,7 @@ describe("GET /api/tenant/list", () => {
     const response = await GET();
 
     expect(response.status).toBe(500);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toBe("Internal Server Error");
+    const json = (await response.json()) as { detail: string };
+    expect(json.detail).toBe("Internal Server Error");
   });
 });

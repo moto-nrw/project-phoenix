@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError, transportFetch } from "./api-error";
+import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 /**
  * Web Push client (#2003): service worker registration, permission +
  * subscription lifecycle, and the proxy-route calls that persist the
@@ -11,19 +11,9 @@ import { ApiError, enrichApiError, transportFetch } from "./api-error";
 
 export type PushPortal = "tenant" | "parent" | "school";
 
-class PushApiError extends ApiError {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message, status);
-    this.name = "PushApiError";
-  }
-}
-
 /** Identifies the expected backend response when VAPID is not configured. */
 export function isPushConfigurationMissing(error: unknown): boolean {
-  return error instanceof PushApiError && error.status === 404;
+  return error instanceof ApiError && error.status === 404;
 }
 
 function basePath(portal: PushPortal): string {
@@ -89,11 +79,11 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
     data = null;
   }
   if (!response.ok) {
-    const message =
-      data && typeof data === "object" && "error" in data
-        ? String((data as { error: unknown }).error)
-        : `Push-Anfrage fehlgeschlagen (${response.status}).`;
-    throw enrichApiError(new PushApiError(response.status, message), data);
+    throw apiErrorFromBody(
+      `Push-Anfrage fehlgeschlagen (${response.status}).`,
+      response.status,
+      data,
+    );
   }
   return data as T;
 }
@@ -112,9 +102,9 @@ async function getPushPublicKey(
   );
   const key = response.data?.public_key ?? response.public_key;
   if (!key) {
-    throw new PushApiError(
-      404,
+    throw new ApiError(
       "Web Push ist auf diesem Server nicht eingerichtet.",
+      404,
     );
   }
   try {
@@ -124,10 +114,7 @@ async function getPushPublicKey(
     }
     return decoded;
   } catch {
-    throw new PushApiError(
-      502,
-      "Der Web-Push-Schlüssel des Servers ist ungültig.",
-    );
+    throw new ApiError("Der Web-Push-Schlüssel des Servers ist ungültig.", 502);
   }
 }
 
@@ -167,7 +154,7 @@ export async function subscribePush(portal: PushPortal): Promise<void> {
     publicKeyPromise,
   ]);
   if (permission !== "granted") {
-    throw new PushApiError(403, "Benachrichtigungen wurden nicht erlaubt.");
+    throw new ApiError("Benachrichtigungen wurden nicht erlaubt.", 403);
   }
 
   const registration = await registerPushServiceWorker();
@@ -188,9 +175,9 @@ async function replaceBrowserSubscription(
   if (existing) {
     const removed = await existing.unsubscribe();
     if (!removed) {
-      throw new PushApiError(
-        409,
+      throw new ApiError(
         "Die bestehende Push-Registrierung konnte nicht erneuert werden.",
+        409,
       );
     }
   }

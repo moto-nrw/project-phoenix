@@ -311,13 +311,13 @@ func TestCreatePhaseHandler_DuplicateNameCarriesCodeWithoutSQLDetail(t *testing.
 	assert.Equal(t, http.StatusConflict, w.Code)
 
 	var body struct {
-		Code  string `json:"code"`
-		Error string `json:"error"`
+		Code   string `json:"code"`
+		Detail string `json:"detail"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.Equal(t, "enrollment.phase_name_exists", body.Code)
-	assert.Equal(t, capability.ErrPhaseDuplicateName.Error(), body.Error)
-	assert.NotContains(t, body.Error, "SQLSTATE")
+	assert.Equal(t, capability.ErrPhaseDuplicateName.Error(), body.Detail)
+	assert.NotContains(t, body.Detail, "SQLSTATE")
 }
 
 func TestCreatePhaseHandler_ServiceErrorReturns500(t *testing.T) {

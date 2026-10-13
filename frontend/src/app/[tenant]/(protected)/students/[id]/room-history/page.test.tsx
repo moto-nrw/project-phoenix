@@ -283,7 +283,11 @@ describe("StudentRoomHistoryPage", () => {
       {
         ok: false,
         status: 403,
-        json: async () => ({ error: "feature_disabled" }),
+        json: async () => ({
+          status: 403,
+          detail: "feature_disabled",
+          code: "attendance.log_disabled",
+        }),
       },
       mockStudentResponse({ attendance_log_enabled: false }),
     );

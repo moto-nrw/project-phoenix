@@ -22,7 +22,6 @@ import {
   useApiErrorDisplay,
   useApiFormError,
   useApiLoadError,
-  useToast,
 } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -75,7 +74,6 @@ export function StudentDokumenteTab({
   );
   const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const toast = useToast();
   const uploadErrors = useApiErrorDisplay();
   const deleteErrors = useApiFormError();
   const load = useApiLoadError();
@@ -122,7 +120,7 @@ export function StudentDokumenteTab({
       return;
     }
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      toast.error(
+      uploadErrors.showMessage(
         "Die Datei ist größer als 10 MB. Bitte wählen Sie eine kleinere Datei.",
       );
       return;

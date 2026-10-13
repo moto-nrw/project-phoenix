@@ -1,6 +1,7 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
-import type { ApiErrorResponse, ApiResponse } from "./api-helpers";
+import type { NextRequest, NextResponse } from "next/server";
+import type { ApiResponse } from "./api-helpers";
+import type { ProblemBody } from "./api-error";
+import { bffError, problemResponse } from "./api-response-error.server";
 
 export type RouteContext = {
   params: Promise<Record<string, string | string[] | undefined>>;
@@ -54,8 +55,8 @@ export async function parseRequestBody<B>(
   }
   // The bounded path validates the body strictly: size while reading (413)
   // and JSON shape after (400). A bare JSON.parse SyntaxError carries no
-  // "API error (<status>)" marker, so handleApiError would answer 500 for
-  // what is a client-side malformed request (review #2372).
+  // status, so handleApiError would answer 500 for what is a client-side
+  // malformed request (review #2372).
   const text = await readBodyBounded(request, maxBodyBytes);
   if (!text) {
     return {} as B;
@@ -63,7 +64,7 @@ export async function parseRequestBody<B>(
   try {
     return JSON.parse(text) as B;
   } catch {
-    throw new Error("API error (400): request body is not valid JSON");
+    throw bffError(400, "request body is not valid JSON");
   }
 }
 
@@ -71,8 +72,8 @@ export async function parseRequestBody<B>(
  * Reads the request body while enforcing a byte limit DURING the read: an
  * oversized payload is rejected as soon as the counter passes the limit,
  * instead of being buffered whole by request.text() and only then bounced by
- * the backend. The thrown message carries the "API error (413)" shape so
- * handleApiError maps it to a 413 response.
+ * the backend. The thrown error carries status 413, which handleApiError
+ * forwards.
  */
 async function readBodyBounded(
   request: NextRequest,
@@ -115,9 +116,9 @@ async function readBodyBounded(
 }
 
 function bodyTooLargeError(maxBodyBytes: number): Error {
-  return new Error(
-    `API error (413): request body exceeds ${maxBodyBytes} bytes`,
-  );
+  return bffError(413, `request body exceeds ${maxBodyBytes} bytes`, {
+    details: { max_bytes: maxBodyBytes },
+  });
 }
 
 export function wrapInApiResponse<T>(data: T): ApiResponse<T> {
@@ -127,8 +128,17 @@ export function wrapInApiResponse<T>(data: T): ApiResponse<T> {
   return { success: true, message: "Success", data };
 }
 
-export function createUnauthorizedResponse(): NextResponse<ApiErrorResponse> {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export function createUnauthorizedResponse(
+  request?: Request,
+): NextResponse<ProblemBody> {
+  return problemResponse(401, "Unauthorized", request);
+}
+
+/** The refreshed session could not repeat a request the backend answered 401. */
+export function createTokenExpiredResponse(
+  request?: Request,
+): NextResponse<ProblemBody> {
+  return problemResponse(401, "Token expired", request);
 }
 
 export function isStringParam(param: unknown): param is string {

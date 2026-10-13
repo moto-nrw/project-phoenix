@@ -206,6 +206,18 @@ describe("deriveSupervision with released rooms", () => {
     ).toBe(true);
   });
 
+  it("keeps current own rooms separate from the school-wide overview", () => {
+    const result = deriveSupervision(
+      [supervision(1, 5, "Eigener Raum"), supervision(2, 6, "Fremder Raum")],
+      [],
+      true,
+      [supervision(1, 5, "Eigener Raum")],
+    );
+
+    expect(result.supervisedRooms.map((room) => room.id)).toEqual(["5", "6"]);
+    expect(result.ownSupervisedRooms?.map((room) => room.id)).toEqual(["5"]);
+  });
+
   it("reports overviewEnabled only when the overview endpoint answered", () => {
     expect(deriveSupervision([], [], true).overviewEnabled).toBe(true);
     expect(deriveSupervision([], [], false).overviewEnabled).toBe(false);
@@ -226,5 +238,32 @@ describe("sameSupervision", () => {
     const after = deriveSupervision([], [openRoom(7, "Turnhalle")], true);
 
     expect(sameSupervision(before, after)).toBe(true);
+  });
+
+  it("detects a changed own room while the overview stays the same", () => {
+    const overview = [supervision(1, 5, "Raum A"), supervision(2, 6, "Raum B")];
+    const before = deriveSupervision(overview, [], true, [
+      supervision(1, 5, "Raum A"),
+    ]);
+    const after = deriveSupervision(overview, [], true, [
+      supervision(2, 6, "Raum B"),
+    ]);
+
+    expect(sameSupervision(before, after)).toBe(false);
+  });
+
+  it("detects a renamed own room while the overview stays the same", () => {
+    const overview = [supervision(1, 5, "Werkraum")];
+    const before = deriveSupervision(overview, [], true, [
+      supervision(1, 5, "Werkraum"),
+    ]);
+    const after = deriveSupervision(overview, [], true, [
+      supervision(1, 5, "Kreativraum"),
+    ]);
+
+    expect(sameSupervision(before, after)).toBe(false);
+    expect(after.ownSupervisedRooms).toEqual([
+      expect.objectContaining({ name: "Kreativraum" }),
+    ]);
   });
 });

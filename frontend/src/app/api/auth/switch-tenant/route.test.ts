@@ -87,8 +87,8 @@ describe("POST /api/auth/switch-tenant", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Unauthorized");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Unauthorized");
   });
 
   it("proxies switch request and returns token pair", async () => {
@@ -128,7 +128,7 @@ describe("POST /api/auth/switch-tenant", () => {
 
   it("forwards backend error status", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "Tenant not found" }), {
+      new Response(JSON.stringify({ detail: "Tenant not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
       }),
@@ -151,7 +151,7 @@ describe("POST /api/auth/switch-tenant", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Internal Server Error");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
   });
 });

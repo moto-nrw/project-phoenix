@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET } from "./route";
 
 // ============================================================================
@@ -208,7 +209,7 @@ describe("GET /api/students/[id]/current-location", () => {
   });
 
   it("returns unknown with error code on network error", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("Network Error"));
+    mockApiGet.mockRejectedValueOnce(new TypeError("fetch failed"));
 
     const request = createMockRequest("/api/students/123/current-location");
     const response = await GET(request, createMockContext({ id: "123" }));
@@ -225,12 +226,11 @@ describe("GET /api/students/[id]/current-location", () => {
     }>(response);
     expect(json.data.status).toBe("unknown");
     expect(json.data.location).toBe("Unbekannt");
+    expect(json.data.errorCode).toBe("NETWORK");
   });
 
   it("returns unknown with UNAUTHORIZED error code on 401", async () => {
-    mockApiGet.mockRejectedValueOnce(
-      new Error("API error (401): Unauthorized"),
-    );
+    mockApiGet.mockRejectedValueOnce(new ApiResponseError(401, "Unauthorized"));
 
     const request = createMockRequest("/api/students/123/current-location");
     const response = await GET(request, createMockContext({ id: "123" }));

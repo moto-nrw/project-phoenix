@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { problemResponse } from "~/lib/api-response-error.server";
 import { NextResponse } from "next/server";
 import { env } from "~/env";
 import {
@@ -16,14 +17,14 @@ export async function withInvitationOwnerSession(
 ): Promise<Response> {
   const origin = getClientForwardHeaders(request)["X-Moto-Frontend-Origin"];
   if (request.headers.get("origin") !== origin) {
-    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+    return problemResponse(403, "Invalid origin", request);
   }
   const hostname = hostnameFromAuthority(getOriginalRequestHost(request));
   if (
     !hostname ||
     hostname === hostnameFromAuthority(env.NEXT_PUBLIC_OPERATOR_HOSTNAME)
   ) {
-    return NextResponse.json({ error: "Unsupported portal" }, { status: 403 });
+    return problemResponse(403, "Unsupported portal", request);
   }
   const handler = async (authRequest: {
     auth: import("next-auth").Session | null;

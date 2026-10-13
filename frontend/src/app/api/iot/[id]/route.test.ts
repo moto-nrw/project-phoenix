@@ -152,8 +152,9 @@ describe("GET /api/iot/[id]", () => {
     const response = await GET(request, createMockContext({ id: "1" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Device not found");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Device not found");
   });
 
   it("throws error when response format is invalid", async () => {
@@ -163,8 +164,9 @@ describe("GET /api/iot/[id]", () => {
     const response = await GET(request, createMockContext({ id: "1" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Device not found");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Device not found");
   });
 });
 
@@ -225,8 +227,9 @@ describe("PUT /api/iot/[id]", () => {
     const response = await PUT(request, createMockContext({ id: "1" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Failed to update device");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Failed to update device");
   });
 
   it("throws error when response format is invalid", async () => {
@@ -239,8 +242,9 @@ describe("PUT /api/iot/[id]", () => {
     const response = await PUT(request, createMockContext({ id: "1" }));
 
     expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Failed to update device");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Internal Server Error");
+    expect(JSON.stringify(json)).not.toContain("Failed to update device");
   });
 });
 

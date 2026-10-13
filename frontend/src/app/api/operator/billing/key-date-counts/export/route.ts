@@ -22,7 +22,11 @@ function exportQuery(request: NextRequest): string {
   return month ? `?month=${encodeURIComponent(month)}` : "";
 }
 
-async function proxyExport(query: string, token: string): Promise<Response> {
+async function proxyExport(
+  request: NextRequest,
+  query: string,
+  token: string,
+): Promise<Response> {
   const backendResponse = await fetch(
     `${getServerApiUrl()}/operator/billing/key-date-counts/export${query}`,
     {
@@ -32,7 +36,7 @@ async function proxyExport(query: string, token: string): Promise<Response> {
   );
 
   if (!backendResponse.ok) {
-    const response = forwardBackendResponse(backendResponse);
+    const response = forwardBackendResponse(backendResponse, request);
     response.headers.set("Cache-Control", "no-store");
     return response;
   }
@@ -67,7 +71,7 @@ async function GETHandler(request: NextRequest) {
     }
 
     const query = exportQuery(request);
-    const response = await proxyExport(query, session.user.token);
+    const response = await proxyExport(request, query, session.user.token);
     if (response.status !== 401) return response;
 
     // The access token may have expired between page load and click; one
@@ -79,7 +83,7 @@ async function GETHandler(request: NextRequest) {
     ) {
       return response;
     }
-    return await proxyExport(query, refreshed.user.token);
+    return await proxyExport(request, query, refreshed.user.token);
   } catch (error) {
     captureBffException(error, request);
     logger.error("operator billing export proxy failed", {

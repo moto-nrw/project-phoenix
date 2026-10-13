@@ -134,6 +134,7 @@ import { useShellAuth } from "~/lib/shell-auth-context";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import {
   useAttendanceLogEnabled,
+  useChildSearchOnlyNavigation,
   useDisplayEnabled,
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -161,6 +162,9 @@ const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
 const mockUseTenantSlugSafe = vi.mocked(useTenantSlugSafe);
 const mockUseOpenCareGroupMode = vi.mocked(useOpenCareGroupMode);
+const mockUseChildSearchOnlyNavigation = vi.mocked(
+  useChildSearchOnlyNavigation,
+);
 const mockUseStaffMessagingEnabled = vi.mocked(useStaffMessagingEnabled);
 const mockUseSWRDefault = vi.mocked(useSWR);
 
@@ -241,6 +245,7 @@ describe("MobileBottomNav", () => {
     mockUseNFCEnabled.mockReturnValue(true);
     mockUsePresenceMode.mockReturnValue("detailed");
     mockUseOpenCareGroupMode.mockReturnValue(false);
+    mockUseChildSearchOnlyNavigation.mockReturnValue(false);
     // Re-establish tenant defaults each test so per-test subdomain/slug
     // overrides (below) don't leak — vi.clearAllMocks() keeps the setup.ts
     // implementations but individual mockReturnValue calls would otherwise
@@ -848,6 +853,32 @@ describe("MobileBottomNav", () => {
       const hrefs = links.map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/ogs-groups");
       expect(hrefs).toContain("/active-supervisions");
+    });
+
+    // Kinder nur über Alle Kinder (#1321): Gruppe und Aufsicht verlassen die
+    // Leiste, „Suchen“ bleibt und steht auch für ihre Seiten.
+    it("drops Gruppe and Aufsicht when the school finds children only in the search", () => {
+      mockUseChildSearchOnlyNavigation.mockReturnValue(true);
+
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/ogs-groups");
+      expect(hrefs).not.toContain("/active-supervisions");
+      expect(hrefs).toContain("/students/search");
+    });
+
+    it("marks Suchen on the group page reached by link", () => {
+      mockUseChildSearchOnlyNavigation.mockReturnValue(true);
+      mockUsePathname.mockReturnValue("/ogs-groups");
+
+      render(<MobileBottomNav />);
+
+      // Die Bezeichnung erscheint nur am aktiven Reiter.
+      expect(screen.getByText("Suchen")).toBeInTheDocument();
+      expect(screen.queryByText("Gruppe")).not.toBeInTheDocument();
     });
   });
 
