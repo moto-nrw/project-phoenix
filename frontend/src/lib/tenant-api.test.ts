@@ -177,6 +177,7 @@ describe("tenant-api", () => {
         // field, so the dialog never guesses a window.
         earlyCheckoutNoteToleranceMinutes: null,
         weekendFollowsFriday: false,
+        childSearchOnlyNavigation: false,
       });
     });
 
@@ -387,6 +388,37 @@ describe("tenant-api", () => {
         );
         const result = await resolveTenant("demo");
         expect(result?.weekendFollowsFriday).toBe(expected);
+      },
+    );
+
+    it.each([
+      [true, true],
+      ["true", false],
+      [undefined, false],
+    ])(
+      "maps child_search_only_navigation=%s to childSearchOnlyNavigation=%s (#1321)",
+      async (raw, expected) => {
+        const backendData = {
+          status: "success",
+          data: {
+            tenant_id: 3,
+            slug: "demo",
+            name: "Demo",
+            subdomain: "demo",
+            organization_id: 12,
+            organization_name: "Org C",
+            settings: {},
+            child_search_only_navigation: raw,
+          },
+        };
+        vi.mocked(global.fetch).mockResolvedValueOnce(
+          new Response(JSON.stringify(backendData), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+        const result = await resolveTenant("demo");
+        expect(result?.childSearchOnlyNavigation).toBe(expected);
       },
     );
 

@@ -148,6 +148,7 @@ import {
 } from "./tracking-filter";
 import { StudentSearchPageSkeleton } from "./page-skeleton";
 import { useSamePageLinkClick } from "./use-same-page-link-click";
+import { useChildScopeTabs } from "./use-child-scope-tabs";
 
 const logger = createLogger({ component: "StudentSearchPage" });
 const EMPTY_STRING_ARRAY: string[] = [];
@@ -1662,6 +1663,17 @@ function SearchPageContent() {
     [updateUrlParams],
   );
 
+  // Meine Gruppe und Aktuelle Aufsicht als Reiter, wenn die Schule Kinder nur
+  // hier finden lässt (#1321). Ohne die Einstellung bleibt beides leer.
+  const childScope = useChildScopeTabs({
+    selectedGroupIds,
+    roomId: effectiveRoomId,
+    isToday,
+    setGroupIds: updateSelectedGroupIds,
+    setRoom: updateRoomFilter,
+    clearRoom: clearRoomFilter,
+  });
+
   const updateAttendanceFilter = useCallback(
     (value: StatusFilter) => {
       setAttendanceFilter(value);
@@ -2753,6 +2765,11 @@ function SearchPageContent() {
     // (#3260). Ohne eingecheckten Aufenthaltsort ist es deshalb zuhause, auch
     // wenn der Status noch unbekannt ist.
     let sick = 0;
+    // In der OGS: in einem Raum, auf dem Schulhof oder unterwegs. Ohne diese
+    // Zahl stünde unter „Meine Aufsicht“ „7 Kinder · 0 in der Schule ·
+    // 0 zuhause“, obwohl alle sieben im Raum sind (#1321); die frühere
+    // Gruppenseite zeigte sie als „X von Y da“.
+    let inCare = 0;
     let atSchool = 0;
     let atHome = 0;
     for (const student of students) {
@@ -2777,6 +2794,15 @@ function SearchPageContent() {
         continue;
       }
       if (
+        status === LOCATION_STATUSES.PRESENT ||
+        status === LOCATION_STATUSES.UNPLANNED_PRESENT ||
+        status === LOCATION_STATUSES.SCHOOLYARD ||
+        status === LOCATION_STATUSES.TRANSIT
+      ) {
+        inCare += 1;
+        continue;
+      }
+      if (
         status === LOCATION_STATUSES.HOME ||
         status === LOCATION_STATUSES.UNKNOWN ||
         status === LOCATION_STATUSES.NOT_ARRIVAL
@@ -2784,7 +2810,7 @@ function SearchPageContent() {
         atHome += 1;
       }
     }
-    return `${total} ${total === 1 ? "Kind" : "Kinder"} · ${atSchool} in der Schule · ${atHome} zuhause · ${sick} krank`;
+    return `${total} ${total === 1 ? "Kind" : "Kinder"} · ${inCare} in der OGS · ${atSchool} in der Schule · ${atHome} zuhause · ${sick} krank`;
   }, [isToday, students, rowsLoaded]);
 
   const selectedStudentsForBulk = useMemo(
@@ -2996,6 +3022,7 @@ function SearchPageContent() {
           darunter Suche und Filter. */}
       <TenantPage
         title="Alle Kinder"
+        tabs={childScope.tabs}
         stats={studentSummary}
         statsLoading={!hasFetchedOnce || isDateTransition}
         actions={
@@ -3006,41 +3033,51 @@ function SearchPageContent() {
                 onChange={changeView}
               />
             </div>
-            <OverflowMenu
-              items={[
-                {
-                  // Abwesenheits-Übersicht (#2288): bewusst kein eigener
-                  // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
-                  // ohnehin nach einem Kind sucht.
-                  label: "Abwesenheiten",
-                  icon: <CalendarRange className="h-4 w-4" aria-hidden />,
-                  onClick: () => router.push("/absences"),
-                },
-                {
-                  label: "Exportieren",
-                  icon: <Download className="h-4 w-4" aria-hidden />,
-                  onClick: () => setIsExportOpen(true),
-                  badge: rowsLoaded ? filteredStudents.length : undefined,
-                },
-                // Die Spaltenwahl der Liste (#3834) steht hier und nicht
-                // als eigener Knopf neben dem Umschalter.
-                ...(showTable && !isPhone
-                  ? columnMenuEntries(
-                      tableColumns,
-                      collectionView.hiddenColumns,
-                      collectionView.setColumnVisible,
-                    )
-                  : []),
-                ...(showTable && isPhone
-                  ? phoneDetailMenuEntries(
-                      tableColumns,
-                      collectionView.phoneDetail,
-                      collectionView.setPhoneDetail,
-                    )
-                  : []),
-              ]}
-              ariaLabel="Weitere Aktionen"
-            />
+            {/* Der Rahmen gibt der Einstiegs-Tour ein eindeutiges Ziel: über
+                dieses Menü erreicht man die Aufsicht, wenn die Schule Kinder
+                nur hier finden lässt (#1321). */}
+            <div
+              className="contents"
+              data-icon-only=""
+              data-setup-tour="child-search-menu"
+            >
+              <OverflowMenu
+                items={[
+                  ...childScope.menuItems,
+                  {
+                    // Abwesenheits-Übersicht (#2288): bewusst kein eigener
+                    // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
+                    // ohnehin nach einem Kind sucht.
+                    label: "Abwesenheiten",
+                    icon: <CalendarRange className="h-4 w-4" aria-hidden />,
+                    onClick: () => router.push("/absences"),
+                  },
+                  {
+                    label: "Exportieren",
+                    icon: <Download className="h-4 w-4" aria-hidden />,
+                    onClick: () => setIsExportOpen(true),
+                    badge: rowsLoaded ? filteredStudents.length : undefined,
+                  },
+                  // Die Spaltenwahl der Liste (#3834) steht hier und nicht
+                  // als eigener Knopf neben dem Umschalter.
+                  ...(showTable && !isPhone
+                    ? columnMenuEntries(
+                        tableColumns,
+                        collectionView.hiddenColumns,
+                        collectionView.setColumnVisible,
+                      )
+                    : []),
+                  ...(showTable && isPhone
+                    ? phoneDetailMenuEntries(
+                        tableColumns,
+                        collectionView.phoneDetail,
+                        collectionView.setPhoneDetail,
+                      )
+                    : []),
+                ]}
+                ariaLabel="Weitere Aktionen"
+              />
+            </div>
           </>
         }
         // Der Zähler ändert sich mit der Filterung und gehört deshalb in

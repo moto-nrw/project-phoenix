@@ -5,6 +5,7 @@ import {
   STAFF_CHILD_RECORD,
   STAFF_ONBOARDING_STEP_CONTENT,
   STAFF_ONBOARDING_TOURS,
+  staffOnboardingTours,
   staffOnboardingSteps,
 } from "./staff-onboarding-steps";
 
@@ -87,6 +88,33 @@ describe("staff tours", () => {
         expect(stop.target).not.toMatch(/submit|Einstempeln/);
       }
     }
+  });
+
+  // Kinder nur über Alle Kinder (#1321): ohne „Meine Gruppen“ und „Aktuelle
+  // Aufsicht“ in der Navigation zeigen die Touren den Weg über die Suche.
+  it("keeps the navigation tours while the school keeps the separate entries", () => {
+    expect(staffOnboardingTours(false)).toBe(STAFF_ONBOARDING_TOURS);
+  });
+
+  it("leads to the group and the supervision through Alle Kinder", () => {
+    const tours = staffOnboardingTours(true);
+    const targets = (key: "groups" | "supervision") =>
+      tours[key].stops.map((stop) => stop.target).join(" ");
+
+    expect(tours.groups.path).toBe("/students/search");
+    expect(targets("groups")).toContain("nav-/students/search");
+    expect(targets("groups")).toContain('data-tab-value="groups"');
+    expect(targets("groups")).not.toContain("nav-section-groups");
+
+    expect(tours.supervision.path).toBe("/active-supervisions");
+    expect(targets("supervision")).toContain("nav-/students/search");
+    expect(targets("supervision")).toContain("child-search-menu");
+    expect(targets("supervision")).toContain('href$="/active-supervisions"');
+    expect(targets("supervision")).not.toContain("nav-section-supervisions");
+    expect(tours.supervision.stops.at(-1)?.nav).toBeUndefined();
+
+    // Die übrigen Touren bleiben, wie sie sind.
+    expect(tours.students).toBe(STAFF_ONBOARDING_TOURS.students);
   });
 
   it("recognises the child record but not the search it comes from", () => {

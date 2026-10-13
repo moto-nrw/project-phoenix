@@ -239,6 +239,18 @@ export function useWeekendFollowsFriday(): boolean {
   return ctx?.tenant?.weekendFollowsFriday === true;
 }
 
+/**
+ * Returns whether staff find children through „Alle Kinder" alone
+ * (operations.child_search_only_navigation, #1321). Sidebar and bottom bar
+ * then drop „Meine Gruppe" and „Aktuelle Aufsicht"; the child search carries
+ * them as tabs. Defaults to false when tenant metadata is unavailable, which
+ * keeps the separate entries.
+ */
+export function useChildSearchOnlyNavigation(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.childSearchOnlyNavigation === true;
+}
+
 /** Whether staff may connect their personal calendar through CalDAV. */
 export function useCalDAVEnabled(): boolean {
   const ctx = useContext(TenantContext);

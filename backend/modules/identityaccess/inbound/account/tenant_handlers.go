@@ -133,6 +133,7 @@ func newTenantResolveResponse(school *TenantSchool, resolved tenantShellSettings
 		EarlyCheckoutNoteEnabled:          resolved.earlyCheckoutNote,
 		EarlyCheckoutNoteToleranceMinutes: resolved.earlyCheckoutTolerance,
 		WeekendFollowsFriday:              resolved.weekendFollowsFriday,
+		ChildSearchOnlyNavigation:         resolved.childSearchOnlyNavigation,
 	}
 }
 
@@ -186,6 +187,7 @@ func tenantShellSettingKeys() []string {
 		settings.KeyEarlyCheckoutNoteEnabled,
 		settings.KeyEarlyCheckoutNoteToleranceMinutes,
 		settings.KeyWeekendFollowsFriday,
+		settings.KeyChildSearchOnlyNavigation,
 		// Not read from this snapshot — prefetched so the hard-fail
 		// resolveTenantGradeLevelMax call hits the request cache instead of
 		// opening a second tenant transaction (issue #2065).
@@ -235,6 +237,7 @@ func (rs *Resource) resolveTenantShellSettingsOneByOne(ctx context.Context, tena
 	resolved.timetableEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyTimetableEnabled, true, slog.LevelWarn)
 	resolved.waitlistEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.weekendFollowsFriday = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyWeekendFollowsFriday, false, slog.LevelError)
+	resolved.childSearchOnlyNavigation = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyChildSearchOnlyNavigation, false, slog.LevelError)
 	resolved.groupMode = rs.resolveTenantGroupMode(ctx, tenantID)
 	resolved.overviewScope = rs.resolveTenantOverviewScope(ctx, tenantID)
 	resolved.attendanceEditScope = rs.resolveTenantAttendanceEditScope(ctx, tenantID)
@@ -305,6 +308,7 @@ func resolveTenantShellSnapshot(
 	resolved.timetableEnabled = resolveBool(settings.KeyTimetableEnabled, true, slog.LevelWarn)
 	resolved.waitlistEnabled = resolveBool(settings.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.weekendFollowsFriday = resolveBool(settings.KeyWeekendFollowsFriday, false, slog.LevelError)
+	resolved.childSearchOnlyNavigation = resolveBool(settings.KeyChildSearchOnlyNavigation, false, slog.LevelError)
 	resolved.parentMessagingEnabled = resolveBool(settings.KeyParentNotesEnabled, true, slog.LevelWarn)
 	resolved.analyticsFreigabe, resolved.analyticsSamplePercent = resolveTenantAnalyticsSnapshot(ctx, tenantID, snapshot)
 	resolved.earlyCheckoutNote, resolved.earlyCheckoutTolerance = resolveTenantEarlyCheckoutNoteSnapshot(ctx, tenantID, snapshot)
