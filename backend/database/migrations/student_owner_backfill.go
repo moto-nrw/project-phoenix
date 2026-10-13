@@ -813,6 +813,14 @@ func ResetStudentOwnerBackfill(ctx context.Context, db *bun.DB) error {
 		if hasStudentNotes {
 			targets = "users.student_notes, " + targets
 		}
+		// Day departure exceptions (#3945) hang off the profiles the same way.
+		var hasDepartureExceptions bool
+		if err := tx.NewRaw(`SELECT to_regclass('schedule.student_departure_exceptions') IS NOT NULL`).Scan(ctx, &hasDepartureExceptions); err != nil {
+			return fmt.Errorf("student owner backfill: inspect departure exception targets: %w", err)
+		}
+		if hasDepartureExceptions {
+			targets = "schedule.student_departure_exceptions, " + targets
+		}
 		if _, err := tx.ExecContext(ctx, "TRUNCATE "+targets+`;
 			DELETE FROM platform.storage_backfill_checkpoints WHERE backfill = ?;`, StudentOwnerBackfillName); err != nil {
 			return fmt.Errorf("student owner backfill: reset targets: %w", err)

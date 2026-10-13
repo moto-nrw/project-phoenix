@@ -87,7 +87,12 @@ func (s *Service) ListCareExceptions(ctx context.Context, accountID, studentID i
 		if err != nil {
 			return err
 		}
+		departures, err := s.CareExceptions.ListDepartureExceptions(txCtx, careplan.StudentScheduleFilter{StudentIDs: []int64{studentID}, From: careplan.Date(from), To: careplan.Date(to)})
+		if err != nil {
+			return err
+		}
 		out = mergeCareExceptions(pickups, arrivals, accountID)
+		out = mergeDepartureExceptions(out, departures)
 		return nil
 	})
 	if txErr != nil {
@@ -163,6 +168,35 @@ func applyArrivalException(ce *CareException, a careplan.ArrivalException, accou
 	if a.Source == scheduleModels.ExceptionSourceStaff {
 		ce.Source = scheduleModels.ExceptionSourceStaff
 	}
+}
+
+// mergeDepartureExceptions adds the day Abholart (#3945) to the merged days.
+// A day with only an Abholart becomes its own entry; its Source is staff,
+// because only the OGS writes the value.
+func mergeDepartureExceptions(days []*CareException, departures []careplan.DepartureException) []*CareException {
+	if len(departures) == 0 {
+		return days
+	}
+	byDate := make(map[timezone.Date]*CareException, len(days))
+	for _, day := range days {
+		byDate[day.Date] = day
+	}
+	for _, departure := range departures {
+		date := timezone.Date(departure.ExceptionDate)
+		day, ok := byDate[date]
+		if !ok {
+			day = &CareException{Date: date, Source: scheduleModels.ExceptionSourceStaff}
+			byDate[date] = day
+			days = append(days, day)
+		}
+		mode := departure.DepartureMode
+		day.DepartureMode = &mode
+		if departure.UpdatedAt.After(day.UpdatedAt) {
+			day.UpdatedAt = departure.UpdatedAt
+		}
+	}
+	sort.Slice(days, func(i, j int) bool { return days[i].Date.Before(days[j].Date) })
+	return days
 }
 
 func guardianAuthoredBy(author *int64, accountID int64) bool {

@@ -101,6 +101,9 @@ func (s parentRequestsSeedStep) Run(ctx context.Context, rt *Runtime) error {
 		if err := step.seedRejectedPickupChange(rt, adminAuth, parentAuths[parents[0].Email], parents[0]); err != nil {
 			return err
 		}
+		if err := step.seedDayDepartureRequests(rt, adminAuth, parentAuths[parents[0].Email], parents[0]); err != nil {
+			return err
+		}
 		if err := step.seedPendingLaterPickupChange(rt, adminAuth, parents, parentAuths); err != nil {
 			return err
 		}
@@ -1226,11 +1229,39 @@ func (s parentEnrollmentSeedStep) seedRejectedPickupChange(
 	})
 }
 
+// seedDayDepartureRequests files two requests that change the Abholart of
+// one day (#3945): an open one that changes only the Abholart, and a
+// confirmed one that changes the Gehzeit and the Abholart together. The days
+// stay clear of the other demo requests (+3, +7..+9, the outing at +15..+17).
+func (s parentEnrollmentSeedStep) seedDayDepartureRequests(
+	rt *Runtime, adminAuth, parentAuth AuthRef, parent ParentCredentials,
+) error {
+	if len(parent.StudentIDs) == 0 {
+		return nil
+	}
+	_, err := rt.Client.PostWithAuth(parentAuth, fmt.Sprintf("/parent/me/children/%d/care-exception", parent.StudentIDs[0]), map[string]any{
+		"date":           seedWeekdayOnOrAfter(todaySeedDate().AddDays(10)).String(),
+		"departure_mode": "pickup",
+		"reason":         "Die Oma holt ab, wir fahren direkt weiter.",
+	})
+	if err != nil {
+		return fmt.Errorf("create open demo departure request: %w", err)
+	}
+	return seedPickupChangeDecision(rt, adminAuth, parentAuth, parent, seedPickupDecision{
+		date: seedWeekdayOnOrAfter(todaySeedDate().AddDays(19)), pickupTime: "13:30", departureMode: "pickup",
+		parentReason: "Arzttermin, ich hole mein Kind selbst ab.",
+		approve:      true, schoolReason: "Alles klar, wir geben Ihr Kind um 13:30 Uhr mit.",
+	})
+}
+
 type seedPickupDecision struct {
 	date         seedDate
 	parentReason string
 	approve      bool
 	schoolReason string
+	// pickupTime defaults to 14:30; departureMode is optional (#3945).
+	pickupTime    string
+	departureMode string
 }
 
 // seedPickupChangeDecision files a one-day pickup change as the parent and
@@ -1240,11 +1271,19 @@ func seedPickupChangeDecision(rt *Runtime, adminAuth, parentAuth AuthRef, parent
 		return nil
 	}
 	studentID := parent.StudentIDs[0]
-	raw, err := rt.Client.PostWithAuth(parentAuth, fmt.Sprintf("/parent/me/children/%d/care-exception", studentID), map[string]any{
+	pickupTime := decision.pickupTime
+	if pickupTime == "" {
+		pickupTime = "14:30"
+	}
+	body := map[string]any{
 		"date":        decision.date.String(),
-		"pickup_time": "14:30",
+		"pickup_time": pickupTime,
 		"reason":      decision.parentReason,
-	})
+	}
+	if decision.departureMode != "" {
+		body["departure_mode"] = decision.departureMode
+	}
+	raw, err := rt.Client.PostWithAuth(parentAuth, fmt.Sprintf("/parent/me/children/%d/care-exception", studentID), body)
 	if err != nil {
 		return fmt.Errorf("create decided demo pickup request: %w", err)
 	}

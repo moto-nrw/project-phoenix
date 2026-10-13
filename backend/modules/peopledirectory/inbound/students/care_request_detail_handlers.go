@@ -39,10 +39,14 @@ type CareRequestDetailResponse struct {
 	PickupChange *CareRequestPickupChangeResponse `json:"pickup_change,omitempty"`
 }
 
+// CareRequestPickupChangeResponse is the stored ask of one day. PickupTime
+// or DepartureMode is empty for a leg the request leaves unchanged (#3945).
 type CareRequestPickupChangeResponse struct {
-	Date               string `json:"date"`
-	PickupTime         string `json:"pickup_time"`
-	PreviousPickupTime string `json:"previous_pickup_time,omitempty"`
+	Date                   string   `json:"date"`
+	PickupTime             string   `json:"pickup_time,omitempty"`
+	PreviousPickupTime     string   `json:"previous_pickup_time,omitempty"`
+	DepartureMode          string   `json:"departure_mode,omitempty"`
+	PreviousDepartureModes []string `json:"previous_departure_modes,omitempty"`
 }
 
 func toCareRequestDetailResponse(item *carerequests.HistoryItem) CareRequestDetailResponse {
@@ -54,9 +58,11 @@ func toCareRequestDetailResponse(item *carerequests.HistoryItem) CareRequestDeta
 	var pickupChange *CareRequestPickupChangeResponse
 	if terms := item.PickupChange; terms != nil {
 		pickupChange = &CareRequestPickupChangeResponse{
-			Date:               terms.Date.String(),
-			PickupTime:         terms.PickupTime,
-			PreviousPickupTime: terms.PreviousPickupTime,
+			Date:                   terms.Date.String(),
+			PickupTime:             terms.PickupTime,
+			PreviousPickupTime:     terms.PreviousPickupTime,
+			DepartureMode:          terms.DepartureMode,
+			PreviousDepartureModes: terms.PreviousDepartureModes,
 		}
 	}
 	var decidedAt *time.Time

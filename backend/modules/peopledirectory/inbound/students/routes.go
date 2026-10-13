@@ -228,6 +228,8 @@ func (rs *Resource) mountPickupRoutes(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-exceptions", rs.createStudentPickupException)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-exceptions/{exceptionId}", rs.updateStudentPickupException)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/pickup-exceptions/{exceptionId}", rs.deleteStudentPickupException)
+	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/departure-exceptions/{date}", rs.putStudentDepartureException)
+	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/departure-exceptions/{date}", rs.deleteStudentDepartureException)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/partial-absences", rs.createStudentPartialAbsence)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/partial-absences/{partialAbsenceId}", rs.updateStudentPartialAbsence)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/partial-absences/{partialAbsenceId}", rs.deleteStudentPartialAbsence)

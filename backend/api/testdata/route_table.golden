@@ -63,6 +63,7 @@ DELETE /api/students/class-arrival-exceptions/{schoolClass}/{date}
 DELETE /api/students/{id}
 DELETE /api/students/{id}/arrival-exceptions/{exceptionId}
 DELETE /api/students/{id}/arrival-notes/{noteId}
+DELETE /api/students/{id}/departure-exceptions/{date}
 DELETE /api/students/{id}/documents/{documentId}
 DELETE /api/students/{id}/notes/{noteId}
 DELETE /api/students/{id}/partial-absences/{partialAbsenceId}
@@ -1058,6 +1059,7 @@ PUT /api/students/{id}
 PUT /api/students/{id}/arrival-exceptions/{exceptionId}
 PUT /api/students/{id}/arrival-notes/{noteId}
 PUT /api/students/{id}/arrival-schedules
+PUT /api/students/{id}/departure-exceptions/{date}
 PUT /api/students/{id}/family-protection
 PUT /api/students/{id}/notes/{noteId}
 PUT /api/students/{id}/partial-absences/{partialAbsenceId}

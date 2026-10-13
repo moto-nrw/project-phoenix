@@ -64,6 +64,9 @@ type PickupDataResponse struct {
 	EffectiveSchedules []DatedPickupScheduleResponse `json:"effective_schedules,omitempty"`
 	Exceptions         []PickupExceptionResponse     `json:"exceptions"`
 	Notes              []PickupNoteResponse          `json:"notes"`
+	// DepartureExceptions is the Abholart of single days (#3945) in the same
+	// window as Exceptions.
+	DepartureExceptions []DepartureExceptionResponse `json:"departure_exceptions"`
 }
 
 type DatedPickupScheduleResponse struct {

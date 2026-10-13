@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,6 +52,14 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 	err := (seedPlanningDemoStep{}).Run(t.Context(), &Runtime{FixedSeeder: fs, Client: fs.client})
 	require.NoError(t, err)
 
+	// The day Abholart (#3945) is set for the day the seeder runs; the path
+	// names that day, which the comparison below must not depend on.
+	for i, path := range paths {
+		if strings.HasPrefix(path, "/api/students/21/departure-exceptions/") {
+			paths[i] = "/api/students/21/departure-exceptions/{today}"
+		}
+	}
+
 	assert.Equal(t, []string{
 		"/api/guardians/11/phone-numbers",
 		"/api/students/21/arrival-schedules",
@@ -74,6 +83,7 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 		"/api/students/22/pickup-exceptions",
 		"/api/students/22/pickup-notes",
 		"/api/students/22/pickup-notes",
+		"/api/students/21/departure-exceptions/{today}",
 		"/api/timetable/periods/bootstrap",
 		"/api/timetable/planning-tracks",
 		"/api/timetable/templates",

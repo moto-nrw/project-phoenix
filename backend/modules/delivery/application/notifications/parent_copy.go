@@ -170,7 +170,7 @@ func parentRequestSubjectDE(requestType string) string {
 	case "care_schedule":
 		return "Ihre Anfrage zu den Betreuungszeiten"
 	case "pickup_change":
-		return "Ihre Anfrage zur Abholzeit"
+		return "Ihre Anfrage zur Abholung"
 	case "master_data":
 		return "Ihre Anfrage zu den Stammdaten"
 	case "excused_absence":
@@ -187,7 +187,7 @@ func parentRequestSubjectEN(requestType string) string {
 	case "care_schedule":
 		return "Your care schedule request"
 	case "pickup_change":
-		return "Your pickup time request"
+		return "Your pickup request"
 	case "master_data":
 		return "Your master data request"
 	case "excused_absence":
@@ -204,7 +204,7 @@ func parentRequestSubjectRU(requestType string) string {
 	case "care_schedule":
 		return "Ваш запрос об изменении времени продлёнки"
 	case "pickup_change":
-		return "Ваш запрос об изменении времени, когда ребёнка забирают"
+		return "Ваш запрос о том, как ребёнок уходит домой"
 	case "master_data":
 		return "Ваш запрос об изменении основных данных"
 	case "excused_absence":
@@ -221,7 +221,7 @@ func parentRequestSubjectSQ(requestType string) string {
 	case "care_schedule":
 		return "Kërkesa juaj për orarin e kujdesit"
 	case "pickup_change":
-		return "Kërkesa juaj për orarin e marrjes"
+		return "Kërkesa juaj për marrjen e fëmijës"
 	case "master_data":
 		return "Kërkesa juaj për të dhënat bazë"
 	case "excused_absence":
@@ -238,7 +238,7 @@ func parentRequestSubjectPL(requestType string) string {
 	case "care_schedule":
 		return "Państwa prośbę o zmianę godzin opieki"
 	case "pickup_change":
-		return "Państwa prośbę o zmianę godziny odbioru"
+		return "Państwa prośbę o zmianę odbioru"
 	case "master_data":
 		return "Państwa prośbę o zmianę danych podstawowych"
 	case "excused_absence":
@@ -255,7 +255,7 @@ func parentRequestSubjectTR(requestType string) string {
 	case "care_schedule":
 		return "Bakım saatleri talebiniz"
 	case "pickup_change":
-		return "Teslim alma saati talebiniz"
+		return "Teslim alma talebiniz"
 	case "master_data":
 		return "Temel bilgiler talebiniz"
 	case "excused_absence":
@@ -272,7 +272,7 @@ func parentRequestSubjectUK(requestType string) string {
 	case "care_schedule":
 		return "Ваш запит щодо годин догляду"
 	case "pickup_change":
-		return "Ваш запит щодо часу, коли забирають дитину"
+		return "Ваш запит щодо того, як дитина йде додому"
 	case "master_data":
 		return "Ваш запит щодо основних даних"
 	case "excused_absence":

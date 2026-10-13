@@ -48,8 +48,8 @@ func (d *decisionBoundary) ApplyWeekly(ctx context.Context, request *carerequest
 		PickupTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC), CreatedBy: d.staffID})
 	return false, err
 }
-func (*decisionBoundary) ApplyPickup(context.Context, *carerequests.Request, *string, bool) (int64, error) {
-	return 0, errors.New("unexpected pickup application")
+func (*decisionBoundary) ApplyPickup(context.Context, *carerequests.Request, *string, bool) (carerequests.PickupApplied, error) {
+	return carerequests.PickupApplied{}, errors.New("unexpected pickup application")
 }
 func (d *decisionBoundary) RegisterDecision(context.Context, *carerequests.Request, carerequests.DecideInput, string, bool) error {
 	d.calls = append(d.calls, "effects")

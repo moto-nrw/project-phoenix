@@ -12,12 +12,15 @@ interface BackendCareException {
   arrival_time?: string;
   source: string;
   updated_at: string;
+  departure_mode?: string;
 }
 
 interface BackendPickupChangeRequest {
   id: string;
   date: string;
-  pickup_time: string;
+  pickup_time: string | null;
+  departure_mode?: string | null;
+  previous_departure_modes?: string[];
   reason: string;
   status: string;
   decision_reason?: string;
@@ -28,6 +31,8 @@ interface BackendPickupChangeRequest {
 interface CareExceptionBody {
   date: string;
   pickup_time?: string | null;
+  /** Abholart nur für diesen Tag (#3945): alone | bus | pickup. */
+  departure_mode?: string | null;
   arrival_time?: string | null;
   reason?: string;
   /** Guardians the request is shared with, saved with the request itself. */

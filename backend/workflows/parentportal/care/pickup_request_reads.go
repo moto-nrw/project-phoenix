@@ -66,6 +66,10 @@ func (s *Service) enrichLegacyPickupChangeRequest(ctx context.Context, studentID
 	if previous, _ := payload["previous_pickup_time"].(string); previous != "" {
 		return
 	}
+	// An Abholart-only request (#3945) has no time to compare against.
+	if pickup, _ := payload["pickup_time"].(string); pickup == "" {
+		return
+	}
 	dateRaw, _ := payload["date"].(string)
 	date, err := timezone.ParseDate(dateRaw)
 	if err != nil {

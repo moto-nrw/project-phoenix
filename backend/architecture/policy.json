@@ -4175,6 +4175,10 @@
       "write_owner": "care-plan"
     },
     {
+      "name": "schedule.student_departure_exceptions",
+      "write_owner": "care-plan"
+    },
+    {
       "name": "schedule.student_pickup_exceptions",
       "write_owner": "care-plan"
     },

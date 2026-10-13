@@ -91,7 +91,7 @@ type PortalService interface {
 
 	// EditPickupChangeRequest rewrites the caller's own pending one-day
 	// pickup change (#2267).
-	EditPickupChangeRequest(ctx context.Context, accountID, studentID, requestID int64, date timezone.Date, pickupTime time.Time, reason, expectedVersion string) (*parentService.PickupChangeRequest, error)
+	EditPickupChangeRequest(ctx context.Context, accountID, studentID, requestID int64, date timezone.Date, pickupTime time.Time, departureMode, reason, expectedVersion string) (*parentService.PickupChangeRequest, error)
 
 	// EditCareScheduleRequest rewrites the caller's own pending weekly-plan
 	// request (#2267).
@@ -138,7 +138,7 @@ type PortalService interface {
 	// concrete pickup time and stores the parent's explanation with it. Arrival
 	// exceptions remain under staff control.
 	SubmitCareExceptionWithReason(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime *time.Time, reason string) (*parentService.CareException, error)
-	SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, reason string, recipientGuardianProfileIDs []int64) (*parentService.PickupChangeRequest, error)
+	SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, departureMode, reason string, recipientGuardianProfileIDs []int64) (*parentService.PickupChangeRequest, error)
 	ListPickupChangeRequests(ctx context.Context, accountID, studentID int64) ([]parentService.PickupChangeRequest, error)
 
 	// ListCareExceptions returns the merged pickup/arrival exceptions for the
