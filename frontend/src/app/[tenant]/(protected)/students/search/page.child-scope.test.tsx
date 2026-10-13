@@ -360,6 +360,27 @@ describe("StudentSearchPage — Kinder nur über Alle Kinder (#1321)", () => {
     );
   });
 
+  it("keeps the scope tabs keyboard reachable for a stale room filter", () => {
+    currentSearch = new URLSearchParams({
+      room_id: "91",
+      room_name: "Veralteter Raum",
+    });
+
+    render(<StudentSearchPage />);
+
+    const all = screen.getByRole("tab", { name: "Alle" });
+    expect(all).toHaveAttribute("aria-selected", "false");
+    expect(all).toHaveAttribute("tabindex", "0");
+    expect(screen.getByRole("tab", { name: "Meine Gruppe" })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+    expect(screen.getByRole("tab", { name: "Meine Aufsicht" })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+  });
+
   it("keeps the group and supervision pages reachable from the menu", async () => {
     render(<StudentSearchPage />);
 
