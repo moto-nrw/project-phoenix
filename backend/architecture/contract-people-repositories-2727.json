@@ -73,7 +73,7 @@
     "sources": [
       "backend/database/repositories/users/runtime.go",
       "backend/modules/peopledirectory/compose/legacy_repository_runtime.go",
-      "backend/database/repositories/people_repository_test_helpers.go",
+      "backend/modules/peopledirectory/compose/retained_repository_suites_test_helpers.go",
       "backend/services/people_repository_test_helpers.go",
       "backend/test/people_repository_vocabulary.go"
     ],

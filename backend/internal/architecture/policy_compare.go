@@ -729,7 +729,8 @@ func uncoveredFirstPartyPermission(rule Rule, base, candidate *Policy, scope Sco
 			!studentPresenceCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
 			!timetablePlanningCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
 			!shiftPlanningCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!enrollmentApplicationCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) {
+			!enrollmentApplicationCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
+			!repositoryFactoryCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) {
 			return fmt.Sprintf("rule %s newly allows %s %s/%s -> %s/%s", rule.ID, scope, source.Owner.ID, source.Role, target.ID, rule.TargetRole)
 		}
 	}
@@ -790,6 +791,7 @@ func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, base
 				!timetablePlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
 				!shiftPlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
 				!enrollmentApplicationCutoverPermission(base, candidate, scope, baseSource, target) &&
+				!repositoryFactoryCutoverPermission(base, candidate, scope, baseSource, target) &&
 				!firstPartyAllowedByReviewedFixtureRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedSharedKernelRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedCommonHTTPRule(base, candidate, scope, source, target) {

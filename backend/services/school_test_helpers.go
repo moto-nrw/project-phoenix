@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -51,7 +50,7 @@ func NewSchoolTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 // owner the serving root binds. Every read runs under runtime, as the request
 // middleware provides it.
 func SchoolDeletionLookupForTests(db *bun.DB, runtime tenant.UnitOfWork) (func(context.Context, int64) (found, deleted bool, err error), error) {
-	schools, err := repositories.NewOrganizationTenancy(db)
+	schools, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return nil, err
 	}

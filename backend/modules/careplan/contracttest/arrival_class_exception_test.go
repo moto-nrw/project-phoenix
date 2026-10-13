@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -21,18 +20,20 @@ import (
 // replaced too, a per-child day exception still wins, and the write side
 // refuses past dates and empty classes.
 
-func arrivalServiceWithClassExceptions(t *testing.T, repos *repositories.Factory) careplan.ArrivalScheduleService {
+func arrivalServiceWithClassExceptions(t *testing.T, repos *services.RepositoryTestFactory) careplan.ArrivalScheduleService {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	classes, err := arrivalTimetable.NewClassArrivals(db, func(arrivalTimetable.Observation) {})
 	require.NoError(t, err)
-	classExceptions, err := services.NewClassArrivalExceptions(classes, repositories.MustNewPeopleDirectory(db))
+	classExceptions, err := services.NewClassArrivalExceptions(classes, services.MustNewPeopleDirectory(db))
 	require.NoError(t, err)
 	return nativeArrivalSchedules(t, repos.CarePlan(), classArrivalBaseline(t, repos), services.ClassArrivalPlans(classes), classExceptions)
 }
 
-func setClassArrivalException(t *testing.T, repos *repositories.Factory, class string, date timezone.Date, hhmm, reason string) {
+func setClassArrivalException(t *testing.T, _ *services.RepositoryTestFactory, class string, date timezone.Date, hhmm, reason string) {
 	t.Helper()
+	// Class arrival exceptions belong to Timetable (#2962, #2743).
+	exceptions := arrivalTimetable.NewClassArrivalExceptionRepository(testpkg.SetupTestDB(t))
 	parsed, err := time.Parse("15:04", hhmm)
 	require.NoError(t, err)
 	row := &scheduleModel.ClassArrivalException{
@@ -45,14 +46,14 @@ func setClassArrivalException(t *testing.T, repos *repositories.Factory, class s
 	}
 	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, row.Validate())
-	require.NoError(t, repos.ClassArrivalException.Upsert(testpkg.Ctx(t), row))
+	require.NoError(t, exceptions.Upsert(testpkg.Ctx(t), row))
 }
 
 func TestClassArrivalExceptionReplacesTheClassTimeOnThatDateOnly(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -94,7 +95,7 @@ func TestClassArrivalExceptionOutranksAPerChildWeeklyDeviation(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -120,7 +121,7 @@ func TestClassArrivalExceptionStaysOutOfWeeklySchedules(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassExceptions(t, repos)
 
@@ -154,7 +155,7 @@ func TestClassArrivalExceptionDoesNotAddACareDay(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -176,7 +177,7 @@ func TestPerChildDayExceptionWinsOverTheClassException(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassExceptions(t, repos)
 
@@ -222,7 +223,7 @@ func TestUpsertClassArrivalExceptionWritesAndListsOneRowPerDate(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassExceptions(t, repos)
 
@@ -271,7 +272,7 @@ func TestUpsertClassArrivalExceptionReturnsPersistedMetadata(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassExceptions(t, repos)
 
@@ -304,7 +305,7 @@ func TestUpsertClassArrivalExceptionRefusesPastDatesAndEmptyClasses(t *testing.T
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 	svc := arrivalServiceWithClassExceptions(t, repos)
 

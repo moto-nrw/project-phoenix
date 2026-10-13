@@ -15,7 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -31,7 +32,7 @@ import (
 
 type deletionFixture struct {
 	db       *bun.DB
-	repos    *repositories.Factory
+	repos    *services.RepositoryTestFactory
 	people   peopledirectory.Capability
 	deps     studentdeletion.Dependencies
 	actorID  int64
@@ -42,27 +43,27 @@ type deletionFixture struct {
 // through the repository contract the retained student services read, so the
 // deletion tests read links without driving the companion capability itself.
 func companionLinks(db *bun.DB) userModels.StudentCompanionRepository {
-	return repositories.NewStudentCompanionRepository(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CarePlan())
+	return services.NewStudentCompanionRepository(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CarePlan())
 }
 
 // linkCompanions stages one Monday link between two children.
 func linkCompanions(t *testing.T, ctx context.Context, db *bun.DB, subjectID, companionID int64) {
 	t.Helper()
-	edge, err := repositories.NewStudentCompanionEdge(subjectID, companionID, 1)
+	edge, err := services.NewStudentCompanionEdge(subjectID, companionID, 1)
 	require.NoError(t, err)
-	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, companionLinks(db), subjectID, []*userModels.StudentCompanion{edge}))
+	require.NoError(t, services.ReplaceStudentCompanions(ctx, companionLinks(db), subjectID, []*userModels.StudentCompanion{edge}))
 }
 
 // studentPlans is the child repository the departure-plan fixture writes
 // through, so a staged plan is the normalized one a production write leaves.
 func studentPlans(db *bun.DB) testpkg.StudentPlanWriter {
-	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Student
 }
 
 // careWithdrawals is the Care Plan repository the withdrawal fixture stores
 // through, so a staged task obeys the owner's one-pending-task-per-child rule.
 func careWithdrawals(db *bun.DB) testpkg.CareWithdrawalWriter {
-	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
+	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CareWithdrawal
 }
 
 // clearCompanionNote drops the free-text note straight in SQL, leaving a child
@@ -82,16 +83,16 @@ func clearCompanionNote(t *testing.T, db *bun.DB, studentID int64) {
 // owners and replaces only the HTTP principal with a fixed actor.
 func newDeletionFixture(t *testing.T, db *bun.DB) *deletionFixture {
 	t.Helper()
-	timetableDeps := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, timetableDeps)
-	people, err := repositories.NewPeopleDirectory(db)
+	timetableDeps := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, timetableDeps)
+	people, err := services.NewPeopleDirectory(db)
 	require.NoError(t, err)
 	actor := testpkg.CreateTestAccount(t, db, "student-delete-actor@example.com")
 	feedback := &testpkg.FeedbackEntryCounterMock{}
 	deps, err := studentdeletioncompose.Assemble(studentdeletioncompose.Dependencies{
 		DB: db, Directory: people, CarePlan: repos.CarePlan(), Timetable: timetableDeps.Capability, Feedback: feedback,
 		IsVerifiedStaff:       func(context.Context) (bool, error) { return true, nil },
-		LockCareBookingWrites: repositories.MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
+		LockCareBookingWrites: services.MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
 	})
 	require.NoError(t, err)
 	deps.Authorize = func(ctx context.Context) (studentdeletion.Actor, error) {
@@ -322,7 +323,7 @@ func TestStudentDeletionWorkflow_PreviewExcludesPreservedDeletionAudits(t *testi
 	f := newDeletionFixture(t, db)
 	target := testpkg.CreateTestStudent(t, db, "Preserved", "Audit", "1a")
 	priorAudit := auditModels.NewDataDeletion(target.ID, auditModels.DeletionTypeVisitRetention, 1, "system")
-	require.NoError(t, f.repos.DataDeletion.Create(ctx, priorAudit))
+	require.NoError(t, services.NewTestAuditPersistence(f.db, nil).DataDeletion.Create(ctx, priorAudit))
 	var accessLogID int64
 	require.NoError(t, db.NewRaw(`
 		INSERT INTO audit.data_access_log (tenant_id, actor_account_id, actor_role, resource_type, student_id, range_start, range_end)

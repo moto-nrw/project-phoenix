@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -18,15 +19,15 @@ import (
 )
 
 func newPickupScheduleRepository(db *bun.DB) pickupScheduleQueryRepository {
-	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupSchedule.(pickupScheduleQueryRepository)
+	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentPickupSchedule.(pickupScheduleQueryRepository)
 }
 
 func newPickupExceptionRepository(db *bun.DB) pickupExceptionQueryRepository {
-	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupException.(pickupExceptionQueryRepository)
+	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentPickupException.(pickupExceptionQueryRepository)
 }
 
 func newPickupNoteRepository(db *bun.DB) pickupNoteQueryRepository {
-	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupNote.(pickupNoteQueryRepository)
+	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentPickupNote.(pickupNoteQueryRepository)
 }
 
 // =============================================================================

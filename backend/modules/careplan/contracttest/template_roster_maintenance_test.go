@@ -312,7 +312,7 @@ func TestTemplateRosterMaintenanceFeeds_RejectsLinkedOfferingOutsideTemplatePeri
 		timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(-1))
 	template := createCareOfferingTemplateGroup(t, env.db, "FeedLinkedAusserhalbZeitraum")
 	template.CalendarPeriodID = &period.ID
-	require.NoError(t, env.repos.ActivityGroup.Update(ctx, template))
+	require.NoError(t, env.timetable.ActivityGroup.Update(ctx, template))
 	createCareOfferingTemplateSchedule(t, env.db, template.ID, activitiesModels.WeekdayMonday, &period.ID)
 	linked := createSourceOffering(t, env, "FeedLinkedAusserhalbZeitraum", &template.ID)
 	reader, ok := env.bookings.(careplan.OfferingSourceEditor)

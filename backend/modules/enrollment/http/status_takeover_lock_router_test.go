@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -18,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -117,7 +118,7 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := testpkg.TenantContext(tenantID)
-	repos, repoErr := repositories.NewEnrollmentTestRepositories(db, repositories.NewTestAuditStore(db))
+	repos, repoErr := services.NewEnrollmentTestRepositories(db, services.NewTestAuditStore(db))
 	require.NoError(t, repoErr)
 	settings := stubTakeoverSettings{}
 

@@ -7,11 +7,12 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -26,11 +27,11 @@ import (
 func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, usersModels.ParentRequestEventRepository, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	events := repos.ParentRequestEvent
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CarePlan(),
-		People:              repositories.MustNewPeopleDirectory(db),
+		People:              services.MustNewPeopleDirectory(db),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChild,
 		StudentRepo:         repos.Student,
@@ -225,7 +226,7 @@ func TestEditMasterDataRequestRefusesUnchangedValue(t *testing.T) {
 		}, nil)
 	require.NoError(t, err)
 
-	person, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Person.FindByID(ctx, chain.PersonID)
+	person, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Person.FindByID(ctx, chain.PersonID)
 	require.NoError(t, err)
 	live, err := json.Marshal(person.FirstName)
 	require.NoError(t, err)

@@ -3,6 +3,8 @@ package enrollmenthttp_test
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
@@ -13,8 +15,6 @@ import (
 	"log/slog"
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
@@ -67,7 +67,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		GuardianProfiles:  repoFactory.GuardianProfile,
 		GuardianAccess:    testGuardianAccess(env.db),
 		StudentEnrollment: testStudentEnrollment(env.db),
-		Companions:        repositories.NewStudentCompanionRepository(repoFactory.CarePlan()),
+		Companions:        services.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:  repoFactory.CarePlan().DeleteCompanionEdges,
 		StudentAudit:      testutil.NewEnrollmentFlowStudentAudit(env.db, testpkg.RequestAuditActor),
 		FrontendURL:       "http://localhost:3000",
@@ -588,7 +588,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 		CareOfferingID: offering.ID,
 	}
 	link.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
 
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true

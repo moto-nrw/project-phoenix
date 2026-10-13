@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -40,11 +39,16 @@ import (
 func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos, err := services.NewRepositoryTestFactoryWithPeopleDirectory(db, services.NewUnobservedTimetableDependencies(db))
+	timetableRepos := testTimetableRepositories(db)
 	require.NoError(t, err)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repos.ActiveGroup)
+	devices, err := services.NewDeviceRepository(db)
+	require.NoError(t, err)
+	rooms, err := services.NewFacilities(db)
+	require.NoError(t, err)
 	svc := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader:    services.AttendancePrincipal,
 		GroupRepo:          sessionGroups,
@@ -52,14 +56,14 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 		SchoolPresence:     presence,
 		StudentRepo:        services.PresenceStudents(db, repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
-		RoomRepo:           services.NewAttendanceRooms(repos.Room),
-		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
-		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
+		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
+		ActivityGroupRepo:  services.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityCatRepo:    services.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
-		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
+		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
 		StaffNames: services.NewAttendanceStaffNames(repos.Staff, services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
-			RFIDCards: repos.RFIDCard, AccountExists: repositories.AccountExists(repos.Profile),
+			RFIDCards: repos.RFIDCard, AccountExists: services.AccountExists(repos.Profile),
 		})),
 		DB:     db,
 		Logger: slog.Default(),
@@ -89,7 +93,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos, err := services.NewRepositoryTestFactoryWithPeopleDirectory(db, services.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
 	today := timezone.NewDate(2026, 8, 24)
 	svc := newCareLifecycleServiceAt(t, db, today)
@@ -166,7 +170,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	t.Run("the child is gone from the group roster reads", func(t *testing.T) {
 		personSvc := services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
-			RFIDCards: repos.RFIDCard, AccountExists: repositories.AccountExists(repos.Profile),
+			RFIDCards: repos.RFIDCard, AccountExists: services.AccountExists(repos.Profile),
 		}).WithCareParticipation(func(
 			ctx context.Context, studentIDs []int64, on, today timezone.Date,
 		) (map[int64]bool, error) {
@@ -203,8 +207,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
-	require.NoError(t, err)
+	timetableRepos := testTimetableRepositories(db)
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
 
@@ -235,7 +238,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 		ValidFrom:       activityModels.Date(today.AddDays(-60)),
 	}
 	booking.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.StudentEnrollment.Create(ctx, booking))
+	require.NoError(t, timetableRepos.StudentEnrollment.Create(ctx, booking))
 
 	// A parent request nobody has decided yet.
 	request := &testpkg.ExcusedAbsenceRequestRow{
@@ -247,7 +250,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 		Status:        absencerecords.ExcusedRequestStatusPending,
 	}
 	request.TenantID = testpkg.Tenant(t)
-	_, err = db.NewInsert().
+	_, err := db.NewInsert().
 		Model(request).
 		ModelTableExpr("active.excused_absence_requests").
 		Exec(ctx)
@@ -281,22 +284,22 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("future roster rows go, past ones stay", func(t *testing.T) {
-		future, err := repos.InstanceStudent.FindByInstanceID(ctx, futureInstance.ID)
+		future, err := timetableRepos.InstanceStudent.FindByInstanceID(ctx, futureInstance.ID)
 		require.NoError(t, err)
 		assert.Empty(t, future, "the departed child is off the upcoming block")
 
-		past, err := repos.InstanceStudent.FindByInstanceID(ctx, pastInstance.ID)
+		past, err := timetableRepos.InstanceStudent.FindByInstanceID(ctx, pastInstance.ID)
 		require.NoError(t, err)
 		require.Len(t, past, 1, "the day that happened is frozen history")
 		assert.Equal(t, studentID, past[0].StudentID)
 	})
 
 	t.Run("the offering ends at the last care day", func(t *testing.T) {
-		stillToday, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, activityModels.Date(today))
+		stillToday, err := timetableRepos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, activityModels.Date(today))
 		require.NoError(t, err)
 		assert.Len(t, stillToday, 1)
 
-		tomorrow, err := repos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, activityModels.Date(today.AddDays(1)))
+		tomorrow, err := timetableRepos.StudentEnrollment.FindActiveByStudentIDs(ctx, []int64{studentID}, activityModels.Date(today.AddDays(1)))
 		require.NoError(t, err)
 		assert.Empty(t, tomorrow)
 	})

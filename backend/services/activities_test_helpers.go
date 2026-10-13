@@ -1,7 +1,6 @@
 package services
 
 import (
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/services/activities"
@@ -12,11 +11,11 @@ type ActivitiesTestModule struct {
 	Activities  activities.ActivityService
 	Timetable   timetable.Capability
 	Users       *peopleCompose.PersonDirectory
-	UserContext *repositories.CallerRows
+	UserContext *CallerRows
 }
 
 func NewActivitiesTestModule(db *bun.DB) (ActivitiesTestModule, error) {
-	r, err := repositories.NewTimetableTestRepositories(db)
+	r, err := NewTimetableTestRepositories(db)
 	if err != nil {
 		return ActivitiesTestModule{}, err
 	}
@@ -33,8 +32,8 @@ func NewActivitiesTestModule(db *bun.DB) (ActivitiesTestModule, error) {
 	return ActivitiesTestModule{
 		Activities: activityService, Timetable: r.Timetable, UserContext: identity,
 		Users: peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
-			PersonDirectory:  repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
-			StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
+			PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
+			StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
 			PersonRepo:       r.Person, TeacherRepo: r.Teacher,
 			StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: r.Person, Staff: r.Staff, Teachers: r.Teacher}),
 		}),

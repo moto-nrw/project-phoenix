@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +16,7 @@ import (
 
 func timeframeRepository(t *testing.T, db *bun.DB) timeframeQueryRepository {
 	t.Helper()
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
 	return factory.Timeframe.(timeframeQueryRepository)
 }
 

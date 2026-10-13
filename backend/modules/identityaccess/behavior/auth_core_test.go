@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -79,7 +78,7 @@ func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) testAu
 // module's public contract directly.
 func setupAuthFactory(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) *services.Factory {
 	t.Helper()
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	enabled := len(rateLimitEnabled) > 0 && rateLimitEnabled[0]
 	serviceFactory, err := services.NewFactoryForTestsWithConfig(repoFactory, db, slog.Default(), authTestFactoryConfig(enabled))
 	require.NoError(t, err, "Failed to create service factory")

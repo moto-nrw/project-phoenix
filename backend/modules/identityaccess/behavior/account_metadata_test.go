@@ -5,7 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -15,7 +16,7 @@ import (
 func TestAccountMetadataSelfEdits(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	profiles, err := repositories.NewIdentityAccessForTests(db)
+	profiles, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "self-metadata")
 	ctx := testpkg.Ctx(t)
@@ -76,7 +77,7 @@ func TestAccountMetadataSelfEdits(t *testing.T) {
 func TestAccountMetadataPropagatesDatabaseFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	profiles, err := repositories.NewIdentityAccessForTests(db)
+	profiles, err := services.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 

@@ -37,10 +37,10 @@ const (
 // person directory.
 type PersonDirectoryDependencies struct {
 	// PersonDirectory is the owner's person write path (#3349); the
-	// composition root binds database/repositories.NewPersonDirectory.
+	// composition root binds NewPersonWrites.
 	PersonDirectory PersonWriter
 	// StudentDirectory is the owner's locked child read (#3349); the
-	// composition root binds database/repositories.NewStudentDirectory.
+	// composition root binds NewStudentDirectory.
 	StudentDirectory StudentLocker
 	// Repository dependencies
 	PersonRepo    userModels.PersonRepository

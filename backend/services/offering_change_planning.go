@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -22,7 +21,7 @@ type manualPlanningReader struct {
 var _ carePlanCompose.OfferingChangePlanning = manualPlanningReader{}
 
 func (r manualPlanningReader) ListManualPlanningOccurrences(ctx context.Context, studentID int64, from, to string) ([]carePlanCompose.ManualPlanningOccurrence, error) {
-	rows, err := repositories.NewManualPlanningQuery(r.db).ListManualPlanningOccurrences(ctx, studentID, from, to)
+	rows, err := NewManualPlanningQuery(r.db).ListManualPlanningOccurrences(ctx, studentID, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +84,7 @@ func timetableCourseGroup(group timetable.CourseGroup) carePlanCompose.CourseGro
 }
 
 func (r manualPlanningReader) LockCourseGroups(ctx context.Context, groupIDs []int64) ([]carePlanCompose.CourseGroup, error) {
-	groups, err := repositories.NewManualPlanningQuery(r.db).LockCourseGroups(ctx, groupIDs)
+	groups, err := NewManualPlanningQuery(r.db).LockCourseGroups(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -101,5 +100,5 @@ func (r manualPlanningReader) LockCourseGroups(ctx context.Context, groupIDs []i
 }
 
 func (r manualPlanningReader) CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error) {
-	return repositories.NewManualPlanningQuery(r.db).CountActiveCourseEnrollments(ctx, groupIDs, from, until, excludeStudentID)
+	return NewManualPlanningQuery(r.db).CountActiveCourseEnrollments(ctx, groupIDs, from, until, excludeStudentID)
 }

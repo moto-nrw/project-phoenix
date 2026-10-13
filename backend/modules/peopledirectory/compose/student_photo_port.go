@@ -49,7 +49,7 @@ type StudentPhotoService interface {
 
 // StudentConsentRecorder appends the Audit Platform trail entry for an
 // effective consent change. The composition root binds it
-// (database/repositories.NewStudentConsentsFor); Audit Platform owns the trail.
+// (services.NewStudentConsentsFor); Audit Platform owns the trail.
 type StudentConsentRecorder interface {
 	RecordTransitions(
 		ctx context.Context,

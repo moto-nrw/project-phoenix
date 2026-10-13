@@ -8,7 +8,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -59,11 +58,11 @@ type BookingMaterializationTestModule struct {
 // NewBookingMaterializationTestModule composes the booking materialization
 // over the test database.
 func NewBookingMaterializationTestModule(db *bun.DB, unit tenant.UnitOfWork, options BookingMaterializationTestOptions) (BookingMaterializationTestModule, error) {
-	auditCommand, err := auditService.NewCommand(repositories.NewTestAuditStore(db), func(auditService.AppendObservation) {})
+	auditCommand, err := auditService.NewCommand(NewTestAuditStore(db), func(auditService.AppendObservation) {})
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	repos, err := repositories.NewStudentTestRepositories(db, auditCommand)
+	repos, err := NewStudentTestRepositories(db, auditCommand)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
@@ -75,7 +74,7 @@ func NewBookingMaterializationTestModule(db *bun.DB, unit tenant.UnitOfWork, opt
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	people, err := repositories.NewPeopleDirectory(db)
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
@@ -150,7 +149,7 @@ func (s bookingTestOverlaySettings) ResolveInt(ctx context.Context, key string) 
 	return s.ints.ResolveInt(ctx, key)
 }
 
-func bookingTestCatalog(r repositories.TimetableTestRepositories, settings bookingTestSettingsReads, options BookingMaterializationTestOptions) (careplan.CareOfferingCatalogCapability, error) {
+func bookingTestCatalog(r TimetableTestRepositories, settings bookingTestSettingsReads, options BookingMaterializationTestOptions) (careplan.CareOfferingCatalogCapability, error) {
 	if options.Catalog != nil {
 		return options.Catalog, nil
 	}

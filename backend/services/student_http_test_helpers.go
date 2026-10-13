@@ -5,7 +5,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -22,7 +21,7 @@ import (
 
 // StudentHTTPTestRows are the retained repositories the student route suites
 // arrange and assert through.
-type StudentHTTPTestRows = repositories.StudentTestRepositories
+type StudentHTTPTestRows = StudentTestRepositories
 
 // StudentHTTPTestAuditCommand is the audit command the suite's rows record
 // into.
@@ -46,48 +45,48 @@ type (
 // database, recording into command; nil records into the test audit store.
 func NewStudentHTTPTestRows(db *bun.DB, command auditModels.Command) (StudentHTTPTestRows, error) {
 	if command == nil {
-		command = repositories.NewTestAuditStore(db)
+		command = NewTestAuditStore(db)
 	}
-	return repositories.NewStudentTestRepositories(db, command)
+	return NewStudentTestRepositories(db, command)
 }
 
 // NewStudentHTTPTestPeople is the People Directory owner over the test
 // database.
 func NewStudentHTTPTestPeople(db *bun.DB) peopledirectory.Capability {
-	return repositories.MustNewPeopleDirectory(db)
+	return MustNewPeopleDirectory(db)
 }
 
 // NewStudentHTTPTestCompanions composes Care Plan's companion graph over the
 // suite's rows. audit may be nil only for suites that never widen a
 // companion's plan.
 func NewStudentHTTPTestCompanions(rows StudentHTTPTestRows, people peopledirectory.Capability, audit peopleCompose.StudentChangeRecorder) careplan.StudentCompanions {
-	var recorder repositories.StudentChangeAudit
+	var recorder StudentChangeAudit
 	if audit != nil {
 		recorder = audit
 	}
-	return repositories.MustNewStudentCompanions(rows.CarePlan, rows.Student, people, recorder)
+	return MustNewStudentCompanions(rows.CarePlan, rows.Student, people, recorder)
 }
 
 // StudentHTTPTestConsents is the consent projection and trail the student
 // routes read and append to.
-type StudentHTTPTestConsents = *repositories.StudentConsents
+type StudentHTTPTestConsents = *StudentConsents
 
 // NewStudentHTTPTestConsents binds the consent projection and the Audit
 // Platform trail over the test database.
 func NewStudentHTTPTestConsents(db *bun.DB) StudentHTTPTestConsents {
-	return repositories.NewStudentConsents(db)
+	return NewStudentConsents(db)
 }
 
 // NewStudentHTTPTestPickupReviewBlocks are the timetable blocks a pickup
 // review shows, over the test database.
 func NewStudentHTTPTestPickupReviewBlocks(db *bun.DB) carePlanCompose.PickupReviewBlocks {
-	return repositories.NewPickupReviewBlocks(db)
+	return NewPickupReviewBlocks(db)
 }
 
 // NewStudentHTTPTestMembership is the School Membership owner over the test
 // database.
 func NewStudentHTTPTestMembership(db *bun.DB) (schoolmembership.Capability, error) {
-	return repositories.NewSchoolMembership(db)
+	return NewSchoolMembership(db)
 }
 
 // StudentHTTPTestCareLifecycle tunes the Care Plan lifecycle a student route
@@ -102,12 +101,12 @@ type StudentHTTPTestCareLifecycle struct {
 // over the test database, recording care-end history through the owner's
 // change history.
 func NewStudentHTTPTestCareLifecycle(db *bun.DB, config StudentHTTPTestCareLifecycle) (careplan.CareLifecycle, error) {
-	repos, err := repositories.NewCareLifecycleTestRepositories(db, nil)
+	repos, err := NewCareLifecycleTestRepositories(db, nil)
 	if err != nil {
 		return nil, err
 	}
-	return repos.NewCareLifecycle(repositories.CareLifecycleTestConfig{
-		Audit:                 peopleCompose.NewStudentAuditService(config.AuditActor, repositories.NewStudentAudit(db)),
+	return repos.NewCareLifecycle(CareLifecycleTestConfig{
+		Audit:                 peopleCompose.NewStudentAuditService(config.AuditActor, NewStudentAudit(db)),
 		BookingsAuthoritative: config.BookingsAuthoritative,
 		Today:                 config.Today,
 	})

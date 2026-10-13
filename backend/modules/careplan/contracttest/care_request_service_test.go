@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -46,7 +45,8 @@ type careFixture struct {
 	db           *bun.DB
 	svc          carerequests.Service
 	sf           *services.Factory
-	repos        *repositories.Factory
+	repos        *services.RepositoryTestFactory
+	timetable    services.TimetableRepositories
 	chain        testpkg.ParentChain
 	staffAccount int64
 	staffID      int64
@@ -99,8 +99,8 @@ func newCareFixture(t *testing.T, options ...services.CareRequestOption) *careFi
 func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, options ...services.CareRequestOption) *careFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	timetableDeps := repositories.NewUnobservedTimetableDependencies(db)
-	repos := repositories.NewFactory(db, timetableDeps)
+	timetableDeps := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, timetableDeps)
 	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, sf.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
@@ -132,6 +132,7 @@ func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, o
 		svc:          svc,
 		sf:           sf,
 		repos:        repos,
+		timetable:    services.NewTimetableRepositories(db, timetableDeps),
 		chain:        chain,
 		staffAccount: staffAccount.ID,
 		staffID:      staff.ID,
@@ -300,7 +301,7 @@ func TestDecide_ApproveAppliesModeArrivalPickup(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, usersModels.DeparturePickup, student.DepartureDays["mon"])
 
-	history, err := repositories.NewStudentAudit(f.db).GetChangeHistory(ctx, f.chain.StudentID)
+	history, err := services.NewStudentAudit(f.db).GetChangeHistory(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	require.NotEmpty(t, history)
 	var departureEditFound bool
@@ -612,7 +613,7 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf,
-		f.emitter(t, f.repos.ParentMessage, settings, nil),
+		f.emitter(t, services.NewParentMessageRepository(f.db), settings, nil),
 		nil,
 		slog.Default(),
 	)
@@ -626,7 +627,7 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 	thread, err := f.repos.ParentMessageThread.FindByStudentGuardian(ctx, f.chain.StudentID, f.chain.AccountID)
 	require.NoError(t, err)
 	require.NotNil(t, thread, "the request_created pill must have opened the thread while messaging was on")
-	created, err := f.repos.ParentMessage.FindEventByRef(ctx, thread.ID, usersModels.ParentMessageEventRequestCreated, "schedule.care_schedule_change_requests", req.ID)
+	created, err := services.NewParentMessageRepository(f.db).FindEventByRef(ctx, thread.ID, usersModels.ParentMessageEventRequestCreated, "schedule.care_schedule_change_requests", req.ID)
 	require.NoError(t, err)
 	require.NotNil(t, created, "request_created pill exists while messaging is on")
 
@@ -637,7 +638,7 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 	assert.Equal(t, scheduleModels.CareRequestStatusRejected, item.Request.Status)
 
 	// The closing pill must still be written so the timeline and the queue agree.
-	status, err := f.repos.ParentMessage.FindEventByRef(ctx, thread.ID, usersModels.ParentMessageEventRequestStatus, "schedule.care_schedule_change_requests", req.ID)
+	status, err := services.NewParentMessageRepository(f.db).FindEventByRef(ctx, thread.ID, usersModels.ParentMessageEventRequestStatus, "schedule.care_schedule_change_requests", req.ID)
 	require.NoError(t, err)
 	require.NotNil(t, status, "the closing request_status pill must be written even while messaging is disabled")
 	assert.Equal(t, usersModels.ParentMessageRequestStatusRejected, status.RequestStatus)
@@ -664,7 +665,7 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf,
-		f.emitter(t, f.repos.ParentMessage, &toggleSettings{enabled: true}, nil),
+		f.emitter(t, services.NewParentMessageRepository(f.db), &toggleSettings{enabled: true}, nil),
 		nil,
 		slog.Default(),
 	)
@@ -678,7 +679,7 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 	thread, err := f.repos.ParentMessageThread.FindByStudentGuardian(ctx, f.chain.StudentID, f.chain.AccountID)
 	require.NoError(t, err)
 	require.NotNil(t, thread, "the request_created pill opens the thread")
-	created, err := f.repos.ParentMessage.FindEventByRef(ctx, thread.ID, usersModels.ParentMessageEventRequestCreated, "schedule.care_schedule_change_requests", req.ID)
+	created, err := services.NewParentMessageRepository(f.db).FindEventByRef(ctx, thread.ID, usersModels.ParentMessageEventRequestCreated, "schedule.care_schedule_change_requests", req.ID)
 	require.NoError(t, err)
 	require.NotNil(t, created, "request_created pill exists")
 
@@ -691,7 +692,7 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 	_, err = svc.Decide(ctx, carerequests.DecideInput{RequestID: req.ID, Approve: false, Reason: "telefonisch geklärt", ReviewedBy: f.staffAccount})
 	require.NoError(t, err)
 
-	status, err := f.repos.ParentMessage.FindEventByRef(ctx, thread.ID, usersModels.ParentMessageEventRequestStatus, "schedule.care_schedule_change_requests", req.ID)
+	status, err := services.NewParentMessageRepository(f.db).FindEventByRef(ctx, thread.ID, usersModels.ParentMessageEventRequestStatus, "schedule.care_schedule_change_requests", req.ID)
 	require.NoError(t, err)
 	require.NotNil(t, status, "the reject decision writes a request_status pill")
 
@@ -718,7 +719,7 @@ func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf,
-		f.emitter(t, f.repos.ParentMessage, fakeDisabledSettings{}, nil),
+		f.emitter(t, services.NewParentMessageRepository(f.db), fakeDisabledSettings{}, nil),
 		nil,
 		slog.Default(),
 	)
@@ -753,7 +754,7 @@ func TestDecide_ApproveAllowedWhenMessagingDisabled(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf,
-		f.emitter(t, f.repos.ParentMessage, fakeDisabledSettings{}, nil),
+		f.emitter(t, services.NewParentMessageRepository(f.db), fakeDisabledSettings{}, nil),
 		nil,
 		slog.Default(),
 	)
@@ -1068,9 +1069,9 @@ func (f *careFixture) linkCompanionOnTuesday(t *testing.T) {
 	accompaniedTuesday(partner.ID)
 	accompaniedTuesday(f.chain.StudentID)
 
-	edge, err := repositories.NewStudentCompanionEdge(f.chain.StudentID, partner.ID, 2)
+	edge, err := services.NewStudentCompanionEdge(f.chain.StudentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, repositories.ReplaceStudentCompanions(ctx, repositories.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*usersModels.StudentCompanion{edge}))
+	require.NoError(t, services.ReplaceStudentCompanions(ctx, services.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*usersModels.StudentCompanion{edge}))
 }
 
 // TestDecide_BogusIDNotFound covers the staff-decision lock on a missing row:
@@ -1113,7 +1114,7 @@ func TestCareRequestLifecycle_WakesAllGuardians(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf,
-		f.emitter(t, f.repos.ParentMessage, &toggleSettings{enabled: true}, broadcaster),
+		f.emitter(t, services.NewParentMessageRepository(f.db), &toggleSettings{enabled: true}, broadcaster),
 		broadcaster,
 		slog.Default(),
 	)

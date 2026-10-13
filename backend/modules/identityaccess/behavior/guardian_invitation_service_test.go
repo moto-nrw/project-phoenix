@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -27,7 +26,7 @@ const strongTestPassword = "GuardianTest!2026"
 // guardianTestEnv bundles the real-DB dependencies tests need.
 type guardianTestEnv struct {
 	db      *bun.DB
-	repos   *repositories.Factory
+	repos   *services.RepositoryTestFactory
 	service services.GuardianInvitationCapability
 	cleanup func()
 }
@@ -40,7 +39,7 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*bun.DB, *services
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 
 	cfg := services.GuardianInvitationTestConfig{
 		Outbox: testpkg.NewCapturingOutbox(),
@@ -355,7 +354,9 @@ func TestGuardianInvitationBelongsToItsSchoolOnly(t *testing.T) {
 	assert.Equal(t, *profile.Email, preview.Email)
 	assert.Equal(t, profile.FirstName, preview.FirstName)
 	assert.Equal(t, profile.LastName, preview.LastName)
-	school, err := env.repos.School.FindSchool(testpkg.Ctx(t), testpkg.Tenant(t))
+	organizations, err := services.NewOrganizationTenancy(env.db)
+	require.NoError(t, err)
+	school, err := organizations.FindSchool(testpkg.Ctx(t), testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.Equal(t, school.Name, preview.SchoolName)
 	assert.Equal(t, school.Slug, preview.SchoolSlug)
@@ -744,7 +745,7 @@ func TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransa
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	realBackfiller := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ParentEnrollmentRequest
+	realBackfiller := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ParentEnrollmentRequest
 	env := setupGuardianInviteWithBackfiller(t, realBackfiller)
 
 	profile := testpkg.CreateTestGuardianProfile(t, db, "backfill-outer-admin")

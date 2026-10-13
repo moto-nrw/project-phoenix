@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	testutil "github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -35,11 +36,11 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 	request := makeOwnerRequest(0, uniqueToken("expiry-whole-cohort"), "cohort@example.test")
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		if err := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertPhase(ctx, phase); err != nil {
+		if err := services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertPhase(ctx, phase); err != nil {
 			return err
 		}
 		request.PhaseID = phase.ID
-		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequest(ctx, request)
+		return services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequest(ctx, request)
 	}))
 
 	mondayStudent := testpkg.CreateTestStudent(t, db, "Monday", "Child", "2a")
@@ -54,9 +55,9 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 				return err
 			}
 		}
-		childRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+		childRepo := services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 		offeringRepo := newCareOfferingFixtures(testutil.NewTestCarePlan(t, db))
-		linkRepo := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
+		linkRepo := services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 		for _, fixture := range []struct {
 			student *usersModels.Student
 			day     string
@@ -165,12 +166,12 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	phase.ServiceStartDate = capability.Date(calendar.NewDate(2026, 8, 1))
 	phase.ServiceEndDate = capability.Date(calendar.NewDate(2027, 1, 29))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertPhase(ctx, phase)
+		return services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertPhase(ctx, phase)
 	}))
 
 	request := makeOwnerRequest(phase.ID, uniqueToken("expiry-source"), "expiry@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequest(ctx, request)
+		return services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequest(ctx, request)
 	}))
 
 	student := testpkg.CreateTestStudent(t, db, "Expiry", "Student", "2a")
@@ -189,7 +190,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	child.Status = enrollmentModels.ChildStatusApproved
 	child.CreatedStudentID = &student.ID
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertChild(ctx, child)
+		return services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertChild(ctx, child)
 	}))
 
 	offering := makeOffering(phase.ID, uniqueOfferingName("lunch"))
@@ -210,7 +211,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 		ValidUntil:     offeringDatePointer(validUntil),
 	}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link)
+		return services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link)
 	}))
 	secondOffering := makeOffering(phase.ID, uniqueOfferingName("second-offering"))
 	secondOffering.AvailableDays = []string{"tue"}
@@ -218,7 +219,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 		return newCareOfferingFixtures(testutil.NewTestCarePlan(t, db)).Create(ctx, secondOffering)
 	}))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
+		return services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
 			RequestChildID: child.ID,
 			CareOfferingID: secondOffering.ID,
 		})
@@ -265,7 +266,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, child.ID, enrollmentModels.ChildStatusSubmitted, nil, 0)
+		return services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, child.ID, enrollmentModels.ChildStatusSubmitted, nil, 0)
 	}))
 	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var listErr error
@@ -279,7 +280,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	require.NoError(t, err)
 	assert.Empty(t, snapshots, "a non-approved request child must not trigger a warning")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, child.ID, enrollmentModels.ChildStatusApproved, nil, 0)
+		return services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).UpdateChildStatus(ctx, child.ID, enrollmentModels.ChildStatusApproved, nil, 0)
 	}))
 	offering.IsActive = false
 	secondOffering.IsActive = false
@@ -370,8 +371,8 @@ func (d phaseExpiryCareOfferingDirectory) ListCareOfferings(ctx context.Context)
 // Exercise the production projection with the real owners.
 func newPhaseExpiryProjection(t *testing.T, db *bun.DB) *TestPhaseExpirySnapshots {
 	t.Helper()
-	owner := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant)
-	students, err := repositories.NewPeopleDirectory(db)
+	owner := services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
+	students, err := services.NewPeopleDirectory(db)
 	require.NoError(t, err)
 	return NewTestPhaseExpirySnapshots(owner, expiryStudentDirectory{students}, phaseExpiryCareOfferingDirectory{testutil.NewTestCarePlan(t, db)}, owner)
 }

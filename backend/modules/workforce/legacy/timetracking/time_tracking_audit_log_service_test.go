@@ -13,9 +13,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +27,7 @@ type auditLogFixture struct {
 	staffA   int64
 	staffB   int64
 	admin    int64
-	repos    *repositories.Factory
+	repos    *services.RepositoryTestFactory
 	db       *testpkg.DB
 	ctx      context.Context
 	svc      timetracking.TimeTrackingAuditLogService
@@ -55,7 +55,8 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	// resolve it.
 	admin, adminAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Audit", "Leitung")
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	owners := services.NewUnobservedTimetableDependencies(db)
+	repos := services.NewRepositoryTestFactory(db, owners)
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {
@@ -84,7 +85,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		CreatedBy: staffA.ID,
 	}
 	session.SetTenantID(tenantID)
-	require.NoError(t, repos.WorkSession.Create(ctx, session))
+	require.NoError(t, workforceLegacy.NewWorkSessionRepository(owners.Workforce).Create(ctx, session))
 	oldIn, newIn := "08:00", "08:30"
 	oldOut, newOut := "16:00", "15:00"
 	note := "Korrektur nach Rücksprache"
@@ -99,7 +100,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	for _, e := range edits {
 		e.SetTenantID(tenantID)
 	}
-	require.NoError(t, repos.WorkSessionEdit.CreateBatch(ctx, edits))
+	require.NoError(t, services.NewTestAuditPersistence(db, nil).WorkSessionEdit.CreateBatch(ctx, edits))
 
 	// Absence + status-transition audit row (actor = ACCOUNT id).
 	absence := &timerecords.StaffAbsence{
@@ -121,7 +122,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		Note:       "Attest liegt vor",
 	}
 	absenceAudit.TenantID = tenantID
-	require.NoError(t, repos.StaffAbsenceAudit.Create(ctx, absenceAudit))
+	require.NoError(t, workforceLegacy.NewStaffAbsenceAuditRepository(owners.Workforce).Create(ctx, absenceAudit))
 
 	// Balance adjustment for staffA (stays) and one for staffB (deleted below).
 	makeAdjustment := func(staffID int64, day int) *timerecords.StaffBalanceAdjustment {
@@ -135,7 +136,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 			DecidedAt:     time.Date(2025, time.August, day, 12, 0, 0, 0, time.UTC),
 		}
 		adj.SetTenantID(tenantID)
-		require.NoError(t, repos.StaffBalanceAdjust.Create(ctx, adj))
+		require.NoError(t, workforceLegacy.NewStaffBalanceAdjustmentRepository(owners.Workforce).Create(ctx, adj))
 		return adj
 	}
 	makeAdjustment(staffA.ID, 10)
@@ -149,20 +150,20 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		{StaffID: staffA.ID, Year: 2025, Month: 8, ClosingBalanceMinutes: 30, ClosedAt: closedAt, ClosedBy: admin.ID, CloseReason: "Monatsabschluss August", Source: "admin", ReopenedAt: &reopenedAt, ReopenedBy: &admin.ID, ReopenReason: reopenReason},
 		{StaffID: staffB.ID, Year: 2025, Month: 8, ClosingBalanceMinutes: -15, ClosedAt: closedAt, ClosedBy: admin.ID, CloseReason: "Monatsabschluss August", Source: "admin"},
 	} {
-		_, err := services.MonthSnapshotCapability(repos.StaffMonthSnapshot).RecordClosedMonth(ctx, *snap)
+		_, err := services.MonthSnapshotCapability(owners.Workforce).RecordClosedMonth(ctx, *snap)
 		require.NoError(t, err)
 	}
 
 	// Delete staffB's adjustment through the real service path so the
 	// tombstone write is covered end to end.
-	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, nil, wtmIntSettings{accountStart: "2025-01-01"}, nil,
-		timetracking.WithAdjustmentDeletionAudit(services.NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion)))
+	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(workforceLegacy.NewStaffBalanceAdjustmentRepository(owners.Workforce), nil, wtmIntSettings{accountStart: "2025-01-01"}, nil,
+		timetracking.WithAdjustmentDeletionAudit(services.NewTimeTrackingDeletionAudit(services.NewTestAuditPersistence(db, nil).TimeTrackingDeletion)))
 	require.NoError(t, adjustSvc.DeleteAdjustment(ctx, staffB.ID, doomed.ID, admin.ID))
 
 	return &auditLogFixture{
 		tenantID: tenantID, staffA: staffA.ID, staffB: staffB.ID, admin: admin.ID,
 		repos: repos, db: db, ctx: ctx,
-		svc: timetracking.NewTimeTrackingAuditLogService(services.NewTimeTrackingAuditReader(repos.TimeTrackingAuditLog), services.StaffDisplayNames(repos.Staff), nil),
+		svc: timetracking.NewTimeTrackingAuditLogService(services.NewTimeTrackingAuditReader(services.NewTestAuditPersistence(db, nil).TimeTrackingAuditLog), services.StaffDisplayNames(repos.Staff), nil),
 	}
 }
 
@@ -303,7 +304,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 			9001: finalFraction,
 			9002: nextMidnight,
 		} {
-			require.NoError(t, f.repos.TimeTrackingDeletion.Create(f.ctx, &auditModels.TimeTrackingDeletion{
+			require.NoError(t, services.NewTestAuditPersistence(f.db, nil).TimeTrackingDeletion.Create(f.ctx, &auditModels.TimeTrackingDeletion{
 				StaffID:    f.staffA,
 				Source:     auditModels.TimeTrackingDeletionSourceAbsence,
 				SourceID:   sourceID,

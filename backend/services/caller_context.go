@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -76,12 +75,12 @@ func newCallerContext(wiring callerContextWiring) (identityaccess.CallerContext,
 
 // newCallerRows composes the caller context and the rows its retained
 // consumers read through it.
-func newCallerRows(wiring callerContextWiring, sources repositories.CallerRowSources) (*repositories.CallerRows, error) {
+func newCallerRows(wiring callerContextWiring, sources CallerRowSources) (*CallerRows, error) {
 	caller, err := newCallerContext(wiring)
 	if err != nil {
 		return nil, fmt.Errorf("compose caller context: %w", err)
 	}
-	return repositories.NewCallerRows(caller, sources), nil
+	return NewCallerRows(caller, sources), nil
 }
 
 // requestIdentityMemo resolves the request identity memo the request
@@ -196,22 +195,6 @@ func (s callerStructure) SubstitutedGroups(ctx context.Context, staffID int64) (
 
 func (s callerStructure) SchoolClasses(ctx context.Context, staffID int64) ([]string, error) {
 	return s.groups.ListSchoolClassesByStaff(ctx, staffID)
-}
-
-// supervisedActivityGroupIDs reads the activity groups a staff member
-// supervises as planned.
-func supervisedActivityGroupIDs(activities repositories.ActivityGroupRepository) func(context.Context, int64) ([]int64, error) {
-	return func(ctx context.Context, staffID int64) ([]int64, error) {
-		rows, err := activities.FindByStaffSupervisor(ctx, staffID)
-		if err != nil {
-			return nil, err
-		}
-		ids := make([]int64, 0, len(rows))
-		for _, row := range rows {
-			ids = append(ids, row.ID)
-		}
-		return ids, nil
-	}
 }
 
 type callerActivities func(context.Context, int64) ([]int64, error)

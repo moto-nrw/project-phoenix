@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -24,7 +25,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupPhaseTest(t *testing.T) (enrollmentOwner.PhaseAdministration, *repositories.EnrollmentFlowTestRepositories, *bun.DB, func()) {
+func setupPhaseTest(t *testing.T) (enrollmentOwner.PhaseAdministration, *services.EnrollmentFlowTestRepositories, *bun.DB, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
@@ -642,7 +643,7 @@ func (r findByIDErrorPhaseRepo) Phase(context.Context, int64) (*enrollmentOwner.
 
 // phaseServiceWithCalendarPeriods wires the optional CalendarPeriods dep
 // on top of the standard setup so the link validation actually runs.
-func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentOwner.PhaseAdministration, *repositories.EnrollmentFlowTestRepositories, *bun.DB, func()) {
+func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentOwner.PhaseAdministration, *services.EnrollmentFlowTestRepositories, *bun.DB, func()) {
 	t.Helper()
 	_, repoFactory, db, cleanup := setupPhaseTest(t)
 	svc := NewTestPhases(TestPhaseDependencies{

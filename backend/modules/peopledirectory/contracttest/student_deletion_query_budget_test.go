@@ -5,7 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
@@ -42,11 +43,11 @@ func TestStudentDeletionWorkflow_QueryBudget(t *testing.T) {
 		edges := make([]*userModels.StudentCompanion, 0, companions)
 		for i := range companions {
 			companion := testpkg.CreateTestStudent(t, db, "Budget", fmt.Sprintf("Companion%d_%d", companions, i), "2a")
-			edge, err := repositories.NewStudentCompanionEdge(subject.ID, companion.ID, 1)
+			edge, err := services.NewStudentCompanionEdge(subject.ID, companion.ID, 1)
 			require.NoError(t, err)
 			edges = append(edges, edge)
 		}
-		require.NoError(t, repositories.ReplaceStudentCompanions(ctx, companionLinks(db), subject.ID, edges))
+		require.NoError(t, services.ReplaceStudentCompanions(ctx, companionLinks(db), subject.ID, edges))
 
 		counter.Reset()
 		preview, err := workflow.Preview(counter.Context(ctx), subject.ID)

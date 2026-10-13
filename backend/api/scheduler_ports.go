@@ -5,9 +5,13 @@ import (
 	"fmt"
 
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
+	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/jobruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -77,14 +81,16 @@ func (p schedulerSettingsPort) BindSettingsSnapshot(ctx context.Context, snapsho
 	return bound.Bind(ctx), nil
 }
 
-// schedulerBookingConsistency binds the booking drift audit.
-func schedulerBookingConsistency(graph *serveGraph) scheduler.BookingConsistencyAudit {
-	bookings := graph.repos.BookingConsistency
-	if bookings == nil {
-		return nil
+// schedulerBookingConsistency binds the booking drift audit, which the legacy
+// composition builds over the graph's People Directory and Care Plan
+// (ADR 0049). A construction failure fails the Worker's composition.
+func schedulerBookingConsistency(graph *serveGraph, reads workerReads) (scheduler.BookingConsistencyAudit, error) {
+	bookings, err := services.NewBookingConsistencyAudit(graph.db, graph.services.PeopleDirectory, reads.carePlan)
+	if err != nil {
+		return nil, fmt.Errorf("compose worker booking consistency audit: %w", err)
 	}
 	return func(ctx context.Context, day calendar.Date) (*scheduler.BookingConsistencyReport, error) {
-		report, err := callOnDay(bookings.Audit, ctx, day)
+		report, err := callOnDay(bookings, ctx, day)
 		if err != nil || report == nil {
 			return nil, err
 		}
@@ -96,13 +102,13 @@ func schedulerBookingConsistency(graph *serveGraph) scheduler.BookingConsistency
 			ApprovedWithoutOptionalOffering: report.ApprovedWithoutOptionalOffering,
 			TotalFindings:                   report.TotalFindings(),
 		}, nil
-	}
+	}, nil
 }
 
 // schedulerDayInstances binds the overdue tick to the day's activity
 // instances with their composed status.
-func schedulerDayInstances(graph *serveGraph) scheduler.DayInstanceReader {
-	instances := graph.repos.ActivityInstance
+func schedulerDayInstances(timetableRepositories timetableCompose.Repositories) scheduler.DayInstanceReader {
+	instances := timetableRepositories.ActivityInstance
 	if instances == nil {
 		return nil
 	}
@@ -128,12 +134,52 @@ func schedulerDayInstances(graph *serveGraph) scheduler.DayInstanceReader {
 	}
 }
 
-// schedulerExistingRooms binds the overdue tick's room check.
-func schedulerExistingRooms(graph *serveGraph) scheduler.ExistingRoomReader {
-	rooms := graph.repos.Room
-	if rooms == nil {
+// workerReads are the Worker's retained room, work-session and Timetable
+// reads. They are built over the owner modules where the graph is composed
+// and handed to the Worker, not kept on the graph (#2743).
+type workerReads struct {
+	existingRooms scheduler.ExistingRoomReader
+	timetable     timetableCompose.Repositories
+	workSessions  interface {
+		GetTodayPresenceMap(context.Context) (map[int64]string, error)
+	}
+	// students and staff are the retained People Directory and School
+	// Membership repositories the activation tick and the reminder
+	// recipients read (#2743).
+	students services.StudentRootReads
+	staff    interface {
+		ListAllStaffAccountIDs(ctx context.Context) (map[int64]int64, error)
+	}
+	// carePlan is the Care Plan owner the booking drift audit reads, and
+	// studentStatusDays archives the status flags over it.
+	carePlan          carePlanModule.Query
+	studentStatusDays scheduler.StudentStatusFlagArchiver
+}
+
+func newWorkerReads(modules moduleServices) workerReads {
+	return workerReads{
+		existingRooms: schedulerExistingRooms(modules.rooms),
+		timetable:     modules.timetableRepositories,
+		workSessions:  workforceLegacy.NewWorkSessionRepository(modules.workforce),
+		students:      modules.students,
+		staff:         modules.staff,
+		// A nil owner leaves the interface nil, so the Worker runs no audit.
+		carePlan:          carePlanQuery(modules.carePlan),
+		studentStatusDays: modules.studentStatusDays,
+	}
+}
+
+// carePlanQuery keeps a missing Care Plan owner a nil interface.
+func carePlanQuery(module *carePlanModule.Module) carePlanModule.Query {
+	if module == nil {
 		return nil
 	}
+	return module
+}
+
+// schedulerExistingRooms binds the overdue tick's room check.
+func schedulerExistingRooms(capability facilitiesModule.Capability) scheduler.ExistingRoomReader {
+	rooms := services.NewRoomRepository(capability)
 	return func(ctx context.Context, roomIDs []int64) ([]int64, error) {
 		found, err := rooms.FindByIDs(ctx, roomIDs)
 		if err != nil {
@@ -151,35 +197,14 @@ func schedulerExistingRooms(graph *serveGraph) scheduler.ExistingRoomReader {
 
 // schedulerStudentLifecycle binds the activate-students tick to the
 // retained student repository.
-func schedulerStudentLifecycle(graph *serveGraph) scheduler.StudentLifecycleRepository {
-	students := graph.repos.Student
-	if students == nil {
+func schedulerStudentLifecycle(reads workerReads) scheduler.StudentLifecycleRepository {
+	students := reads.students
+	if students.PendingDueForActivation == nil {
 		return nil
 	}
 	return studentLifecyclePort{
-		pending: func(ctx context.Context, asOf calendar.Date) ([]int64, error) {
-			rows, err := students.FindPendingDueForActivation(ctx, asOf)
-			ids := make([]int64, 0, len(rows))
-			for _, row := range rows {
-				if row != nil {
-					ids = append(ids, row.ID)
-				}
-			}
-			return ids, err
-		},
-		activeDue: func(ctx context.Context, asOf calendar.Date) ([]int64, error) {
-			rows, err := students.FindActiveDueForDeactivation(ctx, asOf)
-			ids := make([]int64, 0, len(rows))
-			for _, row := range rows {
-				if row != nil {
-					ids = append(ids, row.ID)
-				}
-			}
-			return ids, err
-		},
-		transition: func(ctx context.Context, studentID int64, expected, next string) (bool, error) {
-			return transitionStudentStatus(students.TransitionStatus, ctx, studentID, expected, next)
-		},
+		pending: students.PendingDueForActivation, activeDue: students.ActiveDueForDeactivation,
+		transition: students.TransitionStatus,
 	}
 }
 
@@ -243,12 +268,6 @@ func schedulerStudentChangeLogCleanup(graph *serveGraph) scheduler.StudentChange
 // is a named string type of a package the root does not import.
 func callOnDay[D ~string, R any](call func(context.Context, D) (R, error), ctx context.Context, day calendar.Date) (R, error) {
 	return call(ctx, D(day))
-}
-
-// transitionStudentStatus passes stored status values to the retained
-// compare-and-set, whose status parameter is such a named string type.
-func transitionStudentStatus[S ~string](transition func(context.Context, int64, S, S) (bool, error), ctx context.Context, studentID int64, expected, next string) (bool, error) {
-	return transition(ctx, studentID, S(expected), S(next))
 }
 
 // recordStudentStatusChange passes stored status values to the retained

@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	iot "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -20,7 +21,7 @@ import (
 // contract their callers hold.
 func newDeviceRepository(t *testing.T, db *bun.DB) iot.DeviceRepository {
 	t.Helper()
-	repository, err := repositories.NewDeviceRepository(db)
+	repository, err := services.NewDeviceRepository(db)
 	require.NoError(t, err, "Failed to compose the device repository")
 	return repository
 }
@@ -36,7 +37,7 @@ type deviceQueries struct {
 
 func newDeviceQueries(t *testing.T, db *bun.DB) deviceQueries {
 	t.Helper()
-	fleet, err := repositories.NewDeviceFleet(db)
+	fleet, err := services.NewDeviceFleet(db)
 	require.NoError(t, err, "Failed to compose the device fleet")
 	return deviceQueries{DeviceRepository: newDeviceRepository(t, db), devices: fleet}
 }

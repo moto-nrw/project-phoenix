@@ -5,7 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,9 +38,9 @@ func TestCallerRowsCurrentStaffIDClassifiesUnlinkedCallers(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			rows := repositories.NewCallerRows(identityaccess.CallerContext{
+			rows := services.NewCallerRows(identityaccess.CallerContext{
 				CallerIdentities: staffIdentityStub{staffID: tc.staffID, err: tc.err},
-			}, repositories.CallerRowSources{})
+			}, services.CallerRowSources{})
 			staffID, found, err := rows.CurrentStaffID(context.Background())
 			if tc.wantErr != nil {
 				require.ErrorIs(t, err, tc.wantErr)

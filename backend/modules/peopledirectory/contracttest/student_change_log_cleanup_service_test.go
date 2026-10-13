@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	repoFactory "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -88,10 +87,9 @@ func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 	insertFieldEdit(t, db, student.ID, daysAgo(400))
 	insertFieldEdit(t, db, student.ID, daysAgo(10))
 
-	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
 	svc := services.NewStudentChangeLogCleanup(
-		repos.StudentFieldEdit,
-		repos.DataDeletion,
+		services.NewTestAuditPersistence(db, nil).StudentFieldEdit,
+		services.NewTestAuditPersistence(db, nil).DataDeletion,
 		changeLogSettings(90),
 		nil,
 	)
@@ -118,10 +116,9 @@ func TestStudentChangeLogCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	insertFieldEdit(t, db, student.ID, daysAgo(5))
 	insertFieldEdit(t, db, student.ID, daysAgo(30))
 
-	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
 	svc := services.NewStudentChangeLogCleanup(
-		repos.StudentFieldEdit,
-		repos.DataDeletion,
+		services.NewTestAuditPersistence(db, nil).StudentFieldEdit,
+		services.NewTestAuditPersistence(db, nil).DataDeletion,
 		changeLogSettings(90),
 		nil,
 	)

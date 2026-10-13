@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -22,7 +23,7 @@ import (
 
 // setupFullSchemaTest provides repositories for phase and request fixtures
 // used to verify the schema owner's reference checks.
-func setupFullSchemaTest(t *testing.T) (*bun.DB, enrollmentCapability.FormSchemaAdministration, int64, *repositories.EnrollmentFlowTestRepositories) {
+func setupFullSchemaTest(t *testing.T) (*bun.DB, enrollmentCapability.FormSchemaAdministration, int64, *services.EnrollmentFlowTestRepositories) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))

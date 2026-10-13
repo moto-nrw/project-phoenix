@@ -99,7 +99,7 @@
       "backend/modules/identityaccess/caller_context.go",
       "backend/modules/identityaccess/internal/application/caller_context.go",
       "backend/services/caller_context.go",
-      "backend/database/repositories/caller_rows.go",
+      "backend/services/caller_rows.go",
       "backend/modules/identityaccess/behavior/caller_request_cache_test.go",
       "backend/modules/identityaccess/inbound/me/wire_shape_test.go",
       "backend/test/query_budgets.go",

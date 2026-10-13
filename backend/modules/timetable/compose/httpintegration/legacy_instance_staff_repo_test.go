@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,7 @@ import (
 
 func instanceStaffRepository(t *testing.T, db *bun.DB) instanceStaffQueryRepository {
 	t.Helper()
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
 	return factory.InstanceStaff.(instanceStaffQueryRepository)
 }
 
@@ -25,7 +26,7 @@ func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date schedul
 
 	fx := newActivityInstanceFixtures(t, db, prefix)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance
+	repo := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db)).ActivityInstance
 	ctx := testpkg.Ctx(t)
 
 	inst := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
@@ -213,7 +214,7 @@ func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	futureRow := makeRow(futureInst.ID, staff.ID)
 	otherFutureRow := makeRow(futureInst.ID, otherStaff.ID)
 
-	affected, err := repositories.NewUnobservedTimetableDependencies(db).Capability.DeleteUpcomingInstanceStaff(ctx, staff.ID, cutoff.String())
+	affected, err := services.NewUnobservedTimetableDependencies(db).Capability.DeleteUpcomingInstanceStaff(ctx, staff.ID, cutoff.String())
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), affected)
 
@@ -545,7 +546,7 @@ func buildInstance(tenantID, roomID int64, activityID *int64, date scheduleModel
 func moveInstanceTo(t *testing.T, db *bun.DB, inst *scheduleModels.ActivityInstance, status string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActivityInstance
+	repo := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db)).ActivityInstance
 	if status == scheduleModels.InstanceStatusActive || status == scheduleModels.InstanceStatusCompleted {
 		require.NotNil(t, inst.ActivityGroupID, "an execution needs the block's template")
 		group := testpkg.CreateTestActiveGroup(t, db, *inst.ActivityGroupID, inst.RoomID)

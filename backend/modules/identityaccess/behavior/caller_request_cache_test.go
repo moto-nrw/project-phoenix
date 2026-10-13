@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -64,7 +65,7 @@ func newIdentityQueryCounter(t *testing.T, db *bun.DB) *identityQueryCounter {
 // resolveFullChain exercises every identity-chain read the way a busy handler
 // does: access check, teacher resolution, groups, substitutions, and the
 // composite student access decision (which itself nests the staff lookup).
-func resolveFullChain(t *testing.T, ctx context.Context, rows *repositories.CallerRows) {
+func resolveFullChain(t *testing.T, ctx context.Context, rows *services.CallerRows) {
 	t.Helper()
 	caller := rows.Caller()
 

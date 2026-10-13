@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -25,7 +24,7 @@ import (
 // retained timetable planning services serve the Betreuungsplan staffing.
 type planSyncEnv struct {
 	db        *bun.DB
-	repos     repositories.TimetableTestRepositories
+	repos     services.TimetableTestRepositories
 	timetable services.TimetableTestModule
 	shifts    workforce.Capability
 	planning  workforce.StaffShiftPlanning
@@ -50,13 +49,13 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 	}
 	today := timezone.CalendarDateClock(clocks...)
 
-	repos, err := repositories.NewTimetableTestRepositories(db, clocks...)
+	repos, err := services.NewTimetableTestRepositories(db, clocks...)
 	require.NoError(t, err)
 	timetable, err := services.NewTimetableTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
 	require.NoError(t, err)
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := services.NewSchoolMembership(db)
 	require.NoError(t, err)
-	capability, err := repositories.NewWorkforce(db, membership)
+	capability, err := services.NewWorkforce(db, membership)
 	require.NoError(t, err)
 
 	shiftPlanning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
@@ -64,10 +63,10 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		Staff:           repos.Staff,
 		CalendarPeriods: repos.SchoolCalendar(),
 		DeviationEvents: repos.DeviationEvent,
-		Instances:       repositories.NewTimetableInstanceReads(repos.ActivityInstance),
-		InstanceStaff:   repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		Instances:       repos.InstanceReads(),
+		InstanceStaff:   repos.InstanceStaffReads(),
 		Rooms:           repos.Room,
-		ActivityGroups:  repositories.NewTimetableGroupReads(repos.ActivityGroup),
+		ActivityGroups:  repos.GroupReads(),
 		DB:              db,
 		Broadcaster:     timetable.RealtimeHub,
 		Logger:          logger,
@@ -88,7 +87,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		LockStaffShifts: lock,
 		Deviations:      timetable.TimetableData.Deviations,
 		TimetableData:   services.NewSickCascadeTimetableRows(repos.OwnerRows(), db),
-		InstanceStaff:   repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		InstanceStaff:   repos.InstanceStaffReads(),
 		Broadcaster:     broadcaster,
 		Logger:          logger,
 		Today:           today,
@@ -96,8 +95,8 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 	require.NoError(t, err)
 	substitution, err := compose.NewSubstitution(compose.SubstitutionDependencies{
 		Deviations:        timetable.TimetableData.Deviations,
-		ActivityInstances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
-		InstanceStaff:     repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		ActivityInstances: repos.InstanceReads(),
+		InstanceStaff:     repos.InstanceStaffReads(),
 		Staff:             repos.Staff,
 		Broadcaster:       broadcaster,
 		Logger:            logger,

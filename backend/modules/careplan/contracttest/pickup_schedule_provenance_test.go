@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -35,10 +34,10 @@ func newProjectionWriteService(
 	db *bun.DB,
 	studentID int64,
 	hhmm string,
-) (careplan.PickupScheduleService, *repositories.Factory) {
+) (careplan.PickupScheduleService, *services.RepositoryTestFactory) {
 	t.Helper()
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	service, err := services.NewPickupSchedules(db, repos.CarePlan(), repositories.MustNewPeopleDirectory(db), fixedPickupBaseline{StudentID: studentID, Weekday: scheduleModels.WeekdayMonday, HHMM: hhmm}, nil, nil)
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	service, err := services.NewPickupSchedules(db, repos.CarePlan(), services.MustNewPeopleDirectory(db), fixedPickupBaseline{StudentID: studentID, Weekday: scheduleModels.WeekdayMonday, HHMM: hhmm}, nil, nil)
 	require.NoError(t, err)
 	return service, repos
 }
@@ -49,8 +48,8 @@ func TestUpsertBulkPickupSchedules_DoesNotMaterializeUnchangedProjection(t *test
 	db := testpkg.SetupTestDB(t)
 	student := testpkg.CreateTestStudent(t, db, "Prova", "Nienz", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "Prove", "Nienz")
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	service, err := services.NewPickupSchedules(db, repos.CarePlan(), repositories.MustNewPeopleDirectory(db), fixedPickupBaseline{StudentID: student.ID, Weekday: scheduleModels.WeekdayMonday, HHMM: "14:30"}, nil, nil)
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	service, err := services.NewPickupSchedules(db, repos.CarePlan(), services.MustNewPeopleDirectory(db), fixedPickupBaseline{StudentID: student.ID, Weekday: scheduleModels.WeekdayMonday, HHMM: "14:30"}, nil, nil)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 

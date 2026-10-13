@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -34,13 +33,15 @@ var mfaEmailBackoff = []time.Duration{
 // mfaWiring is the retained material the MFA seams bind to. A nil wiring
 // composes the module without MFA, which the cleanup and fixture roots do.
 type mfaWiring struct {
-	repos       *repositories.Factory
-	settings    config.SettingsService
-	dispatcher  *email.Dispatcher
-	defaultFrom email.Email
-	frontendURL string
-	jwtSecret   string
-	logger      *slog.Logger
+	// operatorAuditLog is the operator ledger the operator second factor
+	// appends to (#3331).
+	operatorAuditLog platformModels.OperatorAuditLogRepository
+	settings         config.SettingsService
+	dispatcher       *email.Dispatcher
+	defaultFrom      email.Email
+	frontendURL      string
+	jwtSecret        string
+	logger           *slog.Logger
 	// backoff spaces the send retries; nil uses the production spacing.
 	backoff []time.Duration
 	// decorate wraps the record port before the module is composed, so a
@@ -56,7 +57,7 @@ type mfaWiring struct {
 }
 
 func mfaDependencies(wiring *mfaWiring, codec identityaccessCompose.MFAChallengeCodec) *identityaccessCompose.MFADependencies {
-	if wiring == nil || wiring.repos == nil || codec == nil {
+	if wiring == nil || wiring.operatorAuditLog == nil || codec == nil {
 		return nil
 	}
 	logger := wiring.logger
@@ -76,7 +77,7 @@ func mfaDependencies(wiring *mfaWiring, codec identityaccessCompose.MFAChallenge
 			dispatcher: wiring.dispatcher, from: wiring.defaultFrom,
 			frontendURL: wiring.frontendURL, logger: logger, backoff: backoff,
 		},
-		OperatorAudit: operatorActionLog{ledger: wiring.repos.OperatorAuditLog, logger: logger},
+		OperatorAudit: operatorActionLog{ledger: wiring.operatorAuditLog, logger: logger},
 		JWTSecret:     wiring.jwtSecret,
 		Passkeys:      wiring.passkeys,
 		Capability:    wiring.capability,

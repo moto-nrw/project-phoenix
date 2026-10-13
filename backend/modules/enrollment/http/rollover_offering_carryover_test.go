@@ -3,14 +3,14 @@ package enrollmenthttp_test
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 
 	"testing"
 	"time"
@@ -46,7 +46,7 @@ func sourceOffering(t *testing.T, env *rolloverTestEnv, offering *enrollmentMode
 func linkChildOffering(t *testing.T, env *rolloverTestEnv, link *capability.RequestChildOffering) *capability.RequestChildOffering {
 	t.Helper()
 	link.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(testpkg.Ctx(t), link))
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(testpkg.Ctx(t), link))
 	return link
 }
 
@@ -583,7 +583,7 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 		ManualSelectedDays: []string{"tue", "thu"},
 	}
 	link.TenantID = testpkg.Tenant(t)
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
 
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true

@@ -22,7 +22,7 @@ cmd/serve.go
      ├─ Adds global "env" attribute
      │
      ▼
- services.NewFactory(repos, db, logger)
+ services.NewFactoryWithModules(..., db, logger, ...)
      │
      ├─ logger.With("service", "active")      → Active Service
      ├─ logger.With("service", "auth")         → Auth Service
@@ -120,10 +120,10 @@ The factory creates scoped loggers with a `"service"` or `"component"` key. This
 When adding a new service to the factory, create a scoped logger:
 
 ```go
-// In services/factory.go NewFactory()
+// In services/factory.go NewFactoryWithModules()
 myLogger := logger.With("service", "mydomain")
 
-myService := mydomain.NewService(repos.MyRepo, db, myLogger)
+myService := mydomain.NewService(myRepo, db, myLogger)
 ```
 
 ## Nil-Safe Logger Pattern
