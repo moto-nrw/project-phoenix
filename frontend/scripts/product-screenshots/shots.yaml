@@ -283,7 +283,7 @@ shots:
     vorbereitung:
       - klicken: 'text=Emir Yilmaz'
       - warten_auf: 'role=tab'
-      - klicken: 'main button:has-text("Abholzeit für")'
+      - klicken: 'main button:has-text("Abhol")'
       - warten_auf: '[role="dialog"]'
   # Hilfe als-elternteil-nachrichten-lesen; PostHog: 323 Aufrufe
   - id: eltern-nachrichten
