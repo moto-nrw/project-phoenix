@@ -42,13 +42,6 @@ func (r CareArrivalScheduleRows) Update(ctx context.Context, row *scheduleModels
 	}
 	return r.rows.scheduleError("update", r.rows.Records.UpdateArrivalSchedule(ctx, arrivalScheduleToPublic(row)))
 }
-func (r CareArrivalScheduleRows) Delete(ctx context.Context, raw any) error {
-	id, err := legacyScheduleID(raw)
-	if err != nil {
-		return r.rows.scheduleError("delete", err)
-	}
-	return r.rows.scheduleError("delete", r.rows.Records.DeleteArrivalSchedule(ctx, id))
-}
 func (r CareArrivalScheduleRows) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentArrivalSchedule, error) {
 	values, err := r.rows.Records.ListArrivalSchedules(ctx, CareScheduleFilter{Options: options})
 	if err != nil {
@@ -77,13 +70,6 @@ func (r CareArrivalScheduleRows) FindByStudentIDsAndWeekday(ctx context.Context,
 	values, err := r.rows.Records.ListArrivalSchedules(ctx, CareScheduleFilter{StudentIDs: ids, Weekday: weekday})
 	if err != nil {
 		return nil, r.rows.scheduleError("find by student ids and weekday", err)
-	}
-	return mapRows(values, arrivalScheduleToLegacy), nil
-}
-func (r CareArrivalScheduleRows) FindByStudentIDs(ctx context.Context, ids []int64) ([]*scheduleModels.StudentArrivalSchedule, error) {
-	values, err := r.rows.Records.ListArrivalSchedules(ctx, CareScheduleFilter{StudentIDs: ids})
-	if err != nil {
-		return nil, r.rows.scheduleError("find by student ids", err)
 	}
 	return mapRows(values, arrivalScheduleToLegacy), nil
 }
@@ -120,19 +106,13 @@ func (r CareArrivalExceptionRows) Create(ctx context.Context, row *scheduleModel
 	return nil
 }
 func (r CareArrivalExceptionRows) FindByID(ctx context.Context, raw any) (*scheduleModels.StudentArrivalException, error) {
-	return r.find(ctx, raw, false, "find by id")
-}
-func (r CareArrivalExceptionRows) FindByIDForUpdate(ctx context.Context, raw any) (*scheduleModels.StudentArrivalException, error) {
-	return r.find(ctx, raw, true, "find by id for update")
-}
-func (r CareArrivalExceptionRows) find(ctx context.Context, raw any, lock bool, op string) (*scheduleModels.StudentArrivalException, error) {
 	id, err := legacyScheduleID(raw)
 	if err != nil {
-		return nil, r.rows.scheduleError(op, err)
+		return nil, r.rows.scheduleError("find by id", err)
 	}
-	value, err := r.rows.Records.FindArrivalException(ctx, id, lock)
+	value, err := r.rows.Records.FindArrivalException(ctx, id)
 	if err != nil {
-		return nil, r.rows.scheduleError(op, err)
+		return nil, r.rows.scheduleError("find by id", err)
 	}
 	return arrivalExceptionToLegacy(value), nil
 }
@@ -144,13 +124,6 @@ func (r CareArrivalExceptionRows) Update(ctx context.Context, row *scheduleModel
 		return err
 	}
 	return r.rows.scheduleError("update", r.rows.Records.UpdateArrivalException(ctx, arrivalExceptionToPublic(row)))
-}
-func (r CareArrivalExceptionRows) Delete(ctx context.Context, raw any) error {
-	id, err := legacyScheduleID(raw)
-	if err != nil {
-		return r.rows.scheduleError("delete", err)
-	}
-	return r.rows.scheduleError("delete", r.rows.Records.DeleteArrivalException(ctx, id))
 }
 func (r CareArrivalExceptionRows) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentArrivalException, error) {
 	values, err := r.rows.Records.ListArrivalExceptions(ctx, CareScheduleFilter{Options: options})
@@ -177,9 +150,6 @@ func (r CareArrivalExceptionRows) FindByStudentIDsAndDate(ctx context.Context, i
 }
 func (r CareArrivalExceptionRows) FindByStudentIDAndDateRange(ctx context.Context, id int64, from, to scheduleModels.Date) ([]*scheduleModels.StudentArrivalException, error) {
 	return r.list(ctx, CareScheduleFilter{StudentIDs: []int64{id}, From: CareDate(from), To: CareDate(to)}, "find by student id and date range")
-}
-func (r CareArrivalExceptionRows) FindByStudentIDsAndDateRange(ctx context.Context, ids []int64, from, to scheduleModels.Date) ([]*scheduleModels.StudentArrivalException, error) {
-	return r.list(ctx, CareScheduleFilter{StudentIDs: ids, From: CareDate(from), To: CareDate(to)}, "find by student ids and date range")
 }
 func (r CareArrivalExceptionRows) list(ctx context.Context, filter CareScheduleFilter, op string) ([]*scheduleModels.StudentArrivalException, error) {
 	values, err := r.rows.Records.ListArrivalExceptions(ctx, filter)
@@ -229,13 +199,6 @@ func (r CareArrivalNoteRows) Update(ctx context.Context, row *scheduleModels.Stu
 		return err
 	}
 	return r.rows.scheduleError("update", r.rows.Records.UpdateArrivalNote(ctx, arrivalNoteToPublic(row)))
-}
-func (r CareArrivalNoteRows) Delete(ctx context.Context, raw any) error {
-	id, err := legacyScheduleID(raw)
-	if err != nil {
-		return r.rows.scheduleError("delete", err)
-	}
-	return r.rows.scheduleError("delete", r.rows.Records.DeleteArrivalNote(ctx, id))
 }
 func (r CareArrivalNoteRows) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentArrivalNote, error) {
 	return r.list(ctx, CareScheduleFilter{Options: options}, "list with options")

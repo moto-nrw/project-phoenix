@@ -114,15 +114,13 @@ type CarePickupNote struct {
 // CareScheduleFilter selects schedule rows. Options carries the retained
 // repository listing shape unchanged; the root translates it.
 type CareScheduleFilter struct {
-	IDs           []int64
-	StudentIDs    []int64
-	Weekday       int
-	Date          CareDate
-	From          CareDate
-	To            CareDate
-	UpcomingFrom  CareDate
-	LockForUpdate bool
-	Options       *usersModels.QueryOptions
+	StudentIDs   []int64
+	Weekday      int
+	Date         CareDate
+	From         CareDate
+	To           CareDate
+	UpcomingFrom CareDate
+	Options      *usersModels.QueryOptions
 }
 
 // CareScheduleRequest is one care-schedule change request.
@@ -148,8 +146,6 @@ type CareScheduleRequestFilter struct {
 	StudentID    int64
 	RequestKinds []string
 	Statuses     []string
-	RecentSince  time.Time
-	Queue        *usersModels.RequestQueueFilters
 }
 
 // CareScheduleRequestDecision decides one care-schedule change request.
@@ -176,14 +172,12 @@ type CareArrivalRecords interface {
 	FindArrivalSchedule(context.Context, int64) (CareArrivalSchedule, error)
 	UpdateArrivalSchedule(context.Context, CareArrivalSchedule) error
 	UpsertArrivalSchedule(context.Context, CareArrivalSchedule) (CareArrivalSchedule, error)
-	DeleteArrivalSchedule(context.Context, int64) error
 	DeleteArrivalSchedulesByStudent(context.Context, int64) error
 	ListArrivalSchedules(context.Context, CareScheduleFilter) ([]CareArrivalSchedule, error)
 
 	CreateArrivalException(context.Context, CareArrivalException) (CareArrivalException, error)
-	FindArrivalException(context.Context, int64, bool) (CareArrivalException, error)
+	FindArrivalException(context.Context, int64) (CareArrivalException, error)
 	UpdateArrivalException(context.Context, CareArrivalException) error
-	DeleteArrivalException(context.Context, int64) error
 	DeleteArrivalExceptionsByStudent(context.Context, int64) error
 	DeleteArrivalExceptionsBefore(context.Context, CareDate) (int64, error)
 	ListArrivalExceptions(context.Context, CareScheduleFilter) ([]CareArrivalException, error)
@@ -191,7 +185,6 @@ type CareArrivalRecords interface {
 	CreateArrivalNote(context.Context, CareArrivalNote) (CareArrivalNote, error)
 	FindArrivalNote(context.Context, int64) (CareArrivalNote, error)
 	UpdateArrivalNote(context.Context, CareArrivalNote) error
-	DeleteArrivalNote(context.Context, int64) error
 	DeleteArrivalNotesByStudent(context.Context, int64) error
 	DeleteArrivalNotesBefore(context.Context, CareDate) (int64, error)
 	ListArrivalNotes(context.Context, CareScheduleFilter) ([]CareArrivalNote, error)
@@ -203,14 +196,12 @@ type CarePickupRecords interface {
 	FindPickupSchedule(context.Context, int64) (CarePickupSchedule, error)
 	UpdatePickupSchedule(context.Context, CarePickupSchedule) error
 	UpsertPickupSchedule(context.Context, CarePickupSchedule) (CarePickupSchedule, error)
-	DeletePickupSchedule(context.Context, int64) error
 	DeletePickupSchedulesByStudent(context.Context, int64) error
 	ListPickupSchedules(context.Context, CareScheduleFilter) ([]CarePickupSchedule, error)
 
 	CreatePickupException(context.Context, CarePickupException) (CarePickupException, error)
-	FindPickupException(context.Context, int64, bool) (CarePickupException, error)
+	FindPickupException(context.Context, int64) (CarePickupException, error)
 	UpdatePickupException(context.Context, CarePickupException) error
-	DeletePickupException(context.Context, int64) error
 	DeletePickupExceptionsByStudent(context.Context, int64) error
 	DeletePickupExceptionsBefore(context.Context, CareDate) (int64, error)
 	ListPickupExceptions(context.Context, CareScheduleFilter) ([]CarePickupException, error)
@@ -218,7 +209,6 @@ type CarePickupRecords interface {
 	CreatePickupNote(context.Context, CarePickupNote) (CarePickupNote, error)
 	FindPickupNote(context.Context, int64) (CarePickupNote, error)
 	UpdatePickupNote(context.Context, CarePickupNote) error
-	DeletePickupNote(context.Context, int64) error
 	DeletePickupNotesByStudent(context.Context, int64) error
 	DeletePickupNotesBefore(context.Context, CareDate) (int64, error)
 	ListPickupNotes(context.Context, CareScheduleFilter) ([]CarePickupNote, error)
@@ -227,13 +217,9 @@ type CarePickupRecords interface {
 // CareRequestRecords are Care Plan's care-schedule change requests.
 type CareRequestRecords interface {
 	CreateCareScheduleRequest(context.Context, CareScheduleRequest) (CareScheduleRequest, error)
-	FindCareScheduleRequest(context.Context, int64, bool) (CareScheduleRequest, error)
-	FindPendingCareScheduleRequest(context.Context, int64) (CareScheduleRequest, error)
+	FindCareScheduleRequest(context.Context, int64) (CareScheduleRequest, error)
 	ListCareScheduleRequests(context.Context, CareScheduleRequestFilter) ([]CareScheduleRequest, error)
-	UpdatePendingCareScheduleRequest(context.Context, int64, json.RawMessage) error
 	DecideCareScheduleRequest(context.Context, CareScheduleRequestDecision) error
-	RedecideCareScheduleRequest(context.Context, CareScheduleRequestDecision) error
-	UpdateCareScheduleRequestSnapshot(context.Context, int64, json.RawMessage) error
 }
 
 // CarePlanRecords is the Care Plan capability the row repositories run over.

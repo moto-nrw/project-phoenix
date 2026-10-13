@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -51,10 +50,10 @@ func carePlanRequestError(err error) error {
 
 func carePlanScheduleFilter(filter timetableCompose.CareScheduleFilter) careplan.StudentScheduleFilter {
 	return careplan.StudentScheduleFilter{
-		IDs: filter.IDs, StudentIDs: filter.StudentIDs, Weekday: filter.Weekday,
+		StudentIDs: filter.StudentIDs, Weekday: filter.Weekday,
 		Date: careplan.Date(filter.Date), From: careplan.Date(filter.From), To: careplan.Date(filter.To),
-		UpcomingFrom: careplan.Date(filter.UpcomingFrom), LockForUpdate: filter.LockForUpdate,
-		Options: legacyScheduleQueryOptions(filter.Options),
+		UpcomingFrom: careplan.Date(filter.UpcomingFrom),
+		Options:      legacyScheduleQueryOptions(filter.Options),
 	}
 }
 
@@ -119,9 +118,6 @@ func (r carePlanRecords) FindArrivalSchedule(ctx context.Context, id int64) (tim
 func (r carePlanRecords) UpdateArrivalSchedule(ctx context.Context, value timetableCompose.CareArrivalSchedule) error {
 	return carePlanScheduleError(r.capability.UpdateArrivalSchedule(ctx, careArrivalScheduleFromRows(value)))
 }
-func (r carePlanRecords) DeleteArrivalSchedule(ctx context.Context, id int64) error {
-	return carePlanScheduleError(r.capability.DeleteArrivalSchedule(ctx, id))
-}
 func (r carePlanRecords) DeleteArrivalSchedulesByStudent(ctx context.Context, studentID int64) error {
 	return carePlanScheduleError(r.capability.DeleteArrivalSchedulesByStudent(ctx, studentID))
 }
@@ -145,9 +141,6 @@ func (r carePlanRecords) FindPickupSchedule(ctx context.Context, id int64) (time
 func (r carePlanRecords) UpdatePickupSchedule(ctx context.Context, value timetableCompose.CarePickupSchedule) error {
 	return carePlanScheduleError(r.capability.UpdatePickupSchedule(ctx, carePickupScheduleFromRows(value)))
 }
-func (r carePlanRecords) DeletePickupSchedule(ctx context.Context, id int64) error {
-	return carePlanScheduleError(r.capability.DeletePickupSchedule(ctx, id))
-}
 func (r carePlanRecords) DeletePickupSchedulesByStudent(ctx context.Context, studentID int64) error {
 	return carePlanScheduleError(r.capability.DeletePickupSchedulesByStudent(ctx, studentID))
 }
@@ -164,15 +157,12 @@ func (r carePlanRecords) CreateArrivalException(ctx context.Context, value timet
 	created, err := r.capability.CreateArrivalException(ctx, careArrivalExceptionFromRows(value))
 	return careArrivalExceptionToRows(created), carePlanScheduleError(err)
 }
-func (r carePlanRecords) FindArrivalException(ctx context.Context, id int64, lock bool) (timetableCompose.CareArrivalException, error) {
-	value, err := r.capability.FindArrivalException(ctx, id, lock)
+func (r carePlanRecords) FindArrivalException(ctx context.Context, id int64) (timetableCompose.CareArrivalException, error) {
+	value, err := r.capability.FindArrivalException(ctx, id, false)
 	return careArrivalExceptionToRows(value), carePlanScheduleError(err)
 }
 func (r carePlanRecords) UpdateArrivalException(ctx context.Context, value timetableCompose.CareArrivalException) error {
 	return carePlanScheduleError(r.capability.UpdateArrivalException(ctx, careArrivalExceptionFromRows(value)))
-}
-func (r carePlanRecords) DeleteArrivalException(ctx context.Context, id int64) error {
-	return carePlanScheduleError(r.capability.DeleteArrivalException(ctx, id))
 }
 func (r carePlanRecords) DeleteArrivalExceptionsByStudent(ctx context.Context, studentID int64) error {
 	return carePlanScheduleError(r.capability.DeleteArrivalExceptionsByStudent(ctx, studentID))
@@ -190,15 +180,12 @@ func (r carePlanRecords) CreatePickupException(ctx context.Context, value timeta
 	created, err := r.capability.CreatePickupException(ctx, carePickupExceptionFromRows(value))
 	return carePickupExceptionToRows(created), carePlanScheduleError(err)
 }
-func (r carePlanRecords) FindPickupException(ctx context.Context, id int64, lock bool) (timetableCompose.CarePickupException, error) {
-	value, err := r.capability.FindPickupException(ctx, id, lock)
+func (r carePlanRecords) FindPickupException(ctx context.Context, id int64) (timetableCompose.CarePickupException, error) {
+	value, err := r.capability.FindPickupException(ctx, id, false)
 	return carePickupExceptionToRows(value), carePlanScheduleError(err)
 }
 func (r carePlanRecords) UpdatePickupException(ctx context.Context, value timetableCompose.CarePickupException) error {
 	return carePlanScheduleError(r.capability.UpdatePickupException(ctx, carePickupExceptionFromRows(value)))
-}
-func (r carePlanRecords) DeletePickupException(ctx context.Context, id int64) error {
-	return carePlanScheduleError(r.capability.DeletePickupException(ctx, id))
 }
 func (r carePlanRecords) DeletePickupExceptionsByStudent(ctx context.Context, studentID int64) error {
 	return carePlanScheduleError(r.capability.DeletePickupExceptionsByStudent(ctx, studentID))
@@ -223,9 +210,6 @@ func (r carePlanRecords) FindArrivalNote(ctx context.Context, id int64) (timetab
 func (r carePlanRecords) UpdateArrivalNote(ctx context.Context, value timetableCompose.CareArrivalNote) error {
 	return carePlanScheduleError(r.capability.UpdateArrivalNote(ctx, careArrivalNoteFromRows(value)))
 }
-func (r carePlanRecords) DeleteArrivalNote(ctx context.Context, id int64) error {
-	return carePlanScheduleError(r.capability.DeleteArrivalNote(ctx, id))
-}
 func (r carePlanRecords) DeleteArrivalNotesByStudent(ctx context.Context, studentID int64) error {
 	return carePlanScheduleError(r.capability.DeleteArrivalNotesByStudent(ctx, studentID))
 }
@@ -249,9 +233,6 @@ func (r carePlanRecords) FindPickupNote(ctx context.Context, id int64) (timetabl
 func (r carePlanRecords) UpdatePickupNote(ctx context.Context, value timetableCompose.CarePickupNote) error {
 	return carePlanScheduleError(r.capability.UpdatePickupNote(ctx, carePickupNoteFromRows(value)))
 }
-func (r carePlanRecords) DeletePickupNote(ctx context.Context, id int64) error {
-	return carePlanScheduleError(r.capability.DeletePickupNote(ctx, id))
-}
 func (r carePlanRecords) DeletePickupNotesByStudent(ctx context.Context, studentID int64) error {
 	return carePlanScheduleError(r.capability.DeletePickupNotesByStudent(ctx, studentID))
 }
@@ -268,33 +249,17 @@ func (r carePlanRecords) CreateCareScheduleRequest(ctx context.Context, value ti
 	created, err := r.capability.CreateCareScheduleRequest(ctx, careplan.CareScheduleChangeRequest(value))
 	return timetableCompose.CareScheduleRequest(created), carePlanRequestError(err)
 }
-func (r carePlanRecords) FindCareScheduleRequest(ctx context.Context, id int64, lock bool) (timetableCompose.CareScheduleRequest, error) {
-	value, err := r.capability.FindCareScheduleRequest(ctx, id, lock)
-	return timetableCompose.CareScheduleRequest(value), carePlanRequestError(err)
-}
-func (r carePlanRecords) FindPendingCareScheduleRequest(ctx context.Context, id int64) (timetableCompose.CareScheduleRequest, error) {
-	value, err := r.capability.FindPendingCareScheduleRequest(ctx, id)
+func (r carePlanRecords) FindCareScheduleRequest(ctx context.Context, id int64) (timetableCompose.CareScheduleRequest, error) {
+	value, err := r.capability.FindCareScheduleRequest(ctx, id, false)
 	return timetableCompose.CareScheduleRequest(value), carePlanRequestError(err)
 }
 func (r carePlanRecords) ListCareScheduleRequests(ctx context.Context, filter timetableCompose.CareScheduleRequestFilter) ([]timetableCompose.CareScheduleRequest, error) {
-	ownerFilter := careplan.CareScheduleRequestFilter{StudentID: filter.StudentID, RequestKinds: filter.RequestKinds, Statuses: filter.Statuses, RecentSince: filter.RecentSince}
-	if filter.Queue != nil {
-		ownerFilter.Queue = publicQueueFilter(*filter.Queue)
-	}
+	ownerFilter := careplan.CareScheduleRequestFilter{StudentID: filter.StudentID, RequestKinds: filter.RequestKinds, Statuses: filter.Statuses}
 	values, err := r.capability.ListCareScheduleRequests(ctx, ownerFilter)
 	return carePlanSlice(values, func(value careplan.CareScheduleChangeRequest) timetableCompose.CareScheduleRequest {
 		return timetableCompose.CareScheduleRequest(value)
 	}), carePlanRequestError(err)
 }
-func (r carePlanRecords) UpdatePendingCareScheduleRequest(ctx context.Context, id int64, payload json.RawMessage) error {
-	return carePlanRequestError(r.capability.UpdatePendingCareScheduleRequest(ctx, id, payload))
-}
 func (r carePlanRecords) DecideCareScheduleRequest(ctx context.Context, decision timetableCompose.CareScheduleRequestDecision) error {
 	return carePlanRequestError(r.capability.DecideCareScheduleRequest(ctx, careplan.CareScheduleRequestDecision(decision)))
-}
-func (r carePlanRecords) RedecideCareScheduleRequest(ctx context.Context, decision timetableCompose.CareScheduleRequestDecision) error {
-	return carePlanRequestError(r.capability.RedecideCareScheduleRequest(ctx, careplan.CareScheduleRequestDecision(decision)))
-}
-func (r carePlanRecords) UpdateCareScheduleRequestSnapshot(ctx context.Context, id int64, snapshot json.RawMessage) error {
-	return carePlanRequestError(r.capability.UpdateCareScheduleRequestSnapshot(ctx, id, snapshot))
 }

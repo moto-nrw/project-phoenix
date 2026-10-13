@@ -5,10 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // CareScheduleRequestRows serve the retained models/schedule care-schedule
@@ -20,13 +18,6 @@ var _ scheduleModels.CareScheduleChangeRequestRepository = CareScheduleRequestRo
 // NewCareScheduleRequestRows binds the request rows to the records.
 func NewCareScheduleRequestRows(rows CarePlanRows) CareScheduleRequestRows {
 	return CareScheduleRequestRows{rows: rows}
-}
-
-// careRequestQueue keeps the retained paging shape; the two vocabularies
-// spell the same fields.
-func careRequestQueue(value scheduleModels.RequestQueueFilters) *usersModels.RequestQueueFilters {
-	result := usersModels.RequestQueueFilters(value)
-	return &result
 }
 
 func (r CareScheduleRequestRows) Create(ctx context.Context, row *scheduleModels.CareScheduleChangeRequest) error {
@@ -53,7 +44,7 @@ func (r CareScheduleRequestRows) FindByID(ctx context.Context, raw any) (*schedu
 	if err != nil {
 		return nil, err
 	}
-	value, err := r.rows.Records.FindCareScheduleRequest(ctx, id, false)
+	value, err := r.rows.Records.FindCareScheduleRequest(ctx, id)
 	if errors.Is(err, ErrCareRequestRecordNotFound) {
 		return nil, r.rows.Errors.MissingRecordError("find by id")
 	}
@@ -63,32 +54,12 @@ func (r CareScheduleRequestRows) FindByID(ctx context.Context, raw any) (*schedu
 	return careScheduleRequestFromPublic(value)
 }
 
-func (r CareScheduleRequestRows) GetPendingForStudent(ctx context.Context, studentID int64) (*scheduleModels.CareScheduleChangeRequest, error) {
-	return r.GetPendingForStudentAndKind(ctx, studentID, scheduleModels.CareRequestKindWeeklySchedule)
-}
-
 func (r CareScheduleRequestRows) GetPendingForStudentAndKind(ctx context.Context, studentID int64, kind string) (*scheduleModels.CareScheduleChangeRequest, error) {
 	values, err := r.list(ctx, CareScheduleRequestFilter{StudentID: studentID, RequestKinds: []string{kind}, Statuses: []string{scheduleModels.CareRequestStatusPending}})
 	if err != nil || len(values) == 0 {
 		return nil, err
 	}
 	return values[0], nil
-}
-
-func (r CareScheduleRequestRows) ListPendingForTenant(ctx context.Context, filters scheduleModels.RequestQueueFilters) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	return r.list(ctx, CareScheduleRequestFilter{Statuses: []string{scheduleModels.CareRequestStatusPending}, Queue: careRequestQueue(filters)})
-}
-
-func (r CareScheduleRequestRows) ListPendingForTenantAndKind(ctx context.Context, kind string, filters scheduleModels.RequestQueueFilters) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	return r.list(ctx, CareScheduleRequestFilter{RequestKinds: []string{kind}, Statuses: []string{scheduleModels.CareRequestStatusPending}, Queue: careRequestQueue(filters)})
-}
-
-func (r CareScheduleRequestRows) ListRecentForStudentAndKind(ctx context.Context, studentID int64, kind string, since time.Time) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	return r.list(ctx, CareScheduleRequestFilter{StudentID: studentID, RequestKinds: []string{kind}, RecentSince: since})
-}
-
-func (r CareScheduleRequestRows) ListDecidedForTenant(ctx context.Context, filters scheduleModels.RequestQueueFilters) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	return r.list(ctx, CareScheduleRequestFilter{Statuses: []string{scheduleModels.CareRequestStatusApproved, scheduleModels.CareRequestStatusRejected, scheduleModels.CareRequestStatusWithdrawn}, Queue: careRequestQueue(filters)})
 }
 
 func (r CareScheduleRequestRows) list(ctx context.Context, filter CareScheduleRequestFilter) ([]*scheduleModels.CareScheduleChangeRequest, error) {
@@ -107,44 +78,8 @@ func (r CareScheduleRequestRows) list(ctx context.Context, filter CareScheduleRe
 	return result, nil
 }
 
-func (r CareScheduleRequestRows) FindPendingByIDForUpdate(ctx context.Context, id int64) (*scheduleModels.CareScheduleChangeRequest, error) {
-	value, err := r.rows.Records.FindPendingCareScheduleRequest(ctx, id)
-	if err != nil {
-		return nil, mapCareScheduleRequestError(err)
-	}
-	return careScheduleRequestFromPublic(value)
-}
-
-func (r CareScheduleRequestRows) FindByIDForUpdate(ctx context.Context, id int64) (*scheduleModels.CareScheduleChangeRequest, error) {
-	value, err := r.rows.Records.FindCareScheduleRequest(ctx, id, true)
-	if err != nil {
-		return nil, mapCareScheduleRequestError(err)
-	}
-	return careScheduleRequestFromPublic(value)
-}
-
-func (r CareScheduleRequestRows) UpdatePending(ctx context.Context, id int64, payload map[string]any) error {
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	return mapCareScheduleRequestError(r.rows.Records.UpdatePendingCareScheduleRequest(ctx, id, encoded))
-}
-
 func (r CareScheduleRequestRows) Decide(ctx context.Context, id int64, status string, reason *string, reviewedBy *int64, applied bool) error {
 	return mapCareScheduleRequestError(r.rows.Records.DecideCareScheduleRequest(ctx, CareScheduleRequestDecision{ID: id, Status: status, Reason: reason, ReviewedBy: reviewedBy, Applied: applied}))
-}
-
-func (r CareScheduleRequestRows) Redecide(ctx context.Context, id int64, status string, reason *string, reviewedBy int64, applied bool) error {
-	return mapCareScheduleRequestError(r.rows.Records.RedecideCareScheduleRequest(ctx, CareScheduleRequestDecision{ID: id, Status: status, Reason: reason, ReviewedBy: &reviewedBy, Applied: applied}))
-}
-
-func (r CareScheduleRequestRows) UpdateDecisionSnapshot(ctx context.Context, id int64, snapshot *scheduleModels.CareRequestDecisionSnapshot) error {
-	encoded, err := json.Marshal(snapshot)
-	if err != nil {
-		return err
-	}
-	return mapCareScheduleRequestError(r.rows.Records.UpdateCareScheduleRequestSnapshot(ctx, id, encoded))
 }
 
 func mapCareScheduleRequestError(err error) error {

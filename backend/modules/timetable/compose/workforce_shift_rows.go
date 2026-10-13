@@ -98,40 +98,6 @@ func (r *WorkforceShiftRows) FindByStaffAndDateRange(ctx context.Context, staffI
 	})
 }
 
-func (r *WorkforceShiftRows) FindByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, start, end scheduleModels.Date) (map[int64][]*scheduleModels.StaffShift, error) {
-	result := make(map[int64][]*scheduleModels.StaffShift, len(staffIDs))
-	if len(staffIDs) == 0 {
-		return result, nil
-	}
-	shifts, err := r.list(ctx, "find staff shifts by staff IDs and date range", WorkforceShiftFilter{
-		StaffIDs: staffIDs, From: start.String(), To: end.String(),
-		Order: shiftOrder(WorkforceShiftOrderStaffID, WorkforceShiftOrderDate, WorkforceShiftOrderStartTime),
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, shift := range shifts {
-		result[shift.StaffID] = append(result[shift.StaffID], shift)
-	}
-	return result, nil
-}
-
-func (r *WorkforceShiftRows) FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
-	if len(staffIDs) == 0 {
-		return nil, nil
-	}
-	return r.list(ctx, "find staff shifts by staff ids and date", WorkforceShiftFilter{
-		StaffIDs: staffIDs, Dates: []string{date.String()},
-		Order: shiftOrder(WorkforceShiftOrderStaffID, WorkforceShiftOrderStartTime),
-	})
-}
-
-func (r *WorkforceShiftRows) FindByOriginShiftID(ctx context.Context, originShiftID int64) ([]*scheduleModels.StaffShift, error) {
-	return r.list(ctx, "find staff shifts by origin shift id", WorkforceShiftFilter{
-		OriginShiftID: originShiftID, Order: shiftOrder(WorkforceShiftOrderStartTime),
-	})
-}
-
 func (r *WorkforceShiftRows) FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 	if len(staffIDs) == 0 || len(dates) == 0 {
 		return nil, nil
@@ -156,45 +122,6 @@ func (r *WorkforceShiftRows) FindUsedCalendarWeeks(ctx context.Context, start, e
 		result = append(result, scheduleModels.Date(week))
 	}
 	return result, nil
-}
-
-func (r *WorkforceShiftRows) BulkCreate(ctx context.Context, shifts []*scheduleModels.StaffShift) error {
-	if len(shifts) == 0 {
-		return nil
-	}
-	values := make([]WorkforceShift, 0, len(shifts))
-	for _, shift := range shifts {
-		if shift == nil {
-			return errors.New("StaffShift cannot be nil or zero value")
-		}
-		values = append(values, shiftToCapability(shift))
-	}
-	created, err := r.workforce.CreateStaffShifts(ctx, values)
-	if err != nil {
-		return shiftWriteError(r.errs, "bulk create staff shifts", err)
-	}
-	for index, shift := range shifts {
-		if index < len(created) {
-			applyShiftToRow(shift, created[index])
-		}
-	}
-	return nil
-}
-
-func (r *WorkforceShiftRows) DeleteNonDetachedBySeriesFrom(ctx context.Context, seriesID int64, from scheduleModels.Date) (int64, error) {
-	deleted, err := r.workforce.DeleteRegenerableSeriesShifts(ctx, seriesID, from.String())
-	if err != nil {
-		return 0, shiftWriteError(r.errs, "delete non-detached staff shifts by series", err)
-	}
-	return deleted, nil
-}
-
-func (r *WorkforceShiftRows) RepointDetachedSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from scheduleModels.Date) (int64, error) {
-	moved, err := r.workforce.RepointDetachedSeriesShifts(ctx, fromSeriesID, toSeriesID, from.String())
-	if err != nil {
-		return 0, shiftWriteError(r.errs, "repoint detached staff shifts to successor series", err)
-	}
-	return moved, nil
 }
 
 func (r *WorkforceShiftRows) list(ctx context.Context, op string, filter WorkforceShiftFilter) ([]*scheduleModels.StaffShift, error) {

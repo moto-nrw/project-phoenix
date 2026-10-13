@@ -47,8 +47,6 @@ func workforceShiftError(err error) error {
 	switch {
 	case errors.Is(err, workforce.ErrStaffShiftNotFound):
 		return timetableCompose.MarkRecordError(timetableCompose.ErrWorkforceShiftNotFound, err)
-	case errors.Is(err, workforce.ErrShiftTypeNotFound):
-		return timetableCompose.MarkRecordError(timetableCompose.ErrWorkforceShiftTypeNotFound, err)
 	case errors.Is(err, workforce.ErrInvalidStaffShift), errors.Is(err, workforce.ErrInvalidShiftSeries),
 		errors.Is(err, workforce.ErrInvalidShiftType):
 		return timetableCompose.MarkRecordError(timetableCompose.ErrWorkforceShiftInvalid, err)
@@ -73,15 +71,6 @@ func (r workforceShiftRecords) CreateStaffShift(ctx context.Context, shift timet
 	return timetableCompose.WorkforceShift(created), workforceShiftError(err)
 }
 
-func (r workforceShiftRecords) CreateStaffShifts(ctx context.Context, shifts []timetableCompose.WorkforceShift) ([]timetableCompose.WorkforceShift, error) {
-	values := make([]workforce.StaffShift, 0, len(shifts))
-	for _, shift := range shifts {
-		values = append(values, workforce.StaffShift(shift))
-	}
-	created, err := r.capability.CreateStaffShifts(ctx, values)
-	return workforceShifts(created), workforceShiftError(err)
-}
-
 func (r workforceShiftRecords) FindStaffShift(ctx context.Context, id int64) (timetableCompose.WorkforceShift, error) {
 	value, err := r.capability.FindStaffShift(ctx, id)
 	return timetableCompose.WorkforceShift(value), workforceShiftError(err)
@@ -99,13 +88,11 @@ func (r workforceShiftRecords) DeleteStaffShift(ctx context.Context, id int64) e
 func (r workforceShiftRecords) ListStaffShifts(ctx context.Context, filter timetableCompose.WorkforceShiftFilter) ([]timetableCompose.WorkforceShift, error) {
 	order := make([]workforce.StaffShiftOrder, 0, len(filter.Order))
 	for _, value := range filter.Order {
-		order = append(order, workforce.StaffShiftOrder{Field: workforce.StaffShiftOrderField(value.Field), Descending: value.Descending})
+		order = append(order, workforce.StaffShiftOrder{Field: workforce.StaffShiftOrderField(value.Field)})
 	}
 	values, err := r.capability.ListStaffShifts(ctx, workforce.StaffShiftFilter{
 		StaffID: filter.StaffID, StaffIDs: filter.StaffIDs, From: filter.From, To: filter.To, Dates: filter.Dates,
-		SeriesID: filter.SeriesID, OriginShiftID: filter.OriginShiftID, OriginShiftIDs: filter.OriginShiftIDs,
-		SickAbsenceID: filter.SickAbsenceID, Cancelled: filter.Cancelled, Detached: filter.Detached,
-		Order: order, Limit: filter.Limit, Offset: filter.Offset,
+		Order: order,
 	})
 	return workforceShifts(values), workforceShiftError(err)
 }
@@ -115,34 +102,9 @@ func (r workforceShiftRecords) UsedStaffShiftWeeks(ctx context.Context, from, to
 	return weeks, workforceShiftError(err)
 }
 
-func (r workforceShiftRecords) DeleteRegenerableSeriesShifts(ctx context.Context, seriesID int64, from string) (int64, error) {
-	deleted, err := r.capability.DeleteRegenerableSeriesShifts(ctx, seriesID, from)
-	return deleted, workforceShiftError(err)
-}
-
-func (r workforceShiftRecords) RepointDetachedSeriesShifts(ctx context.Context, fromSeriesID, toSeriesID int64, from string) (int64, error) {
-	moved, err := r.capability.RepointDetachedSeriesShifts(ctx, fromSeriesID, toSeriesID, from)
-	return moved, workforceShiftError(err)
-}
-
 func (r workforceShiftRecords) CreateShiftType(ctx context.Context, shiftType timetableCompose.WorkforceShiftType) (timetableCompose.WorkforceShiftType, error) {
 	created, err := r.capability.CreateShiftType(ctx, workforce.ShiftType(shiftType))
 	return timetableCompose.WorkforceShiftType(created), workforceShiftError(err)
-}
-
-func (r workforceShiftRecords) CreateShiftTypeIfAbsent(ctx context.Context, shiftType timetableCompose.WorkforceShiftType) (timetableCompose.WorkforceShiftType, bool, error) {
-	created, inserted, err := r.capability.CreateShiftTypeIfAbsent(ctx, workforce.ShiftType(shiftType))
-	return timetableCompose.WorkforceShiftType(created), inserted, workforceShiftError(err)
-}
-
-func (r workforceShiftRecords) FindShiftType(ctx context.Context, id int64) (timetableCompose.WorkforceShiftType, error) {
-	value, err := r.capability.FindShiftType(ctx, id)
-	return timetableCompose.WorkforceShiftType(value), workforceShiftError(err)
-}
-
-func (r workforceShiftRecords) UpdateShiftType(ctx context.Context, shiftType timetableCompose.WorkforceShiftType) (timetableCompose.WorkforceShiftType, error) {
-	updated, err := r.capability.UpdateShiftType(ctx, workforce.ShiftType(shiftType))
-	return timetableCompose.WorkforceShiftType(updated), workforceShiftError(err)
 }
 
 func (r workforceShiftRecords) DeleteShiftType(ctx context.Context, id int64) error {

@@ -35,36 +35,6 @@ func (r *WorkforceShiftTypeRows) Create(ctx context.Context, shiftType *schedule
 	return nil
 }
 
-func (r *WorkforceShiftTypeRows) FindByID(ctx context.Context, id any) (*scheduleModels.ShiftType, error) {
-	typeID, err := shiftRowID(id)
-	if err != nil {
-		return nil, r.errs.WrapRecordError("find by id", err)
-	}
-	value, err := r.workforce.FindShiftType(ctx, typeID)
-	if err != nil {
-		return nil, shiftReadError(r.errs, "find by id", err, ErrWorkforceShiftTypeNotFound)
-	}
-	return shiftTypeToRow(value), nil
-}
-
-func (r *WorkforceShiftTypeRows) Update(ctx context.Context, shiftType *scheduleModels.ShiftType) error {
-	if shiftType == nil {
-		return errors.New("shift type cannot be nil")
-	}
-	if err := shiftType.Validate(); err != nil {
-		return err
-	}
-	updated, err := r.workforce.UpdateShiftType(ctx, shiftTypeToCapability(shiftType))
-	if err != nil {
-		if errors.Is(err, ErrWorkforceShiftTypeNotFound) {
-			return shiftRowsAffectedError(r.errs, "update shift type")
-		}
-		return shiftWriteError(r.errs, "update shift type", err)
-	}
-	applyShiftTypeToRow(shiftType, updated)
-	return nil
-}
-
 func (r *WorkforceShiftTypeRows) Delete(ctx context.Context, id any) error {
 	typeID, err := shiftRowID(id)
 	if err != nil {
@@ -86,23 +56,6 @@ func (r *WorkforceShiftTypeRows) ListAll(ctx context.Context) ([]*scheduleModels
 		result = append(result, shiftTypeToRow(value))
 	}
 	return result, nil
-}
-
-func (r *WorkforceShiftTypeRows) CreateIfAbsent(ctx context.Context, shiftType *scheduleModels.ShiftType) (bool, error) {
-	if shiftType == nil {
-		return false, errors.New("shift type cannot be nil")
-	}
-	if err := shiftType.Validate(); err != nil {
-		return false, err
-	}
-	created, inserted, err := r.workforce.CreateShiftTypeIfAbsent(ctx, shiftTypeToCapability(shiftType))
-	if err != nil {
-		return false, shiftWriteError(r.errs, "create shift type if absent", err)
-	}
-	if inserted {
-		applyShiftTypeToRow(shiftType, created)
-	}
-	return inserted, nil
 }
 
 // --- mapping ---

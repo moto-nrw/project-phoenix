@@ -102,55 +102,10 @@ type CareScheduleChangeRequestRepository interface {
 	Create(ctx context.Context, req *CareScheduleChangeRequest) error
 	// FindByID takes `any` to match the embedded generic base.Repository.
 	FindByID(ctx context.Context, id any) (*CareScheduleChangeRequest, error)
-
-	// GetPendingForStudent returns the student's open request, or nil when
-	// none exists (at most one can exist — partial unique index).
-	GetPendingForStudent(ctx context.Context, studentID int64) (*CareScheduleChangeRequest, error)
-
-	// ListPendingForTenant returns every pending request for the current
-	// tenant, newest-first — the staff review queue.
-	ListPendingForTenant(ctx context.Context, filters RequestQueueFilters) ([]*CareScheduleChangeRequest, error)
 	GetPendingForStudentAndKind(ctx context.Context, studentID int64, requestKind string) (*CareScheduleChangeRequest, error)
-	ListPendingForTenantAndKind(ctx context.Context, requestKind string, filters RequestQueueFilters) ([]*CareScheduleChangeRequest, error)
-	ListRecentForStudentAndKind(ctx context.Context, studentID int64, requestKind string, since time.Time) ([]*CareScheduleChangeRequest, error)
-
-	// ListDecidedForTenant returns the tenant's decided care-schedule rows
-	// (approved, rejected, withdrawn) newest-decision-first via keyset
-	// pagination on (updated_at, id); a zero beforeUpdatedAt returns the first
-	// page.
-	ListDecidedForTenant(ctx context.Context, filters RequestQueueFilters) ([]*CareScheduleChangeRequest, error)
-
-	// FindPendingByIDForUpdate locks a request row for decision processing.
-	// It returns ErrCareRequestNotFound when the row is missing in the
-	// current tenant and ErrCareRequestNotPending when it exists but is
-	// already decided or withdrawn.
-	FindPendingByIDForUpdate(ctx context.Context, id int64) (*CareScheduleChangeRequest, error)
-
-	// FindByIDForUpdate locks a request row for the current tenant regardless
-	// of status, returning ErrCareRequestNotFound when it is missing. The
-	// guardian withdraw path uses it to verify ownership BEFORE distinguishing
-	// a terminal status, so a stranger cannot probe a foreign child's decided
-	// request id via a not-pending 409 (FindPendingByIDForUpdate leaks that the
-	// row exists before ownership is checked).
-	FindByIDForUpdate(ctx context.Context, id int64) (*CareScheduleChangeRequest, error)
-
-	// UpdatePending rewrites a still-pending row's payload — the guardian edit
-	// path (#2267). It refuses a decided row (ErrCareRequestNotPending) and
-	// bumps updated_at, which is the request's version.
-	UpdatePending(ctx context.Context, id int64, payload map[string]any) error
 
 	// Decide moves a pending row to approved/rejected/withdrawn, stamping
 	// decision_reason, reviewed_by, reviewed_at and (for approvals)
 	// applied_at. Withdrawals carry no reviewer stamp.
 	Decide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy *int64, applied bool) error
-
-	// Redecide rewrites an ALREADY DECIDED row — the correction path (#2267).
-	// Separate from Decide so a correction can never slip past its
-	// pending-only guard by accident.
-	Redecide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64, applied bool) error
-
-	// UpdateDecisionSnapshot stores the frozen review diff on a decided row
-	// (ADR 0002, #2430). Separate from Decide so the race-guarded transition
-	// keeps its signature; callers write the snapshot in the same transaction.
-	UpdateDecisionSnapshot(ctx context.Context, id int64, snapshot *CareRequestDecisionSnapshot) error
 }

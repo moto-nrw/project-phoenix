@@ -160,7 +160,9 @@ func (n *StudentArrivalNote) Validate() error {
 
 // StudentArrivalScheduleRepository defines operations for managing student arrival schedules
 type StudentArrivalScheduleRepository interface {
-	repository[*StudentArrivalSchedule]
+	Create(context.Context, *StudentArrivalSchedule) error
+	FindByID(context.Context, any) (*StudentArrivalSchedule, error)
+	Update(context.Context, *StudentArrivalSchedule) error
 
 	// FindByStudentID finds all arrival schedules for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentArrivalSchedule, error)
@@ -171,12 +173,6 @@ type StudentArrivalScheduleRepository interface {
 	// FindByStudentIDsAndWeekday finds arrival schedules for multiple students and a specific weekday (bulk query)
 	FindByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*StudentArrivalSchedule, error)
 
-	// FindByStudentIDs returns every weekday row for the given students in a
-	// single query. The care-day derivation needs the whole week per child:
-	// "no row for today" only means "not in care today" if the child has rows
-	// for other weekdays — a child with no plan at all must stay visible.
-	FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*StudentArrivalSchedule, error)
-
 	// UpsertSchedule creates or updates an arrival schedule for a student and weekday
 	UpsertSchedule(ctx context.Context, schedule *StudentArrivalSchedule) error
 
@@ -186,11 +182,9 @@ type StudentArrivalScheduleRepository interface {
 
 // StudentArrivalExceptionRepository defines operations for managing student arrival exceptions
 type StudentArrivalExceptionRepository interface {
-	repository[*StudentArrivalException]
-
-	// FindByIDForUpdate retrieves and locks an exception for an atomic
-	// invariant check followed by mutation.
-	FindByIDForUpdate(ctx context.Context, id any) (*StudentArrivalException, error)
+	Create(context.Context, *StudentArrivalException) error
+	FindByID(context.Context, any) (*StudentArrivalException, error)
+	Update(context.Context, *StudentArrivalException) error
 
 	// FindByStudentID finds all arrival exceptions for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentArrivalException, error)
@@ -210,11 +204,6 @@ type StudentArrivalExceptionRepository interface {
 	// exceptions in a single query.
 	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to Date) ([]*StudentArrivalException, error)
 
-	// FindByStudentIDsAndDateRange is the bulk form of the above: every
-	// exception for the given students within the inclusive range, so a
-	// planner window resolves in one query instead of one per day.
-	FindByStudentIDsAndDateRange(ctx context.Context, studentIDs []int64, from, to Date) ([]*StudentArrivalException, error)
-
 	// DeleteByStudentID deletes all arrival exceptions for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error
 
@@ -224,7 +213,9 @@ type StudentArrivalExceptionRepository interface {
 
 // StudentArrivalNoteRepository defines operations for managing student arrival notes
 type StudentArrivalNoteRepository interface {
-	repository[*StudentArrivalNote]
+	Create(context.Context, *StudentArrivalNote) error
+	FindByID(context.Context, any) (*StudentArrivalNote, error)
+	Update(context.Context, *StudentArrivalNote) error
 
 	// FindByStudentID finds all arrival notes for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentArrivalNote, error)

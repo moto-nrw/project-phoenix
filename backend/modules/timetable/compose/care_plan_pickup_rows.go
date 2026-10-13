@@ -42,13 +42,6 @@ func (r CarePickupScheduleRows) Update(ctx context.Context, row *scheduleModels.
 	}
 	return r.rows.scheduleError("update", r.rows.Records.UpdatePickupSchedule(ctx, pickupScheduleToPublic(row)))
 }
-func (r CarePickupScheduleRows) Delete(ctx context.Context, raw any) error {
-	id, err := legacyScheduleID(raw)
-	if err != nil {
-		return r.rows.scheduleError("delete", err)
-	}
-	return r.rows.scheduleError("delete", r.rows.Records.DeletePickupSchedule(ctx, id))
-}
 func (r CarePickupScheduleRows) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentPickupSchedule, error) {
 	values, err := r.rows.Records.ListPickupSchedules(ctx, CareScheduleFilter{Options: options})
 	if err != nil {
@@ -77,13 +70,6 @@ func (r CarePickupScheduleRows) FindByStudentIDsAndWeekday(ctx context.Context, 
 	values, err := r.rows.Records.ListPickupSchedules(ctx, CareScheduleFilter{StudentIDs: ids, Weekday: weekday})
 	if err != nil {
 		return nil, r.rows.scheduleError("find by student ids and weekday", err)
-	}
-	return mapRows(values, pickupScheduleToLegacy), nil
-}
-func (r CarePickupScheduleRows) FindByStudentIDs(ctx context.Context, ids []int64) ([]*scheduleModels.StudentPickupSchedule, error) {
-	values, err := r.rows.Records.ListPickupSchedules(ctx, CareScheduleFilter{StudentIDs: ids})
-	if err != nil {
-		return nil, r.rows.scheduleError("find by student ids", err)
 	}
 	return mapRows(values, pickupScheduleToLegacy), nil
 }
@@ -120,19 +106,13 @@ func (r CarePickupExceptionRows) Create(ctx context.Context, row *scheduleModels
 	return nil
 }
 func (r CarePickupExceptionRows) FindByID(ctx context.Context, raw any) (*scheduleModels.StudentPickupException, error) {
-	return r.find(ctx, raw, false, "find by id")
-}
-func (r CarePickupExceptionRows) FindByIDForUpdate(ctx context.Context, raw any) (*scheduleModels.StudentPickupException, error) {
-	return r.find(ctx, raw, true, "find by id for update")
-}
-func (r CarePickupExceptionRows) find(ctx context.Context, raw any, lock bool, op string) (*scheduleModels.StudentPickupException, error) {
 	id, err := legacyScheduleID(raw)
 	if err != nil {
-		return nil, r.rows.scheduleError(op, err)
+		return nil, r.rows.scheduleError("find by id", err)
 	}
-	value, err := r.rows.Records.FindPickupException(ctx, id, lock)
+	value, err := r.rows.Records.FindPickupException(ctx, id)
 	if err != nil {
-		return nil, r.rows.scheduleError(op, err)
+		return nil, r.rows.scheduleError("find by id", err)
 	}
 	return pickupExceptionToLegacy(value), nil
 }
@@ -145,13 +125,6 @@ func (r CarePickupExceptionRows) Update(ctx context.Context, row *scheduleModels
 		return err
 	}
 	return r.rows.scheduleError("update", r.rows.Records.UpdatePickupException(ctx, pickupExceptionToPublic(row)))
-}
-func (r CarePickupExceptionRows) Delete(ctx context.Context, raw any) error {
-	id, err := legacyScheduleID(raw)
-	if err != nil {
-		return r.rows.scheduleError("delete", err)
-	}
-	return r.rows.scheduleError("delete", r.rows.Records.DeletePickupException(ctx, id))
 }
 func (r CarePickupExceptionRows) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentPickupException, error) {
 	values, err := r.rows.Records.ListPickupExceptions(ctx, CareScheduleFilter{Options: options})
@@ -178,9 +151,6 @@ func (r CarePickupExceptionRows) FindByStudentIDsAndDate(ctx context.Context, id
 }
 func (r CarePickupExceptionRows) FindByStudentIDAndDateRange(ctx context.Context, id int64, from, to scheduleModels.Date) ([]*scheduleModels.StudentPickupException, error) {
 	return r.list(ctx, CareScheduleFilter{StudentIDs: []int64{id}, From: CareDate(from), To: CareDate(to)}, "find by student id and date range")
-}
-func (r CarePickupExceptionRows) FindByStudentIDsAndDateRange(ctx context.Context, ids []int64, from, to scheduleModels.Date) ([]*scheduleModels.StudentPickupException, error) {
-	return r.list(ctx, CareScheduleFilter{StudentIDs: ids, From: CareDate(from), To: CareDate(to)}, "find by student ids and date range")
 }
 func (r CarePickupExceptionRows) list(ctx context.Context, filter CareScheduleFilter, op string) ([]*scheduleModels.StudentPickupException, error) {
 	values, err := r.rows.Records.ListPickupExceptions(ctx, filter)
@@ -230,13 +200,6 @@ func (r CarePickupNoteRows) Update(ctx context.Context, row *scheduleModels.Stud
 		return err
 	}
 	return r.rows.scheduleError("update", r.rows.Records.UpdatePickupNote(ctx, pickupNoteToPublic(row)))
-}
-func (r CarePickupNoteRows) Delete(ctx context.Context, raw any) error {
-	id, err := legacyScheduleID(raw)
-	if err != nil {
-		return r.rows.scheduleError("delete", err)
-	}
-	return r.rows.scheduleError("delete", r.rows.Records.DeletePickupNote(ctx, id))
 }
 func (r CarePickupNoteRows) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentPickupNote, error) {
 	return r.list(ctx, CareScheduleFilter{Options: options}, "list with options")

@@ -62,53 +62,37 @@ const (
 
 // WorkforceShiftOrder is one ordering column of a shift listing.
 type WorkforceShiftOrder struct {
-	Field      WorkforceShiftOrderField
-	Descending bool
+	Field WorkforceShiftOrderField
 }
 
 // WorkforceShiftFilter selects planned shifts.
 type WorkforceShiftFilter struct {
-	StaffID        int64
-	StaffIDs       []int64
-	From           string
-	To             string
-	Dates          []string
-	SeriesID       int64
-	OriginShiftID  int64
-	OriginShiftIDs []int64
-	SickAbsenceID  *int64
-	Cancelled      *bool
-	Detached       *bool
-	Order          []WorkforceShiftOrder
-	Limit          int
-	Offset         int
+	StaffID  int64
+	StaffIDs []int64
+	From     string
+	To       string
+	Dates    []string
+	Order    []WorkforceShiftOrder
 }
 
 // The Workforce answers the root marks its errors with (MarkRecordError), so
 // the rows keep their retained error shapes.
 var (
-	ErrWorkforceShiftNotFound     = errors.New("workforce staff shift not found")
-	ErrWorkforceShiftTypeNotFound = errors.New("workforce shift type not found")
-	ErrWorkforceShiftInvalid      = errors.New("invalid workforce shift input")
+	ErrWorkforceShiftNotFound = errors.New("workforce staff shift not found")
+	ErrWorkforceShiftInvalid  = errors.New("invalid workforce shift input")
 )
 
 // WorkforceShiftRecords is the Workforce capability the Dienstplan rows run
 // over.
 type WorkforceShiftRecords interface {
 	CreateStaffShift(context.Context, WorkforceShift) (WorkforceShift, error)
-	CreateStaffShifts(context.Context, []WorkforceShift) ([]WorkforceShift, error)
 	FindStaffShift(context.Context, int64) (WorkforceShift, error)
 	UpdateStaffShift(context.Context, WorkforceShift) (WorkforceShift, error)
 	DeleteStaffShift(context.Context, int64) error
 	ListStaffShifts(context.Context, WorkforceShiftFilter) ([]WorkforceShift, error)
 	UsedStaffShiftWeeks(ctx context.Context, from, to string) ([]string, error)
-	DeleteRegenerableSeriesShifts(ctx context.Context, seriesID int64, from string) (int64, error)
-	RepointDetachedSeriesShifts(ctx context.Context, fromSeriesID, toSeriesID int64, from string) (int64, error)
 
 	CreateShiftType(context.Context, WorkforceShiftType) (WorkforceShiftType, error)
-	CreateShiftTypeIfAbsent(context.Context, WorkforceShiftType) (WorkforceShiftType, bool, error)
-	FindShiftType(context.Context, int64) (WorkforceShiftType, error)
-	UpdateShiftType(context.Context, WorkforceShiftType) (WorkforceShiftType, error)
 	DeleteShiftType(context.Context, int64) error
 	ListShiftTypes(context.Context) ([]WorkforceShiftType, error)
 }

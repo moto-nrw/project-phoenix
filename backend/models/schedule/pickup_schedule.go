@@ -237,7 +237,9 @@ func (e *StudentPickupException) IsAbsent() bool {
 
 // StudentPickupScheduleRepository defines operations for managing student pickup schedules
 type StudentPickupScheduleRepository interface {
-	repository[*StudentPickupSchedule]
+	Create(context.Context, *StudentPickupSchedule) error
+	FindByID(context.Context, any) (*StudentPickupSchedule, error)
+	Update(context.Context, *StudentPickupSchedule) error
 
 	// FindByStudentID finds all pickup schedules for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentPickupSchedule, error)
@@ -248,11 +250,6 @@ type StudentPickupScheduleRepository interface {
 	// FindByStudentIDsAndWeekday finds pickup schedules for multiple students and a specific weekday (bulk query)
 	FindByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*StudentPickupSchedule, error)
 
-	// FindByStudentIDs returns every weekday row for the given students in a
-	// single query. Mirror of the arrival-side helper; see there for why the
-	// care-day derivation needs the whole week rather than one weekday.
-	FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*StudentPickupSchedule, error)
-
 	// UpsertSchedule creates or updates a pickup schedule for a student and weekday
 	UpsertSchedule(ctx context.Context, schedule *StudentPickupSchedule) error
 
@@ -262,11 +259,9 @@ type StudentPickupScheduleRepository interface {
 
 // StudentPickupExceptionRepository defines operations for managing student pickup exceptions
 type StudentPickupExceptionRepository interface {
-	repository[*StudentPickupException]
-
-	// FindByIDForUpdate retrieves and locks an exception for an atomic
-	// invariant check followed by mutation.
-	FindByIDForUpdate(ctx context.Context, id any) (*StudentPickupException, error)
+	Create(context.Context, *StudentPickupException) error
+	FindByID(context.Context, any) (*StudentPickupException, error)
+	Update(context.Context, *StudentPickupException) error
 
 	// FindByStudentID finds all pickup exceptions for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentPickupException, error)
@@ -285,11 +280,6 @@ type StudentPickupExceptionRepository interface {
 	// date. Used by the timetable per-student week endpoint to pre-load all
 	// exceptions in a single query.
 	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to Date) ([]*StudentPickupException, error)
-
-	// FindByStudentIDsAndDateRange is the bulk form of the above: every
-	// exception for the given students within the inclusive range, so a
-	// planner window resolves in one query instead of one per day.
-	FindByStudentIDsAndDateRange(ctx context.Context, studentIDs []int64, from, to Date) ([]*StudentPickupException, error)
 
 	// DeleteByStudentID deletes all pickup exceptions for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error
@@ -342,7 +332,9 @@ func (n *StudentPickupNote) Validate() error {
 
 // StudentPickupNoteRepository defines operations for managing student pickup notes
 type StudentPickupNoteRepository interface {
-	repository[*StudentPickupNote]
+	Create(context.Context, *StudentPickupNote) error
+	FindByID(context.Context, any) (*StudentPickupNote, error)
+	Update(context.Context, *StudentPickupNote) error
 
 	// FindByStudentID finds all pickup notes for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentPickupNote, error)
