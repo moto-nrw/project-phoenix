@@ -94,7 +94,6 @@ import (
 	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
@@ -206,9 +205,9 @@ type Factory struct {
 	StudentDocuments          careplan.StudentDocuments
 	FileStore                 *filestorageModule.Module
 	CaregiverCapability       peopleCompose.CaregiverCapabilityService
-	Guardian                  *users.GuardianService
+	Guardian                  *peopleCompose.GuardianService
 	PeopleDirectory           peopledirectory.Capability
-	GuardianProfileLoader     *users.GuardianProfileLoader
+	GuardianProfileLoader     *peopleCompose.GuardianProfileLoader
 	UserContext               *CallerRows
 	Database                  database.DatabaseService
 	DatabaseStatsCapabilities func(context.Context) database.StatsCapabilities
@@ -907,15 +906,14 @@ func newFactory(
 		return nil, fmt.Errorf("staff admin: %w", err)
 	}
 
-	// Initialize guardian service
 	// Replies to tenant-bound mail belong to the OGS, not to moto (#1936).
-	// Built once here and shared: the outbox worker covers every queued kind,
-	// the guardian service covers its own synchronous invitation send.
+	// Built once here and shared by every tenant-bound sender.
 	tenantMailIdentity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
 		return settingsService.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, logger)
 
-	guardianService := users.NewGuardianService(users.GuardianServiceDependencies{
+	// Initialize guardian service
+	guardianService := peopleCompose.NewGuardianService(peopleCompose.GuardianServiceDependencies{
 		GuardianProfileRepo:     guardianProfileRepository,
 		GuardianPhoneNumberRepo: guardianPhoneRepository,
 		StudentGuardianRepo:     studentGuardianRepository,
@@ -923,21 +921,16 @@ func newFactory(
 		StudentRepo:             studentRepository,
 		PersonRepo:              personRepository,
 		GuardianFinancialRepo:   guardianFinancialRepository,
-		GuardianFinancialAudit:  audits.GuardianFinancialChange,
-		DataAccessLog:           audits.DataAccessLog,
-		Mailer:                  mailer,
-		Dispatcher:              dispatcher,
-		FrontendURL:             frontendURL,
-		DefaultFrom:             defaultFrom,
-		InvitationExpiry:        invitationTokenExpiry,
-		MailIdentity:            tenantMailIdentity,
+		GuardianFinancialAudit:  newGuardianFinancialAudit(audits.GuardianFinancialChange),
+		DataAccessLog:           newGuardianDataAccessLog(audits.DataAccessLog),
+		RolePresets:             guardianRolePresets{},
 		DB:                      db,
 	})
 
 	// Thin loader that backs the public + parent enrollment me/profile
 	// endpoints. Pulls the multi-schema join out of the handlers (Rule 1)
 	// and into the existing GuardianProfileRepository.LoadProfileWithChildren.
-	guardianProfileLoader := users.NewGuardianProfileLoader(guardianProfileRepository, db, logger.With("service", "guardian-profile-loader"))
+	guardianProfileLoader := peopleCompose.NewGuardianProfileLoader(guardianProfileRepository, db, logger.With("service", "guardian-profile-loader"))
 
 	// Public holidays per Bundesland (#1418 3a) and tenant closing days
 	// (#1418 3b) share the Soll=0 semantics. The Soll consumers get the UNION

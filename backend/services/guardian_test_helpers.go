@@ -1,19 +1,11 @@
 package services
 
 import (
-	"context"
-	"log/slog"
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/email"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -43,10 +35,6 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	organizations, err := NewOrganizationTenancy(db)
-	if err != nil {
-		return GuardianTestModule{}, err
-	}
 	g := NewGuardianTestRepositories(db, command)
 	people, photoRuntime, err := NewPeopleDirectoryWithPhotos(db)
 	if err != nil {
@@ -56,28 +44,13 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	cfg := currentFactoryConfig()
-	hours := cfg.InvitationTokenExpiryHours
-	if hours <= 0 {
-		hours = 48
-	} else if hours > 168 {
-		hours = 168
-	}
-	from := email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress)
-	if from.Address == "" {
-		from = email.NewEmail("moto", "no-reply@moto.local")
-	}
-	mailer := email.NewMockMailer()
-	mailIdentity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
-		return auth.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
-	}, slog.Default())
-	guardian := users.NewGuardianService(users.GuardianServiceDependencies{
+	guardian := peopleCompose.NewGuardianService(peopleCompose.GuardianServiceDependencies{
 		GuardianProfileRepo: r.GuardianProfile, GuardianPhoneNumberRepo: g.Phone, StudentGuardianRepo: r.StudentGuardian,
 		GuardianInvitations: newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return auth.AccountAuthentication }),
 		StudentRepo:         NewUnboundStudentRepository(db), PersonRepo: r.Person,
-		GuardianFinancialRepo: g.Financial, GuardianFinancialAudit: g.FinancialAudit, DataAccessLog: g.AccessLog,
-		Mailer: mailer, Dispatcher: email.NewDispatcher(mailer, slog.Default()), FrontendURL: cfg.FrontendURL, DefaultFrom: from,
-		InvitationExpiry: time.Duration(hours) * time.Hour, MailIdentity: mailIdentity, DB: db,
+		GuardianFinancialRepo:  g.Financial,
+		GuardianFinancialAudit: newGuardianFinancialAudit(g.FinancialAudit), DataAccessLog: newGuardianDataAccessLog(g.AccessLog),
+		RolePresets: guardianRolePresets{}, DB: db,
 	})
 	people.(guardianProviderBinder).BindGuardianProvider(&guardianDirectoryProvider{guardians: guardian, db: db})
 	// The compatibility carrier only maps the existing four capabilities to

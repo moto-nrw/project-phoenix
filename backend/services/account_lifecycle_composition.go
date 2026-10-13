@@ -11,7 +11,6 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Identity & Access owns the admin staff-view preview, staff offboarding
@@ -398,7 +397,7 @@ func (d guardianDirectory) PromoteStudentGuardianLink(ctx context.Context, linkI
 	if link == nil {
 		return userModels.ErrStudentGuardianNotFound
 	}
-	users.PromoteStudentGuardianLink(link)
+	applyGuardianRolePreset(link, securityruntime.GuardianRoleLegalGuardian)
 	return d.repos.studentGuardians.Update(ctx, link)
 }
 
@@ -434,9 +433,9 @@ func (d guardianDirectory) DeleteStudentGuardianLink(ctx context.Context, linkID
 
 func (d guardianDirectory) GuardianRoleClass(role string) identityaccessCompose.GuardianRoleClass {
 	switch {
-	case users.IsFullGuardianRole(role):
+	case securityruntime.IsFullGuardianRole(role):
 		return identityaccessCompose.GuardianRoleFull
-	case users.IsSocialWorkerGuardianRole(role):
+	case isSocialWorkerGuardianRole(role):
 		return identityaccessCompose.GuardianRoleSocialWorker
 	default:
 		return identityaccessCompose.GuardianRoleRestricted

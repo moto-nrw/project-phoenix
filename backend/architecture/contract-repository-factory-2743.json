@@ -31,7 +31,6 @@
   "exact_ratchet_keys": [
     "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories|github.com/moto-nrw/project-phoenix/database/repositories",
     "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent|github.com/moto-nrw/project-phoenix/database/repositories",
-    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services/users|github.com/moto-nrw/project-phoenix/database/repositories",
     "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/database/repositories",
     "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/database/repositories",
     "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/cmd|github.com/moto-nrw/project-phoenix/database/repositories",
@@ -58,14 +57,14 @@
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/database/repositories|github.com/uptrace/bun",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/database/repositories"
   ],
-  "atomic_cutover": "Code-only change across the #2743 branch: the Audit and Settings persistence is constructed in modules/auditlog/compose and modules/settings/compose (ADR 0049, policy epoch 35 -> 36 registers legacy-composition.to.audit-platform-compose and settings-platform.compose.postgres), every other adapter of the root package moves to its owner composition or into services, repositories.Factory and NewFactory are deleted, and the database/repositories entry leaves both the package list and legacy_composition in policy.json. The root package keeps no Go file; its subpackages are unchanged owners. The 15 #2743 keys fall with the package. The remaining 13 listed keys fall incidentally and are claimed here because the exact-equality ratchet requires removing resolved entries in the same change: api, cmd and services (#2747, #2750) and the external tests of services, services/users and modules/careplan/inbound/parent (#2747, #2728, #3421) imported database/repositories or named Factory/NewFactory only to reach the deleted aggregate. No capability behavior, fallback provider or policy rule beyond ADR 0049 is added.",
+  "atomic_cutover": "Code-only change across the #2743 branch: the Audit and Settings persistence is constructed in modules/auditlog/compose and modules/settings/compose (ADR 0049, policy epoch 35 -> 36 registers legacy-composition.to.audit-platform-compose and settings-platform.compose.postgres), every other adapter of the root package moves to its owner composition or into services, repositories.Factory and NewFactory are deleted, and the database/repositories entry leaves both the package list and legacy_composition in policy.json. The root package keeps no Go file; its subpackages are unchanged owners. The 15 #2743 keys fall with the package. The remaining 12 listed keys fall incidentally and are claimed here because the exact-equality ratchet requires removing resolved entries in the same change: api, cmd and services (#2747, #2750) and the external tests of services and modules/careplan/inbound/parent (#2747, #3421) imported database/repositories or named Factory/NewFactory only to reach the deleted aggregate. No capability behavior, fallback provider or policy rule beyond ADR 0049 is added.",
   "tests": [
-    "Generated AST caller inventory (backend/architecture/callers/repository-factory-2743.json via scripts/backend-repository-factory-callers): no declaration or reference of database/repositories.Factory or NewFactory in backend/**/*.go including tests; the same generator reports one declaration and 132 references of Factory and one declaration and 474 references of NewFactory at the merge base 54df53d48fc25fbe51b27aa8d57f216fda93c177.",
+    "Generated AST caller inventory (backend/architecture/callers/repository-factory-2743.json via scripts/backend-repository-factory-callers): no declaration or reference of database/repositories.Factory or NewFactory in backend/**/*.go including tests; the same generator reports one declaration and 132 references of Factory and one declaration and 474 references of NewFactory at the merge base f43408977360f4a63d23625409f57070dfc56290.",
     "test TestCompositionInventory and internal/architecture TestCompositionLegacyCallerInventory: the Factory fields, setters and constructor calls are gone from the typed legacy caller inventory; backend/architecture/composition.json regenerated, surface 490 -> 260 field/setter targets.",
     "api TestFullProductionRouterGolden and TestServeGraphFieldsAreShrinkOnly: route table, middleware table, IoT, scope and error goldens unchanged; the Serve graph composes no repository Factory.",
     "services TestDefaultFacilitiesDeletesRoomWithoutGuard replaces the root package's composition smoke test; the moved legacy repository suites (modules/*/compose/httpintegration, services and api/testutil helpers) keep their assertions and compose through the owner compositions.",
     "go test -count=1 -p 10 -parallel 8 ./... (backend), go test ./test -run 'Ratchet|Composition|Hermetic', go test ./internal/architecture, golangci-lint on the changed packages, scripts/test-changed.sh origin/development without --fast.",
-    "scripts/backend-architecture.sh check with exactly the listed keys absent from legacy.jsonl and none added (164 -> 136 remaining violations); scripts/backend-architecture.sh validate-ticket --ticket backend/architecture/contract-repository-factory-2743.json and validate-ticket --all --base-ref 54df53d48fc25fbe51b27aa8d57f216fda93c177 covering all 28 debt retirements."
+    "scripts/backend-architecture.sh check with exactly the listed keys absent from legacy.jsonl and none added (139 -> 112 remaining violations); scripts/backend-architecture.sh validate-ticket --ticket backend/architecture/contract-repository-factory-2743.json and validate-ticket --all --base-ref f43408977360f4a63d23625409f57070dfc56290 covering all 27 debt retirements."
   ],
   "runtime_evidence": {
     "source": "Local pinned-toolchain runs on the #2743 worktree (work/2743-contract-the-repository-factory-after-all-owner) on 2026-10-13 against the localhost postgres-test server. No load benchmark or manual application smoke was performed.",
@@ -99,7 +98,7 @@
     },
     "errors": {
       "state": "measured",
-      "result": "scripts/backend-architecture.sh check passed with 136 remaining keys (164 -> 136) and a composition surface of 490 -> 260; validate-ticket --all --base-ref 54df53d48fc25fbe51b27aa8d57f216fda93c177 covered all 28 debt retirements; golangci-lint ./... reported 0 issues; go test -count=1 -p 10 -parallel 8 ./... passed all 428 packages (277 with tests); scripts/test-changed.sh origin/development reported all 154 affected packages ok (139 with tests)."
+      "result": "scripts/backend-architecture.sh check passed with 112 remaining keys (139 -> 112) and a composition surface of 490 -> 260; validate-ticket --all --base-ref f43408977360f4a63d23625409f57070dfc56290 covered all 27 debt retirements; golangci-lint ./... reported 0 issues; go test -count=1 -p 10 -parallel 8 ./... passed all 428 packages (277 with tests); scripts/test-changed.sh origin/development reported all 154 affected packages ok (139 with tests)."
     },
     "pool_wait": {
       "state": "not_applicable",
@@ -131,7 +130,7 @@
     },
     "rollback": {
       "state": "not_applicable",
-      "reason": "No data write path or schema change. Reverting the change restores the root package, its policy entries and the 28 baseline entries."
+      "reason": "No data write path or schema change. Reverting the change restores the root package, its policy entries and the 27 baseline entries."
     },
     "smoke": {
       "state": "measured",
