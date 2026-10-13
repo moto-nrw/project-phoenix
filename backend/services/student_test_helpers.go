@@ -167,7 +167,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		return StudentTestModule{}, err
 	}
 	pickupAutoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db, Records: repos.CarePlan, Baselines: pickupBaselines, Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(repos.Timetable, db),
+		DB: db, Records: repos.CarePlan, Baselines: pickupBaselines, Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(repos.Timetable, NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
 		return StudentTestModule{}, err

@@ -488,7 +488,11 @@ func composeFacilities(db *bun.DB, legacyFacilities *interface {
 }
 
 func composeCarePlan(db *bun.DB, persons *peopleModule.Module, slots carePlanCompose.StatusSlotDirectory) (*carePlanModule.Module, error) {
-	statusStudents, err := services.CarePlanStatusStudents(db, persons)
+	profiles, err := carePlanCompose.NewStudentProfiles(db, func(carePlanCompose.Observation) {})
+	if err != nil {
+		return nil, err
+	}
+	statusStudents, err := services.CarePlanStatusStudents(persons, profiles)
 	if err != nil {
 		return nil, err
 	}

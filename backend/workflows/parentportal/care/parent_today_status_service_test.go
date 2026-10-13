@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -45,10 +46,14 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*care.Service, *bun.DB) 
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	arrivals, err := services.NewArrivalSchedules(db, repos.CarePlan(), services.MustNewPeopleDirectory(db), nil, nil, nil, slog.Default())
+	arrivalRules, arrivalDeps, err := services.ArrivalScheduleBinding(services.MustNewPeopleDirectory(db), nil, nil, slog.Default())
 	require.NoError(t, err)
-	pickups, err := services.NewPickupSchedules(db, repos.CarePlan(), services.MustNewPeopleDirectory(db), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), // Auto-excusal (#2360) is not what these cases assert.
-		nil, slog.Default())
+	arrivals, err := careplanCompose.NewArrivalSchedules(db, repos.CarePlan(), nil, arrivalRules, arrivalDeps)
+	require.NoError(t, err)
+	pickupStudents, err := services.PickupPlanStudents(services.MustNewPeopleDirectory(db))
+	require.NoError(t, err)
+	pickups, err := careplanCompose.NewPickupSchedules(db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), // Auto-excusal (#2360) is not what these cases assert.
+		nil, pickupStudents, slog.Default())
 	require.NoError(t, err)
 	return care.New(care.Config{
 		RequestSharing:   unconfiguredRequestSharer{},

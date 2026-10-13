@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -14,6 +15,17 @@ func mustPresenceReads(db *bun.DB) timetableCompose.PresenceReads {
 		panic(err)
 	}
 	return reads
+}
+
+// NewPartialAbsencePreview composes the Timetable partial-absence preview over
+// the People Directory, the Care Plan pickup exceptions and the joined plan
+// reads of the database, for the retained services and their tests.
+func NewPartialAbsencePreview(db *bun.DB) timetableCompose.PartialAbsencePreview {
+	exceptions, err := carePlanCompose.NewExceptionQueries(db, func(carePlanCompose.Observation) {})
+	if err != nil {
+		panic(fmt.Sprintf("partial absence preview: compose care plan exception queries: %v", err))
+	}
+	return newPartialAbsencePreview(mustPresenceReads(db), peopleDirectoryReads(db), exceptions)
 }
 
 // NewPresenceReads exposes the joined block, roster and attendance reads of

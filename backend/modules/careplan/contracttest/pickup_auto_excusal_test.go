@@ -84,7 +84,9 @@ func setupAutoExcusalHarnessWithExtensions(t *testing.T, withBaseline, withExten
 	repos, tt := autoExcusalRepositories(db)
 
 	syncer := newPickupExcusal(t, db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), tt, withExtensions)
-	svc, err := services.NewPickupSchedules(db, repos.CarePlan(), services.MustNewPeopleDirectory(db), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), syncer, nil)
+	pickupStudents, err := services.PickupPlanStudents(services.MustNewPeopleDirectory(db))
+	require.NoError(t, err)
+	svc, err := compose.NewPickupSchedules(db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), syncer, pickupStudents, nil)
 	require.NoError(t, err)
 	partial, err := compose.NewPartialAbsences(db, repos.CarePlan(), services.NewStudentPresenceForTests(db), syncer)
 	require.NoError(t, err)

@@ -9,6 +9,7 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
@@ -61,5 +62,10 @@ func NewStudentDocumentsTestModule(
 	userContext securityruntime.StudentAccessUserContext,
 	edits auditModels.StudentFieldEditRepository, accessLog auditModels.DataAccessLogRepository,
 ) (careplan.StudentDocuments, error) {
-	return newStudentDocuments(db, records, students, userContext, edits, accessLog)
+	deps, err := studentDocumentDependencies(records, students, userContext, edits, accessLog)
+	if err != nil {
+		return nil, err
+	}
+	deps.DB = db
+	return carePlanCompose.NewStudentDocuments(deps)
 }

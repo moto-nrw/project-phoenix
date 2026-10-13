@@ -8,7 +8,6 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/uptrace/bun"
 )
 
 type statusStudentDirectory struct {
@@ -17,14 +16,12 @@ type statusStudentDirectory struct {
 	care     careplan.StudentProfileCommands
 }
 
-func CarePlanStatusStudents(db *bun.DB, students peopledirectory.Capability) (carePlanCompose.StatusStudentDirectory, error) {
+// CarePlanStatusStudents binds the Care Plan status directory to the People
+// Directory and to Care Plan's own student profile commands.
+func CarePlanStatusStudents(students peopledirectory.Capability, care careplan.StudentProfileCommands) (carePlanCompose.StatusStudentDirectory, error) {
 	statusFlags, ok := students.(peopledirectory.StudentStatusFlagCapability)
 	if !ok {
 		return nil, errors.New("compose Care Plan: People Directory status-flag capability is required")
-	}
-	care, err := carePlanCompose.NewStudentProfiles(db, func(carePlanCompose.Observation) {})
-	if err != nil {
-		return nil, err
 	}
 	return statusStudentDirectory{students: students, flags: statusFlags, care: care}, nil
 }

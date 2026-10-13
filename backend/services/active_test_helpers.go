@@ -175,12 +175,16 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	groups.Users = data.Users
 	yard := facilitiesCompose.NewSchulhofService(data.Facilities, facilitiesLegacy.ActivityCatalog(data.Activities), facilitiesLegacy.OpenGroupCatalog(facilitiesGroupSupervisions(newStudentPresence(db, logger)), facilitiesRoomSessions(newStudentPresence(db, logger)), facilitiesGroupVisits(newStudentPresence(db, logger))), logger)
 	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db, Records: carePlan, Baselines: pickup, Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(r.Timetable, db),
+		DB: db, Records: carePlan, Baselines: pickup, Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(r.Timetable, NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	pickups, err := NewPickupSchedules(db, carePlan, students, pickup, autoExcusal, logger)
+	pickupStudents, err := PickupPlanStudents(students)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	pickups, err := careplanCompose.NewPickupSchedules(db, carePlan, pickup, autoExcusal, pickupStudents, logger)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -188,7 +192,11 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	arrivals, err := NewArrivalSchedules(db, carePlan, students, arrival, ClassArrivalPlans(classArrivalQueries), classExceptions, logger)
+	arrivalRules, arrivalDeps, err := ArrivalScheduleBinding(students, ClassArrivalPlans(classArrivalQueries), classExceptions, logger)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	arrivals, err := careplanCompose.NewArrivalSchedules(db, carePlan, arrival, arrivalRules, arrivalDeps)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}

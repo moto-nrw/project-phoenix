@@ -7,18 +7,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/uptrace/bun"
 )
 
-// NewArrivalSchedules binds supplied native capabilities without constructing
-// a repository or service factory.
-func NewArrivalSchedules(db *bun.DB, records careplanCompose.ArrivalScheduleRecords, people peopledirectory.Capability, baselines careplan.ArrivalBaselineReader, classes careplanCompose.ArrivalClassPlans, exceptions careplan.ClassArrivalExceptions, logger *slog.Logger) (careplan.ArrivalScheduleService, error) {
+// ArrivalScheduleBinding binds the Care Plan arrival schedules to the People
+// Directory and the supplied class plans and class exceptions. The caller
+// hands the rules and dependencies with its database to
+// careplanCompose.NewArrivalSchedules.
+func ArrivalScheduleBinding(people peopledirectory.Capability, classes careplanCompose.ArrivalClassPlans, exceptions careplan.ClassArrivalExceptions, logger *slog.Logger) (careplanCompose.ArrivalScheduleRules, careplanCompose.ArrivalScheduleDependencies, error) {
 	if people == nil {
-		return nil, errors.New("arrival schedules: people directory is required")
+		return nil, careplanCompose.ArrivalScheduleDependencies{}, errors.New("arrival schedules: people directory is required")
 	}
 	students := arrivalPlanStudents{people}
-	rules := careplanCompose.NewArrivalScheduleRules(students, classes)
-	return careplanCompose.NewArrivalSchedules(db, records, baselines, rules, careplanCompose.ArrivalScheduleDependencies{
+	return careplanCompose.NewArrivalScheduleRules(students, classes), careplanCompose.ArrivalScheduleDependencies{
 		Students: students, Classes: classes, ClassExceptions: exceptions, Logger: logger,
-	})
+	}, nil
 }

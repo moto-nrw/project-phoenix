@@ -1360,15 +1360,19 @@ func newFactory(
 	// Later pickups open a block decision for the Leitung (#3261).
 	pickupAutoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
 		DB: db, Records: carePlan, Baselines: pickupBaselines,
-		Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(timetableCapability, db), Extensions: newPickupExcusalTimetable(timetableCapability, db),
+		Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(timetableCapability, NewPartialAbsencePreview(db)), Extensions: newPickupExcusalTimetable(timetableCapability, NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	// Initialize pickup schedule service
-	pickupScheduleService, err := NewPickupSchedules(db, carePlan, persons, pickupBaselines,
-		pickupAutoExcusal, logger.With("service", "pickup-schedule"))
+	pickupStudents, err := PickupPlanStudents(persons)
+	if err != nil {
+		return nil, err
+	}
+	pickupScheduleService, err := careplanCompose.NewPickupSchedules(db, carePlan, pickupBaselines,
+		pickupAutoExcusal, pickupStudents, logger.With("service", "pickup-schedule"))
 	if err != nil {
 		return nil, err
 	}
@@ -1561,8 +1565,11 @@ func newFactory(
 	if err != nil {
 		return nil, err
 	}
-	arrivalScheduleService, err := NewArrivalSchedules(db, carePlan, persons, arrivalBaselines,
-		ClassArrivalPlans(classArrivalQueries), classExceptions, logger.With("service", "arrival-schedule"))
+	arrivalRules, arrivalDeps, err := ArrivalScheduleBinding(persons, ClassArrivalPlans(classArrivalQueries), classExceptions, logger.With("service", "arrival-schedule"))
+	if err != nil {
+		return nil, err
+	}
+	arrivalScheduleService, err := careplanCompose.NewArrivalSchedules(db, carePlan, arrivalBaselines, arrivalRules, arrivalDeps)
 	if err != nil {
 		return nil, err
 	}
@@ -2009,9 +2016,10 @@ func newFactory(
 	studentAuditService := peopleCompose.NewStudentAuditService(requestAuditActor, NewStudentAuditFor(persons))
 	careLifecycleService, err := careplanCompose.NewCareLifecycle(careplanCompose.CareLifecycleDependencies{
 		DB: db, Records: carePlan,
-		Owners: NewCareLifecycleOwners(db, CareLifecycleOwnerSources{
+		Owners: NewCareLifecycleOwners(CareLifecycleOwnerSources{
 			Students: studentRepository, Persons: personRepository, Membership: membership,
 			People: persons, Timetable: timetableCapability, Calendar: calendar,
+			Presence: newUnloggedStudentPresence(db), PlanReads: mustPresenceReads(db),
 		}, NewCareEndRecorder(studentAuditService)),
 		LockCareBookingWrites: recurrenceLock.LockRecurrenceWrites,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
@@ -2241,7 +2249,12 @@ func newFactory(
 	// Child documents (#777): metadata, per-category authority and the
 	// per-child access gate for the Dokumente tab. Needs the user context to
 	// answer "is this caller verified staff", so it is wired after it.
-	studentDocumentService, err := newStudentDocuments(db, carePlan, studentRepository, userContextService, audits.StudentFieldEdit, audits.DataAccessLog)
+	studentDocumentDeps, err := studentDocumentDependencies(carePlan, studentRepository, userContextService, audits.StudentFieldEdit, audits.DataAccessLog)
+	if err != nil {
+		return nil, fmt.Errorf("compose care plan documents: %w", err)
+	}
+	studentDocumentDeps.DB = db
+	studentDocumentService, err := careplanCompose.NewStudentDocuments(studentDocumentDeps)
 	if err != nil {
 		return nil, fmt.Errorf("compose care plan documents: %w", err)
 	}
@@ -3014,7 +3027,7 @@ func newFactory(
 		StudentHistory:       presenceservice.NewStudentHistory(newStudentPresence(db, logger), historyRoomNames(rooms), NewDataAccessAudit(audits.DataAccessLog), NewHistorySlots(timetableRepos.InstanceStudent)),
 		Statistics: newStatistics(db, logger, presenceCompose.StatisticsDependencies{
 			StatusDays:  statisticsStatusDays{carePlan},
-			Courses:     newCourseStatistics(db),
+			Courses:     newCourseStatistics(mustPresenceReads(db)),
 			Holidays:    tenantHolidays{calendar: calendar},
 			ClosingDays: tenantClosingDays{calendar: calendar},
 			Periods:     statisticsReportPeriods{calendar},
