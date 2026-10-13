@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -49,7 +48,7 @@ func TestAccountProfiles(t *testing.T) {
 
 	// The owner joins the caller's transaction; both reads and writes see it.
 	rollback := errors.New("roll back profile change")
-	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+	err = testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		if writeErr := profiles.SetAccountBio(txCtx, account.ID, "Uncommitted"); writeErr != nil {
 			return writeErr
 		}

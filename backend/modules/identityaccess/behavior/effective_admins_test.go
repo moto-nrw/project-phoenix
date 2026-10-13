@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,8 +85,8 @@ func TestNativeEffectiveAdminsIncludeGrantedWildcardsWithoutSchoolLeakage(t *tes
 			require.NotContains(t, ids, denied.ID)
 			require.NotContains(t, ids, foreign.ID)
 			rollback := errors.New("rollback admin grant revocation")
-			err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
-				txCtx = tenant.WithTenantID(txCtx, home)
+			err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+				txCtx = testpkg.ContextForTenant(txCtx, home)
 				_, writeErr := tx.NewRaw("DELETE FROM auth.role_permissions WHERE role_id = ?", role.ID).Exec(txCtx)
 				require.NoError(t, writeErr)
 				_, writeErr = tx.NewRaw("UPDATE auth.account_permissions SET granted = FALSE WHERE account_id = ? AND tenant_id = ?", directAdmin.ID, home).Exec(txCtx)

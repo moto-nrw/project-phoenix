@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -24,8 +23,8 @@ func TestStaffOffboardingAccessRequiresCommitHooksForDurableCleanup(t *testing.T
 	access := factory.AccountAuthentication()
 	preview, err := access.PreviewStaffOffboarding(ctx, account.ID)
 	require.NoError(t, err)
-	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		_, executeErr := access.ExecuteStaffOffboarding(tenant.ContextWithoutAfterCommitHooks(txCtx), account.ID, preview.Revision)
+	err = testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		_, executeErr := access.ExecuteStaffOffboarding(testpkg.ContextWithoutAfterCommitHooks(txCtx), account.ID, preview.Revision)
 		return executeErr
 	})
 	require.ErrorContains(t, err, "commit hooks are required")
@@ -115,7 +114,7 @@ func TestStaffOffboardingAccessRollsBackWithWorkflow(t *testing.T) {
 	require.True(t, preview.DeactivateAccount)
 	require.NotEmpty(t, preview.RoleIDs)
 	failure := errors.New("later workflow command failed")
-	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+	err = testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		_, executeErr := access.ExecuteStaffOffboarding(txCtx, account.ID, preview.Revision)
 		require.NoError(t, executeErr)
 		return failure

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -20,7 +19,7 @@ func TestPermissionAdministrationScopeAndRollback(t *testing.T) {
 	other := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, other)
 	identity := roleAdministrationOf(t, setupAuthService(t, db))
-	otherCtx := tenant.WithTenantID(ctx, other)
+	otherCtx := testpkg.ContextForTenant(ctx, other)
 	account := testpkg.CreateTestAccount(t, db, "permission-owner")
 	testpkg.MapAccountToTenant(t, db, account.ID, other)
 	role := testpkg.CreateTestRole(t, db, "permission-owner")
@@ -51,8 +50,8 @@ func TestPermissionAdministrationScopeAndRollback(t *testing.T) {
 	require.ElementsMatch(t, []int64{direct.ID, foreignGrant.ID}, permissionIDs(permissions))
 
 	rollback := errors.New("roll back permission changes")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error {
-		txCtx = tenant.WithTenantID(txCtx, tenantID)
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+		txCtx = testpkg.ContextForTenant(txCtx, tenantID)
 		require.NoError(t, identity.GrantPermissionToAccount(txCtx, account.ID, direct.ID))
 		require.NoError(t, identity.RemovePermissionFromRole(txCtx, role.ID, roleGrant.ID))
 		permissions, queryErr := identity.GetAccountPermissions(txCtx, account.ID)

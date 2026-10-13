@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -390,7 +389,7 @@ func TestGuardianWelcomeFailureKeepsTheInvitation(t *testing.T) {
 	// transaction, the way a database error inside the enqueue would.
 	outbox := testpkg.NewCapturingOutbox()
 	outbox.FailKind("guardian_welcome", func(ctx context.Context) error {
-		raw, ok := tenant.TransactionFromContext(ctx)
+		raw, ok := testpkg.TransactionFromContext(ctx)
 		if !ok {
 			return errors.New("welcome enqueue ran outside the invitation transaction")
 		}

@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -86,7 +85,7 @@ func TestNativeMFAPersistenceJoinsAmbientTransaction(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "native-mfa-rollback")
 	rollback := errors.New("rollback mfa enrollment")
-	err := tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
 		require.NoError(t, records.CreateCredential(txCtx, identityaccess.AccountMFACredential{AccountID: account.ID, Method: "email"}))
 		credential, found, readErr := records.FindCredential(txCtx, account.ID)
 		require.NoError(t, readErr)

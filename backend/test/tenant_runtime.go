@@ -50,6 +50,16 @@ func ContextWithTransaction(ctx context.Context, tx any) context.Context {
 	return tenant.WithTransactionForTest(ctx, tx)
 }
 
+// ErrSavepointControl is the tenant runtime's failure to control a savepoint,
+// for doubles that report untrusted transaction state.
+var ErrSavepointControl = tenant.ErrSavepointControl
+
+// ContextWithoutAfterCommitHooks masks the after-commit hooks ctx inherits,
+// for tests of commands that refuse to run without them.
+func ContextWithoutAfterCommitHooks(ctx context.Context) context.Context {
+	return tenant.ContextWithoutAfterCommitHooks(ctx)
+}
+
 // TransactionFromContext returns the ambient tenant transaction of ctx.
 func TransactionFromContext(ctx context.Context) (any, bool) {
 	return tenant.TransactionFromContext(ctx)

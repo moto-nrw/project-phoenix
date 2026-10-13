@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -79,7 +78,7 @@ func TestNativeStaffFeedScopeRotationAndAmbientRollback(t *testing.T) {
 	require.Equal(t, otherHash, stored)
 	rollback := errors.New("rollback staff feed rotation")
 	rotatedHash := calendarFeedHash(account.ID, 2)
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
 		updated, rotateErr := feeds.RotateStaffCalendarFeedToken(txCtx, account.ID, home, rotatedHash)
 		require.NoError(t, rotateErr)
 		require.True(t, updated)

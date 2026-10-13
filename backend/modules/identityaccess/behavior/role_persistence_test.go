@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -22,7 +21,7 @@ func TestRolePersistenceScopeOrderingAndRollback(t *testing.T) {
 	tenantID := testpkg.Tenant(t)
 	other := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, other)
-	otherCtx := tenant.WithTenantID(ctx, other)
+	otherCtx := testpkg.ContextForTenant(ctx, other)
 	baseRole := " user "
 	first, err := identity.CreateRole(ctx, "Primary", "original", &baseRole)
 	require.NoError(t, err)
@@ -62,8 +61,8 @@ func TestRolePersistenceScopeOrderingAndRollback(t *testing.T) {
 	changed := first
 	changed.Name, changed.Description = "Renamed", "transactional change"
 	rollback := errors.New("roll back role changes")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error {
-		txCtx = tenant.WithTenantID(txCtx, tenantID)
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+		txCtx = testpkg.ContextForTenant(txCtx, tenantID)
 		require.NoError(t, identity.UpdateRole(txCtx, changed))
 		current, readErr := identity.GetRole(txCtx, first.ID)
 		require.NoError(t, readErr)

@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -48,7 +47,7 @@ func TestSchoolAccountCountsDeduplicateWithinBoundedGroups(t *testing.T) {
 		return nil
 	}))
 	rollback := errors.New("rollback count membership change")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, tx bun.Tx) error {
 		_, updateErr := tx.NewRaw("UPDATE auth.account_tenants SET status = 'pending' WHERE account_id = ? AND tenant_id = ?", shared.ID, first).Exec(txCtx)
 		require.NoError(t, updateErr)
 		check(txCtx, map[int64]int{0: 2, 1: 0, 2: 2, 3: 0, 4: 0})
