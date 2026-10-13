@@ -50,7 +50,7 @@ func (s *shiftTypeRoute) do(t *testing.T, method, path string, body any) *http.R
 
 func (s *shiftTypeRoute) shiftTypeIDOf(t *testing.T, categoryID int64) *int64 {
 	t.Helper()
-	category, err := s.module.Repositories.Categories.FindByID(s.ctx, categoryID)
+	category, err := s.module.Repositories.Rows.ActivityCategory.FindByID(s.ctx, categoryID)
 	require.NoError(t, err)
 	return category.ShiftTypeID
 }

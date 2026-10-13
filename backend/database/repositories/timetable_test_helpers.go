@@ -7,10 +7,7 @@ import (
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -30,36 +27,31 @@ type TimetableTestRepositories struct {
 	Timetable           timetable.Capability
 	// Repositories are the retained Timetable adapters (#2743).
 	timetableCompose.Repositories
-	StaffShift              *timetableCompose.WorkforceShiftRows
-	ShiftType               *timetableCompose.WorkforceShiftTypeRows
-	CalendarPeriod          scheduleModels.CalendarPeriodRepository
-	ClosingDay              scheduleModels.ClosingDayRepository
-	Dateframe               scheduleModels.DateframeRepository
-	Staff                   usersModels.StaffRepository
-	Teacher                 usersModels.TeacherRepository
-	ClassTeacher            ClassTeacherRepository
-	GroupTeacher            GroupTeacherRepository
-	Person                  usersModels.PersonRepository
-	Student                 usersModels.StudentRepository
-	Group                   EducationGroupRepository
-	ActiveGroup             studentpresence.SessionRecords
-	GroupSupervisor         studentpresence.SupervisionRecords
-	StudentArrivalSchedule  scheduleModels.StudentArrivalScheduleRepository
-	StudentArrivalException scheduleModels.StudentArrivalExceptionRepository
-	StudentArrivalNote      scheduleModels.StudentArrivalNoteRepository
-	StudentPickupSchedule   scheduleModels.StudentPickupScheduleRepository
-	StudentPickupException  scheduleModels.StudentPickupExceptionRepository
-	StudentPickupNote       scheduleModels.StudentPickupNoteRepository
-	StudentStatusDay        *StudentStatusDayRepository
+	StaffShift *timetableCompose.WorkforceShiftRows
+	ShiftType  *timetableCompose.WorkforceShiftTypeRows
+	// CalendarRows are the School Calendar rows and the class arrival
+	// exceptions.
+	timetableCompose.CalendarRows
+	Staff           usersModels.StaffRepository
+	Teacher         usersModels.TeacherRepository
+	ClassTeacher    ClassTeacherRepository
+	GroupTeacher    GroupTeacherRepository
+	Person          usersModels.PersonRepository
+	Student         usersModels.StudentRepository
+	Group           EducationGroupRepository
+	ActiveGroup     studentpresence.SessionRecords
+	GroupSupervisor studentpresence.SupervisionRecords
+	// CareScheduleRepositories are the Care Plan schedule rows.
+	timetableCompose.CareScheduleRepositories
+	StudentStatusDay *StudentStatusDayRepository
 	// CarePlan is the owner capability the schedule adapters above delegate to.
 	CarePlan careplan.Capability
-	Room     facilitiesModels.RoomRepository
+	Room     *facilitiesAdapter.Repository
 	// Facilities is the owner capability the Room adapter delegates to.
 	Facilities facilitiesModule.Capability
 	// DeviationEvent is filled by services.NewTimetableTestRepositories, the
 	// composition that owns Audit persistence (ADR 0049).
-	DeviationEvent        auditModels.DeviationEventRepository
-	ClassArrivalException scheduleModels.ClassArrivalExceptionRepository
+	DeviationEvent auditModels.DeviationEventRepository
 }
 
 // NewTimetableTestRepositories composes the timetable suites' repository
@@ -114,19 +106,19 @@ func NewTimetableTestRepositories(db *bun.DB, members MembershipTestRepositories
 	room := facilitiesAdapter.New()
 	room.Bind(rooms)
 	result := TimetableTestRepositories{
-		Repositories:   adapters,
-		CalendarPeriod: timetableCompose.NewCalendarPeriodRepository(calendar, usage),
-		ClosingDay:     timetableCompose.NewClosingDayRepository(calendar), Dateframe: timetableCompose.NewDateframeRepository(calendar),
+		Repositories: adapters,
+		CalendarRows: timetableCompose.CalendarRows{
+			CalendarPeriod: timetableCompose.NewCalendarPeriodRepository(calendar, usage),
+			ClosingDay:     timetableCompose.NewClosingDayRepository(calendar), Dateframe: timetableCompose.NewDateframeRepository(calendar),
+			ClassArrivalException: timetableCompose.NewClassArrivalExceptionRepository(db),
+		},
 		Staff: members.Staff, Teacher: members.Teacher, ClassTeacher: members.ClassTeacher, GroupTeacher: members.GroupTeacher,
 		Person: members.Person, Student: members.Student, Group: members.Group,
 		ActiveGroup: sessions, GroupSupervisor: NewGroupSupervisionRecords(sessions, groups),
-		StudentArrivalSchedule: NewArrivalScheduleRepository(carePlan), StudentArrivalException: NewArrivalExceptionRepository(carePlan),
-		StudentArrivalNote: NewArrivalNoteRepository(carePlan), StudentPickupSchedule: NewPickupScheduleRepository(carePlan),
-		StudentPickupException: NewPickupExceptionRepository(carePlan), StudentPickupNote: NewPickupNoteRepository(carePlan),
-		StudentStatusDay: NewStudentStatusDayRepository(carePlan), CarePlan: carePlan,
+		CareScheduleRepositories: NewCareScheduleRepositories(carePlan),
+		StudentStatusDay:         NewStudentStatusDayRepository(carePlan), CarePlan: carePlan,
 		enrollment: enrollment, schoolCalendar: calendar, calendarPeriodUsage: usage,
 	}
-	result.ClassArrivalException = timetableCompose.NewClassArrivalExceptionRepository(db)
 	result.Room = room
 	result.Facilities = rooms
 	result.Timetable = bookings
@@ -136,18 +128,6 @@ func NewTimetableTestRepositories(db *bun.DB, members MembershipTestRepositories
 	result.StaffShift = NewWorkforceShiftRows(workTime)
 	result.ShiftType = NewWorkforceShiftTypeRows(workTime)
 	return result, nil
-}
-
-// EnrollmentPickupSchedules binds Enrollment's weekly pickup port to the
-// pickup schedules.
-func (r TimetableTestRepositories) EnrollmentPickupSchedules() timetableCompose.EnrollmentPickupSchedules {
-	return timetableCompose.NewEnrollmentPickupSchedules(r.StudentPickupSchedule)
-}
-
-// EnrollmentArrivalSchedules binds Enrollment's weekly arrival port to the
-// arrival schedules.
-func (r TimetableTestRepositories) EnrollmentArrivalSchedules() timetableCompose.EnrollmentArrivalSchedules {
-	return timetableCompose.NewEnrollmentArrivalSchedules(r.StudentArrivalSchedule)
 }
 
 func (r TimetableTestRepositories) Enrollment() EnrollmentBookingProjection {
@@ -181,7 +161,7 @@ func (r TimetableTestRepositories) OwnerRows() timetableCompose.OwnerRows {
 // repository set (#3424 slice S2), for suites that compose a grade
 // transition or the Enrollment resync.
 func (r TimetableTestRepositories) RosterMaintenance(logger *slog.Logger, now func() time.Time) timetable.RosterMaintenance {
-	return NewTimetableRosterMaintenance(r.ActivityInstance, r.InstanceStudent, r.StudentEnrollment, logger, now)
+	return timetableCompose.NewRosterReconciler(r.ActivityInstance, r.InstanceStudent, r.StudentEnrollment, logger, now)
 }
 
 // MustNewTimetableRecurrenceLock is NewTimetableRecurrenceLock for test
@@ -192,19 +172,6 @@ func MustNewTimetableRecurrenceLock(db *bun.DB) timetable.RecurrenceWriteLock {
 		panic(err)
 	}
 	return lock
-}
-
-// NewTimetableRosterMaintenance is the Timetable owner's roster maintenance
-// (#3424 slice S2) over the retained instance, participant and enrollment
-// rows. logger may be nil; now defaults to the Berlin clock.
-func NewTimetableRosterMaintenance(
-	instances scheduleModels.ActivityInstanceRepository,
-	participants scheduleModels.InstanceStudentRepository,
-	enrollments activitiesModels.StudentEnrollmentRepository,
-	logger *slog.Logger,
-	now ...func() time.Time,
-) timetable.RosterMaintenance {
-	return timetableCompose.NewRosterReconciler(instances, participants, enrollments, logger, now...)
 }
 
 // TimetableTemplateRows fills the template rows from the test repository set.

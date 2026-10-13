@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -21,9 +20,10 @@ func NewAbsenceTypeTestCapability(db *bun.DB) workforce.Capability {
 }
 
 type ShiftTypeTestRepositories struct {
-	Timetable  timetable.Capability
-	Types      *timetableCompose.WorkforceShiftTypeRows
-	Categories activitiesModels.CategoryRepository
+	Timetable timetable.Capability
+	Types     *timetableCompose.WorkforceShiftTypeRows
+	// Rows are the retained Timetable rows, the activity categories among them.
+	Rows timetableCompose.Repositories
 }
 
 func NewShiftTypeTestRepositories(db *bun.DB, members MembershipTestRepositories) ShiftTypeTestRepositories {
@@ -31,5 +31,5 @@ func NewShiftTypeTestRepositories(db *bun.DB, members MembershipTestRepositories
 	if err != nil {
 		panic(err)
 	}
-	return ShiftTypeTestRepositories{Timetable: repos.Timetable, Types: repos.ShiftType, Categories: repos.ActivityCategory}
+	return ShiftTypeTestRepositories{Timetable: repos.Timetable, Types: repos.ShiftType, Rows: repos.Repositories}
 }

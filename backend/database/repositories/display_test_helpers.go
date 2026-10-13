@@ -1,7 +1,7 @@
 package repositories
 
 import (
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -11,7 +11,7 @@ import (
 // stores come from the Settings composition (services.NewDisplayTestRepositories).
 type DisplayTestRepositories struct {
 	TimetableTestRepositories
-	StudentPickupNote scheduleModels.StudentPickupNoteRepository
+	StudentPickupNote timetableCompose.CarePickupNoteRows
 }
 
 // NewDisplayTestRepositories composes the dashboard's read dependencies.

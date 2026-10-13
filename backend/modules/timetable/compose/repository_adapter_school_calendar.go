@@ -575,3 +575,13 @@ func membershipID(id any) (int64, error) {
 		return 0, fmt.Errorf("unsupported id type %T", id)
 	}
 }
+
+// CalendarRows are the retained School Calendar rows the Timetable planner
+// reads (periods, closing days, date frames) and the class arrival
+// exceptions, as the test compositions hand them on.
+type CalendarRows struct {
+	CalendarPeriod        scheduleModels.CalendarPeriodRepository
+	ClosingDay            scheduleModels.ClosingDayRepository
+	Dateframe             scheduleModels.DateframeRepository
+	ClassArrivalException scheduleModels.ClassArrivalExceptionRepository
+}

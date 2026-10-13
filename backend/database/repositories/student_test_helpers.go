@@ -2,11 +2,11 @@ package repositories
 
 import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -19,7 +19,7 @@ type StudentTestRepositories struct {
 	CarePlan           careplan.Capability
 	ParentRequestShare usersModels.ParentRequestShareEventRepository
 	EnrollmentTestRepositories
-	CareScheduleChangeRequest    scheduleModels.CareScheduleChangeRequestRepository
+	CareScheduleChangeRequest    timetableCompose.CareScheduleRequestRows
 	ExcusedAbsenceRequest        *ExcusedAbsenceRequestRepository
 	ParentRequestEvent           usersModels.ParentRequestEventRepository
 	StudentDataChangeRequest     usersModels.StudentDataChangeRequestRepository

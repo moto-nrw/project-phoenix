@@ -51,7 +51,8 @@ func TestCheckoutRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 				testpkg.OwnTenant(t)
 				db := testpkg.SetupTestDB(t)
 				module := testSchoolPresence(t, db)
-				instances, assignments := repositories.NewAttendanceSyncTestRepositories(db, services.NewUnobservedTimetableDependencies(db).Capability)
+				syncRows := repositories.NewAttendanceSyncTestRepositories(db, services.NewUnobservedTimetableDependencies(db).Capability)
+				instances, assignments := syncRows.Instances, syncRows.Participants
 				injected := errors.New("fail after slot checkout")
 				rows := &failingSlotCheckout{InstanceStudentRepository: assignments}
 				var settingsErr error
