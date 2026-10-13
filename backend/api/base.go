@@ -1743,7 +1743,7 @@ func newEnrollmentResource(modules moduleServices) *enrollmentAPI.Resource {
 func mountPeopleRoutes(tenant chi.Router, in routeInputs) {
 	svc, modules, logger := in.modules.services, in.modules, in.logger
 	tenant.Mount("/statistics", statisticsAPI.NewResource(svc.Statistics, svc.ListExport, logger.With("handler", "statistics")).Router())
-	tenant.Mount("/guardians", newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(in.db), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
+	tenant.Mount("/guardians", newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(peopleCompose.NewLegacyRepositoryRuntime(in.db)), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
 	tenant.Mount("/feedback", newFeedbackResource(modules.feedback).Router())
 	tenant.Mount("/meal-plan", newMealPlanResource(modules.mealPlan, newMealPlanExportRenderer()).Router())
 	tenant.Mount("/users", newUsersResource(modules.persons, svc.Auth.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {

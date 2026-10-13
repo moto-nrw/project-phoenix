@@ -857,7 +857,7 @@ func newFactory(
 	// and Workforce territory (#3752); the person service takes them through
 	// the StaffDirectory port.
 	staffDirectory := NewStaffDirectory(StaffDirectoryDependencies{
-		DB: db, Persons: personRepository, Staff: staffRepository, Teachers: teacherRepository, LehrkraftRoles: identityRoles,
+		Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: personRepository, Staff: staffRepository, Teachers: teacherRepository, LehrkraftRoles: identityRoles,
 	})
 
 	// Care Plan is composed further down and reads the person directory, so
@@ -888,10 +888,11 @@ func newFactory(
 	// Personnel record (#1417, #1423, #1424): the payroll number, the Stammdaten
 	// sections and the Dokumente tab are Workforce's own administration; the
 	// staff and person rows behind it and the audit trail are bound here.
-	staffAdmin, err := NewStaffAdmin(StaffAdminDependencies{
-		DB: db, Staff: staffRepository, Persons: personRepository, Membership: membership,
+	staffAdmin, err := ComposeStaffAdmin(workforceCompose.StaffAdminDependencies{
+		DB: db, Logger: logger.With("service", "staff_documents"), Now: now,
+	}, StaffAdminOwners{
+		Staff: staffRepository, Persons: personRepository, Membership: membership,
 		MasterDataAudit: audits.StaffMasterDataChange, PersonnelNumber: audits.PersonnelNumberChange, DataAccessLog: audits.DataAccessLog,
-		Logger: logger.With("service", "staff_documents"), Now: now,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("staff admin: %w", err)
@@ -3104,7 +3105,7 @@ func newFactory(
 	}
 	// The People Directory serves guardians through the owner's legacy
 	// guardian service (#2663); bind it now that the service exists.
-	factory.bindGuardianDirectory(persons, db)
+	factory.bindGuardianDirectory(persons, peopleCompose.NewLegacyRepositoryRuntime(db))
 	// Permanent child deletion is the owner workflow of #2710. It runs over
 	// the bound People Directory, Care Plan and Timetable capabilities; the
 	// photo unlink resolves lazily because EnableStudentPhotos runs later in

@@ -39,7 +39,7 @@ func NewTestPersonDirectory(db *bun.DB, sources TestPersonDirectorySources) *peo
 	}
 	if sources.Staff != nil {
 		deps.StaffDirectory = NewStaffDirectory(StaffDirectoryDependencies{
-			DB: db, Persons: sources.Persons, Staff: sources.Staff, Teachers: sources.Teachers,
+			Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: sources.Persons, Staff: sources.Staff, Teachers: sources.Teachers,
 		})
 	}
 	return peopleCompose.NewPersonDirectory(deps)

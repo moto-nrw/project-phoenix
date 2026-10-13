@@ -6,10 +6,13 @@ import (
 	"time"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -63,7 +66,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
 		PersonRepo:       repos.Person, RFIDRepo: newPeopleIdentityAccess(db, nil), AccountExists: AccountExists(identityAccess), StudentRepo: repos.Student,
 		TeacherRepo:    repos.Teacher,
-		StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher, LehrkraftRoles: identityRoles}),
+		StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher, LehrkraftRoles: identityRoles}),
 	})
 	staffAdmin, err := NewStaffAdmin(StaffAdminDependencies{
 		DB: db, Staff: repos.Staff, Persons: repos.Person, Membership: repos.Membership,
@@ -223,4 +226,31 @@ type UpdateAbsenceRequest = timetracking.UpdateAbsenceRequest
 // composition.
 func MustNewStaffEmployment(db *bun.DB) workforce.StaffEmployments {
 	return workforceCompose.MustNewStaffEmployment(db)
+}
+
+// StaffAdminDependencies are the collaborators of the personnel-record
+// administration for the test graphs outside this package whose test roles
+// may not name the Workforce composition.
+type StaffAdminDependencies struct {
+	DB         *bun.DB
+	Staff      userModels.StaffRepository
+	Persons    userModels.PersonRepository
+	Membership schoolmembership.Capability
+
+	MasterDataAudit auditModels.StaffMasterDataChangeCreator
+	PersonnelNumber auditModels.PersonnelNumberChangeCreator
+	DataAccessLog   auditModels.DataAccessLogRepository
+	Observe         func(workforceCompose.Observation)
+	Logger          *slog.Logger
+	Now             func() time.Time
+}
+
+// NewStaffAdmin is ComposeStaffAdmin over one flat dependency set.
+func NewStaffAdmin(deps StaffAdminDependencies) (*workforce.StaffAdmin, error) {
+	return ComposeStaffAdmin(workforceCompose.StaffAdminDependencies{
+		DB: deps.DB, Observe: deps.Observe, Logger: deps.Logger, Now: deps.Now,
+	}, StaffAdminOwners{
+		Staff: deps.Staff, Persons: deps.Persons, Membership: deps.Membership,
+		MasterDataAudit: deps.MasterDataAudit, PersonnelNumber: deps.PersonnelNumber, DataAccessLog: deps.DataAccessLog,
+	})
 }

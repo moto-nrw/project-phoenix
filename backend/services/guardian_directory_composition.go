@@ -13,8 +13,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // Guardian directory composition (#2663). The People Directory facade owns
@@ -32,26 +30,24 @@ type guardianProviderBinder interface {
 // bindGuardianDirectory installs the guardian provider on the People
 // Directory. A capability without the binder cannot serve guardians at all,
 // so the composition refuses to continue silently.
-func (f *Factory) bindGuardianDirectory(persons peopledirectory.Capability, db *bun.DB) {
+func (f *Factory) bindGuardianDirectory(persons peopledirectory.Capability, runtime peopleCompose.LegacyRepositoryRuntime) {
 	binder, ok := persons.(guardianProviderBinder)
 	if !ok {
 		panic(fmt.Sprintf("guardian directory: people directory %T cannot bind the guardian provider", persons))
 	}
-	binder.BindGuardianProvider(&guardianDirectoryProvider{guardians: f.Guardian, db: db})
+	binder.BindGuardianProvider(&guardianDirectoryProvider{guardians: f.Guardian, runtime: runtime})
 }
 
 type guardianDirectoryProvider struct {
 	guardians *peopleCompose.GuardianService
-	db        *bun.DB
+	runtime   peopleCompose.LegacyRepositoryRuntime
 }
 
 // inTenantTx runs fn in the tenant transaction of the context, joining the
 // request transaction when one is open. Every write of the old handlers ran
 // this way, so a failure rolls the whole request back.
 func (p *guardianDirectoryProvider) inTenantTx(ctx context.Context, fn func(context.Context) error) error {
-	return tenant.WithTenantTx(ctx, p.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-		return fn(txCtx)
-	})
+	return p.runtime.InTenantTx(ctx, fn)
 }
 
 func (p *guardianDirectoryProvider) FindGuardian(ctx context.Context, id int64) (peopledirectory.Guardian, error) {
@@ -671,17 +667,19 @@ type GuardianDirectoryRuntime struct {
 // exportConfidentialityNote is stamped on every page of the exported list.
 const exportConfidentialityNote = "Vertraulich. Enthält Bankverbindungen. Bitte nicht per E-Mail weitergeben."
 
-// NewGuardianDirectoryRuntime composes the closures over the service factory.
-func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRuntime {
+// NewGuardianDirectoryRuntime composes the closures over the service factory;
+// runtime is the People Directory's tenant runtime the invitation writes run
+// in.
+func (f *Factory) NewGuardianDirectoryRuntime(runtime peopleCompose.LegacyRepositoryRuntime) GuardianDirectoryRuntime {
 	return GuardianDirectoryRuntime{
 		IsVerifiedStaff: func(ctx context.Context) bool {
 			staff, err := f.UserContext.HasCurrentStaff(ctx)
 			return err == nil && staff
 		},
-		MarkRollback: tenant.MarkRollback,
+		MarkRollback: runtime.MarkRollback,
 		SendInvitation: func(ctx context.Context, guardianID, actorAccountID int64) (GuardianInvitationSummary, error) {
 			var summary GuardianInvitationSummary
-			err := tenant.WithTenantTx(ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+			err := runtime.InTenantTx(ctx, func(txCtx context.Context) error {
 				invitation, err := f.GuardianInvitation.CreateGuardianInvitation(txCtx, identityaccess.GuardianInvitationRequest{
 					GuardianProfileID: guardianID, CreatedBy: actorAccountID,
 				})
@@ -717,7 +715,7 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 				RequireApproval: false, ConfirmRoleUpgrade: input.ConfirmRoleUpgrade,
 			})
 			if err != nil {
-				tenant.MarkRollback(ctx)
+				runtime.MarkRollback(ctx)
 				return GuardianInviteResult{}, err
 			}
 			return GuardianInviteResult{
@@ -728,7 +726,7 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 		BulkInviteGuardians: func(ctx context.Context, req GuardianBulkInviteRequest) (*GuardianBulkInviteResult, error) {
 			result, err := f.GuardianInvitation.BulkInviteToStudents(ctx, req)
 			if err != nil {
-				tenant.MarkRollback(ctx)
+				runtime.MarkRollback(ctx)
 			}
 			return result, err
 		},
@@ -751,14 +749,14 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 		PendingInvitationStudentID: f.GuardianInvitation.PendingInvitationStudentID,
 		ApproveInvitation: func(ctx context.Context, invitationID, actorAccountID int64) error {
 			if err := f.GuardianInvitation.ApproveInvitation(ctx, invitationID, actorAccountID); err != nil {
-				tenant.MarkRollback(ctx)
+				runtime.MarkRollback(ctx)
 				return err
 			}
 			return nil
 		},
 		RejectInvitation: func(ctx context.Context, invitationID, actorAccountID int64) error {
 			if err := f.GuardianInvitation.RejectInvitation(ctx, invitationID, actorAccountID); err != nil {
-				tenant.MarkRollback(ctx)
+				runtime.MarkRollback(ctx)
 				return err
 			}
 			return nil

@@ -13,7 +13,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // This file binds the five surfaces the People Directory photo lifecycle needs
@@ -129,21 +128,21 @@ type StudentPhotoCapability interface {
 }
 
 func (s studentPhotos) CommitUpload(ctx context.Context, req peopleCompose.CommitUploadRequest) error {
-	if tenant.FromContext(ctx) <= 0 {
+	if peopleCompose.CallerTenantID(ctx) <= 0 {
 		return ErrPhotoNoTenant
 	}
 	return s.directory.CommitStudentPhoto(ctx, req.StudentID, req.NewStoredURL, req.ConsentAck)
 }
 
 func (s studentPhotos) CommitDelete(ctx context.Context, studentID int64) (string, error) {
-	if tenant.FromContext(ctx) <= 0 {
+	if peopleCompose.CallerTenantID(ctx) <= 0 {
 		return "", ErrPhotoNoTenant
 	}
 	return s.directory.ClearStudentPhoto(ctx, studentID)
 }
 
 func (s studentPhotos) LookupForRead(ctx context.Context, studentID int64, filename string) (string, error) {
-	if tenant.FromContext(ctx) <= 0 {
+	if peopleCompose.CallerTenantID(ctx) <= 0 {
 		return "", ErrPhotoNoTenant
 	}
 	return s.directory.FindStudentPhoto(ctx, studentID, filename)

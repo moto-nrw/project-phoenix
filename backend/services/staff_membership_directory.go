@@ -9,8 +9,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // The staff and teacher half of the person service left services/users in
@@ -60,7 +58,8 @@ type LehrkraftRoleQuery interface {
 // StaffDirectoryDependencies are the retained collaborators of the staff
 // directory.
 type StaffDirectoryDependencies struct {
-	DB             *bun.DB
+	// Runtime runs the staff writes in the request's tenant transaction.
+	Runtime        peopleCompose.LegacyRepositoryRuntime
 	Persons        userModels.PersonRepository
 	Staff          userModels.StaffRepository
 	Teachers       userModels.TeacherRepository
@@ -68,7 +67,7 @@ type StaffDirectoryDependencies struct {
 }
 
 type staffMembershipDirectory struct {
-	db             *bun.DB
+	runtime        peopleCompose.LegacyRepositoryRuntime
 	persons        userModels.PersonRepository
 	staff          userModels.StaffRepository
 	teachers       userModels.TeacherRepository
@@ -81,7 +80,7 @@ func NewStaffDirectory(deps StaffDirectoryDependencies) peopleCompose.StaffDirec
 		panic("staff directory: the staff repository is required")
 	}
 	return &staffMembershipDirectory{
-		db: deps.DB, persons: deps.Persons, staff: deps.Staff, teachers: deps.Teachers, lehrkraftRoles: deps.LehrkraftRoles,
+		runtime: deps.Runtime, persons: deps.Persons, staff: deps.Staff, teachers: deps.Teachers, lehrkraftRoles: deps.LehrkraftRoles,
 	}
 }
 
@@ -144,8 +143,7 @@ func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, i
 	var teacher *userModels.Teacher
 	teacherCreationFailed := false
 
-	tenantID := tenant.FromContext(ctx)
-	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := s.runtime.InTenantTx(ctx, func(ctx context.Context) error {
 		if err := s.refuseCaregiverProfileForLehrkraft(ctx, input.PersonID, input.IsTeacher); err != nil {
 			return err
 		}
@@ -300,8 +298,7 @@ func (s *staffMembershipDirectory) UpdateStaffWithTeacher(ctx context.Context, s
 	var teacher *userModels.Teacher
 	action := peopleCompose.TeacherActionNone
 
-	tenantID := tenant.FromContext(ctx)
-	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := s.runtime.InTenantTx(ctx, func(ctx context.Context) error {
 		currentStaff, err := s.staff.FindByIDForUpdate(ctx, staff.ID)
 		if err != nil {
 			return err

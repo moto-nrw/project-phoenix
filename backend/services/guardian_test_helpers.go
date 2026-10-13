@@ -52,9 +52,9 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 		GuardianFinancialAudit: newGuardianFinancialAudit(g.FinancialAudit), DataAccessLog: newGuardianDataAccessLog(g.AccessLog),
 		RolePresets: guardianRolePresets{}, DB: db,
 	})
-	people.(guardianProviderBinder).BindGuardianProvider(&guardianDirectoryProvider{guardians: guardian, db: db})
+	people.(guardianProviderBinder).BindGuardianProvider(&guardianDirectoryProvider{guardians: guardian, runtime: peopleCompose.NewLegacyRepositoryRuntime(db)})
 	// The compatibility carrier only maps the existing four capabilities to
 	// the production runtime closures. It constructs no additional services.
 	carrier := &Factory{Guardian: guardian, GuardianInvitation: auth.GuardianInvitation, UserContext: identity, ListExport: lists.NewRendererService()}
-	return GuardianTestModule{PeopleDirectory: people, PhotoRuntime: photoRuntime, runtime: carrier.NewGuardianDirectoryRuntime(db)}, nil
+	return GuardianTestModule{PeopleDirectory: people, PhotoRuntime: photoRuntime, runtime: carrier.NewGuardianDirectoryRuntime(peopleCompose.NewLegacyRepositoryRuntime(db))}, nil
 }

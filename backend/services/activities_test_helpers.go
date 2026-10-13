@@ -35,7 +35,7 @@ func NewActivitiesTestModule(db *bun.DB) (ActivitiesTestModule, error) {
 			PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
 			StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
 			PersonRepo:       r.Person, TeacherRepo: r.Teacher,
-			StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: r.Person, Staff: r.Staff, Teachers: r.Teacher}),
+			StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: r.Person, Staff: r.Staff, Teachers: r.Teacher}),
 		}),
 	}, nil
 }
