@@ -3,6 +3,7 @@ import { createLogger } from "~/lib/logger";
 import { captureBffException } from "~/lib/sentry-bff.server";
 import {
   ApiError,
+  errorClassCode,
   problemBody,
   problemTitle,
   type ProblemBody,
@@ -164,9 +165,13 @@ export function handleApiError(
   if (error instanceof ApiError && error.status !== undefined) {
     // The message is diagnostics from this server: it is logged, the browser
     // reads the code.
-    logApiRouteError(error.status, error.message, error.code);
+    const code =
+      error.code && registeredErrorCodes.has(error.code)
+        ? error.code
+        : errorClassCode(error.status);
+    logApiRouteError(error.status, error.message, code);
     return problemResponse(error.status, problemTitle(error.status), {
-      code: error.code,
+      code,
       errors: error.errors,
       details: error.details,
       instance: error.instance,

@@ -284,6 +284,23 @@ describe("handleApiError", () => {
     expect(body).not.toContain("internal diag");
   });
 
+  it("replaces an unregistered ApiError code with its status class", async () => {
+    const response = handleApiError(
+      new ApiError("upstream diagnostic", 409, {
+        code: "upstream.unknown_code",
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 409,
+      code: "general.business_rejection",
+    });
+    expect(body).not.toContain("upstream diagnostic");
+    expect(body).not.toContain("upstream.unknown_code");
+  });
+
   // A plain Error whose text happens to look like the old
   // "API error (403)" shape carries no status: the text never decides.
   it("never reads a status out of the message", async () => {
