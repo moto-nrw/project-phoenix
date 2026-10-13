@@ -7,14 +7,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // timetableOperationPresence is the Student Presence slice the operational

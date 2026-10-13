@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationcompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -31,7 +32,7 @@ type DemoRuntime struct {
 	queue        *organizationtenancy.DemoSchoolQueue
 	expiry       services.DemoAccessExpiry
 	presence     *studentpresence.Module
-	transactions services.TenantRuntime
+	transactions apiCommon.TenantRuntime
 }
 
 // NewDemoRuntime composes the sidecar on its privileged connection; now is
@@ -155,7 +156,7 @@ func (d *DemoRuntime) WithDemoLease(ctx context.Context, name string, run func(c
 	return d.schools.WithDemoLease(ctx, name, run)
 }
 
-func (d *DemoRuntime) TenantRuntime() services.TenantRuntime { return d.transactions }
+func (d *DemoRuntime) TenantRuntime() apiCommon.TenantRuntime { return d.transactions }
 
 // LatestDemoVisits translates the owner snapshot for the demo CLI.
 // The caller must provide its tenant-scoped transaction context.

@@ -35,6 +35,6 @@ func NewUserContextTestRepositories(db *bun.DB, members MembershipTestRepositori
 		return UserContextTestRepositories{}, err
 	}
 	return UserContextTestRepositories{
-		Timetable: timetable, Profile: newIdentityAccess(db, nil), Substitutions: members.GroupSubstitution, StaffGroups: staffGroups,
+		Timetable: timetable, Profile: newPeopleIdentityAccess(db, nil), Substitutions: members.GroupSubstitution, StaffGroups: staffGroups,
 	}, nil
 }

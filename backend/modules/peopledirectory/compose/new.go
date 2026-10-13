@@ -344,3 +344,15 @@ func mapError(err error) error {
 		return err
 	}
 }
+
+// MustNewReads composes the People Directory unobserved and without its write
+// owners or audit seams, for the student reads and the row lock other owners'
+// compositions take. Composing only fails on a missing dependency, which is a
+// programming error at wiring time.
+func MustNewReads(db *bun.DB) *peopledirectory.Module {
+	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}})
+	if err != nil {
+		panic(fmt.Sprintf("compose people directory reads: %v", err))
+	}
+	return module
+}

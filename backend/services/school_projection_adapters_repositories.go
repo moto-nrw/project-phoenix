@@ -6,19 +6,7 @@ import (
 	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/uptrace/bun"
 )
-
-// NewOrganizationTenancy composes the school owner behind the legacy
-// composition seam. Consumers should depend on a narrow projection instead
-// of importing the module's compose package themselves.
-func NewOrganizationTenancy(db *bun.DB) (organizationtenancy.Capability, error) {
-	return organizationCompose.New(organizationCompose.Dependencies{
-		DB:      db,
-		Observe: func(organizationCompose.Observation) {},
-	})
-}
 
 func (r operatorAccountDirectory) ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error) {
 	schools, err := r.schools.ListSchoolsByOrganization(ctx, organizationID)

@@ -3,9 +3,8 @@ package services
 import (
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/uptrace/bun"
 )
 
@@ -32,7 +31,7 @@ func NewTestAuditPersistence(db *bun.DB, command auditModels.Command) *auditComp
 // routed through an Audit command over the test append store, the way the
 // test service graph (NewFactoryForTests) routes its repositories.
 func NewRoutedTestAuditPersistence(db *bun.DB) (*auditCompose.Persistence, error) {
-	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return nil, err
 	}

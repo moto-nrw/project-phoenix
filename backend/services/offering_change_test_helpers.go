@@ -7,10 +7,11 @@ import (
 
 	"github.com/uptrace/bun"
 
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -46,7 +47,7 @@ func NewOfferingChangeTestModule(db *bun.DB, options OfferingChangeTestOptions) 
 	if options.Settings == nil || options.Bookings == nil {
 		return nil, errors.New("offering change test module: settings and bookings are required")
 	}
-	auditCommand, err := auditService.NewCommand(NewTestAuditStore(db), func(auditService.AppendObservation) {})
+	auditCommand, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +57,8 @@ func NewOfferingChangeTestModule(db *bun.DB, options OfferingChangeTestOptions) 
 	}
 	return newOfferingChanges(offeringChangeInputs{
 		CarePlan: repos.CarePlan, Catalog: options.Catalog, Enrollment: repos.Enrollment(), Students: repos.Student,
-		Withdrawals: repos.CareWithdrawal, Settings: options.Settings, Planning: manualPlanningReader{db: db, courseGroups: repos.Timetable},
-		Bookings: options.Bookings, Reviews: offeringChangeTestScope(options.Scope), Today: options.Today,
+		Withdrawals: repos.CareWithdrawal, Settings: options.Settings, Planning: manualPlanningReader{query: enrollmentCompose.NewManualPlanningQuery(db), courseGroups: repos.Timetable},
+		Bookings: options.Bookings, Reviews: offeringChangeTestScope(options.Scope), Permissions: testRequestTokens.Permissions, Today: options.Today,
 		Logger: slog.Default(),
 	})
 }

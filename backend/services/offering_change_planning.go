@@ -4,9 +4,9 @@ import (
 	"context"
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/uptrace/bun"
 )
 
 // manualPlanningReader serves Care Plan's offering-change planning port: the
@@ -14,14 +14,14 @@ import (
 // feeds, through Enrollment's manual-planning query and the Timetable
 // owner's course-group read.
 type manualPlanningReader struct {
-	db           *bun.DB
+	query        *enrollmentCompose.ManualPlanningQuery
 	courseGroups timetable.CourseGroupQuery
 }
 
 var _ carePlanCompose.OfferingChangePlanning = manualPlanningReader{}
 
 func (r manualPlanningReader) ListManualPlanningOccurrences(ctx context.Context, studentID int64, from, to string) ([]carePlanCompose.ManualPlanningOccurrence, error) {
-	rows, err := NewManualPlanningQuery(r.db).ListManualPlanningOccurrences(ctx, studentID, from, to)
+	rows, err := r.query.ListManualPlanningOccurrences(ctx, studentID, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func timetableCourseGroup(group timetable.CourseGroup) carePlanCompose.CourseGro
 }
 
 func (r manualPlanningReader) LockCourseGroups(ctx context.Context, groupIDs []int64) ([]carePlanCompose.CourseGroup, error) {
-	groups, err := NewManualPlanningQuery(r.db).LockCourseGroups(ctx, groupIDs)
+	groups, err := r.query.LockCourseGroups(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -100,5 +100,5 @@ func (r manualPlanningReader) LockCourseGroups(ctx context.Context, groupIDs []i
 }
 
 func (r manualPlanningReader) CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error) {
-	return NewManualPlanningQuery(r.db).CountActiveCourseEnrollments(ctx, groupIDs, from, until, excludeStudentID)
+	return r.query.CountActiveCourseEnrollments(ctx, groupIDs, from, until, excludeStudentID)
 }

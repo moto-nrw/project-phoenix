@@ -83,3 +83,16 @@ func (LegacyRepositoryRuntime) WithSavepoint(ctx context.Context, fn func(contex
 func (LegacyRepositoryRuntime) WithinCurrentTenant(ctx context.Context, fn func(context.Context) error) error {
 	return tenant.WithinCurrentTenant(ctx, fn)
 }
+
+// InTenantTx runs fn in the tenant transaction of the context's school,
+// joining the request transaction when one is open, so a failure rolls the
+// whole request back.
+func (r LegacyRepositoryRuntime) InTenantTx(ctx context.Context, fn func(context.Context) error) error {
+	return tenant.WithTenantTx(ctx, r.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		return fn(txCtx)
+	})
+}
+
+// MarkRollback asks the request's tenant transaction to roll back although
+// the handler answers.
+func (LegacyRepositoryRuntime) MarkRollback(ctx context.Context) { tenant.MarkRollback(ctx) }

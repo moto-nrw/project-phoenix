@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	calendarRuntime "github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -158,7 +159,7 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 	row := &emailoutbox.Intent{TenantID: parentChain.TenantID, Kind: reminder.Kind, Payload: reminder.Payload}
 	render := calendarRuntime.NewCalendarAppointmentRenderer(calendarRuntime.CalendarEmailDependencies{
 		DefaultFrom: email.NewEmail("moto", "no-reply@example.com"),
-		DB:          db,
+		Runtime:     calendarCompose.NewTenantRuntime(db),
 		Guardians:   calendarTestRepositories(t, db).StudentGuardian,
 	})
 

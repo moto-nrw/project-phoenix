@@ -1,21 +1,12 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
-	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 )
-
-// TenantRuntime is the unit of work composed services run tenant work under.
-// Package-local callers name it through this alias so composition tests stay
-// free of the runtime package.
-type TenantRuntime = tenant.UnitOfWork
-
-type tenantRuntimeSetter interface {
-	SetTenantRuntime(tenant.UnitOfWork)
-}
 
 // tenantRuntimeBinder is the shape a composed module exposes when its own
 // contract must not name the runtime package: it takes the unit of work as
@@ -25,28 +16,58 @@ type tenantRuntimeBinder interface {
 	SetTenantRuntime(any) error
 }
 
-// SetTenantRuntime wires the runtime into every composed service that accepts
-// one. Fields are discovered by reflection so a new service with a
-// SetTenantRuntime method cannot be forgotten in a hand-maintained list.
-func (f *Factory) SetTenantRuntime(runtime tenant.UnitOfWork) error {
-	if setter, ok := f.Settings.(interface{ SetRuntime(config.Runtime) }); ok {
-		setter.SetRuntime(newSettingsRuntime(f.settingsRuntimeDB, &runtime))
+// SetTenantRuntime wires the root's unit of work into every composed service
+// that accepts one. Fields are discovered by reflection so a new service with
+// a SetTenantRuntime method cannot be forgotten in a hand-maintained list. A
+// service whose SetTenantRuntime takes the unit of work's own type receives
+// it as such; one that takes an opaque value checks it itself (#3364).
+func (f *Factory) SetTenantRuntime(runtime any) error {
+	if runtime == nil {
+		return errors.New("bind tenant runtime: no unit of work given")
 	}
+	if setter, ok := f.Settings.(interface {
+		SetRuntime(settingsCompose.SettingsRuntime)
+	}); ok {
+		settingsRuntime, err := settingsCompose.BindTenantSettingsRuntime(f.settingsRuntimeDB, runtime)
+		if err != nil {
+			return fmt.Errorf("bind tenant runtime into Settings: %w", err)
+		}
+		setter.SetRuntime(settingsRuntime)
+	}
+	value := reflect.ValueOf(runtime)
 	fields := reflect.ValueOf(f).Elem()
 	for i := 0; i < fields.NumField(); i++ {
 		field := fields.Field(i)
 		if !field.CanInterface() || isNilValue(field) {
 			continue
 		}
-		switch setter := field.Interface().(type) {
-		case tenantRuntimeSetter:
-			setter.SetTenantRuntime(runtime)
-		case tenantRuntimeBinder:
-			if err := setter.SetTenantRuntime(runtime); err != nil {
+		if binder, ok := field.Interface().(tenantRuntimeBinder); ok {
+			if err := binder.SetTenantRuntime(runtime); err != nil {
 				return fmt.Errorf("bind tenant runtime into %s: %w", fields.Type().Field(i).Name, err)
 			}
+			continue
+		}
+		if err := setTypedTenantRuntime(field, value); err != nil {
+			return fmt.Errorf("bind tenant runtime into %s: %w", fields.Type().Field(i).Name, err)
 		}
 	}
+	return nil
+}
+
+// setTypedTenantRuntime calls field's SetTenantRuntime with the unit of
+// work. A field without the method takes no runtime; a method of any other
+// shape is a wiring error that fails startup instead of leaving the service
+// unbound.
+func setTypedTenantRuntime(field, runtime reflect.Value) error {
+	method := reflect.ValueOf(field.Interface()).MethodByName("SetTenantRuntime")
+	if !method.IsValid() {
+		return nil
+	}
+	signature := method.Type()
+	if signature.NumIn() != 1 || signature.NumOut() != 0 || !runtime.Type().AssignableTo(signature.In(0)) {
+		return fmt.Errorf("SetTenantRuntime has signature %s, want func(%s)", signature, runtime.Type())
+	}
+	method.Call([]reflect.Value{runtime})
 	return nil
 }
 

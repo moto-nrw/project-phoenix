@@ -6,21 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/uptrace/bun"
 )
-
-// MustNewStaffEmployment composes Workforce's owner of the staff employment
-// profile (users.staff_employment_profiles, #2753) without observations, for
-// legacy composition and test graphs that treat a composition failure as a
-// programming error. Production roots compose it observed (api/base.go).
-func MustNewStaffEmployment(db *bun.DB) workforce.StaffEmployments {
-	employment, err := workforceCompose.NewStaffEmployment(db, nil)
-	if err != nil {
-		panic(err)
-	}
-	return employment
-}
 
 // MembershipStaffEmployment binds School Membership's consumer-owned
 // employment port to the Workforce owner, translating the errors School
@@ -65,5 +51,15 @@ func WorkforceLiveStaffIDs(membership schoolmembership.Capability) func(context.
 			live = append(live, member.ID)
 		}
 		return live, nil
+	}
+}
+
+// WorkforceStaffAssignmentLock answers Workforce's lock on a staff
+// assignment: the School Membership row of the staff member is locked for
+// the mutation the caller's unit of work is about to make.
+func WorkforceStaffAssignmentLock(membership schoolmembership.Capability) func(context.Context, int64) error {
+	return func(ctx context.Context, staffID int64) error {
+		_, err := membership.FindStaffForMutation(ctx, staffID)
+		return err
 	}
 }

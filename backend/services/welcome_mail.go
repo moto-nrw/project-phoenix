@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 )
 
 // The welcome mail (#3534) follows an invitation: a greeting and a link to

@@ -3,12 +3,12 @@ package services
 import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services/activities"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
 
 type ActivitiesTestModule struct {
-	Activities  activities.ActivityService
+	Activities  timetableCompose.ActivityService
 	Timetable   timetable.Capability
 	Users       *peopleCompose.PersonDirectory
 	UserContext *CallerRows
@@ -23,7 +23,7 @@ func NewActivitiesTestModule(db *bun.DB) (ActivitiesTestModule, error) {
 	if err != nil {
 		return ActivitiesTestModule{}, err
 	}
-	activityService, err := activities.NewService(r.Timetable, r.ActivityGroup, r.ActivitySchedule,
+	activityService, err := timetableCompose.NewService(r.Timetable, r.ActivityGroup, r.ActivitySchedule,
 		r.ActivitySupervisor, r.StudentEnrollment, r.ActiveGroup, r.Staff, r.Student)
 	if err != nil {
 		return ActivitiesTestModule{}, err
@@ -35,7 +35,7 @@ func NewActivitiesTestModule(db *bun.DB) (ActivitiesTestModule, error) {
 			PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
 			StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
 			PersonRepo:       r.Person, TeacherRepo: r.Teacher,
-			StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: r.Person, Staff: r.Staff, Teachers: r.Teacher}),
+			StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: r.Person, Staff: r.Staff, Teachers: r.Teacher}),
 		}),
 	}, nil
 }

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 
+	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
 	"github.com/moto-nrw/project-phoenix/services"
 )
@@ -22,8 +23,8 @@ func activeAuthorization() presenceAPI.Authorization {
 
 func activeRequestRuntime() presenceAPI.RequestRuntime {
 	return presenceAPI.RequestRuntime{
-		WithStaff:    services.WithAttendanceStaff,
-		TenantID:     services.AttendanceTenantID,
-		MarkRollback: services.MarkAttendanceRollback,
+		WithStaff:    devicescanCompose.WithAttendanceStaff,
+		TenantID:     devicescanCompose.AttendanceTenantID,
+		MarkRollback: devicescanCompose.MarkAttendanceRollback,
 	}
 }

@@ -6,7 +6,10 @@ import (
 	"log/slog"
 	"time"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
@@ -19,8 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
-	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 	sessionEndCompose "github.com/moto-nrw/project-phoenix/workflows/sessionend/compose"
@@ -32,14 +33,14 @@ func (ActiveTestModule) WithAttendanceStaff(ctx context.Context, staffID, tenant
 }
 
 type activeTestYard struct {
-	facilities.SchulhofService
+	facilitiesCompose.SchulhofService
 	supervisiondashboard.Yard
 }
 
 type ActiveTestModule struct {
 	GroupsTestModule
 	IoTDataTestModule
-	Settings            config.BatchSettingsService
+	Settings            settingsCompose.BatchSettingsService
 	Schulhof            activeTestYard
 	PickupSchedule      careplan.PickupScheduleService
 	ArrivalSchedule     careplan.ArrivalScheduleService
@@ -59,8 +60,8 @@ func (m ActiveTestModule) AttendancePeople() attendanceRoutePeople {
 	return NewAttendanceRoutePeople(m.Users)
 }
 
-func (m ActiveTestModule) AttendanceStaff() attendanceRouteStaff {
-	return NewAttendanceRouteStaff(m.UserContext)
+func (m ActiveTestModule) AttendanceStaff() peopleCompose.AttendanceRouteStaff {
+	return peopleCompose.NewAttendanceRouteStaff(m.UserContext)
 }
 
 // PresenceOperations binds the retained active service behind the presence
@@ -152,7 +153,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -173,14 +174,18 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	presence := presenceservice.NewPresence(presenceDeps, presenceservice.WithPresenceSettings(PresenceSettings(settings.Settings)))
 	groups.Active = presence
 	groups.Users = data.Users
-	yard := facilities.NewSchulhofService(data.Facilities, facilitiesLegacy.ActivityCatalog(data.Activities), facilitiesLegacy.OpenGroupCatalog(facilitiesGroupSupervisions(newStudentPresence(db, logger)), facilitiesRoomSessions(newStudentPresence(db, logger)), facilitiesGroupVisits(newStudentPresence(db, logger))), logger)
+	yard := facilitiesCompose.NewSchulhofService(data.Facilities, facilitiesLegacy.ActivityCatalog(data.Activities), facilitiesLegacy.OpenGroupCatalog(facilitiesGroupSupervisions(newStudentPresence(db, logger)), facilitiesRoomSessions(newStudentPresence(db, logger)), facilitiesGroupVisits(newStudentPresence(db, logger))), logger)
 	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db, Records: carePlan, Baselines: pickup, Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(r.Timetable, db),
+		DB: db, Records: carePlan, Baselines: pickup, Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(r.Timetable, NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	pickups, err := NewPickupSchedules(db, carePlan, students, pickup, autoExcusal, logger)
+	pickupStudents, err := PickupPlanStudents(students)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	pickups, err := careplanCompose.NewPickupSchedules(db, carePlan, pickup, autoExcusal, pickupStudents, logger)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -188,7 +193,11 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	arrivals, err := NewArrivalSchedules(db, carePlan, students, arrival, ClassArrivalPlans(classArrivalQueries), classExceptions, logger)
+	arrivalRules, arrivalDeps, err := ArrivalScheduleBinding(students, ClassArrivalPlans(classArrivalQueries), classExceptions, logger)
+	if err != nil {
+		return ActiveTestModule{}, err
+	}
+	arrivals, err := careplanCompose.NewArrivalSchedules(db, carePlan, arrival, arrivalRules, arrivalDeps)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}

@@ -5,17 +5,17 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The bindings below connect the school portal's class-day capability
@@ -236,20 +236,5 @@ func (a classDayArrivalAnnouncer) AnnounceArrivalScheduleChange(ctx context.Cont
 	if a.broadcaster == nil {
 		return
 	}
-	tenant.RegisterAfterCommit(ctx, func() {
-		source := "school"
-		event := realtime.NewEvent(realtime.EventArrivalScheduleChanged, "", realtime.EventData{Source: &source})
-		if err := a.broadcaster.BroadcastToAll(event); err != nil {
-			a.log().Warn("failed to broadcast arrival schedule change",
-				"error", err.Error(),
-			)
-		}
-	})
-}
-
-func (a classDayArrivalAnnouncer) log() *slog.Logger {
-	if a.logger != nil {
-		return a.logger
-	}
-	return slog.Default()
+	realtimeevents.QueueArrivalScheduleChanged(ctx, a.broadcaster, a.logger)
 }

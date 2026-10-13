@@ -2,23 +2,20 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
-	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	calendarPortal "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 type CalendarDependencies struct {
@@ -27,8 +24,10 @@ type CalendarDependencies struct {
 	// RoomRepo resolves room names for timetable events in one batch per
 	// window (#2078). Optional: nil leaves Location empty instead of failing
 	// the whole calendar, mirroring StaffShiftRepo/ShiftTypeRepo below.
-	UserContext      identityaccess.CallerIdentities
-	DB               *bun.DB
+	UserContext identityaccess.CallerIdentities
+	// Runtime is the tenant runtime over the root database
+	// (calendarCompose.NewTenantRuntime); nil runs without a database.
+	Runtime          *calendarCompose.TenantRuntime
 	CalendarRenderer calendarPortal.CalendarRenderer
 
 	// Notification dependencies (all optional — nil disables e-mail; the in-app
@@ -74,8 +73,8 @@ type CalendarLogoResolver interface {
 // calendar's narrow fact ports. It does not build a legacy factory.
 func NewCalendarPortal(d CalendarDependencies) calendarCompose.Application {
 	cfg := NewCalendarFacts(d.CalendarFacts)
-	cfg.MissingRecord = func(err error) bool { return errors.Is(err, sql.ErrNoRows) }
-	cfg.MissingRecordCause = sql.ErrNoRows
+	cfg.MissingRecord = func(err error) bool { return errors.Is(err, transactionruntime.ErrNoRows) }
+	cfg.MissingRecordCause = transactionruntime.ErrNoRows
 	cfg.Appointments = d.Appointments
 	cfg.CalendarRenderer = d.CalendarRenderer
 	cfg.PushOutbox = d.PushOutbox
@@ -88,7 +87,11 @@ func NewCalendarPortal(d CalendarDependencies) calendarCompose.Application {
 	cfg.Today = d.Today
 	cfg.Logger = d.Logger
 	cfg.Preferences = d.Preferences
-	cfg.Runtime = calendarPortalRuntime{db: d.DB}
+	runtime := d.Runtime
+	if runtime == nil {
+		runtime = calendarCompose.NewTenantRuntime(nil)
+	}
+	cfg.Runtime = runtime
 	cfg.NotificationCopy = calendarNotificationCopy
 	cfg.MotoLogoURL = emailbranding.MotoLogoURL
 	cfg.SchoolLogoURL = emailbranding.SchoolLogoURL
@@ -100,7 +103,7 @@ func NewCalendarPortal(d CalendarDependencies) calendarCompose.Application {
 		cfg.UserContext = calendarIdentityPort{d.UserContext}
 	}
 	if d.Outbox != nil {
-		cfg.Outbox = calendarOutboxPort{d.Outbox}
+		cfg.Outbox = calendarOutboxPort{CalendarOutbox: d.Outbox, tenantID: runtime.TenantID}
 	}
 	if d.Notifier != nil {
 		cfg.Notifier = calendarNotificationPort{d.Notifier}
@@ -128,32 +131,6 @@ func calendarNotificationCopy(kind, locale string) (string, string) {
 	return notifications.ParentAppointmentCopy(locale, notificationKind)
 }
 
-type calendarPortalRuntime struct{ db *bun.DB }
-
-func (r calendarPortalRuntime) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
-func (r calendarPortalRuntime) WithinAppointmentWrite(ctx context.Context, command func(context.Context) error) error {
-	if _, ok := tenant.TransactionFromContext(ctx); ok {
-		return command(ctx)
-	}
-	tenantID, err := tenant.TenantFromContext(ctx)
-	if err != nil {
-		return fmt.Errorf("calendar appointment command: %w", err)
-	}
-	return tenant.WithinTenant(ctx, tenantID, command)
-}
-func (r calendarPortalRuntime) WithinTenant(ctx context.Context, tenantID int64, command func(context.Context) error) error {
-	return tenant.WithTenantTx(ctx, r.db, tenantID, func(txCtx context.Context, _ bun.Tx) error { return command(txCtx) })
-}
-func (r calendarPortalRuntime) WithinAdmin(ctx context.Context, command func(context.Context) error) error {
-	return tenant.WithAdminTx(ctx, r.db, func(txCtx context.Context, _ bun.Tx) error { return command(txCtx) })
-}
-func (r calendarPortalRuntime) AfterCommit(ctx context.Context, fn func()) {
-	tenant.RegisterAfterCommit(ctx, fn)
-}
-func (r calendarPortalRuntime) WithoutTransactionAndHooks(ctx context.Context) context.Context {
-	return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
-}
-
 type calendarIdentityPort struct {
 	source identityaccess.CallerIdentities
 }
@@ -179,14 +156,17 @@ func (p calendarIdentityPort) MissingStaff(err error) bool {
 	return p.MissingUser(err) || errors.Is(err, identityaccess.ErrCallerNotLinkedToPerson) || errors.Is(err, identityaccess.ErrCallerNotLinkedToStaff)
 }
 
-type calendarOutboxPort struct{ CalendarOutbox }
+type calendarOutboxPort struct {
+	CalendarOutbox
+	tenantID func(context.Context) int64
+}
 
 func (p calendarOutboxPort) Enqueue(ctx context.Context, req calendarCompose.EnqueueRequest) (*calendarCompose.EmailOutbox, error) {
 	value, err := p.CalendarOutbox.Enqueue(ctx, emailoutbox.EnqueueRequest{Kind: req.Kind, Payload: req.Payload, RelatedEntityType: req.RelatedEntityType, RelatedEntityID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey})
 	if value == nil {
 		return nil, err
 	}
-	return &calendarCompose.EmailOutbox{ID: value.ID, TenantID: tenant.FromContext(ctx), Kind: req.Kind, Payload: req.Payload}, err
+	return &calendarCompose.EmailOutbox{ID: value.ID, TenantID: p.tenantID(ctx), Kind: req.Kind, Payload: req.Payload}, err
 }
 func calendarOutbox(value *emailoutbox.Intent) *calendarCompose.EmailOutbox {
 	if value == nil {
@@ -215,16 +195,18 @@ func (p calendarSynchronousNotificationPort) NotifySynchronously(ctx context.Con
 
 type CalendarEmailDependencies struct {
 	DefaultFrom email.Email
-	DB          *bun.DB
-	Guardians   interface {
+	// Runtime re-checks the authorization scope a row carries before it
+	// renders (calendarCompose.NewTenantRuntime); nil skips the re-check.
+	Runtime   *calendarCompose.TenantRuntime
+	Guardians interface {
 		FilterAccountsWithStudentAccess(context.Context, []int64, []int64, int64, string) ([]int64, error)
 	}
 }
 
 func NewCalendarAppointmentRenderer(d CalendarEmailDependencies) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
 	cfg := calendarCompose.EmailConfig{Guardians: d.Guardians, RenderCancelled: emailoutbox.ErrRenderCancelled}
-	if d.DB != nil {
-		cfg.Runtime = calendarPortalRuntime{d.DB}
+	if d.Runtime != nil {
+		cfg.Runtime = d.Runtime
 	}
 	render := calendarCompose.NewAppointmentRenderer(cfg)
 	return func(ctx context.Context, row *emailoutbox.Intent) (*email.Message, error) {

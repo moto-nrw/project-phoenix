@@ -3,11 +3,11 @@ package services
 import (
 	"context"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 func (a requestDecisionAdapter) RecordMarkedDone(ctx context.Context, request *carerequests.Request, actorID int64, reason string) error {
@@ -17,7 +17,7 @@ func (a requestDecisionAdapter) RecordMarkedDone(ctx context.Context, request *c
 
 func (a requestDecisionAdapter) NotifyMarkedDone(ctx context.Context, request *carerequests.Request, actorID int64, reason string) error {
 	row := request
-	return a.s.emitRequestPillAfterCommit(ctx, row, parentmessaging.ChildEvent{
+	return a.s.emitRequestPillAfterCommit(ctx, row, communicationCompose.ParentChildEvent{
 		EventType: "request_status", ActorKind: usersModels.ParentMessageSenderStaff,
 		ActorAccountID: actorID, Body: withPickupDetail(parentRequestDoneBody, row),
 		RequestType: careRequestPillType(row.RequestKind), RequestStatus: usersModels.ParentMessageRequestStatusDone,

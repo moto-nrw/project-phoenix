@@ -5,12 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -104,7 +103,7 @@ type nonWorkingDays struct {
 	calendar schoolcalendar.NonWorkingDayQuery
 }
 
-func (d nonWorkingDays) HolidayDates(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, error) {
+func (d nonWorkingDays) HolidayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
 	return calendarDateSet(d.calendar.NonWorkingDayDates(ctx, from.String(), to.String()))
 }
 
@@ -115,7 +114,7 @@ type tenantHolidays struct {
 	calendar schoolcalendar.NonWorkingDayQuery
 }
 
-func (h tenantHolidays) HolidayDates(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, error) {
+func (h tenantHolidays) HolidayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
 	return calendarDateSet(h.calendar.TenantHolidayDates(ctx, from.String(), to.String()))
 }
 
@@ -124,17 +123,17 @@ type tenantClosingDays struct {
 	calendar schoolcalendar.NonWorkingDayQuery
 }
 
-func (c tenantClosingDays) ClosingDayDates(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, error) {
+func (c tenantClosingDays) ClosingDayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
 	return calendarDateSet(c.calendar.ClosingDayDates(ctx, from.String(), to.String()))
 }
 
-func calendarDateSet(values map[string]bool, err error) (map[timezone.Date]bool, error) {
+func calendarDateSet(values map[string]bool, err error) (map[calendar.Date]bool, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[timezone.Date]bool, len(values))
+	result := make(map[calendar.Date]bool, len(values))
 	for day := range values {
-		result[timezone.Date(day)] = true
+		result[calendar.Date(day)] = true
 	}
 	return result, nil
 }

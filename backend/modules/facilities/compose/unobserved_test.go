@@ -1,9 +1,7 @@
-package services_test
+package compose
 
 import (
 	"testing"
-
-	"github.com/moto-nrw/project-phoenix/services"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -14,7 +12,7 @@ func TestDefaultFacilitiesDeletesRoomWithoutGuard(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	room := testpkg.CreateTestRoom(t, db, "Löschbarer Raum")
-	rooms, err := services.NewFacilities(db)
+	rooms, err := NewUnobserved(db)
 	require.NoError(t, err)
 
 	require.NoError(t, rooms.DeleteRoom(testpkg.Ctx(t), room.ID))

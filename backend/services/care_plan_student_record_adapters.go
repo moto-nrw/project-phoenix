@@ -3,8 +3,8 @@ package services
 import (
 	"context"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 // Companion edges are Care Plan records that the retained student services

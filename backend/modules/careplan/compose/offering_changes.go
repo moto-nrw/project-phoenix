@@ -67,7 +67,7 @@ func NewOfferingChanges(deps OfferingChangeDependencies) (careplan.OfferingChang
 	return application.NewOfferingChanges(application.OfferingChangeDependencies{
 		Rows: deps.Rows, Catalog: deps.Catalog, Enrollment: deps.Enrollment, Students: deps.Students,
 		Settings: deps.Settings, Planning: deps.Planning, Bookings: deps.Bookings, Scope: deps.Scope,
-		Hooks: tenantHooks{}, Messenger: deps.Messenger, Ledger: deps.Ledger, Shares: deps.Shares,
+		Hooks: TenantHooks{}, Messenger: deps.Messenger, Ledger: deps.Ledger, Shares: deps.Shares,
 		Today: deps.Today, Logger: deps.Logger,
 	})
 }

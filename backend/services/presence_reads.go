@@ -4,11 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/uptrace/bun"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The reads below join the Timetable plan with the Student Presence
@@ -22,8 +21,8 @@ type partialAbsenceBlocks struct {
 	preview timetableCompose.PartialAbsencePreview
 }
 
-func newPartialAbsenceBlocks(db *bun.DB) partialAbsenceBlocks {
-	return partialAbsenceBlocks{preview: NewPartialAbsencePreview(db)}
+func newPartialAbsenceBlocks(preview timetableCompose.PartialAbsencePreview) partialAbsenceBlocks {
+	return partialAbsenceBlocks{preview: preview}
 }
 
 func (p partialAbsenceBlocks) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date timezone.Date, clock time.Time) ([]carerequests.Block, error) {
@@ -43,8 +42,8 @@ type courseStatistics struct {
 	reads timetableCompose.PresenceReads
 }
 
-func newCourseStatistics(db *bun.DB) courseStatistics {
-	return courseStatistics{reads: NewPresenceReads(db)}
+func newCourseStatistics(reads timetableCompose.PresenceReads) courseStatistics {
+	return courseStatistics{reads: reads}
 }
 
 func (c courseStatistics) CourseInstances(ctx context.Context, from, to, today timezone.Date) ([]presenceCompose.CourseInstance, error) {

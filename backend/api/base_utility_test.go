@@ -299,7 +299,7 @@ func setupCaregiverCompositionModule(t *testing.T, graph *serveGraph) *caregiver
 	return &caregiverComposition{
 		authWired:        auth != nil,
 		operatorWired:    operator != nil,
-		sharedCapability: auth.CaregiverCapabilityService == any(graph.services.CaregiverCapabilityViews(graph.db)),
+		sharedCapability: auth.CaregiverCapabilityService == any(caregiverCapabilityViews(in)),
 	}
 }
 

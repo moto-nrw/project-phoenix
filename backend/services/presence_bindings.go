@@ -5,12 +5,10 @@ import (
 	"log/slog"
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/uptrace/bun"
 )
 
 // The cutover of activity execution and attendance to Student Presence (#2762)
@@ -105,59 +103,14 @@ type PresenceRulesDependencies struct {
 	CareDays studentpresence.SessionCareDayLocker
 }
 
-// StudentLocker locks one child's row for the care-day locks.
-type StudentLocker interface {
-	LockStudent(context.Context, int64) error
-}
-
 // NewPresenceRulesDependencies binds the attendance rules of Student Presence
-// to the given Timetable owner and to the Care Plan queries and locks of the
-// database.
-func NewPresenceRulesDependencies(db *bun.DB, capability timetable.InstanceStudentQuery, students StudentLocker, observe func(carePlanCompose.Observation)) (PresenceRulesDependencies, error) {
-	queries, err := carePlanCompose.NewExceptionQueries(db, observe)
-	if err != nil {
-		return PresenceRulesDependencies{}, err
-	}
-	locks, err := carePlanCompose.NewDayLocks(db, students.LockStudent, peopledirectory.ErrStudentNotFound)
-	if err != nil {
-		return PresenceRulesDependencies{}, err
-	}
+// to the given Timetable owner and to the built Care Plan queries and locks.
+func NewPresenceRulesDependencies(capability timetable.InstanceStudentQuery, queries carePlanCompose.ExceptionQueries, locks carePlanCompose.DayLocks) PresenceRulesDependencies {
 	return PresenceRulesDependencies{
 		Roster:   NewTimetablePlannedRoster(capability),
 		CarePlan: presenceCarePlanDirectory{query: queries},
 		CareDays: locks,
-	}, nil
-}
-
-// NewStudentPresenceWithRules composes Student Presence with its attendance
-// rules bound to the given Timetable owner.
-func NewStudentPresenceWithRules(db *bun.DB, rules PresenceRulesDependencies, observe func(presenceCompose.Observation)) (*studentpresence.Module, error) {
-	return presenceCompose.New(presenceCompose.Dependencies{
-		DB: db, Observe: observe, Roster: rules.Roster, CarePlan: rules.CarePlan, CareDays: rules.CareDays,
-	})
-}
-
-// NewStudentPresence composes the Student Presence owner with its attendance
-// rules bound to an unobserved Timetable owner over the same database. The
-// serving roots and the retained services compose their presence module
-// through it so every attendance rule sees the same planned roster.
-func NewStudentPresence(db *bun.DB, observe func(presenceCompose.Observation)) (*studentpresence.Module, error) {
-	// The roster reads and the care-day row lock are People Directory reads;
-	// they need none of the owner's write owners or audit seams.
-	students := peopleDirectoryReads(db)
-	rooms, err := NewFacilities(db)
-	if err != nil {
-		return nil, err
 	}
-	capability, err := NewTimetable(db, students, rooms)
-	if err != nil {
-		return nil, err
-	}
-	rules, err := NewPresenceRulesDependencies(db, capability, students, func(carePlanCompose.Observation) {})
-	if err != nil {
-		return nil, err
-	}
-	return NewStudentPresenceWithRules(db, rules, observe)
 }
 
 func presenceObserver() func(presenceCompose.Observation) {
@@ -169,27 +122,6 @@ func presenceObserver() func(presenceCompose.Observation) {
 			)
 		}
 	}
-}
-
-// newUnloggedStudentPresence composes the bootstrap Student Presence owner behind the
-// legacy repository adapters.
-func newUnloggedStudentPresence(db *bun.DB) *studentpresence.Module {
-	module, err := NewStudentPresence(db, presenceObserver())
-	if err != nil {
-		panic(err)
-	}
-	return module
-}
-
-// NewPresenceFacts composes the Student Presence queries Timetable's session
-// facts read. They need no roster, which is what keeps the two owners from
-// composing each other forever.
-func NewPresenceFacts(db *bun.DB) timetable.SessionFacts {
-	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: presenceObserver()})
-	if err != nil {
-		panic(err)
-	}
-	return NewPresenceSessionFacts(module)
 }
 
 // NewPresenceSessionFacts serves Timetable's SessionFacts port from the Student

@@ -131,7 +131,7 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 
 	config.Logger.Info("initializing API server")
 
-	graph, reads, err := newServeGraph(config)
+	graph, reads, tracker, err := newServeGraph(config)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 	runtime := &Runtime{
 		graph:          graph,
 		capacityLogger: newRuntimeCapacityLogger(graph, config.Logger),
-		tracker:        graph.services.Tracker,
+		tracker:        tracker,
 		logger:         config.Logger,
 	}
 	var worker *scheduler.Scheduler

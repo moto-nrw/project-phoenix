@@ -2,11 +2,11 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 // The school and parents portals may not name the Identity & Access
@@ -56,7 +56,7 @@ func PasswordResetRuntimeFor(resets identityaccess.PasswordResets, scope identit
 // three it was.
 func passwordResetLinkUnusable(err error) bool {
 	cause := passwordResetCause(err)
-	return errors.Is(cause, identityaccess.ErrInvalidToken) || errors.Is(cause, sql.ErrNoRows)
+	return errors.Is(cause, identityaccess.ErrInvalidToken) || errors.Is(cause, transactionruntime.ErrNoRows)
 }
 
 // passwordResetTooWeak reports a credential the password policy refused.

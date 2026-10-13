@@ -27,7 +27,7 @@ func NewRFIDTestModule(db *bun.DB) (RFIDTestModule, error) {
 		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
 		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
 		PersonRepo:       r.Membership.Person, TeacherRepo: r.Membership.Teacher,
-		StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: r.Membership.Person, Staff: r.Membership.Staff, Teachers: r.Membership.Teacher}),
+		StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: r.Membership.Person, Staff: r.Membership.Staff, Teachers: r.Membership.Teacher}),
 		AccountExists:  AccountExists(accounts), StudentRepo: r.Student, RFIDRepo: r.RFID,
 	})
 	return RFIDTestModule{Users: people, FeedbackStudents: devicescanCompose.NewFeedbackStudents(people), TagAssignments: devicescanCompose.NewTagAssignments(people, nil)}, nil

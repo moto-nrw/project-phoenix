@@ -46,10 +46,6 @@ const (
 	// day, so a rebuild that plans nothing (shortly before midnight) does
 	// not repeat every tick.
 	demoDayAnchorPause = 60
-	// codeCareExceptionRaced is returned when a staff-written day exception
-	// already exists. The demo owns its seeded school, so it updates that
-	// exception instead of treating a restart as a failed tick.
-	codeCareExceptionRaced = "students.care_exception_raced"
 )
 
 // demoActivity is an AG the demo plans for today, in its room and with its
@@ -102,9 +98,12 @@ type demoBlock struct {
 }
 
 // demoTimes are a child's effective arrival and pickup today, in minutes
-// after midnight; -1 when the plan has none.
+// after midnight; -1 when the plan has none. changed marks a one-day change
+// the school already made for today: the care plan holds one staff exception
+// per day, so the demo keeps that child's day.
 type demoTimes struct {
 	arrival, pickup int
+	changed         bool
 }
 
 // demoBlockWindow is a block's target window while moving a demo day.
@@ -358,6 +357,9 @@ func (day *demoDay) move(client Client, shift int, studentIDs []int64) error {
 			if !ok || times.arrival < 0 {
 				continue // No care today: the child stays at home.
 			}
+			if times.changed {
+				continue
+			}
 			arrival := max(times.arrival+day.pendingShift, 0)
 			if arrival > demoDayLastStart {
 				continue
@@ -404,7 +406,7 @@ func (day *demoDay) reanchor(client Client, studentIDs []int64, minute int) erro
 	}
 	moved := map[int64]demoTimes{}
 	for i, studentID := range studentIDs {
-		if times, ok := day.times[studentID]; !ok || times.arrival < 0 {
+		if times, ok := day.times[studentID]; !ok || times.arrival < 0 || times.changed {
 			continue
 		}
 		arrival := max(minute-60+(i%3)*15, 0)
@@ -428,14 +430,18 @@ func (day *demoDay) writeTimes(client Client, studentIDs []int64, moved map[int6
 		if !ok {
 			continue
 		}
-		if err := day.writeTimeException(client, studentID, "arrival", "expected_arrival", clockOf(times.arrival)); err != nil {
+		if err := day.writeTimeException(client, studentID, "arrival", map[string]any{
+			"exception_date": day.date, "expected_arrival": clockOf(times.arrival), "reason": demoDayReason,
+		}); err != nil {
 			return fmt.Errorf("move demo arrival for student %d: %w", studentID, err)
 		}
 		if times.pickup < 0 {
 			continue
 		}
 		movedPickups[studentID] = clockOf(times.pickup)
-		if err := day.writeTimeException(client, studentID, "pickup", "pickup_time", movedPickups[studentID]); err != nil {
+		if err := day.writeTimeException(client, studentID, "pickup", map[string]any{
+			"exception_date": day.date, "pickup_time": clockOf(times.pickup), "reason": demoDayReason,
+		}); err != nil {
 			return fmt.Errorf("move demo pickup for student %d: %w", studentID, err)
 		}
 	}
@@ -444,45 +450,45 @@ func (day *demoDay) writeTimes(client Client, studentIDs []int64, moved map[int6
 	return nil
 }
 
-// writeTimeException creates the day's arrival or pickup exception. A demo
-// seed can already carry a staff-written exception for today; a ticker restart
-// must update that row rather than attempting a second create for its date.
-func (day *demoDay) writeTimeException(client Client, studentID int64, kind, field, value string) error {
-	path := fmt.Sprintf("/api/students/%d/%s-exceptions", studentID, kind)
-	body := map[string]any{"exception_date": day.date, field: value, "reason": demoDayReason}
-	if _, err := client.Post(path, body); err == nil {
-		return nil
-	} else if !isCareExceptionDayConflict(err) {
+// writeTimeException updates an existing simulator exception instead of trying
+// to create a second staff exception for the day. Re-read its reason before
+// writing so a school-made change is not overwritten, including on a retry.
+func (day *demoDay) writeTimeException(client Client, studentID int64, kind string, body map[string]any) error {
+	base := fmt.Sprintf("/api/students/%d/%s", studentID, kind)
+	query := "?date=" + day.date
+	if kind == "pickup" {
+		query = "?from=" + day.date + "&to=" + day.date
+	}
+	raw, err := client.Get(base + "-schedules" + query)
+	if err != nil {
 		return err
 	}
-
-	raw, err := client.Get(fmt.Sprintf("/api/students/%d/%s-schedules?from=%s&to=%s", studentID, kind, day.date, day.date))
-	if err != nil {
-		return fmt.Errorf("read existing %s exception: %w", kind, err)
-	}
-	var response struct {
+	var envelope struct {
 		Data struct {
 			Exceptions []struct {
 				ID            int64  `json:"id"`
 				ExceptionDate string `json:"exception_date"`
+				Reason        string `json:"reason"`
+				Source        string `json:"source"`
 			} `json:"exceptions"`
 		} `json:"data"`
 	}
-	if err := json.Unmarshal(raw, &response); err != nil {
-		return fmt.Errorf("decode existing %s exception: %w", kind, err)
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return fmt.Errorf("decode demo %s exceptions: %w", kind, err)
 	}
-	for _, exception := range response.Data.Exceptions {
-		if exception.ID != 0 && exception.ExceptionDate == day.date {
-			_, err := client.Put(fmt.Sprintf("%s/%d", path, exception.ID), body)
-			return err
+	path := base + "-exceptions"
+	for _, exception := range envelope.Data.Exceptions {
+		if exception.ExceptionDate != day.date {
+			continue
 		}
+		if exception.Reason != demoDayReason || exception.Source != "staff" {
+			return fmt.Errorf("demo %s exception changed by school", kind)
+		}
+		_, err := client.Put(fmt.Sprintf("%s/%d", path, exception.ID), body)
+		return err
 	}
-	return fmt.Errorf("find existing %s exception for %s", kind, day.date)
-}
-
-func isCareExceptionDayConflict(err error) bool {
-	var coded interface{ HTTPErrorCode() string }
-	return errors.As(err, &coded) && coded.HTTPErrorCode() == codeCareExceptionRaced
+	_, err = client.Post(path, body)
+	return err
 }
 
 // settlePickupTasks closes the tasks the moved pickups opened (#3261): a
@@ -647,6 +653,8 @@ func (day *demoDay) loadTimes(client Client, studentIDs []int64, now time.Time) 
 			StudentID       int64   `json:"student_id"`
 			ExpectedArrival *string `json:"expected_arrival"`
 			PickupTime      *string `json:"pickup_time"`
+			IsException     bool    `json:"is_exception"`
+			Notes           string  `json:"notes"`
 		} `json:"data"`
 	}
 	for path, target := range map[string]any{
@@ -663,11 +671,13 @@ func (day *demoDay) loadTimes(client Client, studentIDs []int64, now time.Time) 
 	for _, row := range arrivals.Data {
 		times := day.times[row.StudentID]
 		times.arrival = minutesOf(row.ExpectedArrival)
+		times.changed = times.changed || (row.IsException && row.Notes != demoDayReason)
 		day.times[row.StudentID] = times
 	}
 	for _, row := range pickups.Data {
 		times := day.times[row.StudentID]
 		times.pickup = minutesOf(row.PickupTime)
+		times.changed = times.changed || (row.IsException && row.Notes != demoDayReason)
 		day.times[row.StudentID] = times
 	}
 	day.timesAt = now

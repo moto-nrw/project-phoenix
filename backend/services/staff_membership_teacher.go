@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sort"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"golang.org/x/text/collate"
 	"golang.org/x/text/language"

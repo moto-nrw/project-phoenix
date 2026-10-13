@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 )
 
 // operatorProvisioningSources are the retained services and repositories the
@@ -28,7 +28,7 @@ type operatorProvisioningSources struct {
 	administration identityaccess.AccountAdministration
 	schoolIdentity identityaccess.SchoolIdentityProvisioning
 	roles          provisioningRoles
-	settings       config.SettingsService
+	settings       settingsCompose.SettingsService
 	logger         *slog.Logger
 }
 
@@ -70,6 +70,10 @@ type provisioningIdentity struct {
 }
 
 var _ organizationCompose.ProvisioningIdentity = provisioningIdentity{}
+
+// provisioningTenantScope scopes an operator's identity write to the school
+// it provisions; the operator's own context carries no tenant.
+var provisioningTenantScope identityaccessCompose.TenantUnitOfWork
 
 func (p provisioningIdentity) ListSystemRoles(ctx context.Context) ([]organizationCompose.ProvisioningRole, error) {
 	roles, err := p.roles.ListRoles(ctx, identityaccess.RoleFilter{})
@@ -126,7 +130,7 @@ func (p provisioningIdentity) role(id int64, name string, system bool, tenantID 
 // operator-authenticated (platform scope, no tenant permission set), so the
 // tenant-side role-grant check does not apply.
 func (p provisioningIdentity) InviteSchoolAdmin(ctx context.Context, request organizationCompose.SchoolAdminInvitationRequest) (organizationCompose.SchoolAdminInvitation, error) {
-	invitation, err := p.invitations.CreateSchoolInvitation(tenant.WithTenantID(ctx, request.TenantID), identityaccess.SchoolInvitationRequest{
+	invitation, err := p.invitations.CreateSchoolInvitation(provisioningTenantScope.WithTenantID(ctx, request.TenantID), identityaccess.SchoolInvitationRequest{
 		Email: request.Email, RoleID: request.RoleID, TenantID: request.TenantID,
 		FirstName: request.FirstName, LastName: request.LastName, Position: request.Position,
 		CaregiverEnabled: request.CaregiverEnabled,
@@ -151,7 +155,7 @@ func (p provisioningIdentity) RegisterSchoolAccount(ctx context.Context, registr
 	roleID := registration.RoleID
 	// The operator routes classify on the provisioning capability's contract
 	// and may not name the owner's, so the root translates for them (#3364).
-	provisioned, err := p.provisioning.RegisterSchoolAccount(tenant.WithTenantID(ctx, registration.TenantID),
+	provisioned, err := p.provisioning.RegisterSchoolAccount(provisioningTenantScope.WithTenantID(ctx, registration.TenantID),
 		identityaccess.SchoolAccountRegistration{
 			TenantID: registration.TenantID, Email: registration.Email, Username: registration.Username,
 			Password: registration.Password, RoleID: &roleID,
@@ -171,7 +175,7 @@ func (p provisioningIdentity) RegisterSchoolAccount(ctx context.Context, registr
 
 func (p provisioningIdentity) EnsureSchoolIdentity(ctx context.Context, request organizationCompose.SchoolIdentityRequest) error {
 	role := request.Role
-	_, err := p.schoolIdentity.EnsureSchoolIdentity(tenant.WithTenantID(ctx, request.TenantID), identityaccess.SchoolIdentityInput{
+	_, err := p.schoolIdentity.EnsureSchoolIdentity(provisioningTenantScope.WithTenantID(ctx, request.TenantID), identityaccess.SchoolIdentityInput{
 		AccountID: request.AccountID,
 		TenantID:  request.TenantID,
 		Role: &identityaccess.RoleFacts{
@@ -190,7 +194,7 @@ func (p provisioningIdentity) EnsureSchoolIdentity(ctx context.Context, request 
 }
 
 func (p provisioningIdentity) AssignRole(ctx context.Context, tenantID, accountID, roleID int64) error {
-	return provisioningIdentityError(p.roles.AssignRoleToAccount(tenant.WithTenantID(ctx, tenantID), accountID, roleID))
+	return provisioningIdentityError(p.roles.AssignRoleToAccount(provisioningTenantScope.WithTenantID(ctx, tenantID), accountID, roleID))
 }
 
 func (p provisioningIdentity) ListSchoolAccounts(ctx context.Context, tenantID int64) ([]organizationCompose.SchoolAccount, error) {
@@ -261,7 +265,9 @@ func (e invalidSchoolIdentityError) Unwrap() []error {
 }
 
 // provisioningSettings resolves the device online window of one school.
-type provisioningSettings struct{ settings config.SettingsService }
+type provisioningSettings struct {
+	settings settingsCompose.SettingsService
+}
 
 func (s provisioningSettings) DeviceOnlineWindowMinutes(ctx context.Context, tenantID int64) (int, error) {
 	return s.settings.ResolveIntForTenant(ctx, tenantID, configModels.KeyDeviceOnlineWindowMinutes)

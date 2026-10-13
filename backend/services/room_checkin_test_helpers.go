@@ -5,14 +5,15 @@ import (
 	"time"
 
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type RoomsTestModule struct {
 	ActiveTestModule
-	ListExport *listexport.RendererService
+	ListExport *lists.RendererService
 }
 
 func NewRoomsTestModule(db *bun.DB, unit tenant.UnitOfWork) (RoomsTestModule, error) {
@@ -20,7 +21,7 @@ func NewRoomsTestModule(db *bun.DB, unit tenant.UnitOfWork) (RoomsTestModule, er
 	if err != nil {
 		return RoomsTestModule{}, err
 	}
-	return RoomsTestModule{ActiveTestModule: active, ListExport: listexport.NewService()}, nil
+	return RoomsTestModule{ActiveTestModule: active, ListExport: lists.NewRendererService()}, nil
 }
 
 // CheckinTestModule composes the device-scan workflow (#2698) over the
@@ -38,7 +39,7 @@ func NewCheckinTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() t
 	if err != nil {
 		return CheckinTestModule{}, err
 	}
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return CheckinTestModule{}, err
 	}

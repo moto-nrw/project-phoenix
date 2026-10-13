@@ -1,8 +1,9 @@
 package services
 
 import (
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -42,7 +43,7 @@ func newInvitationMembershipRepositories(db *bun.DB) (userModels.StaffRepository
 	if err != nil {
 		return nil, nil, err
 	}
-	deps := newStaffMembershipDeps(NewPersonRepository(db), newPeopleIdentityAccess(db, nil), MustNewStaffEmployment(db))
+	deps := newStaffMembershipDeps(NewPersonRepository(db), newPeopleIdentityAccess(db, nil), workforceCompose.MustNewStaffEmployment(db))
 	groupTeachers := newGroupTeacherRepository(membership, NewEducationGroupRepository(db))
 	deps.groupTeachers = func() GroupTeacherRepository { return groupTeachers }
 	return staffMembershipRepository{membership: membership, deps: deps}, teacherMembershipRepository{membership: membership, deps: deps}, nil

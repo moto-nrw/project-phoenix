@@ -6,3 +6,7 @@ import "github.com/moto-nrw/project-phoenix/modules/transactionruntime/internal/
 
 func IsTransientDatabaseError(err error) bool { return postgres.IsTransientDatabaseError(err) }
 func IsConstraintViolation(err error) bool    { return postgres.IsConstraintViolation(err) }
+
+// ErrNoRows is the sentinel a retained repository returns or wraps when no
+// row matched. Callers classify with errors.Is and may wrap it themselves.
+var ErrNoRows = postgres.ErrNoRows

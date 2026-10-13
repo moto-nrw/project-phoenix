@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
-	"github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // PayrollExportSettings maps resolved settings into the exporter's input.
 type PayrollExportSettings struct {
-	Source config.PayrollStatusGetter
+	Source settingsCompose.PayrollStatusGetter
 }
 
 func (s PayrollExportSettings) GetPayrollConfiguration(ctx context.Context) (*timetracking.PayrollExportConfiguration, error) {

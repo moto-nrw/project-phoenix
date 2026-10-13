@@ -5,8 +5,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 )
 
 // The two mails of the public demo (#3465), bound to the Delivery dispatcher:
@@ -28,6 +29,10 @@ type demoAccessWiring struct {
 	maxActiveSchools int
 	// operatorWithoutSecondFactor is set for APP_ENV=demo only (#3460).
 	operatorWithoutSecondFactor bool
+	// newToken mints the opaque capability token of a demo access link and
+	// fingerprint fingerprints a presented one.
+	newToken    func() (raw, fingerprint string, err error)
+	fingerprint func(raw string) string
 }
 
 // IsDemoEnvironment reports whether appEnv names the public demo, the only
@@ -37,13 +42,14 @@ func IsDemoEnvironment(appEnv string) bool {
 }
 
 // demoAccessWiringFor composes the demo access for APP_ENV=demo only.
-func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFrom email.Email, frontendURL string, maxActiveSchools int, logger *slog.Logger) *demoAccessWiring {
+func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFrom email.Email, frontendURL string, maxActiveSchools int, tokens TokenAdapter, logger *slog.Logger) *demoAccessWiring {
 	if !email.IsDemoEnvironment(appEnv) {
 		return nil
 	}
 	return &demoAccessWiring{
 		dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL, maxActiveSchools: maxActiveSchools, logger: logger,
 		operatorWithoutSecondFactor: true,
+		newToken:                    tokens.NewCapabilityToken, fingerprint: tokens.CapabilityFingerprint,
 	}
 }
 
@@ -113,7 +119,7 @@ func (m demoAccessMail) dispatch(ctx context.Context, kind string, accessID int6
 			slog.Int64("demo_access_id", accessID))
 		return
 	}
-	m.dispatcher.Dispatch(detachedContext(ctx), email.DeliveryRequest{
+	m.dispatcher.Dispatch(identityaccessCompose.DetachedMailContext(ctx), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      email.DeliveryMetadata{Type: kind, ReferenceID: accessID, Recipient: message.To.Address},
 		BackoffPolicy: m.backoff,

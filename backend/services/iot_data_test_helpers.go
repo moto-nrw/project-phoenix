@@ -8,8 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
-	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -21,7 +21,7 @@ type IoTDataTestModule struct {
 	TagAssignments   devicescanCompose.TagAssignments
 	ActivitiesTestModule
 	DeviceTestModule
-	Facilities facilities.Service
+	Facilities facilitiesCompose.RoomService
 }
 
 func NewIoTDataTestModule(db *bun.DB, unit tenant.UnitOfWork) (IoTDataTestModule, error) {
@@ -45,7 +45,7 @@ func NewIoTDataTestModule(db *bun.DB, unit tenant.UnitOfWork) (IoTDataTestModule
 	if err != nil {
 		return IoTDataTestModule{}, err
 	}
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return IoTDataTestModule{}, err
 	}
@@ -57,7 +57,7 @@ func NewIoTDataTestModule(db *bun.DB, unit tenant.UnitOfWork) (IoTDataTestModule
 	if err != nil {
 		return IoTDataTestModule{}, err
 	}
-	facility := facilities.NewServiceWithConfig(facilities.ServiceConfig{
+	facility := facilitiesCompose.NewRoomService(facilitiesCompose.RoomServiceConfig{
 		Rooms: rooms, Occupancy: facilitiesLegacy.OccupancyProjection(roomOccupancyPresence{newStudentPresence(db, slog.Default())}, r.ActivityGroup, membership, people),
 		History: facilitiesLegacy.HistoryProjection(roomHistoryPresence{newStudentPresence(db, slog.Default())}, r.ActivityGroup, membership, people),
 		ValidateDeletion: func(ctx context.Context, roomID int64) error {

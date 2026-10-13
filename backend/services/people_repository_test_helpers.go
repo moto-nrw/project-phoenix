@@ -7,15 +7,16 @@ import (
 
 	"github.com/uptrace/bun"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	enrollmentModule "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
@@ -209,7 +210,7 @@ func NewPeopleRepositorySuiteParentMessaging(db *bun.DB) (ParentMessagingTestRep
 // NewPeopleRepositorySuiteAnnouncements is the parent announcement store over
 // the given Enrollment audience queries.
 func NewPeopleRepositorySuiteAnnouncements(db *bun.DB, audience AnnouncementEnrollmentQueries, clocks ...func() time.Time) usersModels.ParentAnnouncementRepository {
-	return NewParentAnnouncementRepository(db, audience, clocks...)
+	return parentStore.NewParentAnnouncementRepository(db, ParentAnnouncementApplicants(audience), clocks...)
 }
 
 // NewPeopleRepositorySuiteCaregiverBindingLocker is the caregiver binding

@@ -2,24 +2,24 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/config"
+	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -34,7 +34,7 @@ type AuthTestModule struct {
 	Invitation            InvitationCapability
 	GuardianInvitation    GuardianInvitationCapability
 	Schools               organizationtenancy.Capability
-	Settings              config.SettingsService
+	Settings              settingsCompose.SettingsService
 	// MFA, Passkeys, OperatorMFA and OperatorPasskeys are the Identity &
 	// Access second factor and both portals' WebAuthn ceremonies (#3331),
 	// composed over the same repositories the root uses.
@@ -171,7 +171,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		return AuthTestModule{}, err
 	}
 	logger := slog.Default()
-	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -255,13 +255,14 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+	identityAccess, err := newIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db}, accountAuthenticationWiring{
 		repos: sessionRepos, codec: codec, settings: settings.Settings, audit: command, logger: logger,
 		operators: operators,
 		demoAccess: &demoAccessWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
 			logger: logger, backoff: settingsOverrides.resetBackoff, maxActiveSchools: settingsOverrides.demoMaxActiveSchools,
 			operatorWithoutSecondFactor: settingsOverrides.demoOperatorWithoutSecondFactor,
+			newToken:                    testRequestTokens.NewCapabilityToken, fingerprint: testRequestTokens.CapabilityFingerprint,
 		},
 		demoStandingSchool: settingsOverrides.standingDemo,
 		mfa: &mfaWiring{
@@ -351,7 +352,7 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, db *bun.DB, logger *sl
 		return nil, err
 	}
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db})
-	module, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+	module, err := newIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db}, accountAuthenticationWiring{
 		repos: sessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db)), codec: codec, settings: cfg.Settings,
 		audit: cfg.Audit, logger: logger,
 		mfa: &mfaWiring{
@@ -381,7 +382,7 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, db *bun.DB, logger *sl
 type IdentityAccessTestConfig struct {
 	TokenAuth           *authjwt.TokenAuth
 	TenantRuntime       tenant.UnitOfWork
-	Settings            config.SettingsService
+	Settings            settingsCompose.SettingsService
 	Audit               auditModels.Command
 	Dispatcher          *email.Dispatcher
 	DefaultFrom         email.Email
@@ -405,3 +406,49 @@ func (d failingStaffDirectory) Create(context.Context, *userModels.Staff) error 
 // trusted-device HMAC key from: the process configuration, exactly as the
 // production root reads it, so no key is stored in source.
 func mfaTestSecret() string { return currentFactoryConfig().JWTSecret }
+
+// testRequestTokens are the request reads and capability tokens of the
+// retained token adapter, bound the way the serving root binds them (api).
+// The test compositions keep them here until the test hooks leave the legacy
+// composition (#2747).
+var testRequestTokens = TokenAdapter{
+	Permissions:           authjwt.PermissionsFromCtx,
+	Claims:                testRequestClaims,
+	Memo:                  testRequestMemo,
+	NewCapabilityToken:    authjwt.NewOpaqueCapabilityToken,
+	CapabilityFingerprint: authjwt.OpaqueCapabilityFingerprint,
+}
+
+// testTokensFor binds testRequestTokens to the session signer cfg names.
+func testTokensFor(cfg FactoryConfig) (TokenAdapter, error) {
+	signer, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
+	if err != nil {
+		return TokenAdapter{}, fmt.Errorf("invalid auth JWT configuration: %w", err)
+	}
+	codec, err := signedIdentityTokensOf(signer)
+	if err != nil {
+		return TokenAdapter{}, err
+	}
+	tokens := testRequestTokens
+	tokens.SessionTokens = codec
+	return tokens, nil
+}
+
+func testRequestClaims(ctx context.Context) (RequestClaims, bool) {
+	claims, ok := ctx.Value(authjwt.CtxClaims).(authjwt.AppClaims)
+	if !ok {
+		return RequestClaims{}, false
+	}
+	return RequestClaims{
+		AccountID: int64(claims.ID), TenantID: claims.TenantID, Scope: claims.Scope,
+		SchoolScope: claims.IsSchoolScope(), Admin: claims.IsAdmin,
+		FirstName: claims.FirstName, LastName: claims.LastName, Username: claims.Username,
+	}, true
+}
+
+func testRequestMemo(ctx context.Context) RequestMemo {
+	if cache := authjwt.RequestIdentityCacheFrom(ctx); cache != nil {
+		return cache
+	}
+	return nil
+}

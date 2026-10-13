@@ -10,6 +10,7 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -71,7 +72,7 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 	svc, err := services.NewStaffAdmin(payrollAdminDeps(db, repos, repos.Staff))
 	require.NoError(t, err)
 	dir := services.NewStaffDirectory(services.StaffDirectoryDependencies{
-		DB: db, Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher,
+		Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher,
 	})
 
 	updateStaff := func(ctx context.Context, staff *userModels.Staff) error {

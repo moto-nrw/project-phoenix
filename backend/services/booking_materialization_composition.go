@@ -2,23 +2,23 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -467,7 +467,7 @@ func (s bookingStudents) Student(ctx context.Context, id int64, lock bool) (care
 	}
 	row, err := s.people.ReadEnrollmentStudent(ctx, id, mode)
 	if errors.Is(err, peopledirectory.ErrStudentNotFound) {
-		return careplanCompose.BookingStudent{}, careplanCompose.BookingRowNotFound(fmt.Errorf("%w: %w", sql.ErrNoRows, err))
+		return careplanCompose.BookingStudent{}, careplanCompose.BookingRowNotFound(fmt.Errorf("%w: %w", transactionruntime.ErrNoRows, err))
 	}
 	if err != nil {
 		return careplanCompose.BookingStudent{}, err

@@ -7,16 +7,14 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/email"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 type deliveryProvider struct {
@@ -25,8 +23,14 @@ type deliveryProvider struct {
 	mailIdentity   email.ReplyToResolver
 	push           delivery.PushSender
 	logger         *slog.Logger
-	db             *bun.DB
+	tenants        intentTenantTransactions
 	pushAuthorized func(context.Context, delivery.ClaimedIntent) (bool, error)
+}
+
+// intentTenantTransactions runs a provider step in the tenant transaction
+// of the claimed intent's school (deliveryCompose.TenantTransactions).
+type intentTenantTransactions interface {
+	WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error
 }
 
 type guardianDisplayQuery interface {
@@ -45,10 +49,10 @@ type pushSubscriptionAuthorizer interface {
 	FindForSchoolAccounts(context.Context, []int64) ([]*deliveryModels.PushSubscription, error)
 }
 
-func newPushAuthorizationChecker(db *bun.DB, subscriptions pushSubscriptionAuthorizer) func(context.Context, delivery.ClaimedIntent) (bool, error) {
+func newPushAuthorizationChecker(tenants intentTenantTransactions, subscriptions pushSubscriptionAuthorizer) func(context.Context, delivery.ClaimedIntent) (bool, error) {
 	return func(ctx context.Context, intent delivery.ClaimedIntent) (bool, error) {
 		var eligible []*deliveryModels.PushSubscription
-		err := tenant.WithTenantTx(ctx, db, intent.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		err := tenants.WithinTenant(ctx, intent.TenantID, func(txCtx context.Context) error {
 			var lookupErr error
 			eligible, lookupErr = eligiblePushSubscriptions(txCtx, subscriptions, intent.PushRecipient)
 			return lookupErr
@@ -90,9 +94,9 @@ func containsPushSubscription(subscriptions []*deliveryModels.PushSubscription, 
 	return false
 }
 
-func newExpiredPushSubscriptionCleaner(db *bun.DB, subscriptions pushSubscriptionCleaner) func(context.Context, delivery.ClaimedIntent) error {
+func newExpiredPushSubscriptionCleaner(tenants intentTenantTransactions, subscriptions pushSubscriptionCleaner) func(context.Context, delivery.ClaimedIntent) error {
 	return func(ctx context.Context, intent delivery.ClaimedIntent) error {
-		return tenant.WithTenantTx(ctx, db, intent.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return tenants.WithinTenant(ctx, intent.TenantID, func(txCtx context.Context) error {
 			subscription := &deliveryModels.PushSubscription{
 				AccountID: intent.PushRecipient.AccountID, Portal: intent.PushRecipient.Portal,
 				Endpoint: intent.PushRecipient.Endpoint, P256dh: intent.PushRecipient.P256DH,
@@ -128,33 +132,6 @@ func (r guardianDisplayResolver) ResolveGuardianDisplays(ctx context.Context, id
 type announcementDeliveryAdapter struct{ module *delivery.Module }
 
 type durableEmailAdapter struct{ module *delivery.Module }
-
-type durablePushAdapter struct{ module *delivery.Module }
-
-func (a durablePushAdapter) CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error) {
-	tenantID, err := tenant.TenantFromContext(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("cancel push outbox rows: tenant is required: %w", err)
-	}
-	return a.module.Cancel(ctx, tenantID.Int64(), delivery.TransportPush, delivery.RelatedEntity{Type: relatedType, ID: relatedID}, reason)
-}
-
-func (a durablePushAdapter) EnqueuePush(ctx context.Context, input notifications.PushIntent) (bool, error) {
-	stored, err := a.module.EnqueuePush(ctx, delivery.PushIntent{
-		TenantID: input.TenantID, Template: input.Template,
-		Recipient: delivery.PushRecipient{
-			SubscriptionID: input.SubscriptionID, AccountID: input.AccountID, Endpoint: input.Endpoint, P256DH: input.P256DH,
-			Auth: input.Auth, Portal: input.Portal, UpdatedAt: input.UpdatedAt,
-			AudienceScope: string(input.AudienceScope), StudentIDs: input.StudentIDs,
-		},
-		Payload: delivery.PushPayload{
-			Title: input.Title, Body: input.Body, DeepLink: input.DeepLink, Type: input.Type, Priority: input.Priority,
-		},
-		IdempotencyKey: input.IdempotencyKey,
-		Related:        delivery.RelatedEntity{Type: input.RelatedType, ID: input.RelatedID},
-	})
-	return stored.Duplicate, err
-}
 
 type enrollmentDeliveryAdapter struct {
 	module   *delivery.Module
@@ -287,7 +264,7 @@ func (p *deliveryProvider) SendEmail(ctx context.Context, intent delivery.Claime
 		return delivery.ProviderResult{}, err
 	}
 	var message *email.Message
-	err = tenant.WithTenantTx(ctx, p.db, intent.TenantID, func(tenantCtx context.Context, _ bun.Tx) error {
+	err = p.tenants.WithinTenant(ctx, intent.TenantID, func(tenantCtx context.Context) error {
 		var renderErr error
 		message, renderErr = renderer.Render(tenantCtx, row)
 		if renderErr == nil {

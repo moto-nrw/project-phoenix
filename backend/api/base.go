@@ -196,7 +196,7 @@ func NewCleanupTimetable(db *bun.DB) (timetableModule.Capability, error) {
 	if err != nil {
 		return nil, err
 	}
-	rooms, err := services.NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +220,7 @@ func composeTimetable(db *bun.DB, persons *peopleModule.Module, rooms *facilitie
 	})
 }
 
-func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logger, tenantRuntime apiCommon.TenantRuntime) (moduleServices, error) {
+func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logger, tenantRuntime apiCommon.TenantRuntime, productEvents services.ProductEventTracker) (moduleServices, error) {
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{
 		DB: db,
 		Observe: func(observation organizationCompose.Observation) {
@@ -298,12 +298,9 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		return moduleServices{}, err
 	}
 	workTime, err := workforceCompose.New(workforceCompose.Dependencies{
-		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
-			_, err := membership.FindStaffForMutation(ctx, staffID)
-			return err
-		},
-		DB:           db,
-		LiveStaffIDs: services.WorkforceLiveStaffIDs(membership),
+		LockStaffAssignment: services.WorkforceStaffAssignmentLock(membership),
+		DB:                  db,
+		LiveStaffIDs:        services.WorkforceLiveStaffIDs(membership),
 		// A Sonderarbeitszeit never sets a target on a statutory holiday.
 		StatutoryHolidays: calendar.TenantHolidayDates,
 		Observe: func(observation workforceCompose.Observation) {
@@ -394,7 +391,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
-	factory, err := withFileStorageWiring(func(fileStorageWiring services.FileStorageWiring) (*services.Factory, error) {
+	factory, err := withRootWiring(func(fileStorageWiring services.FileStorageWiring, tokens services.TokenAdapter) (*services.Factory, error) {
 		return services.NewFactoryWithModules(
 			carePlan, db, logger, publicAPIURL, tenantRuntime,
 			organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability,
@@ -423,7 +420,9 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 			observability.ObserveIdentityAccessOperation,
 			workTime,
 			observeDataImport,
+			productEvents,
 			fileStorageWiring,
+			tokens,
 		)
 	})
 	if err != nil {
@@ -435,17 +434,22 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	return moduleServices{carePlan: carePlan, studentStatusDays: studentStatusDays, timetableRepositories: timetableRepositories, services: factory, demoAccess: authAPI.ComposedDemoAccess(factory.AccountAuthentication().DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff}, nil
 }
 
-// withFileStorageWiring resolves what the File Storage module needs from the
-// root and cannot compose itself (#2707): the uploads object store, rooted at
-// the uploads directory every document feature shares, and the metrics sink.
-// It hands both to the service factory, which composes the module where the
-// announcement ports live.
-func withFileStorageWiring(build func(services.FileStorageWiring) (*services.Factory, error)) (*services.Factory, error) {
+// withRootWiring resolves what the service factory needs from the root and
+// cannot compose itself. File Storage (#2707) needs the uploads object store,
+// rooted at the uploads directory every document feature shares, and the
+// metrics sink; the factory composes the module where the announcement ports
+// live. The legacy composition reads the request and signs sessions through
+// the retained token adapter only the root binds (#2747).
+func withRootWiring(build func(services.FileStorageWiring, services.TokenAdapter) (*services.Factory, error)) (*services.Factory, error) {
 	uploads, err := apiCommon.PrivateUploadsBackend()
 	if err != nil {
 		return nil, fmt.Errorf("resolve uploads backend: %w", err)
 	}
-	return build(services.FileStorageWiring{Objects: uploads, Observe: observeFileStorage})
+	tokens, err := newLegacyTokenAdapter()
+	if err != nil {
+		return nil, err
+	}
+	return build(services.FileStorageWiring{Objects: uploads, Observe: observeFileStorage}, tokens)
 }
 
 func observeFileStorage(observation filestorageCompose.Observation) {
@@ -466,7 +470,9 @@ func observeDataImport(observation services.DataImportObservation) {
 func composeFacilities(db *bun.DB, legacyFacilities *interface {
 	ValidateRoomDeletion(context.Context, int64) error
 }) (*facilitiesModule.Module, error) {
-	recurrenceLock, err := services.NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := timetableCompose.NewRecurrenceWriteLock(timetableCompose.RecurrenceLockDependencies{
+		DB: db, GradeTransitionLockKey: schoolStructureModule.TransitionsLockKey,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -486,7 +492,11 @@ func composeFacilities(db *bun.DB, legacyFacilities *interface {
 }
 
 func composeCarePlan(db *bun.DB, persons *peopleModule.Module, slots carePlanCompose.StatusSlotDirectory) (*carePlanModule.Module, error) {
-	statusStudents, err := services.CarePlanStatusStudents(db, persons)
+	profiles, err := carePlanCompose.NewStudentProfiles(db, func(carePlanCompose.Observation) {})
+	if err != nil {
+		return nil, err
+	}
+	statusStudents, err := services.CarePlanStatusStudents(persons, profiles)
 	if err != nil {
 		return nil, err
 	}
@@ -733,19 +743,20 @@ func (resources *apiBuildResources) close() error {
 	return errors.Join(err, database.ClosePool(resources.pool))
 }
 
-// newServeGraph composes the production HTTP graph of one Serve root and the
-// Worker's retained reads over the same owner modules.
-func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, resultErr error) {
+// newServeGraph composes the production HTTP graph of one Serve root, the
+// Worker's retained reads over the same owner modules and the product
+// analytics tracker the runtime closes on shutdown.
+func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, tracker analytics.Tracker, resultErr error) {
 	logger := config.Logger
 	metricsBearerToken, err := observability.MetricsBearerTokenFromEnv(os.Getenv)
 	if err != nil {
-		return nil, workerReads{}, err
+		return nil, workerReads{}, nil, err
 	}
 
 	// Get database connection as phoenix_auth (least-privilege for serve)
 	db, err := transactionruntime.OpenServePool()
 	if err != nil {
-		return nil, workerReads{}, err
+		return nil, workerReads{}, nil, err
 	}
 	buildResources := apiBuildResources{pool: db}
 	defer func() {
@@ -754,7 +765,7 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, r
 	transactionruntime.ObserveLockWaits(db)
 	tenantRuntime, err := transactionruntime.NewTenantRuntime(db)
 	if err != nil {
-		return nil, workerReads{}, err
+		return nil, workerReads{}, nil, err
 	}
 
 	// Fail fast on a partially migrated schema: the student repository selects
@@ -762,22 +773,27 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, r
 	// information_schema probes, #2059), so the server must only start against
 	// a fully migrated database.
 	if err := usersRepo.VerifyStudentSchema(context.Background(), db); err != nil {
-		return nil, workerReads{}, err
+		return nil, workerReads{}, nil, err
 	}
 
 	if viper.GetBool("db_debug") {
 		db.AddQueryHook(database.NewQueryHook(logger.With("component", "database"))) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
 	}
 
-	// Compose one authoritative instance of each migrated module.
-	modules, err := initializeModuleServices(db, config.PublicAPIURL, logger, tenantRuntime)
+	tracker, err = newProductAnalytics(logger)
 	if err != nil {
-		return nil, workerReads{}, err
+		return nil, workerReads{}, nil, err
+	}
+	buildResources.tracker = tracker
+
+	// Compose one authoritative instance of each migrated module.
+	modules, err := initializeModuleServices(db, config.PublicAPIURL, logger, tenantRuntime, tracker)
+	if err != nil {
+		return nil, workerReads{}, nil, err
 	}
 	serviceFactory := modules.services
-	buildResources.tracker = serviceFactory.Tracker
 	if err := serviceFactory.SetTenantRuntime(tenantRuntime); err != nil {
-		return nil, workerReads{}, err
+		return nil, workerReads{}, nil, err
 	}
 	serviceFactory.SetSettingsObservers(
 		observability.ObserveSettingsLookup,
@@ -832,7 +848,7 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, r
 	securityLogger := setupSecurityLogging(graph.router)
 	sessionAuth, err := newSessionTokenAuth()
 	if err != nil {
-		return nil, workerReads{}, err
+		return nil, workerReads{}, nil, err
 	}
 	setupRateLimiting(graph.router, securityLogger, sessionAuth, demoLoopbackExempt())
 	// One verifier serves every route: it only parses the presented token, and
@@ -843,7 +859,7 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, r
 	graph.router.Use(apiCommon.SentrySessionContext)
 	// Core actions of the portals reach the usage analytics once their
 	// response is 2xx (#3602). After the verifier, which names the session.
-	graph.router.Use(coreActionAnalytics(serviceFactory.Tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(serviceFactory.Settings, logger)))
+	graph.router.Use(coreActionAnalytics(tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(serviceFactory.Settings, logger)))
 
 	documents, err := mountRoutes(graph.router, routeInputs{
 		modules:        modules,
@@ -855,12 +871,12 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, r
 		metricsToken:   metricsBearerToken,
 	}, authRateLimitersFromEnv())
 	if err != nil {
-		return nil, workerReads{}, err
+		return nil, workerReads{}, nil, err
 	}
 	graph.documents = documents
 
 	buildResources.released = true
-	return graph, newWorkerReads(modules), nil
+	return graph, newWorkerReads(modules), tracker, nil
 }
 
 // registerRuntimeStatsProviders hands the pool, the live streams and the PWA
@@ -918,9 +934,10 @@ func (graph *serveGraph) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func mountRoutes(root chi.Router, in routeInputs, limiters authRateLimiters) (documentSweeps, error) {
 	svc := in.modules.services
 	svc.EnableStudentPhotos(services.StudentPhotoBootstrap{
-		Unlinker:     studentsAPI.NewPhotoUnlinker(in.logger.With("component", "student-photo-unlinker"), "public"),
-		PhotoRuntime: in.modules.studentPhotoRuntime,
-		Logger:       in.logger.With("service", "student-photo"),
+		Unlinker:      studentsAPI.NewPhotoUnlinker(in.logger.With("component", "student-photo-unlinker"), "public"),
+		PhotoRuntime:  in.modules.studentPhotoRuntime,
+		Logger:        in.logger.With("service", "student-photo"),
+		ActingAccount: actingAccountID,
 	})
 	if err := mountDemoAccess(root, in.modules.demoAccess, viper.GetString("app_env"), in.frontendURL, viper.GetString("tenant_domain")); err != nil {
 		return documentSweeps{}, err
@@ -1476,7 +1493,7 @@ func mountPresenceRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceau
 	if err != nil {
 		return err
 	}
-	active := presenceAPI.NewResource(services.NewPresenceOperations(svc.Active, svc.OGSGroupLive, logger.With("service", "presence-operations")), activePeople{source: services.NewAttendanceRoutePeople(svc.Users)}, teacherGroupIDs(in.modules), services.NewSchulhofProjection(svc.Schulhof), activeStaffAccess{source: services.NewAttendanceRouteStaff(svc.UserContext)}, svc.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
+	active := presenceAPI.NewResource(services.NewPresenceOperations(svc.Active, svc.OGSGroupLive, logger.With("service", "presence-operations")), activePeople{source: services.NewAttendanceRoutePeople(svc.Users)}, teacherGroupIDs(in.modules), services.NewSchulhofProjection(svc.Schulhof), activeStaffAccess{source: peopleCompose.NewAttendanceRouteStaff(svc.UserContext)}, svc.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
 	active.SupervisionDashboardService = svc.SupervisionDashboard
 	iot, err := newIoTResource(in, deviceAuth, presence, openRoomMove)
 	if err != nil {
@@ -1725,7 +1742,7 @@ func newEnrollmentResource(modules moduleServices) *enrollmentAPI.Resource {
 func mountPeopleRoutes(tenant chi.Router, in routeInputs) {
 	svc, modules, logger := in.modules.services, in.modules, in.logger
 	tenant.Mount("/statistics", statisticsAPI.NewResource(svc.Statistics, svc.ListExport, logger.With("handler", "statistics")).Router())
-	tenant.Mount("/guardians", newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(in.db), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
+	tenant.Mount("/guardians", newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(peopleCompose.NewLegacyRepositoryRuntime(in.db)), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
 	tenant.Mount("/feedback", newFeedbackResource(modules.feedback).Router())
 	tenant.Mount("/meal-plan", newMealPlanResource(modules.mealPlan, newMealPlanExportRenderer()).Router())
 	tenant.Mount("/users", newUsersResource(modules.persons, svc.Auth.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
@@ -1819,13 +1836,20 @@ func mountPortalRoutes(root chi.Router, in routeInputs, limiters authRateLimiter
 	return nil
 }
 
+// caregiverCapabilityViews binds People Directory's caregiver capability for
+// the account and operator routes that toggle it (#2736); in.db opens the
+// administrative transaction of the operator routes.
+func caregiverCapabilityViews(in routeInputs) peopleCompose.CaregiverCapabilityViews {
+	return peopleCompose.NewCaregiverCapabilityViews(in.modules.services.CaregiverCapability, in.db)
+}
+
 // newAccountResource composes the tenant account routes. Their caregiver
 // capability is the one the operator routes provision with.
 func newAccountResource(in routeInputs) *authAPI.Resource {
 	svc := in.modules.services
 	authSchools := authSchoolDirectory{schools: svc.Schools, memberships: svc.Auth.ListActiveAccountSchoolIDs}
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, authSchools, svc.AccountAuthentication(), services.AccountRouteTenantRuntime())
-	resource.CaregiverCapabilityService = svc.CaregiverCapabilityViews(in.db)
+	resource.CaregiverCapabilityService = caregiverCapabilityViews(in)
 	resource.SettingsService = svc.Settings
 	resource.RoleGrants = services.RoleGrantPolicy{}
 	resource.MFAService = svc.MFA
@@ -1876,7 +1900,7 @@ func newOperatorResource(in routeInputs) (*operatorAPI.Resource, error) {
 		MFAService:           svc.OperatorMFA,
 		InvitationService:    svc.OperatorInvitation,
 		ProvisioningService:  svc.OperatorProvisioning,
-		Caregivers:           svc.CaregiverCapabilityViews(in.db),
+		Caregivers:           caregiverCapabilityViews(in),
 		AnnouncementsService: svc.Announcement,
 		UnregisteredTagScans: tagScanReview.Router(),
 		SchoolSettings:       schoolSettings,

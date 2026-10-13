@@ -1,4 +1,4 @@
-package services_test
+package services
 
 // The calendar period, closing day and dateframe repositories are adapters
 // over the School Calendar owner (#2666). The tests below pin what the
@@ -15,8 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +24,7 @@ func TestCalendarPeriodAdapter_KeepsTheLegacyContracts(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CalendarPeriod
+	repo := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db)).CalendarPeriod
 	ctx := testpkg.Ctx(t)
 
 	fixture := readBack(t, ctx, repo.FindByID, testpkg.CreateTestCalendarPeriod(t, db, "Vorlage", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31)).ID)
@@ -127,7 +125,7 @@ func TestCalendarPeriodAdapter_CreateIfAbsentIsRaceFreePerTenant(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CalendarPeriod
+	repo := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db)).CalendarPeriod
 	ctx := testpkg.Ctx(t)
 	fixture := readBack(t, ctx, repo.FindByID, testpkg.CreateTestCalendarPeriod(t, db, "Vorlage", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31)).ID)
 
@@ -186,7 +184,7 @@ func TestCalendarPeriodAdapter_OverlapFindersKeepTheDateSemantics(t *testing.T) 
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CalendarPeriod
+	repo := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db)).CalendarPeriod
 	ctx := testpkg.Ctx(t)
 
 	active := testpkg.CreateTestCalendarPeriod(t, db, "Aktiv", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31))
@@ -237,7 +235,7 @@ func TestCalendarPeriodAdapter_UsageCountsComeFromThePlanningTables(t *testing.T
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CalendarPeriod
+	repo := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db)).CalendarPeriod
 	ctx := testpkg.Ctx(t)
 
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Genutzt", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31))
@@ -266,7 +264,7 @@ func TestCalendarPeriodAdapter_UsageCountsReturnDatabaseError(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupClosableTestDB(t)
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CalendarPeriod
+	repo := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db)).CalendarPeriod
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, db.Close())
 
@@ -311,7 +309,7 @@ func TestClosingDayAdapter_KeepsTheLegacyContracts(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ClosingDay
+	repo := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db)).ClosingDay
 	ctx := testpkg.Ctx(t)
 
 	fixture := readBack(t, ctx, repo.FindByID, testpkg.CreateTestClosingDay(t, db, testpkg.Date(2030, time.November, 4), testpkg.Date(2030, time.November, 8), "Pädagogische Woche").ID)
@@ -373,7 +371,7 @@ func TestDateframeAdapter_KeepsTheLegacyLookups(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Dateframe
+	repo := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db)).Dateframe
 	ctx := testpkg.Ctx(t)
 
 	berlin, err := time.LoadLocation("Europe/Berlin")
@@ -408,7 +406,7 @@ func TestCapacityOccurrencesReadPeriodsThroughTheCalendarOwner(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
+	factory := NewTimetableRepositories(db, NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Kapazität", testpkg.Date(2030, time.September, 2), testpkg.Date(2030, time.September, 6))

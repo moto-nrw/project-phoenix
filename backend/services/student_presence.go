@@ -5,21 +5,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/uptrace/bun"
 )
 
-func newStudentPresence(db *bun.DB, logger *slog.Logger) *studentpresence.Module {
-	module, err := NewStudentPresence(db, studentPresenceObserver(logger))
-	if err != nil {
-		panic(err)
-	}
-	return module
-}
-
-// newStatistics builds the Statistik report over the same presence database
-// and operation logging as newStudentPresence.
-func newStatistics(db *bun.DB, logger *slog.Logger, deps presenceCompose.StatisticsDependencies) studentpresence.StatisticsReports {
-	deps.DB = db
+// newStatistics builds the Statistik report over the presence database of
+// deps with the operation logging of newStudentPresence.
+func newStatistics(logger *slog.Logger, deps presenceCompose.StatisticsDependencies) studentpresence.StatisticsReports {
 	deps.Observe = studentPresenceObserver(logger)
 	reports, err := presenceCompose.NewStatistics(deps)
 	if err != nil {

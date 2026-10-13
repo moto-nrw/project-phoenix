@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 )
 

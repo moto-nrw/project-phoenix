@@ -4,14 +4,13 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // excusedRequestReviewPolicy is the one method of the parent-request review
@@ -27,7 +26,7 @@ type excusedRequestWiring struct {
 	students    usersModels.StudentRepository
 	persons     usersModels.PersonRepository
 	scope       carePlanCompose.ReviewScopeResolver
-	emitter     *parentmessaging.Emitter
+	emitter     *communicationCompose.ParentEventEmitter
 	broadcaster realtime.Broadcaster
 	events      usersModels.ParentRequestEventRepository
 	notifier    notifications.AbsenceNotifier
@@ -82,9 +81,9 @@ func newExcusedAbsenceRequests(wiring excusedRequestWiring) (*carePlanCompose.Ex
 
 // parentRequestReviewScope adapts the identity-owned review policy to the
 // workflow's data-only port: the permissions come from the request claims.
-func parentRequestReviewScope(policy excusedRequestReviewPolicy) carePlanCompose.ReviewScopeResolver {
+func parentRequestReviewScope(policy excusedRequestReviewPolicy, permissions func(context.Context) []string) carePlanCompose.ReviewScopeResolver {
 	return func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
-		schoolWide, groupIDs, err := policy.AbsenceScope(ctx, authjwt.PermissionsFromCtx(ctx))
+		schoolWide, groupIDs, err := policy.AbsenceScope(ctx, permissions(ctx))
 		if err != nil {
 			return carePlanCompose.ReviewScope{}, err
 		}
@@ -94,7 +93,9 @@ func parentRequestReviewScope(policy excusedRequestReviewPolicy) carePlanCompose
 
 // excusedRequestMessenger maps the workflow's request events onto the
 // Communication parent-event emitter.
-type excusedRequestMessenger struct{ emitter *parentmessaging.Emitter }
+type excusedRequestMessenger struct {
+	emitter *communicationCompose.ParentEventEmitter
+}
 
 func (m excusedRequestMessenger) EnqueueRequestDecision(ctx context.Context, tenantID, studentID, guardianAccountID int64, event carePlanCompose.RequestEvent) error {
 	return m.emitter.EnqueueRequestDecision(ctx, tenantID, studentID, guardianAccountID, childEvent(event))
@@ -118,11 +119,11 @@ func (m excusedRequestMessenger) ResolveDecisionAudience(ctx context.Context, st
 }
 
 func (m excusedRequestMessenger) EmitDecisionAudience(tenantID, studentID int64, audience carePlanCompose.DecisionAudience, full, neutral carePlanCompose.RequestEvent) {
-	m.emitter.EmitDecisionAudience(tenantID, studentID, parentmessaging.DecisionAudience{Full: audience.Full, Neutral: audience.Neutral}, childEvent(full), childEvent(neutral))
+	m.emitter.EmitDecisionAudience(tenantID, studentID, communicationCompose.ParentDecisionAudience{Full: audience.Full, Neutral: audience.Neutral}, childEvent(full), childEvent(neutral))
 }
 
-func childEvent(event carePlanCompose.RequestEvent) parentmessaging.ChildEvent {
-	result := parentmessaging.ChildEvent{
+func childEvent(event carePlanCompose.RequestEvent) communicationCompose.ParentChildEvent {
+	result := communicationCompose.ParentChildEvent{
 		EventType: event.EventType, ActorKind: event.ActorKind, ActorAccountID: event.ActorAccountID, Body: event.Body,
 		RequestType: event.RequestType, RequestStatus: event.RequestStatus, DecisionReason: event.DecisionReason,
 		RefTable: event.RefTable, Payload: event.Payload,
