@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Identity & Access owns the password reset flows (#2722). This file binds
@@ -107,7 +106,7 @@ func (d passwordResetDelivery) DispatchPasswordReset(ctx context.Context, link i
 	}
 	baseRetry := link.Delivery.RetryCount
 	// Async delivery must outlive the HTTP request without retaining its tx.
-	detached := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(context.WithoutCancel(ctx)))
+	detached := identityaccessCompose.DetachedMailContext(ctx)
 	d.dispatcher.Dispatch(detached, email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,

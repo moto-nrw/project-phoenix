@@ -207,7 +207,7 @@ func (d operatorLinkDelivery) dispatch(
 			record(cbCtx, meta, baseRetry, result)
 		}
 	}
-	d.dispatcher.Dispatch(detachedContext(ctx), request)
+	d.dispatcher.Dispatch(identityaccessCompose.DetachedMailContext(ctx), request)
 }
 
 func (d operatorLinkDelivery) recordInvitationDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {

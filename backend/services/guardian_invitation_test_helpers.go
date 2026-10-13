@@ -9,6 +9,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -81,7 +82,7 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	if err != nil {
 		return nil, err
 	}
-	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+	identityAccess, err := newIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db}, accountAuthenticationWiring{
 		repos: sessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db)), codec: codec, audit: audit, logger: logger,
 		lifecycle: &lifecycleWiring{
 			audit: audit, caregivers: caregivers,

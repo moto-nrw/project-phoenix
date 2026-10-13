@@ -255,7 +255,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+	identityAccess, err := newIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db}, accountAuthenticationWiring{
 		repos: sessionRepos, codec: codec, settings: settings.Settings, audit: command, logger: logger,
 		operators: operators,
 		demoAccess: &demoAccessWiring{
@@ -352,7 +352,7 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, db *bun.DB, logger *sl
 		return nil, err
 	}
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db})
-	module, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+	module, err := newIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db}, accountAuthenticationWiring{
 		repos: sessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db)), codec: codec, settings: cfg.Settings,
 		audit: cfg.Audit, logger: logger,
 		mfa: &mfaWiring{

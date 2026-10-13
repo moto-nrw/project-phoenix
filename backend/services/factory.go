@@ -1658,7 +1658,7 @@ func newFactory(
 	// The delivery module is composed after the identity module, so the
 	// guardian mail reads its outbox at call time.
 	var emailOutboxService *emailoutbox.Service
-	identityAccess, err = newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+	identityAccess, err = newIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db}, accountAuthenticationWiring{
 		repos:    sessionRepositoriesOf(identityChain, organizations, audits.AuthEvent, pushSubscriptions),
 		codec:    sessionCodec,
 		settings: settingsService,

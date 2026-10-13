@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Identity & Access owns the school invitation flows (#2722). This file
@@ -185,7 +183,7 @@ func (d invitationDelivery) dispatchSchoolInvitation(ctx context.Context, invita
 		Recipient:   invitation.Email,
 	}
 	baseRetry := invitation.Delivery.RetryCount
-	d.dispatcher.Dispatch(detachedContext(ctx), email.DeliveryRequest{
+	d.dispatcher.Dispatch(identityaccessCompose.DetachedMailContext(ctx), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: d.backoff,
@@ -219,7 +217,7 @@ func (d invitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation i
 			invitation.TenantID, d.welcomeSettings(invitation.TenantID), d.logger)
 		return err
 	}
-	if err := tenant.WithSavepoint(ctx, resolveHelpURL); errors.Is(err, tenant.ErrSavepointControl) {
+	if err := identityaccessCompose.RunMailStepInSavepoint(ctx, resolveHelpURL); err != nil {
 		return fmt.Errorf("resolve staff welcome help URL: %w", err)
 	}
 	payload := map[string]any{
@@ -284,12 +282,6 @@ func trimmedValue(value *string) string {
 		return ""
 	}
 	return strings.TrimSpace(*value)
-}
-
-// detachedContext isolates asynchronous work from the request transaction
-// and its commit hooks while keeping the tenant and the runtime.
-func detachedContext(ctx context.Context) context.Context {
-	return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(context.WithoutCancel(ctx)))
 }
 
 // InvitationCapability is what the invitation routes consume: the school

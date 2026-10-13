@@ -101,7 +101,7 @@ func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.L
 	if err != nil {
 		return nil, err
 	}
-	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+	identityAccess, err := newIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db}, accountAuthenticationWiring{
 		repos: sessionRepositories{
 			schools: schoolDirectory{schools: repos.School}, persons: repos.Person, authEvents: audits.AuthEvent, pushSubscriptions: repos.PushSubscription,
 		},
