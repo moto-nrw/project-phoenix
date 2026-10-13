@@ -2329,7 +2329,7 @@ func newFactory(
 	offeringChanges, err := newOfferingChanges(offeringChangeInputs{
 		CarePlan: carePlan, Enrollment: enrollmentRecords, Students: studentRepository,
 		Withdrawals: NewCareWithdrawalCompletionRepository(carePlan), Settings: settingsService,
-		Planning: manualPlanningReader{db: db, courseGroups: timetableCapability},
+		Planning: manualPlanningReader{query: enrollmentCompose.NewManualPlanningQuery(db), courseGroups: timetableCapability},
 		Bookings: careBookings, Reviews: requestReviewPolicy, Emitter: pillEmitter,
 		Events: parentRequestEvents, Shares: requestShares, Today: today,
 		Logger: logger.With("service", "offering-change-requests"),
@@ -3065,7 +3065,7 @@ func newFactory(
 		Workforce:       workTime,
 		LockStaffShifts: workforceCompose.NewStaffShiftLock(db),
 		Deviations:      timetablePlanning.Deviations,
-		TimetableData:   NewSickCascadeTimetableRows(timetableRows, db),
+		TimetableData:   timetableRows.SickCascadeRows(arrivalTimetable.SubstituteDayLock(db)),
 		InstanceStaff:   arrivalTimetable.NewTimetableInstanceStaffReads(timetableRepos.InstanceStaff),
 		Broadcaster:     factory.RealtimeHub,
 		Logger:          logger.With("service", "shift_plan_sync"),

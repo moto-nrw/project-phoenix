@@ -300,7 +300,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	offeringChanges, err := newOfferingChanges(offeringChangeInputs{
 		CarePlan: repos.CarePlan, Enrollment: repos.Enrollment(), Students: repos.Student,
 		Withdrawals: repos.CareWithdrawal, Settings: settingsService,
-		Planning: manualPlanningReader{db: db, courseGroups: repos.Timetable},
+		Planning: manualPlanningReader{query: enrollmentCompose.NewManualPlanningQuery(db), courseGroups: repos.Timetable},
 		Bookings: careBookings, Reviews: requestReviewPolicy, Emitter: pillEmitter,
 		Events: parentRequestEvents, Today: today, Logger: logger.With("service", "offering-change-requests"),
 	})
