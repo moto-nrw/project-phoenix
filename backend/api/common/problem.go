@@ -144,8 +144,8 @@ func departsFromEnvelope(body map[string]json.RawMessage, status int) bool {
 // addProblemFields completes the RFC 9457 envelope. Shared renderers already
 // supplied every member. A direct writer's text moves from `error` or
 // `message` into `detail`, its status member becomes the HTTP status number
-// and a missing code becomes the class code of the status. Further members
-// stay as RFC 9457 extensions.
+// and a missing or unregistered code becomes the class code of the status.
+// Further members stay as RFC 9457 extensions.
 func addProblemFields(body map[string]json.RawMessage, status int, requestID string) {
 	if problemStringField(body, "detail") == "" {
 		setProblemString(body, "detail", problemDetail(body, status))
@@ -154,11 +154,13 @@ func addProblemFields(body map[string]json.RawMessage, status int, requestID str
 	delete(body, "message")
 	body["status"] = json.RawMessage(strconv.Itoa(status))
 	code := problemStringField(body, "code")
+	codeReplaced := false
 	if _, registered := errorClassByCode[code]; !registered {
 		code = ErrorClassCode(status)
 		setProblemString(body, "code", code)
+		codeReplaced = true
 	}
-	if problemStringField(body, "type") == "" {
+	if codeReplaced || problemStringField(body, "type") == "" {
 		setProblemString(body, "type", problemType(code, status))
 	}
 	if problemStringField(body, "title") == "" {

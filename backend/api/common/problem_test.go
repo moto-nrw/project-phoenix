@@ -118,6 +118,7 @@ func TestProblemResponseAnswersEveryLegacyBodyInTheSharedEnvelope(t *testing.T) 
 		body        string
 		wantDetail  string
 		wantCode    string
+		wantType    string
 		wantKept    map[string]any
 	}{
 		{name: "message instead of error", status: http.StatusTooManyRequests, contentType: "application/json", body: `{"status":"Too Many Requests","message":"slow down"}`, wantDetail: "slow down", wantCode: "general.unavailable"},
@@ -125,6 +126,7 @@ func TestProblemResponseAnswersEveryLegacyBodyInTheSharedEnvelope(t *testing.T) 
 		{name: "success envelope on a conflict", status: http.StatusConflict, contentType: "application/json", body: `{"status":"success","data":{"status":"conflict"},"message":"Conflict detected"}`, wantDetail: "Conflict detected", wantCode: "general.business_rejection", wantKept: map[string]any{"data": map[string]any{"status": "conflict"}}},
 		{name: "numeric legacy code", status: http.StatusUnauthorized, contentType: "application/json", body: `{"status":"error","code":401,"error":"token unauthorized"}`, wantDetail: "token unauthorized", wantCode: "general.permission"},
 		{name: "unregistered code", status: http.StatusConflict, contentType: "application/json", body: `{"status":409,"code":"care.not_registered","detail":"companion conflict"}`, wantDetail: "companion conflict", wantCode: "general.business_rejection"},
+		{name: "unregistered code and stale type", status: http.StatusConflict, contentType: "application/json", body: `{"status":409,"code":"care.not_registered","type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","detail":"companion conflict"}`, wantDetail: "companion conflict", wantCode: "general.business_rejection", wantType: "https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich"},
 		{name: "extension members stay", status: http.StatusConflict, contentType: "application/json", body: `{"conflicts":[{"id":"1"}],"message":"companion conflict"}`, wantDetail: "companion conflict", wantCode: "general.business_rejection", wantKept: map[string]any{"conflicts": []any{map[string]any{"id": "1"}}}},
 		{name: "plain text", status: http.StatusNotFound, contentType: "text/plain", body: "not found", wantDetail: "not found", wantCode: "general.input"},
 		{name: "empty body", status: http.StatusInternalServerError, wantDetail: "Internal Server Error", wantCode: "general.server"},
@@ -151,6 +153,9 @@ func TestProblemResponseAnswersEveryLegacyBodyInTheSharedEnvelope(t *testing.T) 
 			require.NotContains(t, body, "error")
 			require.NotContains(t, body, "message")
 			require.Equal(t, tc.wantCode, body["code"])
+			if tc.wantType != "" {
+				require.Equal(t, tc.wantType, body["type"])
+			}
 			for member, want := range tc.wantKept {
 				require.Equal(t, want, body[member], member)
 			}
