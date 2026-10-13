@@ -24,7 +24,6 @@ func TestListCareWithdrawalsQueryBudget(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	tc := setupStudentsRouteWithCareLifecycle(t, false)
-	repos := newStudentTestRepositories(tc.db)
 	actor := testpkg.CreateTestAccount(t, tc.db, "care-withdrawal-budget@example.com")
 	claims := testutil.AdminTestClaims(int(actor.ID))
 
@@ -33,7 +32,7 @@ func TestListCareWithdrawalsQueryBudget(t *testing.T) {
 		for range n {
 			student := testpkg.CreateTestStudent(t, tc.db, fmt.Sprintf("Kind%d", created), "Abmeldebudget", "QB2")
 			testpkg.CreateTestCareWithdrawalCompletionConfirmedAt(
-				t, repos.CareWithdrawal, student.ID, actor.ID, timezone.NewDate(2026, 9, 1+created), actor.CreatedAt,
+				t, tc.db, student.ID, actor.ID, timezone.NewDate(2026, 9, 1+created), actor.CreatedAt,
 			)
 			created++
 		}

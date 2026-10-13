@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -12,7 +11,7 @@ import (
 // insertStudentFixture creates all three owned rows in one statement, without
 // routing through rollback storage. Historical migration tests explicitly
 // restore a base table; only that schema uses the historical insert below.
-func insertStudentFixture(ctx context.Context, db *bun.DB, student *users.Student) error {
+func insertStudentFixture(ctx context.Context, db *bun.DB, student *Student) error {
 	legacy, err := studentFixtureHasHistoricalStorage(ctx, db)
 	if err != nil {
 		return err
@@ -30,8 +29,7 @@ func insertStudentFixture(ctx context.Context, db *bun.DB, student *users.Studen
 		SELECT tenant_id, id FROM membership RETURNING *
 	)
 	SELECT p.id, p.tenant_id, p.person_id, p.created_at, p.updated_at,
-		m.school_class, m.status, c.sick, c.excused, c.departure_days,
-		c.allowed_departure_modes, c.pickup_days, c.bus_days
+		m.school_class, m.status, c.sick, c.excused
 	FROM profile p JOIN membership m ON m.student_profile_id=p.id AND m.tenant_id=p.tenant_id
 	JOIN care c ON c.membership_id=m.id AND c.tenant_id=m.tenant_id`,
 		student.TenantID, student.PersonID, student.SchoolClass).Scan(ctx, student)

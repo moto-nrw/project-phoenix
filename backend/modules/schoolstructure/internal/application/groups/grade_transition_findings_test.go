@@ -23,7 +23,7 @@ import (
 // TestApplyRefusesChildAddedAfterCohortSnapshot: the only seam between the
 // cohort snapshot and the re-read under the locks is the People Directory
 // port, which a test in this package may not import.
-func assertStudentStatus(t *testing.T, db *bun.DB, studentID int64, want testpkg.StudentStatus) {
+func assertStudentStatus(t *testing.T, db *bun.DB, studentID int64, want string) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -35,7 +35,7 @@ func assertStudentStatus(t *testing.T, db *bun.DB, studentID int64, want testpkg
 		Column("status").
 		Where("deleted_at IS NULL").Where("student_profile_id = ?", studentID).
 		Scan(ctx, &status))
-	assert.Equal(t, string(want), status)
+	assert.Equal(t, want, status)
 }
 
 // letterOnlySuffix returns a short digit-free token so a class name never

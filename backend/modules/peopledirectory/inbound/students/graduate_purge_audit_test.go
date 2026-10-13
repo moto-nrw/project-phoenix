@@ -23,7 +23,7 @@ func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Purge", "Audited", "4a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "graduate-purge-audit@example.com")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, repos.CareWithdrawal, student.ID, actor.ID, timezone.TodayDate())
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, student.ID, actor.ID, timezone.TodayDate())
 	room := testpkg.CreateTestRoom(t, tc.db, "graduate-purge-audit-room")
 	instance := testpkg.CreateTestActivityInstance(t, tc.db, timezone.TodayDate().AddDays(-1), room.ID, testpkg.ActivityInstanceOpts{
 		Title:         "Retained graduate roster assignment",

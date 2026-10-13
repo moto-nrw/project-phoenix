@@ -145,7 +145,9 @@ func TestPersonRepository_Update(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// Create test person
-	person := testpkg.CreateTestPerson(t, db, "Update", "Original")
+	personFixture := testpkg.CreateTestPerson(t, db, "Update", "Original")
+	person, err := repo.FindByID(ctx, personFixture.ID)
+	require.NoError(t, err)
 
 	t.Run("update person name", func(t *testing.T) {
 		person.FirstName = "Updated"

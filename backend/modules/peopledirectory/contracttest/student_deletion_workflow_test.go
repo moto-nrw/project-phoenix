@@ -54,16 +54,36 @@ func linkCompanions(t *testing.T, ctx context.Context, db *bun.DB, subjectID, co
 	require.NoError(t, services.ReplaceStudentCompanions(ctx, companionLinks(db), subjectID, []*userModels.StudentCompanion{edge}))
 }
 
-// studentPlans is the child repository the departure-plan fixture writes
+// studentPlans is the child repository the departure-plan helper writes
 // through, so a staged plan is the normalized one a production write leaves.
-func studentPlans(db *bun.DB) testpkg.StudentPlanWriter {
+func studentPlans(db *bun.DB) studentPlanWriter {
 	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Student
 }
 
-// careWithdrawals is the Care Plan repository the withdrawal fixture stores
-// through, so a staged task obeys the owner's one-pending-task-per-child rule.
-func careWithdrawals(db *bun.DB) testpkg.CareWithdrawalWriter {
-	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CareWithdrawal
+// studentPlanWriter is the slice of the child repository the departure-plan
+// helper needs. It writes through the repository rather than in raw SQL, so
+// the stored plan is the normalized one every production write leaves behind;
+// a hand-written UPDATE would desynchronize the derived columns and make the
+// next real write look like it changed them.
+type studentPlanWriter interface {
+	FindByID(ctx context.Context, id any) (*userModels.Student, error)
+	Update(ctx context.Context, student *userModels.Student) error
+}
+
+// setAccompaniedDepartureDays gives the child an "Anderes Kind" departure plan
+// on the given weekdays, which is the precondition for carrying a companion
+// link. The free-text note comes along because an accompanied plan must say
+// "mit wem" and there is no link yet at this point.
+func setAccompaniedDepartureDays(tb testing.TB, ctx context.Context, students studentPlanWriter, studentID int64, days ...string) {
+	tb.Helper()
+	student, err := students.FindByID(ctx, studentID)
+	require.NoError(tb, err)
+	require.NotNil(tb, student)
+
+	note := "Nachbarskind"
+	student.AllowedDepartureModes = userModels.WithAccompaniedDays(student.AllowedDepartureModes, days)
+	student.DepartureCompanionNote = &note
+	require.NoError(tb, students.Update(ctx, student))
 }
 
 // clearCompanionNote drops the free-text note straight in SQL, leaving a child
@@ -593,7 +613,7 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 			assignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, target.ID, "")
 			document := storeStudentDocument(t, ctx, db, target.ID, f.actorID,
 				userModels.StudentDocumentCategorySonstiges, fmt.Sprintf("rollback-%s-%d.pdf", phase, target.ID))
-			completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), target.ID, f.actorID, timezone.TodayDate())
+			completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, target.ID, f.actorID, timezone.TodayDate())
 			transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", f.actorID)
 			history := testpkg.CreateTestGradeTransitionHistoryForTenant(t, db, target.TenantID, transition.ID, target.ID, "Rollback Target", "1a", testpkg.EducationTransitionActionPromoted)
 			legacyGuardian := testpkg.CreateTestParentAccount(t, db, "rollback-legacy-guardian@example.com")
@@ -726,17 +746,17 @@ func TestStudentDeletionWorkflow_RedactsPendingWithdrawalOutsideCompletionFlow(t
 	ctx := testpkg.Ctx(t)
 	f := newDeletionFixture(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Noah", "Direktloeschung", "3b")
-	resolved := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, f.actorID, timezone.TodayDate())
+	resolved := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate())
 	resolvedAt := time.Now().Add(-2 * time.Hour)
 	changed, err := f.repos.CareWithdrawal.MarkResolved(ctx, resolved.ID, f.actorID, resolvedAt)
 	require.NoError(t, err)
 	require.True(t, changed)
-	obsolete := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, f.actorID, timezone.TodayDate().AddDays(1))
+	obsolete := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate().AddDays(1))
 	obsoleteAt := time.Now().Add(-time.Hour)
 	changed, err = f.repos.CareWithdrawal.MarkObsoleteForRebooking(ctx, student.ID, timezone.TodayDate(), obsoleteAt)
 	require.NoError(t, err)
 	require.True(t, changed)
-	pending := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, f.actorID, timezone.TodayDate().AddDays(2))
+	pending := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate().AddDays(2))
 	workflow := f.workflow(t)
 
 	preview, err := workflow.Preview(ctx, student.ID)
@@ -778,7 +798,7 @@ func TestStudentDeletionWorkflow_WithdrawalDeletesStudentAndRedactsCompletionAto
 	ctx := testpkg.Ctx(t)
 	f := newDeletionFixture(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Lina", "Loeschung", "2a")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, f.actorID, timezone.TodayDate())
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate())
 	workflow := f.workflow(t)
 
 	preview, err := workflow.PreviewWithdrawal(ctx, completion.ID)
@@ -825,7 +845,7 @@ func TestStudentDeletionWorkflow_WithdrawalTakesClassWritesBeforeRecurrence(t *t
 	ctx := testpkg.Ctx(t)
 	f := newDeletionFixture(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Lock", "Order", "2a")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, f.actorID, timezone.TodayDate())
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate())
 
 	order := &[]string{}
 	f.deps.Directory = recordingClassWritesDirectory{Directory: f.deps.Directory, order: order}
@@ -947,8 +967,8 @@ func TestStudentDeletionWorkflow_CompanionGraphLockAndStrandingCheck(t *testing.
 	f := newDeletionFixture(t, db)
 	subject := testpkg.CreateTestStudent(t, db, "DeleteSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "DeleteCompanion", "Companion", "1a")
-	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
-	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
+	setAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
+	setAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
 	linkCompanions(t, ctx, db, subject.ID, companion.ID)
 	clearCompanionNote(t, db, companion.ID)
 	broadcasts := 0
@@ -969,7 +989,7 @@ func TestStudentDeletionWorkflow_CompanionGraphLockAndStrandingCheck(t *testing.
 	// A concurrent holder of the far end's row blocks the ascending lock pass
 	// instead of being skipped: the deletion waits, then times out, and the
 	// rows stay untouched.
-	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
+	setAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
 	testpkg.HoldStudentRowLock(t, db, companion.ID)
 	lockCtx, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
 	defer cancel()
@@ -988,8 +1008,8 @@ func TestStudentDeletionWorkflow_RemovesCompanionEdgesAndNotifies(t *testing.T) 
 	f := newDeletionFixture(t, db)
 	subject := testpkg.CreateTestStudent(t, db, "DeleteSubject", "Notified", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "DeleteCompanion", "Notified", "1a")
-	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
-	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
+	setAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
+	setAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
 	linkCompanions(t, ctx, db, subject.ID, companion.ID)
 	var notified []int64
 	f.deps.CompanionsChanged = func(_ context.Context, _ studentdeletion.Actor, studentID int64) {

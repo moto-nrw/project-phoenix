@@ -34,7 +34,9 @@ func TestDecisionService_Decide_ExistingStudentRenewalKeepsRunningClassUntilYear
 
 	runningFrom := calendar.NewDate(2026, 8, 1)
 	runningUntil := calendar.NewDate(2027, 7, 31)
-	existing := testpkg.CreateTestStudent(t, env.db, "Ida", "Laufend", "1a")
+	existingFixture := testpkg.CreateTestStudent(t, env.db, "Ida", "Laufend", "1a")
+	existing, err := env.repos.Student.FindByID(ctx, existingFixture.ID)
+	require.NoError(t, err)
 	existing.Status = usersModels.StudentStatusActive
 	existing.EnrolledFrom = &runningFrom
 	existing.EnrolledUntil = &runningUntil
@@ -44,7 +46,7 @@ func TestDecisionService_Decide_ExistingStudentRenewalKeepsRunningClassUntilYear
 		"Ida", "Laufend", map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": true})
 	matchChildToExistingStudent(t, env, childID, existing.ID)
 
-	_, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
+	_, err = env.decision.Decide(ctx, enrollmentAPI.DecideInput{
 		RequestID: requestID, ChildID: childID, Status: capability.DecisionApproved, ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
@@ -103,7 +105,9 @@ func TestDecisionService_Decide_InactiveExistingStudentRenewalSwitchesAtOnce(t *
 	env.sourcePhase.ServiceEndDate = capability.Date(newYearEnd)
 	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
 
-	existing := testpkg.CreateTestStudent(t, env.db, "Ole", "Pause", "1a")
+	existingFixture := testpkg.CreateTestStudent(t, env.db, "Ole", "Pause", "1a")
+	existing, err := env.repos.Student.FindByID(ctx, existingFixture.ID)
+	require.NoError(t, err)
 	existing.Status = usersModels.StudentStatusInactive
 	require.NoError(t, env.repos.Student.Update(ctx, existing))
 
@@ -111,7 +115,7 @@ func TestDecisionService_Decide_InactiveExistingStudentRenewalSwitchesAtOnce(t *
 		"Ole", "Pause", map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": true})
 	matchChildToExistingStudent(t, env, childID, existing.ID)
 
-	_, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
+	_, err = env.decision.Decide(ctx, enrollmentAPI.DecideInput{
 		RequestID: requestID, ChildID: childID, Status: capability.DecisionApproved, ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
@@ -147,7 +151,9 @@ func TestDecisionService_Decide_ActiveExistingStudentNonSchoolYearRenewalSwitche
 			env.sourcePhase.ServiceEndDate = capability.Date(phaseEnd)
 			require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
 
-			existing := testpkg.CreateTestStudent(t, env.db, "Jana", kind, "1a")
+			existingFixture := testpkg.CreateTestStudent(t, env.db, "Jana", kind, "1a")
+			existing, err := env.repos.Student.FindByID(ctx, existingFixture.ID)
+			require.NoError(t, err)
 			existing.Status = usersModels.StudentStatusActive
 			require.NoError(t, env.repos.Student.Update(ctx, existing))
 
@@ -155,7 +161,7 @@ func TestDecisionService_Decide_ActiveExistingStudentNonSchoolYearRenewalSwitche
 				"Jana", kind, map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": true})
 			matchChildToExistingStudent(t, env, childID, existing.ID)
 
-			_, err := env.decision.Decide(ctx, enrollmentAPI.DecideInput{
+			_, err = env.decision.Decide(ctx, enrollmentAPI.DecideInput{
 				RequestID: requestID, ChildID: childID, Status: capability.DecisionApproved, ReviewedBy: env.creatorID,
 			})
 			require.NoError(t, err)

@@ -28,9 +28,9 @@ func TestStudentRepository_FindPendingDueForActivation(t *testing.T) {
 		futureStudent := testpkg.CreateTestStudent(t, db, "PendingFuture", "Lifecycle", "1a")
 		activeStudent := testpkg.CreateTestStudent(t, db, "Active", "Lifecycle", "1a")
 
-		testpkg.SetStudentLifecycle(t, db, dueStudent.ID, userModels.StudentStatusPending, &yesterday, nil)
-		testpkg.SetStudentLifecycle(t, db, futureStudent.ID, userModels.StudentStatusPending, &tomorrow, nil)
-		testpkg.SetStudentLifecycle(t, db, activeStudent.ID, userModels.StudentStatusActive, &yesterday, nil)
+		testpkg.SetStudentLifecycle(t, db, dueStudent.ID, testpkg.StudentStatusPending, &yesterday, nil)
+		testpkg.SetStudentLifecycle(t, db, futureStudent.ID, testpkg.StudentStatusPending, &tomorrow, nil)
+		testpkg.SetStudentLifecycle(t, db, activeStudent.ID, testpkg.StudentStatusActive, &yesterday, nil)
 
 		results, err := repo.FindPendingDueForActivation(ctx, asOf)
 		require.NoError(t, err)
@@ -46,7 +46,7 @@ func TestStudentRepository_FindPendingDueForActivation(t *testing.T) {
 
 	t.Run("ignores pending students with NULL enrolled_from", func(t *testing.T) {
 		nullStudent := testpkg.CreateTestStudent(t, db, "PendingNull", "Lifecycle", "1a")
-		testpkg.SetStudentLifecycle(t, db, nullStudent.ID, userModels.StudentStatusPending, nil, nil)
+		testpkg.SetStudentLifecycle(t, db, nullStudent.ID, testpkg.StudentStatusPending, nil, nil)
 
 		results, err := repo.FindPendingDueForActivation(ctx, asOf)
 		require.NoError(t, err)
@@ -73,9 +73,9 @@ func TestStudentRepository_FindActiveDueForDeactivation(t *testing.T) {
 		futureStudent := testpkg.CreateTestStudent(t, db, "ActiveFuture", "Lifecycle", "1a")
 		pendingStudent := testpkg.CreateTestStudent(t, db, "PendingNotInactive", "Lifecycle", "1a")
 
-		testpkg.SetStudentLifecycle(t, db, dueStudent.ID, userModels.StudentStatusActive, nil, &yesterday)
-		testpkg.SetStudentLifecycle(t, db, futureStudent.ID, userModels.StudentStatusActive, nil, &tomorrow)
-		testpkg.SetStudentLifecycle(t, db, pendingStudent.ID, userModels.StudentStatusPending, nil, &yesterday)
+		testpkg.SetStudentLifecycle(t, db, dueStudent.ID, testpkg.StudentStatusActive, nil, &yesterday)
+		testpkg.SetStudentLifecycle(t, db, futureStudent.ID, testpkg.StudentStatusActive, nil, &tomorrow)
+		testpkg.SetStudentLifecycle(t, db, pendingStudent.ID, testpkg.StudentStatusPending, nil, &yesterday)
 
 		results, err := repo.FindActiveDueForDeactivation(ctx, asOf)
 		require.NoError(t, err)
@@ -100,7 +100,7 @@ func TestStudentRepository_UpdateStatus(t *testing.T) {
 
 	t.Run("transitions pending student to active", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Activate", "Lifecycle", "1a")
-		testpkg.SetStudentLifecycle(t, db, student.ID, userModels.StudentStatusPending, nil, nil)
+		testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
 
 		err := repo.UpdateStatus(ctx, student.ID, userModels.StudentStatusActive)
 		require.NoError(t, err)
@@ -124,7 +124,7 @@ func TestStudentRepository_TransitionStatus(t *testing.T) {
 	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Conditional", "Lifecycle", "1a")
-	testpkg.SetStudentLifecycle(t, db, student.ID, userModels.StudentStatusPending, nil, nil)
+	testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)
 
 	applied, err := repo.TransitionStatus(
 		ctx,

@@ -350,7 +350,7 @@ func TestDailyListOmitsConfirmedSicknessReportedBeforeCutoff(t *testing.T) {
 	require.NoError(t, module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{
 		StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-07", Participating: true,
 	}))
-	createSickStatusDay(t, db, student.GetTenantID(), student.ID, "2026-09-07", time.Date(2026, 9, 7, 8, 30, 0, 0, testBerlin))
+	createSickStatusDay(t, db, student.TenantID, student.ID, "2026-09-07", time.Date(2026, 9, 7, 8, 30, 0, 0, testBerlin))
 
 	list, err := module.DailyList(ctx, "2026-09-07")
 	require.NoError(t, err)
@@ -377,7 +377,7 @@ func TestDailyListIncludesChildWhenSicknessIsDeletedBeforeCutoff(t *testing.T) {
 	require.NoError(t, module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{
 		StudentID: student.ID, GuardianAccountID: account.ID, Date: mealplan.Date(date), Participating: true,
 	}))
-	status := createSickStatusDay(t, db, student.GetTenantID(), student.ID, date, databaseNow)
+	status := createSickStatusDay(t, db, student.TenantID, student.ID, date, databaseNow)
 	_, err = db.NewDelete().Model(status).
 		ModelTableExpr(`active.student_status_days AS "student_status_day"`).
 		WherePK().Exec(context.Background())
@@ -398,7 +398,7 @@ func TestDailyListKeepsRegistrationWhenSicknessIsReportedAfterCutoff(t *testing.
 	require.NoError(t, module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{
 		StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-07", Participating: true,
 	}))
-	createSickStatusDay(t, db, student.GetTenantID(), student.ID, "2026-09-07", time.Date(2026, 9, 7, 9, 1, 0, 0, testBerlin))
+	createSickStatusDay(t, db, student.TenantID, student.ID, "2026-09-07", time.Date(2026, 9, 7, 9, 1, 0, 0, testBerlin))
 
 	list, err := module.DailyList(ctx, "2026-09-07")
 	require.NoError(t, err)
@@ -415,7 +415,7 @@ func TestDailyListKeepsCutoffStateWhenSicknessIsClearedAfterCutoff(t *testing.T)
 	require.NoError(t, module.SetParticipationForDay(ctx, mealplan.SetParticipationDay{
 		StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-07", Participating: true,
 	}))
-	status := createSickStatusDay(t, db, student.GetTenantID(), student.ID, "2026-09-07", time.Date(2026, 9, 7, 8, 30, 0, 0, testBerlin))
+	status := createSickStatusDay(t, db, student.TenantID, student.ID, "2026-09-07", time.Date(2026, 9, 7, 8, 30, 0, 0, testBerlin))
 	_, err := db.NewUpdate().Model(status).
 		ModelTableExpr(`active.student_status_days AS "student_status_day"`).
 		Set(`cleared_at = ?`, time.Date(2026, 9, 7, 9, 30, 0, 0, testBerlin)).
@@ -448,7 +448,7 @@ func TestDailyListOmitsChildWhenClearedSicknessIsReopenedBeforeCutoff(t *testing
 		StudentID: student.ID, GuardianAccountID: account.ID, Date: "2099-09-07", Participating: true,
 	}))
 	reportedAt := time.Date(2000, 1, 3, 8, 0, 0, 0, testBerlin)
-	status := createSickStatusDay(t, db, student.GetTenantID(), student.ID, "2099-09-07", reportedAt)
+	status := createSickStatusDay(t, db, student.TenantID, student.ID, "2099-09-07", reportedAt)
 	_, err := db.NewUpdate().Model(status).
 		ModelTableExpr(`active.student_status_days AS "student_status_day"`).
 		Set(`cleared_at = ?`, time.Date(2000, 1, 3, 8, 30, 0, 0, testBerlin)).
@@ -480,13 +480,13 @@ func TestParticipationUsesLatestSicknessSnapshotWhenTimestampsMatch(t *testing.T
 		INSERT INTO schedule.meal_sickness_status_history
 			(tenant_id, student_id, date, changed_at, reported_at, cleared_at)
 		VALUES (?, ?, ?, ?, ?, NULL)
-	`, student.GetTenantID(), student.ID, "2026-09-07", changedAt, changedAt).Exec(context.Background())
+	`, student.TenantID, student.ID, "2026-09-07", changedAt, changedAt).Exec(context.Background())
 	require.NoError(t, err)
 	_, err = db.NewRaw(`
 		INSERT INTO schedule.meal_sickness_status_history
 			(tenant_id, student_id, date, changed_at, reported_at, cleared_at)
 		VALUES (?, ?, ?, ?, ?, ?)
-	`, student.GetTenantID(), student.ID, "2026-09-07", changedAt, changedAt, changedAt).Exec(context.Background())
+	`, student.TenantID, student.ID, "2026-09-07", changedAt, changedAt, changedAt).Exec(context.Background())
 	require.NoError(t, err)
 
 	plan, err := module.Participation(ctx, student.ID, "2026-09-07", "2026-09-07")

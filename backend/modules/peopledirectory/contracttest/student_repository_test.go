@@ -206,13 +206,15 @@ func TestStudentRepository_Update(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates student fields", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Update", "Test", "1a")
+		studentFixture := testpkg.CreateTestStudent(t, db, "Update", "Test", "1a")
+		student, err := repo.FindByID(ctx, studentFixture.ID)
+		require.NoError(t, err)
 
 		student.SchoolClass = "2b"
 		extraInfo := "Updated info"
 		student.ExtraInfo = &extraInfo
 
-		err := repo.Update(ctx, student)
+		err = repo.Update(ctx, student)
 		require.NoError(t, err)
 
 		found, err := repo.FindByID(ctx, student.ID)

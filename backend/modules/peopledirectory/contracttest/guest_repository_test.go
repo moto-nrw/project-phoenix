@@ -177,12 +177,14 @@ func TestGuestRepository_Update(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates guest", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "Update")
+		guestFixture := testpkg.CreateTestGuest(t, db, "Update")
+		guest, err := repo.FindByID(ctx, guestFixture.ID)
+		require.NoError(t, err)
 
 		guest.ActivityExpertise = "Updated Expertise"
 		guest.Organization = "Updated Org"
 
-		err := repo.Update(ctx, guest)
+		err = repo.Update(ctx, guest)
 		require.NoError(t, err)
 
 		found, err := repo.FindByID(ctx, guest.ID)
@@ -236,10 +238,12 @@ func TestGuestRepository_List(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists guests with organization filter", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "ListOrg")
+		guestFixture := testpkg.CreateTestGuest(t, db, "ListOrg")
+		guest, err := repo.FindByID(ctx, guestFixture.ID)
+		require.NoError(t, err)
 
 		guest.Organization = "ListTestOrg"
-		err := repo.Update(ctx, guest)
+		err = repo.Update(ctx, guest)
 		require.NoError(t, err)
 
 		found, err := repo.List(ctx, map[string]interface{}{
@@ -250,10 +254,12 @@ func TestGuestRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists guests with expertise filter", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "ListExp")
+		guestFixture := testpkg.CreateTestGuest(t, db, "ListExp")
+		guest, err := repo.FindByID(ctx, guestFixture.ID)
+		require.NoError(t, err)
 
 		guest.ActivityExpertise = "ListTestExpertise"
-		err := repo.Update(ctx, guest)
+		err = repo.Update(ctx, guest)
 		require.NoError(t, err)
 
 		found, err := repo.List(ctx, map[string]interface{}{

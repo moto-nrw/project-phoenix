@@ -139,11 +139,13 @@ func TestStaffRepository_Update(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates staff notes", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Update", "Test")
+		staffFixture := testpkg.CreateTestStaff(t, db, "Update", "Test")
+		staff, err := repo.FindByID(ctx, staffFixture.ID)
+		require.NoError(t, err)
 
 		staff.StaffNotes = "Updated staff notes"
 
-		err := repo.Update(ctx, staff)
+		err = repo.Update(ctx, staff)
 		require.NoError(t, err)
 
 		found, err := repo.FindByID(ctx, staff.ID)

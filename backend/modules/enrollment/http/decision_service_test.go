@@ -584,7 +584,7 @@ func contactSnapshot(childID int64, contacts []any) map[string]any {
 	}
 }
 
-func createReviewerStaffWithDistinctAccount(t *testing.T, env *decisionTestEnv) (*usersModels.Staff, int64) {
+func createReviewerStaffWithDistinctAccount(t *testing.T, env *decisionTestEnv) (*testpkg.Staff, int64) {
 	t.Helper()
 	for i := 0; i < 5; i++ {
 		_ = testpkg.CreateTestStaff(t, env.db, "ReviewerOffset", "Staff")

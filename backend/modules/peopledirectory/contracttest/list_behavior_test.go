@@ -51,8 +51,12 @@ func TestGuardianProfileRepositoryListWithOptionsPreservesDefaultOrderAndEmptySl
 	db := testpkg.SetupTestDB(t)
 	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
 	ctx := testpkg.Ctx(t)
-	zulu := testpkg.CreateTestGuardianProfile(t, db, "guardian-list-zulu")
-	alpha := testpkg.CreateTestGuardianProfile(t, db, "guardian-list-alpha")
+	zuluFixture := testpkg.CreateTestGuardianProfile(t, db, "guardian-list-zulu")
+	zulu, err := repo.FindByID(ctx, zuluFixture.ID)
+	require.NoError(t, err)
+	alphaFixture := testpkg.CreateTestGuardianProfile(t, db, "guardian-list-alpha")
+	alpha, err := repo.FindByID(ctx, alphaFixture.ID)
+	require.NoError(t, err)
 	zulu.LastName = "Zulu"
 	alpha.LastName = "Alpha"
 	require.NoError(t, repo.Update(ctx, zulu))

@@ -386,7 +386,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 	}
 	res := NewResource(Dependencies{
 		InstanceService:   instanceSvc,
-		OperationsService: newRealSpontaneousOpsService(t, instanceSvc, testpkg.StaffAccountPeople{PersonID: 224, StaffID: 324}, settings),
+		OperationsService: newRealSpontaneousOpsService(t, instanceSvc, testutil.StaffAccountPeople{PersonID: 224, StaffID: 324}, settings),
 		TimetableData:     operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		People:            staffAccountPeople(224, 324),
 		SettingsService:   settings,

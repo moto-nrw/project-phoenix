@@ -213,13 +213,15 @@ func TestPersonService_Update(t *testing.T) {
 
 	t.Run("updates person successfully", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "Original", "Name")
+		personFixture := testpkg.CreateTestPerson(t, db, "Original", "Name")
+		person, err := service.Get(ctx, personFixture.ID)
+		require.NoError(t, err)
 
 		person.FirstName = "Updated"
 		person.LastName = "Person"
 
 		// ACT
-		err := service.Update(ctx, person)
+		err = service.Update(ctx, person)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -935,14 +937,16 @@ func TestPersonService_Update_WithChangedAccount(t *testing.T) {
 
 	t.Run("updates person with new valid account", func(t *testing.T) {
 		// ARRANGE - create person without account, then link to new account
-		person := testpkg.CreateTestPerson(t, db, "UpdateAccount", "Test")
+		personFixture := testpkg.CreateTestPerson(t, db, "UpdateAccount", "Test")
+		person, err := service.Get(ctx, personFixture.ID)
+		require.NoError(t, err)
 		newAccount := testpkg.CreateTestAccount(t, db, "new-account-update")
 
 		// Update person with new account ID
 		person.AccountID = &newAccount.ID
 
 		// ACT
-		err := service.Update(ctx, person)
+		err = service.Update(ctx, person)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -955,13 +959,15 @@ func TestPersonService_Update_WithChangedAccount(t *testing.T) {
 
 	t.Run("returns error when new account does not exist", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "UpdateInvalidAccount", "Test")
+		personFixture := testpkg.CreateTestPerson(t, db, "UpdateInvalidAccount", "Test")
+		person, err := service.Get(ctx, personFixture.ID)
+		require.NoError(t, err)
 
 		nonExistentAccountID := int64(99999999)
 		person.AccountID = &nonExistentAccountID
 
 		// ACT
-		err := service.Update(ctx, person)
+		err = service.Update(ctx, person)
 
 		// ASSERT
 		require.Error(t, err)
@@ -969,13 +975,15 @@ func TestPersonService_Update_WithChangedAccount(t *testing.T) {
 
 	t.Run("allows update with same account ID", func(t *testing.T) {
 		// ARRANGE - person with existing account
-		person, _ := testpkg.CreateTestPersonWithAccount(t, db, "SameAccount", "Update")
+		personFixture, _ := testpkg.CreateTestPersonWithAccount(t, db, "SameAccount", "Update")
+		person, err := service.Get(ctx, personFixture.ID)
+		require.NoError(t, err)
 
 		// Update person - keep same account ID
 		person.FirstName = "UpdatedSame"
 
 		// ACT
-		err := service.Update(ctx, person)
+		err = service.Update(ctx, person)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -997,13 +1005,15 @@ func TestPersonService_Update_WithChangedRFID(t *testing.T) {
 
 	t.Run("updates person with new valid RFID card", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "UpdateRFID", "Test")
+		personFixture := testpkg.CreateTestPerson(t, db, "UpdateRFID", "Test")
+		person, err := service.Get(ctx, personFixture.ID)
+		require.NoError(t, err)
 		newCard := testpkg.CreateTestRFIDCard(t, db, "NEWUPDATECARD")
 
 		person.TagID = &newCard.ID
 
 		// ACT
-		err := service.Update(ctx, person)
+		err = service.Update(ctx, person)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1016,13 +1026,15 @@ func TestPersonService_Update_WithChangedRFID(t *testing.T) {
 
 	t.Run("returns error when new RFID card does not exist", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "UpdateInvalidRFID", "Test")
+		personFixture := testpkg.CreateTestPerson(t, db, "UpdateInvalidRFID", "Test")
+		person, err := service.Get(ctx, personFixture.ID)
+		require.NoError(t, err)
 
 		nonExistentTagID := "NONEXISTENT888"
 		person.TagID = &nonExistentTagID
 
 		// ACT
-		err := service.Update(ctx, person)
+		err = service.Update(ctx, person)
 
 		// ASSERT
 		require.Error(t, err)
@@ -1030,11 +1042,13 @@ func TestPersonService_Update_WithChangedRFID(t *testing.T) {
 
 	t.Run("allows update with same RFID card", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "SameRFID", "Update")
+		personFixture := testpkg.CreateTestPerson(t, db, "SameRFID", "Update")
+		person, err := service.Get(ctx, personFixture.ID)
+		require.NoError(t, err)
 		card := testpkg.CreateTestRFIDCard(t, db, "SAMERFIDCARD")
 
 		// Link card to person
-		err := service.LinkToRFIDCard(ctx, person.ID, card.ID)
+		err = service.LinkToRFIDCard(ctx, person.ID, card.ID)
 		require.NoError(t, err)
 
 		// Refetch person to get TagID set
@@ -1308,8 +1322,10 @@ func TestPersonService_UpdateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 	ctx := testpkg.Ctx(t)
 
 	// ARRANGE
-	staffRecord, account := testpkg.CreateTestStaffWithAccount(t, db, "Lehr", "Aendern")
+	staffFixture, account := testpkg.CreateTestStaffWithAccount(t, db, "Lehr", "Aendern")
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, testpkg.Tenant(t))
+	staffRecord, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Staff.FindWithPerson(ctx, staffFixture.ID)
+	require.NoError(t, err)
 
 	// ACT
 	teacher, action, err := service.UpdateStaffWithTeacher(ctx, staffRecord, true, "Betreuung", "", "")

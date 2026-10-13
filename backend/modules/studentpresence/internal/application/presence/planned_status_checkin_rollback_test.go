@@ -152,7 +152,9 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	staff := testpkg.CreateTestStaff(t, db, "Planned", "Rollback")
 	ctx = services.WithAttendanceDevice(ctx, device.ID, device.TenantID)
 	ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-	student := testpkg.CreateTestStudent(t, db, "Planned", "Rollback", "3a")
+	studentFixture := testpkg.CreateTestStudent(t, db, "Planned", "Rollback", "3a")
+	student, err := repos.Student.FindByID(ctx, studentFixture.ID)
+	require.NoError(t, err)
 	var groupID int64
 	if mode == "visit" {
 		groupID = testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t)).ID

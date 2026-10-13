@@ -12,7 +12,6 @@ import (
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -24,7 +23,7 @@ import (
 type seriesTestEnv struct {
 	db             *bun.DB
 	scope          testpkg.TenantScope
-	staff          *usersModels.Staff
+	staff          *testpkg.Staff
 	repos          *services.RepositoryTestFactory
 	shiftRows      *workforceCompose.ShiftRows
 	seriesRows     *workforceCompose.ShiftSeriesRows

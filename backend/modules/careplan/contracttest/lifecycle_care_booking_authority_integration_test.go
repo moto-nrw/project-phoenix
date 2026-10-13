@@ -147,7 +147,7 @@ func createCareBookingSource(
 
 func createImpactStudents(
 	t *testing.T, db *bun.DB, scope testpkg.TenantScope, gap timezone.Date,
-) (blocker, planned *userModels.Student) {
+) (blocker, planned *testpkg.Student) {
 	t.Helper()
 	blocker = testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Ohne", "Buchung", "1a")
 	planned = testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Mit", "Ende", "1b")
