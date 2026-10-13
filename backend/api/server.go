@@ -223,7 +223,9 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	deps.Settings = settings
 	deps.Lease = lease
 	addWorkerServiceDependencies(&deps, graph)
-	addWorkerRepositoryDependencies(&deps, graph, reads)
+	if err := addWorkerRepositoryDependencies(&deps, graph, reads); err != nil {
+		return nil, err
+	}
 	return scheduler.NewWorker(deps)
 }
 
@@ -302,8 +304,12 @@ func staffMessageCleanup(service communication.StaffMessagingRuntime) scheduler.
 	}
 }
 
-func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, graph *serveGraph, reads workerReads) {
-	deps.BookingConsistency = schedulerBookingConsistency(graph, reads)
+func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, graph *serveGraph, reads workerReads) error {
+	bookings, err := schedulerBookingConsistency(graph, reads)
+	if err != nil {
+		return err
+	}
+	deps.BookingConsistency = bookings
 	deps.InstanceRepo = schedulerDayInstances(reads.timetable)
 	deps.InstanceRoomRepo = reads.existingRooms
 	deps.InstanceStudentRepo = reads.timetable.InstanceStudent
@@ -318,6 +324,7 @@ func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, graph *
 		Accounts:     graph.services.Auth,
 		WorkSessions: reads.workSessions,
 	}
+	return nil
 }
 
 func workerTracer(graph *serveGraph) scheduler.WorkerTracer {

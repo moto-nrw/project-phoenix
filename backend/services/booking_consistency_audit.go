@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -37,24 +36,23 @@ func NewBookingConsistencyAudit(db *bun.DB, students peopledirectory.StudentQuer
 	return audits.BookingConsistency.Audit, nil
 }
 
-// tenantAuditReads reads through the caller's tenant transaction, falling back
-// to the root database outside one, as the service graph's Audit reads do.
+// tenantAuditReads reads through the caller's tenant transaction and falls back
+// to the root database outside one or for any other transaction value, as the
+// retained repository Factory's Audit runtime did.
 func tenantAuditReads(db *bun.DB) auditCompose.Runtime {
 	return func(ctx context.Context) (bun.IDB, int64) {
-		tenantID := tenant.FromContext(ctx)
-		raw, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return db, tenantID
-		}
-		switch tx := raw.(type) {
-		case bun.Tx:
-			return tx, tenantID
-		case *bun.Tx:
-			if tx != nil {
+		tenantID := auditModels.TenantIDFromContext(ctx)
+		if raw, ok := auditModels.TransactionFromContext(ctx); ok {
+			switch tx := raw.(type) {
+			case bun.Tx:
 				return tx, tenantID
+			case *bun.Tx:
+				if tx != nil {
+					return tx, tenantID
+				}
 			}
 		}
-		panic(fmt.Sprintf("audit command: unsupported transaction %T", raw))
+		return db, tenantID
 	}
 }
 

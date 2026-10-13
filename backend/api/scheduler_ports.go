@@ -83,14 +83,11 @@ func (p schedulerSettingsPort) BindSettingsSnapshot(ctx context.Context, snapsho
 
 // schedulerBookingConsistency binds the booking drift audit, which the legacy
 // composition builds over the graph's People Directory and Care Plan
-// (ADR 0049). A graph without them runs no audit.
-func schedulerBookingConsistency(graph *serveGraph, reads workerReads) scheduler.BookingConsistencyAudit {
-	if graph.services == nil || reads.carePlan == nil {
-		return nil
-	}
+// (ADR 0049). A construction failure fails the Worker's composition.
+func schedulerBookingConsistency(graph *serveGraph, reads workerReads) (scheduler.BookingConsistencyAudit, error) {
 	bookings, err := services.NewBookingConsistencyAudit(graph.db, graph.services.PeopleDirectory, reads.carePlan)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("compose worker booking consistency audit: %w", err)
 	}
 	return func(ctx context.Context, day calendar.Date) (*scheduler.BookingConsistencyReport, error) {
 		report, err := callOnDay(bookings, ctx, day)
@@ -105,7 +102,7 @@ func schedulerBookingConsistency(graph *serveGraph, reads workerReads) scheduler
 			ApprovedWithoutOptionalOffering: report.ApprovedWithoutOptionalOffering,
 			TotalFindings:                   report.TotalFindings(),
 		}, nil
-	}
+	}, nil
 }
 
 // schedulerDayInstances binds the overdue tick to the day's activity
