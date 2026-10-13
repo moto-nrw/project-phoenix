@@ -5,7 +5,7 @@ import (
 	"slices"
 
 	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -14,7 +14,7 @@ type timeTrackingAuditReader struct {
 }
 
 // NewTimeTrackingAuditReader adapts the audit-owned merged query for its consumer.
-func NewTimeTrackingAuditReader(records audit.TimeTrackingAuditLogRepository) timetracking.TimeTrackingAuditReader {
+func NewTimeTrackingAuditReader(records audit.TimeTrackingAuditLogRepository) workforceCompose.TimeTrackingAuditReader {
 	return timeTrackingAuditReader{records: records}
 }
 
@@ -22,7 +22,7 @@ func (r timeTrackingAuditReader) ValidSources() []string {
 	return slices.Clone(audit.ValidAuditLogSources)
 }
 
-func (r timeTrackingAuditReader) ListEntries(ctx context.Context, filter timetracking.TimeTrackingAuditFilter) ([]*timetracking.TimeTrackingAuditEntry, error) {
+func (r timeTrackingAuditReader) ListEntries(ctx context.Context, filter workforceCompose.TimeTrackingAuditFilter) ([]*workforceCompose.TimeTrackingAuditEntry, error) {
 	query := audit.TimeTrackingAuditLogFilter{
 		From: auditFeedDate(filter.From), To: auditFeedDate(filter.To), StaffID: filter.StaffID,
 		ActorStaffID: filter.ActorStaffID, Sources: filter.Sources, Limit: filter.Limit,
@@ -34,12 +34,12 @@ func (r timeTrackingAuditReader) ListEntries(ctx context.Context, filter timetra
 	if rows == nil {
 		return nil, err
 	}
-	result := make([]*timetracking.TimeTrackingAuditEntry, len(rows))
+	result := make([]*workforceCompose.TimeTrackingAuditEntry, len(rows))
 	for i, row := range rows {
 		if row == nil {
 			continue
 		}
-		result[i] = &timetracking.TimeTrackingAuditEntry{
+		result[i] = &workforceCompose.TimeTrackingAuditEntry{
 			OccurredAt: row.OccurredAt, Source: row.Source, EntryID: row.EntryID,
 			StaffID: row.StaffID, ActorStaffID: row.ActorStaffID, ActorIsSystem: row.ActorIsSystem,
 			Reason: row.Reason, Detail: row.Detail,

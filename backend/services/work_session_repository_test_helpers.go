@@ -5,16 +5,16 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
-	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
 
 type WorkSessionTestRepositories struct {
 	TimetableTestRepositories
-	WorkSession      timerecords.WorkSessionRepository
-	WorkSessionBreak timerecords.WorkSessionBreakRepository
+	// Workforce is the capability the time-tracking rows are served from.
+	Workforce workforce.Capability
 	// WorkSessionEdit is filled by services.NewWorkSessionTestRepositories.
 	WorkSessionEdit   auditModels.WorkSessionEditRepository
 	StaffAbsence      timerecords.StaffAbsenceRepository
@@ -41,8 +41,7 @@ func NewWorkSessionTestRepositoriesWithMembers(db *bun.DB, members MembershipTes
 		return WorkSessionTestRepositories{}, err
 	}
 	return WorkSessionTestRepositories{TimetableTestRepositories: tt,
-		WorkSession:       workforceLegacy.NewWorkSessionRepository(workTime),
-		WorkSessionBreak:  workforceLegacy.NewWorkSessionBreakRepository(workTime),
+		Workforce:         workTime,
 		StaffAbsence:      NewStaffAbsenceRepository(workTime, membership, people),
 		StaffWorkSchedule: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(workTime),
 		WorkTimeModel:     workforceRepositoryAdapter.NewWorkTimeModelRepository(workTime)}, nil

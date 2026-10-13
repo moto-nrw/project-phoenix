@@ -1250,9 +1250,10 @@ The Workforce time-tracking HTTP composition
 under the same compatibility permissions (#2690). It replaced
 `api/time-tracking` and serves the public work-session, absence, month,
 ledger, month-close, overview, audit-log, export and personnel-record
-contracts of `modules/workforce`, which the root composition adapts from the
-retained time-tracking services in `modules/workforce/legacy/timetracking`
-and the retained `services/users` services. Its own-shift and assignment
+contracts of `modules/workforce`. Since #3413 the Workforce composition
+builds the time-tracking contracts (`compose.NewTimeTracking`) and the root
+hands the routes the values it returns; the staff directory still comes
+from the retained People Directory services. Its own-shift and assignment
 routes read the public `OwnShiftQuery` and `StaffAssignmentQuery` contracts
 the Workforce planning composition serves (#3418); the staff-notice route
 moved to Timetable with its service. The kiosk staff
@@ -1308,6 +1309,25 @@ Convert them to exact debt with the rule above once the package exists at a
 base SHA; the package itself goes when the Presence half (#3214) deletes
 `services/active` and its keys, and finally when the retained services
 dissolve into the Workforce application and domain layers.
+
+#3413 dissolved the package. The services moved file for file to
+`modules/workforce/internal/application/timetracking` (`workforce`/`application`, test roles
+`module-internal-test` and `module-behavior-test`), a subpackage of the
+native application rather than part of it, because the native CRUD speaks the
+domain types while the moved services still speak the
+`modules/workforce/adapters/timerecords` rows. The adapters that served the
+public `WorkSessions`, `TimeClock`, `StaffAbsences`, `WorkTimeMonths`,
+`BalanceAdjustments`, `MonthClosing`, `StaffOverview`, `TimeTrackingAuditLog`,
+`StaffTimeExport`, `VacationTakeovers`, `OpeningBalanceBookings` and
+`AbsenceTypeAdministration` contracts from `services` moved into
+`modules/workforce/compose`, beside the `*_engine.go` mappings, so no package
+outside `modules/workforce` implements them.
+`modules/workforce/compose.NewTimeTracking` builds every service over the
+capability and the consumer-owned ports the root binds in
+`services/time_tracking_ports.go`. The work-session repository shim, its five
+constructors and their root bindings are deleted; the row mapping is private
+to the composition (`compose/worksession_rows.go`). The retained row vocabulary of
+`modules/workforce/adapters/timerecords` stays until #3996.
 
 `users.care_withdrawal_completions` is persisted by its `care-plan` owner
 alone since #3221: the statements moved from `database/repositories/users`
@@ -3315,6 +3335,17 @@ owner's `compose` role. The roles that received the retired code, Workforce's
 their suites, keep exactly that code's reach in the same scope. The
 shift-plan-sync workflow's points are created by the candidate and need no
 exception. Everything else stays forbidden.
+
+The time-tracking compatibility package has the fifth such path
+([ADR 0051](../../docs/adr/0051-time-tracking-dissolution-replaces-legacy-permissions.md),
+#3413). In a reviewed epoch that no longer classifies
+`modules/workforce/legacy/timetracking` and whose base classifies it as
+`workforce`/`adapter` with `adapter-test` in both test scopes, the Workforce
+roles that received the retired code (`application`, `compose`,
+`module-internal-test`, `module-behavior-test`) keep exactly that code's reach
+in the same scope. No consumer replacement is needed: every consumer already
+reached Workforce's `public` and `compose` roles. Everything else stays
+forbidden.
 
 The repository Factory contraction has a two-permission path
 ([ADR 0049](../../docs/adr/0049-owner-compositions-construct-audit-and-settings-persistence.md),

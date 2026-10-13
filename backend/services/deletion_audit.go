@@ -5,7 +5,7 @@ import (
 
 	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 type deletionAudit struct {
@@ -41,7 +41,7 @@ func (a deletionAudit) Create(ctx context.Context, event *presenceservice.Deleti
 // retention evidence to the same audit writer.
 func NewTimeTrackingRetentionAudit(writer interface {
 	Create(context.Context, *audit.DataDeletion) error
-}) timetracking.DeletionAudit {
+}) workforceCompose.DeletionAudit {
 	if writer == nil {
 		return nil
 	}
@@ -54,7 +54,7 @@ type timeTrackingRetentionAudit struct {
 	}
 }
 
-func (a timeTrackingRetentionAudit) Create(ctx context.Context, event *timetracking.DeletionEvent) error {
+func (a timeTrackingRetentionAudit) Create(ctx context.Context, event *workforceCompose.DeletionEvent) error {
 	if event == nil {
 		return a.writer.Create(ctx, nil)
 	}

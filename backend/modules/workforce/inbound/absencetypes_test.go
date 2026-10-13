@@ -3,14 +3,12 @@ package inbound
 import (
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -221,6 +219,6 @@ func setupAbsenceTypesRoute(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
 
 	db, svc := testutil.SetupAbsenceTypeModule(t)
-	resource := NewAbsenceTypesResource(services.AbsenceTypeAdministration(svc.Catalog, slog.Default()), svc.UserContext.Caller().StaffID)
+	resource := NewAbsenceTypesResource(svc.Administration, svc.UserContext.Caller().StaffID)
 	return db, resource.Router()
 }

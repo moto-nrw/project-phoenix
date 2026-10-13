@@ -82,7 +82,6 @@ import (
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
@@ -139,21 +138,18 @@ type Factory struct {
 	Audit auditModels.Command
 	// MFA and Passkey are the Identity & Access second factor and the
 	// school-portal WebAuthn ceremonies (#3331).
-	MFA                  identityaccess.AccountMFA
-	Passkey              identityaccess.AccountPasskeyFlows
-	Active               studentpresence.Presence
-	ActiveCleanup        studentpresence.PresenceCleanup
-	WorkSession          timetracking.WorkSessionService
-	WorkTimeMonth        timetracking.WorkTimeMonthService
-	StaffAbsence         timetracking.StaffAbsenceService
-	StaffBalanceAdjust   timetracking.StaffBalanceAdjustmentService
-	StaffMonthClose      timetracking.StaffMonthCloseService
-	StaffOverview        timetracking.StaffOverviewService
-	TimeTrackingAuditLog timetracking.TimeTrackingAuditLogService
-	StaffTimeExport      timetracking.StaffTimeExportService
-	Activities           arrivalTimetable.ActivityService
-	Education            schoolstructure.GroupManagement
-	Substitution         education.SubstitutionModule
+	MFA           identityaccess.AccountMFA
+	Passkey       identityaccess.AccountPasskeyFlows
+	Active        studentpresence.Presence
+	ActiveCleanup studentpresence.PresenceCleanup
+	// WorkSession is the composed time-tracking side of Workforce (#3413):
+	// the public stamp, session, absence, month, ledger, month-close,
+	// overview, audit-log and export contracts. It replaces the eight
+	// retained service fields under the oldest of their names.
+	WorkSession  *workforceCompose.TimeTracking
+	Activities   arrivalTimetable.ActivityService
+	Education    schoolstructure.GroupManagement
+	Substitution education.SubstitutionModule
 	// GradeTransition is the owner workflow behind the school-year rollover
 	// (#2711): the admin HTTP surface calls exactly its public commands.
 	GradeTransition    *gradetransition.Workflow
@@ -182,7 +178,7 @@ type Factory struct {
 	TimetableBridge         timetable.EndedSessionCompletion
 	Materialization         timetable.MaterializationCapability
 	TimetableCleanup        timetable.TimetableCleanup
-	TimeTrackingCleanup     timetracking.TimeTrackingCleanupService
+	TimeTrackingCleanup     workforceCompose.TimeTrackingCleanupService
 	StudentChangeLogCleanup peopleCompose.StudentChangeLogCleanupService
 	Instance                timetable.InstanceLifecycleCapability
 	AutoStart               timetable.InstanceAutoStart
@@ -948,136 +944,13 @@ func newFactory(
 	// Work sessions, breaks, balances, vacation rows, absence audits and the
 	// work-time templates belong to Workforce (#2690); the retained contracts
 	// are served by adapters over the one facade, built where they are used.
-	workSessions := workforceLegacy.NewWorkSessionRepository(workTime)
-	workSessionBreaks := workforceLegacy.NewWorkSessionBreakRepository(workTime)
-	staffAbsenceAudits := workforceLegacy.NewStaffAbsenceAuditRepository(workTime)
-	staffVacationQuotas := workforceLegacy.NewStaffVacationQuotaRepository(workTime)
-	staffVacationOpenings := workforceLegacy.NewStaffVacationOpeningRepository(workTime)
-	staffBalanceAdjustments := workforceLegacy.NewStaffBalanceAdjustmentRepository(workTime)
 	staffWorkSchedules := workforceRepositoryAdapter.NewStaffWorkScheduleRepository(workTime)
 	workTimeModels := workforceRepositoryAdapter.NewWorkTimeModelRepository(workTime)
-	staffAbsenceTypeService := AbsenceTypes(workTime)
-	// Time-account changes fan out tenant-wide after commit.
-	timeTrackingEvents := TimeTrackingEvents(realtimeHub)
 	// The #1843 sick cascade is the shift-plan-sync workflow, which needs the
 	// planning capability and the timetable services built long after the
 	// absence service; the deferred binding resolves it on every call and the
 	// assignment below happens once those services exist.
 	var shiftPlanSyncer shiftplansync.SickCascade
-	// The weekly history summaries re-price Sonderarbeitszeit weeks (#3259)
-	// through the month service built below.
-	var overrideMonths timetracking.WorkTimeMonthService
-
-	// Initialize work session service (before active service - needed for NFC auto-check-in)
-	workSessionService := timetracking.NewWorkSessionService(workSessions, workSessionBreaks, NewWorkSessionAudit(audits.WorkSessionEdit), staffAbsences, groupSupervisions, sessionRecords, WorkSessionStaff(staffRepository, workforceCompose.MustNewStaffEmployment(db)), NewWorkSessionSchedules(staffWorkSchedules), NewWorkSessionTimeModels(workTimeModels), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
-		// Planned-shift lookups for the auto-checkout job (#1798).
-		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(workTime)),
-		timetracking.WithWorkSessionEvents(timeTrackingEvents),
-		// The session service's weekly summaries reduce their Soll by holidays too.
-		timetracking.WithWorkSessionHolidays(nonWorkingDayService),
-		timetracking.WithWorkSessionAbsenceTypes(staffAbsenceTypeService),
-		timetracking.WithWorkSessionTargetOverrides(staffTargetOverrideWeeks{overrides: workTime, months: func() timetracking.WorkTimeMonthService { return overrideMonths }}),
-	)
-	staffClockService := newStaffClockService(usersService, peopleIdentity, workSessionService)
-
-	// Monatskarte read model (#1842) — everything computed on read, the
-	// Übertrag is live.
-	workTimeMonthService := timetracking.NewWorkTimeMonthService(
-		workSessions,
-		workSessionBreaks,
-		staffAbsences,
-		StaffScheduleAssignments(workforceCompose.MustNewStaffEmployment(db)),
-		NewWorkScheduleTargets(staffWorkSchedules),
-		NewWorkTimeTargetModels(workTimeModels),
-		NewTimeTrackingShifts(workTime),
-		PresenceSettings(settingsService),
-		activeLogger,
-		timetracking.WithMonthHolidays(nonWorkingDayService),
-		// Sonderarbeitszeiten (#3259) win over closing days and the schedule.
-		timetracking.WithMonthTargetOverrides(workTime),
-		// Stundenkonto transactions (#1420) enter the carry chain by effective date.
-		timetracking.WithMonthAdjustments(staffBalanceAdjustments),
-		// Frozen months (#1417) short-circuit the carry chain so a retroactive
-		// correction can no longer rewrite a closed month's Übertrag.
-		timetracking.WithMonthSnapshots(MonthSnapshotCapability(workTime)),
-	)
-	overrideMonths = workTimeMonthService
-
-	// Initialize staff absence service
-	staffAbsenceService := timetracking.NewStaffAbsenceService(staffAbsences, workSessions, staffVacationQuotas, staffAbsenceAudits, PresenceSettings(settingsService), workTimeMonthService,
-		timetracking.WithAbsenceTypes(staffAbsenceTypeService),
-		timetracking.WithAbsenceEvents(timeTrackingEvents),
-		timetracking.WithAbsenceLogger(activeLogger),
-		// Deletes leave an append-only tombstone in the cross-staff audit log
-		// (#1417). The delete paths fail without this wiring.
-		timetracking.WithAbsenceDeletionAudit(NewTimeTrackingDeletionAudit(audits.TimeTrackingDeletion)),
-		// Vacation takeover at the moto introduction (#2132): the summary
-		// subtracts pre-introduction days, the write paths book/delete them.
-		timetracking.WithVacationOpenings(staffVacationOpenings),
-		// Absence email notifications (#1419 4d).
-		timetracking.WithAbsenceEmail(timetracking.AbsenceEmailDeps{
-			Settings:    PresenceSettings(settingsService),
-			Dispatcher:  absenceEmailDispatcher{dispatcher: dispatcher, from: defaultFrom, identity: tenantMailIdentity, logger: activeLogger},
-			StaffRepo:   absenceEmailStaffDirectory{source: staffRepository},
-			SchoolRepo:  absenceEmailSchoolDirectory{schools: organizations},
-			FrontendURL: frontendURL,
-			Logger:      activeLogger,
-		}),
-		timetracking.WithAbsenceShiftPlanSyncer(shiftplansyncCompose.DeferredSickCascade(func() shiftplansync.SickCascade { return shiftPlanSyncer })),
-		// A rebooking inside a closed month (#3258) could not move its frozen
-		// closing balance, so the service rejects it.
-		timetracking.WithAbsenceMonthSnapshots(MonthSnapshotCapability(workTime)),
-	)
-
-	// Stundenkonto lifecycle transactions (#1420): payout, comp-time grants,
-	// school-year reset. Reads the live balance through the month service.
-	staffBalanceAdjustService := timetracking.NewStaffBalanceAdjustmentService(staffBalanceAdjustments, workTimeMonthService, PresenceSettings(settingsService), activeLogger,
-		timetracking.WithAdjustmentEvents(timeTrackingEvents),
-		// A booking inside a closed month (#1417) could not move its frozen
-		// closing balance, so the ledger rejects it.
-		timetracking.WithAdjustmentSnapshots(MonthSnapshotCapability(workTime)),
-		// Deletes leave an append-only tombstone in the cross-staff audit log
-		// (#1417). The delete path fails without this wiring.
-		timetracking.WithAdjustmentDeletionAudit(NewTimeTrackingDeletionAudit(audits.TimeTrackingDeletion)),
-	)
-
-	// Monatsabschluss (#1417): freezes a month's closing balance so a
-	// retroactive correction can no longer rewrite every later Übertrag.
-	staffMonthCloseService := timetracking.NewStaffMonthCloseService(
-		MonthSnapshotCapability(workTime),
-		workTimeMonthService,
-		MonthCloseStaff(staffRepository),
-		PresenceSettings(settingsService),
-		activeLogger,
-		timetracking.WithMonthCloseEvents(timeTrackingEvents),
-	)
-
-	// Tenant-wide time-tracking views (#1417 2a). Prefetches all inputs once
-	// and runs the SAME per-staff month math over in-memory readers, so the
-	// list can never drift from the /staff/{id} detail view.
-	staffOverviewService := timetracking.NewStaffOverviewService(
-		OverviewStaff(staffRepository),
-		workSessions,
-		workSessionBreaks,
-		staffAbsences,
-		staffBalanceAdjustments,
-		staffVacationQuotas,
-		MonthSnapshotCapability(workTime),
-		NewWorkScheduleTargets(staffWorkSchedules),
-		NewWorkTimeTargetModels(workTimeModels),
-		NewTimeTrackingShifts(workTime),
-		PresenceSettings(settingsService),
-		activeLogger,
-		timetracking.WithOverviewHolidays(nonWorkingDayService),
-		timetracking.WithOverviewTargetOverrides(workTime),
-		// Vacation takeover (#2132): the Resturlaub column subtracts
-		// pre-introduction days exactly like the /staff/{id} detail view.
-		timetracking.WithOverviewVacationOpenings(staffVacationOpenings),
-	)
-
-	// Cross-staff payroll/evidence export (#1417 2b): rows via the overview's
-	// prefetch (month) and the single-staff export cells (day); every download
-	// writes an audit.data_access_logs row or fails.
 	// One payroll-status instance: the /payroll page and the DATEV writers
 	// must judge completeness identically.
 	payrollStatusService := settingsCompose.NewPayrollStatusService(settingsService, func(ctx context.Context) (int, int, error) {
@@ -1094,23 +967,34 @@ func newFactory(
 		return len(staff), withoutPersonnelNumber, nil
 	})
 
-	staffTimeExportService := timetracking.NewStaffTimeExportService(
-		staffOverviewService,
-		workSessionService,
-		TimeExportStaff(staffRepository),
-		NewTimeTrackingDataAccessAudit(audits.DataAccessLog),
-		PayrollExportSettings{Source: payrollStatusService},
-		activeLogger,
-		RenderTimeTrackingWorkbook,
-	)
-
-	// Cross-staff audit feed (#1417): merges the four change trails into one
-	// keyset-paginated view. Read-only; permission gating at the route.
-	timeTrackingAuditLogService := timetracking.NewTimeTrackingAuditLogService(
-		NewTimeTrackingAuditReader(audits.TimeTrackingAuditLog),
-		StaffDisplayNames(staffRepository),
-		PresenceSettings(settingsService),
-	)
+	// The time-tracking side of Workforce (#3413): stamps, history and edits,
+	// absences, month balances and their close, overview, exports and the
+	// audit feed, over the Workforce rows and the ports bound here.
+	timeTracking, err := newTimeTracking(TimeTrackingPortDependencies{
+		Workforce: workTime, StaffAbsences: staffAbsences, AbsenceAudits: workforceLegacy.NewStaffAbsenceAuditRepository(workTime),
+		Audits: TimeTrackingAudits{
+			WorkSessionEdit: audits.WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
+			DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog,
+		},
+		Supervisions: groupSupervisions, SessionRecords: sessionRecords,
+		Staff: staffRepository, People: usersService, StaffEmployment: workforceCompose.MustNewStaffEmployment(db),
+		WorkSchedules: staffWorkSchedules, WorkTimeModels: workTimeModels, Holidays: nonWorkingDayService,
+		Settings: settingsService, Payroll: payrollStatusService, Events: TimeTrackingEvents(realtimeHub),
+		AbsenceEmail: &workforceCompose.AbsenceEmailDeps{
+			Settings:    PresenceSettings(settingsService),
+			Dispatcher:  absenceEmailDispatcher{dispatcher: dispatcher, from: defaultFrom, identity: tenantMailIdentity, logger: activeLogger},
+			StaffRepo:   absenceEmailStaffDirectory{source: staffRepository},
+			SchoolRepo:  absenceEmailSchoolDirectory{schools: organizations},
+			FrontendURL: frontendURL,
+			Logger:      activeLogger,
+		},
+		ShiftPlanSync: shiftplansyncCompose.DeferredSickCascade(func() shiftplansync.SickCascade { return shiftPlanSyncer }),
+		DB:            db, Logger: activeLogger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose time tracking: %w", err)
+	}
+	staffClockService := newStaffClockService(usersService, peopleIdentity, timeTracking.TimeClock)
 
 	// The Timetable owner's attendance mirror (WP-B10, #3424 slice S3) serves
 	// Student Presence's attendance syncer port: CreateVisit / EndVisit trigger
@@ -1211,10 +1095,10 @@ func newFactory(
 		DeviceRepo:               NewSessionDeviceDirectory(legacyDevices, settingsService, activeLogger),
 		StaffNames:               NewAttendanceStaffNames(staffRepository, usersService),
 		DB:                       db,
-		Broadcaster:              realtimeHub,           // Pass SSE broadcaster
-		Tracker:                  productEvents,         // Product analytics (PostHog)
-		WorkSessionService:       workSessionService,    // NFC auto-check-in
-		AttendanceSyncer:         attendanceSyncService, // WP-B10 mirror + SSE enrichment
+		Broadcaster:              realtimeHub,              // Pass SSE broadcaster
+		Tracker:                  productEvents,            // Product analytics (PostHog)
+		WorkSessionService:       timeTracking.AutoCheckIn, // NFC auto-check-in
+		AttendanceSyncer:         attendanceSyncService,    // WP-B10 mirror + SSE enrichment
 		TimetableBridgeCompleter: timetableBridgeService,
 		Logger:                   activeLogger,
 		Now:                      now,
@@ -1540,13 +1424,13 @@ func newFactory(
 	// audit.work_session_edits) and active.staff_absences older than the
 	// tenant's retention window. Per-staff audit rows via DataDeletion
 	// (staff_id subject, added in migration 1.15.58).
-	timeTrackingCleanupService := timetracking.NewTimeTrackingCleanupService(
-		workSessions,
-		staffAbsences,
-		NewTimeTrackingRetentionAudit(audits.DataDeletion),
-		PresenceSettings(settingsService),
-		logger.With("service", "time-tracking-cleanup"),
-	)
+	timeTrackingCleanupService, err := workforceCompose.NewTimeTrackingCleanup(workforceCompose.TimeTrackingCleanupDependencies{
+		Workforce: workTime, Absences: staffAbsences, Audit: NewTimeTrackingRetentionAudit(audits.DataDeletion),
+		Settings: PresenceSettings(settingsService), Logger: logger.With("service", "time-tracking-cleanup"),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose time tracking cleanup: %w", err)
+	}
 
 	// Per-child change-history retention cleanup (issue #1455). Deletes
 	// audit.student_field_edits older than the tenant's retention window
@@ -1951,8 +1835,8 @@ func newFactory(
 		CarePlan: carePlan, Presence: newStudentPresence(db, logger),
 		InvitationService: invitationService,
 		OpeningBalance: importService.OpeningBalanceImportDeps{
-			BalanceAdjustService: OpeningBalanceBookingCapability(staffBalanceAdjustService),
-			StaffAbsenceService:  VacationTakeoverCapability(staffAbsenceService),
+			BalanceAdjustService: timeTracking.OpeningBalances,
+			StaffAbsenceService:  timeTracking.VacationTakeovers,
 		},
 		ConsentHistory: auditCompose.NewConsentRecorder(auditCommand),
 		Audit:          auditCommand,
@@ -2400,7 +2284,7 @@ func newFactory(
 		staffRepository,
 		identityAccess,
 		settingsService,
-		workSessions,
+		WorkPresence(workTime),
 	)
 	staffParentMessageNotifier := notifications.NewStaffParentMessageNotifier(
 		notificationsService,
@@ -2927,14 +2811,7 @@ func newFactory(
 		Passkey:                 identityAccess,
 		Active:                  activeService,
 		ActiveCleanup:           activeCleanupService,
-		WorkSession:             workSessionService,
-		WorkTimeMonth:           workTimeMonthService,
-		StaffAbsence:            staffAbsenceService,
-		StaffBalanceAdjust:      staffBalanceAdjustService,
-		StaffMonthClose:         staffMonthCloseService,
-		StaffOverview:           staffOverviewService,
-		TimeTrackingAuditLog:    timeTrackingAuditLogService,
-		StaffTimeExport:         staffTimeExportService,
+		WorkSession:             timeTracking,
 		Activities:              activitiesService,
 		Education:               educationService,
 		Substitution:            substitutionService,

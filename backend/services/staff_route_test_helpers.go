@@ -29,8 +29,11 @@ func newStaffIdentityForTests(db *bun.DB) (*CallerRows, MembershipTestRepositori
 }
 
 type AbsenceTypeTestModule struct {
-	Catalog     workforce.Capability
-	UserContext *CallerRows
+	Catalog workforce.Capability
+	// Administration is the Abwesenheitsarten administration over Catalog,
+	// composed the way the root composes it.
+	Administration workforce.AbsenceTypeAdministration
+	UserContext    *CallerRows
 }
 
 func NewAbsenceTypeTestModule(db *bun.DB) (AbsenceTypeTestModule, error) {
@@ -38,7 +41,10 @@ func NewAbsenceTypeTestModule(db *bun.DB) (AbsenceTypeTestModule, error) {
 	if err != nil {
 		return AbsenceTypeTestModule{}, err
 	}
-	return AbsenceTypeTestModule{Catalog: NewAbsenceTypeTestCapability(db), UserContext: identity}, nil
+	catalog := NewAbsenceTypeTestCapability(db)
+	return AbsenceTypeTestModule{
+		Catalog: catalog, Administration: workforceCompose.NewAbsenceTypeAdministration(catalog, slog.Default()), UserContext: identity,
+	}, nil
 }
 
 type BirthdayTestModule struct {

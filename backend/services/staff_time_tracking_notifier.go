@@ -6,7 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // StaffTimeTrackingNotifier returns the post-commit notification that
@@ -22,7 +22,7 @@ func StaffTimeTrackingNotifier(broadcaster realtime.Broadcaster) func(context.Co
 // TimeTrackingEvents binds the retained time-tracking services' event port to
 // the Delivery producer. The services announce a change; the producer defers
 // the tenant-wide broadcast until the surrounding transaction commits.
-func TimeTrackingEvents(broadcaster realtime.Broadcaster) timetracking.EventPublisher {
+func TimeTrackingEvents(broadcaster realtime.Broadcaster) workforceCompose.EventPublisher {
 	return timeTrackingEvents{broadcaster: broadcaster}
 }
 

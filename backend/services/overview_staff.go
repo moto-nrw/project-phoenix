@@ -4,7 +4,7 @@ import (
 	"context"
 
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 type overviewStaffRecords interface {
@@ -13,22 +13,22 @@ type overviewStaffRecords interface {
 
 type overviewStaffQuery struct{ source overviewStaffRecords }
 
-func OverviewStaff(source overviewStaffRecords) timetracking.OverviewStaffQuery {
+func OverviewStaff(source overviewStaffRecords) workforceCompose.OverviewStaffQuery {
 	return overviewStaffQuery{source: source}
 }
 
-func (q overviewStaffQuery) ListOverviewStaff(ctx context.Context) ([]timetracking.OverviewStaff, error) {
+func (q overviewStaffQuery) ListOverviewStaff(ctx context.Context) ([]workforceCompose.OverviewStaff, error) {
 	rows, err := q.source.ListAllWithPerson(ctx)
 	if err != nil {
 		return nil, err
 	}
-	staff := make([]timetracking.OverviewStaff, 0, len(rows))
+	staff := make([]workforceCompose.OverviewStaff, 0, len(rows))
 	for _, row := range rows {
 		// External caregivers (#3823) record no working time.
 		if row.IsGuest {
 			continue
 		}
-		member := timetracking.OverviewStaff{
+		member := workforceCompose.OverviewStaff{
 			ID: row.ID, EmploymentType: row.EmploymentType, PersonnelNumber: row.PersonnelNumber,
 			WorkTimeModelID: row.WorkTimeModelID, RotationAnchorDate: row.RotationAnchorDate,
 		}

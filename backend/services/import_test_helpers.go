@@ -105,8 +105,8 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 		InvitationService: auth.Invitation,
 		ConsentHistory:    auditCompose.NewConsentRecorder(command),
 		OpeningBalance: importService.OpeningBalanceImportDeps{
-			BalanceAdjustService: OpeningBalanceBookingCapability(workforce.StaffBalanceAdjust),
-			StaffAbsenceService:  VacationTakeoverCapability(workforce.StaffAbsence),
+			BalanceAdjustService: workforce.TimeTracking.OpeningBalances,
+			StaffAbsenceService:  workforce.TimeTracking.VacationTakeovers,
 		},
 		Audit: command,
 		Observe: func(observation importService.ImportObservation) {

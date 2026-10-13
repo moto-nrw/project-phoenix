@@ -2,11 +2,11 @@ package services
 
 import (
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // RenderTimeTrackingPDF binds the time-tracking document to the shared PDF design.
-func RenderTimeTrackingPDF(input timetracking.TimeTrackingDocument) ([]byte, error) {
+func RenderTimeTrackingPDF(input workforceCompose.TimeTrackingDocument) ([]byte, error) {
 	doc := lists.Document{Title: input.Title, Subtitle: input.Subtitle, Footer: input.Footer, GeneratedAt: input.GeneratedAt, Filters: input.Filters}
 	for _, column := range input.Columns {
 		doc.Columns = append(doc.Columns, lists.Column{ID: lists.ColumnID(column.ID), Label: column.Label})

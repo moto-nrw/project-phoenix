@@ -213,7 +213,7 @@ func TestSickCascade_MarkSickForRange(t *testing.T) {
 
 	absenceID := int64(0)
 	e.inTx(t, func(ctx context.Context) error {
-		resp, err := e.absences.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
+		resp, err := e.absences.TimeTracking.StaffAbsences.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   yesterday.String(),
 			DateEnd:     tomorrow.String(),
@@ -281,7 +281,7 @@ func TestSickCascade_MarkSickForRange(t *testing.T) {
 	// Idempotency: filing the same sick range again merges into the same
 	// absence and re-runs the cascade as a no-op.
 	e.inTx(t, func(ctx context.Context) error {
-		resp, err := e.absences.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
+		resp, err := e.absences.TimeTracking.StaffAbsences.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   yesterday.String(),
 			DateEnd:     tomorrow.String(),
@@ -383,7 +383,7 @@ func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *t
 			}
 			close(lockHeld)
 			<-releaseLock
-			_, err := e.absences.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
+			_, err := e.absences.TimeTracking.StaffAbsences.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
 				AbsenceType: "sick",
 				DateStart:   day.String(),
 				DateEnd:     day.String(),
@@ -396,7 +396,7 @@ func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *t
 	creatorDone := make(chan error, 1)
 	go func() {
 		creatorDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
-			_, err := e.absences.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
+			_, err := e.absences.TimeTracking.StaffAbsences.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
 				AbsenceType: "sick",
 				DateStart:   day.String(),
 				DateEnd:     day.String(),
@@ -434,7 +434,7 @@ func TestSickCascade_HalfDayRules(t *testing.T) {
 
 	// HalfDay absences never cascade (guarded in the absence service).
 	e.inTx(t, func(ctx context.Context) error {
-		_, err := e.absences.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.subject.ID, nil, services.CreateAbsenceRequest{
+		_, err := e.absences.TimeTracking.StaffAbsences.CreateAbsenceFor(ctx, e.subject.ID, e.subject.ID, nil, workforce.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   tomorrow.String(),
 			DateEnd:     tomorrow.String(),
@@ -479,7 +479,7 @@ func TestSickCascade_ReconcileSickRangeAppliesOnlyDateDelta(t *testing.T) {
 
 	var absenceID int64
 	e.inTx(t, func(ctx context.Context) error {
-		created, err := e.absences.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
+		created, err := e.absences.TimeTracking.StaffAbsences.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   dayOne.String(),
 			DateEnd:     dayTwo.String(),
@@ -535,7 +535,7 @@ func TestSickCascade_UpdateRangeRollsBackWhenRemovedShiftCannotReactivate(t *tes
 	newStart := newDay.String()
 	newEnd := newDay.String()
 	err := testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
-		_, updateErr := e.absences.StaffAbsence.UpdateAbsence(ctx, e.subject.ID, nil, absenceID, services.UpdateAbsenceRequest{
+		_, updateErr := e.absences.TimeTracking.StaffAbsences.UpdateAbsence(ctx, e.subject.ID, nil, absenceID, workforce.UpdateAbsenceRequest{
 			DateStart: &newStart,
 			DateEnd:   &newEnd,
 		})
@@ -715,7 +715,7 @@ func (e *sickCascadeEnv) createSickAbsence(t *testing.T, start, end timezone.Dat
 	t.Helper()
 	var absenceID int64
 	e.inTx(t, func(ctx context.Context) error {
-		created, err := e.absences.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
+		created, err := e.absences.TimeTracking.StaffAbsences.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   start.String(),
 			DateEnd:     end.String(),
@@ -742,7 +742,7 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 
 	var absenceID int64
 	e.inTx(t, func(ctx context.Context) error {
-		resp, err := e.absences.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
+		resp, err := e.absences.TimeTracking.StaffAbsences.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   tomorrow.String(),
 			DateEnd:     tomorrow.String(),
@@ -769,7 +769,7 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 	subRow := testpkg.CreateTestInstanceStaff(t, e.db, substitutedInstance.ID, e.sub.ID, testpkg.InstanceStaffOpts{IsSubstitute: true})
 
 	e.inTx(t, func(ctx context.Context) error {
-		return e.absences.StaffAbsence.DeleteAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, absenceID)
+		return e.absences.TimeTracking.StaffAbsences.DeleteAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, absenceID)
 	})
 
 	// Absence row is gone.
@@ -851,7 +851,7 @@ func TestSickCascade_DeleteDoesNotReactivateManuallyRetainedCancellation(t *test
 	assert.Nil(t, manuallyRetained.SickAbsenceID)
 
 	e.inTx(t, func(ctx context.Context) error {
-		return e.absences.StaffAbsence.DeleteAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, absenceID)
+		return e.absences.TimeTracking.StaffAbsences.DeleteAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, absenceID)
 	})
 
 	stored := e.reloadShift(t, shift.ID)
@@ -872,7 +872,7 @@ func TestSickCascade_ReassignSickStamps(t *testing.T) {
 
 	var absenceID int64
 	e.inTx(t, func(ctx context.Context) error {
-		resp, err := e.absences.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
+		resp, err := e.absences.TimeTracking.StaffAbsences.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   tomorrow.String(),
 			DateEnd:     tomorrow.String(),

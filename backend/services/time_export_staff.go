@@ -4,7 +4,7 @@ import (
 	"context"
 
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 type timeExportStaffRecords interface {
@@ -13,22 +13,22 @@ type timeExportStaffRecords interface {
 
 type timeExportStaffQuery struct{ source timeExportStaffRecords }
 
-func TimeExportStaff(source timeExportStaffRecords) timetracking.TimeExportStaffQuery {
+func TimeExportStaff(source timeExportStaffRecords) workforceCompose.TimeExportStaffQuery {
 	return timeExportStaffQuery{source: source}
 }
 
-func (q timeExportStaffQuery) ListExportStaff(ctx context.Context) ([]timetracking.TimeExportStaff, error) {
+func (q timeExportStaffQuery) ListExportStaff(ctx context.Context) ([]workforceCompose.TimeExportStaff, error) {
 	rows, err := q.source.ListAllWithPerson(ctx)
 	if err != nil {
 		return nil, err
 	}
-	staff := make([]timetracking.TimeExportStaff, 0, len(rows))
+	staff := make([]workforceCompose.TimeExportStaff, 0, len(rows))
 	for _, row := range rows {
 		// External caregivers (#3823) record no working time.
 		if row.IsGuest {
 			continue
 		}
-		member := timetracking.TimeExportStaff{ID: row.ID}
+		member := workforceCompose.TimeExportStaff{ID: row.ID}
 		if row.Person != nil {
 			member.FirstName = row.Person.FirstName
 			member.LastName = row.Person.LastName

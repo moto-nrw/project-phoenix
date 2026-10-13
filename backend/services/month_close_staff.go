@@ -4,7 +4,7 @@ import (
 	"context"
 
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 type monthCloseStaffRecords interface {
@@ -14,7 +14,7 @@ type monthCloseStaffRecords interface {
 type monthCloseStaffQuery struct{ source monthCloseStaffRecords }
 
 // MonthCloseStaff preserves the staff selection used by school-wide month close.
-func MonthCloseStaff(source monthCloseStaffRecords) timetracking.MonthCloseStaffQuery {
+func MonthCloseStaff(source monthCloseStaffRecords) workforceCompose.MonthCloseStaffQuery {
 	return monthCloseStaffQuery{source: source}
 }
 

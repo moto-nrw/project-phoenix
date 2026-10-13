@@ -76,8 +76,7 @@ func (p exportTransferPort) Transfer(ctx context.Context, request timeTrackingHT
 
 // newTimeTrackingResource composes the MA-facing /api/time-tracking surface.
 func newTimeTrackingResource(svc *services.Factory, calendar schoolcalendar.Calendar, db *bun.DB) *timeTrackingHTTP.Resource {
-	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth,
-		svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport)
+	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession)
 	return timeTrackingHTTP.NewResource(timeTrackingHTTP.Dependencies{
 		WorkSessions:     capabilities.WorkSessions,
 		StaffAbsences:    capabilities.StaffAbsences,

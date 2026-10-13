@@ -1582,7 +1582,7 @@ func mountStaffRoutes(tenant chi.Router, in routeInputs) (scheduler.StaffDocumen
 		ResolveStaffID: currentStaffID(in.modules),
 		ActorAccountID: projectJWT.ActorAccountIDFromCtx,
 	})
-	absenceTypes := workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(workforce, in.logger.With("service", "active")), currentStaffID(in.modules))
+	absenceTypes := workforceInbound.NewAbsenceTypesResource(workforceCompose.NewAbsenceTypeAdministration(workforce, in.logger.With("service", "active")), currentStaffID(in.modules))
 	tenant.Mount("/staff", staff.Router())
 	tenant.Mount("/work-time-models", worktimemodelsHTTPAdapter.NewResource(workforce, services.StaffTimeTrackingNotifier(svc.RealtimeHub)).Router())
 	tenant.Mount("/staff-shifts", staffShifts.Router())

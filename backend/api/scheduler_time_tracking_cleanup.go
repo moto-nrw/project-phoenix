@@ -3,14 +3,14 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 )
 
 // schedulerTimeTrackingCleanupPort binds the retained time-tracking cleanup to the
 // scheduler's consumer-owned port. A nil service stays nil so the scheduler
 // keeps skipping the task when no cleanup is wired.
-func schedulerTimeTrackingCleanupPort(service timetracking.TimeTrackingCleanupService) scheduler.TimeTrackingCleanupService {
+func schedulerTimeTrackingCleanupPort(service workforceCompose.TimeTrackingCleanupService) scheduler.TimeTrackingCleanupService {
 	if service == nil {
 		return nil
 	}
@@ -18,7 +18,7 @@ func schedulerTimeTrackingCleanupPort(service timetracking.TimeTrackingCleanupSe
 }
 
 type schedulerTimeTrackingCleanup struct {
-	service timetracking.TimeTrackingCleanupService
+	service workforceCompose.TimeTrackingCleanupService
 }
 
 func (c schedulerTimeTrackingCleanup) CleanupExpiredTimeTrackingData(ctx context.Context) (*scheduler.TimeTrackingCleanupResult, error) {

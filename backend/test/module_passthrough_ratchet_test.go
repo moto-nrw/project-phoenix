@@ -265,7 +265,18 @@ var modulePassthroughBudgets = map[string]int{
 	"modules/timetable": 100,
 	// Work sessions (15), the service facade (7), absences, shifts, staff
 	// records, month snapshots, offboarding and substitutions.
-	"modules/workforce": 47,
+	//
+	// 47 → 62 with #3413: the time-tracking services (13,327 LOC, never
+	// scanned because they sat under legacy/) became internal/application/
+	// timetracking. The 70 counted adapter methods that only map them onto
+	// the public contracts went to the Workforce composition instead, and two
+	// unused reads were deleted; the 15 left are reads the services expose to
+	// those adapters and to each other: the session history and edits (4),
+	// the presence and supervision maps (2), the open-session lookups (2),
+	// and the absence range, date, pending and today reads, the ledger
+	// listing, the month status and the vacation opening (7). Shrink-only
+	// from here like every other entry.
+	"modules/workforce": 62,
 }
 
 func TestModulePassthroughRatchet(t *testing.T) {

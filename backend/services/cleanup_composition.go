@@ -18,7 +18,7 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
@@ -181,11 +181,16 @@ func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 	})
 }
 
-func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) timetracking.TimeTrackingCleanupService {
+func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) workforceCompose.TimeTrackingCleanupService {
 	repos := NewTimeTrackingCleanupRepositories(db)
-	return timetracking.NewTimeTrackingCleanupService(
-		repos.Session, repos.Absence, NewTimeTrackingRetentionAudit(cleanupAuditRepositories(db, command).DataDeletion), PresenceSettings(NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)), logger,
-	)
+	service, err := workforceCompose.NewTimeTrackingCleanup(workforceCompose.TimeTrackingCleanupDependencies{
+		Workforce: repos.Workforce, Absences: repos.Absence, Audit: NewTimeTrackingRetentionAudit(cleanupAuditRepositories(db, command).DataDeletion),
+		Settings: PresenceSettings(NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)), Logger: logger,
+	})
+	if err != nil {
+		panic(fmt.Sprintf("time tracking cleanup: %v", err))
+	}
+	return service
 }
 
 func NewSettingsCommandRepository(db *bun.DB) configModels.SettingValueRepository {
@@ -225,10 +230,10 @@ type cleanupAudits struct {
 // The time-tracking cleanup contract and its result shapes, exposed to CLI
 // composition the way AuditCommand is: the CLI keeps composing through this
 // root instead of importing the retained Workforce package.
-type TimeTrackingCleanupService = timetracking.TimeTrackingCleanupService
-type TimeTrackingCleanupResult = timetracking.TimeTrackingCleanupResult
-type TimeTrackingCleanupPreview = timetracking.TimeTrackingCleanupPreview
-type TimeTrackingCleanupStats = timetracking.TimeTrackingCleanupStats
+type TimeTrackingCleanupService = workforceCompose.TimeTrackingCleanupService
+type TimeTrackingCleanupResult = workforceCompose.TimeTrackingCleanupResult
+type TimeTrackingCleanupPreview = workforceCompose.TimeTrackingCleanupPreview
+type TimeTrackingCleanupStats = workforceCompose.TimeTrackingCleanupStats
 
 // signedIdentityTokensOf adapts a root's resolved signer to the native claim
 // codec. The signing primitive stays in the token adapter; Identity owns the
