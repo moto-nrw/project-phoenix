@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -71,7 +70,7 @@ func TestNativeParentFeedRotationUsesAmbientTransaction(t *testing.T) {
 	first, second := calendarFeedHash(account.ID, 1), calendarFeedHash(account.ID, 2)
 	require.NoError(t, feeds.RotateParentCalendarFeedToken(ctx, account.ID, first))
 	rollback := errors.New("rollback parent feed rotation")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, tx bun.Tx) error {
 		require.NoError(t, feeds.RotateParentCalendarFeedToken(txCtx, account.ID, second))
 		_, found, readErr := feeds.FindParentCalendarFeedOwner(txCtx, first)
 		require.NoError(t, readErr)

@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -824,7 +823,7 @@ func TestAuthService_Logout(t *testing.T) {
 		testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
 
 		staffEndpoint := fmt.Sprintf("https://fcm.googleapis.com/logout-staff-%d", account.ID)
-		for _, tenantID := range []int64{tenant.FromContext(ctx), secondaryTenantID} {
+		for _, tenantID := range []int64{testpkg.TenantIDFromContext(ctx), secondaryTenantID} {
 			insertPushSubscription(t, db, account.ID, tenantID, pushPortalStaff, staffEndpoint, "")
 		}
 
@@ -1389,7 +1388,7 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		require.NoError(t, err)
 
 		sentinelErr := errors.New("force outer rollback")
-		txHandler := tenant.NewTransactionRunner()
+		txHandler := testpkg.TenantTransactionRuntime{}
 
 		err = txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 			if err := rbac.AssignRoleToAccount(txCtx, account.ID, role.ID); err != nil {
@@ -1474,7 +1473,7 @@ func TestAuthService_ReplaceAccountRole(t *testing.T) {
 	assert.ElementsMatch(t, []int64{guardianRole.ID, newRole.ID}, roleIDs(roles))
 
 	sentinelErr := errors.New("force outer rollback")
-	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+	err = testpkg.RunInTenantTransaction(ctx, func(txCtx context.Context) error {
 		if err := rbac.ReplaceAccountRole(txCtx, account.ID, oldRole.ID); err != nil {
 			return err
 		}
@@ -2041,7 +2040,7 @@ func TestAuthService_ReplaceRolePermissions(t *testing.T) {
 	assert.Equal(t, newPermission.ID, permissions[0].ID)
 
 	sentinelErr := errors.New("force outer rollback")
-	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
+	err = testpkg.RunInTenantTransaction(ctx, func(txCtx context.Context) error {
 		if err := rbac.ReplaceRolePermissions(txCtx, role.ID, []int64{oldPermission.ID}); err != nil {
 			return err
 		}

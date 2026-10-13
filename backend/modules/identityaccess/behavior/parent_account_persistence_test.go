@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -45,7 +44,7 @@ func TestNativeParentAccountTenantAndCredentialPersistence(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
 	other, _ := testpkg.CreateTestTenant(t, db)
-	foreignCtx := tenant.WithTenantID(ctx, other)
+	foreignCtx := testpkg.ContextForTenant(ctx, other)
 	email := fmt.Sprintf("parent-native-%d@example.com", home)
 	account, err := accounts.CreateParentAccount(ctx, strings.ToUpper(email), "parent-native", testPassword)
 	require.NoError(t, err)
@@ -67,8 +66,8 @@ func TestNativeParentAccountTenantAndCredentialPersistence(t *testing.T) {
 	require.Empty(t, foreign)
 
 	rollback := errors.New("rollback parent-account edit")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error {
-		txCtx = tenant.WithTenantID(txCtx, home)
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+		txCtx = testpkg.ContextForTenant(txCtx, home)
 		require.NoError(t, accounts.UpdateParentAccount(txCtx, account))
 		inside, readErr := accounts.GetParentAccountByID(txCtx, account.ID)
 		require.NoError(t, readErr)

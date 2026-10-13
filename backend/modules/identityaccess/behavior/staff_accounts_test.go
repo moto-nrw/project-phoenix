@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -96,7 +95,7 @@ func TestStaffAccountQueriesScopeAndTransaction(t *testing.T) {
 	}))
 
 	rollback := errors.New("roll back staff query changes")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, tx bun.Tx) error {
 		_, writeErr := tx.NewRaw("UPDATE auth.accounts SET active = FALSE, email = ? WHERE id = ?", "transactional-"+account.Email, account.ID).Exec(txCtx)
 		require.NoError(t, writeErr)
 		_, writeErr = tx.NewRaw("DELETE FROM auth.account_roles WHERE account_id = ?", account.ID).Exec(txCtx)

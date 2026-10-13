@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -45,7 +44,7 @@ func TestSchoolAccountListingsScopeAndInvitationSuppression(t *testing.T) {
 	require.Empty(t, empty, "an empty school set is never a platform-wide lookup")
 
 	rollback := errors.New("rollback listing fixture changes")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, tx bun.Tx) error {
 		_, updateErr := tx.NewRaw("UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?", account.ID, home).Exec(txCtx)
 		require.NoError(t, updateErr)
 		inside, readErr := query.ListSchoolAccountListings(txCtx, []int64{home})

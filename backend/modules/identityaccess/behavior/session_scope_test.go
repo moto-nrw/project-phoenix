@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -444,7 +443,7 @@ func TestAssignRoleFromAdminTxKeepsOtherSchoolSessions(t *testing.T) {
 	role, err := rbac.CreateRole(ctx, uniqueTestName("admin-role-other"), "keep other school", testpkg.StrPtr("user"))
 	require.NoError(t, err)
 	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
-		return rbac.AssignRoleToAccount(tenant.WithTenantID(adminCtx, tenantID), account.ID, role.ID)
+		return rbac.AssignRoleToAccount(testpkg.ContextForTenant(adminCtx, tenantID), account.ID, role.ID)
 	}))
 
 	count, err := db.NewSelect().

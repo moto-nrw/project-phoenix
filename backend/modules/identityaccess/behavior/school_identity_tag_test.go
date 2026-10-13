@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +32,7 @@ func TestEnsureSchoolIdentityAcceptsTheReaderSpellingOfATag(t *testing.T) {
 	lower := strings.ToLower(card.ID)
 	submitted := " " + lower[:2] + ":" + lower[2:4] + "-" + lower[4:6] + " " + lower[6:] + " "
 	var identity *identityaccess.SchoolIdentity
-	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+	err = testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		var ensureErr error
 		identity, ensureErr = provisioning.EnsureSchoolIdentity(txCtx, identityaccess.SchoolIdentityInput{
 			AccountID:    account.ID,
@@ -70,7 +69,7 @@ func TestEnsureSchoolIdentityReportsAnUnknownTagAsTheRetainedSentinel(t *testing
 	require.NoError(t, err)
 
 	unknown := "NOTACARD"
-	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+	err = testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		_, ensureErr := provisioning.EnsureSchoolIdentity(txCtx, identityaccess.SchoolIdentityInput{
 			AccountID:    account.ID,
 			TenantID:     testpkg.Tenant(t),

@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -641,7 +640,7 @@ type constraintFailingEnrollmentBackfiller struct {
 }
 
 func (s *constraintFailingEnrollmentBackfiller) BackfillGuardianAccountID(ctx context.Context, _ int64, _ string) (int, error) {
-	raw, ok := tenant.TransactionFromContext(ctx)
+	raw, ok := testpkg.TransactionFromContext(ctx)
 	if !ok {
 		return 0, errors.New("backfill transaction missing")
 	}
@@ -860,7 +859,7 @@ func TestGuardianInvitationService_Accept_OrdinaryBackfillErrorDoesNotBreakAccep
 func TestGuardianInvitationService_Accept_SavepointControlFailureRollsBackAccept(t *testing.T) {
 	t.Parallel()
 
-	bf := &stubEnrollmentBackfiller{returnError: tenant.ErrSavepointControl}
+	bf := &stubEnrollmentBackfiller{returnError: testpkg.ErrSavepointControl}
 	env := setupGuardianInviteWithBackfiller(t, bf)
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "backfill-savepoint-control")
 	creatorID := env.inviterAccountID(t)
@@ -875,7 +874,7 @@ func TestGuardianInvitationService_Accept_SavepointControlFailureRollsBackAccept
 		Password:        strongTestPassword,
 		ConfirmPassword: strongTestPassword,
 	})
-	require.ErrorIs(t, err, tenant.ErrSavepointControl)
+	require.ErrorIs(t, err, testpkg.ErrSavepointControl)
 
 	updated := testpkg.GuardianInvitationByID(t, env.db, invitation.ID)
 	assert.Nil(t, updated.AcceptedAt, "untrusted transaction state must roll back invitation acceptance")

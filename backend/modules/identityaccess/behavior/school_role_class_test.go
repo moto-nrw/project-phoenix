@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -56,7 +55,7 @@ func TestSchoolRoleClassesRespectTenantAndRoleKind(t *testing.T) {
 		require.Empty(t, foreign, "ambient RLS prevents reading another school's admin assignment")
 		return nil
 	}))
-	require.NoError(t, testpkg.WithinTenantContext(t, tenant.WithTenantID(ctx, other), db, other, func(txCtx context.Context) error {
+	require.NoError(t, testpkg.WithinTenantContext(t, testpkg.ContextForTenant(ctx, other), db, other, func(txCtx context.Context) error {
 		classes, queryErr := access.ClassifySchoolRoles(txCtx, other, []int64{member.ID})
 		require.NoError(t, queryErr)
 		require.Equal(t, []identityaccess.SchoolRoleClass{{AccountID: member.ID, IsAdmin: true}}, classes)
@@ -67,7 +66,7 @@ func TestSchoolRoleClassesRespectTenantAndRoleKind(t *testing.T) {
 	require.Empty(t, classes)
 
 	rollback := errors.New("roll back classification fixture")
-	err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, tx bun.Tx) error {
 		_, insertErr := tx.ExecContext(txCtx, "INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
 			member.ID, admin.ID, home)
 		require.NoError(t, insertErr)

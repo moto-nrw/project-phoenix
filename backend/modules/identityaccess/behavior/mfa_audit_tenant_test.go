@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -96,7 +95,7 @@ func TestMFAService_RecordAuthEvent_FallsBackToSentinelIPForInternalEvents(t *te
 	// the tenant on the context. Mirror that here so the recordAuthEvent
 	// fallback (tenantID==0 -> tenant.FromContext(ctx)) finds the right
 	// tenant and the audit row lands.
-	authedCtx := tenant.WithTenantID(ctx, tenantID)
+	authedCtx := testpkg.ContextForTenant(ctx, tenantID)
 
 	// Wrong code -> mfa_failed audit row via the nil-IP internal path.
 	// (We can't recover the plaintext code, so "000000" is guaranteed to
