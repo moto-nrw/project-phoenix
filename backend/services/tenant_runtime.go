@@ -56,23 +56,28 @@ func (f *Factory) SetTenantRuntime(runtime any) error {
 			}
 			continue
 		}
-		setTypedTenantRuntime(field, value)
+		if err := setTypedTenantRuntime(field, value); err != nil {
+			return fmt.Errorf("bind tenant runtime into %s: %w", fields.Type().Field(i).Name, err)
+		}
 	}
 	return nil
 }
 
-// setTypedTenantRuntime calls field's SetTenantRuntime when it takes exactly
-// the unit of work's type and returns nothing.
-func setTypedTenantRuntime(field, runtime reflect.Value) {
-	method := field.MethodByName("SetTenantRuntime")
+// setTypedTenantRuntime calls field's SetTenantRuntime with the unit of
+// work. A field without the method takes no runtime; a method of any other
+// shape is a wiring error that fails startup instead of leaving the service
+// unbound.
+func setTypedTenantRuntime(field, runtime reflect.Value) error {
+	method := reflect.ValueOf(field.Interface()).MethodByName("SetTenantRuntime")
 	if !method.IsValid() {
-		return
+		return nil
 	}
 	signature := method.Type()
-	if signature.NumIn() != 1 || signature.NumOut() != 0 || signature.In(0) != runtime.Type() {
-		return
+	if signature.NumIn() != 1 || signature.NumOut() != 0 || !runtime.Type().AssignableTo(signature.In(0)) {
+		return fmt.Errorf("SetTenantRuntime has signature %s, want func(%s)", signature, runtime.Type())
 	}
 	method.Call([]reflect.Value{runtime})
+	return nil
 }
 
 // isNilValue treats an interface holding a nil pointer as nil, matching the

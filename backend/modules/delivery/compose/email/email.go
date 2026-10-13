@@ -1,4 +1,4 @@
-// Package email names the Delivery mail transport for the legacy composition (#2747): the messages, addresses, dispatcher and delivery results it binds.
+// Package email names the Delivery mail transport for the legacy composition (#2747): the messages, addresses, dispatcher and delivery results it binds, and the logging mock mailer it detects when SMTP is unset.
 package email
 
 import upstream "github.com/moto-nrw/project-phoenix/email"

@@ -541,7 +541,7 @@ rows; their seams `CarePlanRecords` and `WorkforceShiftRecords` carry only the
 methods the remaining callers reach (50 -> 40 and 15 -> 9). The evidence
 record is `contract-repository-factory-2743.json`.
 
-#2747 contracts the service Factory in part (ADR 0050, policy epoch 36 to 37).
+#2747 contracts the service Factory in part (ADR 0050, policy epoch raised to 38).
 `services` names the retained activity, facility, IoT, staff-clock, import,
 audit, settings, parent-event, list-export and database-statistics services
 through the owners' compositions or contracts, and the records and keys of

@@ -8,7 +8,7 @@ Accepted for [#2747](https://github.com/moto-nrw/project-phoenix/issues/2747)
 under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), following
 the precedent of ADR 0049. The pull request review is where it can still be
 rejected; the exception activates only in the policy epoch that review merges
-(36 → 37).
+(36 → 38; development reached 37 with #3970 meanwhile).
 
 ## Context
 
