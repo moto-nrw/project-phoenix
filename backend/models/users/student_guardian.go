@@ -3,8 +3,6 @@ package users
 import (
 	"errors"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // ErrStudentGuardianNotFound is returned when no student-guardian relationship joins a
@@ -30,8 +28,8 @@ type GuardianLinkedChild struct {
 // (#2756). It is read through the guardian-link projection and written to the
 // owner of each column; it names no table of its own.
 type StudentGuardian struct {
-	base.Model `bun:"alias:student_guardian"`
-	base.TenantModel
+	Model `bun:"alias:student_guardian"`
+	TenantModel
 	StudentID          int64   `bun:"student_id,notnull" json:"student_id"`
 	GuardianProfileID  int64   `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
 	RelationshipType   string  `bun:"relationship_type,notnull" json:"relationship_type"`

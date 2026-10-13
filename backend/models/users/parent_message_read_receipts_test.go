@@ -1,16 +1,14 @@
-package users_test
+package users
 
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // msg is a tiny constructor for the read-receipt stamping tests: only the fields
 // the Stamp*ReadReceipts helpers read (id, sender_kind, created_at) matter here.
-func msg(id int64, kind string, createdAt time.Time) *users.ParentMessage {
-	m := &users.ParentMessage{
+func msg(id int64, kind string, createdAt time.Time) *ParentMessage {
+	m := &ParentMessage{
 		ThreadID:   1,
 		SenderKind: kind,
 	}
@@ -23,17 +21,17 @@ func TestStampGuardianReadReceipts(t *testing.T) {
 	t.Parallel()
 
 	base := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
-	staff1 := msg(10, users.ParentMessageSenderStaff, base)
-	guardian := msg(11, users.ParentMessageSenderGuardian, base.Add(time.Minute))
-	staff2 := msg(12, users.ParentMessageSenderStaff, base.Add(2*time.Minute))
-	system := msg(13, users.ParentMessageSenderSystem, base)
-	messages := []*users.ParentMessage{staff1, guardian, staff2, system}
+	staff1 := msg(10, ParentMessageSenderStaff, base)
+	guardian := msg(11, ParentMessageSenderGuardian, base.Add(time.Minute))
+	staff2 := msg(12, ParentMessageSenderStaff, base.Add(2*time.Minute))
+	system := msg(13, ParentMessageSenderSystem, base)
+	messages := []*ParentMessage{staff1, guardian, staff2, system}
 
 	t.Run("nil cursor stamps nothing", func(t *testing.T) {
 		for _, m := range messages {
 			m.ReadByGuardian = false
 		}
-		users.StampGuardianReadReceipts(messages, nil)
+		StampGuardianReadReceipts(messages, nil)
 		for _, m := range messages {
 			if m.ReadByGuardian {
 				t.Fatalf("message %d stamped read with a nil cursor", m.ID)
@@ -46,8 +44,8 @@ func TestStampGuardianReadReceipts(t *testing.T) {
 			m.ReadByGuardian = false
 		}
 		// Guardian has read up to staff1 (its id/timestamp).
-		cursor := &users.ReadCursor{LastReadAt: staff1.CreatedAt, LastReadMessageID: staff1.ID}
-		users.StampGuardianReadReceipts(messages, cursor)
+		cursor := &ReadCursor{LastReadAt: staff1.CreatedAt, LastReadMessageID: staff1.ID}
+		StampGuardianReadReceipts(messages, cursor)
 
 		if !staff1.ReadByGuardian {
 			t.Error("staff1 at the cursor must be stamped read")
@@ -67,12 +65,12 @@ func TestStampGuardianReadReceipts(t *testing.T) {
 
 	t.Run("composite tie-break: equal timestamp, higher id stays unread", func(t *testing.T) {
 		tied := base
-		low := msg(20, users.ParentMessageSenderStaff, tied)
-		high := msg(21, users.ParentMessageSenderStaff, tied)
-		set := []*users.ParentMessage{low, high}
+		low := msg(20, ParentMessageSenderStaff, tied)
+		high := msg(21, ParentMessageSenderStaff, tied)
+		set := []*ParentMessage{low, high}
 		// Cursor sits exactly on the lower id at the shared timestamp.
-		cursor := &users.ReadCursor{LastReadAt: tied, LastReadMessageID: low.ID}
-		users.StampGuardianReadReceipts(set, cursor)
+		cursor := &ReadCursor{LastReadAt: tied, LastReadMessageID: low.ID}
+		StampGuardianReadReceipts(set, cursor)
 
 		if !low.ReadByGuardian {
 			t.Error("message at the cursor (id == cursor id) must be stamped read")
@@ -89,14 +87,14 @@ func TestStampStaffReadReceipts(t *testing.T) {
 	t.Parallel()
 
 	base := time.Date(2026, 6, 28, 10, 0, 0, 0, time.UTC)
-	guardian1 := msg(30, users.ParentMessageSenderGuardian, base)
-	staff := msg(31, users.ParentMessageSenderStaff, base.Add(time.Minute))
-	guardian2 := msg(32, users.ParentMessageSenderGuardian, base.Add(2*time.Minute))
-	system := msg(33, users.ParentMessageSenderSystem, base)
-	messages := []*users.ParentMessage{guardian1, staff, guardian2, system}
+	guardian1 := msg(30, ParentMessageSenderGuardian, base)
+	staff := msg(31, ParentMessageSenderStaff, base.Add(time.Minute))
+	guardian2 := msg(32, ParentMessageSenderGuardian, base.Add(2*time.Minute))
+	system := msg(33, ParentMessageSenderSystem, base)
+	messages := []*ParentMessage{guardian1, staff, guardian2, system}
 
-	cursor := &users.ReadCursor{LastReadAt: guardian1.CreatedAt, LastReadMessageID: guardian1.ID}
-	users.StampStaffReadReceipts(messages, cursor)
+	cursor := &ReadCursor{LastReadAt: guardian1.CreatedAt, LastReadMessageID: guardian1.ID}
+	StampStaffReadReceipts(messages, cursor)
 
 	if !guardian1.ReadByStaff {
 		t.Error("guardian1 at the cursor must be stamped ReadByStaff")

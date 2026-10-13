@@ -2,15 +2,13 @@ package users
 
 import (
 	"context"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // ParentRequestShareEvent freezes one guardian's recipient choice for one
 // request. The newest event is effective; older choices remain auditable.
 type ParentRequestShareEvent struct {
-	base.Model `bun:"schema:users,table:parent_request_share_events"`
-	base.TenantModel
+	Model `bun:"schema:users,table:parent_request_share_events"`
+	TenantModel
 	StudentID           int64   `bun:"student_id,notnull" json:"student_id"`
 	RequestType         string  `bun:"request_type,notnull" json:"request_type"`
 	RequestID           int64   `bun:"request_id,notnull" json:"request_id"`

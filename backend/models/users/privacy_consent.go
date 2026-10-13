@@ -2,8 +2,6 @@ package users
 
 import (
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Data-retention bounds and default for privacy consents (GDPR visit-data
@@ -23,8 +21,8 @@ const (
 
 // PrivacyConsent represents a privacy consent record for a student
 type PrivacyConsent struct {
-	base.Model `bun:"schema:users,table:privacy_consents"`
-	base.TenantModel
+	Model `bun:"schema:users,table:privacy_consents"`
+	TenantModel
 	StudentID         int64                  `bun:"student_id,notnull" json:"student_id"`
 	PolicyVersion     string                 `bun:"policy_version,notnull" json:"policy_version"`
 	Accepted          bool                   `bun:"accepted,notnull" json:"accepted"`

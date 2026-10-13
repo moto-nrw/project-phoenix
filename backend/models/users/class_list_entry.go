@@ -1,9 +1,5 @@
 package users
 
-import (
-	"github.com/moto-nrw/project-phoenix/models/base"
-)
-
 // ClassListEntry is a child of the class cohort WITHOUT an OGS record
 // (#2382): only first name, last name and the free-text school class. It
 // exists so class lists and the Lehrkraft class-day view can show the
@@ -18,8 +14,8 @@ import (
 // bun mapping test fixtures insert through, nothing more. Validation, the
 // audit display form and the unique-index contract live with that owner.
 type ClassListEntry struct {
-	base.Model `bun:"schema:users,table:class_list_entries"`
-	base.TenantModel
+	Model `bun:"schema:users,table:class_list_entries"`
+	TenantModel
 	FirstName   string `bun:"first_name,notnull" json:"first_name"`
 	LastName    string `bun:"last_name,notnull" json:"last_name"`
 	SchoolClass string `bun:"school_class,notnull" json:"school_class"`

@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -137,7 +136,7 @@ func TestGuest_SetStaff(t *testing.T) {
 		}
 
 		staff := &Staff{
-			Model: base.Model{ID: 42},
+			Model: Model{ID: 42},
 		}
 
 		guest.SetStaff(staff)
@@ -235,7 +234,7 @@ func TestGuest_GetID(t *testing.T) {
 	t.Parallel()
 
 	guest := &Guest{
-		Model:             base.Model{ID: 42},
+		Model:             Model{ID: 42},
 		StaffID:           1,
 		ActivityExpertise: "Soccer",
 	}
@@ -250,7 +249,7 @@ func TestGuest_GetCreatedAt(t *testing.T) {
 
 	now := time.Now()
 	guest := &Guest{
-		Model:             base.Model{CreatedAt: now},
+		Model:             Model{CreatedAt: now},
 		StaffID:           1,
 		ActivityExpertise: "Soccer",
 	}
@@ -265,7 +264,7 @@ func TestGuest_GetUpdatedAt(t *testing.T) {
 
 	now := time.Now()
 	guest := &Guest{
-		Model:             base.Model{UpdatedAt: now},
+		Model:             Model{UpdatedAt: now},
 		StaffID:           1,
 		ActivityExpertise: "Soccer",
 	}

@@ -3,8 +3,6 @@ package users
 import (
 	"context"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Sender kinds shared by threads and messages. A message originates either
@@ -21,8 +19,8 @@ const (
 // get-or-create. LastSenderKind lets the inbox flag "awaiting OGS reply"
 // without scanning the messages.
 type ParentMessageThread struct {
-	base.Model `bun:"schema:users,table:parent_message_threads"`
-	base.TenantModel
+	Model `bun:"schema:users,table:parent_message_threads"`
+	TenantModel
 	StudentID         int64      `bun:"student_id,notnull" json:"student_id"`
 	GuardianAccountID int64      `bun:"guardian_account_id,notnull" json:"guardian_account_id"`
 	LastMessageAt     *time.Time `bun:"last_message_at" json:"last_message_at,omitempty"`

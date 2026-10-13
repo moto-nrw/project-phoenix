@@ -39,7 +39,13 @@ var (
 
 // M1 — model entities use the shared base shapes or semantic audit fields;
 // no per-entity GetID/GetCreatedAt/GetUpdatedAt declarations remain.
-var modelGetterAllowlist = map[string]int{}
+// models/users/model.go is the one exception: the retained user models own a
+// local copy of the base row shape instead of importing models/base (#3991),
+// so its three getters are the shape's set, not per-entity redeclarations.
+// The entry goes with models/users.
+var modelGetterAllowlist = map[string]int{
+	"models/users/model.go": 3,
+}
 
 // M2 — TableName() declarations in models/. Empty: bun never calls them.
 var modelTableNameAllowlist = map[string]int{}

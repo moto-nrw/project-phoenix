@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -29,8 +28,8 @@ const (
 // a child's final care day from authoritative bookings. It stores events only;
 // planned/overdue is a view of FirstBookinglessDay against a reference date.
 type CareWithdrawalCompletion struct {
-	base.Model `bun:"schema:users,table:care_withdrawal_completions"`
-	base.TenantModel
+	Model `bun:"schema:users,table:care_withdrawal_completions"`
+	TenantModel
 	StudentID               *int64                   `bun:"student_id" json:"student_id,omitempty"`
 	FirstBookinglessDay     calendar.Date            `bun:"first_bookingless_day,type:date,notnull" json:"first_bookingless_day"`
 	Trigger                 string                   `bun:"trigger,notnull" json:"trigger"`

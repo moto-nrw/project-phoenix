@@ -4,7 +4,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -31,8 +30,8 @@ var ErrPersonnelNumberConflict = errors.New("personnel number is already assigne
 // (users.staff_employment_profiles) own its columns since #2753, and the old
 // users.staff table is gone since #2754.
 type Staff struct {
-	base.Model
-	base.TenantModel
+	Model
+	TenantModel
 	PersonID        int64   `bun:"person_id,notnull" json:"person_id"`
 	StaffNotes      string  `bun:"staff_notes" json:"staff_notes,omitempty"`
 	EmploymentType  *string `bun:"employment_type" json:"employment_type,omitempty"`

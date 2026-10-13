@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestStaff_JSONOmitsPersonnelNumber(t *testing.T) {
@@ -82,7 +80,7 @@ func TestStaff_SetPerson(t *testing.T) {
 		staff := &Staff{}
 
 		person := &Person{
-			Model:     base.Model{ID: 42},
+			Model:     Model{ID: 42},
 			FirstName: "John",
 			LastName:  "Doe",
 		}
