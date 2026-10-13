@@ -3,7 +3,8 @@ package presence_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
@@ -21,7 +22,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffAbsence
+	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StaffAbsence
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates staff absence with valid data", func(t *testing.T) {
@@ -165,7 +166,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StaffAbsence
+	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StaffAbsence
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds absence for specific date", func(t *testing.T) {

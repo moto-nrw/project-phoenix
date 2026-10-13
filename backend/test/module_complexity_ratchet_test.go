@@ -258,7 +258,7 @@ var moduleComplexityAllowlist = map[string]int{
 
 	"modules/supervisiondashboard/supervisiondashboard.go:(*service).loadPresenceSections": 17,
 
-	"modules/timetable/compose/legacy_composition_support.go:dateframeListingFromOptions":                  18,
+	"modules/timetable/compose/legacy_composition_support_test_helpers.go:dateframeListingFromOptions":     18,
 	"modules/timetable/compose/legacy_repository_options.go:applyInstanceStudentCondition":                 16,
 	"modules/timetable/compose/legacy_supervisor_operations.go:buildReplacementSupervisorIDs":              22,
 	"modules/timetable/internal/application/activity_instances.go:(*Service).lockOperationalInstanceStaff": 20,

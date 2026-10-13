@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -29,7 +30,7 @@ func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritativ
 	if err != nil {
 		panic(err)
 	}
-	baselines, err := newArrivalBaselinesFixture(env.repos.CarePlan(), repositories.MustNewPeopleDirectory(env.db), classArrivalQueries, approvedOfferingTestProjection(env.repos), func(context.Context) (bool, error) { return authoritative, nil })
+	baselines, err := newArrivalBaselinesFixture(env.repos.CarePlan(), services.MustNewPeopleDirectory(env.db), classArrivalQueries, approvedOfferingTestProjection(env.repos), func(context.Context) (bool, error) { return authoritative, nil })
 	if err != nil {
 		panic(err)
 	}
@@ -38,7 +39,7 @@ func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritativ
 
 func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool) careplan.CareDayQuery {
 	t.Helper()
-	participation := newTestCareLifecycle(env.db, repositories.CareLifecycleTestConfig{
+	participation := newTestCareLifecycle(env.db, services.CareLifecycleTestConfig{
 		BookingsAuthoritative: func(context.Context) (bool, error) { return authoritative, nil },
 	})
 	return careplanCompose.NewCareDays(careplanCompose.CareDayDependencies{
@@ -210,7 +211,7 @@ func TestArrivalProjection_BookingEndStopsTheArrival(t *testing.T) {
 	secondMonday := firstMonday.AddDays(7)
 
 	// Abmeldung: the booking stops at the second Monday (half-open window).
-	err := repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(secondMonday), nil)
+	err := services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(secondMonday), nil)
 	require.NoError(t, err)
 
 	baseline := bookingModeArrivalBaseline(t, env, true)

@@ -1,7 +1,6 @@
 package services
 
 import (
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -28,16 +27,16 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+	command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	r, err := repositories.NewAuthTestRepositories(db, command)
+	r, err := NewMembershipTestRepositories(db)
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	g := repositories.NewGuardianTestRepositories(db, command)
-	people, photoRuntime, err := repositories.NewPeopleDirectoryWithPhotos(db)
+	g := NewGuardianTestRepositories(db, command)
+	people, photoRuntime, err := NewPeopleDirectoryWithPhotos(db)
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
@@ -48,7 +47,7 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 	guardian := peopleCompose.NewGuardianService(peopleCompose.GuardianServiceDependencies{
 		GuardianProfileRepo: r.GuardianProfile, GuardianPhoneNumberRepo: g.Phone, StudentGuardianRepo: r.StudentGuardian,
 		GuardianInvitations: newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return auth.AccountAuthentication }),
-		StudentRepo:         r.Student, PersonRepo: r.Person,
+		StudentRepo:         NewUnboundStudentRepository(db), PersonRepo: r.Person,
 		GuardianFinancialRepo:  g.Financial,
 		GuardianFinancialAudit: newGuardianFinancialAudit(g.FinancialAudit), DataAccessLog: newGuardianDataAccessLog(g.AccessLog),
 		RolePresets: guardianRolePresets{}, DB: db,

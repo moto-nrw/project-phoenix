@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,13 +13,14 @@ import (
 func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	carePlan, err := NewUnobservedCarePlan(db, NewUnobservedTimetableDependencies(db))
+	require.NoError(t, err)
 	owners, err := newOwnerCapabilitiesForTests(db)
 	require.NoError(t, err)
 
 	observedAppends := 0
 	factory, err := newFactory(
-		repos,
+		carePlan,
 		db,
 		slog.Default(),
 		FactoryConfig{
@@ -42,6 +42,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		owners.membership,
 		owners.calendar,
 		owners.timetable,
+		owners.appointments,
 		nil,
 		nil,
 		nil,

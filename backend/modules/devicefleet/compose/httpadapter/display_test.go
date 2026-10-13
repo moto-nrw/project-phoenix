@@ -12,13 +12,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	displayHTTP "github.com/moto-nrw/project-phoenix/api/display"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -53,7 +54,7 @@ func newDisplayTestTenant(t *testing.T, db *bun.DB) int64 {
 // TestDisplayFeatureGate below covers the off-by-default behavior directly.
 func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
 	t.Helper()
-	repos := repositories.NewSettingsTestRepositories(db, testpkg.SettingsRuntime(t, db))
+	repos := services.NewSettingsTestRepositories(testpkg.SettingsRuntime(t, db))
 	settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -62,17 +63,17 @@ func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
 
 func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http.Handler {
 	t.Helper()
-	repos, err := repositories.NewDisplayTestRepositories(db, testpkg.SettingsRuntime(t, db))
+	repos, err := services.NewDisplayTestRepositories(db, testpkg.SettingsRuntime(t, db))
 	require.NoError(t, err)
 	approvedOfferings, err := testutil.NewApprovedOfferingProjection(db, repos.Enrollment())
 	require.NoError(t, err)
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := services.NewFacilities(db)
 	require.NoError(t, err)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
-	carePlan, err := repositories.NewCarePlan(db, repositories.MustNewPeopleDirectory(db), repos.InstanceStudent)
+	carePlan, err := services.NewCarePlan(db, services.MustNewPeopleDirectory(db), repos.InstanceStudent)
 	require.NoError(t, err)
 	pickup, err := careplanCompose.NewPickupSchedules(db, carePlan, newPickupBaselineService(carePlan, approvedOfferings), nil, nil, nil)
 	require.NoError(t, err)
@@ -674,7 +675,7 @@ func TestDisplayFeatureGate(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code, "dashboard must work once the feature is on: %s", rec.Body.String())
 
 		ctx := tenant.WithTenantID(context.Background(), tenantID)
-		repos := repositories.NewSettingsTestRepositories(db, testpkg.SettingsRuntime(t, db))
+		repos := services.NewSettingsTestRepositories(testpkg.SettingsRuntime(t, db))
 		settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 		require.NoError(t, settingsService.ResetValue(ctx, configModel.KeyDisplayEnabled, nil, nil))
 

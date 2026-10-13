@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	substitution "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
@@ -505,7 +504,7 @@ func scheduleSubstitutionCaller(t *testing.T) substitution.Caller {
 // newScheduleSubstitutionModule drives the substitution module's schedule half
 // through the composed workflow: the module keeps its own authorization and
 // transaction handling, the workflow performs the deviation writes.
-func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, repositories.TimetableTestRepositories, substitution.SubstitutionModule) {
+func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, services.TimetableTestRepositories, substitution.SubstitutionModule) {
 	t.Helper()
 	env := newPlanSyncEnv(t, nil, nil)
 	return env.db, env.repos, services.NewScheduleSubstitutionSuiteModule(env.substitution, testpkg.TenantTransactionRuntime{}, slog.Default())

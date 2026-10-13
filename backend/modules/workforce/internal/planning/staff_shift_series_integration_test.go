@@ -7,12 +7,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +25,7 @@ type seriesTestEnv struct {
 	db             *bun.DB
 	scope          testpkg.TenantScope
 	staff          *usersModels.Staff
-	repos          *repositories.Factory
+	repos          *services.RepositoryTestFactory
 	shiftRows      *workforceCompose.ShiftRows
 	seriesRows     *workforceCompose.ShiftSeriesRows
 	exceptionRows  *workforceCompose.ShiftSeriesExceptionRows
@@ -38,8 +40,8 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 
 	scope := testpkg.NewTenantScope(t, db)
 	staff := testpkg.CreateTestStaffForTenant(t, db, scope.TenantID, "Serie", fmt.Sprintf("Dienstplan-%d", scope.TenantID))
-	dependencies := repositories.NewUnobservedTimetableDependencies(db)
-	repoFactory := repositories.NewFactory(db, dependencies)
+	dependencies := services.NewUnobservedTimetableDependencies(db)
+	repoFactory := services.NewRepositoryTestFactory(db, dependencies)
 	// The same composition the root builds, with the materializer's calendar
 	// day pinned so the "never touch today or the past" rule is testable.
 	today := timezone.CalendarDateClock(func() time.Time {
@@ -52,7 +54,7 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 	lockStaffShifts := workforceCompose.NewStaffShiftLock(db)
 	shifts := planning.NewStaffShiftService(shiftRows, repoFactory.Staff, shiftTypes, lockStaffShifts, slog.Default(),
 		planning.WithStaffShiftSeriesExceptions(exceptionRows),
-		planning.WithStaffShiftDeviationEvents(repoFactory.DeviationEvent),
+		planning.WithStaffShiftDeviationEvents(services.NewTestAuditPersistence(db, nil).DeviationEvent),
 	)
 	series := planning.NewStaffShiftSeriesService(
 		seriesRows, exceptionRows, shiftRows, repoFactory.Staff, planning.SchoolCalendarPeriods(dependencies.Calendar),
@@ -803,14 +805,15 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 
 	queryCounter := testpkg.NewQueryCounter()
 	countedDB := env.db.WithQueryHook(queryCounter)
-	countedDependencies := repositories.NewUnobservedTimetableDependencies(countedDB)
-	repos := repositories.NewFactory(countedDB, countedDependencies)
+	countedDependencies := services.NewUnobservedTimetableDependencies(countedDB)
+	repos := services.NewRepositoryTestFactory(countedDB, countedDependencies)
+	timetableRepos := services.NewTimetableRepositories(countedDB, countedDependencies)
 	countedShifts := workforceCompose.NewShiftRows(countedDependencies.Workforce)
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: countedShifts, ShiftWeeks: countedShifts,
-		Instances: repositories.NewTimetableInstanceReads(repos.ActivityInstance), InstanceStaff: repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
-		Rooms: repos.Room, Staff: repos.Staff,
-		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel,
+		Instances: timetableRepos.InstanceReads(), InstanceStaff: timetableRepos.InstanceStaffReads(),
+		Rooms: services.NewRoomRepository(countedDependencies.Rooms), Staff: repos.Staff,
+		WorkSchedules: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(countedDependencies.Workforce), WorkModels: workforceRepositoryAdapter.NewWorkTimeModelRepository(countedDependencies.Workforce),
 	})
 
 	weekFrom := today.AddDays(1)

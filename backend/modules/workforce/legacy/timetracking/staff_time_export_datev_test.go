@@ -15,6 +15,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -59,7 +60,7 @@ func (f *overviewFixture) newDatevExportService(values settingstest.Values) time
 		f.svc,
 		f.newWorkSessionService(),
 		services.TimeExportStaff(f.repos.Staff),
-		services.NewTimeTrackingDataAccessAudit(f.repos.DataAccessLog),
+		services.NewTimeTrackingDataAccessAudit(services.NewTestAuditPersistence(f.db, nil).DataAccessLog),
 		services.PayrollExportSettings{Source: payrollStatus},
 		nil,
 		services.RenderTimeTrackingWorkbook,
@@ -111,7 +112,7 @@ func newDatevFixture(t *testing.T) *overviewFixture {
 			DecidedAt:     time.Now(),
 		}
 		adjustment.SetTenantID(f.tenantID)
-		require.NoError(t, f.repos.StaffBalanceAdjust.Create(f.ctx, adjustment))
+		require.NoError(t, workforceLegacy.NewStaffBalanceAdjustmentRepository(f.workforce).Create(f.ctx, adjustment))
 	}
 	return f
 }

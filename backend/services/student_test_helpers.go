@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -85,11 +84,11 @@ func (w studentAccessAuditWriter) Create(ctx context.Context, entry *auditModels
 }
 
 func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter studentdeletioncompose.Feedback, clocks ...func() time.Time) (StudentTestModule, error) {
-	auditCommand, err := auditService.NewCommand(repositories.NewTestAuditStore(db), func(auditService.AppendObservation) {})
+	auditCommand, err := auditService.NewCommand(NewTestAuditStore(db), func(auditService.AppendObservation) {})
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	repos, err := repositories.NewStudentTestRepositories(db, auditCommand)
+	repos, err := NewStudentTestRepositories(db, auditCommand)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
@@ -122,7 +121,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		return StudentTestModule{}, err
 	}
 	persons := guardian.PeopleDirectory
-	contextRepos, err := repositories.NewUserContextTestRepositories(db)
+	contextRepos, err := NewUserContextTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return StudentTestModule{}, err
 	}
@@ -149,7 +148,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	emailOutboxService := delivery.EmailOutbox
 	frontendURL := currentFactoryConfig().FrontendURL
 	parentsURL := currentFactoryConfig().ParentsURL
-	studentConsentService := repositories.NewStudentConsents(db)
+	studentConsentService := NewStudentConsents(db)
 	// The stored files live in the API layer, so a services-only graph binds
 	// no unlinker: the runtime skips the cleanup instead of guessing a path.
 	newStudentPhotos := func(broadcaster PhotoBroadcaster, unlinker peopleCompose.PhotoUnlinker) peopleCompose.StudentPhotoService {
@@ -174,7 +173,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		return StudentTestModule{}, err
 	}
 	rosterReconciler := timetableCompose.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, logger, now)
-	recurrenceLock, err := repositories.NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := NewTimetableRecurrenceLock(db)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
@@ -246,12 +245,12 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		GuardianFinancialAudit: repos.GuardianFinancialChange,
 		GuardianProfiles:       repos.GuardianProfile,
 		GuardianPhones:         repos.GuardianPhoneNumber,
-		PickupSchedules:        repositories.NewEnrollmentPickupSchedules(repos.StudentPickupSchedule),
-		ArrivalSchedules:       repositories.NewEnrollmentArrivalSchedules(repos.StudentArrivalSchedule),
+		PickupSchedules:        timetableCompose.NewEnrollmentPickupSchedules(repos.StudentPickupSchedule),
+		ArrivalSchedules:       timetableCompose.NewEnrollmentArrivalSchedules(repos.StudentArrivalSchedule),
 		CareBookings:           careBookings,
 		GuardianAccess:         guardianAccess,
 		StudentEnrollment:      persons,
-		Companions:             repositories.NewStudentCompanionRepository(repos.CarePlan),
+		Companions:             NewStudentCompanionRepository(repos.CarePlan),
 		DeleteCompanions:       repos.CarePlan.DeleteCompanionEdges,
 		StudentAudit:           studentAuditService,
 		StudentConsents:        studentConsentService,
@@ -346,19 +345,19 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	}
 	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
 		Deviations: live.Deviations, Staff: repos.Staff, Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
-		ActivityInstances: repositories.NewTimetableInstanceReads(repos.ActivityInstance),
-		InstanceStaff:     repositories.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		ActivityInstances: timetableCompose.NewTimetableInstanceReads(repos.ActivityInstance),
+		InstanceStaff:     timetableCompose.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 	})
 	if err != nil {
 		return StudentTestModule{}, err
 	}
 	substitutionService := schoolStructure.NewSubstitutionModule(schoolStructure.SubstitutionDependencies{
-		Groups: repos.Group, Substitutions: repositories.NewEducationHandovers(contextRepos.Substitutions),
-		Persons: newEducationPersonQuery(persons), Teachers: repositories.NewEducationCaregivers(repos.Teacher),
-		Staff: repositories.NewEducationStaff(repos.Staff), Actors: substitutionActorResolver{identity: userContextService.Caller()},
+		Groups: repos.Group, Substitutions: NewEducationHandovers(contextRepos.Substitutions),
+		Persons: newEducationPersonQuery(persons), Teachers: NewEducationCaregivers(repos.Teacher),
+		Staff: NewEducationStaff(repos.Staff), Actors: substitutionActorResolver{identity: userContextService.Caller()},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
-		Audit:                   repositories.NewEducationSubstitutionAudit(repos.SubstitutionChange),
+		Audit:                   NewEducationSubstitutionAudit(repos.SubstitutionChange),
 		Runtime:                 schoolStructure.NewLegacyRepositoryRuntime(db), Broadcaster: realtimeHub,
 		Logger:   logger.With("service", "substitution"),
 		Schedule: scheduleSubstitution,

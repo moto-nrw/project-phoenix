@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	"log/slog"
@@ -18,7 +20,6 @@ import (
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -31,7 +32,7 @@ import (
 type deletionTestFixture struct {
 	t     *testing.T
 	db    *bun.DB
-	repos *repositories.EnrollmentFlowTestRepositories
+	repos *services.EnrollmentFlowTestRepositories
 	scope testpkg.TenantScope
 	actor int64
 	phase int64
@@ -146,7 +147,7 @@ func TestEnrollmentDeletionOwner_MismatchedRequestPreservesChildSelections(t *te
 	offering := &enrollmentModels.CareOffering{PhaseID: f.phase, Name: "Care", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true, CountsAsCare: true, CountsAsCareSet: true}
 	require.NoError(t, newCareOfferingFixtures(f.repos.CarePlan()).Create(f.scope.Context(), offering))
 	selection := &capability.RequestChildOffering{RequestChildID: child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}}
-	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(f.scope.Context(), selection))
+	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(f.scope.Context(), selection))
 	counts, err := f.repos.Enrollment().DeletionChildCounts(f.scope.Context(), other.ID, child.ID)
 	require.NoError(t, err)
 	require.Zero(t, counts.Offerings)
@@ -484,7 +485,7 @@ func TestRejectedEnrollmentCleanup_WritesSystemDeletionAudit(t *testing.T) {
 
 func (f *deletionTestFixture) guardians() deletionTestGuardians {
 	f.t.Helper()
-	people, err := repositories.NewPeopleDirectory(f.db)
+	people, err := services.NewPeopleDirectory(f.db)
 	require.NoError(f.t, err)
 	return deletionTestGuardians{
 		byAccount: func(ctx context.Context, ids []int64) ([]TestDirectoryGuardian, error) {

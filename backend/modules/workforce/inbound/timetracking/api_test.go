@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -1589,7 +1590,7 @@ func TestAbsenceMutations_RollBackWritesOnConflictResponses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 
-	profileRepo := repositories.NewGuardianProfileTestRepository(db)
+	profileRepo := services.NewGuardianProfileTestRepository(db)
 	tests := []struct {
 		name   string
 		method string

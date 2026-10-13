@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +21,7 @@ import (
 // which is the only provider over audit.unregistered_tag_scans.
 func newScanFleet(t *testing.T, db *bun.DB) devicefleet.Capability {
 	t.Helper()
-	fleet, err := repositories.NewDeviceFleet(db)
+	fleet, err := services.NewDeviceFleet(db)
 	require.NoError(t, err, "Failed to compose the device fleet")
 	return fleet
 }

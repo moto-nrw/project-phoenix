@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +36,7 @@ type staffCompositionContext struct {
 func setupStaffCompositionRoute(t *testing.T) *staffCompositionContext {
 	t.Helper()
 	db, svc := testutil.SetupStaffModule(t)
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := testutil.NewSchoolMembership(db)
 	require.NoError(t, err)
 	resource := newStaffTestResource(membership, svc, db, slog.Default())
 

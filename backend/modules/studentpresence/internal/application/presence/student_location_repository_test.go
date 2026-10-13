@@ -11,7 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -174,7 +175,7 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := sessionGroups(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionGroups(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 
 	t.Run("returns groups with room relations", func(t *testing.T) {
 		// ARRANGE: Create two complete group setups

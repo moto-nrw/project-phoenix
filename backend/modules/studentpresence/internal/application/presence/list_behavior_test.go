@@ -4,7 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
@@ -18,7 +19,7 @@ func TestPresenceSupervisionQueryUsesCalendarDateAtBoundary(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	now := time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC)
-	repo := sessionSupervisors(repositories.NewPresenceSessionRecords(db, func() time.Time { return now }))
+	repo := sessionSupervisors(services.NewPresenceSessionRecords(db, func() time.Time { return now }))
 	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	today := timezone.NewDate(2026, 8, 30)
@@ -40,7 +41,7 @@ func TestPresenceSupervisionQueryComposesDateAndStaffFilters(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := sessionSupervisors(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	start := timezone.NewDate(2020, 1, 1)

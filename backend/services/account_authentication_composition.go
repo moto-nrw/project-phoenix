@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -81,17 +80,18 @@ type sessionRepositories struct {
 	lifecycle         lifecycleRepositories
 }
 
-func sessionRepositoriesOf(repos *repositories.Factory, organizations organizationtenancy.Query) sessionRepositories {
-	if repos == nil {
+// sessionRepositoriesOf binds the session seams to the identity chain rows
+// in people (persons, staff, teachers, students, guardian profiles and
+// relationships) and the given ledgers.
+func sessionRepositoriesOf(people lifecycleRepositories, organizations organizationtenancy.Query, authEvents auditModels.AuthEventRepository, pushSubscriptions deliveryModels.PushSubscriptionRepository) sessionRepositories {
+	if people.persons == nil {
 		return sessionRepositories{}
 	}
-	lifecycle := lifecycleRepositories{
-		persons: repos.Person, staff: repos.Staff, teachers: repos.Teacher, students: repos.Student,
-		guardianProfiles: repos.GuardianProfile, studentGuardians: repos.StudentGuardian, authEvents: repos.AuthEvent,
-	}
+	lifecycle := people
+	lifecycle.authEvents = authEvents
 	return sessionRepositories{
 		schools: schoolDirectory{schools: organizations},
-		persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
+		persons: people.persons, authEvents: authEvents, pushSubscriptions: pushSubscriptions,
 		lifecycle: lifecycle,
 	}
 }

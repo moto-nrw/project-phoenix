@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -23,17 +22,17 @@ type SettingsTestModule struct {
 // NewSettingsTestModule retains the real settings storage, guards and tenant
 // runtime without composing attendance, auth, or other route services.
 func NewSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (SettingsTestModule, error) {
-	organizations, err := repositories.NewOrganizationTenancy(db)
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return SettingsTestModule{}, err
 	}
-	membership, err := repositories.NewSchoolMembership(db)
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return SettingsTestModule{}, err
 	}
 	runtime := newSettingsRuntime(db, &unit)
-	repos := repositories.NewSettingsTestRepositories(db, runtime)
-	homeLayouts := config.NewHomeLayoutService(repositories.NewHomeLayoutRepository(runtime), runtime, slog.Default())
+	repos := NewSettingsTestRepositories(runtime)
+	homeLayouts := config.NewHomeLayoutService(settingsCompose.NewHomeLayoutRepository(runtime), runtime, slog.Default())
 	settings := config.NewSettingsServiceWithHomeLayouts(
 		repos.Values, repos.Audit,
 		newSchoolSettingsStore(organizations), runtime, slog.Default(), homeLayouts,

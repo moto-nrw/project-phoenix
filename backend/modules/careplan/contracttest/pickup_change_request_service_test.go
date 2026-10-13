@@ -121,7 +121,7 @@ func TestPickupChangeApprovalExcusesBlocksAfterEarlierPickup(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	got, err := f.repos.InstanceStudent.FindByID(ctx, slotID)
+	got, err := f.timetable.InstanceStudent.FindByID(ctx, slotID)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status)
@@ -247,7 +247,7 @@ func TestPickupChangeApprovalReleasesAutoExcusalAfterLaterPickup(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	got, err := f.repos.InstanceStudent.FindByID(ctx, slotID)
+	got, err := f.timetable.InstanceStudent.FindByID(ctx, slotID)
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got.Status)
@@ -303,7 +303,7 @@ func assertPickupApprovalRolledBack(
 	require.NoError(t, err)
 	require.NotNil(t, request)
 	assert.Equal(t, scheduleModels.CareRequestStatusPending, request.Status)
-	slot, err := f.repos.InstanceStudent.FindByID(ctx, slotID)
+	slot, err := f.timetable.InstanceStudent.FindByID(ctx, slotID)
 	require.NoError(t, err)
 	require.NotNil(t, slot)
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, slot.Status)

@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -21,10 +22,10 @@ import (
 // buildNoticeFeedService wires the parent service with the optional news feed
 // set explicitly. The cancellation notice (#2601) has no school switch since
 // #3731: a sent notice is always visible to the family.
-func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*messaging.Service, *bun.DB, *repositories.Factory) {
+func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*messaging.Service, *bun.DB, *services.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	svc := messaging.New(messaging.Config{
 		Children:              childResolver(db, repos),
 		ChildRepo:             repos.ParentChild,

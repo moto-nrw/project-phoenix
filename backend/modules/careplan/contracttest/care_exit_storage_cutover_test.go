@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ type careExitOfferingSchool struct {
 func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := repositories.NewEnrollmentBookingProjection(enrollmentTest.New())
+	module := services.NewEnrollmentBookingProjection(enrollmentTest.New())
 	const validUntil = enrollmentTest.Date("2031-02-01")
 	schools := make([]careExitOfferingSchool, 0, 2)
 	for _, school := range []string{"first", "second"} {

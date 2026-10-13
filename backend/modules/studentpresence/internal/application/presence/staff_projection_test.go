@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -19,7 +20,7 @@ import (
 // by the composition layer through School Membership (#2667); the tests drive
 // the factory-composed repository and pin the caller-visible contract.
 
-func offboardStaff(tb testing.TB, ctx context.Context, factory *repositories.Factory, staffID int64) {
+func offboardStaff(tb testing.TB, ctx context.Context, factory *services.RepositoryTestFactory, staffID int64) {
 	tb.Helper()
 	require.NoError(tb, factory.Staff.Delete(ctx, staffID))
 }
@@ -28,7 +29,7 @@ func TestActiveSupervisionsCarryTheirStaffMember(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 
 	present := testpkg.CreateTestStaff(t, db, "Anwesende", "Betreuung")
 	offboarded := testpkg.CreateTestStaff(t, db, "Ehemalige", "Betreuung")
@@ -63,7 +64,7 @@ func TestActiveSupervisionsCarryTheirStaffMember(t *testing.T) {
 	}
 }
 
-func createAbsence(tb testing.TB, ctx context.Context, factory *repositories.Factory, staffID int64, approvedBy *int64) {
+func createAbsence(tb testing.TB, ctx context.Context, factory *services.RepositoryTestFactory, staffID int64, approvedBy *int64) {
 	tb.Helper()
 	today := timezone.TodayDate()
 	absence := &timerecords.StaffAbsence{
@@ -83,7 +84,7 @@ func TestAbsenceRequestsCarryTheirSubjectAndDeciderPerson(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	factory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 
 	subject := testpkg.CreateTestStaff(t, db, "Antrag", "Stellerin")
 	decider := testpkg.CreateTestStaff(t, db, "Antrag", "Entscheiderin")

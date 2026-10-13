@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -22,7 +21,7 @@ import (
 
 type stammdatenScenario struct {
 	db    *bun.DB
-	repos *repositories.Factory
+	repos *services.RepositoryTestFactory
 	svc   workforce.StaffRecordAdmin
 	ctx   context.Context
 }
@@ -32,17 +31,17 @@ func newStammdatenScenario(t *testing.T) *stammdatenScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	svc, err := services.NewStaffAdmin(stammdatenAdminDeps(db, repos))
 	require.NoError(t, err)
 
 	return &stammdatenScenario{db: db, repos: repos, svc: svc, ctx: testpkg.Ctx(t)}
 }
 
-func stammdatenAdminDeps(db *bun.DB, repos *repositories.Factory) services.StaffAdminDependencies {
+func stammdatenAdminDeps(db *bun.DB, repos *services.RepositoryTestFactory) services.StaffAdminDependencies {
 	return services.StaffAdminDependencies{
 		DB: db, Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
-		MasterDataAudit: repos.StaffMasterDataChange, PersonnelNumber: repos.PersonnelNumberChange, DataAccessLog: repos.DataAccessLog,
+		MasterDataAudit: services.NewTestAuditPersistence(db, nil).StaffMasterDataChange, PersonnelNumber: services.NewTestAuditPersistence(db, nil).PersonnelNumberChange, DataAccessLog: services.NewTestAuditPersistence(db, nil).DataAccessLog,
 	}
 }
 

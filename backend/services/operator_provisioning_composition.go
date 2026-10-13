@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -20,9 +19,9 @@ import (
 // operatorProvisioningSources are the retained services and repositories the
 // Organisation & Tenancy provisioning seams are bound to (#3253).
 type operatorProvisioningSources struct {
-	accounts       repositories.OperatorAccountDirectory
+	accounts       OperatorAccountDirectory
 	organizations  organizationtenancy.Capability
-	adapters       repositories.OperatorProvisioningAdapters
+	adapters       OperatorProvisioningAdapters
 	sessions       identityaccess.AccountSessionMaintenance
 	invitations    identityaccess.SchoolInvitations
 	provisioning   identityaccess.AccountProvisioning
@@ -61,7 +60,7 @@ type provisioningRoles interface {
 
 // provisioningIdentity binds provisioning to public identity capabilities.
 type provisioningIdentity struct {
-	accounts       repositories.OperatorAccountDirectory
+	accounts       OperatorAccountDirectory
 	sessions       identityaccess.AccountSessionMaintenance
 	invitations    identityaccess.SchoolInvitations
 	provisioning   identityaccess.AccountProvisioning

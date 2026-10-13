@@ -12,7 +12,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -110,7 +109,7 @@ func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password str
 		return fmt.Errorf("hash password: %w", err)
 	}
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewGuardianSeedRepositories(db)
 
 	seedAccount, err := services.NewGuardianSeedAccess(db)
 	if err != nil {
@@ -167,7 +166,7 @@ func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password str
 // superuser connection sees every tenant, so the invitable list spans the
 // whole demo database; the guardian rows belong to the People Directory
 // owner and are read through its repositories (#2663).
-func promotableGuardians(ctx context.Context, repos *repositories.Factory, count int) ([]parentCandidate, error) {
+func promotableGuardians(ctx context.Context, repos services.GuardianSeedRepositories, count int) ([]parentCandidate, error) {
 	profiles, err := repos.GuardianProfile.FindInvitable(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("find promotable guardians: %w", err)
@@ -210,7 +209,7 @@ func promotableGuardians(ctx context.Context, repos *repositories.Factory, count
 // reused (in which case its password is left untouched).
 func promoteGuardian(
 	ctx context.Context,
-	repos *repositories.Factory,
+	repos services.GuardianSeedRepositories,
 	seedAccount func(context.Context, string, string) (int64, bool, error),
 	c parentCandidate,
 	passwordHash string,

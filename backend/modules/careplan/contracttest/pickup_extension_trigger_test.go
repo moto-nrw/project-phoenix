@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/services"
 
@@ -45,7 +44,7 @@ func setupPickupExtensionHarness(t *testing.T) *pickupExtensionHarness {
 	repos, tt := autoExcusalRepositories(db)
 	baselines := newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t))
 	syncer := newPickupExcusal(t, db, repos.CarePlan(), baselines, tt, true)
-	svc, err := services.NewPickupSchedules(db, repos.CarePlan(), repositories.MustNewPeopleDirectory(db), baselines, syncer, nil)
+	svc, err := services.NewPickupSchedules(db, repos.CarePlan(), services.MustNewPeopleDirectory(db), baselines, syncer, nil)
 	require.NoError(t, err)
 	student := testpkg.CreateTestStudent(t, db, "Later", "Pickup", "LP1")
 	staff := testpkg.CreateTestStaff(t, db, "Later", "Staff")

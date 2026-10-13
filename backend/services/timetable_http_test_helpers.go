@@ -9,8 +9,8 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -29,12 +29,12 @@ import (
 
 // TimetableHTTPTestRows are the retained repositories the timetable route
 // suites arrange and assert through.
-type TimetableHTTPTestRows = repositories.TimetableTestRepositories
+type TimetableHTTPTestRows = TimetableTestRepositories
 
 // NewTimetableHTTPTestRows composes the retained repositories over the test
 // database.
 func NewTimetableHTTPTestRows(db *bun.DB, clocks ...func() time.Time) (TimetableHTTPTestRows, error) {
-	return repositories.NewTimetableTestRepositories(db, clocks...)
+	return NewTimetableTestRepositories(db, clocks...)
 }
 
 // TimetableHTTPTestCareOfferingInvalid is what Care Plan's care-offering
@@ -75,7 +75,7 @@ func NewTimetableHTTPTestModule(db *bun.DB, options TimetableHTTPTestOptions) (T
 	if options.Clock != nil {
 		clocks = append(clocks, options.Clock)
 	}
-	r, err := repositories.NewTimetableTestRepositories(db, clocks...)
+	r, err := NewTimetableTestRepositories(db, clocks...)
 	if err != nil {
 		return TimetableHTTPTestModule{}, err
 	}
@@ -84,11 +84,11 @@ func NewTimetableHTTPTestModule(db *bun.DB, options TimetableHTTPTestOptions) (T
 		clock := options.Clock
 		today = func() calendar.Date { return calendar.DateFromTime(clock()) }
 	}
-	lock, err := repositories.NewTimetableRecurrenceLock(db)
+	lock, err := NewTimetableRecurrenceLock(db)
 	if err != nil {
 		return TimetableHTTPTestModule{}, err
 	}
-	recovery := repositories.NewActivityRecoveryRepository(db, r.InstanceStudent)
+	recovery := timetableCompose.NewRetainedActivityRecoveryRepository(db, r.InstanceStudent)
 	rows := r.OwnerRows()
 	rows.Locks = recovery
 	conflicts, data, err := newTimetableHTTPTestReads(db, r, rows)
@@ -138,7 +138,7 @@ func NewTimetableHTTPTestModule(db *bun.DB, options TimetableHTTPTestOptions) (T
 	corrections, err := timetableCompose.NewAttendanceCorrections(timetableCompose.AttendanceCorrectionDependencies{
 		Participants: r.InstanceStudent,
 		Instances:    r.ActivityInstance,
-		Trail:        repositories.TimetableAttendanceCorrectionTrail(repositories.NewAttendanceCorrectionRepository(trail)),
+		Trail:        TimetableAttendanceCorrectionTrail(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{Reads: trail}).AttendanceCorrection),
 		People:       r.Person,
 		Locks:        recovery,
 	})
@@ -156,12 +156,12 @@ func NewTimetableHTTPTestModule(db *bun.DB, options TimetableHTTPTestOptions) (T
 
 // newTimetableHTTPTestReads composes the conflict detection and the planner
 // reads over Care Plan's baselines in the legacy booking mode.
-func newTimetableHTTPTestReads(db *bun.DB, r TimetableHTTPTestRows, rows repositories.TimetableOwnerRows) (timetable.ConflictDetectionCapability, timetable.TimetableDataCapability, error) {
-	people, err := repositories.NewPeopleDirectory(db)
+func newTimetableHTTPTestReads(db *bun.DB, r TimetableHTTPTestRows, rows timetableCompose.OwnerRows) (timetable.ConflictDetectionCapability, timetable.TimetableDataCapability, error) {
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return nil, nil, err
 	}
-	carePlan, err := repositories.NewCarePlan(db, people, r.InstanceStudent)
+	carePlan, err := NewCarePlan(db, people, r.InstanceStudent)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -291,19 +291,19 @@ func (timetableHTTPTestNoPreservedDeviations) Reapply(context.Context, int64, *i
 // supervisions over the test database, for suites that arrange a running
 // block.
 func NewTimetableHTTPTestSessionRecords(db *bun.DB) *presenceCompose.SessionRecords {
-	return repositories.NewPresenceSessionRecords(db)
+	return NewPresenceSessionRecords(db)
 }
 
 // NewTimetableHTTPTestRecurrenceLock is the Timetable owner's tenant
 // recurrence gate over the test database.
 func NewTimetableHTTPTestRecurrenceLock(db *bun.DB) (timetable.RecurrenceWriteLock, error) {
-	return repositories.NewTimetableRecurrenceLock(db)
+	return NewTimetableRecurrenceLock(db)
 }
 
 // NewTimetableHTTPTestPeople serves the People port of the timetable routes
 // over the person, staff and student rows of the test database.
 func NewTimetableHTTPTestPeople(db *bun.DB) (TimetablePeople, error) {
-	r, err := repositories.NewTimetableTestRepositories(db)
+	r, err := NewTimetableTestRepositories(db)
 	if err != nil {
 		return TimetablePeople{}, err
 	}

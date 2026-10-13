@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -29,7 +28,7 @@ import (
 
 type wiredMFAFixture struct {
 	svc      identityaccess.AccountMFA
-	repos    *repositories.Factory
+	repos    services.MembershipTestRepositories
 	db       *bun.DB
 	tenantID int64
 	mailer   *testpkg.CapturingMailer
@@ -186,7 +185,7 @@ func TestMFAService_IssueTrustedDevice_DisabledBySetting_NoCookieIssued(t *testi
 
 	// Need a real account so the account FK is satisfied for any downstream call.
 	// (IssueTrustedDevice never reaches persistence in the disabled branch.)
-	_ = fix.repos.AuthEvent // any repo's db is fine; just confirm fixture wired
+	_ = fix.repos.Person // any repo's db is fine; just confirm fixture wired
 	cookie, expiresAt, err := fix.svc.IssueTrustedDevice(ctx, 99999, fix.tenantID, "ua", net.ParseIP("203.0.113.99"))
 	require.NoError(t, err)
 	assert.Empty(t, cookie, "disabled setting must skip cookie issuance")

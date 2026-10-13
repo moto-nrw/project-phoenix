@@ -3,18 +3,17 @@ package services
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 )
 
 type ManualPartialAbsenceDates struct {
-	source *repositories.ManualPartialAbsences
+	source *ManualPartialAbsences
 }
 
 func NewManualPartialAbsenceDates(source carePlanCompose.PickupExceptionReader) *ManualPartialAbsenceDates {
-	return &ManualPartialAbsenceDates{source: repositories.NewManualPartialAbsences(source)}
+	return &ManualPartialAbsenceDates{source: NewManualPartialAbsences(source)}
 }
 
 func (r *ManualPartialAbsenceDates) ManualPartialAbsenceDates(ctx context.Context, studentID int64, from, to timezone.Date) ([]timezone.Date, error) {

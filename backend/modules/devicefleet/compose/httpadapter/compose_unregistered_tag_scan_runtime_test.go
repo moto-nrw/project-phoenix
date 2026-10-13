@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -22,7 +23,7 @@ func TestUnregisteredTagScanRuntime(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
-	rooms, err := repositories.NewFacilities(db)
+	rooms, err := services.NewFacilities(db)
 	require.NoError(t, err)
 	var measuring, observing bool
 	var operations []map[string]any

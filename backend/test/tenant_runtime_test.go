@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +31,7 @@ func newUnitOfWorkGuardianProfile(t *testing.T, suffix string) *usersModels.Guar
 func TestUnitOfWorkCommitsSuccessfulCommand(t *testing.T) {
 	t.Parallel()
 	db := SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).GuardianProfile
 	profile := newUnitOfWorkGuardianProfile(t, "commit")
 
 	err := tenant.WithinCurrentTenant(Ctx(t), func(txCtx context.Context) error {
@@ -46,7 +47,7 @@ func TestUnitOfWorkCommitsSuccessfulCommand(t *testing.T) {
 func TestUnitOfWorkRollsBackReturnedError(t *testing.T) {
 	t.Parallel()
 	db := SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).GuardianProfile
 	profile := newUnitOfWorkGuardianProfile(t, "error")
 	commandErr := errors.New("command failed")
 
@@ -63,7 +64,7 @@ func TestUnitOfWorkRollsBackReturnedError(t *testing.T) {
 func TestUnitOfWorkRollsBackPanic(t *testing.T) {
 	t.Parallel()
 	db := SetupTestDB(t)
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
+	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).GuardianProfile
 	profile := newUnitOfWorkGuardianProfile(t, "panic")
 
 	assert.PanicsWithValue(t, "command panicked", func() {

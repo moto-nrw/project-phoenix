@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -46,7 +47,7 @@ func TestStudentBirthdaysExcludeEndedCare(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	today := timezone.TodayDate()
@@ -94,7 +95,7 @@ func TestBirthdayRepositoriesRejectAnEmptyDaySet(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.Ctx(t)
 
 	students, err := repos.Student.FindBirthdaysOn(ctx, nil)

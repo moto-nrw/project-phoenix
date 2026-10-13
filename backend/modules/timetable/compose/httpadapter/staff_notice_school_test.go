@@ -18,13 +18,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
@@ -58,9 +59,9 @@ func noticeAccountID(ctx context.Context) int64 {
 // das echte Personenverzeichnis hinter der Bestätigungsliste.
 func newStaffNoticeService(t *testing.T, db *bun.DB) timetable.StaffNotices {
 	t.Helper()
-	timetableRepos, err := repositories.NewTimetableTestRepositories(db)
+	timetableRepos, err := services.NewTimetableTestRepositoriesWithMembers(db, services.MustNewMembershipTestRepositories(db))
 	require.NoError(t, err)
-	persons, err := repositories.NewPeopleDirectory(db)
+	persons, err := services.NewPeopleDirectory(db)
 	require.NoError(t, err)
 	return compose.NewStaffNotices(compose.StaffNoticeDependencies{
 		DB:      db,

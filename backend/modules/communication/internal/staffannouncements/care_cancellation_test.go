@@ -5,7 +5,8 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
@@ -33,10 +34,10 @@ func noticeSettings() *settingsDouble {
 	}
 }
 
-func buildNoticeService(t *testing.T, settings *settingsDouble) (announcement.Service, *bun.DB, *repositories.Factory) {
+func buildNoticeService(t *testing.T, settings *settingsDouble) (announcement.Service, *bun.DB, *services.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	svc := announcement.NewService(announcement.ServiceConfig{
 		Repo:       repos.ParentAnnouncement,
 		Settings:   settings,

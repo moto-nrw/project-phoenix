@@ -2,9 +2,6 @@ package schedule
 
 import (
 	"context"
-	"errors"
-	"strings"
-	"unicode/utf8"
 )
 
 // ClosingDayReasonMaxLength is the maximum length of the reason field.
@@ -21,27 +18,6 @@ type ClosingDay struct {
 	StartDate Date   `bun:"start_date,notnull" json:"start_date"`
 	EndDate   Date   `bun:"end_date,notnull" json:"end_date"`
 	Reason    string `bun:"reason,notnull" json:"reason"`
-}
-
-// Validate ensures closing day data is valid
-func (c *ClosingDay) Validate() error {
-	trimmedReason := strings.TrimSpace(c.Reason)
-	if trimmedReason == "" {
-		return errors.New("reason is required")
-	}
-	if utf8.RuneCountInString(trimmedReason) > ClosingDayReasonMaxLength {
-		return errors.New("reason cannot exceed 255 characters")
-	}
-	if c.StartDate.IsZero() {
-		return errors.New("start_date is required")
-	}
-	if c.EndDate.IsZero() {
-		return errors.New("end_date is required")
-	}
-	if c.EndDate.Before(c.StartDate) {
-		return errors.New("end_date must not be before start_date")
-	}
-	return nil
 }
 
 // ClosingDayRepository defines operations for managing closing days

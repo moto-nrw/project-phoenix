@@ -47,7 +47,7 @@ func careCoGuardianPills(
 			if err != nil || thread == nil {
 				return err
 			}
-			msgs, err = f.repos.ParentMessage.ListByThread(txCtx, thread.ID, 100)
+			msgs, err = services.NewParentMessageRepository(f.db).ListByThread(txCtx, thread.ID, 100)
 			return err
 		}))
 	return msgs
@@ -102,7 +102,7 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 // (messaging-enabled) emitter and the given explicit share recipients.
 func careServiceWithCoGuardianEmitter(t *testing.T, f *careFixture, sharedWith []int64) carerequests.Service {
 	t.Helper()
-	emitter := f.emitter(t, f.repos.ParentMessage, messagingOnSettings{}, testpkg.NewRecordingBroadcaster())
+	emitter := f.emitter(t, services.NewParentMessageRepository(f.db), messagingOnSettings{}, testpkg.NewRecordingBroadcaster())
 	return services.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		f.repos.CarePlan(), f.sf.PeopleDirectory,
 		f.sf.ArrivalSchedule, f.sf.PickupSchedule, newPickupChangePresence(t, f.db), f.autoExcusal,

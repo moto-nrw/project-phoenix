@@ -10,11 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	testutil "github.com/moto-nrw/project-phoenix/api/testutil"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -235,7 +236,7 @@ type requestTestEnv struct {
 	outbox    *recordingOutbox
 	phaseID   int64
 	// repos are the repositories the env's services run on.
-	repos *repositories.EnrollmentFlowTestRepositories
+	repos *services.EnrollmentFlowTestRepositories
 }
 
 func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {

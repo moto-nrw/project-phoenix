@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -26,7 +25,7 @@ import (
 
 type payrollScenario struct {
 	db    *bun.DB
-	repos *repositories.Factory
+	repos *services.RepositoryTestFactory
 	svc   workforce.StaffRecordAdmin
 	ctx   context.Context
 	// updateStaff runs the staff directory's directory-field update without a
@@ -68,7 +67,7 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	svc, err := services.NewStaffAdmin(payrollAdminDeps(db, repos, repos.Staff))
 	require.NoError(t, err)
 	dir := services.NewStaffDirectory(services.StaffDirectoryDependencies{
@@ -83,10 +82,10 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 	return &payrollScenario{db: db, repos: repos, svc: svc, ctx: testpkg.Ctx(t), updateStaff: updateStaff}
 }
 
-func payrollAdminDeps(db *bun.DB, repos *repositories.Factory, staff userModels.StaffRepository) services.StaffAdminDependencies {
+func payrollAdminDeps(db *bun.DB, repos *services.RepositoryTestFactory, staff userModels.StaffRepository) services.StaffAdminDependencies {
 	return services.StaffAdminDependencies{
 		DB: db, Staff: staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
-		MasterDataAudit: repos.StaffMasterDataChange, PersonnelNumber: repos.PersonnelNumberChange, DataAccessLog: repos.DataAccessLog,
+		MasterDataAudit: services.NewTestAuditPersistence(db, nil).StaffMasterDataChange, PersonnelNumber: services.NewTestAuditPersistence(db, nil).PersonnelNumberChange, DataAccessLog: services.NewTestAuditPersistence(db, nil).DataAccessLog,
 	}
 }
 
@@ -327,7 +326,7 @@ func TestUpdatePersonnelNumber_AppearsInAuditFeed(t *testing.T) {
 	_, err := s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &value, actor.ID, "Feed-Test")
 	require.NoError(t, err)
 
-	entries, err := s.repos.TimeTrackingAuditLog.ListEntries(s.ctx, auditModels.TimeTrackingAuditLogFilter{
+	entries, err := services.NewTestAuditPersistence(s.db, nil).TimeTrackingAuditLog.ListEntries(s.ctx, auditModels.TimeTrackingAuditLogFilter{
 		StaffID: staff.ID,
 		Sources: []string{auditModels.AuditLogSourcePersonnelNumber},
 	})

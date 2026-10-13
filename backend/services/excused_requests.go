@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -73,7 +72,7 @@ func newExcusedAbsenceRequests(wiring excusedRequestWiring) (*carePlanCompose.Ex
 	if wiring.today != nil {
 		today = func() careplan.Date { return careplan.Date(wiring.today()) }
 	}
-	return repositories.NewExcusedAbsenceRequests(repositories.ExcusedRequestWiring{
+	return NewExcusedAbsenceRequests(ExcusedRequestWiring{
 		CarePlan: wiring.carePlan, Students: wiring.students, Persons: wiring.persons,
 		Scope: wiring.scope, Today: today, Logger: wiring.logger, Observe: wiring.observe,
 		Messenger: messenger, Broadcaster: broadcaster, Ledger: ledger,

@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -30,7 +29,7 @@ func TestFactoryOperatorMFARefusesChallengeWithoutSMTP(t *testing.T) {
 		OperatorHostname: "operator.localhost:3000",
 	}
 
-	factory, err := services.NewFactoryForTestsWithConfig(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)), db, slog.Default(), cfg)
+	factory, err := services.NewFactoryForTestsWithConfig(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)), db, slog.Default(), cfg)
 	require.NoError(t, err)
 
 	operator := testpkg.CreateTestOperator(t, db)

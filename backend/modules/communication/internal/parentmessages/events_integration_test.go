@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -32,7 +32,7 @@ func i64(v int64) *int64 { return &v }
 
 // threadPills loads the (student, guardian) thread and its messages, or nil when
 // no thread exists. Runs inside the tenant tx so RLS admits the rows.
-func threadPills(t *testing.T, db *bun.DB, repos *repositories.Factory, c testpkg.ParentChain) (*usersModels.ParentMessageThread, []*usersModels.ParentMessage) {
+func threadPills(t *testing.T, db *bun.DB, repos *services.RepositoryTestFactory, c testpkg.ParentChain) (*usersModels.ParentMessageThread, []*usersModels.ParentMessage) {
 	t.Helper()
 	var thread *usersModels.ParentMessageThread
 	var msgs []*usersModels.ParentMessage
@@ -42,7 +42,7 @@ func threadPills(t *testing.T, db *bun.DB, repos *repositories.Factory, c testpk
 			return ferr
 		}
 		thread = th
-		ms, merr := repos.ParentMessage.ListByThread(txCtx, th.ID, 100)
+		ms, merr := services.NewParentMessageRepository(db).ListByThread(txCtx, th.ID, 100)
 		msgs = ms
 		return merr
 	})
@@ -70,12 +70,12 @@ func countEventType(msgs []*usersModels.ParentMessage, eventType string) int {
 func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	settings := &toggleSettings{enabled: true}
 	bc := testpkg.NewRecordingBroadcaster()
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage, settings, bc, slog.Default())
+	emitter := newMockEmitter(t, db, repos.ParentMessageThread, services.NewParentMessageRepository(db), settings, bc, slog.Default())
 
 	// 1) Guardian files a request → request_created pill, thread born.
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
@@ -142,10 +142,10 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
+	emitter := newMockEmitter(t, db, repos.ParentMessageThread, services.NewParentMessageRepository(db),
 		&toggleSettings{enabled: false}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
@@ -169,10 +169,10 @@ func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
+	emitter := newMockEmitter(t, db, repos.ParentMessageThread, services.NewParentMessageRepository(db),
 		&toggleSettings{enabled: false}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
@@ -195,11 +195,11 @@ func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
 func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	bc := testpkg.NewRecordingBroadcaster()
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
+	emitter := newMockEmitter(t, db, repos.ParentMessageThread, services.NewParentMessageRepository(db),
 		&toggleSettings{enabled: true}, bc, slog.Default())
 
 	// A request_created pill exists (thread born while the guardian had access).

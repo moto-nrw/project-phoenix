@@ -5,9 +5,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -41,16 +42,22 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	}
 	audit := cfg.Audit
 	if audit == nil {
-		command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
+		command, err := auditSvc.NewCommand(NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 		if err != nil {
 			return nil, err
 		}
 		audit = command
 	}
-	repos, err := repositories.NewAuthTestRepositories(db, audit)
+	repos, err := authTestIdentityChain(db)
 	if err != nil {
 		return nil, err
 	}
+	organizations, err := NewOrganizationTenancy(db)
+	if err != nil {
+		return nil, err
+	}
+	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db})
+	audits = audits.WithRoutedWrites(audit)
 	signer, err := configuredTokenAuth()
 	if err != nil {
 		return nil, err
@@ -76,11 +83,11 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 		return nil, err
 	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepositoriesOf(repos, repos.School), codec: codec, audit: audit, logger: logger,
+		repos: sessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db)), codec: codec, audit: audit, logger: logger,
 		lifecycle: &lifecycleWiring{
 			audit: audit, caregivers: caregivers,
 			guardianMail: &guardianInvitationWiring{
-				schools:     repos.School,
+				schools:     organizations,
 				outbox:      func() platformModels.OutboxResultEnqueuer { return outbox },
 				enrollments: claims,
 				parentsURL:  "http://localhost:3000", fallbackExpiry: expiry, logger: logger,

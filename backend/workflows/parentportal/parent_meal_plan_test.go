@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
@@ -44,10 +45,10 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub,
 	if len(moduleOverride) == 1 {
 		mealPlan = moduleOverride[0]
 	}
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:      repos.CarePlan(),
-		People:        repositories.MustNewPeopleDirectory(db),
+		People:        services.MustNewPeopleDirectory(db),
 		CareProfiles:  careProfiles(t, db),
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,

@@ -6,10 +6,11 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -23,7 +24,7 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
 	author := testpkg.CreateTestParentGuardianChain(t, db)
 	recipient := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), author.TenantID)
@@ -48,7 +49,7 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:     repos.CarePlan(),
-		People:       repositories.MustNewPeopleDirectory(db),
+		People:       services.MustNewPeopleDirectory(db),
 		CareProfiles: careProfiles(t, db),
 		ChildRepo:    repos.ParentChild, GuardianProfileRepo: repos.GuardianProfile,
 		GuardianPhoneRepo: repos.GuardianPhoneNumber, PersonRepo: repos.Person,

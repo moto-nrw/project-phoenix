@@ -7,7 +7,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -36,7 +35,7 @@ type TimetablePlanning struct {
 // closing days (#3594); Broadcaster announces created
 // occurrences to the staffing caches (#1844).
 type timetableMaterializationInputs struct {
-	Rows           repositories.TimetableTemplateRows
+	Rows           timetableCompose.TemplateRows
 	CareBounds     timetableCompose.CareBoundReader
 	NonWorkingDays timetable.NonWorkingDayCalendar
 	RecurrenceLock timetable.RecurrenceWriteLock
@@ -71,7 +70,7 @@ func newTimetableMaterialization(in timetableMaterializationInputs) (timetable.M
 // Vertretungsplan overrides with; CareOfferings and ResyncOfferingRoster are
 // Enrollment's.
 type timetableTemplateInputs struct {
-	Rows                 repositories.TimetableTemplateRows
+	Rows                 timetableCompose.TemplateRows
 	PlanningTracks       timetableCompose.PlanningTrackAssignments
 	Materialization      timetable.MaterializationCapability
 	Deviations           timetableCompose.SeriesDeviations
