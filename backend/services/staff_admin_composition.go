@@ -4,17 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
-	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/uptrace/bun"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The personnel-record administration (#3752) lives in Workforce. What it does
@@ -24,10 +21,9 @@ import (
 // repositories, so every read and write joins the caller's tenant transaction
 // and reports its failure exactly as the repositories always did.
 
-// StaffAdminDependencies are the retained collaborators of the personnel-record
-// administration.
-type StaffAdminDependencies struct {
-	DB         *bun.DB
+// StaffAdminOwners are the retained collaborators of the personnel-record
+// administration: the staff and person rows and the audit trail.
+type StaffAdminOwners struct {
 	Staff      userModels.StaffRepository
 	Persons    userModels.PersonRepository
 	Membership schoolmembership.Capability
@@ -35,25 +31,21 @@ type StaffAdminDependencies struct {
 	MasterDataAudit auditModels.StaffMasterDataChangeCreator
 	PersonnelNumber auditModels.PersonnelNumberChangeCreator
 	DataAccessLog   auditModels.DataAccessLogRepository
-	Observe         func(workforceCompose.Observation)
-	Logger          *slog.Logger
-	Now             func() time.Time
 }
 
-// NewStaffAdmin composes the personnel-record administration over the retained
-// staff, person and audit repositories.
-func NewStaffAdmin(deps StaffAdminDependencies) (*workforce.StaffAdmin, error) {
-	if deps.Staff == nil || deps.Persons == nil || deps.Membership == nil ||
-		deps.MasterDataAudit == nil || deps.PersonnelNumber == nil || deps.DataAccessLog == nil {
+// ComposeStaffAdmin composes the personnel-record administration over the
+// retained staff, person and audit repositories. admin carries what the
+// caller binds (the database, the observer, the logger and the clock); the
+// subjects, the audit trail and the permission matcher are bound here.
+func ComposeStaffAdmin(admin workforceCompose.StaffAdminDependencies, owners StaffAdminOwners) (*workforce.StaffAdmin, error) {
+	if owners.Staff == nil || owners.Persons == nil || owners.Membership == nil ||
+		owners.MasterDataAudit == nil || owners.PersonnelNumber == nil || owners.DataAccessLog == nil {
 		return nil, errors.New("staff admin: staff, person, membership and audit repositories are required")
 	}
-	return workforceCompose.NewStaffAdmin(workforceCompose.StaffAdminDependencies{
-		DB:       deps.DB,
-		Subjects: staffAdminSubjects{staff: deps.Staff, persons: deps.Persons, membership: deps.Membership},
-		Audit:    staffAdminAudit{masterData: deps.MasterDataAudit, personnelNumber: deps.PersonnelNumber, accessLog: deps.DataAccessLog},
-		Allows:   securityruntime.HasPermission,
-		Observe:  deps.Observe, Now: deps.Now, Logger: deps.Logger,
-	})
+	admin.Subjects = staffAdminSubjects{staff: owners.Staff, persons: owners.Persons, membership: owners.Membership}
+	admin.Audit = staffAdminAudit{masterData: owners.MasterDataAudit, personnelNumber: owners.PersonnelNumber, accessLog: owners.DataAccessLog}
+	admin.Allows = securityruntime.HasPermission
+	return workforceCompose.NewStaffAdmin(admin)
 }
 
 type staffAdminSubjects struct {

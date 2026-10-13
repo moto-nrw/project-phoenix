@@ -5,14 +5,12 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // TimetablePlanning carries the Timetable owner's planning capabilities the
@@ -33,19 +31,19 @@ type TimetablePlanning struct {
 // timetableMaterializationInputs compose the recurrence engine. CareBounds
 // is the per-date care filter (#2487); NonWorkingDays skips holidays and
 // closing days (#3594); Broadcaster announces created
-// occurrences to the staffing caches (#1844).
+// occurrences to the staffing caches (#1844). The composition root adds its
+// database handle to the dependencies they bind.
 type timetableMaterializationInputs struct {
 	Rows           timetableCompose.TemplateRows
 	CareBounds     timetableCompose.CareBoundReader
 	NonWorkingDays timetable.NonWorkingDayCalendar
 	RecurrenceLock timetable.RecurrenceWriteLock
 	Broadcaster    realtime.Broadcaster
-	DB             *bun.DB
 	Logger         *slog.Logger
 }
 
-func newTimetableMaterialization(in timetableMaterializationInputs) (timetable.MaterializationCapability, error) {
-	return timetableCompose.NewMaterialization(timetableCompose.MaterializationDependencies{
+func timetableMaterializationDependencies(in timetableMaterializationInputs) timetableCompose.MaterializationDependencies {
+	return timetableCompose.MaterializationDependencies{
 		GroupRepo:      in.Rows.Groups,
 		ScheduleRepo:   in.Rows.Schedules,
 		EnrollmentRepo: in.Rows.Enrollments,
@@ -60,15 +58,15 @@ func newTimetableMaterialization(in timetableMaterializationInputs) (timetable.M
 		NonWorkingDays: in.NonWorkingDays,
 		RecurrenceLock: in.RecurrenceLock,
 		Staffing:       newStaffingAnnouncer(in.Broadcaster),
-		DB:             in.DB,
 		Logger:         in.Logger,
-	})
+	}
 }
 
 // timetableTemplateInputs compose the template writes. Deviations is the
 // instance lifecycle's deviation machinery the split preserves
 // Vertretungsplan overrides with; CareOfferings and ResyncOfferingRoster are
-// Enrollment's.
+// Enrollment's. The composition root adds its database handle to the
+// dependencies they bind.
 type timetableTemplateInputs struct {
 	Rows                 timetableCompose.TemplateRows
 	PlanningTracks       timetableCompose.PlanningTrackAssignments
@@ -78,16 +76,15 @@ type timetableTemplateInputs struct {
 	ResyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error
 	RecurrenceLock       timetable.RecurrenceWriteLock
 	Broadcaster          realtime.Broadcaster
-	DB                   *bun.DB
 	Logger               *slog.Logger
 	Today                func() timezone.Date
 }
 
-func newTimetableTemplates(in timetableTemplateInputs) (timetable.TemplateAdministration, error) {
+func timetableTemplateDependencies(in timetableTemplateInputs) (timetableCompose.TemplateAdministrationDependencies, error) {
 	if in.CareOfferings == nil || in.Deviations == nil {
-		return nil, errors.New("timetable templates: care offerings and instance lifecycle are required")
+		return timetableCompose.TemplateAdministrationDependencies{}, errors.New("timetable templates: care offerings and instance lifecycle are required")
 	}
-	return timetableCompose.NewTemplateAdministration(timetableCompose.TemplateAdministrationDependencies{
+	return timetableCompose.TemplateAdministrationDependencies{
 		Groups:               in.Rows.Groups,
 		Categories:           in.Rows.Categories,
 		Schedules:            in.Rows.Schedules,
@@ -107,9 +104,8 @@ func newTimetableTemplates(in timetableTemplateInputs) (timetable.TemplateAdmini
 		SchoolClasses:        timetableSchoolClassRules(),
 		Staffing:             newStaffingAnnouncer(in.Broadcaster),
 		Logger:               in.Logger,
-		DB:                   in.DB,
 		Today:                in.Today,
-	})
+	}, nil
 }
 
 // timetableSchoolClassRules are School Structure's grade range and class

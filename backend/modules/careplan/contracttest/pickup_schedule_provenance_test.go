@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/stretchr/testify/assert"
@@ -37,7 +38,9 @@ func newProjectionWriteService(
 ) (careplan.PickupScheduleService, *services.RepositoryTestFactory) {
 	t.Helper()
 	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	service, err := services.NewPickupSchedules(db, repos.CarePlan(), services.MustNewPeopleDirectory(db), fixedPickupBaseline{StudentID: studentID, Weekday: scheduleModels.WeekdayMonday, HHMM: hhmm}, nil, nil)
+	pickupStudents, err := services.PickupPlanStudents(services.MustNewPeopleDirectory(db))
+	require.NoError(t, err)
+	service, err := careplanCompose.NewPickupSchedules(db, repos.CarePlan(), fixedPickupBaseline{StudentID: studentID, Weekday: scheduleModels.WeekdayMonday, HHMM: hhmm}, nil, pickupStudents, nil)
 	require.NoError(t, err)
 	return service, repos
 }
@@ -49,7 +52,9 @@ func TestUpsertBulkPickupSchedules_DoesNotMaterializeUnchangedProjection(t *test
 	student := testpkg.CreateTestStudent(t, db, "Prova", "Nienz", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "Prove", "Nienz")
 	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	service, err := services.NewPickupSchedules(db, repos.CarePlan(), services.MustNewPeopleDirectory(db), fixedPickupBaseline{StudentID: student.ID, Weekday: scheduleModels.WeekdayMonday, HHMM: "14:30"}, nil, nil)
+	pickupStudents, err := services.PickupPlanStudents(services.MustNewPeopleDirectory(db))
+	require.NoError(t, err)
+	service, err := careplanCompose.NewPickupSchedules(db, repos.CarePlan(), fixedPickupBaseline{StudentID: student.ID, Weekday: scheduleModels.WeekdayMonday, HHMM: "14:30"}, nil, pickupStudents, nil)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 

@@ -3,14 +3,15 @@ package services
 import (
 	"log/slog"
 
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -24,7 +25,7 @@ type UploadsBackend = filestorageCompose.ObjectBackend
 // service that switches staff uploads.
 type FileStoreTestModule struct {
 	FileStore *filestorageModule.Module
-	Settings  config.SettingsService
+	Settings  settingsCompose.SettingsService
 }
 
 // NewFileStoreTestModule composes the File Storage module over the test
@@ -36,9 +37,9 @@ func NewFileStoreTestModule(db *bun.DB, unit tenant.UnitOfWork, objects UploadsB
 	if err != nil {
 		return FileStoreTestModule{}, err
 	}
-	command, err := auditSvc.NewCommand(
+	command, err := auditCompose.NewCommand(
 		NewTestAuditStore(db),
-		func(auditSvc.AppendObservation) {},
+		func(auditCompose.AppendObservation) {},
 	)
 	if err != nil {
 		return FileStoreTestModule{}, err
@@ -55,7 +56,7 @@ func NewFileStoreTestModule(db *bun.DB, unit tenant.UnitOfWork, objects UploadsB
 		return FileStoreTestModule{}, err
 	}
 	announcements := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
-		Repo: NewParentAnnouncementRepository(db, enrollmentAudience.New()), Settings: settings.Settings, Logger: slog.Default(),
+		Repo: parentStore.NewParentAnnouncementRepository(db, ParentAnnouncementApplicants(enrollmentAudience.New())), Settings: settings.Settings, Logger: slog.Default(),
 	})
 	files, err := filestorageCompose.New(filestorageCompose.Dependencies{
 		DB:            db,

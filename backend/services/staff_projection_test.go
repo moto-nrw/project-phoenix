@@ -1,9 +1,7 @@
-package services_test
+package services
 
 import (
 	"testing"
-
-	"github.com/moto-nrw/project-phoenix/services"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -14,10 +12,10 @@ func TestCaregiverChainsComeFromSchoolMembership(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	membership, err := services.NewSchoolMembership(db)
+	membership, err := NewSchoolMembership(db)
 	require.NoError(t, err)
 
-	chains := services.CaregiverChainsForTests(membership)
+	chains := CaregiverChainsForTests(membership)
 
 	teacher := testpkg.CreateTestTeacher(t, db, "Kette", "Lehrkraft")
 	plainStaff := testpkg.CreateTestStaff(t, db, "Kette", "Ohne Profil")

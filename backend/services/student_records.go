@@ -5,10 +5,8 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	careCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
@@ -26,12 +24,9 @@ type presenceStudents struct {
 	care   careplan.StudentProfileCommands
 }
 
-// PresenceStudents reads Directory records and writes only Care Plan's live flags.
-func PresenceStudents(db *bun.DB, source presenceStudentSource) presenceservice.PresenceStudents {
-	care, err := careCompose.NewStudentProfiles(db, func(careCompose.Observation) {})
-	if err != nil {
-		panic(err)
-	}
+// BindPresenceStudents reads Directory records and writes only Care Plan's
+// live flags.
+func BindPresenceStudents(source presenceStudentSource, care careplan.StudentProfileCommands) presenceservice.PresenceStudents {
 	return presenceStudents{source: source, care: care}
 }
 

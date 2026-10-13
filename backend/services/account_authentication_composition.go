@@ -7,17 +7,15 @@ import (
 	"log/slog"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/uptrace/bun"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 )
 
 // Identity & Access owns tenant, parent and school login, refresh, tenant
@@ -35,7 +33,7 @@ import (
 type accountAuthenticationWiring struct {
 	repos         sessionRepositories
 	codec         identityaccessCompose.SignedIdentityTokens
-	settings      config.SettingsService
+	settings      settingsCompose.SettingsService
 	audit         auditModels.Command
 	logger        *slog.Logger
 	observe       IdentityAccessObserver
@@ -96,20 +94,10 @@ func sessionRepositoriesOf(people lifecycleRepositories, organizations organizat
 	}
 }
 
-// signedIdentityTokensOf adapts a root's resolved signer to the native claim
-// codec. The signing primitive stays in the token adapter; Identity owns the
-// claim schema and validation.
-func signedIdentityTokensOf(signer *authjwt.TokenAuth) (identityaccessCompose.SignedIdentityTokens, error) {
-	codec, err := identityaccessCompose.NewSessionTokenCodec(signer.JwtAuth, signer.JwtExpiry, signer.JwtRefreshExpiry)
-	if err != nil {
-		return nil, fmt.Errorf("identity token codec: %w", err)
-	}
-	return codec, nil
-}
-
 // newIdentityAccessWithSessions composes the Identity & Access module with
-// the account-authentication flows bound.
-func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWiring) (*identityaccess.Module, error) {
+// the account-authentication flows bound. base carries what the caller binds
+// (the database); the flows are bound here.
+func newIdentityAccessWithSessions(base identityaccessCompose.Dependencies, wiring accountAuthenticationWiring) (*identityaccess.Module, error) {
 	if wiring.repos.schools.schools == nil || wiring.repos.persons == nil || wiring.repos.authEvents == nil || wiring.repos.pushSubscriptions == nil || wiring.codec == nil || wiring.audit == nil {
 		return nil, errors.New("identity access composition: repositories, token codec and audit command are required")
 	}
@@ -139,28 +127,26 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	resets := passwordResetDependencies(wiring.resets, func() identityaccess.PasswordResets { return module }, wiring.logger)
 	invitations := invitationDependencies(wiring.invitations, wiring.codec, func() identityaccess.SchoolInvitations { return module }, wiring.logger)
 	operatorLinks := operatorProvisioningDependencies(wiring.operatorLinks, func() identityaccess.OperatorTokens { return module }, wiring.logger)
-	module, err = identityaccessCompose.New(identityaccessCompose.Dependencies{
-		Lifecycle:            lifecycle,
-		Resets:               resets,
-		Invitations:          invitations,
-		MFA:                  mfaDependencies(wiring.mfa, wiring.codec),
-		OperatorProvisioning: operatorLinks,
-		DB:                   db,
-		Observe:              observe,
-		Sessions: &identityaccessCompose.SessionDependencies{
-			Schools:       wiring.repos.schools,
-			Persons:       personDirectory{persons: wiring.repos.persons},
-			Passwords:     passwordVerifier{},
-			Codec:         wiring.codec,
-			MFALock:       mfaPolicyLock{settings: wiring.settings},
-			Audit:         authAudit{command: wiring.audit, events: wiring.repos.authEvents},
-			Push:          pushSubscriptionCleanup{subscriptions: wiring.repos.pushSubscriptions},
-			TenantRuntime: wiring.tenantRuntime,
-			Logger:        wiring.logger,
-		},
-		Operators: wiring.operators,
-		Demo:      demo,
-	})
+	base.Lifecycle = lifecycle
+	base.Resets = resets
+	base.Invitations = invitations
+	base.MFA = mfaDependencies(wiring.mfa, wiring.codec)
+	base.OperatorProvisioning = operatorLinks
+	base.Observe = observe
+	base.Sessions = &identityaccessCompose.SessionDependencies{
+		Schools:       wiring.repos.schools,
+		Persons:       personDirectory{persons: wiring.repos.persons},
+		Passwords:     passwordVerifier{},
+		Codec:         wiring.codec,
+		MFALock:       mfaPolicyLock{settings: wiring.settings},
+		Audit:         authAudit{command: wiring.audit, events: wiring.repos.authEvents},
+		Push:          pushSubscriptionCleanup{subscriptions: wiring.repos.pushSubscriptions},
+		TenantRuntime: wiring.tenantRuntime,
+		Logger:        wiring.logger,
+	}
+	base.Operators = wiring.operators
+	base.Demo = demo
+	module, err = identityaccessCompose.New(base)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +165,7 @@ func demoDependencies(wiring *demoAccessWiring, standingSchool string, schools o
 			schools: schools, orders: organizationCompose.NewDemoSchoolOrders(SecureRandomSource(), wiring.maxActiveSchools), standing: standingSchool,
 		},
 		Mail:     newDemoAccessMail(wiring),
-		NewToken: authjwt.NewOpaqueCapabilityToken, Fingerprint: authjwt.OpaqueCapabilityFingerprint,
+		NewToken: wiring.newToken, Fingerprint: wiring.fingerprint,
 		OperatorWithoutSecondFactor: wiring.operatorWithoutSecondFactor,
 	}, nil
 }
@@ -405,7 +391,9 @@ func (passwordVerifier) VerifyPassword(password, hash string) (bool, error) {
 	return securityruntime.VerifyPassword(password, hash)
 }
 
-type mfaPolicyLock struct{ settings config.SettingsService }
+type mfaPolicyLock struct {
+	settings settingsCompose.SettingsService
+}
 
 // LockMFAPolicySharedForTenant is a no-op without a settings service, as
 // the retained mint guard treated it.

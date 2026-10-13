@@ -39,7 +39,7 @@ func newCareScheduleTestRouter(db *bun.DB, module services.StudentTestModule) (c
 }
 
 func newStudentPhotoTestBootstrap() services.StudentPhotoBootstrap {
-	return services.StudentPhotoBootstrap{Unlinker: studentsAPI.NewPhotoUnlinker(slog.Default(), "public")}
+	return services.StudentPhotoBootstrap{Unlinker: studentsAPI.NewPhotoUnlinker(slog.Default(), "public"), ActingAccount: actingAccountID}
 }
 
 func newDatabaseStatsTestRouter(db *bun.DB) (chi.Router, error) {

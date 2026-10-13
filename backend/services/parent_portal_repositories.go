@@ -6,15 +6,12 @@ import (
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/uptrace/bun"
 )
 
 // ParentPortalOwners are the owners the retained guardian-portal and
@@ -42,33 +39,6 @@ type ParentPortalOwners struct {
 type ParentPortalRepositories struct {
 	carePlanCompose.ParentPortalRepositories
 	parentStore.MessagingRepositories
-}
-
-// NewParentPortalRepositories builds the retained guardian-portal and
-// messaging repositories with the People Directory, School Membership,
-// School Structure, Identity & Access and Enrollment reads bound. The school
-// names are bound by WithSchools.
-func NewParentPortalRepositories(db *bun.DB, owners ParentPortalOwners) ParentPortalRepositories {
-	identity := owners.Identity
-	members := parentStaffMembers{membership: owners.Membership}.list
-	// The staff accounts are loaded from the person rows.
-	persons := newPersonRepository(db)
-	return ParentPortalRepositories{
-		ParentPortalRepositories: carePlanCompose.NewParentPortalRepositories(carePlanCompose.ParentPortalDependencies{
-			DB: db, Directory: parentPortalDirectory{people: owners.People},
-			AccountSchools: identity.ListActiveAccountSchoolIDs,
-			Phases:         owners.Enrollment, Applications: owners.Enrollment,
-			Accounts: identityAccountDirectory{accounts: identity},
-		}),
-		MessagingRepositories: parentStore.MessagingRepositories{
-			ParentAnnouncement:  NewParentAnnouncementRepository(db, owners.Enrollment, owners.Now),
-			ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, peopleCompose.NewMessageableGuardians(db, identity.FindActiveSchoolMemberships)),
-			ParentMessageRead: parentStore.WithInboxGroupNames(
-				parentStore.NewStaffParentMessageReadRepository(db, members, persons), parentGroupNames{groups: owners.Groups}.list),
-			StaffMessageRead: staffStore.NewStaffMessageReadRepository(db, peopleCompose.NewMessageableStaff(db,
-				parentStore.CurrentTenantStaffAccounts(members, persons), staffMessageIdentity(identity))),
-		},
-	}
 }
 
 // WithSchools returns the repositories with the school names and the school

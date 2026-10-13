@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -12,7 +13,34 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/spf13/viper"
 )
+
+// newProductAnalytics builds the process's product analytics tracker
+// (PostHog); it is a no-op without POSTHOG_API_KEY. The root owns its
+// lifetime and closes it on shutdown.
+func newProductAnalytics(logger *slog.Logger) (analytics.Tracker, error) {
+	return analytics.New(
+		viper.GetString("posthog_api_key"),
+		viper.GetString("posthog_host"),
+		analyticsDeployment(viper.GetString("app_env"), viper.GetString("tenant_domain")),
+		logger.With("component", "analytics"),
+		// The pseudonymous user ID under Analyse-Freigabe (#3603) hashes with
+		// the Security Runtime's SHA-256 fingerprint, like the browser.
+		analytics.WithFingerprint(services.AnalyticsFingerprint),
+	)
+}
+
+// analyticsDeployment is the deployment property of every analytics event:
+// "demo" for the public demo, otherwise the tenant domain of this instance.
+// The frontend sends the same value (frontend/src/lib/analytics-deployment.ts).
+func analyticsDeployment(appEnv, tenantDomain string) string {
+	if services.IsDemoEnvironment(appEnv) {
+		return "demo"
+	}
+	return strings.TrimSpace(tenantDomain)
+}
 
 // coreActionAnalytics binds the core-action middleware (#3602) to the
 // session model: the request's verified session, or the session a login

@@ -4,12 +4,12 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ExcusedRequestTestOptions builds the Care Plan excused-absence workflow
@@ -20,7 +20,7 @@ type ExcusedRequestTestOptions struct {
 	Students    usersModels.StudentRepository
 	Persons     usersModels.PersonRepository
 	Scope       carePlanCompose.ReviewScopeResolver
-	Emitter     *parentmessaging.Emitter
+	Emitter     *communicationCompose.ParentEventEmitter
 	Broadcaster realtime.Broadcaster
 	Events      usersModels.ParentRequestEventRepository
 	Logger      *slog.Logger

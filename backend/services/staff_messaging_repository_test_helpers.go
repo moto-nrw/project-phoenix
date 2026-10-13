@@ -1,10 +1,10 @@
 package services
 
 import (
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/uptrace/bun"
 )
 
@@ -24,6 +24,6 @@ func NewStaffMessagingTestRepositories(db *bun.DB, members MembershipTestReposit
 		Message: staffStore.NewStaffMessageRepository(db),
 		Read: staffStore.NewStaffMessageReadRepository(db, peopleCompose.NewMessageableStaff(db,
 			parentStore.CurrentTenantStaffAccounts(parentStaffMembers{membership: membership}.list, members.Person),
-			staffMessageIdentity(newIdentityAccess(db, nil)))),
+			staffMessageIdentity(newPeopleIdentityAccess(db, nil)))),
 	}, nil
 }

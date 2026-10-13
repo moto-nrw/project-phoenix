@@ -12,17 +12,15 @@ import (
 	"strings"
 	"time"
 
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // German pill texts. The staff portal renders these directly; the parents
@@ -149,16 +147,23 @@ type careScheduleRequestService struct {
 	pickupAutoExcusal careplan.PickupAutoExcusal
 	dayLocker         careplan.CareDayLocker
 	userContext       CareRequestStaff
-	emitter           *parentmessaging.Emitter
+	emitter           *communicationCompose.ParentEventEmitter
 	broadcaster       realtime.Broadcaster
 	studentAudit      peopleCompose.StudentChangeRecorder
 	logger            *slog.Logger
 	reviewPolicy      RequestReviewPolicy
+	// permissions reads the permissions of the request claims the review
+	// policy decides on.
+	permissions func(context.Context) []string
 	// shareVisibility answers who the parent explicitly shared a request
 	// with; nil means nobody was, so every co-guardian gets the neutral line.
-	shareVisibility parentmessaging.ShareVisibilityResolver
+	shareVisibility communicationCompose.ParentShareVisibilityResolver
 	events          *parentRequestLedger
 	today           func() timezone.Date
+
+	// tenant reads the ambient school and schedules the effects that run
+	// after its transaction commits.
+	tenant compose.TenantHooks
 
 	// requests holds the native request capabilities, bound once at construction.
 	requests requestCapabilities
@@ -197,21 +202,23 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	pickupAutoExcusal careplan.PickupAutoExcusal,
 	dayLocker careplan.CareDayLocker,
 	userContext CareRequestStaff,
-	emitter *parentmessaging.Emitter,
+	emitter *communicationCompose.ParentEventEmitter,
 	broadcaster realtime.Broadcaster,
 	reviewPolicy RequestReviewPolicy,
+	permissions func(context.Context) []string,
 	events usersModels.ParentRequestEventRepository,
 	logger *slog.Logger,
 	studentAudit peopleCompose.StudentChangeRecorder,
 	options ...CareRequestOption,
 ) carerequests.Service {
-	if reviewPolicy == nil {
-		panic("care schedule request review policy is required")
+	if reviewPolicy == nil || permissions == nil {
+		panic("care schedule request review policy and request permissions are required")
 	}
 	svc := newCareScheduleRequestService(
 		requestRecords, people, arrival, pickup, userContext,
 		emitter, broadcaster, reviewPolicy, newParentRequestLedger(events), logger, studentAudit,
 	)
+	svc.permissions = permissions
 	svc.attendance = attendance
 	svc.pickupAutoExcusal = pickupAutoExcusal
 	svc.dayLocker = dayLocker
@@ -271,7 +278,7 @@ func newCareScheduleRequestService(
 	arrival RequestArrivalPlans,
 	pickup RequestPickupPlans,
 	userContext CareRequestStaff,
-	emitter *parentmessaging.Emitter,
+	emitter *communicationCompose.ParentEventEmitter,
 	broadcaster realtime.Broadcaster,
 	reviewPolicy RequestReviewPolicy,
 	events *parentRequestLedger,
@@ -370,7 +377,7 @@ func (s *careScheduleRequestService) canReviewStudent(ctx context.Context, stude
 	if s.reviewPolicy == nil {
 		return false, errors.New("care request review policy is required")
 	}
-	ok, err := s.reviewPolicy.Allows(ctx, jwt.PermissionsFromCtx(ctx), student)
+	ok, err := s.reviewPolicy.Allows(ctx, s.permissions(ctx), student)
 	if err != nil {
 		return false, fmt.Errorf("schedule: resolve request reviewer scope: %w", err)
 	}
@@ -402,10 +409,10 @@ func newCareDecisionState(req *carerequests.Request, approve bool, reason string
 
 func (s *careScheduleRequestService) registerCareDecisionEffects(ctx context.Context, req *carerequests.Request, input carerequests.DecideInput, state careDecisionState, companionsChanged bool) error {
 	if input.Approve {
-		tenant.RegisterAfterCommit(ctx, func() { s.recordApplyAudit(req, input.ReviewedBy) })
+		s.tenant.AfterCommit(ctx, func() { s.recordApplyAudit(req, input.ReviewedBy) })
 		s.broadcastCareScheduleChanges(ctx, req.TenantID, req.StudentID, companionsChanged)
 	} else {
-		tenant.RegisterAfterCommit(ctx, func() {
+		s.tenant.AfterCommit(ctx, func() {
 			s.logger.Info("care request rejected",
 				"request_id", req.ID,
 				"student_id", req.StudentID,
@@ -414,7 +421,7 @@ func (s *careScheduleRequestService) registerCareDecisionEffects(ctx context.Con
 			)
 		})
 	}
-	decisionPill := parentmessaging.ChildEvent{
+	decisionPill := communicationCompose.ParentChildEvent{
 		EventType: "request_status", ActorKind: usersModels.ParentMessageSenderStaff,
 		ActorAccountID: input.ReviewedBy, Body: state.pillBody,
 		RequestType: careRequestPillType(req.RequestKind), RequestStatus: state.pillStatus,
@@ -502,13 +509,13 @@ func (s *careScheduleRequestService) resolvePickupChangeStaff(ctx context.Contex
 
 // emitRequestPillAfterCommit writes the durable decision intent in the ambient
 // transaction, then schedules the best-effort chat pill after commit.
-func (s *careScheduleRequestService) emitRequestPillAfterCommit(ctx context.Context, req *carerequests.Request, ev parentmessaging.ChildEvent) error {
+func (s *careScheduleRequestService) emitRequestPillAfterCommit(ctx context.Context, req *carerequests.Request, ev communicationCompose.ParentChildEvent) error {
 	if s.emitter == nil {
 		return nil
 	}
 	tenantID := req.TenantID
 	if tenantID <= 0 {
-		tenantID = tenant.FromContext(ctx)
+		tenantID = s.tenant.TenantID(ctx)
 	}
 	refID := req.ID
 	ev.RefTable = "schedule.care_schedule_change_requests"
@@ -518,7 +525,7 @@ func (s *careScheduleRequestService) emitRequestPillAfterCommit(ctx context.Cont
 	if err := s.emitter.EnqueueRequestDecision(ctx, tenantID, studentID, guardianAccountID, ev); err != nil {
 		return fmt.Errorf("schedule: enqueue care request decision: %w", err)
 	}
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.tenant.AfterCommit(ctx, func() {
 		s.emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, ev)
 	})
 	return nil
@@ -539,10 +546,10 @@ func (s *careScheduleRequestService) wakeGuardiansAfterCommit(ctx context.Contex
 	}
 	tenantID := req.TenantID
 	if tenantID <= 0 {
-		tenantID = tenant.FromContext(ctx)
+		tenantID = s.tenant.TenantID(ctx)
 	}
 	studentID := req.StudentID
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.tenant.AfterCommit(ctx, func() {
 		s.emitter.BroadcastChildUpdateToGuardians(tenantID, studentID)
 	})
 }
@@ -558,7 +565,7 @@ func (s *careScheduleRequestService) broadcastCareScheduleChanges(ctx context.Co
 	if s.broadcaster == nil {
 		return
 	}
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.tenant.AfterCommit(ctx, func() {
 		source := "parent_request"
 		studentEvent := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{Source: &source})
 		if err := s.broadcaster.BroadcastToTenant(tenantID, studentEvent); err != nil {
@@ -645,7 +652,7 @@ func correctedCarePillBody(req *carerequests.Request, approve bool) string {
 
 // WithRequestShareVisibility wires the sharing resolver. The composition root
 // passes a resolver that reaches the later-built parents service lazily.
-func WithRequestShareVisibility(resolver parentmessaging.ShareVisibilityResolver) CareRequestOption {
+func WithRequestShareVisibility(resolver communicationCompose.ParentShareVisibilityResolver) CareRequestOption {
 	return func(s *careScheduleRequestService) { s.shareVisibility = resolver }
 }
 
@@ -679,7 +686,7 @@ func (s *careScheduleRequestService) sharedRecipients(
 func (s *careScheduleRequestService) notifyOtherGuardiansAfterCommit(
 	ctx context.Context,
 	req *carerequests.Request,
-	ev parentmessaging.ChildEvent,
+	ev communicationCompose.ParentChildEvent,
 ) {
 	if s.emitter == nil {
 		return
@@ -700,7 +707,7 @@ func (s *careScheduleRequestService) notifyOtherGuardiansAfterCommit(
 	}
 	tenantID := req.TenantID
 	if tenantID <= 0 {
-		tenantID = tenant.FromContext(ctx)
+		tenantID = s.tenant.TenantID(ctx)
 	}
 	neutral := ev
 	neutral.Body = careCoGuardianNoticeBody(req)
@@ -708,7 +715,7 @@ func (s *careScheduleRequestService) notifyOtherGuardiansAfterCommit(
 	// no requested time, no previous time (#3135).
 	neutral.Payload = nil
 	studentID := req.StudentID
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.tenant.AfterCommit(ctx, func() {
 		s.emitter.EmitDecisionAudience(tenantID, studentID, audience, ev, neutral)
 	})
 }

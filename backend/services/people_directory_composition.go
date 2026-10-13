@@ -3,21 +3,17 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strconv"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	membershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	"github.com/uptrace/bun"
 )
 
 // The People Directory is composed here since its construction left the
@@ -25,90 +21,37 @@ import (
 // Care Plan and Identity & Access, and its audit seams reach the Audit
 // composition (ADR 0049), which only this composition may name.
 
-// NewPeopleDirectory composes the person and student owner for test graphs
-// and CLI roots. The serve root composes the observed instance through
-// NewPeopleDirectoryWithPhotosAndObserver.
-func NewPeopleDirectory(db *bun.DB) (peopledirectory.Capability, error) {
-	capability, _, err := NewPeopleDirectoryWithPhotos(db)
-	return capability, err
+// PeopleDirectoryOwners are the other owners' halves the People Directory's
+// write path and audit seams reach: School Membership's enrollment, Care
+// Plan's care profile and companion links, the Audit Platform's trails and
+// Identity & Access's guardian memberships, plus the guardian link owners.
+type PeopleDirectoryOwners struct {
+	Membership          schoolmembership.Capability
+	CareProfiles        careplan.StudentProfileCommands
+	Companions          careplanCompose.CompanionRecords
+	Audit               peopleDirectoryAuditRepositories
+	GuardianLinks       guardianLinkOwners
+	GuardianMemberships peopleCompose.GuardianMembershipQuery
 }
 
-// MustNewPeopleDirectory is NewPeopleDirectory for composition seams that
-// cannot return an error; composing only fails on missing dependencies, which
-// is a programming error at wiring time.
-func MustNewPeopleDirectory(db *bun.DB) peopledirectory.Capability {
-	capability, err := NewPeopleDirectory(db)
-	if err != nil {
-		panic(fmt.Sprintf("compose people directory: %v", err))
-	}
-	return capability
-}
-
-// NewPeopleDirectoryWithPhotos additionally hands back the slot the photo
-// lifecycle resolves its runtime from, so a caller that has the feature gate,
-// the caller access and the file cleanup fills it after the directory exists.
-func NewPeopleDirectoryWithPhotos(db *bun.DB) (peopledirectory.Capability, *peopleCompose.StudentPhotoRuntime, error) {
-	module, photoRuntime, err := NewPeopleDirectoryWithPhotosAndObserver(db, func(peopleCompose.Observation) {})
-	return module, photoRuntime, err
-}
-
-// NewPeopleDirectoryWithPhotosAndObserver composes the owner for a graph that
-// records People Directory observations. The Identity & Access membership
-// query, the School Membership and Care Plan write owners and the Audit seams
-// are bound here.
-func NewPeopleDirectoryWithPhotosAndObserver(
-	db *bun.DB,
-	observe func(peopleCompose.Observation),
-) (*peopledirectory.Module, *peopleCompose.StudentPhotoRuntime, error) {
+// ComposePeopleDirectory composes the person and student owner over the
+// given owners. directory carries what the caller binds from the database
+// (the database, the observer and the class write gate); the owner seams and
+// the photo runtime slot are bound here.
+func ComposePeopleDirectory(directory peopleCompose.Dependencies, owners PeopleDirectoryOwners) (*peopledirectory.Module, *peopleCompose.StudentPhotoRuntime, error) {
 	photoRuntime := new(peopleCompose.StudentPhotoRuntime)
-	// Care Plan's companion slice is constructible from the database alone, so
-	// the directory's write path gets it here rather than waiting for the full
-	// Care Plan — which needs this directory and therefore cannot be built yet.
-	companions, err := careplanCompose.NewCompanionRecords(db, func(careplanCompose.Observation) {})
-	if err != nil {
-		return nil, nil, err
-	}
-	membership, err := NewSchoolMembership(db)
-	if err != nil {
-		return nil, nil, err
-	}
-	careProfiles, err := careplanCompose.NewStudentProfiles(db, func(careplanCompose.Observation) {})
-	if err != nil {
-		return nil, nil, err
-	}
-	audit := peopleDirectoryAudit(db)
-	capability, err := peopleCompose.NewWithGuardianMemberships(peopleCompose.Dependencies{
-		StudentClassWriteGateQuery: func(ctx context.Context) (*bun.SelectQuery, error) {
-			return membershipCompose.StudentClassWriteGateQuery(ctx, db)
-		},
-		StudentOwners:            NewStudentOwners(membership, careProfiles),
-		DB:                       db,
-		Observe:                  observe,
-		StudentFieldAudit:        studentFieldAuditLog{repo: audit.StudentFieldEdit},
-		StudentNoteDeletionAudit: studentNoteDeletionAudit{repo: audit.DataDeletion},
-		StudentConsentHistory:    studentConsentHistory{repo: audit.StudentConsentChange},
-		StudentPhotoRuntime:      func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
-		StudentCompanions:        NewStudentCompanionSeam(companions),
-		GuardianLinkOwners:       newGuardianLinkOwners(db),
-	},
-		newPeopleIdentityAccess(db, nil).FindActiveGuardianMemberships,
-	)
+	directory.StudentOwners = NewStudentOwners(owners.Membership, owners.CareProfiles)
+	directory.StudentFieldAudit = studentFieldAuditLog{repo: owners.Audit.StudentFieldEdit}
+	directory.StudentNoteDeletionAudit = studentNoteDeletionAudit{repo: owners.Audit.DataDeletion}
+	directory.StudentConsentHistory = studentConsentHistory{repo: owners.Audit.StudentConsentChange}
+	directory.StudentPhotoRuntime = func() peopleCompose.StudentPhotoRuntime { return *photoRuntime }
+	directory.StudentCompanions = NewStudentCompanionSeam(owners.Companions)
+	directory.GuardianLinkOwners = owners.GuardianLinks
+	capability, err := peopleCompose.NewWithGuardianMemberships(directory, owners.GuardianMemberships)
 	if err != nil {
 		return nil, nil, err
 	}
 	return capability, photoRuntime, nil
-}
-
-// newPeopleIdentityAccess composes the Identity & Access module the People
-// Directory repositories read accounts and memberships through. A nil
-// observer composes it unobserved, which is what test graphs and CLI roots
-// use.
-func newPeopleIdentityAccess(db *bun.DB, observe IdentityAccessObserver) *identityaccess.Module {
-	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: identityAccessObservation(observe)})
-	if err != nil {
-		panic(fmt.Sprintf("compose identity access: %v", err))
-	}
-	return module
 }
 
 func identityAccessObservation(observe IdentityAccessObserver) func(identityCompose.Observation) {
@@ -118,18 +61,6 @@ func identityAccessObservation(observe IdentityAccessObserver) func(identityComp
 	return func(observation identityCompose.Observation) {
 		observe(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
 			observation.Stats.StatementDuration, identityaccess.ErrorCode(observation.Err), observation.Err)
-	}
-}
-
-// peopleDirectoryAudit builds the Audit Platform persistence behind the People
-// Directory's audit seams (note deletion audit, field audit, consent history)
-// (ADR 0049). The repositories read and append through the Audit handoff on
-// the context, falling back to db.
-func peopleDirectoryAudit(db *bun.DB) peopleDirectoryAuditRepositories {
-	repositories := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db})
-	return peopleDirectoryAuditRepositories{
-		DataDeletion: repositories.DataDeletion, StudentFieldEdit: repositories.StudentFieldEdit,
-		StudentConsentChange: repositories.StudentConsentChange,
 	}
 }
 
@@ -321,17 +252,9 @@ func (c careplanCompanions) DeleteCompanionEdges(ctx context.Context, edgeIDs []
 // from the database alone, so every graph that builds the relationship store
 // also gets its owners.
 
-// newGuardianRelationshipOwners composes the Care Plan and Identity & Access
+// newGuardianRelationshipPorts binds the Care Plan and Identity & Access
 // commands behind the relationship's unit of work.
-func newGuardianRelationshipOwners(db *bun.DB, observeIdentity IdentityAccessObserver) (guardianPickupPort, guardianAccessPort) {
-	pickup, err := careplanCompose.NewGuardianPickupPermissions(db, func(careplanCompose.Observation) {})
-	if err != nil {
-		panic(fmt.Sprintf("compose guardian pickup permissions: %v", err))
-	}
-	access, err := identityCompose.NewGuardianStudentAccess(db, identityAccessObservation(observeIdentity))
-	if err != nil {
-		panic(fmt.Sprintf("compose guardian student access: %v", err))
-	}
+func newGuardianRelationshipPorts(pickup careplan.GuardianPickupPermissions, access identityaccess.GuardianStudentAccess) (guardianPickupPort, guardianAccessPort) {
 	return guardianPickupPort{owner: pickup}, guardianAccessPort{owner: access}
 }
 
@@ -370,9 +293,4 @@ func (p guardianAccessPort) SetGuardianStudentPermissions(ctx context.Context, t
 type guardianLinkOwners struct {
 	guardianPickupPort
 	guardianAccessPort
-}
-
-func newGuardianLinkOwners(db *bun.DB) guardianLinkOwners {
-	pickup, access := newGuardianRelationshipOwners(db, nil)
-	return guardianLinkOwners{guardianPickupPort: pickup, guardianAccessPort: access}
 }

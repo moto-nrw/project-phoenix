@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 )
 
 // settingsSource is the tenant-settings surface the presence adapters read

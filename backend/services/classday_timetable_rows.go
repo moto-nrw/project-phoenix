@@ -6,15 +6,15 @@ import (
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/uptrace/bun"
 )
 
 // NewClassDayTimetableRows binds the slot lists' block and roster reads to
 // the two owners of a block since the presence cutover (#2762): Timetable
 // plans it and its participants, Student Presence runs it and records the
-// attendance. Each read is one statement over the tenant-safe projection.
-func NewClassDayTimetableRows(db *bun.DB) classdayCompose.TimetableReader {
-	return classDayTimetableRows{reads: mustTimetablePresenceReads(db)}
+// attendance. Each read is one statement over the tenant-safe projection the
+// composition root composes over its database.
+func NewClassDayTimetableRows(reads timetableCompose.PresenceReads) classdayCompose.TimetableReader {
+	return classDayTimetableRows{reads: reads}
 }
 
 type classDayTimetableRows struct {
@@ -60,12 +60,4 @@ func (r classDayTimetableRows) ListRoster(ctx context.Context, instanceIDs []int
 		})
 	}
 	return result, nil
-}
-
-func mustTimetablePresenceReads(db *bun.DB) timetableCompose.PresenceReads {
-	reads, err := timetableCompose.NewPresenceReads(db)
-	if err != nil {
-		panic(err)
-	}
-	return reads
 }

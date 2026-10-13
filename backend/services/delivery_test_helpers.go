@@ -6,15 +6,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -59,7 +59,7 @@ func NewPushSubscriptionTestService(db *bun.DB, unit tenant.UnitOfWork, vapid no
 		return nil, err
 	}
 	service := notifications.NewPushSubscriptionService(db, deliveryCompose.NewPushSubscriptionRepository(db), identity, vapid, slog.Default())
-	service.(tenantRuntimeSetter).SetTenantRuntime(unit)
+	service.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
 	return service, nil
 }
 
@@ -91,8 +91,8 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 	delivery, err := deliveryCompose.New(deliveryCompose.Dependencies{
 		DB: db, People: guardianDisplayResolver{query: guardians}, Observe: func(deliveryModule.Observation) {},
 		Provider: &deliveryProvider{registry: emailoutbox.NewTemplateRegistry(nil), mailer: email.NewMockMailer(), mailIdentity: identity,
-			push:   deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{Subscriber: vapid.Subscriber, PublicKey: vapid.PublicKey, PrivateKey: vapid.PrivateKey}, newExpiredPushSubscriptionCleaner(db, pushRepo)),
-			logger: logger, db: db, pushAuthorized: newPushAuthorizationChecker(db, pushRepo)},
+			push:   deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{Subscriber: vapid.Subscriber, PublicKey: vapid.PublicKey, PrivateKey: vapid.PrivateKey}, newExpiredPushSubscriptionCleaner(deliveryCompose.NewTenantTransactions(db), pushRepo)),
+			logger: logger, tenants: deliveryCompose.NewTenantTransactions(db), pushAuthorized: newPushAuthorizationChecker(deliveryCompose.NewTenantTransactions(db), pushRepo)},
 	})
 	if err != nil {
 		return DeliveryTestModule{}, err
@@ -103,12 +103,12 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 	}
 	service := notifications.NewServiceWithDeliveryObserver(settings.Settings, logger, func(string, string, string, time.Duration, error) {},
 		notifications.NewSSEChannel(deliveryCompose.NewRealtimeHub(logger), notifications.WithGuardianChildAccess(db, parents.StudentGuardian, logger)),
-		notifications.NewDurableWebPushChannel(db, pushRepo, vapid, durablePushAdapter{module: delivery.Module}, logger))
-	service.(tenantRuntimeSetter).SetTenantRuntime(unit)
+		notifications.NewDurableWebPushChannel(db, pushRepo, vapid, deliveryCompose.NewDurablePushOutbox(delivery.Module), logger))
+	service.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
 	push := notifications.NewPushSubscriptionService(db, pushRepo, members, vapid, logger)
-	push.(tenantRuntimeSetter).SetTenantRuntime(unit)
+	push.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
 	preferences := notifications.NewPreferenceService(NewNotificationConsentTestStore(db), settings.Settings, db, members)
-	preferences.(tenantRuntimeSetter).SetTenantRuntime(unit)
+	preferences.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
 	return DeliveryTestModule{Delivery: delivery.Module, EmailOutbox: emailoutbox.NewService(durableEmailAdapter{module: delivery.Module}),
 		Notifications: service, PushSubscriptions: push, NotificationPreferences: preferences}, nil
 }

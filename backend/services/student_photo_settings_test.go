@@ -1,4 +1,4 @@
-package services_test
+package services
 
 // The registry routing of the student-photo settings key is tested where the
 // root composition wires it; the lifecycle behind it lives with the People
@@ -9,8 +9,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,10 +25,10 @@ func (f *fakeStudentPhotoService) HandleFeatureToggle(_ context.Context, _ int64
 func TestRegisterStudentPhotoSettingsSideEffectsDispatchesToTheService(t *testing.T) {
 	t.Parallel()
 
-	registry := sideeffects.NewRegistry()
+	registry := NewSettingsSideEffects()
 	service := &fakeStudentPhotoService{}
 
-	services.RegisterStudentPhotoSettingsSideEffects(registry, service)
+	RegisterStudentPhotoSettingsSideEffects(registry, service)
 
 	post, err := registry.Dispatch(context.Background(), 1, "operations.student_photos_enabled", true)
 	require.NoError(t, err)
@@ -42,10 +40,10 @@ func TestRegisterStudentPhotoSettingsSideEffectsDispatchesToTheService(t *testin
 func TestRegisterStudentPhotoSettingsSideEffectsIgnoresOtherKeys(t *testing.T) {
 	t.Parallel()
 
-	registry := sideeffects.NewRegistry()
+	registry := NewSettingsSideEffects()
 	service := &fakeStudentPhotoService{}
 
-	services.RegisterStudentPhotoSettingsSideEffects(registry, service)
+	RegisterStudentPhotoSettingsSideEffects(registry, service)
 
 	post, err := registry.Dispatch(context.Background(), 1, "operations.session_end_time", "18:00")
 	require.NoError(t, err)

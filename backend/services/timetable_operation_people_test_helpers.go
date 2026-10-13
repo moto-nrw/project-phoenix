@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
+	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 // TimetableTestStaffAccountPeople resolves every account to the person

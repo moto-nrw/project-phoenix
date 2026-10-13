@@ -6,14 +6,14 @@ import (
 	"log/slog"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
@@ -101,7 +101,7 @@ func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.L
 	if err != nil {
 		return nil, err
 	}
-	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+	identityAccess, err := newIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db}, accountAuthenticationWiring{
 		repos: sessionRepositories{
 			schools: schoolDirectory{schools: repos.School}, persons: repos.Person, authEvents: audits.AuthEvent, pushSubscriptions: repos.PushSubscription,
 		},
@@ -135,7 +135,7 @@ func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) (identityacces
 func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) studentpresence.Presence {
 	repos := NewSessionCleanupRepositories(db, timetableCapability)
 	groups, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
-	settings := NewCleanupSettingsService(db, runtime, schools, logger)
+	settings := NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)
 	return presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
 		SchoolPresence:  newStudentPresence(db, logger),
@@ -166,7 +166,7 @@ func NewRetentionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 	_, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
 	return presenceservice.NewPresenceCleanup(
 		newStudentPresence(db, logger), supervisors, NewDeletionAudit(repos.Deletion),
-		PresenceSettings(NewCleanupSettingsService(db, runtime, schools, logger)),
+		PresenceSettings(NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)),
 	)
 }
 
@@ -176,7 +176,7 @@ func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 		Owner:      timetableCapability,
 		Deletions:  audits.DataDeletion,
 		Deviations: audits.DeviationEvent,
-		Settings:   NewCleanupSettingsService(db, runtime, schools, logger),
+		Settings:   NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger),
 		Logger:     logger,
 	})
 }
@@ -184,7 +184,7 @@ func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) timetracking.TimeTrackingCleanupService {
 	repos := NewTimeTrackingCleanupRepositories(db)
 	return timetracking.NewTimeTrackingCleanupService(
-		repos.Session, repos.Absence, NewTimeTrackingRetentionAudit(cleanupAuditRepositories(db, command).DataDeletion), PresenceSettings(NewCleanupSettingsService(db, runtime, schools, logger)), logger,
+		repos.Session, repos.Absence, NewTimeTrackingRetentionAudit(cleanupAuditRepositories(db, command).DataDeletion), PresenceSettings(NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)), logger,
 	)
 }
 
@@ -229,6 +229,13 @@ type TimeTrackingCleanupService = timetracking.TimeTrackingCleanupService
 type TimeTrackingCleanupResult = timetracking.TimeTrackingCleanupResult
 type TimeTrackingCleanupPreview = timetracking.TimeTrackingCleanupPreview
 type TimeTrackingCleanupStats = timetracking.TimeTrackingCleanupStats
+
+// signedIdentityTokensOf adapts a root's resolved signer to the native claim
+// codec. The signing primitive stays in the token adapter; Identity owns the
+// claim schema and validation.
+func signedIdentityTokensOf(signer *authjwt.TokenAuth) (identityaccessCompose.SignedIdentityTokens, error) {
+	return NewSessionTokens(signer.JwtAuth, signer.JwtExpiry, signer.JwtRefreshExpiry)
+}
 
 // configuredTokenAuth resolves the signer of roots that receive no resolved
 // configuration: the cleanup CLI and the test compositions.

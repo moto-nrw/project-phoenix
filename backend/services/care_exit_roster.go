@@ -5,12 +5,11 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/uptrace/bun"
 )
 
 // careExitRoster serves the lifecycle's roster port over the two owners of a
@@ -28,11 +27,11 @@ type careExitRosterPresence interface {
 	studentpresence.SessionAttendanceCommand
 }
 
-func newCareExitRoster(db *bun.DB, roster timetable.Capability, presence careExitRosterPresence) careExitRoster {
-	if db == nil || roster == nil || presence == nil {
-		panic("care exit roster: database, timetable and student presence are required")
+func newCareExitRoster(reads timetableCompose.PresenceReads, roster timetable.Capability, presence careExitRosterPresence) careExitRoster {
+	if roster == nil || presence == nil {
+		panic("care exit roster: timetable and student presence are required")
 	}
-	return careExitRoster{reads: mustPresenceReads(db), roster: roster, presence: presence}
+	return careExitRoster{reads: reads, roster: roster, presence: presence}
 }
 
 func (r careExitRoster) LockPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after users.CalendarDate) error {

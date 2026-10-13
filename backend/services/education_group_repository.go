@@ -11,25 +11,24 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/uptrace/bun"
 )
 
 // NewGroupRepository is the retained group store of the School Structure
 // owner (#2742) with what other owners hold bound: the rooms through
 // Facilities, the teaching assignments through School Membership and the
 // substitutions through Workforce.
-func NewGroupRepository(db *bun.DB, rooms facilitiesModule.Query, membership schoolmembership.Capability, workTime workforce.Capability) *educationGroupRepository {
-	return NewEducationGroupRepository(db, educationRepo.GroupRepositoryDependencies{
+func NewGroupRepository(runtime educationRepo.LegacyRepositoryRuntime, rooms facilitiesModule.Query, membership schoolmembership.Capability, workTime workforce.Capability) *educationGroupRepository {
+	return newEducationGroupStore(runtime, educationRepo.GroupRepositoryDependencies{
 		Rooms:               func() educationRepo.GroupRoomLookup { return educationRoomDirectory{rooms: rooms} },
 		TeachingAssignments: groupTeachingAssignments(membership),
 		SupervisingStaff:    supervisionStaffResolver(membership, workforceSubstitutedStaff(workTime)),
 	})
 }
 
-// NewEducationGroupRepository is the retained group store on the tenant
+// newEducationGroupStore is the retained group store on the tenant
 // runtime of the School Structure owner, with only the given dependencies
 // bound.
-func NewEducationGroupRepository(db *bun.DB, options ...educationRepo.GroupRepositoryDependencies) *educationGroupRepository {
+func newEducationGroupStore(runtime educationRepo.LegacyRepositoryRuntime, options ...educationRepo.GroupRepositoryDependencies) *educationGroupRepository {
 	var deps educationRepo.GroupRepositoryDependencies
 	if len(options) > 0 {
 		deps = options[0]
@@ -38,7 +37,7 @@ func NewEducationGroupRepository(db *bun.DB, options ...educationRepo.GroupRepos
 		// No room owner bound: the room reads report the missing lookup.
 		deps.Rooms = func() educationRepo.GroupRoomLookup { return nil }
 	}
-	return &educationGroupRepository{GroupRepository: educationRepo.NewGroupRepository(educationRepo.NewLegacyRepositoryRuntime(db), deps)}
+	return &educationGroupRepository{GroupRepository: educationRepo.NewGroupRepository(runtime, deps)}
 }
 
 type educationGroupRepository struct {

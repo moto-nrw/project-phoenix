@@ -42,6 +42,7 @@ func newCallerRowsForTests(db *bun.DB, settings callerSettings) (*CallerRows, er
 		SupervisedActivities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup).SupervisedActivityGroupIDs,
 		Presence:             newStudentPresence(db, slog.Default()),
 		Settings:             settings,
+		Tokens:               testRequestTokens,
 	}, CallerRowSources{
 		Groups: tt.Group, Staff: tt.Staff, Teachers: tt.Teacher, Students: tt.Student,
 		Activities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup), Sessions: tt.ActiveGroup,

@@ -3,11 +3,12 @@ package services
 import (
 	"time"
 
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importService "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	auditService "github.com/moto-nrw/project-phoenix/services/audit"
-	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -44,7 +45,7 @@ func NewImportTestModule(db *bun.DB, unit tenant.UnitOfWork) (ImportTestModule, 
 // NewImportTestModuleWithOptions is NewImportTestModule with decorated owner
 // ports.
 func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options ImportTestOptions) (ImportTestModule, error) {
-	command, err := auditService.NewCommand(NewTestAuditStore(db), func(auditService.AppendObservation) {})
+	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return ImportTestModule{}, err
 	}
@@ -83,7 +84,7 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 	if err != nil {
 		return ImportTestModule{}, err
 	}
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return ImportTestModule{}, err
 	}
@@ -102,7 +103,7 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 		Persons: persons, Membership: membership, Workforce: workTime,
 		CarePlan: repos.CarePlan, Presence: NewStudentPresenceForTests(db),
 		InvitationService: auth.Invitation,
-		ConsentHistory:    auditService.NewConsentRecorder(command),
+		ConsentHistory:    auditCompose.NewConsentRecorder(command),
 		OpeningBalance: importService.OpeningBalanceImportDeps{
 			BalanceAdjustService: OpeningBalanceBookingCapability(workforce.StaffBalanceAdjust),
 			StaffAbsenceService:  VacationTakeoverCapability(workforce.StaffAbsence),

@@ -5,7 +5,7 @@ import (
 
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/uptrace/bun"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
 // pickupExcusalTimetable connects the Care Plan workflow to Timetable's
@@ -16,8 +16,8 @@ type pickupExcusalTimetable struct {
 	partialAbsenceBlocks
 }
 
-func newPickupExcusalTimetable(capability timetable.Capability, db *bun.DB) pickupExcusalTimetable {
-	return pickupExcusalTimetable{Capability: capability, partialAbsenceBlocks: newPartialAbsenceBlocks(db)}
+func newPickupExcusalTimetable(capability timetable.Capability, preview timetableCompose.PartialAbsencePreview) pickupExcusalTimetable {
+	return pickupExcusalTimetable{Capability: capability, partialAbsenceBlocks: newPartialAbsenceBlocks(preview)}
 }
 
 func (a pickupExcusalTimetable) RecordPickupDayExtension(ctx context.Context, input careplanCompose.PickupDayExtension) error {

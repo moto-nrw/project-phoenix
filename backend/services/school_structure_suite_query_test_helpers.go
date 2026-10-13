@@ -1,6 +1,6 @@
 package services
 
-import usersModels "github.com/moto-nrw/project-phoenix/models/users"
+import usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 
 // The query shapes the retained School Structure substitution suites list
 // with. The suites may import neither the retained models nor the shared

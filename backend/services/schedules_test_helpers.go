@@ -1,10 +1,10 @@
 package services
 
 import (
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -27,7 +27,7 @@ func NewScheduleTestModule(db *bun.DB, unit tenant.UnitOfWork) (ScheduleTestModu
 	if err != nil {
 		return ScheduleTestModule{}, err
 	}
-	recurrenceLock, err := NewTimetableRecurrenceLock(db)
+	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return ScheduleTestModule{}, err
 	}

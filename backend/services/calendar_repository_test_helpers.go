@@ -1,11 +1,11 @@
 package services
 
 import (
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
@@ -94,7 +94,7 @@ type CalendarFeedTestRepositories struct {
 }
 
 func NewCalendarFeedTestRepositories(db *bun.DB) CalendarFeedTestRepositories {
-	identity := newIdentityAccess(db, nil)
+	identity := newPeopleIdentityAccess(db, nil)
 	return CalendarFeedTestRepositories{StaffFeed: identity, ParentFeed: identity,
 		Tombstone: schoolCalendarCompose.NewFeedHistory(db)}
 }

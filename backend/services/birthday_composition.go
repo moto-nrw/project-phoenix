@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 )
 
 // BirthdayCapability is the People Directory birthday display the factory

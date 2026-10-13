@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
+	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 )
 
 // The guardian invitation mail: this file writes the outbox payload the

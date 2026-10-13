@@ -6,14 +6,14 @@ import (
 	"log/slog"
 	"strings"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/services/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 )
 
 // The bindings below compose Enrollment's intake and change requests (#3565)
@@ -189,19 +189,19 @@ func (r enrollmentReviewerNames) ReviewerNames(ctx context.Context, accountIDs [
 type enrollmentIntakeSettings struct{ settings EnrollmentIntakeSettings }
 
 func (s enrollmentIntakeSettings) EnrollmentEnabled(ctx context.Context) bool {
-	return config.ResolveBoolOrDefault(ctx, s.settings, configModels.KeyEnrollmentEnabled, false, nil)
+	return settingsCompose.ResolveBoolOrDefault(ctx, s.settings, configModels.KeyEnrollmentEnabled, false, nil)
 }
 
 func (s enrollmentIntakeSettings) AllowSubmissionEdit(ctx context.Context) bool {
-	return config.ResolveBoolOrDefault(ctx, s.settings, configModels.KeyEnrollmentAllowSubmissionEdit, true, nil)
+	return settingsCompose.ResolveBoolOrDefault(ctx, s.settings, configModels.KeyEnrollmentAllowSubmissionEdit, true, nil)
 }
 
 func (s enrollmentIntakeSettings) StatusTokenTTLDays(ctx context.Context) int {
-	return config.ResolveIntOrDefault(ctx, s.settings, configModels.KeyEnrollmentStatusTokenTTLDays, 365, nil)
+	return settingsCompose.ResolveIntOrDefault(ctx, s.settings, configModels.KeyEnrollmentStatusTokenTTLDays, 365, nil)
 }
 
 func (s enrollmentIntakeSettings) AdminNotificationEmails(ctx context.Context) string {
-	return config.ResolveStringOrDefault(ctx, s.settings, configModels.KeyEnrollmentNotificationEmails, "", nil)
+	return settingsCompose.ResolveStringOrDefault(ctx, s.settings, configModels.KeyEnrollmentNotificationEmails, "", nil)
 }
 
 func (s enrollmentIntakeSettings) DuplicateHandling(ctx context.Context) (string, error) {
@@ -249,14 +249,14 @@ var enrollmentLegalSettingKeys = []string{
 // and a failure is propagated because the texts drive legal blocks.
 func (s enrollmentIntakeSettings) LegalSettings(ctx context.Context) (enrollmentCompose.LegalSettings, error) {
 	if batch, ok := s.settings.(interface {
-		ResolveMany(context.Context, []string) (*config.SettingsSnapshot, error)
+		ResolveMany(context.Context, []string) (*settingsCompose.SettingsSnapshot, error)
 	}); ok {
 		snapshot, err := batch.ResolveMany(ctx, enrollmentLegalSettingKeys)
 		if err != nil {
 			return enrollmentCompose.LegalSettings{}, fmt.Errorf("resolve legal settings: %w", err)
 		}
 		if snapshot != nil {
-			ctx = config.WithSettingsSnapshot(ctx, snapshot)
+			ctx = settingsCompose.WithSettingsSnapshot(ctx, snapshot)
 		}
 	}
 	var out enrollmentCompose.LegalSettings

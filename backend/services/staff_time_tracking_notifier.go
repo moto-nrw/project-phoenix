@@ -5,8 +5,8 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
-	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // StaffTimeTrackingNotifier returns the post-commit notification that

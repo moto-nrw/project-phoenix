@@ -2,14 +2,14 @@ package services
 
 import (
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
 
 // KioskSessionMirror binds the kiosk session mirror to the
 // retained timetable rows of the test repositories, the way the root binds
 // it to the production ones. The instance rows are returned for read-back.
-func (TimetableTestModule) KioskSessionMirror(db *bun.DB, activities activitiesSvc.ActivityService) (devicescanCompose.SessionMirror, devicescanCompose.MirrorInstances, error) {
+func (TimetableTestModule) KioskSessionMirror(db *bun.DB, activities timetableCompose.ActivityService) (devicescanCompose.SessionMirror, devicescanCompose.MirrorInstances, error) {
 	repos, err := NewTimetableTestRepositories(db)
 	if err != nil {
 		return nil, nil, err

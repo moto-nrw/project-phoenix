@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services/config"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 
@@ -66,12 +66,12 @@ func (r reminderPickupReader) GetBulkEffectivePickupTimesForDate(ctx context.Con
 }
 
 type reminderSettings struct {
-	config.SettingsService
+	settingsCompose.SettingsService
 }
 
 func (r reminderSettings) Snapshot(ctx context.Context) (context.Context, error) {
 	batch, ok := r.SettingsService.(interface {
-		ResolveMany(context.Context, []string) (*config.SettingsSnapshot, error)
+		ResolveMany(context.Context, []string) (*settingsCompose.SettingsSnapshot, error)
 	})
 	if !ok {
 		return ctx, nil
@@ -89,7 +89,7 @@ func (r reminderSettings) Snapshot(ctx context.Context) (context.Context, error)
 	if err != nil {
 		return ctx, err
 	}
-	return config.WithSettingsSnapshot(ctx, snapshot), nil
+	return settingsCompose.WithSettingsSnapshot(ctx, snapshot), nil
 }
 
 func (r reminderSettings) PickupUpcomingEnabled(ctx context.Context) (bool, error) {

@@ -3,6 +3,8 @@ package services
 import (
 	"fmt"
 
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+
 	"github.com/uptrace/bun"
 )
 
@@ -15,7 +17,7 @@ func NewUnobservedTimetableDependencies(db *bun.DB) TimetableDependencies {
 	if err != nil {
 		panic(fmt.Sprintf("compose timetable students: %v", err))
 	}
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		panic(fmt.Sprintf("compose timetable rooms: %v", err))
 	}

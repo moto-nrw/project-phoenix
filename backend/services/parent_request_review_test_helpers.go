@@ -1,6 +1,6 @@
 package services
 
-import userModels "github.com/moto-nrw/project-phoenix/models/users"
+import userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 
 // ParentRequestReviewStudent returns a detached student row that belongs to
 // groupID (nil: no group), for the review policy suites that decide over the

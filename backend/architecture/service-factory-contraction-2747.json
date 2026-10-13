@@ -1,0 +1,130 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2743",
+    "#3970"
+  ],
+  "owner_and_capability": "The legacy composition (legacy-composition: services) stops importing owner application, domain and platform packages: it names the retained services of Activities, Facilities, Device Fleet, Staff Clock, Data Import, Audit Platform, Settings Platform, Communication, Document Rendering and Transaction Runtime through their compositions or contracts, and the records and keys of models/{config,platform,audit,users} through the vocabulary packages of Settings Platform, Organization & Tenancy, Audit Platform and People Directory. Mail and live events come through Delivery (modules/delivery/compose/{email,realtime}), calendar dates through sharedkernel/calendar, the missing-row sentinel through modules/transactionruntime; the root (root-composition: api) builds the analytics tracker. Policy epoch 38 per ADR 0050.",
+  "affected_packages": [
+    "services",
+    "api",
+    "cmd",
+    "modules/settings/compose/vocabulary",
+    "modules/organizationtenancy/compose/vocabulary",
+    "modules/auditlog/compose/vocabulary",
+    "modules/peopledirectory/compose/vocabulary",
+    "modules/delivery/compose/email",
+    "modules/delivery/compose/realtime",
+    "modules/dataimport/compose/retained",
+    "workflows/staffclock/compose",
+    "internal/architecture"
+  ],
+  "affected_tables": [
+    "None: code-only composition change, no database tables or DDL affected."
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/config/sideeffects",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|database/sql",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/analytics",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/email",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/internal/timezone",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/models/audit",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/models/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/models/platform",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/models/users",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/realtime",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/activities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/audit",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/config",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/config/defaults",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/config/sideeffects",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/database",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/facilities",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/import",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/iot",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/iot/staffclock",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/listexport",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/parentmessaging"
+  ],
+  "atomic_cutover": "One reviewed epoch (37 -> 38, ADR 0050). serviceFactoryCutoverPermission (internal/architecture/service_factory_cutover.go), anchored on the base classifying services as legacy-composition/compose, grants exactly five production pairs between points that exist at the base: legacy-composition/compose -> document-rendering/contract and -> transaction-runtime/public, data-import/compose -> data-import/application, audit-platform/compose -> audit-platform/application and -> audit-platform/domain; the matching rules carry issue #2747. The new vocabulary and compose subpackages inherit their parent compose points. The production adapters in services no longer hold database, tenant-transaction or JWT logic; it lives in the owner compositions or is injected by the root as built values. The legacy composition's external suites run as internal tests. 23 of the 26 #2747 keys fall (109 -> 86 after merging development), composition surface 260 -> 259. The bun, tenant and legacy/jwt keys of services remain with the multi-owner database builders and the test hooks; services.Factory and NewFactoryWithModules stay. No route, status code, error string, table or write owner changes.",
+  "tests": [
+    "services: tenant runtime binding regression tests (bind through an owner interface field, reject a mistyped SetTenantRuntime, skip a field without one); the binding test failed before the reflection fix.",
+    "internal/architecture: service_factory_cutover_test.go grants the five pairs in production only and refuses the test scopes, other sources and targets, and a failed anchor (same epoch, services missing or reclassified at the base, foreign module path).",
+    "The moved owner composition suites and the legacy composition suites pass with unchanged assertions.",
+    "scripts/backend-architecture.sh check --base-ref origin/development: 86 legacy violations, composition surface 260 -> 259.",
+    "scripts/test-changed.sh origin/development without --fast; golangci-lint run; scripts/check-deadcode.sh; go vet ./..."
+  ],
+  "runtime_evidence": {
+    "source": "Local runs on the PR branch. The change moves composition code between packages without changing what is built, so the evidence is the unchanged suites, the binding regression test and the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/services/tenant_runtime.go",
+      "backend/services/tenant_runtime_binding_test.go",
+      "backend/internal/architecture/service_factory_cutover.go",
+      "backend/internal/architecture/service_factory_cutover_test.go",
+      "docs/adr/0050-legacy-composition-names-retained-services-through-owner-compositions.md"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suites pass with unchanged assertion strength, and the architecture check reports no new violation, no stale baseline entry and no policy loosening outside the five granted pairs.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "No write path changes."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "Behaviour is unchanged: the moved code builds the same owners, repositories and adapters over the same database in the owner compositions instead of in services, and the root hands the legacy composition built values; no query, route or worker changes."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "Behaviour is unchanged: the moved code builds the same owners, repositories and adapters over the same database in the owner compositions instead of in services, and the root hands the legacy composition built values; no query, route or worker changes."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "Behaviour is unchanged: the moved code builds the same owners, repositories and adapters over the same database in the owner compositions instead of in services, and the root hands the legacy composition built values; no query, route or worker changes."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development without --fast on the final merged state: 97 packages passed; modules/careplan/contracttest and modules/careplan/inbound/parent failed with an i/o timeout acquiring the local test database lifecycle lock and passed when rerun on their own. golangci-lint reported 0 issues; scripts/check-deadcode.sh reported no unexpected dead code."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "Behaviour is unchanged: the moved code builds the same owners, repositories and adapters over the same database in the owner compositions instead of in services, and the root hands the legacy composition built values; no query, route or worker changes."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "Behaviour is unchanged: the moved code builds the same owners, repositories and adapters over the same database in the owner compositions instead of in services, and the root hands the legacy composition built values; no query, route or worker changes."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "Behaviour is unchanged: the moved code builds the same owners, repositories and adapters over the same database in the owner compositions instead of in services, and the root hands the legacy composition built values; no query, route or worker changes."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "No worker path changes; the worker jobs compose the same owners through the same roots."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No worker path changes; the worker jobs compose the same owners through the same roots."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No worker path changes; the worker jobs compose the same owners through the same roots."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "A SetTenantRuntime with the wrong signature now fails Factory.SetTenantRuntime and therefore startup, instead of leaving the service without a runtime (tenant runtime binding regression test)."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No write path or data changes."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "scripts/backend-architecture.sh check passed locally with the 23 keys absent: 109 -> 86 legacy violations, composition surface 260 -> 259."
+    }
+  },
+  "rollback_and_cleanup": "Revert the commits; the cutover permission, the five rules, the epoch, the vocabulary and compose subpackages and the 23 baseline entries return together. No data cleanup.",
+  "exit_criterion": "The 23 keys are absent from legacy.jsonl, only the five granted pairs loosen the policy, scripts/backend-architecture.sh check passes, and runtime behaviour, tables, routes and error texts are unchanged. #2747 itself stays open for the bun, tenant and legacy/jwt keys and the deletion of services.Factory."
+}

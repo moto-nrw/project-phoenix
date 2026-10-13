@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 // This file is the composition seam of the consent story (#3349): People

@@ -4,21 +4,18 @@ import (
 	"context"
 
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
-	"github.com/uptrace/bun"
 )
 
 type CalendarReminderSource interface {
 	ReminderEffects() calendarService.ReminderEffects
 }
 
-// NewCalendarReminderCommand binds the existing notification adapters to the
-// reminder workflow without constructing a repository or service factory.
-func NewCalendarReminderCommand(db *bun.DB, source CalendarReminderSource) reminder.Command {
+// calendarReminderDelivery binds the existing notification adapters of the
+// calendar to the reminder workflow's delivery port.
+func calendarReminderDelivery(source CalendarReminderSource) ports.DeliveryDependencies {
 	effects := source.ReminderEffects()
-	return reminderCompose.NewCommand(db, ports.DeliveryDependencies{
+	return ports.DeliveryDependencies{
 		Appointments: effects.Appointments, Email: effects.Email, Push: effects.Push,
 		FilterEmail: effects.FilterEmail, FilterPush: effects.FilterPush, Brand: effects.Brand,
 		WhenText: effects.WhenText, NoDelivery: effects.NoDelivery, ParentsURL: effects.ParentsURL, Logger: effects.Logger,
@@ -40,5 +37,5 @@ func NewCalendarReminderCommand(db *bun.DB, source CalendarReminderSource) remin
 			}
 			return result, nil
 		},
-	})
+	}
 }

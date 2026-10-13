@@ -6,16 +6,18 @@ import (
 	"time"
 
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
@@ -32,7 +34,7 @@ type AuthCleanupRepositories struct {
 
 func NewAuthCleanupRepositories(db *bun.DB) AuthCleanupRepositories {
 	return AuthCleanupRepositories{
-		School: mustNewOrganizationTenancy(db), Person: newPersonRepository(db),
+		School: mustNewOrganizationTenancy(db), Person: NewPersonRepository(db),
 		PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 	}
 }
@@ -60,7 +62,7 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 		panic(fmt.Sprintf("session cleanup repositories: compose device fleet: %v", err))
 	}
 	device := devicefleetRepositoryAdapter.NewDeviceRepository(fleet)
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		panic(fmt.Sprintf("session cleanup repositories: compose facilities: %v", err))
 	}
@@ -86,7 +88,10 @@ func NewTimeTrackingCleanupRepositories(db *bun.DB) TimeTrackingCleanupRepositor
 	if err != nil {
 		panic(fmt.Sprintf("time tracking cleanup repositories: compose school membership: %v", err))
 	}
-	workTime, err := NewWorkforce(db, membership)
+	workTime, err := workforceCompose.New(workforceCompose.Dependencies{
+		LockStaffAssignment: WorkforceStaffAssignmentLock(membership), DB: db,
+		LiveStaffIDs: WorkforceLiveStaffIDs(membership), Observe: func(workforceCompose.Observation) {},
+	})
 	if err != nil {
 		panic(fmt.Sprintf("time tracking cleanup repositories: compose workforce: %v", err))
 	}
