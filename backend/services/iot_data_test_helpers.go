@@ -45,7 +45,7 @@ func NewIoTDataTestModule(db *bun.DB, unit tenant.UnitOfWork) (IoTDataTestModule
 	if err != nil {
 		return IoTDataTestModule{}, err
 	}
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return IoTDataTestModule{}, err
 	}

@@ -6,6 +6,7 @@ import (
 
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -38,7 +39,7 @@ func NewCheckinTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() t
 	if err != nil {
 		return CheckinTestModule{}, err
 	}
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return CheckinTestModule{}, err
 	}

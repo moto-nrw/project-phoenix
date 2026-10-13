@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	"github.com/uptrace/bun"
@@ -20,7 +21,7 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 	if err != nil {
 		return MembershipTestRepositories{}, err
 	}
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return MembershipTestRepositories{}, err
 	}

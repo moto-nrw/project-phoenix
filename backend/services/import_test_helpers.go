@@ -6,6 +6,7 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	importService "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -83,7 +84,7 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 	if err != nil {
 		return ImportTestModule{}, err
 	}
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return ImportTestModule{}, err
 	}

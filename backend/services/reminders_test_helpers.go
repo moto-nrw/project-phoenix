@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 
@@ -23,7 +24,7 @@ type RemindersTestModule struct {
 }
 
 func NewRemindersTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (RemindersTestModule, error) {
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return RemindersTestModule{}, err
 	}

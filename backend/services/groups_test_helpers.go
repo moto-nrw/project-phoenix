@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -54,7 +55,7 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork, publishers ...realt
 		PersonRepo:       tt.Person, StudentRepo: tt.Student, TeacherRepo: tt.Teacher, AccountExists: AccountExists(r.Profile),
 		StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{DB: db, Persons: tt.Person, Staff: tt.Staff, Teachers: tt.Teacher}),
 	})
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return GroupsTestModule{}, err
 	}

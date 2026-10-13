@@ -9,6 +9,7 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -60,7 +61,7 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 		panic(fmt.Sprintf("session cleanup repositories: compose device fleet: %v", err))
 	}
 	device := devicefleetRepositoryAdapter.NewDeviceRepository(fleet)
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		panic(fmt.Sprintf("session cleanup repositories: compose facilities: %v", err))
 	}

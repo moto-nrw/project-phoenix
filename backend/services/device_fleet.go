@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/uptrace/bun"
 )
@@ -15,7 +16,7 @@ import (
 // dashboard. Production roots compose the module themselves (api/base.go) so
 // runtime evidence and the dashboard collaborators are kept.
 func NewDeviceFleet(db *bun.DB, onlineWindows ...func(context.Context) time.Duration) (devicefleet.Capability, error) {
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return nil, err
 	}

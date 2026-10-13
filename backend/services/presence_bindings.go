@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -145,7 +146,7 @@ func NewStudentPresence(db *bun.DB, observe func(presenceCompose.Observation)) (
 	// The roster reads and the care-day row lock are People Directory reads;
 	// they need none of the owner's write owners or audit seams.
 	students := peopleDirectoryReads(db)
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return nil, err
 	}

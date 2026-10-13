@@ -63,7 +63,7 @@ func NewTimetableTestRepositoriesWithMembers(db *bun.DB, members MembershipTestR
 		now = clocks[0]
 	}
 	persons := members.People
-	timetableRooms, err := NewFacilities(db)
+	timetableRooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
@@ -87,7 +87,7 @@ func NewTimetableTestRepositoriesWithMembers(db *bun.DB, members MembershipTestR
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	rooms, err := NewFacilities(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
