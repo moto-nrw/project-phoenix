@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -17,15 +17,14 @@ import (
 // rows over the Care Plan capability. Its consumers own the ports they need.
 // All methods MUST run inside a tenant transaction.
 type ExcusedAbsenceRequestRepository struct{ capability careplan.Capability }
-type careScheduleRequestRepository struct{ capability careplan.Capability }
 type studentDataRequestRepository struct{ capability careplan.Capability }
 
 func NewExcusedAbsenceRequestRepository(capability careplan.Capability) *ExcusedAbsenceRequestRepository {
 	return &ExcusedAbsenceRequestRepository{capability: capability}
 }
 
-func NewCareScheduleChangeRequestRepository(capability careplan.Capability) scheduleModels.CareScheduleChangeRequestRepository {
-	return careScheduleRequestRepository{capability: capability}
+func NewCareScheduleChangeRequestRepository(capability careplan.Capability) timetableCompose.CareScheduleRequestRows {
+	return timetableCompose.NewCareScheduleRequestRows(NewCarePlanRows(capability))
 }
 
 func NewStudentDataChangeRequestRepository(capability careplan.Capability) userModels.StudentDataChangeRequestRepository {
@@ -128,137 +127,6 @@ func mapExcusedRequestError(err error) error {
 		return absencerecords.ErrExcusedRequestNotPending
 	case errors.Is(err, careplan.ErrExcusedRequestNotDecided):
 		return absencerecords.ErrExcusedRequestNotDecided
-	default:
-		return err
-	}
-}
-
-func (r careScheduleRequestRepository) Create(ctx context.Context, row *scheduleModels.CareScheduleChangeRequest) error {
-	if row == nil {
-		return errors.New("CareScheduleChangeRequest cannot be nil or zero value")
-	}
-	value, err := careScheduleRequestFromLegacy(row)
-	if err != nil {
-		return err
-	}
-	created, err := r.capability.CreateCareScheduleRequest(ctx, value)
-	if err != nil {
-		return err
-	}
-	updated, err := careScheduleRequestFromPublic(created)
-	if err == nil {
-		*row = *updated
-	}
-	return err
-}
-
-func (r careScheduleRequestRepository) FindByID(ctx context.Context, raw any) (*scheduleModels.CareScheduleChangeRequest, error) {
-	id, err := legacyScheduleID(raw)
-	if err != nil {
-		return nil, err
-	}
-	value, err := r.capability.FindCareScheduleRequest(ctx, id, false)
-	if errors.Is(err, careplan.ErrCareScheduleRequestNotFound) {
-		return nil, retainedNotFound("find by id")
-	}
-	if err != nil {
-		return nil, err
-	}
-	return careScheduleRequestFromPublic(value)
-}
-
-func (r careScheduleRequestRepository) GetPendingForStudent(ctx context.Context, studentID int64) (*scheduleModels.CareScheduleChangeRequest, error) {
-	return r.GetPendingForStudentAndKind(ctx, studentID, scheduleModels.CareRequestKindWeeklySchedule)
-}
-
-func (r careScheduleRequestRepository) GetPendingForStudentAndKind(ctx context.Context, studentID int64, kind string) (*scheduleModels.CareScheduleChangeRequest, error) {
-	values, err := r.list(ctx, careplan.CareScheduleRequestFilter{StudentID: studentID, RequestKinds: []string{kind}, Statuses: []string{scheduleModels.CareRequestStatusPending}})
-	if err != nil || len(values) == 0 {
-		return nil, err
-	}
-	return values[0], nil
-}
-
-func (r careScheduleRequestRepository) ListPendingForTenant(ctx context.Context, filters scheduleModels.RequestQueueFilters) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	return r.list(ctx, careplan.CareScheduleRequestFilter{Statuses: []string{scheduleModels.CareRequestStatusPending}, Queue: publicScheduleQueueFilter(filters)})
-}
-
-func (r careScheduleRequestRepository) ListPendingForTenantAndKind(ctx context.Context, kind string, filters scheduleModels.RequestQueueFilters) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	return r.list(ctx, careplan.CareScheduleRequestFilter{RequestKinds: []string{kind}, Statuses: []string{scheduleModels.CareRequestStatusPending}, Queue: publicScheduleQueueFilter(filters)})
-}
-
-func (r careScheduleRequestRepository) ListRecentForStudentAndKind(ctx context.Context, studentID int64, kind string, since time.Time) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	return r.list(ctx, careplan.CareScheduleRequestFilter{StudentID: studentID, RequestKinds: []string{kind}, RecentSince: since})
-}
-
-func (r careScheduleRequestRepository) ListDecidedForTenant(ctx context.Context, filters scheduleModels.RequestQueueFilters) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	return r.list(ctx, careplan.CareScheduleRequestFilter{Statuses: []string{scheduleModels.CareRequestStatusApproved, scheduleModels.CareRequestStatusRejected, scheduleModels.CareRequestStatusWithdrawn}, Queue: publicScheduleQueueFilter(filters)})
-}
-
-func (r careScheduleRequestRepository) list(ctx context.Context, filter careplan.CareScheduleRequestFilter) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	values, err := r.capability.ListCareScheduleRequests(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*scheduleModels.CareScheduleChangeRequest, 0, len(values))
-	for _, value := range values {
-		row, convertErr := careScheduleRequestFromPublic(value)
-		if convertErr != nil {
-			return nil, convertErr
-		}
-		result = append(result, row)
-	}
-	return result, nil
-}
-
-func (r careScheduleRequestRepository) FindPendingByIDForUpdate(ctx context.Context, id int64) (*scheduleModels.CareScheduleChangeRequest, error) {
-	value, err := r.capability.FindPendingCareScheduleRequest(ctx, id)
-	if err != nil {
-		return nil, mapCareScheduleRequestError(err)
-	}
-	return careScheduleRequestFromPublic(value)
-}
-
-func (r careScheduleRequestRepository) FindByIDForUpdate(ctx context.Context, id int64) (*scheduleModels.CareScheduleChangeRequest, error) {
-	value, err := r.capability.FindCareScheduleRequest(ctx, id, true)
-	if err != nil {
-		return nil, mapCareScheduleRequestError(err)
-	}
-	return careScheduleRequestFromPublic(value)
-}
-
-func (r careScheduleRequestRepository) UpdatePending(ctx context.Context, id int64, payload map[string]any) error {
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	return mapCareScheduleRequestError(r.capability.UpdatePendingCareScheduleRequest(ctx, id, encoded))
-}
-
-func (r careScheduleRequestRepository) Decide(ctx context.Context, id int64, status string, reason *string, reviewedBy *int64, applied bool) error {
-	return mapCareScheduleRequestError(r.capability.DecideCareScheduleRequest(ctx, careplan.CareScheduleRequestDecision{ID: id, Status: status, Reason: reason, ReviewedBy: reviewedBy, Applied: applied}))
-}
-
-func (r careScheduleRequestRepository) Redecide(ctx context.Context, id int64, status string, reason *string, reviewedBy int64, applied bool) error {
-	return mapCareScheduleRequestError(r.capability.RedecideCareScheduleRequest(ctx, careplan.CareScheduleRequestDecision{ID: id, Status: status, Reason: reason, ReviewedBy: &reviewedBy, Applied: applied}))
-}
-
-func (r careScheduleRequestRepository) UpdateDecisionSnapshot(ctx context.Context, id int64, snapshot *scheduleModels.CareRequestDecisionSnapshot) error {
-	encoded, err := json.Marshal(snapshot)
-	if err != nil {
-		return err
-	}
-	return mapCareScheduleRequestError(r.capability.UpdateCareScheduleRequestSnapshot(ctx, id, encoded))
-}
-
-func mapCareScheduleRequestError(err error) error {
-	switch {
-	case errors.Is(err, careplan.ErrCareScheduleRequestNotFound):
-		return scheduleModels.ErrCareRequestNotFound
-	case errors.Is(err, careplan.ErrCareScheduleRequestNotPending):
-		return scheduleModels.ErrCareRequestNotPending
-	case errors.Is(err, careplan.ErrCareScheduleRequestNotDecided):
-		return scheduleModels.ErrCareRequestNotDecided
 	default:
 		return err
 	}
@@ -368,23 +236,12 @@ func publicQueueFilter(value userModels.RequestQueueFilters) *careplan.RequestQu
 	return &careplan.RequestQueueFilter{UrgentOnly: value.UrgentOnly, UrgentDate: value.UrgentDate, StudentIDs: value.StudentIDs, StudentID: value.StudentID, Search: value.Search, BeforeInstant: value.BeforeInstant, BeforeID: value.BeforeID, Limit: value.Limit}
 }
 
-func publicScheduleQueueFilter(value scheduleModels.RequestQueueFilters) *careplan.RequestQueueFilter {
-	return &careplan.RequestQueueFilter{UrgentOnly: value.UrgentOnly, UrgentDate: value.UrgentDate, StudentIDs: value.StudentIDs, StudentID: value.StudentID, Search: value.Search, BeforeInstant: value.BeforeInstant, BeforeID: value.BeforeID, Limit: value.Limit}
-}
-
 func excusedRequestsToLegacy(values []careplan.ExcusedAbsenceRequest) []*absencerecords.ExcusedAbsenceRequest {
 	result := make([]*absencerecords.ExcusedAbsenceRequest, 0, len(values))
 	for _, value := range values {
 		result = append(result, excusedRequestFromPublic(value))
 	}
 	return result
-}
-
-func careScheduleRequestFromLegacy(row *scheduleModels.CareScheduleChangeRequest) (careplan.CareScheduleChangeRequest, error) {
-	if row == nil {
-		return careplan.CareScheduleChangeRequest{}, fmt.Errorf("care schedule change request is required")
-	}
-	return careScheduleRequestToPublic(row)
 }
 
 func excusedRequestFromPublic(value careplan.ExcusedAbsenceRequest) *absencerecords.ExcusedAbsenceRequest {
@@ -403,39 +260,6 @@ func excusedRequestToPublic(row *absencerecords.ExcusedAbsenceRequest) careplan.
 		dates[i] = careplan.Date(row.Dates[i])
 	}
 	return careplan.ExcusedAbsenceRequest{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StudentID: row.StudentID, SubmittedBy: row.SubmittedBy, Dates: dates, Note: row.Note, AbsenceStatus: row.AbsenceStatus, Status: row.Status, DecisionReason: row.DecisionReason, ReviewedBy: row.ReviewedBy, ReviewedAt: row.ReviewedAt, AppliedAt: row.AppliedAt}
-}
-
-func careScheduleRequestToPublic(row *scheduleModels.CareScheduleChangeRequest) (careplan.CareScheduleChangeRequest, error) {
-	var snapshot json.RawMessage
-	if row.DecisionSnapshot != nil {
-		var err error
-		snapshot, err = json.Marshal(row.DecisionSnapshot)
-		if err != nil {
-			return careplan.CareScheduleChangeRequest{}, fmt.Errorf("encode care schedule request decision snapshot: %w", err)
-		}
-	}
-	payload, err := json.Marshal(row.Payload)
-	if err != nil {
-		return careplan.CareScheduleChangeRequest{}, fmt.Errorf("encode care schedule request payload: %w", err)
-	}
-	return careplan.CareScheduleChangeRequest{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StudentID: row.StudentID, SubmittedBy: row.SubmittedBy, RequestKind: row.RequestKind, Payload: payload, Status: row.Status, DecisionReason: row.DecisionReason, ReviewedBy: row.ReviewedBy, ReviewedAt: row.ReviewedAt, AppliedAt: row.AppliedAt, DecisionSnapshot: snapshot}, nil
-}
-
-func careScheduleRequestFromPublic(value careplan.CareScheduleChangeRequest) (*scheduleModels.CareScheduleChangeRequest, error) {
-	var payload map[string]any
-	if err := json.Unmarshal(value.Payload, &payload); err != nil {
-		return nil, err
-	}
-	var snapshot *scheduleModels.CareRequestDecisionSnapshot
-	if len(value.DecisionSnapshot) > 0 && string(value.DecisionSnapshot) != "null" {
-		snapshot = new(scheduleModels.CareRequestDecisionSnapshot)
-		if err := json.Unmarshal(value.DecisionSnapshot, snapshot); err != nil {
-			return nil, err
-		}
-	}
-	row := &scheduleModels.CareScheduleChangeRequest{StudentID: value.StudentID, SubmittedBy: value.SubmittedBy, RequestKind: value.RequestKind, Payload: payload, Status: value.Status, DecisionReason: value.DecisionReason, ReviewedBy: value.ReviewedBy, ReviewedAt: value.ReviewedAt, AppliedAt: value.AppliedAt, DecisionSnapshot: snapshot}
-	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
-	return row, nil
 }
 
 func studentDataRequestFromPublic(value careplan.StudentDataChangeRequest) *userModels.StudentDataChangeRequest {
