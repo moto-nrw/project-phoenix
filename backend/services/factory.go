@@ -1726,7 +1726,7 @@ func newFactory(
 	// for all four kinds.
 	appointmentRenderer := emailoutbox.RendererFunc(NewCalendarAppointmentRenderer(CalendarEmailDependencies{
 		DefaultFrom: defaultFrom,
-		DB:          db,
+		Runtime:     calendarCompose.NewTenantRuntime(db),
 		Guardians:   studentGuardianRepository,
 	}))
 	var deliveryForGuardianWelcome *deliveryCompose.Runtime
@@ -2498,7 +2498,7 @@ func newFactory(
 		},
 		Appointments:           appointmentCapability,
 		UserContext:            userContextService.Caller(),
-		DB:                     db,
+		Runtime:                calendarCompose.NewTenantRuntime(db),
 		CalendarRenderer:       schoolCalendarRendererAdapter{renderer: calendar},
 		Outbox:                 emailOutboxService,
 		PushOutbox:             deliveryCompose.NewDurablePushOutbox(deliveryRuntime.Module),

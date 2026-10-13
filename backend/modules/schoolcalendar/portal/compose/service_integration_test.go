@@ -67,7 +67,7 @@ func calendarTestConfig(t *testing.T, db *bun.DB) calendarRuntime.CalendarDepend
 		},
 		Appointments:     repos.Appointments(),
 		UserContext:      userContext,
-		DB:               db,
+		Runtime:          calendarCompose.NewTenantRuntime(db),
 		CalendarRenderer: testCalendarRenderer{renderer: repos.SchoolCalendar()},
 	}
 }

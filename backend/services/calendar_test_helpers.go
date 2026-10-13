@@ -68,7 +68,7 @@ func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModu
 		},
 		Appointments:           appointments,
 		UserContext:            identity.UserContext.Caller(),
-		DB:                     db,
+		Runtime:                calendarCompose.NewTenantRuntime(db),
 		CalendarRenderer:       schoolCalendarRendererAdapter{renderer: schoolCalendar},
 		Outbox:                 delivery.EmailOutbox,
 		PushOutbox:             deliveryCompose.NewDurablePushOutbox(delivery.Delivery),
