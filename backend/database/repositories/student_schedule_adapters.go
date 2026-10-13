@@ -10,6 +10,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
 // StudentScheduleRepositories contains the Care Plan compatibility adapters
@@ -55,6 +56,18 @@ func NewCareScheduleRepositories(capability careplan.Capability) CareScheduleRep
 		StudentPickupNote:         NewPickupNoteRepository(capability),
 		CareScheduleChangeRequest: NewCareScheduleChangeRequestRepository(capability),
 	}
+}
+
+// EnrollmentPickupSchedules binds Enrollment's weekly pickup port to the
+// pickup schedules.
+func (r CareScheduleRepositories) EnrollmentPickupSchedules() timetableCompose.EnrollmentPickupSchedules {
+	return timetableCompose.NewEnrollmentPickupSchedules(r.StudentPickupSchedule)
+}
+
+// EnrollmentArrivalSchedules binds Enrollment's weekly arrival port to the
+// arrival schedules.
+func (r CareScheduleRepositories) EnrollmentArrivalSchedules() timetableCompose.EnrollmentArrivalSchedules {
+	return timetableCompose.NewEnrollmentArrivalSchedules(r.StudentArrivalSchedule)
 }
 
 func NewArrivalScheduleRepository(capability careplan.Capability) scheduleModels.StudentArrivalScheduleRepository {

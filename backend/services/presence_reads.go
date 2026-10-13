@@ -20,7 +20,7 @@ import (
 // partialAbsenceBlocks previews the blocks of a child's day an earlier pickup
 // can still excuse.
 type partialAbsenceBlocks struct {
-	preview repositories.PartialAbsencePreview
+	preview timetableCompose.PartialAbsencePreview
 }
 
 func newPartialAbsenceBlocks(db *bun.DB) partialAbsenceBlocks {

@@ -133,6 +133,18 @@ func NewTimetableTestRepositories(db *bun.DB, members MembershipTestRepositories
 	return result, nil
 }
 
+// EnrollmentPickupSchedules binds Enrollment's weekly pickup port to the
+// pickup schedules.
+func (r TimetableTestRepositories) EnrollmentPickupSchedules() timetableCompose.EnrollmentPickupSchedules {
+	return timetableCompose.NewEnrollmentPickupSchedules(r.StudentPickupSchedule)
+}
+
+// EnrollmentArrivalSchedules binds Enrollment's weekly arrival port to the
+// arrival schedules.
+func (r TimetableTestRepositories) EnrollmentArrivalSchedules() timetableCompose.EnrollmentArrivalSchedules {
+	return timetableCompose.NewEnrollmentArrivalSchedules(r.StudentArrivalSchedule)
+}
+
 func (r TimetableTestRepositories) Enrollment() EnrollmentBookingProjection {
 	return NewEnrollmentBookingProjection(r.enrollment)
 }

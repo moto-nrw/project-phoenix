@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -403,8 +404,8 @@ func composeDecisions(
 		StudentGuardians:       repoFactory.StudentGuardian,
 		GuardianProfiles:       repoFactory.GuardianProfile,
 		GuardianPhones:         repoFactory.GuardianPhoneNumber,
-		PickupSchedules:        repositories.NewEnrollmentPickupSchedules(repoFactory.StudentPickupSchedule),
-		ArrivalSchedules:       repositories.NewEnrollmentArrivalSchedules(repoFactory.StudentArrivalSchedule),
+		PickupSchedules:        timetableCompose.NewEnrollmentPickupSchedules(repoFactory.StudentPickupSchedule),
+		ArrivalSchedules:       timetableCompose.NewEnrollmentArrivalSchedules(repoFactory.StudentArrivalSchedule),
 		CareBookings:           bookings,
 		GuardianAccess:         guardianAccess,
 		StudentEnrollment:      students,
