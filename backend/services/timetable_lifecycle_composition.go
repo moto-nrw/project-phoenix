@@ -9,7 +9,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -34,7 +33,7 @@ import (
 // CalendarPeriodRepo); every other field of it is filled here. Broadcaster
 // and GuardianNotices are optional.
 type timetableLifecycleInputs struct {
-	Rows                repositories.TimetableOwnerRows
+	Rows                timetableCompose.OwnerRows
 	Planning            timetableCompose.InstanceLifecycleDependencies
 	Staff               usersModels.StaffRepository
 	Sessions            studentpresence.SessionRecords
@@ -70,7 +69,7 @@ func newTimetableLifecycle(in timetableLifecycleInputs) (*timetableCompose.Insta
 	deps.StaffRepo, deps.ActiveGroupRepo, deps.SupervisorRepo = in.Staff, in.Sessions, in.Supervisions
 	deps.Presence, deps.ActiveService, deps.Rooms = in.Presence, in.SessionEnder, in.Rows.LifecycleRooms()
 	deps.CareDays, deps.CareDayLocks = newTimetableCareDays(in.CareDays), in.CareDayLocks
-	deps.Protocol = TimetableDeviationProtocol(in.Rows.DeviationEvents)
+	deps.Protocol = in.Rows.Deviations
 	deps.GuardianNotices = newTimetableGuardianNotices(in.GuardianNotices)
 	deps.Broadcaster, deps.Settings = newTimetableLifecycleBroadcaster(in.Broadcaster), settings
 	deps.Materialization, deps.RecurrenceLock = in.Materialization, in.RecurrenceLock
@@ -159,7 +158,7 @@ func (b timetableLifecycleBroadcaster) BroadcastToTenant(tenantID int64, event t
 
 // timetableLifecycleSchedulers are the scheduler's auto start and auto end
 // over the lifecycle, with the owner's start check.
-func newTimetableLifecycleSchedulers(rows repositories.TimetableOwnerRows, lifecycle timetable.InstanceLifecycle, conflicts timetable.StartConflictQuery, logger *slog.Logger) (timetable.InstanceAutoStart, timetable.InstanceAutoEnd, error) {
+func newTimetableLifecycleSchedulers(rows timetableCompose.OwnerRows, lifecycle timetable.InstanceLifecycle, conflicts timetable.StartConflictQuery, logger *slog.Logger) (timetable.InstanceAutoStart, timetable.InstanceAutoEnd, error) {
 	autoStart, err := timetableCompose.NewInstanceAutoStart(timetableCompose.InstanceAutoStartDependencies{
 		InstanceRepo:      rows.Instances,
 		InstanceStaffRepo: rows.InstanceStaff,

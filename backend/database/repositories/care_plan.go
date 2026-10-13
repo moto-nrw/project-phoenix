@@ -6,7 +6,6 @@ import (
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -14,7 +13,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func NewCarePlan(db *bun.DB, students peopledirectory.Capability, slots scheduleModels.InstanceStudentRepository) (careplan.Capability, error) {
+func NewCarePlan(db *bun.DB, students peopledirectory.Capability, slots timetableCompose.StatusSlotRows) (careplan.Capability, error) {
 	if students == nil || slots == nil {
 		return nil, errors.New("compose Care Plan: People Directory and instance-student repository are required")
 	}
@@ -102,22 +101,22 @@ func statusStudents(values []peopledirectory.Student) []carePlanCompose.StatusSt
 }
 
 type statusSlotDirectory struct {
-	repository scheduleModels.InstanceStudentRepository
+	slots timetableCompose.InstanceStatusSlots
 }
 
-func CarePlanStatusSlots(repository scheduleModels.InstanceStudentRepository) carePlanCompose.StatusSlotDirectory {
+func CarePlanStatusSlots(repository timetableCompose.StatusSlotRows) carePlanCompose.StatusSlotDirectory {
 	if repository == nil {
 		return nil
 	}
-	return statusSlotDirectory{repository: repository}
+	return statusSlotDirectory{slots: timetableCompose.NewInstanceStatusSlots(repository)}
 }
 
 func (d statusSlotDirectory) ApplyStatusDay(ctx context.Context, studentID int64, date careplan.Date, statusDayID int64, substatus string) (int, error) {
-	return d.repository.ApplyStatusDay(ctx, studentID, scheduleModels.Date(date), statusDayID, substatus)
+	return d.slots.ApplyStatusDay(ctx, studentID, string(date), statusDayID, substatus)
 }
 
 func (d statusSlotDirectory) ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error) {
-	return d.repository.ReleaseStatusDay(ctx, statusDayID)
+	return d.slots.ReleaseStatusDay(ctx, statusDayID)
 }
 
 type pickupExceptionDirectory struct {

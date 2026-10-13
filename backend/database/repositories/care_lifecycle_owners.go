@@ -7,7 +7,6 @@ import (
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -162,7 +161,7 @@ func parseCareExitDay(value *string) (*users.CalendarDate, error) {
 	if value == nil {
 		return nil, nil
 	}
-	day := usersRepo.ParseCalendarDate(*value)
+	day := peopleCompose.ParseRetainedCalendarDate(*value)
 	if day == nil {
 		return nil, fmt.Errorf("care exit: invalid calendar day %q", *value)
 	}

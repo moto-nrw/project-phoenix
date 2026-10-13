@@ -3,6 +3,8 @@ package services
 import (
 	"log/slog"
 
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -38,11 +40,11 @@ func newCallerRowsForTests(db *bun.DB, settings callerSettings) (*repositories.C
 	tt := r.Timetable
 	return newCallerRows(callerContextWiring{
 		Accounts: r.Profile, Persons: tt.Person, Membership: membership, StaffGroups: r.StaffGroups,
-		SupervisedActivities: supervisedActivityGroupIDs(tt.ActivityGroup),
+		SupervisedActivities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup).SupervisedActivityGroupIDs,
 		Presence:             newStudentPresence(db, slog.Default()),
 		Settings:             settings,
 	}, repositories.CallerRowSources{
 		Groups: tt.Group, Staff: tt.Staff, Teachers: tt.Teacher, Students: tt.Student,
-		Activities: tt.ActivityGroup, Sessions: tt.ActiveGroup,
+		Activities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup), Sessions: tt.ActiveGroup,
 	})
 }

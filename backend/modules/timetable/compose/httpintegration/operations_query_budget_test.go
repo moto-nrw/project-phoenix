@@ -83,14 +83,14 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staff *usersModels.
 	deps.Visits = repositories.NewStudentPresenceForTests(db)
 	deps.PlanningTracks = nil
 	deps.Now = func() time.Time { return now }
-	rows := repositories.TimetableOwnerRows{
+	rows := compose.OwnerRows{
 		Instances:       timetableRepos.ActivityInstance,
 		InstanceStaff:   timetableRepos.InstanceStaff,
 		Participants:    timetableRepos.InstanceStudent,
 		Templates:       timetableRepos.ActivityGroup,
 		Students:        repos.Student,
-		EducationGroups: repos.Group,
-		Rooms:           services.NewRoomRepository(owners.Rooms),
+		EducationGroups: repositories.TimetableEducationGroupNames(repos.Group),
+		Rooms:           services.NewTimetableRoomNames(owners.Rooms),
 	}
 	templates, err := rows.OperationTemplates()
 	require.NoError(t, err)

@@ -9,7 +9,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -30,7 +29,7 @@ import (
 // Lifecycle is the instance lifecycle the cancel branch and the
 // "deliberately unstaffed" acknowledgement hand over to.
 type timetableDeviationInputs struct {
-	Rows         repositories.TimetableOwnerRows
+	Rows         timetableCompose.OwnerRows
 	Staff        usersModels.StaffRepository
 	Supervisions studentpresence.SupervisionRecords
 	Lifecycle    timetableCompose.DeviationLifecycle
@@ -41,7 +40,7 @@ type timetableDeviationInputs struct {
 }
 
 func newTimetableStaffDeviations(in timetableDeviationInputs) (timetable.StaffDeviations, error) {
-	if in.Lifecycle == nil || in.Rows.DeviationEvents == nil || in.Broadcaster == nil {
+	if in.Lifecycle == nil || in.Rows.Deviations == nil || in.Broadcaster == nil {
 		return nil, errors.New("timetable staff deviations: lifecycle, protocol and broadcaster are required")
 	}
 	return timetableCompose.NewStaffDeviations(timetableCompose.StaffDeviationDependencies{
@@ -50,7 +49,7 @@ func newTimetableStaffDeviations(in timetableDeviationInputs) (timetable.StaffDe
 		Staff:           in.Staff,
 		Supervisions:    in.Supervisions,
 		Lifecycle:       in.Lifecycle,
-		Protocol:        TimetableDeviationProtocol(in.Rows.DeviationEvents),
+		Protocol:        in.Rows.Deviations,
 		ActivityUpdates: timetableActivityUpdates{broadcaster: in.Broadcaster},
 		DB:              in.DB,
 		Logger:          in.Logger,
@@ -60,7 +59,7 @@ func newTimetableStaffDeviations(in timetableDeviationInputs) (timetable.StaffDe
 
 // newTimetableSubstituteConflicts composes the substitute time-overlap
 // advisories the instance lifecycle's staff move asks for.
-func newTimetableSubstituteConflicts(rows repositories.TimetableOwnerRows) (timetable.SubstituteConflictQuery, error) {
+func newTimetableSubstituteConflicts(rows timetableCompose.OwnerRows) (timetable.SubstituteConflictQuery, error) {
 	return timetableCompose.NewSubstituteConflicts(timetableCompose.SubstituteConflictDependencies{
 		Instances: rows.Instances, InstanceStaff: rows.InstanceStaff,
 	})
@@ -70,7 +69,7 @@ func newTimetableSubstituteConflicts(rows repositories.TimetableOwnerRows) (time
 // retained rows (Participants, Instances and the optional completion Locks).
 // Trail is optional: without it every correction fails closed.
 type timetableCorrectionInputs struct {
-	Rows   repositories.TimetableOwnerRows
+	Rows   timetableCompose.OwnerRows
 	Trail  auditModels.AttendanceCorrectionRepository
 	People usersModels.PersonRepository
 	Logger *slog.Logger
@@ -92,7 +91,7 @@ func newTimetableAttendanceCorrections(in timetableCorrectionInputs) (timetable.
 // and Participants: Presence triggers the Timetable command inside its own
 // tenant transaction and rolls its visit write back with a failing mirror.
 // The Presence behaviour suites bind it the same way.
-func NewTimetableAttendanceMirror(rows repositories.TimetableOwnerRows, logger *slog.Logger) (studentpresence.AttendanceSyncer, error) {
+func NewTimetableAttendanceMirror(rows timetableCompose.OwnerRows, logger *slog.Logger) (studentpresence.AttendanceSyncer, error) {
 	mirror, err := timetableCompose.NewAttendanceMirror(timetableCompose.AttendanceMirrorDependencies{
 		Instances: rows.Instances, Participants: rows.Participants, Logger: logger,
 	})

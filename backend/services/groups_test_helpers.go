@@ -46,7 +46,7 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork, publishers ...realt
 		publisher = publishers[0]
 	}
 	groups := education.NewGroupManagement(tt.Group, tt.GroupTeacher, tt.ClassTeacher,
-		repositories.NewEducationRooms(tt.Room), NewEducationTeachers(tt.Teacher), NewEducationStaff(tt.Staff),
+		repositories.NewEducationRooms(tt.Facilities), NewEducationTeachers(tt.Teacher), NewEducationStaff(tt.Staff),
 		tt.Student, r.Substitutions, education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: publisher})
 
 	persons := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{

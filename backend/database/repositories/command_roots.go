@@ -1,13 +1,14 @@
 package repositories
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -40,8 +41,14 @@ type SessionCleanupRepositories struct {
 	// Sessions are the Student Presence session and supervision records the
 	// session cleanup runs on.
 	Sessions        studentpresence.SessionRecords
-	Device          iotModels.DeviceRepository
-	TimetableBridge scheduleModels.ActivityInstanceRepository
+	Device          devicefleetLegacy.SessionDeviceRecords
+	TimetableBridge SessionCleanupTimetableBridge
+}
+
+// SessionCleanupTimetableBridge completes the planned activity instances of
+// the sessions the cleanup ends.
+type SessionCleanupTimetableBridge interface {
+	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
 }
 
 func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Capability) SessionCleanupRepositories {

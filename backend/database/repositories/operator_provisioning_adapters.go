@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
@@ -46,7 +44,7 @@ type OperatorProvisioningDependencies struct {
 	Supervisors interface {
 		FindActiveByStaffID(ctx context.Context, staffID int64) ([]*studentpresence.GroupSupervision, error)
 	}
-	Categories activitiesModels.CategoryRepository
+	Categories OperatorCategoryCreator
 	AuditLog   platformModels.OperatorAuditLogRepository
 }
 
@@ -159,9 +157,9 @@ func provisioningDevice(device devicefleet.Device) organizationCompose.Provision
 // API key constraint and, for any other one, the per-school device ID.
 func deviceWriteError(err error) error {
 	switch {
-	case usersRepo.IsUniqueViolationOn(err, deviceAPIKeyConstraint):
+	case userModels.IsUniqueViolationOn(err, deviceAPIKeyConstraint):
 		return fmt.Errorf("%w: %w", organizationCompose.ErrDeviceAPIKeyTaken, err)
-	case usersRepo.IsUniqueViolation(err):
+	case userModels.IsUniqueViolation(err):
 		return fmt.Errorf("%w: %w", organizationCompose.ErrDeviceIDTaken, err)
 	default:
 		return err
@@ -209,7 +207,7 @@ func (p provisioningPeople) ListPersons(ctx context.Context, tenantIDs []int64) 
 		return []organizationCompose.PersonListing{}, err
 	}
 	personIDs, accountIDs := operatorPersonIDs(persons)
-	students, err := usersRepo.FindOperatorPersonStudentMembership(ctx, peopleRuntime(p.db), personIDs)
+	students, err := peopleRuntime(p.db).OperatorPersonStudentMembership(ctx, personIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +256,7 @@ func operatorPersonIDs(persons []peopledirectory.Person) ([]int64, []int64) {
 // context carries no tenant, so the repository's tenant filter is a no-op.
 func (p provisioningPeople) FindPerson(ctx context.Context, id int64) (organizationCompose.ProvisioningPerson, bool, error) {
 	person, err := p.personRepo.FindByID(ctx, id)
-	if usersRepo.IsNotFound(err) {
+	if userModels.IsRepositoryNoRows(err) {
 		return organizationCompose.ProvisioningPerson{}, false, nil
 	}
 	if err != nil {
@@ -327,7 +325,13 @@ func (p provisioningPresence) CountActiveSupervisions(ctx context.Context, tenan
 // --- Timetable & Activities --------------------------------------------------
 
 type provisioningCategories struct {
-	categories activitiesModels.CategoryRepository
+	categories OperatorCategoryCreator
+}
+
+// OperatorCategoryCreator creates one activity category at the school in
+// ctx; a category the school already has fails with a unique violation.
+type OperatorCategoryCreator interface {
+	CreateCategory(ctx context.Context, name, description, color string) error
 }
 
 // SeedCategories creates the categories at the school; one the school
@@ -338,9 +342,8 @@ func (c provisioningCategories) SeedCategories(ctx context.Context, tenantID int
 	}
 	schoolCtx := peopleCompose.WithCallerTenant(ctx, tenantID)
 	for _, value := range categories {
-		category := &activitiesModels.Category{Name: value.Name, Description: value.Description, Color: value.Color}
-		if err := c.categories.Create(schoolCtx, category); err != nil {
-			if usersRepo.IsUniqueViolation(err) {
+		if err := c.categories.CreateCategory(schoolCtx, value.Name, value.Description, value.Color); err != nil {
+			if userModels.IsUniqueViolation(err) {
 				continue
 			}
 			return err

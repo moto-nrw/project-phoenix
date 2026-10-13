@@ -7,7 +7,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -21,7 +20,7 @@ import (
 // PickupBaselines are optional; Transactional binds the tenant runtime's
 // advisory locks a spontaneous start takes.
 type timetableDataInputs struct {
-	Rows             repositories.TimetableOwnerRows
+	Rows             timetableCompose.OwnerRows
 	ArrivalBaselines careplan.ArrivalBaselineReader
 	PickupBaselines  careplan.PickupBaselineReader
 	Visits           timetableCompose.OperationVisits

@@ -13,6 +13,8 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -52,6 +54,8 @@ type TimetableTestRepositories struct {
 	// CarePlan is the owner capability the schedule adapters above delegate to.
 	CarePlan careplan.Capability
 	Room     facilitiesModels.RoomRepository
+	// Facilities is the owner capability the Room adapter delegates to.
+	Facilities facilitiesModule.Capability
 	// DeviationEvent is filled by services.NewTimetableTestRepositories, the
 	// composition that owns Audit persistence (ADR 0049).
 	DeviationEvent        auditModels.DeviationEventRepository
@@ -124,6 +128,7 @@ func NewTimetableTestRepositories(db *bun.DB, members MembershipTestRepositories
 	}
 	result.ClassArrivalException = timetableCompose.NewClassArrivalExceptionRepository(db)
 	result.Room = room
+	result.Facilities = rooms
 	result.Timetable = bookings
 	// The Dienstplan rows belong to Workforce (#2689); suites that still
 	// speak the retained rows reach them through the legacy row adapters
@@ -161,13 +166,15 @@ func (r TimetableTestRepositories) CalendarPeriodUsage() *timetableCompose.Calen
 
 // OwnerRows are the retained rows the Timetable owner's reads run over
 // (#3551), filled from the test repository set.
-func (r TimetableTestRepositories) OwnerRows() TimetableOwnerRows {
-	return TimetableOwnerRows{
+func (r TimetableTestRepositories) OwnerRows() timetableCompose.OwnerRows {
+	rows := timetableCompose.OwnerRows{
 		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, Participants: r.InstanceStudent,
 		Templates: r.ActivityGroup, Categories: r.ActivityCategory, Students: r.Student,
-		EducationGroups: r.Group, Rooms: r.Room, PickupExceptions: r.StudentPickupException,
-		ArrivalExceptions: r.StudentArrivalException, DeviationEvents: r.DeviationEvent,
+		EducationGroups: TimetableEducationGroupNames(r.Group), Rooms: facilitiesCompose.NewRoomNameDirectory(r.Room),
+		PickupExceptions: r.StudentPickupException, ArrivalExceptions: r.StudentArrivalException,
 	}
+	rows.DeviationEvents, rows.Deviations = TimetableDeviationPorts(r.DeviationEvent)
+	return rows
 }
 
 // RosterMaintenance is the Timetable owner's roster maintenance over the test
@@ -201,8 +208,8 @@ func NewTimetableRosterMaintenance(
 }
 
 // TimetableTemplateRows fills the template rows from the test repository set.
-func (r TimetableTestRepositories) TimetableTemplateRows() TimetableTemplateRows {
-	return TimetableTemplateRows{
+func (r TimetableTestRepositories) TimetableTemplateRows() timetableCompose.TemplateRows {
+	return timetableCompose.TemplateRows{
 		Groups: r.ActivityGroup, Categories: r.ActivityCategory, Schedules: r.ActivitySchedule,
 		Enrollments: r.StudentEnrollment, Supervisors: r.ActivitySupervisor, Instances: r.ActivityInstance,
 		InstanceStaff: r.InstanceStaff, Participants: r.InstanceStudent, Timeframes: r.Timeframe,

@@ -109,7 +109,7 @@ func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db *bun.DB, b
 		panic(fmt.Sprintf("education suite: compose facilities: %v", err))
 	}
 	service := education.NewService(repos.Group, repos.GroupTeacher, repos.ClassTeacher,
-		repositories.NewEducationRooms(NewRoomRepository(rooms)), NewEducationTeachers(repos.Teacher),
+		repositories.NewEducationRooms(rooms), NewEducationTeachers(repos.Teacher),
 		NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
 		education.NewLegacyRepositoryRuntime(db), education.GroupServiceOptions{Broadcaster: broadcaster, Audit: NewEducationClassAssignmentAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).StaffMasterDataChange)})
 

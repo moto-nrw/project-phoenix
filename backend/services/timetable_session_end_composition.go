@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -15,7 +14,7 @@ import (
 // retained instance and participant rows, which carry the Student Presence
 // session state. careDays is optional: without it no child is spared the
 // absent stamp.
-func NewTimetableEndedSessionCompletion(rows repositories.TimetableOwnerRows, careDays careplan.CareDayQuery) (timetable.EndedSessionCompletion, error) {
+func NewTimetableEndedSessionCompletion(rows timetableCompose.OwnerRows, careDays careplan.CareDayQuery) (timetable.EndedSessionCompletion, error) {
 	instances, err := rows.EndedSessionInstances()
 	if err != nil {
 		return nil, err
@@ -86,3 +85,7 @@ func (timetableCareDays) Expected(status timetable.CareDayStatus) bool {
 func (timetableCareDays) ExemptFromAbsence(status timetable.CareDayStatus) bool {
 	return careplan.CareDayStatus(status).ExemptFromAbsence()
 }
+
+// TimetableOwnerRows are the retained rows the Timetable owner's reads run
+// over (#3551), named here for the suites that compose them.
+type TimetableOwnerRows = timetableCompose.OwnerRows

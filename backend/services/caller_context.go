@@ -198,22 +198,6 @@ func (s callerStructure) SchoolClasses(ctx context.Context, staffID int64) ([]st
 	return s.groups.ListSchoolClassesByStaff(ctx, staffID)
 }
 
-// supervisedActivityGroupIDs reads the activity groups a staff member
-// supervises as planned.
-func supervisedActivityGroupIDs(activities repositories.ActivityGroupRepository) func(context.Context, int64) ([]int64, error) {
-	return func(ctx context.Context, staffID int64) ([]int64, error) {
-		rows, err := activities.FindByStaffSupervisor(ctx, staffID)
-		if err != nil {
-			return nil, err
-		}
-		ids := make([]int64, 0, len(rows))
-		for _, row := range rows {
-			ids = append(ids, row.ID)
-		}
-		return ids, nil
-	}
-}
-
 type callerActivities func(context.Context, int64) ([]int64, error)
 
 func (read callerActivities) SupervisedActivityGroupIDs(ctx context.Context, staffID int64) ([]int64, error) {

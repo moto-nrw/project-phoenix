@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
@@ -750,7 +751,7 @@ func newFactory(
 		groupRepository,
 		groupTeacherRepository,
 		classTeacherRepository,
-		repositories.NewEducationRooms(roomRepository),
+		repositories.NewEducationRooms(rooms),
 		NewEducationTeachers(teacherRepository),
 		NewEducationStaff(staffRepository),
 		studentRepository,
@@ -1133,7 +1134,7 @@ func newFactory(
 	// schedule.instance_students and enrich SSE events. No circular
 	// dependency because it only depends on repos, not on studentpresence.Presence.
 	attendanceSyncService, err := NewTimetableAttendanceMirror(
-		repositories.TimetableOwnerRows{Instances: timetableRepos.ActivityInstance, Participants: timetableRepos.InstanceStudent},
+		arrivalTimetable.OwnerRows{Instances: timetableRepos.ActivityInstance, Participants: timetableRepos.InstanceStudent},
 		logger.With("service", "attendance-sync"),
 	)
 	if err != nil {
@@ -1186,19 +1187,19 @@ func newFactory(
 	// keeps genuinely expected rows — readers take those as the "not booked
 	// into care that day" marker (#1747). Repos only, so no cycle with the
 	// active service it is injected into.
-	timetableRows := repositories.TimetableOwnerRows{
+	timetableRows := arrivalTimetable.OwnerRows{
 		Instances:         timetableRepos.ActivityInstance,
 		InstanceStaff:     timetableRepos.InstanceStaff,
 		Participants:      timetableRepos.InstanceStudent,
 		Templates:         timetableRepos.ActivityGroup,
 		Categories:        timetableRepos.ActivityCategory,
 		Students:          studentRepository,
-		EducationGroups:   groupRepository,
-		Rooms:             roomRepository,
+		EducationGroups:   repositories.TimetableEducationGroupNames(groupRepository),
+		Rooms:             facilitiesCompose.NewRoomNameDirectory(roomRepository),
 		PickupExceptions:  repositories.NewPickupExceptionRepository(carePlan),
 		ArrivalExceptions: repositories.NewArrivalExceptionRepository(carePlan),
-		DeviationEvents:   audits.DeviationEvent,
 	}
+	timetableRows.DeviationEvents, timetableRows.Deviations = repositories.TimetableDeviationPorts(audits.DeviationEvent)
 	timetableBridgeService, err := NewTimetableEndedSessionCompletion(timetableRows, careDayService)
 	if err != nil {
 		return nil, fmt.Errorf("compose ended session completion: %w", err)
@@ -1430,7 +1431,7 @@ func newFactory(
 	// concrete schedule.activity_instances + instance_staff/instance_students
 	// for a date window. Consumed by the scheduler task (gated on the
 	// timetable.materialization_enabled setting) and the manual admin endpoint.
-	timetableTemplateRows := repositories.TimetableTemplateRows{
+	timetableTemplateRows := arrivalTimetable.TemplateRows{
 		Groups: timetableRepos.ActivityGroup, Categories: timetableRepos.ActivityCategory, Schedules: timetableRepos.ActivitySchedule,
 		Enrollments: timetableRepos.StudentEnrollment, Supervisors: timetableRepos.ActivitySupervisor, Instances: timetableRepos.ActivityInstance,
 		InstanceStaff: timetableRepos.InstanceStaff, Participants: timetableRepos.InstanceStudent, Timeframes: timetableRepos.Timeframe,
@@ -1829,7 +1830,7 @@ func newFactory(
 		GroupTeacherRepo:       groupTeacherRepository,
 		GroupSubstitutionRepo:  groupSubstitutionRepository,
 		GroupSupervisorRepo:    repositories.CaregiverSupervisionBlockers{Records: groupSupervisions},
-		ActivitySupervisorRepo: repositories.CaregiverPlannedSupervisionBlockers{Supervisors: timetableRepos.ActivitySupervisor},
+		ActivitySupervisorRepo: arrivalTimetable.CaregiverPlannedSupervisionBlockers{Supervisors: timetableRepos.ActivitySupervisor},
 		RoleAssignments:        identityRoles,
 	})
 
@@ -1845,13 +1846,13 @@ func newFactory(
 		Persons:              personRepository,
 		Membership:           membership,
 		StaffGroups:          staffGroups,
-		SupervisedActivities: supervisedActivityGroupIDs(timetableRepos.ActivityGroup),
+		SupervisedActivities: arrivalTimetable.NewCallerActivityGroups(timetableRepos.ActivityGroup).SupervisedActivityGroupIDs,
 		Presence:             newStudentPresence(db, logger),
 		Settings:             settingsService,
 		Logger:               usercontextLogger,
 	}, repositories.CallerRowSources{
 		Groups: groupRepository, Staff: staffRepository, Teachers: teacherRepository, Students: studentRepository,
-		Activities: timetableRepos.ActivityGroup, Sessions: sessionRecords, Logger: usercontextLogger,
+		Activities: arrivalTimetable.NewCallerActivityGroups(timetableRepos.ActivityGroup), Sessions: sessionRecords, Logger: usercontextLogger,
 	})
 	if err != nil {
 		return nil, err
@@ -2639,7 +2640,7 @@ func newFactory(
 		Accounts:     identityAccess,
 		ActiveGroups: sessionRecords,
 		Supervisors:  groupSupervisions,
-		Categories:   timetableRepos.ActivityCategory,
+		Categories:   arrivalTimetable.NewActivityCategorySeeder(timetableRepos.ActivityCategory),
 		AuditLog:     operatorAuditLog,
 	})
 	if err != nil {

@@ -30,12 +30,6 @@ var _ = map[bool]struct{}{
 		auditModels.CorrectionReasonMaxLength == timetable.AttendanceCorrectionReasonMaxLength: {},
 }
 
-// TimetableDeviationProtocol appends the owner's Änderungsprotokoll entries
-// to the Audit Platform's deviation events.
-func TimetableDeviationProtocol(events auditModels.DeviationEventRepository) timetableCompose.DeviationProtocol {
-	return timetableDeviationProtocol{events: events}
-}
-
 // TimetableAttendanceCorrectionTrail serves the correction trail from the
 // Audit Platform's attendance corrections; nil stays nil, so the correction
 // fails closed.
@@ -44,26 +38,6 @@ func TimetableAttendanceCorrectionTrail(corrections auditModels.AttendanceCorrec
 		return nil
 	}
 	return timetableCorrectionTrail{corrections: corrections}
-}
-
-type timetableDeviationProtocol struct {
-	events auditModels.DeviationEventRepository
-}
-
-func (p timetableDeviationProtocol) RecordDeviationEvent(ctx context.Context, event timetableCompose.DeviationEventRecord) error {
-	return p.events.Create(ctx, &auditModels.DeviationEvent{
-		ActivityGroupID: event.ActivityGroupID,
-		OccurrenceDate:  auditModels.Date(event.OccurrenceDate),
-		StartTime:       event.StartTime,
-		InstanceID:      event.InstanceID,
-		SubjectStaffID:  event.SubjectStaffID,
-		RelatedStaffID:  event.RelatedStaffID,
-		EventType:       event.EventType,
-		OldValue:        event.OldValue,
-		NewValue:        event.NewValue,
-		Reason:          event.Reason,
-		ActorAccountID:  event.ActorAccountID,
-	})
 }
 
 type timetableCorrectionTrail struct {

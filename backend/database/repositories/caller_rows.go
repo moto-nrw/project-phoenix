@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -23,7 +22,7 @@ type CallerRows struct {
 	staff      userModels.StaffRepository
 	teachers   userModels.TeacherRepository
 	students   userModels.StudentRepository
-	activities activitiesModels.GroupRepository
+	activities CallerActivityRows
 	sessions   CallerSessions
 	logger     *slog.Logger
 }
@@ -41,7 +40,7 @@ type CallerRowSources struct {
 	Staff      userModels.StaffRepository
 	Teachers   userModels.TeacherRepository
 	Students   userModels.StudentRepository
-	Activities activitiesModels.GroupRepository
+	Activities CallerActivityRows
 	Sessions   CallerSessions
 	Logger     *slog.Logger
 }
@@ -61,10 +60,11 @@ func (r *CallerRows) getLogger() *slog.Logger {
 	return r.logger
 }
 
-// ActivityGroupRepository is the retained activity group repository the
-// caller context reads planned supervisions from; no Timetable contract
-// serves that read yet.
-type ActivityGroupRepository = activitiesModels.GroupRepository
+// CallerActivityRows loads the planned activity groups the caller's reach
+// names, in the order of ids; the Timetable composition serves it.
+type CallerActivityRows interface {
+	ActivityGroupRows(ctx context.Context, ids []int64) (any, error)
+}
 
 // Caller returns the caller context the rows are resolved through.
 func (r *CallerRows) Caller() identityaccess.CallerContext { return r.caller }
@@ -266,24 +266,7 @@ func (r *CallerRows) educationalGroupRows(ctx context.Context, groups []identity
 // ActivityGroupRows returns the planned activity groups the
 // /api/me/groups/activity route renders, in the order of ids.
 func (r *CallerRows) ActivityGroupRows(ctx context.Context, ids []int64) (any, error) {
-	result := make([]*activitiesModels.Group, 0, len(ids))
-	if len(ids) == 0 {
-		return result, nil
-	}
-	rows, err := r.activities.FindByIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	byID := make(map[int64]*activitiesModels.Group, len(rows))
-	for _, row := range rows {
-		byID[row.ID] = row
-	}
-	for _, id := range ids {
-		if row := byID[id]; row != nil {
-			result = append(result, row)
-		}
-	}
-	return result, nil
+	return r.activities.ActivityGroupRows(ctx, ids)
 }
 
 // SessionRows returns the room sessions the /api/me/groups/active and

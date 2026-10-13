@@ -5,8 +5,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -24,22 +22,4 @@ func NewTimetableRecurrenceLock(db *bun.DB) (timetable.RecurrenceWriteLock, erro
 		DB:                     db,
 		GradeTransitionLockKey: schoolstructure.TransitionsLockKey,
 	})
-}
-
-// TimetableTemplateRows are the retained repository rows the Timetable
-// owner's template writes and materialization run over (#3424 slice S2). The
-// composition root fills them from its repository set.
-type TimetableTemplateRows struct {
-	Groups          activitiesModels.GroupRepository
-	Categories      activitiesModels.CategoryRepository
-	Schedules       activitiesModels.ScheduleRepository
-	Enrollments     activitiesModels.StudentEnrollmentRepository
-	Supervisors     activitiesModels.SupervisorPlannedRepository
-	Instances       scheduleModels.ActivityInstanceRepository
-	InstanceStaff   scheduleModels.InstanceStaffRepository
-	Participants    scheduleModels.InstanceStudentRepository
-	Timeframes      scheduleModels.TimeframeRepository
-	CalendarPeriods scheduleModels.CalendarPeriodRepository
-	Exceptions      scheduleModels.ActivityExceptionRepository
-	EducationGroups EducationGroupRepository
 }
