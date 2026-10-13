@@ -169,6 +169,21 @@ const emergencyErrorByLocale: Record<AppLocale, string> = {
   uk: "Не вдалося обробити: {object}. Спробуйте пізніше.",
 };
 
+let errorPresenterPromise:
+  Promise<typeof import("~/lib/error-presentation")> | undefined;
+
+function loadErrorPresenter() {
+  if (!errorPresenterPromise) {
+    errorPresenterPromise = import("~/lib/error-presentation").catch(
+      (error: unknown) => {
+        errorPresenterPromise = undefined;
+        throw error;
+      },
+    );
+  }
+  return errorPresenterPromise;
+}
+
 export function useToast() {
   const ctx = useContext(ToastContext);
   if (!ctx) throw new Error("useToast must be used within ToastProvider");
@@ -469,21 +484,34 @@ function useApiErrorCore(
   useEffect(() => invalidatePendingShow, [invalidatePendingShow]);
 
   useEffect(() => {
+    // Keep the catalog in its own chunk, but start loading it while the form
+    // or action is mounted so a failed submit can mark and focus its fields
+    // without waiting for that chunk first.
+    void loadErrorPresenter().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     const firstField = Object.keys(fieldErrors)[0];
     if (!firstField) return;
-    const controls = (formRef?.current ?? document).querySelectorAll<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >("input[name], textarea[name], select[name]");
-    const control = [...controls].find((item) => item.name === firstField);
-    // A CustomSelect or DatePicker carries its value in a hidden input next
-    // to its trigger (combobox or the date button).
-    const target =
-      control instanceof HTMLInputElement && control.type === "hidden"
-        ? control.nextElementSibling?.querySelector<HTMLElement>(
-            '[role="combobox"], button',
-          )
-        : control;
-    target?.focus();
+    // A closing focus trap restores its trigger during the current effect
+    // cycle. Focus afterwards so an API error from a confirmation dialog
+    // still lands on its first invalid field.
+    const focusTimer = setTimeout(() => {
+      const controls = (formRef?.current ?? document).querySelectorAll<
+        HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+      >("input[name], textarea[name], select[name]");
+      const control = [...controls].find((item) => item.name === firstField);
+      // A CustomSelect or DatePicker carries its value in a hidden input next
+      // to its trigger (combobox or the date button).
+      const target =
+        control instanceof HTMLInputElement && control.type === "hidden"
+          ? control.nextElementSibling?.querySelector<HTMLElement>(
+              '[role="combobox"], button',
+            )
+          : control;
+      target?.focus();
+    }, 0);
+    return () => clearTimeout(focusTimer);
   }, [fieldErrors, formRef]);
 
   const show = useCallback(
@@ -491,11 +519,11 @@ function useApiErrorCore(
       const version = showVersion.current + 1;
       showVersion.current = version;
       const locale = normalizeLocale(document.documentElement.lang);
-      // The provider is mounted on every route. Load the catalog only when a
-      // screen actually uses the opt-in error path.
+      // The presenter remains a separate chunk. The mounted error path starts
+      // its load ahead of time, and concurrent failures share that request.
       let presenter: typeof import("~/lib/error-presentation");
       try {
-        presenter = await import("~/lib/error-presentation");
+        presenter = await loadErrorPresenter();
       } catch {
         if (showVersion.current !== version) return;
         if (error instanceof ApiError && error.status === 401) {
