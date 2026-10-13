@@ -11,11 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // --- submitParentEnrollment ----------------------------------------------
@@ -37,7 +36,7 @@ const parentSubmitBody = `{"phase_id":4242,"guardian_first_name":"Anna","guardia
 
 func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermission(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.Tenant(t)
 	school := &EnrollmentSchool{Active: true}
@@ -50,7 +49,6 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 		ParentService:   &fakeParentService{},
 		EnrollmentForms: requestSvc,
 		SchoolService:   &parentSubmitSchoolStub{school: school},
-		db:              db,
 	}
 
 	body := parentSubmitBody
@@ -81,20 +79,19 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 // GuardianSubmitEligible (false here), which gates linked_parents phases.
 func TestSubmitParentEnrollment_NoSubmitPermissionStillReachesServiceForNewChild(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
 	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
-		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: false,
 		}},
 		EnrollmentForms: requestSvc,
 		SchoolService:   &parentSubmitSchoolStub{school: school},
-		db:              db,
 	}
 
 	body := parentSubmitBody
@@ -121,20 +118,19 @@ func TestSubmitParentEnrollment_NoSubmitPermissionStillReachesServiceForNewChild
 // phases accept the submission.
 func TestSubmitParentEnrollment_StampsSubmitEligibility(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
 	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
-		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
 		EnrollmentForms: requestSvc,
 		SchoolService:   &parentSubmitSchoolStub{school: school},
-		db:              db,
 	}
 
 	body := parentSubmitBody
@@ -161,7 +157,7 @@ func TestToChildResponse_StringifiesIDs(t *testing.T) {
 	t.Parallel()
 	now := timezone.NewDate(2026, 9, 1)
 	enrolledFrom := careplan.Date(now.String())
-	in := &parentModels.ChildSummary{
+	in := &parentService.ChildSummary{
 		StudentID:    12345,
 		TenantID:     6789,
 		FirstName:    "Lara",
@@ -209,10 +205,10 @@ func TestStaffShortName(t *testing.T) {
 func TestToMessageResponses_StaffNameMaskedUnlessVisible(t *testing.T) {
 	t.Parallel()
 	counterpart := "OGS Sonnenschule"
-	messages := []*usersModels.ParentMessage{
+	messages := []*parentService.ParentMessage{
 		{
 			// Frozen visible=false (older reply / school opted out): stays anonymous.
-			SenderKind:       usersModels.ParentMessageSenderStaff,
+			SenderKind:       parentService.ParentMessageSenderStaff,
 			SenderName:       "Sabine Schneider",
 			StaffNameVisible: false,
 			Body:             "hidden",
@@ -220,14 +216,14 @@ func TestToMessageResponses_StaffNameMaskedUnlessVisible(t *testing.T) {
 		{
 			// Frozen visible=true (reply written while the setting was on): shows the
 			// person as first name + last initial, never the full surname.
-			SenderKind:       usersModels.ParentMessageSenderStaff,
+			SenderKind:       parentService.ParentMessageSenderStaff,
 			SenderName:       "Sabine Schneider",
 			StaffNameVisible: true,
 			Body:             "shown",
 		},
 		{
 			// Guardian messages are never masked and never short-formed.
-			SenderKind:       usersModels.ParentMessageSenderGuardian,
+			SenderKind:       parentService.ParentMessageSenderGuardian,
 			SenderName:       "Olivia Berg",
 			StaffNameVisible: false,
 			Body:             "parent",
@@ -263,18 +259,17 @@ func serveParentSubmit(t *testing.T, rs *Resource, accountID int) *httptest.Resp
 // subdomain, not just the form load (#1663).
 func TestSubmitParentEnrollment_HiddenSchoolRejectsCallerWithoutFamilyLink(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
 	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
-		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
 			Linked: true,
 		}},
 		EnrollmentForms: requestSvc,
 		SchoolService:   &parentSubmitSchoolStub{school: school},
-		db:              db,
 	}
 
 	w := serveParentSubmit(t, rs, 7780)
@@ -287,20 +282,19 @@ func TestSubmitParentEnrollment_HiddenSchoolRejectsCallerWithoutFamilyLink(t *te
 // half of the gate, matching /auth/tenant/resolve.
 func TestSubmitParentEnrollment_InactiveSchoolIsRejected(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: false}
 	school.ID = 1
 	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
-		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
 		EnrollmentForms: requestSvc,
 		SchoolService:   &parentSubmitSchoolStub{school: school},
-		db:              db,
 	}
 
 	w := serveParentSubmit(t, rs, 7781)
@@ -312,20 +306,19 @@ func TestSubmitParentEnrollment_InactiveSchoolIsRejected(t *testing.T) {
 // An existing family at a hidden school keeps submitting its re-enrollments.
 func TestSubmitParentEnrollment_HiddenSchoolAcceptsLinkedFamily(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
 	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
-		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
 		EnrollmentForms: requestSvc,
 		SchoolService:   &parentSubmitSchoolStub{school: school},
-		db:              db,
 	}
 
 	w := serveParentSubmit(t, rs, 7782)

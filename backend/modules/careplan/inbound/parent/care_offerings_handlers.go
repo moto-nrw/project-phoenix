@@ -9,9 +9,8 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -173,7 +172,7 @@ func offeringDiffResponse(entry careplan.OfferingChangeDiffEntry) OfferingDiffRe
 func weekdaysFromDayKeys(days []string) []int {
 	weekdays := make([]int, 0, len(days))
 	for _, day := range days {
-		if weekday, ok := enrollmentModels.CanonicalDayToISOWeekday(day); ok {
+		if weekday, ok := parentService.CanonicalDayToISOWeekday(day); ok {
 			weekdays = append(weekdays, weekday)
 		}
 	}

@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 

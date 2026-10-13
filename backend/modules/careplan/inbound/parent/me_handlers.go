@@ -9,12 +9,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/localization"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -86,7 +84,7 @@ func (rs *Resource) updateMyProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	// Reject unknown locales instead of letting the service silently coerce them
 	// to the default — a bad value should fail loudly, not persist as 'de'.
-	if !localization.IsSupported(req.PortalLocale) {
+	if !notificationsService.IsSupportedLocale(req.PortalLocale) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("unsupported portal_locale %q", req.PortalLocale)))
 		return
 	}
@@ -97,7 +95,7 @@ func (rs *Resource) updateMyProfile(w http.ResponseWriter, r *http.Request) {
 		// a missing one is a permanent state conflict (corruption), not a
 		// transient server fault — surface it as 409 rather than 500. The
 		// service already logged the account_id.
-		if errors.Is(err, userModels.ErrGuardianProfileNotFound) {
+		if errors.Is(err, parentService.ErrGuardianProfileNotFound) {
 			common.RenderError(w, r, common.ErrorConflict(err))
 			return
 		}
@@ -129,7 +127,7 @@ type ChildResponse struct {
 	CareEnded bool `json:"care_ended"`
 }
 
-func toChildResponse(c *parentModels.ChildSummary) ChildResponse {
+func toChildResponse(c *parentService.ChildSummary) ChildResponse {
 	return ChildResponse{
 		StudentID:     strconv.FormatInt(c.StudentID, 10),
 		TenantID:      strconv.FormatInt(c.TenantID, 10),

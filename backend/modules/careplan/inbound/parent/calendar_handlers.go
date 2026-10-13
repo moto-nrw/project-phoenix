@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type parentCalendarResponseRequest struct {

@@ -33,7 +33,7 @@ func newCareScheduleTestRouter(db *bun.DB, module services.StudentTestModule) (c
 		SettingsService: module.Settings, Logger: slog.Default(),
 	})
 	router := chi.NewRouter()
-	router.Mount("/parent", parentAPI.NewResource(parentAPI.ResourceConfig{Parent: parent, DB: db}).Router())
+	router.Mount("/parent", parentAPI.NewResource(parentAPI.ResourceConfig{Parent: parent}).Router())
 	router.Mount("/api/students", students.Router())
 	return router, nil
 }

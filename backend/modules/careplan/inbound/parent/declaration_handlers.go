@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -57,7 +56,7 @@ type AnnouncementDeclarationResponse struct {
 	Children         []declarationChildResponse  `json:"children"`
 }
 
-func toDeclarationResponse(d *usersModels.AnnouncementFeedDeclaration) *AnnouncementDeclarationResponse {
+func toDeclarationResponse(d *parentService.AnnouncementFeedDeclaration) *AnnouncementDeclarationResponse {
 	if d == nil {
 		return nil
 	}
@@ -294,7 +293,7 @@ func toDeclarationProofResponse(proof *parentService.DeclarationProof, now time.
 			ContentHash: sub.ContentHash, RecordHash: sub.RecordHash,
 		})
 	}
-	versions := make([]*usersModels.DeclarationVersion, 0, len(declared))
+	versions := make([]*parentService.DeclarationVersion, 0, len(declared))
 	for id := range declared {
 		if v, ok := proof.Versions[id]; ok {
 			versions = append(versions, v)

@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -21,12 +20,12 @@ import (
 // so the other signer's submission time must reach the wire.
 func TestDeclarationResponseCarriesOtherSignerSubmittedAt(t *testing.T) {
 	t.Parallel()
-	agreed := usersModels.DeclarationActionAgreed
+	agreed := parentService.DeclarationActionAgreed
 	at := time.Date(2026, 9, 20, 8, 30, 0, 0, time.UTC)
-	out := toDeclarationResponse(&usersModels.AnnouncementFeedDeclaration{
-		Children: []*usersModels.AnnouncementFeedDeclarationChild{{
+	out := toDeclarationResponse(&parentService.AnnouncementFeedDeclaration{
+		Children: []*parentService.AnnouncementFeedDeclarationChild{{
 			StudentID: 7,
-			OtherSigners: []usersModels.DeclarationSignerState{
+			OtherSigners: []parentService.DeclarationSignerState{
 				{FirstName: "Sabine", LastName: "Muster", Action: &agreed, SubmittedAt: &at},
 				{FirstName: "Tom", LastName: "Muster"},
 			},
@@ -57,18 +56,18 @@ func proofTexts(doc ReportDocument) string {
 
 func declarationProofFixture(intact bool) *parentService.DeclarationProof {
 	at := time.Date(2026, 9, 27, 19, 57, 0, 0, time.UTC)
-	older := &usersModels.DeclarationVersion{ID: 1, VersionNo: 1, Title: "Zoo", Body: "Alter Text", ContentHash: strings.Repeat("a", 64), PublishedAt: at}
-	newer := &usersModels.DeclarationVersion{ID: 2, VersionNo: 2, Title: "Zoo", Body: "Neuer Text", ContentHash: strings.Repeat("b", 64), PublishedAt: at,
-		Attachments: []usersModels.DeclarationAttachmentDigest{{AttachmentID: 19, Filename: "Ausflug.pdf", SizeBytes: 2048}},
+	older := &parentService.DeclarationVersion{ID: 1, VersionNo: 1, Title: "Zoo", Body: "Alter Text", ContentHash: strings.Repeat("a", 64), PublishedAt: at}
+	newer := &parentService.DeclarationVersion{ID: 2, VersionNo: 2, Title: "Zoo", Body: "Neuer Text", ContentHash: strings.Repeat("b", 64), PublishedAt: at,
+		Attachments: []parentService.DeclarationAttachmentDigest{{AttachmentID: 19, Filename: "Ausflug.pdf", SizeBytes: 2048}},
 	}
-	unrelated := &usersModels.DeclarationVersion{ID: 3, VersionNo: 3, Title: "Zoo", Body: "Nie beantwortet", PublishedAt: at}
+	unrelated := &parentService.DeclarationVersion{ID: 3, VersionNo: 3, Title: "Zoo", Body: "Nie beantwortet", PublishedAt: at}
 	return &parentService.DeclarationProof{
 		Title: "Einverständnis Zoo", SchoolName: "OGS Musterstadt", ChildName: "Lina Richter",
-		Kind:     usersModels.DeclarationKindConsent,
-		Versions: map[int64]*usersModels.DeclarationVersion{1: older, 2: newer, 3: unrelated},
-		Submissions: []*usersModels.DeclarationSubmission{
-			{VersionID: 2, Action: usersModels.DeclarationActionAgreed, SignerName: "Klaus Richter", GuardianRole: "primary_guardian", SubmittedAt: at, RecordHash: strings.Repeat("c", 64)},
-			{VersionID: 1, Action: usersModels.DeclarationActionDeclined, SignerName: "Klaus Richter", GuardianRole: "primary_guardian", PasswordConfirmed: true, SubmittedAt: at},
+		Kind:     parentService.DeclarationKindConsent,
+		Versions: map[int64]*parentService.DeclarationVersion{1: older, 2: newer, 3: unrelated},
+		Submissions: []*parentService.DeclarationSubmission{
+			{VersionID: 2, Action: parentService.DeclarationActionAgreed, SignerName: "Klaus Richter", GuardianRole: "primary_guardian", SubmittedAt: at, RecordHash: strings.Repeat("c", 64)},
+			{VersionID: 1, Action: parentService.DeclarationActionDeclined, SignerName: "Klaus Richter", GuardianRole: "primary_guardian", PasswordConfirmed: true, SubmittedAt: at},
 		},
 		IntegrityOK: intact,
 	}

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -61,9 +60,9 @@ type ReportRenderer interface {
 var errProofRendererUnbound = errors.New("declaration proof renderer is not bound")
 
 var proofActionLabels = map[string]string{
-	usersModels.DeclarationActionAgreed:   "Zugestimmt",
-	usersModels.DeclarationActionDeclined: "Abgelehnt",
-	usersModels.DeclarationActionRevoked:  "Zustimmung widerrufen",
+	parentService.DeclarationActionAgreed:   "Zugestimmt",
+	parentService.DeclarationActionDeclined: "Abgelehnt",
+	parentService.DeclarationActionRevoked:  "Zustimmung widerrufen",
 }
 
 var proofRoleLabels = map[string]string{
@@ -148,7 +147,7 @@ func proofVersionCards(proof *parentService.DeclarationProof) []ReportCard {
 	for _, sub := range proof.Submissions {
 		declared[sub.VersionID] = true
 	}
-	versions := make([]*usersModels.DeclarationVersion, 0, len(declared))
+	versions := make([]*parentService.DeclarationVersion, 0, len(declared))
 	for id := range declared {
 		if v, ok := proof.Versions[id]; ok {
 			versions = append(versions, v)

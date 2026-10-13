@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
+	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -240,7 +240,7 @@ func TestListMyCalendarParsesRangeAndAccount(t *testing.T) {
 	t.Parallel()
 
 	service := &fakeParentCalendarService{
-		parentEvents: []calendarSvc.Event{{ID: "appointment:1:2026-01-05", Source: calModels.EventSourceAppointment, Title: "Parent meeting"}},
+		parentEvents: []calendarSvc.Event{{ID: "appointment:1:2026-01-05", Source: calendarSvc.EventSourceAppointment, Title: "Parent meeting"}},
 	}
 	rs := &Resource{CalendarService: service}
 	req := withClaims(httptest.NewRequest(http.MethodGet, "/me/calendar?from=2026-01-05&to=2026-01-11", nil), 77)
@@ -287,7 +287,7 @@ func TestRespondToCalendarInvitationPassesAccountRecipientAndStatus(t *testing.T
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(77), service.gotRespondAccount)
 	assert.Equal(t, int64(42), service.gotRespondID)
-	assert.Equal(t, calModels.ResponseStatusDeclined, service.gotRespondStatus)
+	assert.Equal(t, appointments.ResponseStatusDeclined, service.gotRespondStatus)
 }
 
 func TestRespondToCalendarInvitationRejectsInvalidRecipient(t *testing.T) {
