@@ -11,6 +11,7 @@ import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
 import type { CareDayStatus } from "~/lib/timetable-types";
+import type { DepartureMode } from "~/lib/student-helpers";
 
 // ===== Wire types (Go: backend/modules/supervisiondashboard) =====
 
@@ -188,6 +189,7 @@ interface WirePickupTime {
   weekday_name: string;
   pickup_time?: string;
   is_exception: boolean;
+  day_departure_mode?: DepartureMode;
   notes?: string;
   day_notes?: WireDayNote[];
 }
@@ -409,6 +411,7 @@ interface ActiveSupervisionDashboardResponse {
     weekdayName: string;
     pickupTime: string | null;
     isException: boolean;
+    dayDepartureMode?: DepartureMode;
     notes: string;
     dayNotes: Array<{ id: string; content: string }>;
   }>;
@@ -595,6 +598,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
       weekdayName: p.weekday_name,
       pickupTime: p.pickup_time ?? null,
       isException: p.is_exception,
+      dayDepartureMode: p.day_departure_mode,
       notes: p.notes ?? "",
       dayNotes: (p.day_notes ?? []).map((n) => ({
         id: n.id,

@@ -2108,7 +2108,9 @@ describe("CareOfferingsEditor", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       catalogText("general.server", "die Liste der Betreuungsangebote"),
     );
-    expect(onSummaryChange).toHaveBeenLastCalledWith("unavailable");
+    await waitFor(() =>
+      expect(onSummaryChange).toHaveBeenLastCalledWith("unavailable"),
+    );
     expect(onSummaryChange).not.toHaveBeenCalledWith({ total: 0, active: 0 });
   });
   it("keeps a failed offering delete in the open dialog (#2515)", async () => {

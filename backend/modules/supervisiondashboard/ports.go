@@ -204,6 +204,9 @@ type Pickup struct {
 	IsException bool
 	Notes       string
 	DayNotes    []DayNote
+
+	// DayDepartureMode is the Abholart set for this day only (#3946).
+	DayDepartureMode string
 }
 
 // Arrival is the effective arrival plan of one student for the day.

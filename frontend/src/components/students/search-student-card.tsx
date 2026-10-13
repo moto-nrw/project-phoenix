@@ -39,7 +39,10 @@ import {
   getStudentPresenceBadgePlanning,
 } from "~/lib/day-planning-helper";
 import { deriveCheckinState } from "~/lib/hooks/use-school-checkin-mode";
-import type { StudentTableDay } from "~/components/students/student-table";
+import {
+  dayHomeChange,
+  type StudentTableDay,
+} from "~/components/students/student-table";
 
 const DAILY_DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
   alone: "Geht alleine nach Hause",
@@ -138,7 +141,11 @@ export function searchStudentDay(
     notes: student.pickup_notes,
     day: dayTimes,
   };
-  if (student.actual_pickup_time) return { arrival, pickup };
+  // The list names the day's Abholart in departure_modes and marks it (#3945).
+  const dayDepartureMode = student.departure_is_exception
+    ? student.departure_modes?.[0]
+    : undefined;
+  if (student.actual_pickup_time) return { arrival, pickup, dayDepartureMode };
   const absence = getStudentAbsence({
     sick: student.sick,
     classTrip: student.class_trip,
@@ -149,7 +156,7 @@ export function searchStudentDay(
     getDayPlanningNotComingLabel(student, {
       ignoreCurrentAttendance: !isToday,
     });
-  if (!absenceLabel) return { arrival, pickup };
+  if (!absenceLabel) return { arrival, pickup, dayDepartureMode };
   return {
     absence: {
       label: absenceLabel,
@@ -158,6 +165,7 @@ export function searchStudentDay(
     },
     arrival,
     pickup,
+    dayDepartureMode,
   };
 }
 
@@ -214,6 +222,10 @@ function SearchStudentCardImpl({
       isCheckinSelected={isCheckinSelected}
       isCheckinPending={isCheckinPending}
       onCheckinClick={() => onCheckinClick(student)}
+      // The strip says "heute": another planning day keeps the plain card.
+      dayHomeChange={
+        isToday ? dayHomeChange(searchStudentDay(student, isToday)) : undefined
+      }
       locationBadge={
         <SearchStudentStatusBadge
           student={student}
