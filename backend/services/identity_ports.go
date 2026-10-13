@@ -3,13 +3,9 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	"github.com/uptrace/bun"
 )
 
 // Identity & Access owns auth.accounts, platform.operators and the operator
@@ -19,23 +15,6 @@ import (
 // account's address through the public capability, the People Directory
 // repositories filter or attach accounts through the owner's queries, and
 // the retained operator repository contracts are adapters over the module.
-
-// newIdentityAccess composes the Identity & Access module the factory's
-// adapters read through. A nil observer composes it unobserved, which is
-// what repository tests and CLI roots use.
-func newIdentityAccess(db *bun.DB, observe IdentityAccessObserver) *identityaccess.Module {
-	observer := func(identityCompose.Observation) {}
-	if observe != nil {
-		observer = func(observation identityCompose.Observation) {
-			observe(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, identityaccess.ErrorCode(observation.Err), observation.Err)
-		}
-	}
-	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: observer})
-	if err != nil {
-		panic(fmt.Sprintf("repository factory: compose identity access: %v", err))
-	}
-	return module
-}
 
 // identityAccountDirectory adapts the public account lookup to the parent
 // enrollment repository's directory port.
@@ -74,12 +53,4 @@ func staffMessageIdentity(accounts identityaccess.StaffAccountQueries) peopleCom
 			return result, nil
 		},
 	}
-}
-
-// newPersonRepository is the People Directory person repository with the
-// Identity & Access account lookup FindWithAccount attaches (#2720), for the
-// adapters still in this package. services composes the same repository
-// where it is used (#2743).
-func newPersonRepository(db *bun.DB) userModels.PersonRepository {
-	return peopleCompose.NewPersonRepository(db, accountLookup(newIdentityAccess(db, nil)))
 }

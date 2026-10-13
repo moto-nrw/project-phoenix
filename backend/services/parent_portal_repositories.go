@@ -52,7 +52,7 @@ func NewParentPortalRepositories(db *bun.DB, owners ParentPortalOwners) ParentPo
 	identity := owners.Identity
 	members := parentStaffMembers{membership: owners.Membership}.list
 	// The staff accounts are loaded from the person rows.
-	persons := newPersonRepository(db)
+	persons := NewPersonRepository(db)
 	return ParentPortalRepositories{
 		ParentPortalRepositories: carePlanCompose.NewParentPortalRepositories(carePlanCompose.ParentPortalDependencies{
 			DB: db, Directory: parentPortalDirectory{people: owners.People},

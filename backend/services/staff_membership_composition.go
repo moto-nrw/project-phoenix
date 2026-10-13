@@ -11,10 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationSvc "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	offboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
-	"github.com/uptrace/bun"
 )
 
 // The School Membership HTTP adapter (#2667) owns the /api/staff directory
@@ -154,8 +152,11 @@ type StaffMembershipRuntime struct {
 	Offboard    func(context.Context, int64, string) error
 }
 
-// NewStaffMembershipRuntime composes the closures over the service factory.
-func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
+// bindStaffMembershipRuntime composes the closures over the service factory.
+// offboarding carries the database and the employment owner the caller
+// composed; the access, the cleanup, the broadcaster, the logger and the
+// authorization of the offboarding workflow are bound here.
+func (f *Factory) bindStaffMembershipRuntime(offboarding offboardingcompose.Dependencies, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
 	if hooks.ResolveEditorStaffID == nil || hooks.QueueOffboardedDocumentCleanup == nil {
 		panic("staff membership runtime: offboarding hooks are required")
 	}
@@ -170,16 +171,13 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 	if roles == nil {
 		panic("staff membership runtime: identity role administration is required")
 	}
-	employment := workforceCompose.MustNewStaffEmployment(db)
-	offboarding, err := offboardingcompose.New(offboardingcompose.Dependencies{
-		DB: db, Access: access, Cleanup: hooks.QueueOffboardedDocumentCleanup,
-		Employment:  MembershipStaffEmployment(employment),
-		Broadcaster: f.RealtimeHub, Logger: logger,
-		Authorize: func(ctx context.Context) (staffoffboarding.Actor, error) {
-			name, _ := ctx.Value(staffOffboardingActorNameKey{}).(string)
-			return offboardingcompose.Authorize(ctx, hooks.ResolveEditorStaffID, name)
-		},
-	})
+	offboarding.Access, offboarding.Cleanup = access, hooks.QueueOffboardedDocumentCleanup
+	offboarding.Broadcaster, offboarding.Logger = f.RealtimeHub, logger
+	offboarding.Authorize = func(ctx context.Context) (staffoffboarding.Actor, error) {
+		name, _ := ctx.Value(staffOffboardingActorNameKey{}).(string)
+		return offboardingcompose.Authorize(ctx, hooks.ResolveEditorStaffID, name)
+	}
+	offboardingWorkflow, err := offboardingcompose.New(offboarding)
 	if err != nil {
 		panic(err)
 	}
@@ -294,7 +292,7 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 			return StaffUpdateResult{Staff: legacyStaffToMembership(staff), Teacher: legacyTeacherToMembership(teacher), Action: StaffTeacherActionFor(action)}, nil
 		},
 		Offboard: func(ctx context.Context, staffID int64, actorUsername string) error {
-			_, err := offboarding.Offboard(context.WithValue(ctx, staffOffboardingActorNameKey{}, actorUsername), staffID)
+			_, err := offboardingWorkflow.Offboard(context.WithValue(ctx, staffOffboardingActorNameKey{}, actorUsername), staffID)
 			if errors.Is(err, staffoffboarding.ErrInUse) {
 				return ErrStaffInUse
 			}

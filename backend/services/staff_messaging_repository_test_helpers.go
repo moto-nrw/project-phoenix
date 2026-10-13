@@ -24,6 +24,6 @@ func NewStaffMessagingTestRepositories(db *bun.DB, members MembershipTestReposit
 		Message: staffStore.NewStaffMessageRepository(db),
 		Read: staffStore.NewStaffMessageReadRepository(db, peopleCompose.NewMessageableStaff(db,
 			parentStore.CurrentTenantStaffAccounts(parentStaffMembers{membership: membership}.list, members.Person),
-			staffMessageIdentity(newIdentityAccess(db, nil)))),
+			staffMessageIdentity(newPeopleIdentityAccess(db, nil)))),
 	}, nil
 }

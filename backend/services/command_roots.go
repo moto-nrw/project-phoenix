@@ -34,7 +34,7 @@ type AuthCleanupRepositories struct {
 
 func NewAuthCleanupRepositories(db *bun.DB) AuthCleanupRepositories {
 	return AuthCleanupRepositories{
-		School: mustNewOrganizationTenancy(db), Person: newPersonRepository(db),
+		School: mustNewOrganizationTenancy(db), Person: NewPersonRepository(db),
 		PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 	}
 }
