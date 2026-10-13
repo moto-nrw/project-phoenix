@@ -102,27 +102,45 @@ func TestDemoDayPresence(t *testing.T) {
 // timetable and care plan endpoints change them.
 type demoDayClient struct {
 	Client
-	blocks     []demoBlock
-	arrivals   map[int64]string
-	pickups    map[int64]string
-	writes     []string
-	exceptions map[string]map[string]any
-	created    []map[string]any
-	tasks      []map[string]any
+	blocks       []demoBlock
+	arrivals     map[int64]string
+	pickups      map[int64]string
+	writes       []string
+	exceptions   map[string]map[string]any
+	exceptionIDs map[string]int64
+	created      []map[string]any
+	tasks        []map[string]any
 }
 
 func newDemoDayClient(blocks ...demoBlock) *demoDayClient {
 	return &demoDayClient{
-		blocks:     blocks,
-		arrivals:   map[int64]string{},
-		pickups:    map[int64]string{},
-		exceptions: map[string]map[string]any{},
+		blocks:       blocks,
+		arrivals:     map[int64]string{},
+		pickups:      map[int64]string{},
+		exceptions:   map[string]map[string]any{},
+		exceptionIDs: map[string]int64{},
 	}
 }
 
 func (c *demoDayClient) Get(path string) ([]byte, error) {
 	if path == "/api/timetable/pickup-extensions" {
 		return json.Marshal(map[string]any{"data": map[string]any{"tasks": c.tasks}})
+	}
+	if strings.HasPrefix(path, "/api/students/") && strings.Contains(path, "-schedules?") {
+		parts := strings.Split(path, "/")
+		studentID, err := strconv.ParseInt(parts[3], 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		kind := strings.TrimSuffix(strings.Split(parts[4], "?")[0], "-schedules")
+		exceptionPath := fmt.Sprintf("/api/students/%d/%s-exceptions", studentID, kind)
+		var exceptions []map[string]any
+		if values, ok := c.exceptions[exceptionPath]; ok {
+			exceptions = append(exceptions, map[string]any{
+				"id": c.exceptionIDs[exceptionPath], "exception_date": values["exception_date"],
+			})
+		}
+		return json.Marshal(map[string]any{"data": map[string]any{"exceptions": exceptions}})
 	}
 	if !strings.HasPrefix(path, "/api/timetable/instances?") {
 		return nil, fmt.Errorf("unexpected GET %s", path)
@@ -144,6 +162,22 @@ func (c *demoDayClient) Get(path string) ([]byte, error) {
 func (c *demoDayClient) Put(path string, body any) ([]byte, error) {
 	c.writes = append(c.writes, "PUT "+path)
 	values := body.(map[string]any)
+	if strings.HasPrefix(path, "/api/students/") && strings.Contains(path, "-exceptions/") {
+		parts := strings.Split(path, "/")
+		studentID, err := strconv.ParseInt(parts[3], 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		kind := strings.TrimSuffix(parts[4], "-exceptions")
+		exceptionPath := fmt.Sprintf("/api/students/%d/%s-exceptions", studentID, kind)
+		c.exceptions[exceptionPath] = values
+		if kind == "arrival" {
+			c.arrivals[studentID] = values["expected_arrival"].(string)
+		} else {
+			c.pickups[studentID] = values["pickup_time"].(string)
+		}
+		return []byte(`{"data":{}}`), nil
+	}
 	for i := range c.blocks {
 		if path == fmt.Sprintf("/api/timetable/instances/%d", c.blocks[i].ID) {
 			c.blocks[i].StartTime, c.blocks[i].EndTime = values["start_time"].(string), values["end_time"].(string)
@@ -171,6 +205,9 @@ func (c *demoDayClient) Post(path string, body any) ([]byte, error) {
 	case strings.HasSuffix(path, "-exceptions"):
 		values := body.(map[string]any)
 		c.exceptions[path] = values
+		if c.exceptionIDs[path] == 0 {
+			c.exceptionIDs[path] = int64(len(c.exceptionIDs) + 1)
+		}
 		if strings.Contains(path, "/arrival-") {
 			c.arrivals[studentIDFromPath(path)] = values["expected_arrival"].(string)
 		} else {
@@ -195,6 +232,46 @@ func studentIDFromPath(path string) int64 {
 	parts := strings.Split(path, "/")
 	studentID, _ := strconv.ParseInt(parts[3], 10, 64)
 	return studentID
+}
+
+type demoCareExceptionConflict struct{}
+
+func (demoCareExceptionConflict) Error() string {
+	return "schedule exception for this day was just changed"
+}
+func (demoCareExceptionConflict) HTTPErrorCode() string { return codeCareExceptionRaced }
+
+type demoTimeConflictClient struct {
+	*demoDayClient
+	conflictPath string
+}
+
+func (c *demoTimeConflictClient) Post(path string, body any) ([]byte, error) {
+	if path == c.conflictPath {
+		return nil, demoCareExceptionConflict{}
+	}
+	return c.demoDayClient.Post(path, body)
+}
+
+func TestDemoDayUpdatesSeededTimeException(t *testing.T) {
+	t.Parallel()
+	const pickupPath = "/api/students/11/pickup-exceptions"
+	client := &demoTimeConflictClient{
+		demoDayClient: newDemoDayClient(),
+		conflictPath:  pickupPath,
+	}
+	client.exceptions[pickupPath] = map[string]any{
+		"exception_date": "2026-09-11", "pickup_time": "13:30", "reason": "Arzttermin",
+	}
+	client.exceptionIDs[pickupPath] = 23
+	day := demoDay{date: "2026-09-11"}
+
+	require.NoError(t, day.writeTimes(client, []int64{11}, map[int64]demoTimes{
+		11: {arrival: 16 * 60, pickup: 20 * 60},
+	}))
+
+	assert.Equal(t, "20:00", client.pickups[11])
+	assert.Contains(t, client.writes, "PUT /api/students/11/pickup-exceptions/23")
 }
 
 func TestDemoDayMovesTheEveningAndRunsIt(t *testing.T) {

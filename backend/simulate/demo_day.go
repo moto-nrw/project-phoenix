@@ -46,6 +46,10 @@ const (
 	// day, so a rebuild that plans nothing (shortly before midnight) does
 	// not repeat every tick.
 	demoDayAnchorPause = 60
+	// codeCareExceptionRaced is returned when a staff-written day exception
+	// already exists. The demo owns its seeded school, so it updates that
+	// exception instead of treating a restart as a failed tick.
+	codeCareExceptionRaced = "students.care_exception_raced"
 )
 
 // demoActivity is an AG the demo plans for today, in its room and with its
@@ -424,26 +428,61 @@ func (day *demoDay) writeTimes(client Client, studentIDs []int64, moved map[int6
 		if !ok {
 			continue
 		}
-		path := fmt.Sprintf("/api/students/%d/arrival-exceptions", studentID)
-		if _, err := client.Post(path, map[string]any{
-			"exception_date": day.date, "expected_arrival": clockOf(times.arrival), "reason": demoDayReason,
-		}); err != nil {
+		if err := day.writeTimeException(client, studentID, "arrival", "expected_arrival", clockOf(times.arrival)); err != nil {
 			return fmt.Errorf("move demo arrival for student %d: %w", studentID, err)
 		}
 		if times.pickup < 0 {
 			continue
 		}
-		path = fmt.Sprintf("/api/students/%d/pickup-exceptions", studentID)
 		movedPickups[studentID] = clockOf(times.pickup)
-		if _, err := client.Post(path, map[string]any{
-			"exception_date": day.date, "pickup_time": clockOf(times.pickup), "reason": demoDayReason,
-		}); err != nil {
+		if err := day.writeTimeException(client, studentID, "pickup", "pickup_time", movedPickups[studentID]); err != nil {
 			return fmt.Errorf("move demo pickup for student %d: %w", studentID, err)
 		}
 	}
 	day.times = nil
 	day.settlePickupTasks(client, movedPickups)
 	return nil
+}
+
+// writeTimeException creates the day's arrival or pickup exception. A demo
+// seed can already carry a staff-written exception for today; a ticker restart
+// must update that row rather than attempting a second create for its date.
+func (day *demoDay) writeTimeException(client Client, studentID int64, kind, field, value string) error {
+	path := fmt.Sprintf("/api/students/%d/%s-exceptions", studentID, kind)
+	body := map[string]any{"exception_date": day.date, field: value, "reason": demoDayReason}
+	if _, err := client.Post(path, body); err == nil {
+		return nil
+	} else if !isCareExceptionDayConflict(err) {
+		return err
+	}
+
+	raw, err := client.Get(fmt.Sprintf("/api/students/%d/%s-schedules?from=%s&to=%s", studentID, kind, day.date, day.date))
+	if err != nil {
+		return fmt.Errorf("read existing %s exception: %w", kind, err)
+	}
+	var response struct {
+		Data struct {
+			Exceptions []struct {
+				ID            int64  `json:"id"`
+				ExceptionDate string `json:"exception_date"`
+			} `json:"exceptions"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &response); err != nil {
+		return fmt.Errorf("decode existing %s exception: %w", kind, err)
+	}
+	for _, exception := range response.Data.Exceptions {
+		if exception.ID != 0 && exception.ExceptionDate == day.date {
+			_, err := client.Put(fmt.Sprintf("%s/%d", path, exception.ID), body)
+			return err
+		}
+	}
+	return fmt.Errorf("find existing %s exception for %s", kind, day.date)
+}
+
+func isCareExceptionDayConflict(err error) bool {
+	var coded interface{ HTTPErrorCode() string }
+	return errors.As(err, &coded) && coded.HTTPErrorCode() == codeCareExceptionRaced
 }
 
 // settlePickupTasks closes the tasks the moved pickups opened (#3261): a
