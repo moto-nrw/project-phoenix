@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -147,17 +148,7 @@ func (root cleanupRoot) newContext() (*cleanupContext, error) {
 		return nil, fmt.Errorf("cleanup database opener returned nil")
 	}
 
-	postgresRuntime, err := database.NewPostgresUnitOfWork(db, tenant.ObservePoolWait)
-	if err != nil {
-		_ = db.Close()
-		return nil, err
-	}
-	tenantRuntime, err := services.BindTenantRuntime(
-		postgresRuntime.WithinTenant,
-		postgresRuntime.WithinAdmin,
-		postgresRuntime,
-		database.IsRetryableTransactionError,
-	)
+	tenantRuntime, err := transactionruntime.NewTenantRuntime(db)
 	if err != nil {
 		_ = db.Close()
 		return nil, err

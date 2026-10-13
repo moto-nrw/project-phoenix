@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModel "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -44,7 +45,7 @@ func VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.
 		SelectedDays:   []string{"mon", "tue"},
 		ValidFrom:      &auditDate,
 	}
-	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), link)
+	insertAuditOfferingSelection(t, db, ctx, tenant.FromContext(ctx), link)
 
 	staff := CreateTestStaff(t, db, "Audit", "Planung")
 	arrivalMonday := &StudentArrivalSchedule{
@@ -129,7 +130,7 @@ func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 	arrivalLink := &auditOfferingSelection{
 		RequestChildID: child.child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}, ValidFrom: &auditDate,
 	}
-	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), arrivalLink)
+	insertAuditOfferingSelection(t, db, ctx, tenant.FromContext(ctx), arrivalLink)
 	arrivalException := &StudentArrivalException{
 		StudentID: withArrivalException.ID, ExceptionDate: timezone.Date(auditDate), CreatedBy: staff.ID,
 	}
@@ -147,7 +148,7 @@ func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 		RequestChildID: futureChild.child.ID, CareOfferingID: futureOffering.ID,
 		SelectedDays: []string{"mon"}, ValidFrom: &futureDate,
 	}
-	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), futureLink)
+	insertAuditOfferingSelection(t, db, ctx, tenant.FromContext(ctx), futureLink)
 
 	report, err := repo.Audit(ctx, auditModel.Date(auditDate.String()))
 	require.NoError(t, err)
@@ -176,12 +177,12 @@ func VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing
 		RequestChildID: child.child.ID, CareOfferingID: offering.ID,
 		SelectedDays: []string{"mon"}, ValidFrom: &auditDate, ValidUntil: &splitDate,
 	}
-	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), firstLink)
+	insertAuditOfferingSelection(t, db, ctx, tenant.FromContext(ctx), firstLink)
 	secondLink := &auditOfferingSelection{
 		RequestChildID: child.child.ID, CareOfferingID: offering.ID,
 		SelectedDays: []string{"mon"}, ValidFrom: &splitDate, ValidUntil: &phaseEndExclusive,
 	}
-	insertAuditOfferingSelection(t, db, ctx, auditModel.TenantIDFromContext(ctx), secondLink)
+	insertAuditOfferingSelection(t, db, ctx, tenant.FromContext(ctx), secondLink)
 	arrival := &StudentArrivalSchedule{
 		StudentID: student.ID, Weekday: ScheduleWeekdayMonday,
 		ExpectedArrival: bookingAuditWallClock(11, 45), CreatedBy: staff.ID,
@@ -207,7 +208,7 @@ func createApprovedBookingAuditChild(
 	selectionMode string,
 ) approvedBookingAuditChild {
 	t.Helper()
-	tenantID := auditModel.TenantIDFromContext(ctx)
+	tenantID := tenant.FromContext(ctx)
 	phase := &enrollmentOwner.Phase{
 		Name:                      fmt.Sprintf("Audit-%d", studentID),
 		Kind:                      enrollmentModel.PhaseKindSchoolYear,
@@ -245,15 +246,9 @@ func createApprovedBookingAuditChild(
 	return approvedBookingAuditChild{phase: phase, child: child}
 }
 
-// AuditTenantIDFromContext reads the tenant the Audit Platform binds to a
-// context, for repositories composed in tests.
-func AuditTenantIDFromContext(ctx context.Context) int64 {
-	return auditModel.TenantIDFromContext(ctx)
-}
-
 func insertTenantBookingAuditModel(t *testing.T, db *bun.DB, ctx context.Context, model any, tenantID *int64) {
 	t.Helper()
-	*tenantID = auditModel.TenantIDFromContext(ctx)
+	*tenantID = tenant.FromContext(ctx)
 	insertBookingAuditModel(t, db, ctx, model)
 }
 

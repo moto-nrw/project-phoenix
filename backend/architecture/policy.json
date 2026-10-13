@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 36,
+  "policy_epoch": 37,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -3437,6 +3437,13 @@
       "role": "public",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/transactionruntime/compose",
+      "owner": "transaction-runtime",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
     },
     {
       "path": "modules/transactionruntime/internal/adapters/postgres",
@@ -22683,6 +22690,17 @@
       "target_role": "public"
     },
     {
+      "id": "shared-fixtures.transaction-runtime-compose",
+      "description": "The shared fixtures build the PostgreSQL tenant runtime and open their pools through the Transaction Runtime bootstrap instead of its adapter (ADR 0047, #3970).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "transaction-runtime",
+      "target_role": "compose"
+    },
+    {
       "id": "settings-platform.internal-test.security-runtime-public",
       "description": "The settings suite proves the overview scope stays in its tenant through the Security Runtime's overview decision (ADR 0047).",
       "scopes": [
@@ -23334,6 +23352,82 @@
       "source_role": "public",
       "target_owner": "transaction-runtime",
       "target_role": "postgres"
+    },
+    {
+      "id": "transaction-runtime.compose.postgres",
+      "description": "The tenant runtime bootstrap binds the PostgreSQL unit of work, retry classification, lock-wait hook and pools of its adapter (#3970).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "compose",
+      "target_owner": "transaction-runtime",
+      "target_role": "postgres"
+    },
+    {
+      "id": "transaction-runtime.compose.tenant-runtime",
+      "description": "The tenant runtime bootstrap returns the shared unit of work and reports pool and lock waits to its observer (#3970).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "transaction-runtime.compose.audit-platform-public",
+      "description": "The tenant runtime bootstrap hands each unit of work's tenant and transaction to the Audit adapters through the Audit Platform contract (#3970).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "transaction-runtime.compose.orm-sql",
+      "description": "The tenant runtime bootstrap takes and opens the concrete Bun database (#3970).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "transaction-runtime.integration-test.compose",
+      "description": "The bootstrap suite runs both composed runtimes against the test database (#3970).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "workflow-integration-test",
+      "target_owner": "transaction-runtime",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.transaction-runtime-compose",
+      "description": "The serving root builds the tenant runtime, its demo variant and the serve pool through the Transaction Runtime bootstrap (#3970).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "transaction-runtime",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.cli.transaction-runtime-compose",
+      "description": "The CLI commands build the tenant runtime and open their pool through the Transaction Runtime bootstrap (#3970).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "cli",
+      "target_owner": "transaction-runtime",
+      "target_role": "compose"
     }
   ],
   "relocations": [
