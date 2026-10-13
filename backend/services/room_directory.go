@@ -5,7 +5,9 @@ import (
 	"fmt"
 
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/uptrace/bun"
 )
 
 // activeRoomDirectory adapts the room owner for the retained session
@@ -30,4 +32,10 @@ func (d activeRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]
 		})
 	}
 	return result, nil
+}
+
+// NewFacilities composes the unobserved room owner for the test and CLI
+// compositions that reach Facilities through the legacy composition.
+func NewFacilities(db *bun.DB) (facilitiesModule.Capability, error) {
+	return facilitiesCompose.NewUnobserved(db)
 }
