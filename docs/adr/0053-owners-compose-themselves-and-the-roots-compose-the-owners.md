@@ -39,7 +39,8 @@ Measured on `6343f9082d`, policy epoch 40:
   `root-composition -> <owner>/compose|public|http`. Each new pair is a new rule
   between existing points, so PR mode reports it as loosening. Moving the
   builders into the root as written would need about 44 more pairs, eleven of
-  them into `adapter`, `postgres`, `application` or `domain` roles.
+  them outside `compose`, `public` and `contract`: implementation roles of
+  other owners, two `port` roles, the session token adapter and the ORM.
 - 206 rules let an owner's `compose` reach another owner: 82 into `public`, 81
   into `domain`, `application`, `postgres` or `adapter`.
 
