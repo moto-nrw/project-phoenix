@@ -117,7 +117,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 					(tenant_id, student_id, date, status, reported_at, source, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			`,
-				classTripStudent.GetTenantID(),
+				classTripStudent.TenantID,
 				studentID,
 				// The DATE column must hold the Berlin calendar date; the driver
 				// binds raw time.Time values as UTC, which is one day behind

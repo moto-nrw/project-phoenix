@@ -90,7 +90,7 @@ against the merge base.
 
 ## Consequences
 
-The baseline falls from 111 to 88 entries; 23 of the 26 #2747 keys are gone.
+The baseline falls from 109 to 86 entries; 23 of the 26 #2747 keys are gone.
 The `bun`, `tenant` and `legacy/jwt` keys of `services` remain. The builders
 that compose several owners over one database (`services/*_roots.go`,
 `command_roots.go`, `cleanup_composition.go`, `factory.go`) and about 90 test

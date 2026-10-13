@@ -20,7 +20,7 @@ func TestTeacherStudentsQueryBudget(t *testing.T) {
 	add := func(count int) {
 		for i := range count {
 			teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, fmt.Sprintf("Teacher%d", len(teacherIDs)+i), "Budget")
-			testpkg.EnsureAccountTenant(t, tc.db, account.ID, teacher.GetTenantID())
+			testpkg.EnsureAccountTenant(t, tc.db, account.ID, teacher.TenantID)
 			group := testpkg.CreateTestEducationGroup(t, tc.db, fmt.Sprintf("TeacherBudget%d", len(teacherIDs)+i))
 			testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 			student := testpkg.CreateTestStudent(t, tc.db, fmt.Sprintf("Student%d", len(teacherIDs)+i), "Budget", "1a")

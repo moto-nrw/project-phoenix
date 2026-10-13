@@ -204,13 +204,14 @@ func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
 	_, err := db.NewInsert().Model(secondProfile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
 	require.NoError(t, err)
 
-	link := &usersModels.StudentGuardian{
+	link := &testpkg.StudentGuardian{
 		StudentID:         secondStudent.ID,
 		GuardianProfileID: secondProfile.ID,
 		RelationshipType:  "parent",
 	}
-	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRolePrimaryGuardian)
-	link.SetTenantID(secondTenantID)
+	link.GuardianRole = authorize.NormalizeGuardianRole(authorize.GuardianRolePrimaryGuardian)
+	link.Permissions = authorize.StudentGuardianPermissionSet(link.GuardianRole)
+	link.TenantID = secondTenantID
 	err = testpkg.InsertTestStudentGuardian(ctx, db, link)
 	require.NoError(t, err)
 

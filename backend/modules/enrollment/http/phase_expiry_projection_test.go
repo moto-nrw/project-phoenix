@@ -48,7 +48,7 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 	validUntil := calendar.Date(phase.ServiceEndDate).AddDays(1)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		studentRepo := newExpiryStudentFixture(t, db)
-		for _, student := range []*usersModels.Student{mondayStudent, fridayStudent} {
+		for _, student := range []*testpkg.Student{mondayStudent, fridayStudent} {
 			if err := studentRepo.SetEnrollmentWindowByID(
 				ctx, student.ID, calendar.Date(phase.ServiceStartDate), usersModels.StudentStatusActive,
 			); err != nil {
@@ -59,7 +59,7 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 		offeringRepo := newCareOfferingFixtures(testutil.NewTestCarePlan(t, db))
 		linkRepo := services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 		for _, fixture := range []struct {
-			student *usersModels.Student
+			student *testpkg.Student
 			day     string
 		}{
 			{student: mondayStudent, day: "mon"},

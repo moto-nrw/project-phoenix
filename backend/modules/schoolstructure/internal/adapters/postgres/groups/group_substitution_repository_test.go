@@ -254,7 +254,7 @@ func TestGroupSubstitutionRepository_ListWithOptions(t *testing.T) {
 		endDate := startDate.AddDays(7)
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
-		options := testpkg.NewQueryOptions()
+		options := testutil.NewSchoolStructureQueryOptions()
 		options.WithPagination(1, 10)
 
 		subs, err := repo.ListWithOptions(ctx, options)
@@ -455,8 +455,8 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 		sub2 := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute2.ID, startDate, endDate)
 
 		// List with relations
-		options := testpkg.NewQueryOptions()
-		filter := testpkg.NewQueryFilter()
+		options := testutil.NewSchoolStructureQueryOptions()
+		filter := testutil.NewSchoolStructureQueryFilter()
 		filter.Equal("group_id", group.ID)
 		options.Filter = filter
 
@@ -476,8 +476,8 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 	})
 
 	t.Run("handles empty result set", func(t *testing.T) {
-		options := testpkg.NewQueryOptions()
-		filter := testpkg.NewQueryFilter()
+		options := testutil.NewSchoolStructureQueryOptions()
+		filter := testutil.NewSchoolStructureQueryFilter()
 		filter.Equal("group_id", int64(999999)) // Non-existent
 		options.Filter = filter
 

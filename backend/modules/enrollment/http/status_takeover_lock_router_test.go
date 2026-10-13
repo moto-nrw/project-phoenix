@@ -40,7 +40,7 @@ type takeoverLockEnv struct {
 	phaseID  int64
 	token    string
 	request  *enrollmentAPI.SubmitResult
-	students []*usersModels.Student
+	students []*testpkg.Student
 }
 
 // stubTakeoverSettings answers the enrollment settings the public status and

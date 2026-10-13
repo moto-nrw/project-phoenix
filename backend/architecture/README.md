@@ -552,7 +552,7 @@ through the owners' compositions or contracts, and the records and keys of
 `modules/transactionruntime`. The root builds the analytics tracker, and the
 legacy composition's own suites run as internal tests. Five pairs between
 existing points are granted by `serviceFactoryCutoverPermission`. 23 of the
-26 #2747 keys fell (111 -> 88), and the composition surface dropped from 260
+26 #2747 keys fell (109 -> 86), and the composition surface dropped from 260
 to 259. The production adapters no longer hold a database handle, tenant
 transaction or JWT read: those live in the owner compositions or arrive as
 built values from the root. The `bun`, `tenant` and `legacy/jwt` keys remain,
@@ -662,6 +662,11 @@ is deleted.
   `test/people_repository_vocabulary.go` and the tenant helpers of
   `test/tenant_runtime.go`. The 208 tests and their subtests are unchanged in
   number and assertion.
+  #3966 moved 34 of those suite files into the People Directory contract
+  suite (`modules/peopledirectory/contracttest`), whose existing rule
+  `people-directory.contracttest.people-directory.domain` lets them name the
+  `models/users` rows themselves; the two stranding-batch suites, which open
+  `departure.ContextWithStrandingBatch`, stay in `modules/peopledirectory`.
 
 #2762 cut the execution and the attendance of a block over to Student
 Presence (migration 1.15.415, one release with the caller switch). Timetable
@@ -3419,6 +3424,21 @@ Audit context adapters through `modules/auditlog`; `test -> database` falls
 (112 -> 111). The roots `api` and `cmd` build their runtimes and pools there
 too, under two rules anchored to the new package, and
 `services.BindTenantRuntime` is deleted.
+[#3966](https://github.com/moto-nrw/project-phoenix/issues/3966) needed no
+rule either: the People Directory fixtures return test-owned rows (`Person`,
+`Staff`, `Teacher`, `Student`, `GuardianProfile`, `StudentGuardian`, `Guest`,
+`PrivacyConsent`, `ClassListEntry`, `ParentAnnouncement`,
+`CareWithdrawalCompletion` in `test/people_rows.go`), and a caller that hands
+the owner's model to People Directory code reads it back through the owner or,
+where it may import `models/users`, builds it itself. The withdrawal fixtures
+write the pending task row instead of handing a model to Care Plan. The
+review-policy student, the substitution query options and the timetable
+operations' person double name the retained models from the legacy
+composition's suite helpers (`services/*_test_helpers.go`), the path the
+People Directory suites already compose through. Both `test -> models/users`
+keys fall without a new key (111 -> 109), and the rule
+`people-directory.behavior-test.enrollment-support` is deleted with its last
+importer.
 
 A reviewed epoch may also add the one owner-agnostic shared-kernel rule
 ([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),

@@ -173,7 +173,9 @@ func TestStaffImportConfig_Update_PatchesOnlyGivenCells(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	person := testpkg.CreateTestPerson(t, db, "Bernd", "Schulz")
-	staff := testpkg.CreateTestStaffForPerson(t, db, person.ID)
+	staffFixture := testpkg.CreateTestStaffForPerson(t, db, person.ID)
+	staff, err := repos.Staff.FindByID(ctx, staffFixture.ID)
+	require.NoError(t, err)
 	staff.StaffNotes = "alt"
 	require.NoError(t, repos.Staff.Update(ctx, staff))
 	city := "Bonn"

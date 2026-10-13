@@ -3,7 +3,6 @@ package test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +19,7 @@ func TestStudentFixturesDoNotUseRollbackStorage(t *testing.T) {
 	SetStudentGroup(t, db, withAccount.ID, &group.ID)
 	SetStudentStatus(t, db, student.ID, "inactive")
 	AssignStudentGroup(t, db, forTenant.ID, group.ID)
-	SetStudentLifecycle(t, db, forTenant.ID, users.StudentStatusAlumnus, nil, nil)
+	SetStudentLifecycle(t, db, forTenant.ID, StudentStatusAlumnus, nil, nil)
 	var membershipID, groupID int64
 	var status string
 	require.NoError(t, db.NewRaw(`SELECT id, group_id, status FROM users.student_school_memberships

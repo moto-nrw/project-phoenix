@@ -108,7 +108,7 @@ func careServiceWithCoGuardianEmitter(t *testing.T, f *careFixture, sharedWith [
 		f.sf.ArrivalSchedule, f.sf.PickupSchedule, newPickupChangePresence(t, f.db), f.autoExcusal,
 		f.repos.CarePlan(),
 		f.sf.UserContext, emitter, nil,
-		testpkg.RequestReviewPolicy{UserContext: f.sf.UserContext}, testpkg.PermissionsFromContext,
+		testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: f.sf.UserContext}, testpkg.PermissionsFromContext,
 		nil, slog.Default(), f.sf.StudentAudit,
 		services.WithRequestShareVisibility(staticShareVisibility{recipients: sharedWith}),
 	)

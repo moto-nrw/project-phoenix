@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,11 +30,11 @@ func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 	}
 
 	ended := day("2026-08-04")
-	inactive := testpkg.NewTestStaffNotice(t, "Abgeschaltet", day("2026-08-01"), account.ID, testpkg.StaffNoticeOpts{Inactive: true})
-	info := testpkg.NewTestStaffNotice(t, "Laufender Hinweis", day("2026-08-01"), account.ID, testpkg.StaffNoticeOpts{})
-	important := testpkg.NewTestStaffNotice(t, "Wichtiger Hinweis", day("2026-08-01"), account.ID, testpkg.StaffNoticeOpts{Important: true})
-	expired := testpkg.NewTestStaffNotice(t, "Abgelaufen", day("2026-08-01"), account.ID, testpkg.StaffNoticeOpts{ValidUntil: &ended})
-	future := testpkg.NewTestStaffNotice(t, "Beginnt später", day("2026-09-01"), account.ID, testpkg.StaffNoticeOpts{})
+	inactive := newTestStaffNotice(t, "Abgeschaltet", day("2026-08-01"), account.ID, staffNoticeOpts{Inactive: true})
+	info := newTestStaffNotice(t, "Laufender Hinweis", day("2026-08-01"), account.ID, staffNoticeOpts{})
+	important := newTestStaffNotice(t, "Wichtiger Hinweis", day("2026-08-01"), account.ID, staffNoticeOpts{Important: true})
+	expired := newTestStaffNotice(t, "Abgelaufen", day("2026-08-01"), account.ID, staffNoticeOpts{ValidUntil: &ended})
+	future := newTestStaffNotice(t, "Beginnt später", day("2026-09-01"), account.ID, staffNoticeOpts{})
 	inactive.Audience = "all"
 	info.Audience = "all"
 	important.Audience = "all"
@@ -90,7 +91,7 @@ func TestStaffNoticeRepository_Acknowledge(t *testing.T) {
 
 	from, err := timezone.ParseDate("2026-08-01")
 	require.NoError(t, err)
-	notice := testpkg.NewTestStaffNotice(t, "Bitte bestätigen", from, author.ID, testpkg.StaffNoticeOpts{
+	notice := newTestStaffNotice(t, "Bitte bestätigen", from, author.ID, staffNoticeOpts{
 		Important:               true,
 		RequiresAcknowledgement: true,
 	})
@@ -135,7 +136,7 @@ func TestStaffNoticeRepository_AcknowledgedCountsExcludesTheAuthor(t *testing.T)
 
 	from, err := timezone.ParseDate("2026-08-01")
 	require.NoError(t, err)
-	notice := testpkg.NewTestStaffNotice(t, "Bitte bestätigen", from, author.ID, testpkg.StaffNoticeOpts{
+	notice := newTestStaffNotice(t, "Bitte bestätigen", from, author.ID, staffNoticeOpts{
 		RequiresAcknowledgement: true,
 	})
 	notice.Audience = "all"
@@ -172,9 +173,9 @@ func TestStaffNoticeRepository_ListValidOnFiltersAudience(t *testing.T) {
 	from, err := timezone.ParseDate("2026-08-01")
 	require.NoError(t, err)
 
-	forAll := testpkg.NewTestStaffNotice(t, "Für alle", from, account.ID, testpkg.StaffNoticeOpts{})
-	forStaff := testpkg.NewTestStaffNotice(t, "Nur Betreuung", from, account.ID, testpkg.StaffNoticeOpts{})
-	forTeachers := testpkg.NewTestStaffNotice(t, "Nur Lehrkräfte", from, account.ID, testpkg.StaffNoticeOpts{})
+	forAll := newTestStaffNotice(t, "Für alle", from, account.ID, staffNoticeOpts{})
+	forStaff := newTestStaffNotice(t, "Nur Betreuung", from, account.ID, staffNoticeOpts{})
+	forTeachers := newTestStaffNotice(t, "Nur Lehrkräfte", from, account.ID, staffNoticeOpts{})
 	forAll.Audience = "all"
 	forStaff.Audience = "staff"
 	forTeachers.Audience = "lehrkraft"
@@ -222,8 +223,8 @@ func TestStaffNoticeRepository_Acknowledgements(t *testing.T) {
 
 	from, err := timezone.ParseDate("2026-08-01")
 	require.NoError(t, err)
-	notice := testpkg.NewTestStaffNotice(t, "Bitte bestätigen", from, author.ID, testpkg.StaffNoticeOpts{RequiresAcknowledgement: true})
-	other := testpkg.NewTestStaffNotice(t, "Anderer Hinweis", from, author.ID, testpkg.StaffNoticeOpts{RequiresAcknowledgement: true})
+	notice := newTestStaffNotice(t, "Bitte bestätigen", from, author.ID, staffNoticeOpts{RequiresAcknowledgement: true})
+	other := newTestStaffNotice(t, "Anderer Hinweis", from, author.ID, staffNoticeOpts{RequiresAcknowledgement: true})
 	notice.Audience = "all"
 	other.Audience = "all"
 	require.NoError(t, repo.Create(ctx, notice))
@@ -243,4 +244,35 @@ func TestStaffNoticeRepository_Acknowledgements(t *testing.T) {
 	assert.False(t, rows[0].AcknowledgedAt.Before(rows[1].AcknowledgedAt), "neueste zuerst")
 	got := []int64{rows[0].AccountID, rows[1].AccountID}
 	assert.ElementsMatch(t, []int64{first.ID, second.ID}, got)
+}
+
+// staffNoticeOpts controls optional fields for newTestStaffNotice.
+type staffNoticeOpts struct {
+	Important               bool // default priority is "info"
+	ValidUntil              *timezone.Date
+	Inactive                bool
+	RequiresAcknowledgement bool
+}
+
+// newTestStaffNotice builds an unsaved Tagesinformation (#2180) with the
+// fields a repository test needs: every day of the week, no week pattern,
+// active unless opts.Inactive. It does not touch the database — the
+// repository under test persists it, so the fixture stays out of that path.
+func newTestStaffNotice(tb testing.TB, title string, validFrom timezone.Date, createdBy int64, opts staffNoticeOpts) *userModels.StaffNotice {
+	tb.Helper()
+
+	priority := userModels.StaffNoticePriorityInfo
+	if opts.Important {
+		priority = userModels.StaffNoticePriorityImportant
+	}
+	return &userModels.StaffNotice{
+		Title:                   title,
+		Priority:                priority,
+		ValidFrom:               validFrom,
+		ValidUntil:              opts.ValidUntil,
+		Weekdays:                []int16{},
+		RequiresAcknowledgement: opts.RequiresAcknowledgement,
+		Active:                  !opts.Inactive,
+		CreatedBy:               createdBy,
+	}
 }

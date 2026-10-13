@@ -719,7 +719,7 @@ func activeTeacher(t *testing.T, db *bun.DB, firstName, lastName string) (*testp
 	t.Helper()
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, firstName, lastName)
 	teacher := &testpkg.Teacher{StaffID: staff.ID, Staff: staff}
-	teacher.SetTenantID(testpkg.Tenant(t))
+	teacher.TenantID = testpkg.Tenant(t)
 	_, err := db.NewInsert().Model(teacher).ModelTableExpr("users.teachers").Exec(context.Background())
 	require.NoError(t, err)
 	return teacher, account.ID

@@ -1740,13 +1740,14 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	accountlessGuardian.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(accountlessGuardian).ModelTableExpr(`users.guardian_profiles`).Exec(context.Background())
 	require.NoError(t, err)
-	accountlessLink := &userModels.StudentGuardian{
+	accountlessLink := &testpkg.StudentGuardian{
 		StudentID:         parentChain.StudentID,
 		GuardianProfileID: accountlessGuardian.ID,
 		RelationshipType:  "parent",
 	}
-	authorize.ApplyStudentGuardianRole(accountlessLink, authorize.GuardianRoleLegalGuardian)
-	accountlessLink.SetTenantID(testpkg.Tenant(t))
+	accountlessLink.GuardianRole = authorize.NormalizeGuardianRole(authorize.GuardianRoleLegalGuardian)
+	accountlessLink.Permissions = authorize.StudentGuardianPermissionSet(accountlessLink.GuardianRole)
+	accountlessLink.TenantID = testpkg.Tenant(t)
 	require.NoError(t, testpkg.InsertTestStudentGuardian(context.Background(), db, accountlessLink))
 
 	options, err := service.RecipientOptions(calendarContext(t, organizerAccount.ID), "target", 20)

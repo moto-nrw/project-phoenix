@@ -68,7 +68,9 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	student := testpkg.CreateTestStudent(t, db, "Audit", "Routing", "1a")
+	fixture := testpkg.CreateTestStudent(t, db, "Audit", "Routing", "1a")
+	student, err := NewUnboundStudentRepository(db).FindByID(testpkg.Ctx(t), fixture.ID)
+	require.NoError(t, err)
 	after := *student
 	consentedAt := time.Date(2026, time.September, 2, 8, 30, 0, 0, time.UTC)
 	after.PhotoConsentGivenAt = &consentedAt
