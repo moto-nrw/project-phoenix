@@ -102,7 +102,7 @@ describe("SearchStudentCard", () => {
       }),
     );
 
-    expect(screen.getByText("Heute andere Gehzeit")).toBeInTheDocument();
+    expect(screen.getByText("Gehzeit heute geändert")).toBeInTheDocument();
   });
 
   it("does not mark the card for another planning day", () => {
@@ -113,7 +113,9 @@ describe("SearchStudentCard", () => {
       }),
     );
 
-    expect(screen.queryByText("Heute andere Gehzeit")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Gehzeit heute geändert"),
+    ).not.toBeInTheDocument();
   });
 
   it("does not mark an absent child", () => {
@@ -127,7 +129,9 @@ describe("SearchStudentCard", () => {
       }),
     );
 
-    expect(screen.queryByText("Heute andere Gehzeit")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Gehzeit heute geändert"),
+    ).not.toBeInTheDocument();
   });
 
   it("does not re-render when the surrounding page renders for other reasons", () => {

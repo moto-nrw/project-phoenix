@@ -80,7 +80,7 @@ describe("SupervisionStudentGrid one-day pickup change (#3946)", () => {
 
     expect(
       screen.getByRole("button", {
-        name: "Mia Schulz, Heute andere Gehzeit - Details öffnen",
+        name: "Mia Schulz, Gehzeit heute geändert - Details öffnen",
       }),
     ).toHaveAttribute("data-day-pickup-change", "true");
     expect(

@@ -84,7 +84,7 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 		"/api/students/22/pickup-notes",
 		"/api/students/22/pickup-notes",
 		"/api/students/21/departure-exceptions/{today}",
-		// #3946: a one-day pickup change for today frames a Kinderkarte.
+		// #3946: a one-day pickup change for today marks a Kinderkarte.
 		"/api/students/33/pickup-exceptions",
 		"/api/timetable/periods/bootstrap",
 		"/api/timetable/planning-tracks",

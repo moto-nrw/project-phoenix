@@ -371,43 +371,45 @@ describe("StudentCard one-day pickup change (#3946)", () => {
     locationBadge: <span>badge</span>,
   };
 
-  it("leaves the card unmarked without a change", () => {
+  it("shows no strip without a change", () => {
     render(<StudentCard {...props} />);
 
     const button = screen.getByRole("button");
     expect(button).not.toHaveAttribute("data-day-pickup-change");
-    expect(button).not.toHaveAttribute("style");
-    expect(screen.queryByText("Heute andere Gehzeit")).not.toBeInTheDocument();
+    expect(
+      button.querySelector('[data-day-pickup-change-strip="true"]'),
+    ).not.toBeInTheDocument();
   });
 
-  it("frames the whole card and names the change in text and label", () => {
+  it("names the change in a strip and in the card's label", () => {
     render(<StudentCard {...props} dayPickupChange />);
 
     const button = screen.getByRole("button", {
-      name: "Max Mustermann, Heute andere Gehzeit - Details öffnen",
+      name: "Max Mustermann, Gehzeit heute geändert - Details öffnen",
     });
     expect(button).toHaveAttribute("data-day-pickup-change", "true");
-    expect(button).toHaveStyle({ borderColor: "#F78C10" });
-    expect(screen.getByText("Heute andere Gehzeit")).toBeInTheDocument();
+    expect(
+      button.querySelector('[data-day-pickup-change-strip="true"]'),
+    ).toHaveTextContent("Gehzeit heute geändert");
   });
 
-  it("keeps the orange frame inside the green selection ring", () => {
+  it("puts the strip above the check-in tap strip", () => {
     render(
       <StudentCard
         {...props}
         checkinMode
-        checkinSelectMode
-        isCheckinSelected
+        checkinState="anwesend"
         onCheckinClick={vi.fn()}
         dayPickupChange
       />,
     );
 
-    const button = screen.getByRole("button", {
-      name: "Max Mustermann, Heute andere Gehzeit - Auswahl entfernen",
-    });
-    expect(button.style.borderColor).not.toBe("transparent");
-    expect(button.style.boxShadow).toContain("3px");
+    const button = screen.getByRole("button");
+    const change = button.querySelector(
+      '[data-day-pickup-change-strip="true"]',
+    );
+    const tap = button.querySelector('[data-checkin-tap-strip="true"]');
+    expect(change?.nextElementSibling).toBe(tap);
   });
 });
 
