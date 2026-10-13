@@ -105,6 +105,7 @@ type demoDayClient struct {
 	blocks     []demoBlock
 	arrivals   map[int64]string
 	pickups    map[int64]string
+	dayChanges map[int64]bool
 	writes     []string
 	exceptions map[string]map[string]any
 	created    []map[string]any
@@ -116,6 +117,7 @@ func newDemoDayClient(blocks ...demoBlock) *demoDayClient {
 		blocks:     blocks,
 		arrivals:   map[int64]string{},
 		pickups:    map[int64]string{},
+		dayChanges: map[int64]bool{},
 		exceptions: map[string]map[string]any{},
 	}
 }
@@ -161,7 +163,7 @@ func (c *demoDayClient) Post(path string, body any) ([]byte, error) {
 		}
 		var rows []map[string]any
 		for _, studentID := range body.(map[string]any)["student_ids"].([]int64) {
-			row := map[string]any{"student_id": studentID}
+			row := map[string]any{"student_id": studentID, "is_exception": c.dayChanges[studentID]}
 			if clock, ok := source[studentID]; ok {
 				row[field] = clock
 			}
@@ -169,6 +171,10 @@ func (c *demoDayClient) Post(path string, body any) ([]byte, error) {
 		}
 		return json.Marshal(map[string]any{"data": rows})
 	case strings.HasSuffix(path, "-exceptions"):
+		if c.dayChanges[studentIDFromPath(path)] {
+			// A staff exception already holds the day; the care plan refuses a second one.
+			return nil, fmt.Errorf("POST %s failed: 409 (students.care_exception_raced)", path)
+		}
 		values := body.(map[string]any)
 		c.exceptions[path] = values
 		if strings.Contains(path, "/arrival-") {
@@ -249,6 +255,25 @@ func TestDemoDayMovesTheEveningAndRunsIt(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "completed", client.blocks[1].Status)
 	assert.Equal(t, "completed", client.blocks[2].Status)
+}
+
+// The school moved one child's pickup for today itself (the seed's
+// "Arzttermin"): the care plan holds one staff exception per day, so the
+// demo keeps that child's day instead of writing a second one.
+func TestDemoDayKeepsAChildsOwnChangeForToday(t *testing.T) {
+	t.Parallel()
+	client := newDemoDayClient(plannedBlock(1, "14:45", "17:00", 5, 11, 12))
+	client.arrivals[11], client.pickups[11] = "11:45", "16:30"
+	client.arrivals[12], client.pickups[12] = "11:45", "13:30"
+	client.dayChanges[12] = true
+	var day demoDay
+
+	_, err := day.sync(client, demoDayAt(t, "20:00"), []int64{11, 12}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "21:15", client.exceptions["/api/students/11/pickup-exceptions"]["pickup_time"])
+	assert.NotContains(t, client.exceptions, "/api/students/12/arrival-exceptions")
+	assert.NotContains(t, client.exceptions, "/api/students/12/pickup-exceptions")
+	assert.Equal(t, "13:30", client.pickups[12], "the school's own change stays")
 }
 
 func TestDemoDayMovesNearMidnightWithoutLeavingBlocksBehind(t *testing.T) {

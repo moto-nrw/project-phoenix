@@ -98,9 +98,12 @@ type demoBlock struct {
 }
 
 // demoTimes are a child's effective arrival and pickup today, in minutes
-// after midnight; -1 when the plan has none.
+// after midnight; -1 when the plan has none. changed marks a one-day change
+// the school already made for today: the care plan holds one staff exception
+// per day, so the demo keeps that child's day.
 type demoTimes struct {
 	arrival, pickup int
+	changed         bool
 }
 
 // demoBlockWindow is a block's target window while moving a demo day.
@@ -354,6 +357,9 @@ func (day *demoDay) move(client Client, shift int, studentIDs []int64) error {
 			if !ok || times.arrival < 0 {
 				continue // No care today: the child stays at home.
 			}
+			if times.changed {
+				continue
+			}
 			arrival := max(times.arrival+day.pendingShift, 0)
 			if arrival > demoDayLastStart {
 				continue
@@ -400,7 +406,7 @@ func (day *demoDay) reanchor(client Client, studentIDs []int64, minute int) erro
 	}
 	moved := map[int64]demoTimes{}
 	for i, studentID := range studentIDs {
-		if times, ok := day.times[studentID]; !ok || times.arrival < 0 {
+		if times, ok := day.times[studentID]; !ok || times.arrival < 0 || times.changed {
 			continue
 		}
 		arrival := max(minute-60+(i%3)*15, 0)
@@ -608,6 +614,7 @@ func (day *demoDay) loadTimes(client Client, studentIDs []int64, now time.Time) 
 			StudentID       int64   `json:"student_id"`
 			ExpectedArrival *string `json:"expected_arrival"`
 			PickupTime      *string `json:"pickup_time"`
+			IsException     bool    `json:"is_exception"`
 		} `json:"data"`
 	}
 	for path, target := range map[string]any{
@@ -624,11 +631,13 @@ func (day *demoDay) loadTimes(client Client, studentIDs []int64, now time.Time) 
 	for _, row := range arrivals.Data {
 		times := day.times[row.StudentID]
 		times.arrival = minutesOf(row.ExpectedArrival)
+		times.changed = times.changed || row.IsException
 		day.times[row.StudentID] = times
 	}
 	for _, row := range pickups.Data {
 		times := day.times[row.StudentID]
 		times.pickup = minutesOf(row.PickupTime)
+		times.changed = times.changed || row.IsException
 		day.times[row.StudentID] = times
 	}
 	day.timesAt = now
