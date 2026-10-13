@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"time"
 
+	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -11,7 +12,6 @@ import (
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -108,7 +108,7 @@ func NewShiftTypeTestModule(db *bun.DB) (ShiftTypeTestModule, error) {
 	return ShiftTypeTestModule{ShiftTypes: planning.ShiftTypes, Activities: linker, Repositories: repos}, nil
 }
 
-type DeviceTestModule struct{ IoT iot.Service }
+type DeviceTestModule struct{ IoT devicefleetCompose.IoTService }
 
 func NewDeviceTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeviceTestModule, error) {
 	settings, err := NewSettingsTestModule(db, unit)
@@ -119,5 +119,5 @@ func NewDeviceTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeviceTestModule, 
 	if err != nil {
 		return DeviceTestModule{}, err
 	}
-	return DeviceTestModule{IoT: iot.NewService(fleet)}, nil
+	return DeviceTestModule{IoT: devicefleetCompose.NewIoTService(fleet)}, nil
 }

@@ -16,7 +16,6 @@ import (
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
-	"github.com/moto-nrw/project-phoenix/analytics"
 	"github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -85,12 +84,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/database"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
-	"github.com/moto-nrw/project-phoenix/services/iot"
 	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -171,7 +168,7 @@ type Factory struct {
 	WC                 facilities.WCService
 	Invitation         InvitationCapability
 	GuardianInvitation GuardianInvitationCapability
-	IoT                iot.Service
+	IoT                devicefleetCompose.IoTService
 	StaffClock         *staffclock.Service
 	Settings           config.SettingsService
 	TenantSettings     *config.TenantOperations
@@ -225,8 +222,7 @@ type Factory struct {
 	PWAUsage                  pwa.UsageService
 	NotificationPreferences   notifications.PreferenceService
 	AbsenceNotifier           notifications.AbsenceNotifier
-	RealtimeHub               *realtime.Hub     // SSE event hub (shared by services and API)
-	Tracker                   analytics.Tracker // Product analytics (PostHog; no-op without POSTHOG_API_KEY)
+	RealtimeHub               *realtime.Hub // SSE event hub (shared by services and API)
 	Mailer                    email.Mailer
 	DefaultFrom               email.Email
 	FrontendURL               string
@@ -432,6 +428,12 @@ type DurableDeliveryObserver func(transport, template, operation string, duratio
 type DataImportObservation = importService.ImportObservation
 type DataImportObserver func(DataImportObservation)
 
+// ProductEventTracker captures the product analytics events of the services
+// this graph composes. The composition root owns the tracker and its lifetime.
+type ProductEventTracker interface {
+	Capture(distinctID, event string, props map[string]any)
+}
+
 func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (auditModels.Command, error) {
 	if store == nil || logger == nil || observe == nil {
 		return nil, errors.New("audit command store, logger, and observer are required")
@@ -485,6 +487,7 @@ func NewFactoryWithModules(
 	observeIdentityAccess IdentityAccessObserver,
 	workTime workforceModule.Capability,
 	observeDataImport DataImportObserver,
+	productEvents ProductEventTracker,
 	fileStorage FileStorageWiring,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
@@ -494,7 +497,7 @@ func NewFactoryWithModules(
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	cfg := currentFactoryConfig()
 	cfg.PublicAPIURL = publicAPIURL
-	return newFactory(carePlan, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, observeDataImport, fileStorage, false, clocks...)
+	return newFactory(carePlan, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, observeDataImport, productEvents, fileStorage, false, clocks...)
 }
 
 // FileStorageWiring carries what the File Storage module needs from the root
@@ -534,6 +537,7 @@ func newFactory(
 	observeIdentityAccess IdentityAccessObserver,
 	workTime workforceModule.Capability,
 	observeDataImport DataImportObserver,
+	productEvents ProductEventTracker,
 	fileStorage FileStorageWiring,
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
@@ -729,20 +733,6 @@ func newFactory(
 
 	// Create realtime hub for SSE broadcasting (single shared instance)
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger.With("component", "sse-hub"))
-
-	// Product analytics (PostHog) — no-op when POSTHOG_API_KEY is unset
-	tracker, err := analytics.New(
-		cfg.PostHogAPIKey,
-		cfg.PostHogHost,
-		analyticsDeployment(cfg.AppEnv, cfg.TenantDomain),
-		logger.With("component", "analytics"),
-		// The pseudonymous user ID under Analyse-Freigabe (#3603) hashes with
-		// the Security Runtime's SHA-256 fingerprint, like the browser.
-		analytics.WithFingerprint(securityruntime.Fingerprint),
-	)
-	if err != nil {
-		return nil, err
-	}
 
 	// Initialize education service first (needed for active service)
 	educationService := education.NewGroupManagement(
@@ -1220,7 +1210,7 @@ func newFactory(
 		StaffNames:               NewAttendanceStaffNames(staffRepository, usersService),
 		DB:                       db,
 		Broadcaster:              realtimeHub,           // Pass SSE broadcaster
-		Tracker:                  tracker,               // Product analytics (PostHog)
+		Tracker:                  productEvents,         // Product analytics (PostHog)
 		WorkSessionService:       workSessionService,    // NFC auto-check-in
 		AttendanceSyncer:         attendanceSyncService, // WP-B10 mirror + SSE enrichment
 		TimetableBridgeCompleter: timetableBridgeService,
@@ -1412,7 +1402,7 @@ func newFactory(
 	if err != nil {
 		return nil, err
 	}
-	iotService := iot.NewService(deviceFleet)
+	iotService := devicefleetCompose.NewIoTService(deviceFleet)
 
 	partialAbsenceService, err := careplanCompose.NewPartialAbsences(db, carePlan, newStudentPresence(db, logger), pickupAutoExcusal)
 	if err != nil {
@@ -2982,7 +2972,6 @@ func newFactory(
 		NotificationPreferences:  notificationPreferencesService,
 		AbsenceNotifier:          absenceNotifier,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
-		Tracker:                  tracker,     // Product analytics (PostHog)
 		Invitation:               invitationService,
 		GuardianInvitation:       guardianInvitationService,
 		Mailer:                   mailer,
@@ -3171,14 +3160,4 @@ type unconfiguredFeedbackCounter struct{}
 
 func (unconfiguredFeedbackCounter) CountForStudent(context.Context, int64) (int, error) {
 	return 0, errors.New("student deletion: feedback counter is not configured")
-}
-
-// analyticsDeployment is the deployment property of every analytics event:
-// "demo" for the public demo, otherwise the tenant domain of this instance.
-// The frontend sends the same value (frontend/src/lib/analytics-deployment.ts).
-func analyticsDeployment(appEnv, tenantDomain string) string {
-	if IsDemoEnvironment(appEnv) {
-		return "demo"
-	}
-	return strings.TrimSpace(tenantDomain)
 }

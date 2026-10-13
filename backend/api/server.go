@@ -138,7 +138,7 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 	runtime := &Runtime{
 		graph:          graph,
 		capacityLogger: newRuntimeCapacityLogger(graph, config.Logger),
-		tracker:        graph.services.Tracker,
+		tracker:        graph.tracker,
 		logger:         config.Logger,
 	}
 	var worker *scheduler.Scheduler

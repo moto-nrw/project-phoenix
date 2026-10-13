@@ -219,7 +219,7 @@ func composeTimetable(db *bun.DB, persons *peopleModule.Module, rooms *facilitie
 	})
 }
 
-func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logger, tenantRuntime apiCommon.TenantRuntime) (moduleServices, error) {
+func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logger, tenantRuntime apiCommon.TenantRuntime, productEvents services.ProductEventTracker) (moduleServices, error) {
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{
 		DB: db,
 		Observe: func(observation organizationCompose.Observation) {
@@ -422,6 +422,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 			observability.ObserveIdentityAccessOperation,
 			workTime,
 			observeDataImport,
+			productEvents,
 			fileStorageWiring,
 		)
 	})
@@ -688,6 +689,7 @@ type serveGraph struct {
 	router             chi.Router
 	db                 *bun.DB
 	services           *services.Factory
+	tracker            analytics.Tracker
 	tenantRuntime      apiCommon.TenantRuntime
 	metrics            *httpMetrics
 	tracer             *observability.Tracer
@@ -776,13 +778,18 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, r
 		db.AddQueryHook(database.NewQueryHook(logger.With("component", "database"))) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
 	}
 
+	tracker, err := newProductAnalytics(logger)
+	if err != nil {
+		return nil, workerReads{}, err
+	}
+	buildResources.tracker = tracker
+
 	// Compose one authoritative instance of each migrated module.
-	modules, err := initializeModuleServices(db, config.PublicAPIURL, logger, tenantRuntime)
+	modules, err := initializeModuleServices(db, config.PublicAPIURL, logger, tenantRuntime, tracker)
 	if err != nil {
 		return nil, workerReads{}, err
 	}
 	serviceFactory := modules.services
-	buildResources.tracker = serviceFactory.Tracker
 	if err := serviceFactory.SetTenantRuntime(tenantRuntime); err != nil {
 		return nil, workerReads{}, err
 	}
@@ -798,6 +805,7 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, r
 		router:             chi.NewRouter(),
 		db:                 db,
 		services:           serviceFactory,
+		tracker:            tracker,
 		tenantRuntime:      tenantRuntime,
 		metrics:            httpMetrics,
 		tracer:             tracer,
@@ -844,7 +852,7 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, r
 	graph.router.Use(apiCommon.SentrySessionContext)
 	// Core actions of the portals reach the usage analytics once their
 	// response is 2xx (#3602). After the verifier, which names the session.
-	graph.router.Use(coreActionAnalytics(serviceFactory.Tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(serviceFactory.Settings, logger)))
+	graph.router.Use(coreActionAnalytics(tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(serviceFactory.Settings, logger)))
 
 	documents, err := mountRoutes(graph.router, routeInputs{
 		modules:        modules,

@@ -42,7 +42,7 @@ func NewFactoryForTests(repos *RepositoryTestFactory, db *bun.DB, logger *slog.L
 	if err != nil {
 		return nil, err
 	}
-	return owners.factory(newFactory(repos.CarePlan(), db, logger, currentTestFactoryConfig(), tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, owners.appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...))
+	return owners.factory(newFactory(repos.CarePlan(), db, logger, currentTestFactoryConfig(), tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, owners.appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, nil, FileStorageWiring{}, true, clocks...))
 }
 
 func NewFactoryForTestsWithConfig(repos *RepositoryTestFactory, db *bun.DB, logger *slog.Logger, cfg FactoryConfig, clocks ...func() time.Time) (*Factory, error) {
@@ -50,7 +50,7 @@ func NewFactoryForTestsWithConfig(repos *RepositoryTestFactory, db *bun.DB, logg
 	if err != nil {
 		return nil, err
 	}
-	return owners.factory(newFactory(repos.CarePlan(), db, logger, cfg, tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, owners.appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, FileStorageWiring{}, true, clocks...))
+	return owners.factory(newFactory(repos.CarePlan(), db, logger, cfg, tenant.UnitOfWork{}, owners.organizations, owners.persons, owners.groups, owners.rooms, owners.membership, owners.calendar, owners.timetable, owners.appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.workforce, func(DataImportObservation) {}, nil, FileStorageWiring{}, true, clocks...))
 }
 
 func currentTestFactoryConfig() FactoryConfig {
