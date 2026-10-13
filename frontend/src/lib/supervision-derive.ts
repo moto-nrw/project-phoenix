@@ -248,7 +248,10 @@ export function sameSupervision(
   // group id is part of the identity.
   const keys = (rooms: SupervisedRoom[]) =>
     rooms
-      .map((r) => `${r.id}:${r.groupId}:${r.sessionIds?.join(".") ?? ""}`)
+      .map(
+        (r) =>
+          `${r.id}:${r.groupId}:${r.name}:${r.sessionIds?.join(".") ?? ""}`,
+      )
       .join(",");
   return (
     prev.isSupervising === next.isSupervising &&

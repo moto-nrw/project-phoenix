@@ -251,4 +251,19 @@ describe("sameSupervision", () => {
 
     expect(sameSupervision(before, after)).toBe(false);
   });
+
+  it("detects a renamed own room while the overview stays the same", () => {
+    const overview = [supervision(1, 5, "Werkraum")];
+    const before = deriveSupervision(overview, [], true, [
+      supervision(1, 5, "Werkraum"),
+    ]);
+    const after = deriveSupervision(overview, [], true, [
+      supervision(1, 5, "Kreativraum"),
+    ]);
+
+    expect(sameSupervision(before, after)).toBe(false);
+    expect(after.ownSupervisedRooms).toEqual([
+      expect.objectContaining({ name: "Kreativraum" }),
+    ]);
+  });
 });
