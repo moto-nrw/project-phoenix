@@ -17,11 +17,12 @@ import {
   MY_GROUPS_SCOPE,
   activeChildScope,
   buildChildScopeTabs,
-  ownSupervisionRooms,
   roomIdFromScope,
+  type ScopeRoom,
 } from "./child-scope-tabs";
 
 const EMPTY_IDS: readonly string[] = [];
+const EMPTY_ROOMS: readonly ScopeRoom[] = [];
 // Die Menüeinträge sind Links; nach dem Schließen des Menüs ist nichts zu tun.
 const noop = () => undefined;
 
@@ -60,7 +61,7 @@ export function useChildScopeTabs({
   const openCareGroupMode = useOpenCareGroupMode();
   const isBinaryMode = usePresenceMode() === "binary";
   const { userContext } = useUserContext();
-  const { overviewEnabled } = useOptionalSupervision();
+  const { overviewEnabled, ownSupervisedRooms } = useOptionalSupervision();
   const { data: session } = useSession();
   const tenantPath = useTenantAwarePath();
 
@@ -70,13 +71,12 @@ export function useChildScopeTabs({
     enabled && !openCareGroupMode
       ? (userContext?.educationalGroupIds ?? EMPTY_IDS)
       : EMPTY_IDS;
-  const supervisedGroups = userContext?.supervisedGroups;
-  const rooms = useMemo(
+  const rooms = useMemo<readonly ScopeRoom[]>(
     () =>
       enabled && !isBinaryMode && isToday
-        ? ownSupervisionRooms(supervisedGroups ?? [])
-        : [],
-    [enabled, isBinaryMode, isToday, supervisedGroups],
+        ? (ownSupervisedRooms ?? EMPTY_ROOMS)
+        : EMPTY_ROOMS,
+    [enabled, isBinaryMode, isToday, ownSupervisedRooms],
   );
 
   const items = useMemo(

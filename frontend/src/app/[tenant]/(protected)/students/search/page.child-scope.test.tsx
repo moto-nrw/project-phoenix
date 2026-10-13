@@ -56,6 +56,7 @@ vi.mock("~/lib/supervision-context", () => ({
     isLoadingSupervision: false,
     overviewEnabled: false,
     supervisedRooms: [{ id: "42", name: "Werkraum", groupId: "900" }],
+    ownSupervisedRooms: [{ id: "42", name: "Werkraum", groupId: "900" }],
     groups: [{ id: "5", name: "Bären", is_personal: true }],
     refresh: () => undefined,
   }),
@@ -167,13 +168,13 @@ vi.mock("~/lib/hooks/use-user-context", () => ({
     userContext: {
       educationalGroupIds: ["5"],
       educationalGroupRoomNames: [],
-      supervisedRoomNames: ["Werkraum"],
+      supervisedRoomNames: ["Veralteter Raum"],
       supervisedGroups: [
         {
           id: "900",
           name: "Werken",
-          roomId: "42",
-          room: { id: "42", name: "Werkraum" },
+          roomId: "91",
+          room: { id: "91", name: "Veralteter Raum" },
         },
       ],
     },
@@ -327,7 +328,7 @@ describe("StudentSearchPage — Kinder nur über Alle Kinder (#1321)", () => {
     );
   });
 
-  it("filters to the supervised room on Meine Aufsicht and back on Alle", async () => {
+  it("filters to the current supervised room instead of cached user context", async () => {
     render(<StudentSearchPage />);
 
     fireEvent.click(screen.getByRole("tab", { name: "Meine Aufsicht" }));
