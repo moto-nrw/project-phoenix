@@ -9,6 +9,7 @@ package contracttest_test
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -1324,7 +1325,7 @@ func TestPersonService_UpdateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 	// ARRANGE
 	staffFixture, account := testpkg.CreateTestStaffWithAccount(t, db, "Lehr", "Aendern")
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, testpkg.Tenant(t))
-	staffRecord, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Staff.FindWithPerson(ctx, staffFixture.ID)
+	staffRecord, err := testutil.NewPeopleRepositorySuiteFactory(db).Staff.FindWithPerson(ctx, staffFixture.ID)
 	require.NoError(t, err)
 
 	// ACT

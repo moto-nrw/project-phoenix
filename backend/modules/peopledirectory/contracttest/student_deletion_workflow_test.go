@@ -54,38 +54,6 @@ func linkCompanions(t *testing.T, ctx context.Context, db *bun.DB, subjectID, co
 	require.NoError(t, services.ReplaceStudentCompanions(ctx, companionLinks(db), subjectID, []*userModels.StudentCompanion{edge}))
 }
 
-// studentPlans is the child repository the departure-plan helper writes
-// through, so a staged plan is the normalized one a production write leaves.
-func studentPlans(db *bun.DB) studentPlanWriter {
-	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Student
-}
-
-// studentPlanWriter is the slice of the child repository the departure-plan
-// helper needs. It writes through the repository rather than in raw SQL, so
-// the stored plan is the normalized one every production write leaves behind;
-// a hand-written UPDATE would desynchronize the derived columns and make the
-// next real write look like it changed them.
-type studentPlanWriter interface {
-	FindByID(ctx context.Context, id any) (*userModels.Student, error)
-	Update(ctx context.Context, student *userModels.Student) error
-}
-
-// setAccompaniedDepartureDays gives the child an "Anderes Kind" departure plan
-// on the given weekdays, which is the precondition for carrying a companion
-// link. The free-text note comes along because an accompanied plan must say
-// "mit wem" and there is no link yet at this point.
-func setAccompaniedDepartureDays(tb testing.TB, ctx context.Context, students studentPlanWriter, studentID int64, days ...string) {
-	tb.Helper()
-	student, err := students.FindByID(ctx, studentID)
-	require.NoError(tb, err)
-	require.NotNil(tb, student)
-
-	note := "Nachbarskind"
-	student.AllowedDepartureModes = userModels.WithAccompaniedDays(student.AllowedDepartureModes, days)
-	student.DepartureCompanionNote = &note
-	require.NoError(tb, students.Update(ctx, student))
-}
-
 // clearCompanionNote drops the free-text note straight in SQL, leaving a child
 // whose "mit wem" is answered only by the structured link — the state in which
 // deleting the far end would strand them.
@@ -967,8 +935,8 @@ func TestStudentDeletionWorkflow_CompanionGraphLockAndStrandingCheck(t *testing.
 	f := newDeletionFixture(t, db)
 	subject := testpkg.CreateTestStudent(t, db, "DeleteSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "DeleteCompanion", "Companion", "1a")
-	setAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
-	setAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
+	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
+	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
 	linkCompanions(t, ctx, db, subject.ID, companion.ID)
 	clearCompanionNote(t, db, companion.ID)
 	broadcasts := 0
@@ -989,7 +957,7 @@ func TestStudentDeletionWorkflow_CompanionGraphLockAndStrandingCheck(t *testing.
 	// A concurrent holder of the far end's row blocks the ascending lock pass
 	// instead of being skipped: the deletion waits, then times out, and the
 	// rows stay untouched.
-	setAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
+	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
 	testpkg.HoldStudentRowLock(t, db, companion.ID)
 	lockCtx, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
 	defer cancel()
@@ -1008,8 +976,8 @@ func TestStudentDeletionWorkflow_RemovesCompanionEdgesAndNotifies(t *testing.T) 
 	f := newDeletionFixture(t, db)
 	subject := testpkg.CreateTestStudent(t, db, "DeleteSubject", "Notified", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "DeleteCompanion", "Notified", "1a")
-	setAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
-	setAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
+	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
+	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
 	linkCompanions(t, ctx, db, subject.ID, companion.ID)
 	var notified []int64
 	f.deps.CompanionsChanged = func(_ context.Context, _ studentdeletion.Actor, studentID int64) {
