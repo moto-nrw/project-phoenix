@@ -203,6 +203,24 @@ func seedCarePlanDeviations(rt *Runtime, studentIDs []int64) error {
 	}); err != nil {
 		return fmt.Errorf("seed care-plan deviation %s: %w", departurePath, err)
 	}
+	return seedTodayPickupChange(rt, studentIDs)
+}
+
+// seedTodayPickupChange moves today's Gehzeit of one child to 13:30, so the
+// strip of a one-day change shows on the Kinderkarte on every dev
+// machine (#3946). Index 5 has pickup pattern 0 (picked up every weekday);
+// on a weekend the change lands on Monday, which has a plan to deviate from.
+func seedTodayPickupChange(rt *Runtime, studentIDs []int64) error {
+	if len(studentIDs) < 6 {
+		return fmt.Errorf("today pickup change student not available")
+	}
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/pickup-exceptions", studentIDs[5]), map[string]any{
+		"exception_date": seedWeekdayOnOrAfter(todaySeedDate()).String(),
+		"pickup_time":    "13:30",
+		"reason":         "Arzttermin",
+	}); err != nil {
+		return fmt.Errorf("seed today pickup change: %w", err)
+	}
 	return nil
 }
 
