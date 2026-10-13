@@ -893,6 +893,7 @@ describe("fetchWithRetry", () => {
 
     expect(result.response).toBeNull();
     expect(result.data).toBeNull();
+    expect(result.accessDeniedStatus).toBe(401);
     expect(getNewToken).not.toHaveBeenCalled();
   });
 
@@ -935,6 +936,7 @@ describe("fetchWithRetry", () => {
 
     expect(result.response).toBeNull();
     expect(result.data).toBeNull();
+    expect(result.accessDeniedStatus).toBe(403);
     expect(consoleSpies.warn).toHaveBeenCalled();
   });
 

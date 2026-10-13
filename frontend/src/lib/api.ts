@@ -428,6 +428,14 @@ async function getNewTokenFromSession(): Promise<string | undefined> {
   return getSessionToken();
 }
 
+function accessDeniedApiError(status?: 401 | 403): ApiError {
+  const accessDeniedStatus = status ?? 401;
+  return new ApiError(
+    accessDeniedStatus === 403 ? "Access denied" : "Authentication failed",
+    accessDeniedStatus,
+  );
+}
+
 /**
  * Validate required fields for student creation
  * @throws Error if required fields are missing
@@ -954,13 +962,17 @@ export const studentService = {
           authToken = await getSessionToken();
         }
 
-        const { data } = await fetchWithRetry<unknown>(url, authToken, {
-          onAuthFailure: handleAuthFailure,
-          getNewToken: getNewTokenFromSession,
-        });
+        const { data, accessDeniedStatus } = await fetchWithRetry<unknown>(
+          url,
+          authToken,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
         if (data === null) {
-          throw new ApiError("Authentication failed", 401);
+          throw accessDeniedApiError(accessDeniedStatus);
         }
 
         return parseStudentsPaginatedResponse(data);
@@ -990,13 +1002,17 @@ export const studentService = {
           authToken = await getSessionToken();
         }
 
-        const { data } = await fetchWithRetry<unknown>(url, authToken, {
-          onAuthFailure: handleAuthFailure,
-          getNewToken: getNewTokenFromSession,
-        });
+        const { data, accessDeniedStatus } = await fetchWithRetry<unknown>(
+          url,
+          authToken,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
         if (data === null) {
-          throw new ApiError("Authentication failed", 401);
+          throw accessDeniedApiError(accessDeniedStatus);
         }
 
         return parseSchoolClassesResponse(data);
@@ -1020,13 +1036,17 @@ export const studentService = {
         // Browser environment: use fetchWithRetry for automatic 401 handling
         // Route handler already maps response, so applyMapping=false
         const token = await getSessionToken();
-        const { data } = await fetchWithRetry<unknown>(url, token, {
-          onAuthFailure: handleAuthFailure,
-          getNewToken: getNewTokenFromSession,
-        });
+        const { data, accessDeniedStatus } = await fetchWithRetry<unknown>(
+          url,
+          token,
+          {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          },
+        );
 
         if (data === null) {
-          throw new ApiError("Authentication failed", 401);
+          throw accessDeniedApiError(accessDeniedStatus);
         }
 
         return parseSingleStudentResponse(data, false);
@@ -1249,13 +1269,14 @@ export const groupService = {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
         const token = await getSessionToken();
-        const { response, data } = await fetchWithRetry<unknown>(url, token, {
-          onAuthFailure: handleAuthFailure,
-          getNewToken: getNewTokenFromSession,
-        });
+        const { response, data, accessDeniedStatus } =
+          await fetchWithRetry<unknown>(url, token, {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          });
 
         if (response === null) {
-          throw new ApiError("Authentication failed", 401);
+          throw accessDeniedApiError(accessDeniedStatus);
         }
 
         const groupData = extractBackendGroup(data);
@@ -1648,13 +1669,14 @@ export const roomService = {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
         const token = await getSessionToken();
-        const { response, data } = await fetchWithRetry<unknown>(url, token, {
-          onAuthFailure: handleAuthFailure,
-          getNewToken: getNewTokenFromSession,
-        });
+        const { response, data, accessDeniedStatus } =
+          await fetchWithRetry<unknown>(url, token, {
+            onAuthFailure: handleAuthFailure,
+            getNewToken: getNewTokenFromSession,
+          });
 
         if (response === null) {
-          throw new ApiError("Authentication failed", 401);
+          throw accessDeniedApiError(accessDeniedStatus);
         }
 
         const roomData = extractBackendRoom(data);

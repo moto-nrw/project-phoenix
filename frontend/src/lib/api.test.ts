@@ -305,6 +305,26 @@ describe("api.ts helper functions", () => {
       }
     });
 
+    it("preserves a forbidden response as a permission error", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: null,
+        response: null,
+        accessDeniedStatus: 403,
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          studentService.getStudents({ token: "test-token" }),
+        ).rejects.toMatchObject({ status: 403, code: "general.permission" });
+      } finally {
+        restore();
+      }
+    });
+
     it("logs 429 failures as rate-limit warnings", async () => {
       const consoleWarn = vi
         .spyOn(console, "warn")
@@ -642,6 +662,26 @@ describe("api.ts helper functions", () => {
       }
     });
 
+    it("preserves a forbidden response as a permission error", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: null,
+        response: null,
+        accessDeniedStatus: 403,
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          studentService.getSchoolClasses({ token: "test-token" }),
+        ).rejects.toMatchObject({ status: 403, code: "general.permission" });
+      } finally {
+        restore();
+      }
+    });
+
     it("uses axios and parses wrapped school classes on the server", async () => {
       const apiTransport = (await import("./api-transport")).default;
       const getSpy = vi.spyOn(apiTransport, "get").mockResolvedValue({
@@ -938,6 +978,27 @@ describe("api.ts helper functions", () => {
         restore();
       }
     });
+
+    it("preserves a forbidden response as a permission error", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: null,
+        response: null,
+        accessDeniedStatus: 403,
+      });
+
+      const { roomService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(roomService.getRoom("1")).rejects.toMatchObject({
+          status: 403,
+          code: "general.permission",
+        });
+      } finally {
+        restore();
+      }
+    });
   });
 
   describe("groupService.getGroup", () => {
@@ -1052,6 +1113,27 @@ describe("api.ts helper functions", () => {
         await expect(groupService.getGroup("1")).rejects.toThrow(
           "No group data in response",
         );
+      } finally {
+        restore();
+      }
+    });
+
+    it("preserves a forbidden response as a permission error", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: null,
+        response: null,
+        accessDeniedStatus: 403,
+      });
+
+      const { groupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(groupService.getGroup("1")).rejects.toMatchObject({
+          status: 403,
+          code: "general.permission",
+        });
       } finally {
         restore();
       }
@@ -1375,6 +1457,27 @@ describe("api.ts helper functions", () => {
         await expect(studentService.getStudent("1")).rejects.toThrow(
           "Authentication failed",
         );
+      } finally {
+        restore();
+      }
+    });
+
+    it("preserves a forbidden response as a permission error", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: null,
+        response: null,
+        accessDeniedStatus: 403,
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(studentService.getStudent("1")).rejects.toMatchObject({
+          status: 403,
+          code: "general.permission",
+        });
       } finally {
         restore();
       }
