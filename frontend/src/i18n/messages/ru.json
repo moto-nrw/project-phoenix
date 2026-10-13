@@ -826,7 +826,18 @@
       "statusRejected": "Отклонено: {reason}",
       "noDecisionReason": "Причина не указана",
       "submit": "Отправить запрос",
-      "errorObject": "время ухода"
+      "errorObject": "время ухода",
+      "titleWithMode": "Изменить уход домой",
+      "introWithMode": "Запросите на один день другое время ухода или другой способ ухода домой. Недельный план не меняется. Изменение вступит в силу после подтверждения продлёнкой.",
+      "modeLabel": "Способ ухода в этот день",
+      "modeUnchanged": "Как в недельном плане",
+      "noTimeOrMode": "Пожалуйста, укажите время или выберите способ ухода.",
+      "reasonRequiredGeneric": "Пожалуйста, напишите коротко, почему уход домой меняется.",
+      "pickupOptionalHint": "Оставьте пустым, если время не меняется.",
+      "modeStaffSet": "Продлёнка уже указала способ ухода на этот день: {mode}.",
+      "pendingMode": "Новый способ ухода: {to}",
+      "statusApprovedChange": "Подтверждено, изменение сохранено.",
+      "errorStaffConflictGeneric": "Продлёнка уже внесла изменение на этот день. Пожалуйста, свяжитесь с командой."
     },
     "actions": {
       "sick": {
@@ -1739,7 +1750,9 @@
     "eventRequestWithdrawn": "Запрос отозван",
     "eventRequestCreatedCareOffering": "Запрошено изменение забронированного ухода",
     "eventRequestConfirmedCareOffering": "Запрос подтверждён, забронированный уход будет изменён",
-    "eventRequestConfirmedCareOfferingDated": "Запрос подтверждён, забронированный уход будет изменён с {date}"
+    "eventRequestConfirmedCareOfferingDated": "Запрос подтверждён, забронированный уход будет изменён с {date}",
+    "eventRequestCreatedPickupChangeWithMode": "Запрос об уходе домой отправлен",
+    "eventRequestConfirmedPickupChangeWithMode": "Запрос подтверждён, уход домой изменён"
   },
   "parentFeedback": {
     "kicker": "Обратная связь",
@@ -1804,7 +1817,10 @@
       "pickupHint": "Изменить время ухода на один день",
       "message": "Написать сообщение",
       "messageCompact": "Написать сообщение",
-      "messageHint": "Связаться с продлёнкой по поводу {name}"
+      "messageHint": "Связаться с продлёнкой по поводу {name}",
+      "pickupWithMode": "Изменить уход домой для {name}",
+      "pickupCompactWithMode": "Изменить уход домой",
+      "pickupHintWithMode": "Изменить время или способ ухода на один день"
     }
   },
   "parentStart": {

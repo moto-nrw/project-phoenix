@@ -475,6 +475,9 @@ export function OgsConversation({
           careExceptionsLoaded={care.careExceptionsLoaded}
           pickupChangeRequestsLoaded={care.pickupChangeRequestsLoaded}
           pickupChangeEnabled={care.features.pickup_change_enabled}
+          departureModeEnabled={
+            care.features.pickup_change_mode_enabled === true
+          }
           childFirstName={thread?.student_name?.split(/\s+/)[0]}
           today={today}
           onClose={() => setActiveModal(null)}
@@ -566,6 +569,7 @@ function QuickActions({
           key={action.key}
           action={action}
           childName={childName}
+          withMode={features.pickup_change_mode_enabled === true}
           onPick={onPick}
         />
       ))}
@@ -576,10 +580,13 @@ function QuickActions({
 function QuickActionPill({
   action,
   childName,
+  withMode,
   onPick,
 }: Readonly<{
   action: ReturnType<typeof getOgsActions>[number];
   childName?: string;
+  /** Die Abholung darf auch die Abholart ändern (#3945). */
+  withMode: boolean;
   onPick: (key: OgsActionKey) => void;
 }>) {
   const careT = useTranslations("parentChildCare");
@@ -588,7 +595,9 @@ function QuickActionPill({
   const label = firstName
     ? action.key === "sick"
       ? todayT("actions.sick", { name: firstName })
-      : todayT("actions.pickup", { name: firstName })
+      : todayT(withMode ? "actions.pickupWithMode" : "actions.pickup", {
+          name: firstName,
+        })
     : careT(`actions.${action.key}.shortLabel`);
   return (
     <button
@@ -610,7 +619,9 @@ function QuickActionPill({
         {todayT(
           action.key === "sick"
             ? "actions.sickCompact"
-            : "actions.pickupCompact",
+            : withMode
+              ? "actions.pickupCompactWithMode"
+              : "actions.pickupCompact",
         )}
       </span>
       <span className="hidden sm:inline">{label}</span>

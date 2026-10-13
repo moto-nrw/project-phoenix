@@ -128,6 +128,4 @@ var (
 	StudentDocumentField   = upstream.StudentDocumentField
 	TenantIDFromContext    = upstream.TenantIDFromContext
 	TransactionFromContext = upstream.TransactionFromContext
-	WithTenantID           = upstream.WithTenantID
-	WithTransaction        = upstream.WithTransaction
 )

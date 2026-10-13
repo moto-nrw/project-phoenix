@@ -26,20 +26,26 @@ import (
 // German pill texts. The staff portal renders these directly; the parents
 // portal localizes from the structured event fields instead.
 const (
-	careRequestCreatedBody     = "Anfrage: Dauerhafte Betreuungszeiten ändern"
-	careRequestConfirmedBody   = "Anfrage bestätigt, Betreuungszeiten übernommen"
-	pickupRequestCreatedBody   = "Abholzeit angefragt"
-	pickupRequestConfirmedBody = "Abholzeit bestätigt"
-	pickupRequestRejectedBody  = "Abholzeit abgelehnt"
+	careRequestCreatedBody   = "Anfrage: Dauerhafte Betreuungszeiten ändern"
+	careRequestConfirmedBody = "Anfrage bestätigt, Betreuungszeiten übernommen"
 )
 
-// pickupPillTerms reads the requested day and time of a pickup-change
-// request. It is deliberately lenient about everything else in the payload:
-// the reason may be blank under a school's reason policy, and a pill that
-// cannot name the day must fall back to the plain body rather than fail.
-func pickupPillTerms(req *carerequests.Request) (timezone.Date, time.Time, bool) {
+// Pickup pill verbs. The subject in front names what the request changes:
+// the Abholzeit, the Abholart (#3945), or both.
+const (
+	pickupRequestCreatedVerb   = "angefragt"
+	pickupRequestConfirmedVerb = "bestätigt"
+	pickupRequestRejectedVerb  = "abgelehnt"
+)
+
+// pickupPillTerms reads the requested day, time and Abholart of a
+// pickup-change request. It is deliberately lenient about everything else in
+// the payload: the reason may be blank under a school's reason policy, and a
+// pill that cannot name the day must fall back to the plain body rather than
+// fail.
+func pickupPillTerms(req *carerequests.Request) (carerequests.PickupChange, bool) {
 	if req == nil || req.RequestKind != "pickup_change" {
-		return timezone.Date(""), time.Time{}, false
+		return carerequests.PickupChange{}, false
 	}
 	return carerequests.PickupTerms(req.Payload)
 }
@@ -48,16 +54,38 @@ func pickupPillTerms(req *carerequests.Request) (timezone.Date, time.Time, bool)
 // The moved timetable services keep their own copy (#3218).
 const germanDateLayout = "02.01.2006"
 
-// pickupPillDetail names the requested day and time of a pickup change the
-// way the staff thread shows it ("15.09.2026, 14:30 Uhr"), or "" when the
-// payload does not carry both. The pill names the pickup appointment; the
-// message timestamp stays the moment of the event (#3135).
+// pickupPillBody is "Abholzeit angefragt", "Abholart angefragt" or
+// "Abholzeit und Abholart angefragt". An undecodable payload keeps the
+// Abholzeit wording every request carried before #3945.
+func pickupPillBody(verb string, req *carerequests.Request) string {
+	change, ok := pickupPillTerms(req)
+	switch {
+	case ok && change.PickupTime != nil && change.DepartureMode != "":
+		return "Abholzeit und Abholart " + verb
+	case ok && change.PickupTime == nil:
+		return "Abholart " + verb
+	default:
+		return "Abholzeit " + verb
+	}
+}
+
+// pickupPillDetail names the requested day, time and Abholart of a pickup
+// change the way the staff thread shows it ("15.09.2026, 14:30 Uhr, Fährt
+// Bus"), or "" when the payload cannot be read. The pill names the pickup
+// appointment; the message timestamp stays the moment of the event (#3135).
 func pickupPillDetail(req *carerequests.Request) string {
-	date, pickup, ok := pickupPillTerms(req)
+	change, ok := pickupPillTerms(req)
 	if !ok {
 		return ""
 	}
-	return date.Format(germanDateLayout) + ", " + pickup.Format("15:04") + " Uhr"
+	detail := change.Date.Format(germanDateLayout)
+	if change.PickupTime != nil {
+		detail += ", " + change.PickupTime.Format("15:04") + " Uhr"
+	}
+	if change.DepartureMode != "" {
+		detail += ", " + carerequests.DepartureModeLabel(change.DepartureMode)
+	}
+	return detail
 }
 
 // withPickupDetail appends the requested day and time to a pickup pill body.
@@ -70,21 +98,24 @@ func withPickupDetail(body string, req *carerequests.Request) string {
 }
 
 // pickupPillPayload is the structured twin of pickupPillDetail: the requested
-// calendar day, the requested time and, when the request recorded one, the
-// pickup time that applied before. Clients that localize render from it; the
-// German body stays authoritative for the staff portal. nil for weekly-plan
-// requests and undecodable payloads.
+// calendar day, the requested time and Abholart and, when the request
+// recorded one, the pickup time that applied before. Clients that localize
+// render from it; the German body stays authoritative for the staff portal.
+// nil for weekly-plan requests and undecodable payloads.
 func pickupPillPayload(req *carerequests.Request) map[string]any {
 	terms := pickupChangeTerms(req)
 	if terms == nil {
 		return nil
 	}
-	payload := map[string]any{
-		"date":        terms.Date.String(),
-		"pickup_time": terms.PickupTime,
+	payload := map[string]any{"date": terms.Date.String()}
+	if terms.PickupTime != "" {
+		payload["pickup_time"] = terms.PickupTime
 	}
 	if terms.PreviousPickupTime != "" {
 		payload["previous_pickup_time"] = terms.PreviousPickupTime
+	}
+	if terms.DepartureMode != "" {
+		payload["departure_mode"] = terms.DepartureMode
 	}
 	return payload
 }
@@ -363,11 +394,11 @@ func newCareDecisionState(req *carerequests.Request, approve bool, reason string
 	body := careRequestConfirmedBody
 	rejectedBody := "Anfrage abgelehnt: " + reason
 	if req.RequestKind == "pickup_change" {
-		body = withPickupDetail(pickupRequestConfirmedBody, req)
+		body = withPickupDetail(pickupPillBody(pickupRequestConfirmedVerb, req), req)
 		// The staff thread must show WHICH day was refused, not only that
 		// something was (#3135). Without a decodable day the generic line stays.
 		if detail := pickupPillDetail(req); detail != "" {
-			rejectedBody = pickupRequestRejectedBody + ": " + detail + ". Grund: " + reason
+			rejectedBody = pickupPillBody(pickupRequestRejectedVerb, req) + ": " + detail + ". Grund: " + reason
 		}
 	}
 	if approve {
@@ -445,19 +476,18 @@ func pickupChangeReason(req *carerequests.Request) *string {
 	return &trimmed
 }
 
-func (s *careScheduleRequestService) applyPickupChangeRequest(ctx context.Context, req *carerequests.Request, expectedImpactToken *string, requireImpactToken bool) (int64, error) {
+func (s *careScheduleRequestService) applyPickupChangeRequest(ctx context.Context, req *carerequests.Request, expectedImpactToken *string, requireImpactToken bool) (carerequests.PickupApplied, error) {
 	if s.requestRecords == nil || s.attendance == nil || s.pickupAutoExcusal == nil || s.userContext == nil || s.dayLocker == nil {
-		return 0, errors.New("schedule: pickup change request dependencies not configured")
+		return carerequests.PickupApplied{}, errors.New("schedule: pickup change request dependencies not configured")
 	}
 	approvals, err := s.pickupApprovals()
 	if err != nil {
-		return 0, err
+		return carerequests.PickupApplied{}, err
 	}
-	id, err := approvals.ApplyPickupApproval(ctx, carerequests.PickupApproval{
+	return approvals.ApplyPickupApproval(ctx, carerequests.PickupApproval{
 		TenantID: req.TenantID, StudentID: req.StudentID, Payload: req.Payload,
 		ExpectedImpactToken: expectedImpactToken, RequireImpactToken: requireImpactToken,
 	})
-	return id, err
 }
 
 // CareRequestStaff resolves the staff member deciding a care request. found
@@ -610,9 +640,9 @@ func (s *careScheduleRequestService) MarkDone(ctx context.Context, requestID int
 
 func correctedCarePillBody(req *carerequests.Request, approve bool) string {
 	if approve {
-		return withPickupDetail(pickupRequestConfirmedBody, req)
+		return withPickupDetail(pickupPillBody(pickupRequestConfirmedVerb, req), req)
 	}
-	return withPickupDetail(pickupRequestRejectedBody, req)
+	return withPickupDetail(pickupPillBody(pickupRequestRejectedVerb, req), req)
 }
 
 // Co-guardian notices (#2267, story 47). A staff decision on one parent's

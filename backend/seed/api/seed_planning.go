@@ -195,6 +195,14 @@ func seedCarePlanDeviations(rt *Runtime, studentIDs []int64) error {
 			return fmt.Errorf("seed care-plan deviation %s: %w", request.path, err)
 		}
 	}
+	// The OGS sets the Abholart of one day itself (#3945), today, so the
+	// Kinderkarte and the class day show it on every dev machine.
+	departurePath := fmt.Sprintf("/api/students/%d/departure-exceptions/%s", studentIDs[0], today.String())
+	if _, err := rt.Client.Put(departurePath, map[string]any{
+		"departure_mode": "pickup", "reason": "Die Mutter hat angerufen und holt heute selbst ab.",
+	}); err != nil {
+		return fmt.Errorf("seed care-plan deviation %s: %w", departurePath, err)
+	}
 	return nil
 }
 

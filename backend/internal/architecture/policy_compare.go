@@ -480,7 +480,8 @@ const sharedFixtureOwner = "test-support"
 // mandated to use, and the permission constants tokens carry. ADR 0047
 // (#3944) adds the security and settings contracts the guardian presets,
 // student access decisions and settings double are served through. No
-// implementation role of another owner is among them.
+// implementation role of another owner is among them; the Transaction Runtime
+// bootstrap of sharedFixtureBootstrapTargets is the one composition point.
 var sharedFixtureTargets = map[[2]string]bool{
 	{sharedFixtureOwner, "test-support"}: true,
 	{"tenant-runtime", "public"}:         true,
@@ -490,11 +491,21 @@ var sharedFixtureTargets = map[[2]string]bool{
 	{"settings-platform", "public"}:      true,
 }
 
+// sharedFixtureBootstrapTargets are the composition points the fixture package
+// itself may reach, only in its test-support role in production: the
+// Transaction Runtime bootstrap that builds the PostgreSQL tenant runtime and
+// opens the fixture pools (ADR 0047 addendum, #3970). The end-to-end suites
+// take the runtime from the fixtures, never from the bootstrap.
+var sharedFixtureBootstrapTargets = map[[2]string]bool{
+	{"transaction-runtime", "compose"}: true,
+}
+
 // reviewedSharedFixtureRule reports whether a rule has the one owner-specific
 // shape a reviewed policy epoch may add for the shared fixture owner without
 // an anchor to a candidate-created package: the fixture owner in its
 // test-support role (production) or its e2e-test role (test scopes), reaching
-// one of sharedFixtureTargets. A rule without a role would overlap the
+// one of sharedFixtureTargets, or in its test-support role reaching one of
+// sharedFixtureBootstrapTargets. A rule without a role would overlap the
 // owner-agnostic test-role rules and is refused with them; other source
 // owners, owner kinds, external classes and every other target stay under the
 // ordinary loosening guards.
@@ -519,7 +530,8 @@ func reviewedSharedFixtureRule(rule Rule) bool {
 	default:
 		return false
 	}
-	return sharedFixtureTargets[[2]string{rule.TargetOwner, rule.TargetRole}]
+	target := [2]string{rule.TargetOwner, rule.TargetRole}
+	return sharedFixtureTargets[target] || rule.SourceRole == "test-support" && sharedFixtureBootstrapTargets[target]
 }
 
 // ownerSuiteRules are the three owner-suite reaches ADR 0047 (#3944) pins for

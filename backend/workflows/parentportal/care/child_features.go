@@ -58,6 +58,7 @@ func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeReques
 		NotesEnabled:                 f.notes && child.HasPermission(authorize.GuardianPermissionNotesWrite),
 		RequestSubmitEnabled:         f.notes && child.HasPermission(authorize.GuardianPermissionRequestSubmit),
 		PickupChangeEnabled:          f.pickupChange && canManagePickup,
+		PickupChangeModeEnabled:      f.pickupChangeMode && canManagePickup,
 		PickupChangeCutoffTime:       f.pickupCutoff.Clock,
 		PickupChangeTodayClosed:      f.pickupCutoff.Closed(timezone.DateFromTime(f.pickupCutoff.Now)),
 		PickupManageAllowed:          f.guardianManagement && canManagePickup,

@@ -552,7 +552,7 @@ through the owners' compositions or contracts, and the records and keys of
 `modules/transactionruntime`. The root builds the analytics tracker, and the
 legacy composition's own suites run as internal tests. Five pairs between
 existing points are granted by `serviceFactoryCutoverPermission`. 23 of the
-26 #2747 keys fell (112 -> 89), and the composition surface dropped from 260
+26 #2747 keys fell (111 -> 88), and the composition surface dropped from 260
 to 259. The production adapters no longer hold a database handle, tenant
 transaction or JWT read: those live in the owner compositions or arrive as
 built values from the root. The `bun`, `tenant` and `legacy/jwt` keys remain,
@@ -3408,6 +3408,17 @@ and the now unused rules `delivery.application.settings`,
 `calendar-view.adapter.settings-platform-application` and
 `group-live-view.adapter.settings-platform-application` are deleted
 (166 -> 164).
+[#3970](https://github.com/moto-nrw/project-phoenix/issues/3970) gives the
+PostgreSQL tenant runtime bootstrap an owner seam,
+`modules/transactionruntime/compose` (`transaction-runtime`/`compose`), and
+adds it to the shared fixture targets in a narrower shape: only the
+`test-support` role in production may reach it (the addendum to ADR 0047).
+Epoch 37 registers `shared-fixtures.transaction-runtime-compose` with the
+seam's own rules, which are anchored to the new package. The seam reaches the
+Audit context adapters through `modules/auditlog`; `test -> database` falls
+(112 -> 111). The roots `api` and `cmd` build their runtimes and pools there
+too, under two rules anchored to the new package, and
+`services.BindTenantRuntime` is deleted.
 
 A reviewed epoch may also add the one owner-agnostic shared-kernel rule
 ([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),

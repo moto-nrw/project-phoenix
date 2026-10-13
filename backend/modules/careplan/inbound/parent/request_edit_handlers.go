@@ -15,6 +15,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // Guardian edit of an open request (#2267, stories 37-38). A guardian who
@@ -41,6 +42,7 @@ type EditExcusedRequestBody struct {
 type EditPickupChangeRequestBody struct {
 	Date            string `json:"date"`
 	PickupTime      string `json:"pickup_time"`
+	DepartureMode   string `json:"departure_mode"`
 	Reason          string `json:"reason"`
 	ExpectedVersion string `json:"expected_version"`
 }
@@ -183,13 +185,22 @@ func (rs *Resource) editPickupChangeRequest(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	pickup, err := parseCareExceptionTime(&body.PickupTime)
-	if err != nil || pickup == nil {
+	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid pickup_time, expected HH:MM")))
 		return
 	}
+	departureMode := strings.TrimSpace(body.DepartureMode)
+	if pickup == nil && departureMode == "" {
+		renderParentWriteError(w, r, parentService.ErrNoCareException)
+		return
+	}
+	var pickupTime time.Time
+	if pickup != nil {
+		pickupTime = *pickup
+	}
 	row, err := rs.ParentService.EditPickupChangeRequest(
 		r.Context(), target.accountID, target.studentID, target.requestID,
-		date, *pickup, body.Reason, body.ExpectedVersion,
+		date, pickupTime, departureMode, body.Reason, body.ExpectedVersion,
 	)
 	if err != nil {
 		renderParentRequestError(w, r, err)

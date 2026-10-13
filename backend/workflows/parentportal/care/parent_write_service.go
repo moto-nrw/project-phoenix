@@ -43,6 +43,9 @@ var (
 	// ErrCareDateTooFar means the requested date is beyond the window parents may
 	// set (two calendar months ahead, matching the parent-portal list range).
 	ErrCareDateTooFar = errors.New("parent: care exception date is too far in the future")
+	// ErrCareExceptionNotCareDay means a day Abholart is requested for a day
+	// on which the school does not run care.
+	ErrCareExceptionNotCareDay = errors.New("Die Abholart kann nur an einem Betreuungstag geändert werden.") //nolint:staticcheck // ST1005: user-facing German message
 	// ErrCareExceptionConflict means a staff-authored exception already exists
 	// for the date, so the parent change is refused rather than overwriting it.
 	ErrCareExceptionConflict = errors.New("parent: the school already set a special time for this day")

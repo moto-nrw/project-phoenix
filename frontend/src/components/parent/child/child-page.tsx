@@ -410,6 +410,9 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
           careExceptionsLoaded={care.careExceptionsLoaded}
           pickupChangeRequestsLoaded={care.pickupChangeRequestsLoaded}
           pickupChangeEnabled={care.features.pickup_change_enabled}
+          departureModeEnabled={
+            care.features.pickup_change_mode_enabled === true
+          }
           childFirstName={child.first_name}
           today={today ?? undefined}
           onClose={() => setModal(null)}

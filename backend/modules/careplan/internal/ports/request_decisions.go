@@ -21,7 +21,7 @@ type RequestDecisionPeople interface {
 type RequestDecisionPlans interface {
 	Snapshot(context.Context, *carerequests.Request) *carerequests.DecisionSnapshot
 	ApplyWeekly(context.Context, *carerequests.Request, int64) (bool, error)
-	ApplyPickup(context.Context, *carerequests.Request, *string, bool) (int64, error)
+	ApplyPickup(context.Context, *carerequests.Request, *string, bool) (carerequests.PickupApplied, error)
 }
 
 type RequestDecisionEffects interface {

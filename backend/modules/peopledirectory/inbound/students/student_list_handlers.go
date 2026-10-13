@@ -156,6 +156,10 @@ func (rs *Resource) buildStudentListPage(ctx context.Context, students []*Studen
 		slog.Default().Error("failed to enrich student day planning", slog.String("error", err.Error()))
 		return studentListPage{}, err
 	}
+	if err := rs.applyDayDepartures(ctx, responses, plan.planningDate); err != nil {
+		slog.Default().Error("failed to apply day departure modes", slog.String("error", err.Error()))
+		return studentListPage{}, err
+	}
 	return studentListPage{responses: responses, dataSnapshot: dataSnapshot, planningTimes: planningTimes}, nil
 }
 

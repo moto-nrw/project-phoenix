@@ -223,6 +223,7 @@ type Capability interface {
 	Query
 	Command
 	WeekdayPickupNotesCommand
+	DepartureExceptions
 	CareDayLocker
 }
 
@@ -230,6 +231,7 @@ type engine interface {
 	Query
 	Command
 	WeekdayPickupNotesCommand
+	DepartureExceptions
 	CareDayLocker
 }
 

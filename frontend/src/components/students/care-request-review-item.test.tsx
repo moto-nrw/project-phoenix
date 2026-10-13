@@ -172,6 +172,35 @@ describe("CareRequestReviewItem", () => {
     ).toBeInTheDocument();
   });
 
+  // #3945: eine Abholart allein verschiebt keinen Termin. Ein Hinweis auf
+  // „betroffene Termine“ wäre dort irreführend.
+  it("zeigt bei einer Tages-Anfrage nur zur Abholart keine betroffenen Termine", () => {
+    render(
+      <CareRequestReviewItem
+        row={pickupRow({
+          affected_blocks: [],
+          impact_available: false,
+          diff: [
+            {
+              label: "23.10.2026 · Abholart",
+              old: "Fährt Bus",
+              new: "Wird abgeholt",
+              care_kind: "departure_mode",
+              old_modes: ["bus"],
+              new_mode: "pickup",
+            },
+          ],
+        })}
+        onDecided={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("23.10.2026 · Abholart")).toBeInTheDocument();
+    expand();
+    expect(screen.getByText("Wird abgeholt")).toBeInTheDocument();
+    expect(screen.queryByText("Nach dem Freigeben")).not.toBeInTheDocument();
+  });
+
   it("nennt bei einer Tages-Anfrage den Geltungstag und kennzeichnet sie als einzelnen Tag", () => {
     render(<CareRequestReviewItem row={pickupRow()} onDecided={vi.fn()} />);
 

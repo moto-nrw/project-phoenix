@@ -8,7 +8,7 @@ Accepted for [#2747](https://github.com/moto-nrw/project-phoenix/issues/2747)
 under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), following
 the precedent of ADR 0049. The pull request review is where it can still be
 rejected; the exception activates only in the policy epoch that review merges
-(36 → 38; development reached 37 with #3970 meanwhile).
+(37 → 38).
 
 ## Context
 
@@ -90,7 +90,7 @@ against the merge base.
 
 ## Consequences
 
-The baseline falls from 112 to 89 entries; 23 of the 26 #2747 keys are gone.
+The baseline falls from 111 to 88 entries; 23 of the 26 #2747 keys are gone.
 The `bun`, `tenant` and `legacy/jwt` keys of `services` remain. The builders
 that compose several owners over one database (`services/*_roots.go`,
 `command_roots.go`, `cleanup_composition.go`, `factory.go`) and about 90 test

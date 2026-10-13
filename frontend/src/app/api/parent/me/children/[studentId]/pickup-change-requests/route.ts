@@ -4,7 +4,9 @@ import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 interface BackendPickupChangeRequest {
   id: string;
   date: string;
-  pickup_time: string;
+  pickup_time: string | null;
+  departure_mode?: string | null;
+  previous_departure_modes?: string[];
   reason: string;
   status: string;
   decision_reason?: string;

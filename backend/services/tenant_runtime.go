@@ -1,21 +1,12 @@
 package services
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"reflect"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 )
-
-// AuditTransactionContext names the Audit handoff the root's tenant runtime
-// attaches its tenant and transaction to, so audit appends join the unit of
-// work they record.
-func AuditTransactionContext() (func(context.Context, int64) context.Context, func(context.Context, any) context.Context) {
-	return auditModels.WithTenantID, auditModels.WithTransaction
-}
 
 // tenantRuntimeBinder is the shape a composed module exposes when its own
 // contract must not name the runtime package: it takes the unit of work as

@@ -40,14 +40,32 @@ func pickupRequestPayload(ctx context.Context, pickup ports.RequestSubmissionPic
 	if err != nil {
 		return nil, err
 	}
-	payload := map[string]any{"date": input.Date.String(), "pickup_time": input.PickupTime.Format("15:04"), "reason": reason}
-	if pickup != nil {
+	payload := map[string]any{"date": input.Date.String(), "reason": reason}
+	if !input.PickupTime.IsZero() {
+		payload["pickup_time"] = input.PickupTime.Format("15:04")
+	}
+	if input.DepartureMode != "" {
+		payload["departure_mode"] = input.DepartureMode
+	}
+	if pickup == nil {
+		return json.Marshal(payload)
+	}
+	if !input.PickupTime.IsZero() {
 		previous, readErr := pickup.PickupTime(ctx, input.StudentID, input.Date)
 		if readErr != nil {
 			return nil, fmt.Errorf("schedule: resolve current pickup time: %w", readErr)
 		}
 		if previous != nil {
 			payload["previous_pickup_time"] = previous.Format("15:04")
+		}
+	}
+	if input.DepartureMode != "" {
+		previous, readErr := pickup.DepartureModes(ctx, input.StudentID, input.Date)
+		if readErr != nil {
+			return nil, fmt.Errorf("schedule: resolve current departure modes: %w", readErr)
+		}
+		if len(previous) > 0 {
+			payload["previous_departure_modes"] = previous
 		}
 	}
 	return json.Marshal(payload)

@@ -34,7 +34,7 @@ type classDaySources struct {
 	Caller                 classdayCompose.CallerReader
 	Reports                enrollmentOwner.Reports
 	StatusDays             classDayStatusDayReader
-	PickupTimes            classdayCompose.PickupTimeReader
+	PickupTimes            classdayCompose.ClassDayPickupReader
 	ArrivalTimes           classdayCompose.ArrivalTimeReader
 	CareDays               classdayCompose.CareDayResolver
 	Companions             classdayCompose.Companions

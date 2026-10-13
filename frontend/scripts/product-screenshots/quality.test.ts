@@ -18,6 +18,7 @@ const HEALTHY: ShotObservation = {
   loginFormVisible: false,
   devErrorOverlayPresent: false,
   loadingIndicators: 0,
+  unloadedImages: 0,
   unexpectedDialogs: 0,
 };
 
@@ -67,6 +68,11 @@ describe("findBrokenReasons", () => {
       "Ladezustand nach Timeout",
       { loadingIndicators: 3 },
       /3 Ladeanzeige\(n\)/,
+    ],
+    [
+      "nicht geladene Bilder",
+      { unloadedImages: 2 },
+      /2 Bild\(er\) nach dem Timeout nicht geladen/,
     ],
     [
       "einen unerwarteten Dialog",

@@ -11,8 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/database"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -58,7 +57,7 @@ Usage:
 			log.Fatal("seed-parents: no password provided — pass --password or set SEED_PARENT_PASSWORD")
 		}
 
-		db, err := database.DBConn()
+		db, err := transactionruntime.OpenPool()
 		if err != nil {
 			log.Fatalf("seed-parents: database connection failed: %v", err)
 		}
@@ -116,11 +115,7 @@ func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password str
 	if err != nil {
 		return fmt.Errorf("compose guardian access: %w", err)
 	}
-	postgresRuntime, err := database.NewPostgresUnitOfWork(db, tenant.ObservePoolWait)
-	if err != nil {
-		return err
-	}
-	runtime, err := api.BindTenantRuntime(postgresRuntime, database.IsRetryableTransactionError)
+	runtime, err := transactionruntime.NewTenantRuntime(db)
 	if err != nil {
 		return err
 	}

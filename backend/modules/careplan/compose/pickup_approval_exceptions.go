@@ -13,6 +13,8 @@ type PickupApprovalRecords interface {
 	ListPickupExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.PickupException, error)
 	CreatePickupException(context.Context, careplan.PickupException) (careplan.PickupException, error)
 	UpdatePickupException(context.Context, careplan.PickupException) error
+	ListDepartureExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.DepartureException, error)
+	SaveDepartureException(context.Context, careplan.DepartureException) (careplan.DepartureException, error)
 }
 
 func NewPickupApprovalExceptions(records PickupApprovalRecords) (PickupApprovalExceptions, error) {
@@ -49,4 +51,17 @@ func (a pickupApprovalExceptions) Update(ctx context.Context, value careplan.Pic
 
 func (pickupApprovalExceptions) IsUniqueViolation(err error) bool {
 	return postgres.IsPickupExceptionConflict(err)
+}
+
+func (a pickupApprovalExceptions) FindDepartureForDate(ctx context.Context, id int64, date calendar.Date) (*careplan.DepartureException, error) {
+	rows, err := a.records.ListDepartureExceptions(ctx, careplan.StudentScheduleFilter{StudentIDs: []int64{id}, Date: careplan.Date(date)})
+	if err != nil || len(rows) == 0 {
+		return nil, err
+	}
+	return &rows[0], nil
+}
+
+func (a pickupApprovalExceptions) SaveDeparture(ctx context.Context, value careplan.DepartureException) (int64, error) {
+	row, err := a.records.SaveDepartureException(ctx, value)
+	return row.ID, err
 }

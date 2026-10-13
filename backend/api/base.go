@@ -13,6 +13,7 @@ import (
 	"time"
 
 	groupsHTTP "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
@@ -752,7 +753,7 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, t
 	}
 
 	// Get database connection as phoenix_auth (least-privilege for serve)
-	db, err := database.DBConnForServe()
+	db, err := transactionruntime.OpenServePool()
 	if err != nil {
 		return nil, workerReads{}, nil, err
 	}
@@ -760,12 +761,8 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, t
 	defer func() {
 		resultErr = errors.Join(resultErr, buildResources.close())
 	}()
-	db.AddQueryHook(database.NewLockWaitQueryHook(apiCommon.ObserveUnitOfWorkLockWait)) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
-	postgresUnitOfWork, err := database.NewPostgresUnitOfWork(db, apiCommon.ObserveUnitOfWorkPoolWait)
-	if err != nil {
-		return nil, workerReads{}, nil, err
-	}
-	tenantRuntime, err := BindTenantRuntime(postgresUnitOfWork, database.IsRetryableTransactionError)
+	transactionruntime.ObserveLockWaits(db)
+	tenantRuntime, err := transactionruntime.NewTenantRuntime(db)
 	if err != nil {
 		return nil, workerReads{}, nil, err
 	}

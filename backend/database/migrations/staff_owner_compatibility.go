@@ -526,6 +526,17 @@ func repointStaffForeignKeys(ctx context.Context, tx bun.Tx) error {
 			ALTER TABLE users.teachers DROP CONSTRAINT fk_teachers_staff_tenant;
 			ALTER TABLE users.teachers ADD CONSTRAINT fk_teachers_staff_tenant
 				FOREIGN KEY (tenant_id, staff_id) REFERENCES users.staff_school_memberships(tenant_id, id) ON DELETE CASCADE NOT VALID;
+			-- Day departure exceptions (#3945) were introduced after this
+			-- Cutover. They are absent on its original upgrade path, but a
+			-- rollback or compatibility replay has to repoint their author
+			-- before archiving users.staff.
+			DO $$ BEGIN
+				IF to_regclass('schedule.student_departure_exceptions') IS NOT NULL THEN
+					ALTER TABLE schedule.student_departure_exceptions DROP CONSTRAINT fk_student_departure_exceptions_created_by;
+					ALTER TABLE schedule.student_departure_exceptions ADD CONSTRAINT fk_student_departure_exceptions_created_by
+						FOREIGN KEY (tenant_id, created_by) REFERENCES users.staff_school_memberships(tenant_id, id) ON DELETE SET NULL (created_by) NOT VALID;
+				END IF;
+			END $$;
 			DO $$ BEGIN
 				IF EXISTS (SELECT 1 FROM pg_constraint
 					WHERE confrelid = 'users.staff'::regclass AND contype = 'f') THEN
@@ -588,6 +599,11 @@ func ValidateStaffOwnerForeignKeys(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE education.grade_transition_class_teachers VALIDATE CONSTRAINT fk_gtct_staff;
 		ALTER TABLE education.group_substitution VALIDATE CONSTRAINT fk_group_sub_regular_staff_tenant;
 		ALTER TABLE education.group_substitution VALIDATE CONSTRAINT fk_group_sub_substitute_staff_tenant;
+		DO $$ BEGIN
+			IF to_regclass('schedule.student_departure_exceptions') IS NOT NULL THEN
+				ALTER TABLE schedule.student_departure_exceptions VALIDATE CONSTRAINT fk_student_departure_exceptions_created_by;
+			END IF;
+		END $$;
 		ALTER TABLE schedule.activity_exceptions VALIDATE CONSTRAINT fk_activity_exceptions_created_by_tenant;
 		ALTER TABLE schedule.activity_instances VALIDATE CONSTRAINT fk_activity_instances_created_by_tenant;
 		ALTER TABLE schedule.activity_instances VALIDATE CONSTRAINT fk_activity_instances_started_by_tenant;
