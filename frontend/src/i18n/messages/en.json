@@ -1129,7 +1129,7 @@
       "emailTitle": "Email contact",
       "photoTitle": "Photo consent"
     },
-    "captchaMisconfigured": "Enrollment is currently not possible: bot protection is incomplete. Please contact the OGS administration.",
+    "captchaMisconfigured": "Online enrollment is not possible right now. This is not your fault. Please contact the OGS.",
     "structured": {
       "yes": "Yes",
       "no": "No",

@@ -1131,7 +1131,7 @@
       "emailTitle": "E-Mail-Kontakt",
       "photoTitle": "Fotoeinwilligung"
     },
-    "captchaMisconfigured": "Die Anmeldung ist derzeit nicht möglich: Die Bot-Schutz-Konfiguration ist unvollständig. Bitte wenden Sie sich an die OGS-Leitung.",
+    "captchaMisconfigured": "Die Online-Anmeldung ist gerade nicht möglich. Das liegt nicht an Ihnen. Bitte wenden Sie sich an die OGS.",
     "structured": {
       "yes": "Ja",
       "no": "Nein",

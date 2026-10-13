@@ -1131,7 +1131,7 @@
       "emailTitle": "E-posta İletişimi",
       "photoTitle": "Fotoğraf İzni"
     },
-    "captchaMisconfigured": "Kayıt şu anda yapılamıyor: Bot koruması tam olarak kurulmamış. Lütfen OGS yönetimine başvurun.",
+    "captchaMisconfigured": "Online kayıt şu anda mümkün değil. Bu sizin hatanız değil. Lütfen OGS ile iletişime geçin.",
     "structured": {
       "yes": "Evet",
       "no": "Hayır",

@@ -476,7 +476,7 @@ describe("EnrollmentForm", () => {
     await waitForLoaded();
 
     const notice = await screen.findByText(
-      /Die Anmeldung ist derzeit nicht möglich/,
+      /Die Online-Anmeldung ist gerade nicht möglich/,
     );
     const alert = notice.closest('[role="alert"]');
     expect(alert).toHaveClass("bg-moto-red-soft");

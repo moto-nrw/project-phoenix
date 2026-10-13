@@ -1131,7 +1131,7 @@
       "emailTitle": "Kontakt przez e-mail",
       "photoTitle": "Zgoda na zdjęcia"
     },
-    "captchaMisconfigured": "Zapis nie jest teraz możliwy: ochrona przed botami nie jest w pełni skonfigurowana. Proszę skontaktować się z kierownictwem OGS.",
+    "captchaMisconfigured": "Zapis online nie jest teraz możliwy. Problem nie leży po Państwa stronie. Proszę skontaktować się z OGS.",
     "structured": {
       "yes": "Tak",
       "no": "Nie",
