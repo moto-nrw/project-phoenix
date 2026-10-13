@@ -171,7 +171,7 @@ describe("POST /api/auth/password-reset/confirm", () => {
     });
   });
 
-  it("handles non-JSON error response", async () => {
+  it("replaces a non-JSON backend server error with a safe problem envelope", async () => {
     const requestBody = {
       token: "valid-token",
       password: "NewPassword123!",
@@ -191,11 +191,17 @@ describe("POST /api/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    expect(response.headers.get("Content-Type")).toContain("text/plain");
-    expect(await response.text()).toBe("Server Error");
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/problem+json",
+    );
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
-  it("handles empty error response body", async () => {
+  it("replaces an empty backend server error with a safe problem envelope", async () => {
     const requestBody = {
       token: "valid-token",
       password: "NewPassword123!",
@@ -215,7 +221,11 @@ describe("POST /api/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    expect(await response.text()).toBe("");
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("handles JSON parse error in error response", async () => {

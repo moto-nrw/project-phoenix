@@ -113,7 +113,7 @@ describe("POST /api/operator/auth/email-confirm", () => {
     expect(await response.text()).toBe("Too Many Requests");
   });
 
-  it("returns text body for non-JSON, non-429 response", async () => {
+  it("replaces a non-JSON backend server error with a safe problem envelope", async () => {
     mockFetch.mockResolvedValue(
       new Response("Bad Gateway", {
         status: 502,
@@ -125,7 +125,11 @@ describe("POST /api/operator/auth/email-confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(502);
-    expect(await response.text()).toBe("Bad Gateway");
+    expect(await response.json()).toMatchObject({
+      status: 502,
+      detail: "Bad Gateway",
+      code: "general.unavailable",
+    });
   });
 
   it("proxies backend error JSON with original status code", async () => {
@@ -168,7 +172,7 @@ describe("POST /api/operator/auth/email-confirm", () => {
     });
   });
 
-  it("returns statusText when text body is empty for non-JSON response", async () => {
+  it("replaces an empty backend server error with a safe problem envelope", async () => {
     mockFetch.mockResolvedValue(
       new Response("", {
         status: 503,
@@ -181,6 +185,10 @@ describe("POST /api/operator/auth/email-confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(503);
-    expect(await response.text()).toBe("");
+    expect(await response.json()).toMatchObject({
+      status: 503,
+      detail: "Service Unavailable",
+      code: "general.unavailable",
+    });
   });
 });

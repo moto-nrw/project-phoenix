@@ -128,7 +128,7 @@ describe("createFileExportRoute", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("forwards a backend 5xx without a BFF event", async () => {
+  it("replaces a backend 5xx without a BFF event", async () => {
     globalThis.fetch = vi
       .fn()
       .mockResolvedValue(
@@ -138,7 +138,11 @@ describe("createFileExportRoute", () => {
     const response = await route(exportRequest());
 
     expect(response.status).toBe(503);
-    expect(await response.text()).toBe("backend down");
+    expect(await response.json()).toMatchObject({
+      status: 503,
+      detail: "Service Unavailable",
+      code: "general.unavailable",
+    });
     expect(captureException).not.toHaveBeenCalled();
   });
 

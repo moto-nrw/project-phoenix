@@ -162,7 +162,7 @@ describe("POST /api/invitations/accept", () => {
     expect(json.detail).toBe("Token expired");
   });
 
-  it("handles non-JSON response from backend", async () => {
+  it("replaces a non-JSON backend server error with a safe problem envelope", async () => {
     const requestPayload = {
       token: "invitation-token",
       password: "Test1234!",
@@ -182,7 +182,14 @@ describe("POST /api/invitations/accept", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    expect(await response.text()).toBe("Server Error");
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/problem+json",
+    );
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("returns an empty 204 response", async () => {

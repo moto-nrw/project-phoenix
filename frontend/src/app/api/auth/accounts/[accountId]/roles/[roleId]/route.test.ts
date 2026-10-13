@@ -162,7 +162,7 @@ describe("POST /api/auth/accounts/[accountId]/roles/[roleId]", () => {
     expect(json.data).toEqual(mockData);
   });
 
-  it("handles database schema mismatch error", async () => {
+  it("replaces a backend database error with a safe problem envelope", async () => {
     const errorText =
       "SQL error: missing FROM-clause entry for table account_role";
     mockFetch.mockResolvedValueOnce(
@@ -178,7 +178,11 @@ describe("POST /api/auth/accounts/[accountId]/roles/[roleId]", () => {
     );
 
     expect(response.status).toBe(500);
-    expect(await response.text()).toBe(errorText);
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("returns 500 on API error", async () => {
@@ -285,7 +289,7 @@ describe("DELETE /api/auth/accounts/[accountId]/roles/[roleId]", () => {
     expect(json.data).toEqual(mockData);
   });
 
-  it("handles database schema mismatch error", async () => {
+  it("replaces a backend database error with a safe problem envelope", async () => {
     const errorText =
       "SQL error: missing FROM-clause entry for table account_role";
     mockFetch.mockResolvedValueOnce(
@@ -301,7 +305,11 @@ describe("DELETE /api/auth/accounts/[accountId]/roles/[roleId]", () => {
     );
 
     expect(response.status).toBe(500);
-    expect(await response.text()).toBe(errorText);
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("returns 500 on API error", async () => {

@@ -83,7 +83,7 @@ describe("GET /api/time-tracking/export", () => {
     expect(response.headers.get("Content-Length")).toBe("8");
   });
 
-  it("handles backend error responses", async () => {
+  it("replaces a backend server error with a safe problem envelope", async () => {
     const mockErrorResponse = new Response("Export failed", { status: 500 });
     global.fetch = vi.fn().mockResolvedValue(mockErrorResponse);
 
@@ -91,8 +91,11 @@ describe("GET /api/time-tracking/export", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(500);
-    const text = await response.text();
-    expect(text).toBe("Export failed");
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("handles missing response body", async () => {

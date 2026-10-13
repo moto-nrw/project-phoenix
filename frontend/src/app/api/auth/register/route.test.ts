@@ -250,7 +250,7 @@ describe("POST /api/auth/register", () => {
     expect(json.detail).toBe("User already exists");
   });
 
-  it("handles non-JSON response from backend", async () => {
+  it("replaces a non-JSON backend server error with a safe problem envelope", async () => {
     const registrationPayload = {
       email: "test@example.com",
       password: "Test1234!",
@@ -270,8 +270,14 @@ describe("POST /api/auth/register", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    expect(response.headers.get("Content-Type")).toContain("text/plain");
-    expect(await response.text()).toBe("Server Error");
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/problem+json",
+    );
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("handles JSON parse error from backend", async () => {
@@ -320,7 +326,7 @@ describe("POST /api/auth/register", () => {
     expect(await response.text()).toBe("");
   });
 
-  it("returns fallback message when backend sends an empty non-JSON body", async () => {
+  it("replaces an empty backend server error with a safe problem envelope", async () => {
     const registrationPayload = {
       email: "test@example.com",
       password: "Test1234!",
@@ -340,7 +346,11 @@ describe("POST /api/auth/register", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    expect(await response.text()).toBe("");
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("returns 500 on fetch failure", async () => {

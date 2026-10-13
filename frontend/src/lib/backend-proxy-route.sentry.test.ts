@@ -30,7 +30,7 @@ describe("BFF Sentry ownership", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => vi.unstubAllGlobals());
 
-  it("forwards a backend 5xx without opening a BFF event", async () => {
+  it("replaces a backend 5xx without opening a BFF event", async () => {
     const body = '{"code":"db_unavailable","request_id":"backend-id"}';
     vi.stubGlobal(
       "fetch",
@@ -45,7 +45,11 @@ describe("BFF Sentry ownership", () => {
     const response = await proxy(request());
 
     expect(response.status).toBe(503);
-    expect(await response.text()).toBe(body);
+    expect(await response.json()).toMatchObject({
+      status: 503,
+      detail: "Service Unavailable",
+      code: "general.unavailable",
+    });
     expect(captureException).not.toHaveBeenCalled();
   });
 

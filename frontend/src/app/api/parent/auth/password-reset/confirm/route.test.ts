@@ -138,7 +138,7 @@ describe("POST /api/parent/auth/password-reset/confirm", () => {
     });
   });
 
-  it("returns non-JSON error bodies verbatim", async () => {
+  it("replaces a non-JSON backend server error with a safe problem envelope", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
       new Response("Server Error", {
         status: 500,
@@ -153,11 +153,17 @@ describe("POST /api/parent/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    expect(response.headers.get("Content-Type")).toContain("text/plain");
-    expect(await response.text()).toBe("Server Error");
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/problem+json",
+    );
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
-  it("uses the German fallback message for an empty error body", async () => {
+  it("replaces an empty backend server error with a safe problem envelope", async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
       new Response("", {
         status: 500,
@@ -172,7 +178,11 @@ describe("POST /api/parent/auth/password-reset/confirm", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    expect(await response.text()).toBe("");
+    expect(await response.json()).toMatchObject({
+      status: 500,
+      detail: "Internal Server Error",
+      code: "general.server",
+    });
   });
 
   it("uses the German fallback when the JSON error body is unparseable", async () => {
