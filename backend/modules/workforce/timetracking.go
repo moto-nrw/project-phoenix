@@ -11,11 +11,10 @@ import (
 
 // This file is the public time-tracking contract the web adapters consume
 // (#2690): the MA-facing stamp/history/absence surface and the Leitung's
-// administration of working time. The retained work session, absence, month,
-// ledger, month-close, overview, audit-log and export services serve it
-// through the composition root until their own move into the Workforce
-// module; the wire shapes below are byte-for-byte what those services
-// rendered, so the frontend contract does not move.
+// administration of working time. The time-tracking services of the module
+// serve it (internal/timetracking, #3413); the wire shapes below are
+// byte-for-byte what those services rendered, so the frontend contract does
+// not move.
 //
 // Calendar days travel as YYYY-MM-DD strings; instants stay time.Time.
 

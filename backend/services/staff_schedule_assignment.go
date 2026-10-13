@@ -6,7 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -19,11 +19,11 @@ type staffScheduleRecords interface {
 
 type staffScheduleAssignments struct{ source staffScheduleRecords }
 
-func StaffScheduleAssignments(source staffScheduleRecords) timetracking.StaffScheduleQuery {
+func StaffScheduleAssignments(source staffScheduleRecords) workforceCompose.StaffScheduleQuery {
 	return staffScheduleAssignments{source: source}
 }
 
-func (q staffScheduleAssignments) ScheduleAssignment(ctx context.Context, staffID int64) (*timetracking.StaffScheduleAssignment, error) {
+func (q staffScheduleAssignments) ScheduleAssignment(ctx context.Context, staffID int64) (*workforceCompose.StaffScheduleAssignment, error) {
 	profiles, err := q.source.StaffEmployments(ctx, []int64{staffID})
 	if err != nil {
 		return nil, err
@@ -37,5 +37,5 @@ func (q staffScheduleAssignments) ScheduleAssignment(ctx context.Context, staffI
 		date := timezone.Date(profile.RotationAnchorDate)
 		anchor = &date
 	}
-	return &timetracking.StaffScheduleAssignment{WorkTimeModelID: profile.WorkTimeModelID, RotationAnchorDate: anchor}, nil
+	return &workforceCompose.StaffScheduleAssignment{WorkTimeModelID: profile.WorkTimeModelID, RotationAnchorDate: anchor}, nil
 }

@@ -76,14 +76,17 @@ import (
 // Slice S3 (#3553) moved the deviation, substitution and sick-report writes,
 // the attendance correction and the attendance mirror. #3554 deleted the
 // legacy SQL test providers (timetablesqltest). #3556 moved the group
-// substitution relations out of the workforce tree.
+// substitution relations out of the workforce tree. #3413 dissolved
+// modules/workforce/legacy/timetracking (13,327 LOC) into the Workforce
+// application layer and moved the work-session repository shim (1,158 LOC)
+// into the Workforce composition.
 // Re-measure the same way when a number needs to move — downwards.
 const moduleLegacyBudgetCheck = "legacy LOC budget"
 
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 19311
+const moduleLegacyBudgetTotal = 4826
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
@@ -107,9 +110,10 @@ var moduleLegacyBudgets = map[string]int{
 	// No ticket today.
 	"modules/supervisiondashboard/legacy": 701,
 	// No ticket today — and the largest tree of the twelve.
-	// No ticket today — grew from 15,402 LOC at creation to this. #3556 moved
-	// the group substitution relations to the legacy root's binding.
-	"modules/workforce/legacy": 15666,
+	// No ticket today — grew from 15,402 LOC at creation to 15,666. #3556
+	// moved the group substitution relations to the legacy root's binding,
+	// #3413 the time-tracking services and the work-session shim out.
+	"modules/workforce/legacy": 1181,
 	// No ticket today.
 }
 

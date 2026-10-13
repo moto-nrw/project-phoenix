@@ -24,8 +24,8 @@ func TestDataImportCutover_OpeningBalanceOwnerContract(t *testing.T) {
 	require.NoError(t, err)
 	staff := testpkg.CreateTestStaff(t, db, "Opening", "Subject")
 	actor := newImporter(t, db)
-	hours := services.OpeningBalanceBookingCapability(module.StaffBalanceAdjust)
-	vacation := services.VacationTakeoverCapability(module.StaffAbsence)
+	hours := module.TimeTracking.OpeningBalances
+	vacation := module.TimeTracking.VacationTakeovers
 	date := now.AddDate(0, 0, -1).Format(time.DateOnly)
 
 	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {

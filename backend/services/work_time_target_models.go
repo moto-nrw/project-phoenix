@@ -4,7 +4,7 @@ import (
 	"context"
 
 	config "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -19,28 +19,28 @@ func NewWorkTimeTargetModels(records WorkTimeTargetModelRecords) *WorkTimeTarget
 	return &WorkTimeTargetModels{records: records}
 }
 
-func (r *WorkTimeTargetModels) FindByID(ctx context.Context, id int64) (*timetracking.WorkTimeTargetModel, error) {
+func (r *WorkTimeTargetModels) FindByID(ctx context.Context, id int64) (*workforceCompose.WorkTimeTargetModel, error) {
 	row, err := r.records.FindByID(ctx, id)
 	return workTimeTargetModel(row), err
 }
 
-func (r *WorkTimeTargetModels) FindByIDs(ctx context.Context, ids []int64) ([]*timetracking.WorkTimeTargetModel, error) {
+func (r *WorkTimeTargetModels) FindByIDs(ctx context.Context, ids []int64) ([]*workforceCompose.WorkTimeTargetModel, error) {
 	rows, err := r.records.FindByIDs(ctx, ids)
 	if rows == nil {
 		return nil, err
 	}
-	result := make([]*timetracking.WorkTimeTargetModel, len(rows))
+	result := make([]*workforceCompose.WorkTimeTargetModel, len(rows))
 	for i, row := range rows {
 		result[i] = workTimeTargetModel(row)
 	}
 	return result, err
 }
 
-func workTimeTargetModel(row *config.WorkTimeModel) *timetracking.WorkTimeTargetModel {
+func workTimeTargetModel(row *config.WorkTimeModel) *workforceCompose.WorkTimeTargetModel {
 	if row == nil {
 		return nil
 	}
-	return &timetracking.WorkTimeTargetModel{
+	return &workforceCompose.WorkTimeTargetModel{
 		ID: row.ID, RotationAnchorDate: timezone.Date(row.RotationAnchorDate),
 		DailyTarget: func(anchor, date timezone.Date) (int, bool) {
 			return config.DailyTargetFromModel(row, config.CalendarDate(anchor), config.CalendarDate(date))

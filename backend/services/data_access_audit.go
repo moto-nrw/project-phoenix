@@ -5,7 +5,7 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 type dataAccessAudit struct {
@@ -40,7 +40,7 @@ func (a dataAccessAudit) Create(ctx context.Context, event *presenceservice.Data
 // evidence to the audit writer.
 func NewTimeTrackingDataAccessAudit(writer interface {
 	Create(context.Context, *auditModels.DataAccessLog) error
-}) timetracking.DataAccessAudit {
+}) workforceCompose.DataAccessAudit {
 	if writer == nil {
 		return nil
 	}
@@ -53,7 +53,7 @@ type timeTrackingDataAccessAudit struct {
 	}
 }
 
-func (a timeTrackingDataAccessAudit) Create(ctx context.Context, event *timetracking.DataAccessEvent) error {
+func (a timeTrackingDataAccessAudit) Create(ctx context.Context, event *workforceCompose.DataAccessEvent) error {
 	if event == nil {
 		return a.writer.Create(ctx, nil)
 	}

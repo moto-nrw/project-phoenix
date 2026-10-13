@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/jobruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -160,7 +159,7 @@ func newWorkerReads(modules moduleServices) workerReads {
 	return workerReads{
 		existingRooms: schedulerExistingRooms(modules.rooms),
 		timetable:     modules.timetableRepositories,
-		workSessions:  workforceLegacy.NewWorkSessionRepository(modules.workforce),
+		workSessions:  services.WorkPresence(modules.workforce),
 		students:      modules.students,
 		staff:         modules.staff,
 		// A nil owner leaves the interface nil, so the Worker runs no audit.

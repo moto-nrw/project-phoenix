@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // PayrollExportSettings maps resolved settings into the exporter's input.
@@ -13,7 +13,7 @@ type PayrollExportSettings struct {
 	Source settingsCompose.PayrollStatusGetter
 }
 
-func (s PayrollExportSettings) GetPayrollConfiguration(ctx context.Context) (*timetracking.PayrollExportConfiguration, error) {
+func (s PayrollExportSettings) GetPayrollConfiguration(ctx context.Context) (*workforceCompose.PayrollExportConfiguration, error) {
 	status, err := s.Source.GetPayrollStatus(ctx)
 	if err != nil {
 		return nil, err
@@ -21,15 +21,15 @@ func (s PayrollExportSettings) GetPayrollConfiguration(ctx context.Context) (*ti
 	if status == nil {
 		return nil, errors.New("payroll settings returned no configuration")
 	}
-	result := &timetracking.PayrollExportConfiguration{
+	result := &workforceCompose.PayrollExportConfiguration{
 		Beraternummer:        status.Beraternummer,
 		Mandantennummer:      status.Mandantennummer,
 		LodasHeaderComplete:  status.LodasHeaderComplete,
 		ConfiguredCategories: status.ConfiguredCategories,
-		Categories:           make([]timetracking.PayrollExportCategory, len(status.Categories)),
+		Categories:           make([]workforceCompose.PayrollExportCategory, len(status.Categories)),
 	}
 	for i, category := range status.Categories {
-		result.Categories[i] = timetracking.PayrollExportCategory{
+		result.Categories[i] = workforceCompose.PayrollExportCategory{
 			ID: category.ID, Label: category.Label, Number: category.Number,
 			Unit: category.Unit, UnitRequired: category.UnitRequired,
 		}

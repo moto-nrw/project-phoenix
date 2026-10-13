@@ -4,7 +4,7 @@ import (
 	"context"
 
 	config "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -28,21 +28,21 @@ func NewWorkSessionSchedules(records WorkSessionScheduleRecords) *WorkSessionSch
 	return &WorkSessionSchedules{records: records}
 }
 
-func (r *WorkSessionSchedules) GetCurrentByStaffID(ctx context.Context, staffID int64) ([]*timetracking.WorkScheduleRow, error) {
+func (r *WorkSessionSchedules) GetCurrentByStaffID(ctx context.Context, staffID int64) ([]*workforceCompose.WorkScheduleRow, error) {
 	rows, err := r.records.GetCurrentByStaffID(ctx, staffID)
 	return workScheduleRows(rows), err
 }
 
-func (r *WorkSessionSchedules) FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*timetracking.WorkScheduleRow, error) {
+func (r *WorkSessionSchedules) FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*workforceCompose.WorkScheduleRow, error) {
 	rows, err := r.records.FindByStaffIDsValidInRange(ctx, staffIDs, config.CalendarDate(from), config.CalendarDate(to))
 	return workScheduleRows(rows), err
 }
 
-func (r *WorkSessionSchedules) ReplaceSchedule(ctx context.Context, staffID int64, rows []*timetracking.WorkScheduleRow, anchor timezone.Date) error {
+func (r *WorkSessionSchedules) ReplaceSchedule(ctx context.Context, staffID int64, rows []*workforceCompose.WorkScheduleRow, anchor timezone.Date) error {
 	return r.records.ReplaceSchedule(ctx, staffID, staffWorkScheduleRows(rows), config.CalendarDate(anchor))
 }
 
-func (r *WorkSessionSchedules) ReplaceScheduleWithValidFrom(ctx context.Context, staffID int64, rows []*timetracking.WorkScheduleRow, anchor, validFrom timezone.Date) error {
+func (r *WorkSessionSchedules) ReplaceScheduleWithValidFrom(ctx context.Context, staffID int64, rows []*workforceCompose.WorkScheduleRow, anchor, validFrom timezone.Date) error {
 	return r.records.ReplaceScheduleWithValidFrom(ctx, staffID, staffWorkScheduleRows(rows), config.CalendarDate(anchor), config.CalendarDate(validFrom))
 }
 
@@ -59,7 +59,7 @@ func NewWorkSessionTimeModels(records WorkSessionTimeModelRecords) *WorkSessionT
 	return &WorkSessionTimeModels{records: records}
 }
 
-func (r *WorkSessionTimeModels) FindByID(ctx context.Context, id int64) (*timetracking.WorkTimeTemplate, error) {
+func (r *WorkSessionTimeModels) FindByID(ctx context.Context, id int64) (*workforceCompose.WorkTimeTemplate, error) {
 	row, err := r.records.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -70,7 +70,7 @@ func (r *WorkSessionTimeModels) FindByID(ctx context.Context, id int64) (*timetr
 // Create persists the template and its entries and writes the assigned
 // identity back onto the caller's value, which the service binds to the staff
 // member afterwards.
-func (r *WorkSessionTimeModels) Create(ctx context.Context, template *timetracking.WorkTimeTemplate, entries []*timetracking.WorkTimeTemplateEntry) error {
+func (r *WorkSessionTimeModels) Create(ctx context.Context, template *workforceCompose.WorkTimeTemplate, entries []*workforceCompose.WorkTimeTemplateEntry) error {
 	if template == nil {
 		return nil
 	}
@@ -86,22 +86,22 @@ func (r *WorkSessionTimeModels) Create(ctx context.Context, template *timetracki
 	return nil
 }
 
-func workScheduleRows(rows []*config.StaffWorkSchedule) []*timetracking.WorkScheduleRow {
+func workScheduleRows(rows []*config.StaffWorkSchedule) []*workforceCompose.WorkScheduleRow {
 	if rows == nil {
 		return nil
 	}
-	converted := make([]*timetracking.WorkScheduleRow, len(rows))
+	converted := make([]*workforceCompose.WorkScheduleRow, len(rows))
 	for index, row := range rows {
 		converted[index] = workScheduleRow(row)
 	}
 	return converted
 }
 
-func workScheduleRow(row *config.StaffWorkSchedule) *timetracking.WorkScheduleRow {
+func workScheduleRow(row *config.StaffWorkSchedule) *workforceCompose.WorkScheduleRow {
 	if row == nil {
 		return nil
 	}
-	return &timetracking.WorkScheduleRow{
+	return &workforceCompose.WorkScheduleRow{
 		StaffID:            row.StaffID,
 		WeekIndex:          row.WeekIndex,
 		RotationLength:     row.RotationLength,
@@ -114,7 +114,7 @@ func workScheduleRow(row *config.StaffWorkSchedule) *timetracking.WorkScheduleRo
 	}
 }
 
-func staffWorkScheduleRows(rows []*timetracking.WorkScheduleRow) []*config.StaffWorkSchedule {
+func staffWorkScheduleRows(rows []*workforceCompose.WorkScheduleRow) []*config.StaffWorkSchedule {
 	if rows == nil {
 		return nil
 	}
@@ -138,11 +138,11 @@ func staffWorkScheduleRows(rows []*timetracking.WorkScheduleRow) []*config.Staff
 	return converted
 }
 
-func workTimeTemplate(row *config.WorkTimeModel) *timetracking.WorkTimeTemplate {
+func workTimeTemplate(row *config.WorkTimeModel) *workforceCompose.WorkTimeTemplate {
 	if row == nil {
 		return nil
 	}
-	return &timetracking.WorkTimeTemplate{
+	return &workforceCompose.WorkTimeTemplate{
 		ID:                 row.ID,
 		Name:               row.Name,
 		RotationLength:     row.RotationLength,
@@ -151,16 +151,16 @@ func workTimeTemplate(row *config.WorkTimeModel) *timetracking.WorkTimeTemplate 
 	}
 }
 
-func workTimeTemplateEntries(entries []*config.WorkTimeModelEntry) []*timetracking.WorkTimeTemplateEntry {
+func workTimeTemplateEntries(entries []*config.WorkTimeModelEntry) []*workforceCompose.WorkTimeTemplateEntry {
 	if entries == nil {
 		return nil
 	}
-	converted := make([]*timetracking.WorkTimeTemplateEntry, len(entries))
+	converted := make([]*workforceCompose.WorkTimeTemplateEntry, len(entries))
 	for index, entry := range entries {
 		if entry == nil {
 			continue
 		}
-		converted[index] = &timetracking.WorkTimeTemplateEntry{
+		converted[index] = &workforceCompose.WorkTimeTemplateEntry{
 			WeekIndex:     entry.WeekIndex,
 			DayOfWeek:     entry.DayOfWeek,
 			TargetMinutes: entry.TargetMinutes,
@@ -170,7 +170,7 @@ func workTimeTemplateEntries(entries []*config.WorkTimeModelEntry) []*timetracki
 	return converted
 }
 
-func workTimeModelEntries(entries []*timetracking.WorkTimeTemplateEntry) []*config.WorkTimeModelEntry {
+func workTimeModelEntries(entries []*workforceCompose.WorkTimeTemplateEntry) []*config.WorkTimeModelEntry {
 	if entries == nil {
 		return nil
 	}

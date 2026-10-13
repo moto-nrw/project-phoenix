@@ -262,9 +262,9 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, graph *ser
 	deps.InvitationCleanup = services.Invitation
 	deps.EmailChangeCleanup = services.OperatorAuth
 	deps.OperatorInvitationCleanup = services.OperatorInvitation
-	deps.WorkSessionCleanup = services.WorkSession
-	deps.BreakAutoEnder = services.WorkSession
-	deps.AutoCheckouter = services.WorkSession
+	deps.WorkSessionCleanup = services.WorkSession.Jobs
+	deps.BreakAutoEnder = services.WorkSession.Jobs
+	deps.AutoCheckouter = services.WorkSession.Jobs
 	deps.FeedbackCleaner = graph.feedback
 	deps.UnregisteredScanCleaner = services.UnregisteredTagScans
 	deps.Materializer = services.Materialization

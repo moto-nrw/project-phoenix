@@ -7,12 +7,11 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // WorkforceAdminCapabilities bundles the public Workforce contracts the staff
-// administration and time-tracking resources consume (#2690), each served
-// from its retained service.
+// administration and time-tracking resources consume (#2690).
 type WorkforceAdminCapabilities struct {
 	Staff              workforce.StaffDirectory
 	Documents          workforce.StaffDocuments
@@ -26,50 +25,24 @@ type WorkforceAdminCapabilities struct {
 	TimeExport         workforce.StaffTimeExport
 }
 
-// NewWorkforceAdminCapabilities adapts the retained services. The people
-// service, the personnel-record administration and the work session service
-// are required; every other capability is left nil
-// when its service is not wired, so a partial composition (a focused test
-// module) still serves the routes it has services for.
-func NewWorkforceAdminCapabilities(
-	people *peopleCompose.PersonDirectory,
-	staffAdmin *workforce.StaffAdmin,
-	sessions timetracking.WorkSessionService,
-	absences timetracking.StaffAbsenceService,
-	months timetracking.WorkTimeMonthService,
-	ledger timetracking.StaffBalanceAdjustmentService,
-	closing timetracking.StaffMonthCloseService,
-	overview timetracking.StaffOverviewService,
-	auditLog timetracking.TimeTrackingAuditLogService,
-	export timetracking.StaffTimeExportService,
-) WorkforceAdminCapabilities {
-	capabilities := WorkforceAdminCapabilities{
-		Staff:        StaffDirectoryCapability(people, staffAdmin),
-		WorkSessions: WorkSessionCapability(sessions, people),
-	}
+// NewWorkforceAdminCapabilities bundles the staff directory and the
+// personnel-record administration with the time-tracking contracts the
+// Workforce composition built. A nil time-tracking side leaves those
+// contracts nil, so a partial composition still serves the routes it has.
+func NewWorkforceAdminCapabilities(people *peopleCompose.PersonDirectory, staffAdmin *workforce.StaffAdmin, timeTracking *workforceCompose.TimeTracking) WorkforceAdminCapabilities {
+	capabilities := WorkforceAdminCapabilities{Staff: StaffDirectoryCapability(people, staffAdmin)}
 	if staffAdmin != nil {
 		capabilities.Documents = staffAdmin
 	}
-	if absences != nil {
-		capabilities.StaffAbsences = StaffAbsenceCapability(absences)
-	}
-	if months != nil {
-		capabilities.WorkTimeMonth = WorkTimeMonthCapability(months)
-	}
-	if ledger != nil {
-		capabilities.BalanceAdjustments = BalanceAdjustmentCapability(ledger)
-	}
-	if closing != nil {
-		capabilities.MonthClosing = MonthClosingCapability(closing)
-	}
-	if overview != nil {
-		capabilities.Overview = StaffOverviewCapability(overview)
-	}
-	if auditLog != nil {
-		capabilities.AuditLog = TimeTrackingAuditLogCapability(auditLog)
-	}
-	if export != nil {
-		capabilities.TimeExport = StaffTimeExportCapability(export)
+	if timeTracking != nil {
+		capabilities.WorkSessions = timeTracking.WorkSessions
+		capabilities.StaffAbsences = timeTracking.StaffAbsences
+		capabilities.WorkTimeMonth = timeTracking.WorkTimeMonths
+		capabilities.BalanceAdjustments = timeTracking.BalanceAdjustments
+		capabilities.MonthClosing = timeTracking.MonthClosing
+		capabilities.Overview = timeTracking.Overview
+		capabilities.AuditLog = timeTracking.AuditLog
+		capabilities.TimeExport = timeTracking.TimeExport
 	}
 	return capabilities
 }

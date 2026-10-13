@@ -2,7 +2,7 @@ package services
 
 import (
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // StudentHTTPTestWithdrawalFilter pages the pending withdrawal tasks the
@@ -12,4 +12,4 @@ type StudentHTTPTestWithdrawalFilter = userModels.CareWithdrawalCompletionFilter
 // StudentHTTPTestRepositoryNotFound is the retained repositories' not-found
 // sentinel (models/base.ErrNotFound), for suites that pin api/common's
 // classifier against it.
-var StudentHTTPTestRepositoryNotFound = timetracking.ErrNotFound
+var StudentHTTPTestRepositoryNotFound = workforceCompose.ErrRowNotFound

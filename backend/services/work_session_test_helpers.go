@@ -6,15 +6,16 @@ import (
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
 	"github.com/uptrace/bun"
 )
 
+// WorkSessionTestModule is the stamp side of the Workforce time-tracking
+// composition with the staff-clock workflow over it.
 type WorkSessionTestModule struct {
-	WorkSession timetracking.WorkSessionService
-	StaffClock  *staffclock.Service
+	TimeTracking *workforceCompose.TimeTracking
+	StaffClock   *staffclock.Service
 }
 
 func NewWorkSessionTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (WorkSessionTestModule, error) {
@@ -34,8 +35,17 @@ func NewWorkSessionTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func
 	if err != nil {
 		return WorkSessionTestModule{}, err
 	}
-	service := timetracking.NewWorkSessionService(r.WorkSession, r.WorkSessionBreak, NewWorkSessionAudit(r.WorkSessionEdit),
-		r.StaffAbsence, r.GroupSupervisor, r.ActiveGroup, WorkSessionStaff(r.Staff, workforceCompose.MustNewStaffEmployment(db)), NewWorkSessionSchedules(r.StaffWorkSchedule), NewWorkSessionTimeModels(r.WorkTimeModel), PresenceSettings(settings.Settings), slog.Default(), db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
-		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(NewAbsenceTypeTestCapability(db))), timetracking.WithWorkSessionEvents(TimeTrackingEvents(deliveryCompose.NewRealtimeHub(slog.Default()))))
-	return WorkSessionTestModule{WorkSession: service, StaffClock: newStaffClockService(identity.Users, rfid.RFID, service)}, nil
+	audits := NewTestAuditPersistence(db, nil)
+	timeTracking, err := newTimeTrackingTestModule(db, r, timeTrackingTestGraph{
+		Audits: TimeTrackingAudits{
+			WorkSessionEdit: r.WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
+			DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog,
+		},
+		Settings: settings.Settings, People: identity.Users, Holidays: noHolidays{},
+		Events: TimeTrackingEvents(deliveryCompose.NewRealtimeHub(slog.Default())), Logger: slog.Default(),
+	})
+	if err != nil {
+		return WorkSessionTestModule{}, err
+	}
+	return WorkSessionTestModule{TimeTracking: timeTracking, StaffClock: newStaffClockService(identity.Users, rfid.RFID, timeTracking.TimeClock)}, nil
 }

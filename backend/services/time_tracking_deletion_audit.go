@@ -4,7 +4,7 @@ import (
 	"context"
 
 	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 type timeTrackingDeletionAudit struct {
@@ -12,14 +12,14 @@ type timeTrackingDeletionAudit struct {
 }
 
 // NewTimeTrackingDeletionAudit keeps audit persistence outside the producer.
-func NewTimeTrackingDeletionAudit(writer audit.TimeTrackingDeletionRepository) timetracking.TimeTrackingDeletionAudit {
+func NewTimeTrackingDeletionAudit(writer audit.TimeTrackingDeletionRepository) workforceCompose.TimeTrackingDeletionAudit {
 	if writer == nil {
 		return nil
 	}
 	return timeTrackingDeletionAudit{writer: writer}
 }
 
-func (a timeTrackingDeletionAudit) Create(ctx context.Context, event *timetracking.TimeTrackingDeletionEvent) error {
+func (a timeTrackingDeletionAudit) Create(ctx context.Context, event *workforceCompose.TimeTrackingDeletionEvent) error {
 	if event == nil {
 		return a.writer.Create(ctx, nil)
 	}

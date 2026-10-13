@@ -201,10 +201,10 @@ func (f *Factory) bindStaffMembershipRuntime(offboarding offboardingcompose.Depe
 			return result, nil
 		},
 
-		PresentStaffIDs: f.WorkSession.GetStaffIDsWithSupervisionToday,
-		WorkStatusMap:   f.WorkSession.GetTodayPresenceMap,
-		AbsenceMap:      f.StaffAbsence.GetTodayAbsenceMap,
-		AbsenceLabelMap: f.StaffAbsence.GetTodayAbsenceLabelMap,
+		PresentStaffIDs: f.WorkSession.StaffDay.GetStaffIDsWithSupervisionToday,
+		WorkStatusMap:   f.WorkSession.StaffDay.GetTodayPresenceMap,
+		AbsenceMap:      f.WorkSession.StaffDay.GetTodayAbsenceMap,
+		AbsenceLabelMap: f.WorkSession.StaffDay.GetTodayAbsenceLabelMap,
 		AccountRoles:    roles.GetAccountRoleNames,
 		AccountEmails:   roles.GetAccountEmails,
 		AccountAvatars:  roles.GetAccountAvatars,

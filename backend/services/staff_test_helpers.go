@@ -35,6 +35,6 @@ func NewStaffTestModule(db *bun.DB, unit tenant.UnitOfWork) (StaffTestModule, er
 	if err != nil {
 		return StaffTestModule{}, err
 	}
-	carrier := &Factory{Users: work.Users, Auth: auth.Auth, Education: groups.Education, StaffAbsence: work.StaffAbsence, WorkSession: work.WorkSession}
+	carrier := &Factory{Users: work.Users, Auth: auth.Auth, Education: groups.Education, WorkSession: work.TimeTracking}
 	return StaffTestModule{WorkforceTestModule: work, PeopleDirectory: people, membershipRuntime: carrier.NewStaffMembershipRuntime}, nil
 }

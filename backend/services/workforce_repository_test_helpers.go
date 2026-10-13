@@ -22,9 +22,6 @@ type WorkforceTestRepositories struct {
 	StaffAbsenceType                workforceCapability.Capability
 	StaffAbsenceTypeAllowance       timerecords.StaffAbsenceTypeAllowanceRepository
 	StaffAbsenceTypeAllowanceChange timerecords.StaffAbsenceTypeAllowanceChangeRepository
-	StaffVacationQuota              timerecords.StaffVacationQuotaRepository
-	StaffVacationOpening            timerecords.StaffVacationOpeningRepository
-	StaffBalanceAdjust              timerecords.StaffBalanceAdjustmentRepository
 	StaffMonthSnapshot              workforceCapability.MonthSnapshots
 	StaffAbsenceAudit               timerecords.StaffAbsenceAuditRepository
 	TimeTrackingDeletion            auditModels.TimeTrackingDeletionRepository
@@ -60,9 +57,6 @@ func NewWorkforceTestRepositoriesWithMembers(db *bun.DB, members MembershipTestR
 		StaffAbsenceType:                workTime,
 		StaffAbsenceTypeAllowance:       workforce.NewStaffAbsenceTypeAllowanceRepository(db),
 		StaffAbsenceTypeAllowanceChange: workforce.NewStaffAbsenceTypeAllowanceChangeRepository(db),
-		StaffVacationQuota:              workforceLegacy.NewStaffVacationQuotaRepository(workTime),
-		StaffVacationOpening:            workforceLegacy.NewStaffVacationOpeningRepository(workTime),
-		StaffBalanceAdjust:              workforceLegacy.NewStaffBalanceAdjustmentRepository(workTime),
 		StaffMonthSnapshot:              workTime,
 		StaffAbsenceAudit:               workforceLegacy.NewStaffAbsenceAuditRepository(workTime),
 		StaffMasterData:                 workforceLegacy.NewStaffMasterDataRepository(workTime),

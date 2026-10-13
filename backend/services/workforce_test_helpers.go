@@ -17,7 +17,6 @@ import (
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
@@ -26,17 +25,12 @@ import (
 )
 
 type WorkforceTestModule struct {
-	Users                *peopleCompose.PersonDirectory
-	StaffAdmin           *workforce.StaffAdmin
-	WorkSession          timetracking.WorkSessionService
-	StaffAbsence         timetracking.StaffAbsenceService
-	WorkTimeMonth        timetracking.WorkTimeMonthService
-	StaffBalanceAdjust   timetracking.StaffBalanceAdjustmentService
-	StaffMonthClose      timetracking.StaffMonthCloseService
-	StaffOverview        timetracking.StaffOverviewService
-	TimeTrackingAuditLog timetracking.TimeTrackingAuditLogService
-	StaffTimeExport      timetracking.StaffTimeExportService
-	Settings             settingsCompose.SettingsService
+	Users      *peopleCompose.PersonDirectory
+	StaffAdmin *workforce.StaffAdmin
+	// TimeTracking is the Workforce time-tracking side composed the way
+	// the factory composes it (#3413).
+	TimeTracking *workforceCompose.TimeTracking
+	Settings     settingsCompose.SettingsService
 }
 
 func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (WorkforceTestModule, error) {
@@ -59,7 +53,6 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	}
 	identityRoles := roleAdministration{current: func() *identityaccess.Module { return identityAccess }}
 	settingsService := settings.Settings
-	activeLogger := logger
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
 	usersService := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
 		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
@@ -81,110 +74,21 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		return WorkforceTestModule{}, err
 	}
 	nonWorkingDayService := nonWorkingDays{calendar: calendar}
-	staffAbsenceTypeService := AbsenceTypes(repos.StaffAbsenceType)
-	timeTrackingEvents := TimeTrackingEvents(realtimeHub)
 	today := timezone.CalendarDateClock(optionalClock(clocks))
 	var shiftPlanSyncer shiftplansync.SickCascade
-	var overrideMonths timetracking.WorkTimeMonthService
-	workSessionService := timetracking.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff, workforceCompose.MustNewStaffEmployment(db)), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
-		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(repos.StaffAbsenceType)),
-		timetracking.WithWorkSessionEvents(timeTrackingEvents),
-		timetracking.WithWorkSessionHolidays(nonWorkingDayService),
-		timetracking.WithWorkSessionAbsenceTypes(staffAbsenceTypeService),
-		timetracking.WithWorkSessionTargetOverrides(staffTargetOverrideWeeks{overrides: repos.StaffAbsenceType, months: func() timetracking.WorkTimeMonthService { return overrideMonths }}),
-	)
-	workTimeMonthService := timetracking.NewWorkTimeMonthService(
-		repos.WorkSession,
-		repos.WorkSessionBreak,
-		repos.StaffAbsence,
-		StaffScheduleAssignments(workforceCompose.MustNewStaffEmployment(db)),
-		NewWorkScheduleTargets(repos.StaffWorkSchedule),
-		NewWorkTimeTargetModels(repos.WorkTimeModel),
-		NewTimeTrackingShifts(repos.StaffAbsenceType),
-		PresenceSettings(settingsService),
-		activeLogger,
-		timetracking.WithMonthHolidays(nonWorkingDayService),
-		timetracking.WithMonthTargetOverrides(repos.StaffAbsenceType),
-		timetracking.WithMonthAdjustments(repos.StaffBalanceAdjust),
-		timetracking.WithMonthSnapshots(MonthSnapshotCapability(repos.StaffMonthSnapshot)),
-	)
-
-	overrideMonths = workTimeMonthService
-
-	staffAbsenceService := timetracking.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, PresenceSettings(settingsService), workTimeMonthService,
-		timetracking.WithAbsenceToday(today),
-		timetracking.WithAbsenceTypes(staffAbsenceTypeService),
-		timetracking.WithAbsenceEvents(timeTrackingEvents),
-		timetracking.WithAbsenceLogger(activeLogger),
-		timetracking.WithAbsenceDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion)),
-		timetracking.WithVacationOpenings(repos.StaffVacationOpening),
-		timetracking.WithAbsenceShiftPlanSyncer(shiftplansyncCompose.DeferredSickCascade(func() shiftplansync.SickCascade { return shiftPlanSyncer })),
-		timetracking.WithAbsenceMonthSnapshots(MonthSnapshotCapability(repos.StaffMonthSnapshot)),
-	)
-
-	staffBalanceAdjustService := timetracking.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, PresenceSettings(settingsService), activeLogger,
-		timetracking.WithAdjustmentToday(today),
-		timetracking.WithAdjustmentEvents(timeTrackingEvents),
-		timetracking.WithAdjustmentSnapshots(MonthSnapshotCapability(repos.StaffMonthSnapshot)),
-		timetracking.WithAdjustmentDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion)),
-	)
-
-	staffMonthCloseService := timetracking.NewStaffMonthCloseService(
-		MonthSnapshotCapability(repos.StaffMonthSnapshot),
-		workTimeMonthService,
-		MonthCloseStaff(repos.Staff),
-		PresenceSettings(settingsService),
-		activeLogger,
-		timetracking.WithMonthCloseEvents(timeTrackingEvents),
-	)
-
-	staffOverviewService := timetracking.NewStaffOverviewService(
-		OverviewStaff(repos.Staff),
-		repos.WorkSession,
-		repos.WorkSessionBreak,
-		repos.StaffAbsence,
-		repos.StaffBalanceAdjust,
-		repos.StaffVacationQuota,
-		MonthSnapshotCapability(repos.StaffMonthSnapshot),
-		NewWorkScheduleTargets(repos.StaffWorkSchedule),
-		NewWorkTimeTargetModels(repos.WorkTimeModel),
-		NewTimeTrackingShifts(repos.StaffAbsenceType),
-		PresenceSettings(settingsService),
-		activeLogger,
-		timetracking.WithOverviewHolidays(nonWorkingDayService),
-		timetracking.WithOverviewTargetOverrides(repos.StaffAbsenceType),
-		timetracking.WithOverviewVacationOpenings(repos.StaffVacationOpening),
-	)
-
-	payrollStatusService := settingsCompose.NewPayrollStatusService(settingsService, func(ctx context.Context) (int, int, error) {
-		staff, err := repos.Staff.List(ctx, nil)
-		if err != nil {
-			return 0, 0, err
-		}
-		withoutPersonnelNumber := 0
-		for _, member := range staff {
-			if member.PersonnelNumber == nil || *member.PersonnelNumber == "" {
-				withoutPersonnelNumber++
-			}
-		}
-		return len(staff), withoutPersonnelNumber, nil
+	timeTracking, err := newTimeTrackingTestModule(db, repos.WorkSessionTestRepositories, timeTrackingTestGraph{
+		Audits: TimeTrackingAudits{
+			WorkSessionEdit: repos.WorkSessionEdit, TimeTrackingDeletion: repos.TimeTrackingDeletion,
+			DataAccessLog: repos.DataAccessLog, TimeTrackingAuditLog: repos.TimeTrackingAuditLog,
+		},
+		Settings: settingsService, People: usersService, Holidays: nonWorkingDayService,
+		Events:        TimeTrackingEvents(realtimeHub),
+		ShiftPlanSync: shiftplansyncCompose.DeferredSickCascade(func() shiftplansync.SickCascade { return shiftPlanSyncer }),
+		Logger:        logger, Today: today,
 	})
-
-	staffTimeExportService := timetracking.NewStaffTimeExportService(
-		staffOverviewService,
-		workSessionService,
-		TimeExportStaff(repos.Staff),
-		NewTimeTrackingDataAccessAudit(repos.DataAccessLog),
-		PayrollExportSettings{Source: payrollStatusService},
-		activeLogger,
-		RenderTimeTrackingWorkbook,
-	)
-
-	timeTrackingAuditLogService := timetracking.NewTimeTrackingAuditLogService(
-		NewTimeTrackingAuditReader(repos.TimeTrackingAuditLog),
-		StaffDisplayNames(repos.Staff),
-		PresenceSettings(settingsService),
-	)
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
 
 	timetable, err := NewTimetableTestModule(db, unit, clocks...)
 	if err != nil {
@@ -211,15 +115,8 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	return WorkforceTestModule{Users: usersService, StaffAdmin: staffAdmin, WorkSession: workSessionService, StaffAbsence: staffAbsenceService, WorkTimeMonth: workTimeMonthService, StaffBalanceAdjust: staffBalanceAdjustService, StaffMonthClose: staffMonthCloseService, StaffOverview: staffOverviewService, TimeTrackingAuditLog: timeTrackingAuditLogService, StaffTimeExport: staffTimeExportService, Settings: settingsService}, nil
+	return WorkforceTestModule{Users: usersService, StaffAdmin: staffAdmin, TimeTracking: timeTracking, Settings: settingsService}, nil
 }
-
-// CreateAbsenceRequest is the request shape behaviour tests hand the retained
-// absence service of a WorkforceTestModule.
-type CreateAbsenceRequest = timetracking.CreateAbsenceRequest
-
-// UpdateAbsenceRequest is the matching update shape for the same tests.
-type UpdateAbsenceRequest = timetracking.UpdateAbsenceRequest
 
 // MustNewStaffEmployment is workforceCompose.MustNewStaffEmployment for the
 // test graphs outside this package whose test roles may not name the Workforce

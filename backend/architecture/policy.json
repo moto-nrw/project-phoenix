@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 39,
+  "policy_epoch": 40,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -2368,11 +2368,11 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/workforce/legacy/timetracking",
+      "path": "modules/workforce/internal/application/timetracking",
       "owner": "workforce",
-      "role": "adapter",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     },
     {
       "path": "modules/workforce/adapters/timerecords",
@@ -6661,7 +6661,7 @@
       "source_role": "adapter-test",
       "target_owner": "workforce",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3996"
     },
     {
       "id": "emergency-snapshot.adapter-test.presence-compose",
@@ -6903,7 +6903,7 @@
       "source_role": "e2e-test",
       "target_owner": "workforce",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3996"
     },
     {
       "id": "people-directory.contracttest.workforce.public",
@@ -10604,7 +10604,7 @@
       "source_role": "postgres",
       "target_owner": "workforce",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3996"
     },
     {
       "id": "workforce.postgres.transaction-postgres",
@@ -15138,7 +15138,7 @@
     },
     {
       "id": "workforce.adapter.time-records",
-      "description": "The retained time-tracking services and the Workforce compatibility adapters speak the retained time records and their repository contracts in modules/workforce/adapters/timerecords, which left models/active (#3422). It falls with the last retained time-tracking service.",
+      "description": "The Workforce compatibility adapters (modules/workforce/legacy) speak the retained time records and their repository contracts in modules/workforce/adapters/timerecords, which left models/active (#3422). It falls with that vocabulary.",
       "scopes": [
         "production"
       ],
@@ -15146,7 +15146,43 @@
       "source_role": "adapter",
       "target_owner": "workforce",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3996"
+    },
+    {
+      "id": "workforce.application.time-records",
+      "description": "The time-tracking services (modules/workforce/internal/application/timetracking, #3413) still speak the retained time records and their repository contracts in modules/workforce/adapters/timerecords. It falls with that vocabulary.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "workforce",
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3996"
+    },
+    {
+      "id": "workforce.compose.time-records",
+      "description": "The Workforce composition serves the time-tracking row contracts of modules/workforce/adapters/timerecords from the capability (compose/worksession_rows.go, #3413). It falls with that vocabulary.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3996"
+    },
+    {
+      "id": "workforce.behaviour-test.time-records",
+      "description": "The time-tracking behaviour suites seed and read the retained time records and the staff-absence rows of the Workforce compatibility adapters (#3213, #3413). It falls with that vocabulary.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "same_owner": true,
+      "target_role": "adapter",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3996"
     },
     {
       "id": "workforce.adapter.people-domain",
@@ -15280,90 +15316,57 @@
       "target_role": "http"
     },
     {
-      "id": "workforce.adapter-test.subject",
-      "description": "The retained time-tracking behaviour tests drive the compatibility package they moved with (#3213).",
+      "id": "workforce.behaviour-test.transaction-domain",
+      "description": "The time-tracking behaviour suites build the shared persistence model and query options (#3213, #3413).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "workforce",
-      "source_role": "adapter-test",
-      "same_owner": true,
-      "target_role": "adapter"
-    },
-    {
-      "id": "workforce.adapter-test.legacy-composition-behaviour",
-      "description": "The retained time-tracking behaviour tests build the legacy repository and service graph they exercise (#3213).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
-    },
-    {
-      "id": "workforce.adapter-test.legacy-shared-domain",
-      "description": "The retained time-tracking behaviour tests pin calendar-day expectations with the shared helpers (#3213).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter-test",
-      "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
-      "id": "workforce.adapter-test.transaction-domain",
-      "description": "The retained time-tracking behaviour tests build the shared persistence model and query options (#3213).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter-test",
+      "source_role": "module-behavior-test",
       "target_owner": "transaction-runtime",
       "target_role": "domain"
     },
     {
-      "id": "workforce.adapter-test.audit-domain",
-      "description": "The retained time-tracking behaviour tests read the audit rows the services write (#3213).",
+      "id": "workforce.behaviour-test.audit-domain",
+      "description": "The time-tracking behaviour suites read the audit rows the services write (#3213, #3413).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "workforce",
-      "source_role": "adapter-test",
+      "source_role": "module-behavior-test",
       "target_owner": "audit-platform",
       "target_role": "domain"
     },
     {
-      "id": "workforce.adapter-test.timetable-domain",
-      "description": "The retained overview behaviour test seeds the schedule rows the Soll derivation reads (#3213).",
+      "id": "workforce.behaviour-test.timetable-domain",
+      "description": "The time-tracking overview behaviour suite seeds the schedule rows the Soll derivation reads (#3213, #3413).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "workforce",
-      "source_role": "adapter-test",
+      "source_role": "module-behavior-test",
       "target_owner": "timetable-activities",
       "target_role": "domain"
     },
     {
-      "id": "workforce.adapter-test.settings-application",
-      "description": "The retained DATEV export behaviour test drives the payroll status service (#3213).",
+      "id": "workforce.behaviour-test.settings-application",
+      "description": "The time-tracking DATEV export behaviour suite drives the payroll status service (#3213, #3413).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "workforce",
-      "source_role": "adapter-test",
+      "source_role": "module-behavior-test",
       "target_owner": "settings-platform",
       "target_role": "application"
     },
     {
-      "id": "workforce.adapter-test.settings-support",
-      "description": "The retained export and schedule adapter tests script a school's payroll and work-schedule settings through the settings test support (#3213).",
+      "id": "workforce.behaviour-test.settings-support",
+      "description": "The time-tracking export and schedule adapter suites script a school's payroll and work-schedule settings through the settings test support (#3213, #3413).",
       "scopes": [
         "external_test"
       ],
       "source_owner": "workforce",
-      "source_role": "adapter-test",
+      "source_role": "module-behavior-test",
       "target_owner": "settings-platform",
       "target_role": "test-support"
     },
@@ -20667,7 +20670,7 @@
       "source_role": "e2e-test",
       "target_owner": "workforce",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3996"
     },
     {
       "id": "student-presence.e2e-test.workforce-public",
@@ -21770,7 +21773,7 @@
       "source_role": "application",
       "target_owner": "workforce",
       "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3996"
     },
     {
       "id": "student-presence.application.tenant-runtime-public",
@@ -21883,16 +21886,15 @@
       "target_role": "test-support"
     },
     {
-      "id": "workforce.adapter.student-presence-public",
-      "description": "modules/workforce/legacy/timetracking names the session and supervision records of the public Student Presence contract for the checkout that ends open supervisions (#3422). Replaces the removed rule to the dissolved legacy row package.",
+      "id": "workforce.application.student-presence-public",
+      "description": "The time-tracking services (modules/workforce/internal/application/timetracking) name the session and supervision records of the public Student Presence contract for the checkout that ends open supervisions (#3422, #3413).",
       "scopes": [
         "production"
       ],
       "source_owner": "workforce",
-      "source_role": "adapter",
+      "source_role": "application",
       "target_owner": "student-presence",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3413"
+      "target_role": "public"
     },
     {
       "id": "timetable-activities.http.school-calendar-public",
@@ -22083,7 +22085,7 @@
     },
     {
       "id": "workforce.application.audit-domain",
-      "description": "Shift moves append the shift_moved \u00c4nderungsprotokoll entry through the retained audit contract (#1884, #3418).",
+      "description": "Shift moves append the shift_moved Änderungsprotokoll entry through the retained audit contract (#1884, #3418).",
       "scopes": [
         "production"
       ],

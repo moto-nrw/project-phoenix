@@ -167,7 +167,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		StudentStatusRepo: r.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: newActiveSchoolQuery(organizations),
 		StudentRepo: PresenceStudents(db, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff), RoomRepo: NewAttendanceRooms(r.Room),
 		ActivityGroupRepo: NewSessionActivities(r.GroupReads()), ActivityCatRepo: NewAttendanceActivityCategories(r.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),
-		StaffNames: NewAttendanceStaffNames(r.Staff, data.Users), DB: db, Broadcaster: hub, WorkSessionService: work.WorkSession,
+		StaffNames: NewAttendanceStaffNames(r.Staff, data.Users), DB: db, Broadcaster: hub, WorkSessionService: work.TimeTracking.AutoCheckIn,
 		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge, Logger: logger, Now: optionalClock(clocks),
 	}

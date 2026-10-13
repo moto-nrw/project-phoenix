@@ -33,7 +33,7 @@ func TestTimeClockWorkday_OpenNightSessionCountsThroughMidnight(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Night", "Shift")
 	module, err := NewWorkSessionTestModule(db, testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	clock := TimeClockCapability(module.WorkSession)
+	clock := module.TimeTracking.TimeClock
 
 	openedAt := time.Date(2026, 3, 9, 22, 30, 0, 0, berlin)
 	_, err = db.ExecContext(ctx, `INSERT INTO active.work_sessions
@@ -59,7 +59,7 @@ func TestTimeClockWorkday_ExpiredOpenBlockIsClosedAndLeavesLaterDays(t *testing.
 	staff := testpkg.CreateTestStaff(t, db, "Forgotten", "Checkout")
 	module, err := NewWorkSessionTestModule(db, testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	clock := TimeClockCapability(module.WorkSession)
+	clock := module.TimeTracking.TimeClock
 
 	openedAt := time.Date(2026, 3, 9, 20, 0, 0, 0, berlin)
 	_, err = db.ExecContext(ctx, `INSERT INTO active.work_sessions

@@ -9,6 +9,18 @@ import (
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+// capabilityError reports a Workforce sentinel through errors.Is while keeping
+// the wording of the legacy service error, which is what the HTTP envelope
+// renders. Unwrap keeps the original chain reachable.
+type capabilityError struct {
+	kind  error
+	cause error
+}
+
+func (e *capabilityError) Error() string        { return e.cause.Error() }
+func (e *capabilityError) Is(target error) bool { return target == e.kind }
+func (e *capabilityError) Unwrap() error        { return e.cause }
+
 // substitutionCodeInvalidPeriod is the registered error code of a rejected
 // substitution period (error-registry.json). This package may not import
 // api/common, so it names the code once here.
