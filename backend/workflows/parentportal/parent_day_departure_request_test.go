@@ -8,15 +8,30 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // Day Abholart (#3945): the one-day request may ask for a different Abholart,
 // with or without a different Gehzeit.
+
+const dayDepartureRequestToday = timezone.Date("2026-08-24")
+
+func buildDayDepartureRequestService(t *testing.T) (*parentService.Portal, *bun.DB, *services.RepositoryTestFactory) {
+	t.Helper()
+	return buildPickupChangeServiceWithRequestOptions(t,
+		[]services.CareRequestOption{services.WithCareRequestToday(func() timezone.Date { return dayDepartureRequestToday })},
+		withDepartureModeRequests(true),
+		func(cfg *parentportalcompose.Dependencies) {
+			cfg.Now = func() time.Time { return dayDepartureRequestToday.BerlinMidnight().Add(12 * time.Hour) }
+		},
+	)
+}
 
 func withDepartureModeRequests(enabled bool) func(*parentportalcompose.Dependencies) {
 	return func(cfg *parentportalcompose.Dependencies) {
@@ -82,12 +97,9 @@ func TestDayDepartureRequestRefusesInBegleitung(t *testing.T) {
 func TestDayDepartureRequestRefusesNonCareWeekend(t *testing.T) {
 	t.Parallel()
 
-	svc, db, _ := buildPickupChangeServiceWithRequests(t, withDepartureModeRequests(true))
+	svc, db, _ := buildDayDepartureRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	date := timezone.TodayDate()
-	for date.Weekday() != time.Saturday {
-		date = date.AddDays(1)
-	}
+	date := dayDepartureRequestToday.AddDays(5)
 
 	_, err := svc.SubmitPickupChangeRequest(testpkg.Ctx(t), chain.AccountID, chain.StudentID,
 		date, time.Time{}, "bus", "Ausflug", nil)
@@ -99,14 +111,11 @@ func TestDayDepartureRequestRefusesNonCareWeekend(t *testing.T) {
 func TestDayDepartureRequestRespectsTheOGSDayValue(t *testing.T) {
 	t.Parallel()
 
-	svc, db, repos := buildPickupChangeServiceWithRequests(t, withDepartureModeRequests(true))
+	svc, db, repos := buildDayDepartureRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Day", "Departure")
 	ctx := testpkg.Ctx(t)
-	date := timezone.TodayDate().AddDays(4)
-	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
-		date = date.AddDays(1)
-	}
+	date := dayDepartureRequestToday.AddDays(3)
 
 	staffID := staff.ID
 	_, err := repos.CarePlan().SaveDepartureException(ctx, careplan.DepartureException{

@@ -647,12 +647,7 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareCareExceptionReasonRequired))
 	case errors.Is(err, parentService.ErrCareExceptionReasonTooLong):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareCareExceptionReasonTooLong))
-	case errors.Is(err, parentService.ErrPastCareDate):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareCareExceptionPastDate))
-	case errors.Is(err, parentService.ErrCareDateTooFar):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareCareExceptionTooFar))
-	case errors.Is(err, parentService.ErrCareExceptionNotCareDay):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case renderParentCareExceptionDateError(w, r, err):
 	case errors.Is(err, parentService.ErrInviteDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareInviteDisabled))
 	case errors.Is(err, parentService.ErrRemoveDisabled):
@@ -735,4 +730,20 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}
+}
+
+// renderParentCareExceptionDateError keeps the date-specific care-exception
+// responses together because every one is a rejected parent input.
+func renderParentCareExceptionDateError(w http.ResponseWriter, r *http.Request, err error) bool {
+	switch {
+	case errors.Is(err, parentService.ErrPastCareDate):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareCareExceptionPastDate))
+	case errors.Is(err, parentService.ErrCareDateTooFar):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareCareExceptionTooFar))
+	case errors.Is(err, parentService.ErrCareExceptionNotCareDay):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	default:
+		return false
+	}
+	return true
 }

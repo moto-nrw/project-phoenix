@@ -92,13 +92,10 @@ func TestStudentDepartureExceptionRejectsUnknownMode(t *testing.T) {
 func TestStudentDepartureExceptionRejectsNonCareWeekend(t *testing.T) {
 	t.Parallel()
 
-	tc := setupStudentsRoute(t)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 	student := testpkg.CreateTestStudent(t, tc.db, "Heimweg", "Wochenende", "HT3")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Heimweg", "Wochenende")
-	date := timezone.TodayDate()
-	for date.Weekday() != time.Saturday {
-		date = date.AddDays(1)
-	}
+	date := studentsTestToday.AddDays(5)
 
 	put := testutil.NewAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/%d/departure-exceptions/%s", student.ID, date), map[string]any{
 		"departure_mode": "bus",
