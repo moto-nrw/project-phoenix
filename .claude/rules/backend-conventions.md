@@ -317,6 +317,8 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 | Pointer helpers (`StrPtr`, `IntPtr`, `Int64Ptr`, `TimePtr`) | `test/helpers.go` |
 | `email.Mailer` capture | `emailtest.CapturingMailer` (`email/emailtest`; alias `test.CapturingMailer`) |
 | `realtime.Broadcaster` recording fake | `realtimetest.RecordingBroadcaster` (`realtime/realtimetest`; alias `test.RecordingBroadcaster`) |
+| `platform.OutboxEnqueuer` / `OutboxResultEnqueuer` capture | `platformtest.CapturingOutbox` (`models/platform/platformtest`; alias `test.CapturingOutbox`) |
+| Audit `Command` that appends one event type into a trail | `test.NewAuditCommand(trail.Create)` |
 | Repo mocks for `models/*` interfaces (School, Staff, suggestions) | `test/repo_mocks.go`, `test/suggestions_mocks.go` |
 | Consumer-owned settings ports (`ResolveBool`, `ResolveString`, …) | a package-local func-field `settingsDouble` with only the resolvers the ports need; `services/config/configtest` is gone (#3965) |
 | `identityaccess.AccountMFA` | a package-local func-field double; the behaviour suites keep theirs in `modules/identityaccess/behavior` |

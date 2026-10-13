@@ -22,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 
-	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -2171,20 +2170,22 @@ func CreateTestActiveGroupWithIDsForTenant(tb testing.TB, db *bun.DB, tenantID, 
 }
 
 // CreateTestDataDeletionForTenant creates a data deletion audit record belonging to a specific tenant.
-func CreateTestDataDeletionForTenant(tb testing.TB, db *bun.DB, tenantID int64, studentID int64) *audit.DataDeletion {
+func CreateTestDataDeletionForTenant(tb testing.TB, db *bun.DB, tenantID int64, studentID int64) *DataDeletion {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	deletion := audit.NewDataDeletion(
-		studentID,
-		audit.DeletionTypeManual,
-		10,
-		"test-system",
-	)
-	deletion.TenantID = tenantID
-	deletion.DeletionReason = "Tenant isolation test"
+	deletion := &DataDeletion{
+		TenantID:       tenantID,
+		StudentID:      &studentID,
+		DeletionType:   "manual",
+		RecordsDeleted: 10,
+		DeletionReason: "Tenant isolation test",
+		DeletedBy:      "test-system",
+		DeletedAt:      time.Now(),
+		Metadata:       map[string]any{},
+	}
 
 	_, err := db.NewInsert().
 		Model(deletion).

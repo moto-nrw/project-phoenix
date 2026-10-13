@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/testdb"
-	"github.com/moto-nrw/project-phoenix/models/audit"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
@@ -21,37 +20,27 @@ import (
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
-type authEventCommand struct{ repo audit.AuthEventRepository }
+// auditCommand appends the audit events of one type into a trail.
+type auditCommand[E any] struct {
+	create func(context.Context, E) error
+}
 
-func (c authEventCommand) Append(ctx context.Context, event any) error {
-	authEvent, ok := event.(*audit.AuthEvent)
+func (c auditCommand[E]) Append(ctx context.Context, event any) error {
+	typed, ok := event.(E)
 	if !ok {
-		return fmt.Errorf("test auth event command: unsupported event %T", event)
+		return fmt.Errorf("test audit command: unsupported event %T", event)
 	}
-	return c.repo.Create(ctx, authEvent)
+	return c.create(ctx, typed)
 }
 
-func NewAuthEventCommand(repo audit.AuthEventRepository) audit.Command {
-	return authEventCommand{repo: repo}
-}
-
-type guardianFinancialChangeCommand struct {
-	repo audit.GuardianFinancialChangeCreator
-}
-
-func (c guardianFinancialChangeCommand) Append(ctx context.Context, event any) error {
-	change, ok := event.(*audit.GuardianFinancialChange)
-	if !ok {
-		return fmt.Errorf("test guardian financial change command: unsupported event %T", event)
-	}
-	return c.repo.Create(ctx, change)
-}
-
-// NewGuardianFinancialChangeCommand routes the guardian payer audit rows a
-// flow appends into the given trail, so a behaviour suite can pin the audit
-// row without naming the Audit Platform's event types.
-func NewGuardianFinancialChangeCommand(repo audit.GuardianFinancialChangeCreator) audit.Command {
-	return guardianFinancialChangeCommand{repo: repo}
+// NewAuditCommand routes the audit events of one type a flow appends into
+// the given trail's Create, so a behaviour suite can pin the audit row
+// without naming the Audit Platform's event types. The result satisfies the
+// Audit Platform's command port; events of any other type are refused.
+func NewAuditCommand[E any](create func(context.Context, E) error) interface {
+	Append(context.Context, any) error
+} {
+	return auditCommand[E]{create: create}
 }
 
 // Database aliases and constructors keep migration tests on the shared test

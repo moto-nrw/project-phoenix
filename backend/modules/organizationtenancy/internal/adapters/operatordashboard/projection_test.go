@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/operatordashboard"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -112,9 +111,9 @@ func withinAdmin(t *testing.T, db *bun.DB, fn func(context.Context) error) {
 	require.NoError(t, testpkg.WithinAdminContext(t, context.Background(), db, fn))
 }
 
-func createOrganization(t *testing.T, db *bun.DB, name, slug string) *platformModels.Organization {
+func createOrganization(t *testing.T, db *bun.DB, name, slug string) *testpkg.Organization {
 	t.Helper()
-	org := &platformModels.Organization{Name: name, Slug: slug, Active: true}
+	org := &testpkg.Organization{Name: name, Slug: slug, Active: true}
 	org.ID = testpkg.UniqueTestTenantID(t)
 	return testpkg.CreateTestOrganization(t, db, org)
 }
@@ -143,7 +142,7 @@ func softDelete(t *testing.T, db *bun.DB, table string, id int64) {
 // three live schools, one soft-deleted school and two accounts so each
 // projection read has at least one matched and one unmatched row.
 type summariesFixture struct {
-	OrgA, OrgB, OrgADeleted                   *platformModels.Organization
+	OrgA, OrgB, OrgADeleted                   *testpkg.Organization
 	SchoolA1, SchoolA2, SchoolB1, SchoolADead int64
 	AccountID1, AccountID2                    int64
 }

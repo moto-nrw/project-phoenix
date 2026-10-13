@@ -1,0 +1,37 @@
+package test
+
+import (
+	"time"
+
+	"github.com/uptrace/bun"
+)
+
+// Operator is one platform.operators row the fixtures write. Organisation &
+// Tenancy keeps its row mapping in models/platform, which the shared fixtures
+// may not import (#2748), so test support maps the table itself.
+type Operator struct {
+	bun.BaseModel  `bun:"table:platform.operators,alias:operator"`
+	ID             int64      `bun:"id,pk,autoincrement"`
+	CreatedAt      time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt      time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	Email          string     `bun:"email,notnull,unique"`
+	DisplayName    string     `bun:"display_name,notnull"`
+	PasswordHash   string     `bun:"password_hash,notnull"`
+	Active         bool       `bun:"active,notnull,default:true"`
+	LastLogin      *time.Time `bun:"last_login"`
+	MFAAttempts    int        `bun:"mfa_attempts,default:0"`
+	MFALockedUntil *time.Time `bun:"mfa_locked_until"`
+}
+
+// Organization is one platform.organizations row the fixtures write.
+type Organization struct {
+	bun.BaseModel `bun:"table:platform.organizations,alias:organization"`
+	ID            int64      `bun:"id,pk,autoincrement"`
+	CreatedAt     time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt     time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	Name          string     `bun:"name,notnull"`
+	Slug          string     `bun:"slug,notnull,unique"`
+	Active        bool       `bun:"active,notnull,default:true"`
+	DeletedAt     *time.Time `bun:"deleted_at"`
+	Settings      string     `bun:"settings,default:'{}'"`
+}
