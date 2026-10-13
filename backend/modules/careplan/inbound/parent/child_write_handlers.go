@@ -9,10 +9,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 

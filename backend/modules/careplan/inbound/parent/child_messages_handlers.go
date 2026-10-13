@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -66,7 +65,7 @@ type ThreadSummaryResponse struct {
 // masking the counterpart as the OGS/school label and carrying the structured
 // last-message fields the localized portal previews from. Shared by the inbox
 // list and the per-child list so the two cannot drift.
-func toThreadSummary(t *usersModels.InboxThread) ThreadSummaryResponse {
+func toThreadSummary(t *parentService.InboxThread) ThreadSummaryResponse {
 	return ThreadSummaryResponse{
 		ThreadID:               strconv.FormatInt(t.ThreadID, 10),
 		StudentID:              strconv.FormatInt(t.StudentID, 10),
@@ -130,11 +129,11 @@ func staffShortName(full string) string {
 // message froze StaffNameVisible=true at send time; otherwise it collapses to
 // the neutral "OGS [Schulname]" label. Guardian/system rows pass through
 // unchanged.
-func toMessageResponses(messages []*usersModels.ParentMessage, counterpart string) []MessageResponse {
+func toMessageResponses(messages []*parentService.ParentMessage, counterpart string) []MessageResponse {
 	out := make([]MessageResponse, 0, len(messages))
 	for _, m := range messages {
 		senderName := m.SenderName
-		if m.SenderKind == usersModels.ParentMessageSenderStaff {
+		if m.SenderKind == parentService.ParentMessageSenderStaff {
 			// StaffNameVisible is frozen per message at send time (see the model +
 			// the operations.parent_message_staff_name_visible setting): true only
 			// on replies written while the school had staff-name attribution on. So

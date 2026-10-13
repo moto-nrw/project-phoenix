@@ -10,18 +10,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // guardianProfileLoaderStub records whether the profile read happened at all.
 type guardianProfileLoaderStub struct {
 	called  bool
-	profile *usersModels.GuardianProfileWithChildren
+	profile *GuardianProfile
 }
 
-func (s *guardianProfileLoaderStub) LoadForTenant(context.Context, int64, int64) (*usersModels.GuardianProfileWithChildren, error) {
+func (s *guardianProfileLoaderStub) LoadForTenant(context.Context, int64, int64) (*GuardianProfile, error) {
 	s.called = true
 	return s.profile, nil
 }
@@ -47,7 +46,7 @@ func serveEnrollmentProfile(t *testing.T, rs *Resource, accountID int) *httptest
 // children (#1663).
 func TestGetEnrollmentProfile_HiddenSchoolIsUnreachableWithoutFamilyLink(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
@@ -55,12 +54,11 @@ func TestGetEnrollmentProfile_HiddenSchoolIsUnreachableWithoutFamilyLink(t *test
 	rs := &Resource{
 		// Linked as an account (e.g. staff, or a stale mapping) but with no
 		// guardian relationship — exactly the case ListEnrollable refuses.
-		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
 			Linked: true,
 		}},
 		GuardianProfileLoader: repo,
 		SchoolService:         &parentSubmitSchoolStub{school: school},
-		db:                    db,
 	}
 
 	w := serveEnrollmentProfile(t, rs, 7101)
@@ -74,20 +72,19 @@ func TestGetEnrollmentProfile_HiddenSchoolIsUnreachableWithoutFamilyLink(t *test
 // reaching its own hidden school's profile autofill.
 func TestGetEnrollmentProfile_HiddenSchoolLoadsForLinkedFamily(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
 	repo := &guardianProfileLoaderStub{}
 	rs := &Resource{
-		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
 		GuardianProfileLoader: repo,
 		SchoolService:         &parentSubmitSchoolStub{school: school},
-		db:                    db,
 	}
 
 	w := serveEnrollmentProfile(t, rs, 7102)
@@ -100,20 +97,19 @@ func TestGetEnrollmentProfile_HiddenSchoolLoadsForLinkedFamily(t *testing.T) {
 // same account-independent gate /auth/tenant/resolve applies.
 func TestGetEnrollmentProfile_InactiveSchoolIsUnreachable(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: false}
 	school.ID = 1
 	repo := &guardianProfileLoaderStub{}
 	rs := &Resource{
-		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
 		GuardianProfileLoader: repo,
 		SchoolService:         &parentSubmitSchoolStub{school: school},
-		db:                    db,
 	}
 
 	w := serveEnrollmentProfile(t, rs, 7103)

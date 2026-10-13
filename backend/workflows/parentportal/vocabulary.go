@@ -138,3 +138,44 @@ var (
 	ErrRequestSharingNotFound           = messaging.ErrRequestSharingNotFound
 	ErrSickNoteDisabled                 = care.ErrSickNoteDisabled
 )
+
+// The owner values the child and messaging flows hand back unchanged, under
+// the names those flows give them (#3421).
+type (
+	AllowedDepartureModes            = care.AllowedDepartureModes
+	AnnouncementFeedDeclaration      = messaging.AnnouncementFeedDeclaration
+	AnnouncementFeedDeclarationChild = messaging.AnnouncementFeedDeclarationChild
+	AnnouncementFeedItem             = messaging.AnnouncementFeedItem
+	ChildSummary                     = care.ChildSummary
+	DeclarationAttachmentDigest      = messaging.DeclarationAttachmentDigest
+	DeclarationSignerState           = messaging.DeclarationSignerState
+	DeclarationSubmission            = messaging.DeclarationSubmission
+	DeclarationVersion               = messaging.DeclarationVersion
+	DepartureDays                    = care.DepartureDays
+	DepartureMode                    = care.DepartureMode
+	EnrollablePhase                  = care.EnrollablePhase
+	EnrollmentRequestSummary         = care.EnrollmentRequestSummary
+	GuardianSubmitStatus             = care.GuardianSubmitStatus
+	InboxThread                      = messaging.InboxThread
+	ParentMessage                    = messaging.ParentMessage
+	SettingsService                  = care.SettingsService
+	StudentDataChangeRequest         = care.StudentDataChangeRequest
+)
+
+const (
+	DataChangeStatusPending     = care.DataChangeStatusPending
+	DataChangeTargetPerson      = care.DataChangeTargetPerson
+	DataChangeTargetStudent     = care.DataChangeTargetStudent
+	DeclarationActionAgreed     = messaging.DeclarationActionAgreed
+	DeclarationActionDeclined   = messaging.DeclarationActionDeclined
+	DeclarationActionRevoked    = messaging.DeclarationActionRevoked
+	DeclarationKindConsent      = messaging.DeclarationKindConsent
+	DeparturePickup             = care.DeparturePickup
+	ParentMessageSenderGuardian = messaging.ParentMessageSenderGuardian
+	ParentMessageSenderStaff    = messaging.ParentMessageSenderStaff
+)
+
+var (
+	CanonicalDayToISOWeekday   = care.CanonicalDayToISOWeekday
+	ErrGuardianProfileNotFound = care.ErrGuardianProfileNotFound
+)

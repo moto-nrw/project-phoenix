@@ -7,13 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 func TestThreadSummaryResponseIncludesStaffReadStatus(t *testing.T) {
 	t.Parallel()
 
-	response := toThreadSummary(&usersModels.InboxThread{
+	response := toThreadSummary(&parentService.InboxThread{
 		ThreadID:               41,
 		StudentID:              82,
 		SchoolName:             "Schule am Berg",

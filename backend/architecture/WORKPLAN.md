@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 13.10.2026 · Ratchet 80 · Composition 259 · Policy-Epoche 38 · 4 Regeln mit
+Stand 13.10.2026 · Ratchet 60 · Composition 259 · Policy-Epoche 39 · 4 Regeln mit
 `convert it to exact debt` · 19.312 LOC unter `modules/*/legacy`
 
-Summenprobe: 1 + 20 + 3 + 0 + 0 + 0 + 56 = 80 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 1 + 0 + 3 + 0 + 0 + 0 + 56 = 60 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -36,9 +36,9 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [x] [#3420](https://github.com/moto-nrw/project-phoenix/issues/3420) `workflows/parentportal/legacy` aufgelöst — 5.881 LOC, 46 Kompatibilitätsregeln weg, Schreibpfade als Owner-Commands (Care Plan, People Directory, Audit Platform); offen: Announcement-Quittungen in `messaging` (Communication)
 - [x] [#3410](https://github.com/moto-nrw/project-phoenix/issues/3410) `modules/careplan/legacy` Wurzelpaket aufgelöst — 874 LOC, 15 Keys weniger (644 → 629)
 
-## Schuld sichtbar machen · 4 Regeln, 20 Keys
+## Schuld sichtbar machen · 4 Regeln, 0 Keys
 
-- [ ] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertiert — 27 Regeln weg, 27 Keys unter #3421 (568 → 597; #3565 entfernt zwei; #3755 entfernt zwei: `services/users` in Produktion und internem Test, das Profil kommt über einen eigenen Port; #2734 entfernt drei: `api/enrollment` in Produktion und internem Test, `models/enrollment` im internen Test; #2743 entfernt einen: `modules/careplan/inbound/parent -> database/repositories` im externen Test; #3991 entfernt einen: `models/base` im internen Test, die Zeilen-Literale nennen `users.Model`); offen: Keys abbauen, dann schließen
+- [x] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertiert — 27 Regeln weg, 27 Keys unter #3421 (568 → 597; #3565 entfernt zwei; #3755 entfernt zwei: `services/users` in Produktion und internem Test, das Profil kommt über einen eigenen Port; #2734 entfernt drei: `api/enrollment` in Produktion und internem Test, `models/enrollment` im internen Test; #2743 entfernt einen: `modules/careplan/inbound/parent -> database/repositories` im externen Test; #3991 entfernt einen: `models/base` im internen Test, die Zeilen-Literale nennen `users.Model`); Stufe 2: die letzten 20 Keys weg, 81 → 61; Kalender über `sharedkernel/calendar`, die zurückgereichten People-Directory-, Care-Plan- und Enrollment-Werte über das Vokabular des Workflow-Ports, das Profil als HTTP-Werte über den eigenen Port (Übersetzung in der Root), die Locale-Prüfung über die Notification-Texte von Delivery, Transaktionen über `tenant.WithinTenant`/`WithinAdmin` ohne `*bun.DB`, die Handler-Suiten über `modules/settings` und `api/testutil` ohne viper; `api/common`, Session-Adapter und Tenant-Runtime als stehende Regeln per ADR 0051, Policy-Epoche 38 → 39, vier Regeln; HTTP-ORM-Ratchet −2 Einträge, Composition 259 → 259)
 - [ ] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale`
 - [ ] [#3423](https://github.com/moto-nrw/project-phoenix/issues/3423) Die acht neuen Quality-Ratchets auf null fahren
 

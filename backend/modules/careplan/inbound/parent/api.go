@@ -21,7 +21,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
@@ -50,7 +49,6 @@ type Resource struct {
 	PWAUsageService       pwaService.UsageService
 	// Reports renders the Erklärung proof PDF (#3430).
 	Reports ReportRenderer
-	db      *bun.DB
 }
 
 // ResourceConfig lists the parent-portal collaborators. The composition root
@@ -75,7 +73,6 @@ type ResourceConfig struct {
 	PWAUsage pwaService.UsageService
 	// Reports renders the Erklärung proof PDF (#3430).
 	Reports ReportRenderer
-	DB      *bun.DB
 }
 
 // NewResource builds the parent-portal resource.
@@ -101,7 +98,6 @@ func NewResource(cfg ResourceConfig) *Resource {
 		PreferenceService:     cfg.Preferences,
 		PWAUsageService:       cfg.PWAUsage,
 		Reports:               cfg.Reports,
-		db:                    cfg.DB,
 	}
 }
 

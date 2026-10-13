@@ -29,7 +29,6 @@ func setupParentCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 	staffResource := calendarAPI.NewResource(factory.Calendar, slog.Default())
 	parentResource := parentAPI.NewResource(parentAPI.ResourceConfig{
 		Calendar: factory.Calendar,
-		DB:       db,
 	})
 
 	router := chi.NewRouter()

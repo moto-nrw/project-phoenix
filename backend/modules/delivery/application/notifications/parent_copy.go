@@ -20,6 +20,12 @@ const (
 	ParentCareCancelled = "care_cancelled"
 )
 
+// IsSupportedLocale reports whether locale names one of the languages the
+// guardian portal and the parent copy below are offered in.
+func IsSupportedLocale(locale string) bool {
+	return localization.IsSupported(locale)
+}
+
 func ParentAnnouncementCopy(locale, kind string) (string, string) {
 	switch localization.NormalizeLocale(locale) {
 	case "en":

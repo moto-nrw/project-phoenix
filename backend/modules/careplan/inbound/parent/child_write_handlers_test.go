@@ -15,14 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/services"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
@@ -30,17 +30,17 @@ import (
 // tests; only ResolveBoolForTenant is exercised. Both absence-approval gates
 // are deliberately kept OFF here so direct-write compatibility remains covered;
 // the approval paths have focused tests that turn them on explicitly.
-type alwaysOnSettings struct{ configService.SettingsService }
+type alwaysOnSettings struct{ parentService.SettingsService }
 
 func (alwaysOnSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	if key == configModels.KeyParentExcusedRequiresApproval || key == configModels.KeyParentSickRequiresApproval {
+	if key == settings.KeyParentExcusedRequiresApproval || key == settings.KeyParentSickRequiresApproval {
 		return false, nil
 	}
 	return true, nil
 }
 
 // absenceApprovalOnSettings turns both approval gates on for handler-level tests.
-type absenceApprovalOnSettings struct{ configService.SettingsService }
+type absenceApprovalOnSettings struct{ parentService.SettingsService }
 
 func (absenceApprovalOnSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ string) (bool, error) {
 	return true, nil
@@ -58,7 +58,7 @@ func (alwaysOnSettings) ResolveStringForTenant(_ context.Context, _ int64, _ str
 }
 
 func (s alwaysOnSettings) ResolveStringForTenantInTx(ctx context.Context, tenantID int64, key string) (string, error) {
-	if key == configModels.KeyParentPickupChangeEnabled {
+	if key == settings.KeyParentPickupChangeEnabled {
 		return "true", nil
 	}
 	return s.ResolveStringForTenant(ctx, tenantID, key)
@@ -68,22 +68,17 @@ func (alwaysOnSettings) LockParentPickupChangePolicySharedForTenant(context.Cont
 	return nil
 }
 
-// testJWTSecret must match the constant testpkg.GetTestTokenAuth signs
-// with, so the Router's MustNewTokenAuth (which reads viper) validates the
-// tokens these tests mint.
-const testJWTSecret = "test-jwt-secret-32-chars-minimum"
-
 func newWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	return newWriteRouterWithSettings(t, db, alwaysOnSettings{})
 }
 
-func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService.SettingsService) http.Handler {
+func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings parentService.SettingsService) http.Handler {
 	t.Helper()
-	repos, repoErr := services.NewParentRouteTestRepositories(db, services.MustNewMembershipTestRepositories(db))
+	repos, repoErr := testutil.NewParentRouteTestRepositories(db)
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:        repos.CareExceptions,
-		People:          services.MustNewPeopleDirectory(db),
+		People:          testutil.MustNewPeopleDirectory(db),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChild,
 		StatusDayRepo:   repos.StudentStatusDay,
@@ -93,7 +88,7 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService
 		ExcusedRequests: repos.ExcusedRequests,
 		Logger:          slog.Default(),
 	})
-	rs := parent.NewResource(parent.ResourceConfig{Parent: svc, DB: db})
+	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router())
 }
 
@@ -220,7 +215,7 @@ func TestSickNoteEndpoint_RejectsBadStudentID(t *testing.T) {
 
 // disabledSettings turns both parent-portal features off, exercising the
 // feature-gate (403) arms of renderParentWriteError.
-type disabledSettings struct{ configService.SettingsService }
+type disabledSettings struct{ parentService.SettingsService }
 
 func (disabledSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ string) (bool, error) {
 	return false, nil
@@ -228,18 +223,18 @@ func (disabledSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ strin
 
 func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	t.Helper()
-	repos, repoErr := services.NewParentRouteTestRepositories(db, services.MustNewMembershipTestRepositories(db))
+	repos, repoErr := testutil.NewParentRouteTestRepositories(db)
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:      repos.CareExceptions,
-		People:        services.MustNewPeopleDirectory(db),
+		People:        testutil.MustNewPeopleDirectory(db),
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
 		StudentRepo:   repos.Student,
 		Settings:      disabledSettings{},
 		Logger:        slog.Default(),
 	})
-	return testpkg.TenantRuntimeMiddleware(t, db)(parent.NewResource(parent.ResourceConfig{Parent: svc, DB: db}).Router())
+	return testpkg.TenantRuntimeMiddleware(t, db)(parent.NewResource(parent.ResourceConfig{Parent: svc}).Router())
 }
 
 func TestWriteEndpoints_FeatureDisabledForbidden(t *testing.T) {
@@ -484,7 +479,7 @@ func isoDay(addDays int) string {
 // child's health information and live absence flags through.
 func careProfiles(t *testing.T, db *bun.DB) careplan.StudentProfileCommands {
 	t.Helper()
-	commands, err := services.NewParentPortalCareProfiles(db)
+	commands, err := testutil.NewParentPortalCareProfiles(db)
 	require.NoError(t, err)
 	return commands
 }

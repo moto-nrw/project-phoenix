@@ -8,25 +8,26 @@ import (
 	"strings"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-
 	"github.com/go-chi/chi/v5"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // GuardianProfileLoader is the consumer-owned port over People Directory's
 // enrollment autofill read: the guardian profile linked to the account in
-// one school, its primary phone and its active children. It answers
-// (nil, nil) when the account has no profile there. The composition root
-// binds it (#3755).
+// one school, its primary phone and its active children, already as the
+// HTTP values the response renders. It answers (nil, nil) when the account
+// has no profile there. The composition root binds it (#3755, #3421).
 type GuardianProfileLoader interface {
-	LoadForTenant(ctx context.Context, accountID, tenantID int64) (*usersModels.GuardianProfileWithChildren, error)
+	LoadForTenant(ctx context.Context, accountID, tenantID int64) (*GuardianProfile, error)
 }
+
+// GuardianProfile is the loaded autofill profile as the HTTP values the
+// enrollment profile response renders.
+type GuardianProfile = common.GuardianProfileData
 
 // getEnrollmentProfile returns guardian + linked-children data for the
 // calling parent within the requested tenant. Tenant comes from the
@@ -93,7 +94,7 @@ func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	resp := common.BuildGuardianProfileResponse(claims, enrollmentProfileData(loaded))
+	resp := common.BuildGuardianProfileResponse(claims, loaded)
 	common.Respond(w, r, http.StatusOK, resp, "Profile retrieved")
 }
 
@@ -184,7 +185,7 @@ func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Reques
 
 	var respond EnrollmentResponse
 	lateInviteToken := strings.TrimSpace(r.URL.Query().Get("late_invite"))
-	loadErr := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
+	loadErr := withinTenant(r.Context(), schoolID, func(txCtx context.Context) error {
 		loaded, e := rs.EnrollmentForms.LoadFormBootstrap(txCtx, phaseID, time.Now(), lateInviteToken, linkedParents, existingStudents)
 		respond = loaded
 		return e
@@ -195,6 +196,17 @@ func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Reques
 	}
 
 	respond(w, r)
+}
+
+// withinTenant runs fn in the transaction of schoolID through the tenant
+// runtime the request carries; the resource holds no database.
+func withinTenant(ctx context.Context, schoolID int64, fn func(context.Context) error) error {
+	id, err := tenant.NewTenantID(schoolID)
+	if err != nil {
+		tenant.ObserveMissingTenant(ctx, err)
+		return err
+	}
+	return tenant.WithinTenant(ctx, id, fn)
 }
 
 // resolveEnrollmentSchool resolves the {tenantSlug} path segment to a school
@@ -213,7 +225,7 @@ func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Reques
 // per organization, so it is not usable as a global routing key at all.
 func (rs *Resource) resolveEnrollmentSchool(ctx context.Context, slug string) (*EnrollmentSchool, error) {
 	var out *EnrollmentSchool
-	err := tenant.WithAdminTx(ctx, rs.db, func(adminCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		school, findErr := rs.SchoolService.GetSchoolBySubdomain(adminCtx, slug)
 		if findErr != nil || !enrollmentSchoolActive(school) {
 			return errors.New("tenant not found")
@@ -249,7 +261,7 @@ func enrollmentSchoolActive(school *EnrollmentSchool) bool {
 // enough — auth.account_tenants also carries staff and other roles — and a
 // guardian row alone is not either, since a deactivated mapping leaves the
 // historical rows behind.
-func enrollmentSchoolReachable(school *EnrollmentSchool, status *parentModels.GuardianSubmitStatus) bool {
+func enrollmentSchoolReachable(school *EnrollmentSchool, status *parentService.GuardianSubmitStatus) bool {
 	if !enrollmentSchoolActive(school) {
 		return false
 	}
@@ -344,7 +356,7 @@ type parentSubmitOutcome struct {
 // rolled-back submit apart from a genuine tenant-resolve failure.
 func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, slug string, submit EnrollmentSubmit) parentSubmitOutcome {
 	var out parentSubmitOutcome
-	out.resolveErr = tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
+	out.resolveErr = tenant.WithinAdmin(r.Context(), func(adminCtx context.Context) error {
 		// By subdomain, matching resolveEnrollmentSchool and
 		// /auth/tenant/resolve — see resolveEnrollmentSchool for why slug is
 		// not a routing key (#1663).
@@ -417,23 +429,4 @@ func (rs *Resource) respondParentEnrollment(w http.ResponseWriter, r *http.Reque
 	}
 
 	out.respond(w, r)
-}
-
-// enrollmentProfileData maps the already-authorized loader result to HTTP values.
-func enrollmentProfileData(loaded *usersModels.GuardianProfileWithChildren) *common.GuardianProfileData {
-	if loaded == nil || loaded.Profile == nil {
-		return nil
-	}
-	data := &common.GuardianProfileData{
-		Present: true, FirstName: loaded.Profile.FirstName, LastName: loaded.Profile.LastName,
-		Email: loaded.Profile.Email, PrimaryPhone: loaded.PrimaryPhone,
-		Children: make([]common.GuardianProfileChildData, 0, len(loaded.Children)),
-	}
-	for _, child := range loaded.Children {
-		data.Children = append(data.Children, common.GuardianProfileChildData{
-			StudentID: child.StudentID, FirstName: child.FirstName, LastName: child.LastName,
-			SchoolClass: child.SchoolClass, EnrollmentSubmit: child.EnrollmentSubmit, Status: child.Status,
-		})
-	}
-	return data
 }

@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // fakeEnrollmentForms records what the portal hands Enrollment's form flow:
@@ -73,20 +73,19 @@ func serveBootstrap(t *testing.T, rs *Resource, accountID int) *httptest.Respons
 // which this account does not have (#1663).
 func TestGetEnrollmentBootstrap_EligibleGuardianUsesEnrolleeGate(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
 	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
-		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
 		EnrollmentForms: requestSvc,
 		SchoolService:   &parentSubmitSchoolStub{school: school},
-		db:              db,
 	}
 
 	w := serveBootstrap(t, rs, 7001)
@@ -103,13 +102,13 @@ func TestGetEnrollmentBootstrap_EligibleGuardianUsesEnrolleeGate(t *testing.T) {
 // the same one the picker (ListEnrollable) filters those phases by.
 func TestGetEnrollmentBootstrap_EnrolledChildUnlocksExistingStudents(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
 	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
-		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
 			Linked:                      true,
 			HasGuardianLink:             true,
 			HasSubmitPermission:         true,
@@ -117,7 +116,6 @@ func TestGetEnrollmentBootstrap_EnrolledChildUnlocksExistingStudents(t *testing.
 		}},
 		EnrollmentForms: requestSvc,
 		SchoolService:   &parentSubmitSchoolStub{school: school},
-		db:              db,
 	}
 
 	w := serveBootstrap(t, rs, 7004)
@@ -134,7 +132,7 @@ func TestGetEnrollmentBootstrap_EnrolledChildUnlocksExistingStudents(t *testing.
 // restricted phase instead of leaking a hidden phase's form (#1663).
 func TestGetEnrollmentBootstrap_IneligibleAccountUsesPublicGate(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
@@ -144,7 +142,6 @@ func TestGetEnrollmentBootstrap_IneligibleAccountUsesPublicGate(t *testing.T) {
 		ParentService:   &fakeParentService{},
 		EnrollmentForms: requestSvc,
 		SchoolService:   &parentSubmitSchoolStub{school: school},
-		db:              db,
 	}
 
 	w := serveBootstrap(t, rs, 7002)
@@ -159,20 +156,19 @@ func TestGetEnrollmentBootstrap_IneligibleAccountUsesPublicGate(t *testing.T) {
 // like any non-eligible caller: no restricted audience at all.
 func TestGetEnrollmentBootstrap_RevokedPermissionUsesPublicGate(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
 	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
-		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: false,
 		}},
 		EnrollmentForms: requestSvc,
 		SchoolService:   &parentSubmitSchoolStub{school: school},
-		db:              db,
 	}
 
 	w := serveBootstrap(t, rs, 7003)
@@ -189,7 +185,7 @@ func TestGetEnrollmentBootstrap_RevokedPermissionUsesPublicGate(t *testing.T) {
 // subdomain plus a phase id still serves its form (#1663).
 func TestGetEnrollmentBootstrap_HiddenSchoolIsUnreachableWithoutFamilyLink(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
@@ -197,12 +193,11 @@ func TestGetEnrollmentBootstrap_HiddenSchoolIsUnreachableWithoutFamilyLink(t *te
 	rs := &Resource{
 		// Linked as an account (e.g. staff, or a stale mapping) but with no
 		// guardian relationship — exactly the case ListEnrollable refuses.
-		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
 			Linked: true,
 		}},
 		EnrollmentForms: requestSvc,
 		SchoolService:   &parentSubmitSchoolStub{school: school},
-		db:              db,
 	}
 
 	w := serveBootstrap(t, rs, 7005)
@@ -216,20 +211,19 @@ func TestGetEnrollmentBootstrap_HiddenSchoolIsUnreachableWithoutFamilyLink(t *te
 // reaching its own hidden school's re-enrollment forms.
 func TestGetEnrollmentBootstrap_HiddenSchoolLoadsForLinkedFamily(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
 	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
-		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
 		EnrollmentForms: requestSvc,
 		SchoolService:   &parentSubmitSchoolStub{school: school},
-		db:              db,
 	}
 
 	w := serveBootstrap(t, rs, 7006)
@@ -243,20 +237,19 @@ func TestGetEnrollmentBootstrap_HiddenSchoolLoadsForLinkedFamily(t *testing.T) {
 // same account-independent gate /auth/tenant/resolve applies.
 func TestGetEnrollmentBootstrap_InactiveSchoolIsUnreachable(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: false}
 	school.ID = 1
 	requestSvc := &fakeEnrollmentForms{}
 	rs := &Resource{
-		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
 			Linked:              true,
 			HasGuardianLink:     true,
 			HasSubmitPermission: true,
 		}},
 		EnrollmentForms: requestSvc,
 		SchoolService:   &parentSubmitSchoolStub{school: school},
-		db:              db,
 	}
 
 	w := serveBootstrap(t, rs, 7007)
