@@ -81,7 +81,7 @@ import {
   pickupColumn,
   statusColumn,
   trackingColumn,
-  hasDayPickupChange,
+  dayHomeChange,
   type StudentTableDay,
 } from "~/components/students/student-table";
 import { StudentSelectionScope } from "~/components/students/student-selection-scope";
@@ -968,6 +968,7 @@ function OGSGroupPageContent() {
           now,
           day,
         },
+        dayDepartureMode: studentPickup?.dayDepartureMode,
       };
       if (student.actual_pickup_time) return result;
       const absenceLabel =
@@ -1152,7 +1153,7 @@ function OGSGroupPageContent() {
                   checkinMode={isGroupCardCheckinMode}
                   checkinState={checkinState}
                   isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
-                  dayPickupChange={hasDayPickupChange(ogsStudentDay(student))}
+                  dayHomeChange={dayHomeChange(ogsStudentDay(student))}
                   onCheckinClick={() => {
                     if (
                       checkinState !== "abwesend" &&

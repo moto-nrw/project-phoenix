@@ -56,7 +56,7 @@ type Sources struct {
 	UserContext       CallerContext
 	Active            studentpresence.Presence
 	Settings          grouplive.Resolver
-	Pickups           careplan.BulkPickupTimes
+	Pickups           careplan.BulkPickupDays
 	Arrivals          careplan.BulkArrivalTimes
 	PlannedStudentIDs func(context.Context, []int64, timezone.Date) ([]int64, error)
 	CareDays          careplan.CareDayQuery
@@ -329,7 +329,7 @@ func (p presence) TrackingIndicators(ctx context.Context, studentIDs []int64, la
 
 type planning struct {
 	arrivals careplan.BulkArrivalTimes
-	pickups  careplan.BulkPickupTimes
+	pickups  careplan.BulkPickupDays
 	planned  func(context.Context, []int64, timezone.Date) ([]int64, error)
 	careDays careplan.CareDayQuery
 }
@@ -365,7 +365,7 @@ func (p planning) Pickups(ctx context.Context, studentIDs []int64, date groupliv
 	if err != nil {
 		return nil, err
 	}
-	pickups, err := p.pickups.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, day)
+	pickups, err := p.pickups.GetBulkEffectivePickupDaysForDate(ctx, studentIDs, day)
 	if err != nil {
 		return nil, err
 	}
@@ -385,7 +385,7 @@ func pickupRecord(pickup *careplan.EffectivePickupTime) grouplive.Pickup {
 	}
 	return grouplive.Pickup{
 		Date: grouplive.Date(pickup.Date.String()), WeekdayName: pickup.WeekdayName, PickupTime: pickup.PickupTime,
-		IsException: pickup.IsException, Notes: pickup.Notes, DayNotes: notes,
+		IsException: pickup.IsException, Notes: pickup.Notes, DayNotes: notes, DayDepartureMode: pickup.DayDepartureMode,
 	}
 }
 

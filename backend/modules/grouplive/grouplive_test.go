@@ -1089,3 +1089,18 @@ func TestBuildPhotoURLRewritesOnlyStoredUploads(t *testing.T) {
 	assert.Equal(t, "/api/students/5/photo/abc.jpg", buildPhotoURL(5, "/uploads/student-photos/abc.jpg"),
 		"stored upload paths are rewritten to the authenticated proxy")
 }
+
+// #3946: an Abholart set for today only reaches the Kinderkarte.
+func TestPickupTimesCarryTheDayAbholart(t *testing.T) {
+	t.Parallel()
+
+	students := []Student{{ID: 7, fullAccess: true}, {ID: 8, fullAccess: true}}
+	got := pickupTimes(students, map[int64]Pickup{
+		7: {Date: "2026-10-13", WeekdayName: "Dienstag", DayDepartureMode: "pickup"},
+		8: {Date: "2026-10-13", WeekdayName: "Dienstag"},
+	})
+
+	require.Len(t, got, 2)
+	assert.Equal(t, "pickup", got[0].DayDepartureMode)
+	assert.Empty(t, got[1].DayDepartureMode)
+}

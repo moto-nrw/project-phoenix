@@ -280,6 +280,9 @@ type PickupTime struct {
 	IsException bool      `json:"is_exception"`
 	Notes       string    `json:"notes,omitempty"`
 	DayNotes    []DayNote `json:"day_notes,omitempty"`
+
+	// DayDepartureMode is the Abholart set for this day only (#3946).
+	DayDepartureMode string `json:"day_departure_mode,omitempty"`
 }
 
 type ArrivalTime struct {
@@ -765,7 +768,7 @@ func pickupTimeFromEffective(studentID int64, effective Pickup) PickupTime {
 	return PickupTime{
 		StudentID: studentID, Date: string(effective.Date), WeekdayName: effective.WeekdayName,
 		PickupTime: effective.PickupTime, IsException: effective.IsException, Notes: effective.Notes,
-		DayNotes: effective.DayNotes,
+		DayNotes: effective.DayNotes, DayDepartureMode: effective.DayDepartureMode,
 	}
 }
 

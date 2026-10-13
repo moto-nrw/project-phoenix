@@ -56,7 +56,7 @@ type Sources struct {
 	Schulhof     facilitiesService.SchulhofService
 	Operations   timetable.OperationQuery
 	Settings     supervisiondashboard.Resolver
-	Pickups      careplan.BulkPickupTimes
+	Pickups      careplan.BulkPickupDays
 	Arrivals     careplan.BulkArrivalTimes
 	Now          func() time.Time
 }
@@ -551,7 +551,7 @@ func (p presence) TrackingIndicators(ctx context.Context, studentIDs []int64, la
 }
 
 type planning struct {
-	pickups  careplan.BulkPickupTimes
+	pickups  careplan.BulkPickupDays
 	arrivals careplan.BulkArrivalTimes
 }
 
@@ -560,7 +560,7 @@ func (p planning) Pickups(ctx context.Context, studentIDs []int64, date supervis
 	if err != nil {
 		return nil, err
 	}
-	effective, err := p.pickups.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, day)
+	effective, err := p.pickups.GetBulkEffectivePickupDaysForDate(ctx, studentIDs, day)
 	if err != nil {
 		return nil, err
 	}
@@ -573,8 +573,8 @@ func (p planning) Pickups(ctx context.Context, studentIDs []int64, date supervis
 			Date:        supervisiondashboard.Date(pickup.Date.String()),
 			WeekdayName: pickup.WeekdayName,
 			PickupTime:  wallClock(pickup.PickupTime),
-			IsException: pickup.IsException,
-			Notes:       pickup.Notes,
+			IsException: pickup.IsException, DayDepartureMode: pickup.DayDepartureMode,
+			Notes: pickup.Notes,
 			DayNotes: mapSlice(pickup.DayNotes, func(note careplan.NoteData) supervisiondashboard.DayNote {
 				return supervisiondashboard.DayNote{ID: note.ID, Content: note.Content}
 			}),

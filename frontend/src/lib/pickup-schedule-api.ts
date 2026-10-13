@@ -677,6 +677,9 @@ export interface BulkPickupTime {
   weekdayName: string;
   pickupTime?: string;
   isException: boolean;
+  /** The Abholart set for this day only (#3946); only the supervision
+   *  dashboard carries it. */
+  dayDepartureMode?: DepartureMode;
   dayNotes: BulkDayNote[];
   notes?: string;
 }

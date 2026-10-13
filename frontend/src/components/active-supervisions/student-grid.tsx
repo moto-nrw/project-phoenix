@@ -35,7 +35,7 @@ import {
   statusColumn,
   trackingColumn,
   type StudentTableColumn,
-  hasDayPickupChange,
+  dayHomeChange,
   type StudentTableDay,
 } from "~/components/students/student-table";
 
@@ -77,6 +77,7 @@ function supervisionStudentDay(
       notes: pickupNote,
       now,
     },
+    dayDepartureMode: studentPickup?.dayDepartureMode,
   };
   if (presentStudent.actual_pickup_time) return result;
   const absence = getStudentAbsence({
@@ -251,7 +252,7 @@ export function SupervisionStudentGrid({
               lastName={student.second_name}
               photoUrl={student.photo_url ?? null}
               onClick={() => onOpenStudent(student.id.toString())}
-              dayPickupChange={hasDayPickupChange(
+              dayHomeChange={dayHomeChange(
                 supervisionStudentDay(
                   student,
                   pickupTimesData,

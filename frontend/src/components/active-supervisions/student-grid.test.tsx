@@ -36,9 +36,9 @@ describe("SupervisionStudentGrid search miss (#3889)", () => {
   });
 });
 
-// #3946: a one-day pickup change frames the visitor's card.
-describe("SupervisionStudentGrid one-day pickup change (#3946)", () => {
-  it("marks only the child whose pickup time changes today", () => {
+// #3946: a one-day change of the Gehzeit or the Abholart marks the card.
+describe("SupervisionStudentGrid one-day change (#3946)", () => {
+  it("marks only the children whose way home changes today", () => {
     const changed = {
       id: "1",
       first_name: "Mia",
@@ -49,24 +49,35 @@ describe("SupervisionStudentGrid one-day pickup change (#3946)", () => {
       first_name: "Ben",
       second_name: "Kurz",
     } as unknown as ActiveSupervisionStudent;
-    const pickup = (studentId: string, isException: boolean) =>
+    const modeChanged = {
+      id: "3",
+      first_name: "Lea",
+      second_name: "Brandt",
+    } as unknown as ActiveSupervisionStudent;
+    const pickup = (
+      studentId: string,
+      isException: boolean,
+      dayDepartureMode?: BulkPickupTime["dayDepartureMode"],
+    ) =>
       ({
         studentId,
         date: "2026-09-09",
         weekdayName: "Mittwoch",
         pickupTime: "13:30",
         isException,
+        dayDepartureMode,
         dayNotes: [],
       }) as BulkPickupTime;
 
     render(
       <SupervisionStudentGrid
-        students={[changed, usual]}
-        filteredStudents={[changed, usual]}
+        students={[changed, usual, modeChanged]}
+        filteredStudents={[changed, usual, modeChanged]}
         pickupTimesData={
           new Map([
             ["1", pickup("1", true)],
             ["2", pickup("2", false)],
+            ["3", pickup("3", false, "pickup")],
           ])
         }
         arrivalTimesData={undefined}
@@ -82,9 +93,14 @@ describe("SupervisionStudentGrid one-day pickup change (#3946)", () => {
       screen.getByRole("button", {
         name: "Mia Schulz, Gehzeit heute geändert - Details öffnen",
       }),
-    ).toHaveAttribute("data-day-pickup-change", "true");
+    ).toHaveAttribute("data-day-home-change", "time");
+    expect(
+      screen.getByRole("button", {
+        name: "Lea Brandt, Abholart heute geändert: Wird abgeholt - Details öffnen",
+      }),
+    ).toHaveAttribute("data-day-home-change", "mode");
     expect(
       screen.getByRole("button", { name: "Ben Kurz - Details öffnen" }),
-    ).not.toHaveAttribute("data-day-pickup-change");
+    ).not.toHaveAttribute("data-day-home-change");
   });
 });

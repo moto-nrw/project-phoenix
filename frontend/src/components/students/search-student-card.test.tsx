@@ -105,6 +105,24 @@ describe("SearchStudentCard", () => {
     expect(screen.getByText("Gehzeit heute geändert")).toBeInTheDocument();
   });
 
+  it("marks the card when today's Abholart is a one-day change (#3946)", () => {
+    render(
+      renderCard({
+        student: {
+          ...student,
+          departure_modes: ["bus"],
+          departure_is_exception: true,
+        } as Student,
+      }),
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: /Abholart heute geändert: Fährt Bus/,
+      }),
+    ).toHaveAttribute("data-day-home-change", "mode");
+  });
+
   it("does not mark the card for another planning day", () => {
     render(
       renderCard({

@@ -22,6 +22,7 @@ type PickupScheduleService interface {
 // the pickup capability because the day's Gehzeit and Abholart together are
 // the Heimweg of that day; the two values stay independent rows.
 type DayDepartures interface {
+	BulkPickupDays
 	ListDayDepartures(ctx context.Context, filter StudentScheduleFilter) ([]DepartureException, error)
 	// GetBulkDayDepartureModesForDate maps each student with a day value on
 	// date to its Abholart; a missing entry means the weekly plan applies.
@@ -89,6 +90,13 @@ type PickupTimes interface {
 // BulkPickupTimes is the tenant-scoped effective-time projection used by dashboards.
 type BulkPickupTimes interface {
 	GetBulkEffectivePickupTimesForDate(context.Context, []int64, calendar.Date) (map[int64]*EffectivePickupTime, error)
+}
+
+// BulkPickupDays is the Heimweg of one day as the Kinderkarten show it
+// (#3946): the effective Gehzeit plus DayDepartureMode, the Abholart set for
+// that day only.
+type BulkPickupDays interface {
+	GetBulkEffectivePickupDaysForDate(context.Context, []int64, calendar.Date) (map[int64]*EffectivePickupTime, error)
 }
 
 type PickupScheduleInput struct {

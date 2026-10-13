@@ -24,6 +24,7 @@ import {
   mapVisitsToSupervisionStudents,
   resolveSupervisionSelection,
 } from "~/components/active-supervisions/view-model";
+import type { DepartureMode } from "~/lib/student-helpers";
 import type {
   ActiveSupervisionRoom,
   ActiveSupervisionStudent,
@@ -114,6 +115,8 @@ interface BFFDashboardResponse {
     weekdayName: string;
     pickupTime: string | null;
     isException: boolean;
+    /** The Abholart set for today only (#3946). */
+    dayDepartureMode?: DepartureMode;
     notes: string;
     dayNotes: Array<{ id: string; content: string }>;
   }>;
@@ -494,6 +497,7 @@ export function useSupervisionDashboard(
         weekdayName: pickup.weekdayName,
         pickupTime: pickup.pickupTime ?? undefined,
         isException: pickup.isException,
+        dayDepartureMode: pickup.dayDepartureMode,
         notes: pickup.notes || undefined,
         dayNotes: pickup.dayNotes,
       });

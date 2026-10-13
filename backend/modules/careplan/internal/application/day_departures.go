@@ -34,6 +34,27 @@ func (s *pickupScheduleService) GetBulkDayDepartureModesForDate(ctx context.Cont
 	return out, nil
 }
 
+// GetBulkEffectivePickupDaysForDate adds the day Abholart to the effective
+// Gehzeit (#3946), so a Kinderkarte can mark a one-day change of either. A
+// child without an effective Gehzeit is not expected that day and gets no
+// entry, whatever its Abholart.
+func (s *pickupScheduleService) GetBulkEffectivePickupDaysForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*careplan.EffectivePickupTime, error) {
+	effective, err := s.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, date)
+	if err != nil {
+		return nil, err
+	}
+	modes, err := s.GetBulkDayDepartureModesForDate(ctx, studentIDs, date)
+	if err != nil {
+		return nil, err
+	}
+	for studentID, pickup := range effective {
+		if pickup != nil {
+			pickup.DayDepartureMode = modes[studentID]
+		}
+	}
+	return effective, nil
+}
+
 func (s *pickupScheduleService) SetDayDeparture(ctx context.Context, studentID int64, date calendar.Date, mode string, reason *string, staffID int64) (*careplan.DepartureException, error) {
 	careDay, err := calendar.IsCareWeekday(ctx, date)
 	if err != nil {

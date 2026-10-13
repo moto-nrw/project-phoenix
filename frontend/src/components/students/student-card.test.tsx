@@ -375,23 +375,38 @@ describe("StudentCard one-day pickup change (#3946)", () => {
     render(<StudentCard {...props} />);
 
     const button = screen.getByRole("button");
-    expect(button).not.toHaveAttribute("data-day-pickup-change");
+    expect(button).not.toHaveAttribute("data-day-home-change");
     expect(
-      button.querySelector('[data-day-pickup-change-strip="true"]'),
+      button.querySelector('[data-day-home-change-strip="true"]'),
     ).not.toBeInTheDocument();
   });
 
-  it("names the change in a strip and in the card's label", () => {
-    render(<StudentCard {...props} dayPickupChange />);
+  it.each([
+    ["time", { time: true }, "Gehzeit heute geändert"],
+    [
+      "mode",
+      { time: false, mode: "pickup" },
+      "Abholart heute geändert: Wird abgeholt",
+    ],
+    [
+      "both",
+      { time: true, mode: "bus" },
+      "Gehzeit und Abholart heute geändert: Fährt Bus",
+    ],
+  ] as const)(
+    "names the %s change in a strip and in the card's label",
+    (kind, change, label) => {
+      render(<StudentCard {...props} dayHomeChange={change} />);
 
-    const button = screen.getByRole("button", {
-      name: "Max Mustermann, Gehzeit heute geändert - Details öffnen",
-    });
-    expect(button).toHaveAttribute("data-day-pickup-change", "true");
-    expect(
-      button.querySelector('[data-day-pickup-change-strip="true"]'),
-    ).toHaveTextContent("Gehzeit heute geändert");
-  });
+      const button = screen.getByRole("button", {
+        name: `Max Mustermann, ${label} - Details öffnen`,
+      });
+      expect(button).toHaveAttribute("data-day-home-change", kind);
+      expect(
+        button.querySelector('[data-day-home-change-strip="true"]'),
+      ).toHaveTextContent(label);
+    },
+  );
 
   it("puts the strip above the check-in tap strip", () => {
     render(
@@ -400,14 +415,12 @@ describe("StudentCard one-day pickup change (#3946)", () => {
         checkinMode
         checkinState="anwesend"
         onCheckinClick={vi.fn()}
-        dayPickupChange
+        dayHomeChange={{ time: true }}
       />,
     );
 
     const button = screen.getByRole("button");
-    const change = button.querySelector(
-      '[data-day-pickup-change-strip="true"]',
-    );
+    const change = button.querySelector('[data-day-home-change-strip="true"]');
     const tap = button.querySelector('[data-checkin-tap-strip="true"]');
     expect(change?.nextElementSibling).toBe(tap);
   });

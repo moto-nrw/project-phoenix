@@ -1,38 +1,62 @@
 import { describe, expect, it } from "vitest";
 
-import { hasDayPickupChange, type StudentTableDay } from "./student-table";
+import { dayHomeChange, type StudentTableDay } from "./student-table";
 
 function day(
   pickup: Partial<StudentTableDay["pickup"]>,
-  absence?: StudentTableDay["absence"],
+  options: {
+    absence?: StudentTableDay["absence"];
+    dayDepartureMode?: StudentTableDay["dayDepartureMode"];
+  } = {},
 ): StudentTableDay {
   return {
-    absence,
+    absence: options.absence,
     arrival: { isException: false, isAbsent: false },
     pickup: { isException: false, ...pickup },
+    dayDepartureMode: options.dayDepartureMode,
   };
 }
 
-describe("hasDayPickupChange (#3946)", () => {
-  it("is true for a one-day exception with a time", () => {
+describe("dayHomeChange (#3946)", () => {
+  it("names a one-day Gehzeit with a time", () => {
     expect(
-      hasDayPickupChange(day({ isException: true, pickupTime: "13:30" })),
-    ).toBe(true);
+      dayHomeChange(day({ isException: true, pickupTime: "13:30" })),
+    ).toEqual({ time: true });
   });
 
-  it("is false for the weekly plan's time", () => {
-    expect(hasDayPickupChange(day({ pickupTime: "16:00" }))).toBe(false);
-  });
-
-  it("is false for an exception without a time", () => {
-    expect(hasDayPickupChange(day({ isException: true }))).toBe(false);
-  });
-
-  it("is false while an absence line replaces the times", () => {
+  it("names a one-day Abholart", () => {
     expect(
-      hasDayPickupChange(
-        day({ isException: true, pickupTime: "13:30" }, { label: "krank" }),
+      dayHomeChange(day({ pickupTime: "16:00" }, { dayDepartureMode: "bus" })),
+    ).toEqual({ time: false, mode: "bus" });
+  });
+
+  it("names both when the Gehzeit and the Abholart changed", () => {
+    expect(
+      dayHomeChange(
+        day(
+          { isException: true, pickupTime: "13:30" },
+          { dayDepartureMode: "pickup" },
+        ),
       ),
-    ).toBe(false);
+    ).toEqual({ time: true, mode: "pickup" });
+  });
+
+  it("is empty for the weekly plan", () => {
+    expect(dayHomeChange(day({ pickupTime: "16:00" }))).toBeUndefined();
+  });
+
+  it("is empty for a Gehzeit exception without a time", () => {
+    expect(dayHomeChange(day({ isException: true }))).toBeUndefined();
+  });
+
+  it("is empty while an absence line replaces the times", () => {
+    expect(
+      dayHomeChange(
+        day(
+          { isException: true, pickupTime: "13:30" },
+          { absence: { label: "krank" }, dayDepartureMode: "pickup" },
+        ),
+      ),
+    ).toBeUndefined();
   });
 });
