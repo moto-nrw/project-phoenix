@@ -467,6 +467,30 @@ describe("EnrollmentForm", () => {
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
 
+  it("blocks the form as a failure at its top when the bot protection lacks its site key", async () => {
+    mockFetchPublicCaptchaConfig.mockResolvedValue({
+      enabled: true,
+      site_key: "",
+    });
+    renderForm();
+    await waitForLoaded();
+
+    const notice = await screen.findByText(
+      /Die Anmeldung ist derzeit nicht möglich/,
+    );
+    const alert = notice.closest('[role="alert"]');
+    expect(alert).toHaveClass("bg-moto-red-soft");
+    // Families read it before they fill in the form, not after.
+    const firstSection = screen.getAllByRole("heading")[0];
+    expect(
+      alert!.compareDocumentPosition(firstSection!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Anmeldung absenden" }),
+    ).toBeDisabled();
+  });
+
   it("shows offerings per child grade and clears an invalid selection after a grade change", async () => {
     const conditional: PublicCareOffering = {
       ...offerings()[1]!,

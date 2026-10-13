@@ -470,7 +470,7 @@ src/components/calendar/personal-calendar.tsx|text-[11px]@802 text-[11px]@830 te
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@968 text-[11px]@987
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1471
-src/components/enrollment/enrollment-form.tsx|text-[11px]@2181
+src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
 src/components/enrollment/phases-editor.tsx|text-[11px]@758 text-[11px]@763
 src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@293
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141

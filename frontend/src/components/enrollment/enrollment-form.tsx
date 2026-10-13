@@ -163,7 +163,6 @@ import type {
   SubmitEnrollmentPayload,
   SubmitEnrollmentResult,
 } from "~/lib/enrollment-submission-api";
-import { Alert } from "~/components/ui/alert";
 
 interface Props {
   readonly phaseID?: string;
@@ -1539,6 +1538,15 @@ export function EnrollmentForm({
       className="space-y-5"
     >
       <FormErrorAlert message={formError.error} />
+      {/* No submit can pass the bot protection: the form fails as a whole,
+          so families read it before they fill anything in. */}
+      <LoadErrorAlert
+        error={
+          !skipCaptcha && captchaConfig?.enabled && !captchaConfig.site_key
+            ? tr("captchaMisconfigured")
+            : null
+        }
+      />
 
       {!restrictToOfferings && (
         <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
@@ -2419,10 +2427,6 @@ export function EnrollmentForm({
           <input type="hidden" name="captcha_token" value={captchaToken} />
         </section>
       )}
-      {!skipCaptcha && captchaConfig?.enabled && !captchaConfig.site_key && (
-        <Alert type="warning" message={tr("captchaMisconfigured")} />
-      )}
-
       <button
         type="submit"
         disabled={
