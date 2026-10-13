@@ -2,8 +2,6 @@ package users
 
 import (
 	"testing"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestTeacher_Validate(t *testing.T) {
@@ -135,12 +133,12 @@ func TestTeacher_SetStaff(t *testing.T) {
 		teacher := &Teacher{}
 
 		person := &Person{
-			Model:     base.Model{ID: 10},
+			Model:     Model{ID: 10},
 			FirstName: "John",
 			LastName:  "Doe",
 		}
 		staff := &Staff{
-			Model:    base.Model{ID: 42},
+			Model:    Model{ID: 42},
 			PersonID: 10,
 			Person:   person,
 		}

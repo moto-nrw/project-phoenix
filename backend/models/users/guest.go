@@ -5,14 +5,13 @@ import (
 	"net/mail"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Guest represents a guest instructor in the system
 type Guest struct {
-	base.Model `bun:"schema:users,table:guests"`
-	base.TenantModel
+	Model `bun:"schema:users,table:guests"`
+	TenantModel
 	StaffID           int64          `bun:"staff_id,notnull" json:"staff_id"`
 	Organization      string         `bun:"organization" json:"organization,omitempty"`
 	ContactEmail      string         `bun:"contact_email" json:"contact_email,omitempty"`

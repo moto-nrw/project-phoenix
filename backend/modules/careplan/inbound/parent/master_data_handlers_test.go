@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -54,7 +53,7 @@ func sampleMasterData() *parentService.ChildMasterData {
 		},
 		PendingChanges: []*usersModels.StudentDataChangeRequest{
 			{
-				Model:    modelBase.Model{ID: 900, CreatedAt: time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)},
+				Model:    usersModels.Model{ID: 900, CreatedAt: time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)},
 				Target:   usersModels.DataChangeTargetPerson,
 				FieldKey: "first_name",
 				NewValue: json.RawMessage(`"Lea"`),
@@ -132,7 +131,7 @@ func TestSubmitAndListMasterDataRequests(t *testing.T) {
 	t.Parallel()
 
 	row := &usersModels.StudentDataChangeRequest{
-		Model:    modelBase.Model{ID: 901, CreatedAt: time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)},
+		Model:    usersModels.Model{ID: 901, CreatedAt: time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)},
 		Target:   usersModels.DataChangeTargetPerson,
 		FieldKey: "first_name",
 		NewValue: json.RawMessage(`"Lea"`),

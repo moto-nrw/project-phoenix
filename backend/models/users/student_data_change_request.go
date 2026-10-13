@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // ErrChangeRequestNotPending means a pending-row transition lost a race or the
@@ -57,8 +55,8 @@ const (
 // Stammdaten. One row per changed field, so Track B requests can be approved or
 // rejected field-by-field and the audit log reads as a flat history of changes.
 type StudentDataChangeRequest struct {
-	base.Model `bun:"schema:users,table:student_data_change_requests"`
-	base.TenantModel
+	Model `bun:"schema:users,table:student_data_change_requests"`
+	TenantModel
 	StudentID    int64           `bun:"student_id,notnull" json:"student_id"`
 	SubmittedBy  int64           `bun:"submitted_by,notnull" json:"submitted_by"`
 	Target       string          `bun:"target,notnull" json:"target"`
@@ -108,12 +106,12 @@ type StudentDataChangeRequestRepository interface {
 
 	// ListPendingForTenant returns every pending Track B row for the current
 	// tenant, newest-first — the staff review queue.
-	ListPendingForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*StudentDataChangeRequest, error)
+	ListPendingForTenant(ctx context.Context, filters RequestQueueFilters) ([]*StudentDataChangeRequest, error)
 
 	// ListDecidedForTenant returns the tenant's decided rows (auto-applied,
 	// approved, rejected) newest-decision-first via keyset pagination on
 	// (updated_at, id); a zero beforeUpdatedAt returns the first page.
-	ListDecidedForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*StudentDataChangeRequest, error)
+	ListDecidedForTenant(ctx context.Context, filters RequestQueueFilters) ([]*StudentDataChangeRequest, error)
 
 	// HasPendingForField reports whether an undecided pending row already
 	// exists for the same student/target/field, so the parent flow can reject

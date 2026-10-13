@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -58,8 +57,8 @@ func ValidStaffNoticeReader(r string) bool {
 // Tag im Zeitraum) und das WeekPattern (0 = jede Woche, 1/2 = Woche A/B des
 // Kalenderzeitraums). Ausgewertet wird beim Lesen — siehe AppliesOn.
 type StaffNotice struct {
-	base.Model `bun:"schema:users,table:staff_notices"`
-	base.TenantModel
+	Model `bun:"schema:users,table:staff_notices"`
+	TenantModel
 	Title    string `bun:"title,notnull" json:"title"`
 	Body     string `bun:"body,notnull" json:"body"`
 	Priority string `bun:"priority,notnull" json:"priority"`
@@ -171,10 +170,10 @@ func (n *StaffNotice) Validate() error {
 // wird einmal bestätigt, nicht jeden Dienstag erneut.
 type StaffNoticeAck struct {
 	// Documents the source table; bun reads table tags only from bun.BaseModel.
-	base.TenantModel `bun:"table:users.staff_notice_acks,alias:sna"`
-	NoticeID         int64     `bun:"notice_id,pk" json:"notice_id"`
-	AccountID        int64     `bun:"account_id,pk" json:"account_id"`
-	AcknowledgedAt   time.Time `bun:"acknowledged_at,nullzero,notnull,default:current_timestamp" json:"acknowledged_at"`
+	TenantModel    `bun:"table:users.staff_notice_acks,alias:sna"`
+	NoticeID       int64     `bun:"notice_id,pk" json:"notice_id"`
+	AccountID      int64     `bun:"account_id,pk" json:"account_id"`
+	AcknowledgedAt time.Time `bun:"acknowledged_at,nullzero,notnull,default:current_timestamp" json:"acknowledged_at"`
 }
 
 // StaffNoticeView ist die Sicht einer Person auf einen Hinweis: der Hinweis

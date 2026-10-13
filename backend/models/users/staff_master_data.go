@@ -3,7 +3,6 @@ package users
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -20,8 +19,8 @@ const (
 // employment type remains on users.staff — this table carries only what
 // nothing else stores.
 type StaffMasterData struct {
-	base.Model `bun:"schema:users,table:staff_master_data"`
-	base.TenantModel
+	Model `bun:"schema:users,table:staff_master_data"`
+	TenantModel
 	StaffID int64 `bun:"staff_id,notnull" json:"staff_id"`
 
 	Gender *string `bun:"gender" json:"gender,omitempty"`
@@ -44,8 +43,8 @@ type StaffMasterData struct {
 // Erste-Hilfe, Schwimmschein, Fortbildungen — each with optional acquisition
 // and expiry dates.
 type StaffQualification struct {
-	base.Model `bun:"schema:users,table:staff_qualifications"`
-	base.TenantModel
+	Model `bun:"schema:users,table:staff_qualifications"`
+	TenantModel
 	StaffID    int64          `bun:"staff_id,notnull" json:"staff_id"`
 	Name       string         `bun:"name,notnull" json:"name"`
 	AcquiredOn *calendar.Date `bun:"acquired_on,type:date" json:"acquired_on,omitempty"`
@@ -57,8 +56,8 @@ type StaffQualification struct {
 // may ever join or list these columns. Generic Staff JSON must not expose
 // them; the financial handlers use dedicated masked/reveal responses.
 type StaffFinancialData struct {
-	base.Model `bun:"schema:users,table:staff_financial_data"`
-	base.TenantModel
+	Model `bun:"schema:users,table:staff_financial_data"`
+	TenantModel
 	StaffID              int64   `bun:"staff_id,notnull" json:"staff_id"`
 	IBAN                 *string `bun:"iban" json:"-"`
 	TaxID                *string `bun:"tax_id" json:"-"`

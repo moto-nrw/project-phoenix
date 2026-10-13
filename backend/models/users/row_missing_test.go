@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestRowMissing(t *testing.T) {
@@ -17,12 +15,12 @@ func TestRowMissing(t *testing.T) {
 		want bool
 	}{
 		{name: "nil", err: nil, want: false},
-		{name: "not-found sentinel", err: base.ErrNotFound, want: true},
-		{name: "not-found in a database error", err: &base.DatabaseError{Op: "find", Err: errors.Join(base.ErrNotFound, errors.New("driver"))}, want: true},
+		{name: "not-found sentinel", err: ErrRepositoryNotFound, want: true},
+		{name: "not-found in a database error", err: &DatabaseError{Op: "find", Err: errors.Join(ErrRepositoryNotFound, errors.New("driver"))}, want: true},
 		{name: "guardian profile sentinel", err: fmt.Errorf("find: %w", ErrGuardianProfileNotFound), want: true},
 		{name: "student guardian sentinel", err: fmt.Errorf("find: %w", ErrStudentGuardianNotFound), want: true},
 		{name: "missing student", err: MissingStudentError("find student", errors.New("driver no rows")), want: true},
-		{name: "store failure", err: &base.DatabaseError{Op: "find", Err: errors.New("connection reset")}, want: false},
+		{name: "store failure", err: &DatabaseError{Op: "find", Err: errors.New("connection reset")}, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -40,12 +38,12 @@ func TestMissingStudentErrorKeepsTheCallerSentinels(t *testing.T) {
 	noRows := errors.New("driver no rows")
 	err := MissingStudentError("find student", noRows)
 
-	for _, target := range []error{base.ErrNotFound, noRows, ErrStudentRowMissing} {
+	for _, target := range []error{ErrRepositoryNotFound, noRows, ErrStudentRowMissing} {
 		if !errors.Is(err, target) {
 			t.Fatalf("MissingStudentError does not wrap %v", target)
 		}
 	}
-	var dbErr *base.DatabaseError
+	var dbErr *DatabaseError
 	if !errors.As(err, &dbErr) || dbErr.Op != "find student" {
 		t.Fatalf("MissingStudentError = %#v, want a DatabaseError for op %q", err, "find student")
 	}
