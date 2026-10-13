@@ -467,8 +467,6 @@ export async function deleteStudentDepartureException(
   if (!response.ok) {
     await throwResponseError(response, "Failed to delete departure exception");
   }
-
-  await handleDeleteResponse(response, "Failed to delete departure exception");
 }
 
 // =============================================================================
