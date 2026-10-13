@@ -2670,8 +2670,12 @@ func newFactory(
 	// The slot lists are the class-day read projection (#2701): the owner
 	// facades are its tenant-safe reads, the retained schedule services its
 	// compatibility bindings.
+	classDayReads, err := arrivalTimetable.NewPresenceReads(db)
+	if err != nil {
+		return nil, fmt.Errorf("compose class day timetable reads: %w", err)
+	}
 	slotListsService := classdayCompose.NewSlotLists(classdayCompose.SlotListDependencies{
-		Timetable:       NewClassDayTimetableRows(db),
+		Timetable:       NewClassDayTimetableRows(classDayReads),
 		Presence:        newStudentPresence(db, logger),
 		CarePlan:        carePlan,
 		Students:        persons,
