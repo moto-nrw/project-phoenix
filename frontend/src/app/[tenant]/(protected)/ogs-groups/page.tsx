@@ -81,6 +81,7 @@ import {
   pickupColumn,
   statusColumn,
   trackingColumn,
+  hasDayPickupChange,
   type StudentTableDay,
 } from "~/components/students/student-table";
 import { StudentSelectionScope } from "~/components/students/student-selection-scope";
@@ -1151,6 +1152,7 @@ function OGSGroupPageContent() {
                   checkinMode={isGroupCardCheckinMode}
                   checkinState={checkinState}
                   isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
+                  dayPickupChange={hasDayPickupChange(ogsStudentDay(student))}
                   onCheckinClick={() => {
                     if (
                       checkinState !== "abwesend" &&

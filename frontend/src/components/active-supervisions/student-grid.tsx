@@ -35,6 +35,7 @@ import {
   statusColumn,
   trackingColumn,
   type StudentTableColumn,
+  hasDayPickupChange,
   type StudentTableDay,
 } from "~/components/students/student-table";
 
@@ -250,6 +251,14 @@ export function SupervisionStudentGrid({
               lastName={student.second_name}
               photoUrl={student.photo_url ?? null}
               onClick={() => onOpenStudent(student.id.toString())}
+              dayPickupChange={hasDayPickupChange(
+                supervisionStudentDay(
+                  student,
+                  pickupTimesData,
+                  arrivalTimesData,
+                  now,
+                ),
+              )}
               locationBadge={
                 <StudentPresenceBadge
                   student={presentStudent}

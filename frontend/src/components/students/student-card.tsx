@@ -38,6 +38,10 @@ import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { useRowClock } from "~/components/students/student-card-clock";
+import { StatusBadge } from "~/components/ui/status-badge";
+
+/** Visible hint and screen-reader suffix of a one-day pickup change (#3946). */
+export const DAY_PICKUP_CHANGE_LABEL = "Heute andere Gehzeit";
 
 interface StudentCardProps {
   /** Unique student ID */
@@ -83,6 +87,13 @@ interface StudentCardProps {
   readonly checkinSelectMode?: boolean;
   /** Whether this card is currently marked for the next bulk action. */
   readonly isCheckinSelected?: boolean;
+  /**
+   * Today's pickup time differs from the weekly plan for this one day (#3946).
+   * The whole card gets an orange frame and a labelled pill, so staff see the
+   * change without reading every Gehzeit row. Callers decide via
+   * `hasDayPickupChange`.
+   */
+  readonly dayPickupChange?: boolean;
 }
 
 // Tap-strip styles for the bottom action area when checkinMode is on. The
@@ -146,6 +157,7 @@ export function StudentCard({
   onCheckinClick,
   checkinSelectMode = false,
   isCheckinSelected = false,
+  dayPickupChange = false,
 }: StudentCardProps) {
   // Photo feature is per-tenant. When the school hasn't enabled it the
   // entire avatar overlay is suppressed — the card falls back to its
@@ -163,17 +175,32 @@ export function StudentCard({
   // Pull a Tap-Strip preset for the bottom action area in checkinMode.
   // The strip carries the colour signal; the card body stays neutral white.
   const tapStrip = checkinMode ? TAP_STRIP_STYLES[checkinState] : null;
+  // The button's label replaces its content for screen readers, so the
+  // one-day change must be part of it (#3946).
+  const nameLabel = dayPickupChange
+    ? `${firstName} ${lastName}, ${DAY_PICKUP_CHANGE_LABEL}`
+    : `${firstName} ${lastName}`;
   const ariaLabel = selectMode
-    ? `${firstName} ${lastName} - ${isCheckinSelected ? "Auswahl entfernen" : "Auswählen"}`
+    ? `${nameLabel} - ${isCheckinSelected ? "Auswahl entfernen" : "Auswählen"}`
     : checkinMode
-      ? `${firstName} ${lastName} - ${tapStrip?.copy ?? "Tippen zum An-/Abmelden"}`
-      : `${firstName} ${lastName} - Details öffnen`;
+      ? `${nameLabel} - ${tapStrip?.copy ?? "Tippen zum An-/Abmelden"}`
+      : `${nameLabel} - Details öffnen`;
 
-  // A selected card gets a brand-green ring on top of the resting shadow.
-  // Inline style (not an arbitrary-value class) so the hex stays sourced from
-  // LOCATION_COLORS.
-  const selectedRingStyle: React.CSSProperties | undefined =
-    selectMode && isCheckinSelected
+  // A selected card gets a brand-green ring on top of the resting shadow; a
+  // one-day pickup change frames the card orange (#3946). Both together keep
+  // the orange frame inside the green ring. Inline style (not an
+  // arbitrary-value class) so the hex stays sourced from the palette, and
+  // because the unlayered moto-content-surface border beats any utility.
+  const isSelectedCard = selectMode && isCheckinSelected;
+  const changeColor = MOTO_COLOR_PALETTE.orange.base;
+  const cardStyle: React.CSSProperties | undefined = dayPickupChange
+    ? {
+        borderColor: changeColor,
+        boxShadow: isSelectedCard
+          ? `0 0 0 1px ${changeColor}, 0 0 0 3px ${LOCATION_COLORS.GROUP_ROOM}`
+          : `0 0 0 1px ${changeColor}`,
+      }
+    : isSelectedCard
       ? {
           boxShadow: `0 0 0 1px ${LOCATION_COLORS.GROUP_ROOM}`,
           borderColor: "transparent",
@@ -192,8 +219,9 @@ export function StudentCard({
       data-checkin-mode={checkinMode || undefined}
       data-setup-tour="student-card"
       data-checkin-state={checkinMode ? checkinState : undefined}
-      data-checkin-selected={(selectMode && isCheckinSelected) || undefined}
-      style={selectedRingStyle}
+      data-checkin-selected={isSelectedCard || undefined}
+      data-day-pickup-change={dayPickupChange || undefined}
+      style={cardStyle}
       className={`${TILE_CARD_SURFACE} flex cursor-pointer flex-col disabled:cursor-wait disabled:opacity-70`}
     >
       <div
@@ -254,6 +282,15 @@ export function StudentCard({
                   </div>
                 </div>
               </div>
+              {dayPickupChange ? (
+                <div className="mt-1.5">
+                  <StatusBadge
+                    label={DAY_PICKUP_CHANGE_LABEL}
+                    tone="orange"
+                    compact
+                  />
+                </div>
+              ) : null}
               {/* Extra content slot (school class, group name, etc.) */}
               {extraContent}
             </div>

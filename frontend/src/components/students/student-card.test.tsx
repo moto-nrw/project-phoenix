@@ -362,6 +362,55 @@ describe("StudentCard", () => {
   });
 });
 
+describe("StudentCard one-day pickup change (#3946)", () => {
+  const props = {
+    studentId: "1",
+    firstName: "Max",
+    lastName: "Mustermann",
+    onClick: vi.fn(),
+    locationBadge: <span>badge</span>,
+  };
+
+  it("leaves the card unmarked without a change", () => {
+    render(<StudentCard {...props} />);
+
+    const button = screen.getByRole("button");
+    expect(button).not.toHaveAttribute("data-day-pickup-change");
+    expect(button).not.toHaveAttribute("style");
+    expect(screen.queryByText("Heute andere Gehzeit")).not.toBeInTheDocument();
+  });
+
+  it("frames the whole card and names the change in text and label", () => {
+    render(<StudentCard {...props} dayPickupChange />);
+
+    const button = screen.getByRole("button", {
+      name: "Max Mustermann, Heute andere Gehzeit - Details öffnen",
+    });
+    expect(button).toHaveAttribute("data-day-pickup-change", "true");
+    expect(button).toHaveStyle({ borderColor: "#F78C10" });
+    expect(screen.getByText("Heute andere Gehzeit")).toBeInTheDocument();
+  });
+
+  it("keeps the orange frame inside the green selection ring", () => {
+    render(
+      <StudentCard
+        {...props}
+        checkinMode
+        checkinSelectMode
+        isCheckinSelected
+        onCheckinClick={vi.fn()}
+        dayPickupChange
+      />,
+    );
+
+    const button = screen.getByRole("button", {
+      name: "Max Mustermann, Heute andere Gehzeit - Auswahl entfernen",
+    });
+    expect(button.style.borderColor).not.toBe("transparent");
+    expect(button.style.boxShadow).toContain("3px");
+  });
+});
+
 describe("SchoolClassIcon", () => {
   it("renders an SVG icon", () => {
     const { container } = render(<SchoolClassIcon />);

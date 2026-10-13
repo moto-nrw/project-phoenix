@@ -50,6 +50,21 @@ export interface StudentTableDay {
   readonly pickup: PickupRowProps;
 }
 
+/**
+ * Whether the card shows a confirmed one-day change of the pickup time
+ * (#3946). Only a pickup exception sets `isException`; a change to the weekly
+ * plan never does, so a permanent change does not mark the card. An exception
+ * without a time means the child does not come, and an absence line already
+ * says so: neither marks the card as a changed way home.
+ */
+export function hasDayPickupChange(day: StudentTableDay): boolean {
+  return (
+    day.absence === undefined &&
+    day.pickup.isException &&
+    Boolean(day.pickup.pickupTime)
+  );
+}
+
 function studentFullName(student: Student): string {
   return (
     `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
