@@ -968,7 +968,7 @@ func newFactory(
 	var overrideMonths timetracking.WorkTimeMonthService
 
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
-	workSessionService := timetracking.NewWorkSessionService(workSessions, workSessionBreaks, NewWorkSessionAudit(audits.WorkSessionEdit), staffAbsences, groupSupervisions, sessionRecords, WorkSessionStaff(staffRepository, MustNewStaffEmployment(db)), NewWorkSessionSchedules(staffWorkSchedules), NewWorkSessionTimeModels(workTimeModels), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
+	workSessionService := timetracking.NewWorkSessionService(workSessions, workSessionBreaks, NewWorkSessionAudit(audits.WorkSessionEdit), staffAbsences, groupSupervisions, sessionRecords, WorkSessionStaff(staffRepository, workforceCompose.MustNewStaffEmployment(db)), NewWorkSessionSchedules(staffWorkSchedules), NewWorkSessionTimeModels(workTimeModels), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
 		// Planned-shift lookups for the auto-checkout job (#1798).
 		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(workTime)),
 		timetracking.WithWorkSessionEvents(timeTrackingEvents),
@@ -985,7 +985,7 @@ func newFactory(
 		workSessions,
 		workSessionBreaks,
 		staffAbsences,
-		StaffScheduleAssignments(MustNewStaffEmployment(db)),
+		StaffScheduleAssignments(workforceCompose.MustNewStaffEmployment(db)),
 		NewWorkScheduleTargets(staffWorkSchedules),
 		NewWorkTimeTargetModels(workTimeModels),
 		NewTimeTrackingShifts(workTime),

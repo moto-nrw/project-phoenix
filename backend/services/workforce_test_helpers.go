@@ -83,7 +83,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	today := timezone.CalendarDateClock(optionalClock(clocks))
 	var shiftPlanSyncer shiftplansync.SickCascade
 	var overrideMonths timetracking.WorkTimeMonthService
-	workSessionService := timetracking.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff, MustNewStaffEmployment(db)), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
+	workSessionService := timetracking.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff, workforceCompose.MustNewStaffEmployment(db)), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
 		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(repos.StaffAbsenceType)),
 		timetracking.WithWorkSessionEvents(timeTrackingEvents),
 		timetracking.WithWorkSessionHolidays(nonWorkingDayService),
@@ -94,7 +94,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		repos.WorkSession,
 		repos.WorkSessionBreak,
 		repos.StaffAbsence,
-		StaffScheduleAssignments(MustNewStaffEmployment(db)),
+		StaffScheduleAssignments(workforceCompose.MustNewStaffEmployment(db)),
 		NewWorkScheduleTargets(repos.StaffWorkSchedule),
 		NewWorkTimeTargetModels(repos.WorkTimeModel),
 		NewTimeTrackingShifts(repos.StaffAbsenceType),
@@ -217,3 +217,10 @@ type CreateAbsenceRequest = timetracking.CreateAbsenceRequest
 
 // UpdateAbsenceRequest is the matching update shape for the same tests.
 type UpdateAbsenceRequest = timetracking.UpdateAbsenceRequest
+
+// MustNewStaffEmployment is workforceCompose.MustNewStaffEmployment for the
+// test graphs outside this package whose test roles may not name the Workforce
+// composition.
+func MustNewStaffEmployment(db *bun.DB) workforce.StaffEmployments {
+	return workforceCompose.MustNewStaffEmployment(db)
+}

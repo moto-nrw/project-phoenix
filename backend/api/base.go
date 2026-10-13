@@ -297,12 +297,9 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		return moduleServices{}, err
 	}
 	workTime, err := workforceCompose.New(workforceCompose.Dependencies{
-		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
-			_, err := membership.FindStaffForMutation(ctx, staffID)
-			return err
-		},
-		DB:           db,
-		LiveStaffIDs: services.WorkforceLiveStaffIDs(membership),
+		LockStaffAssignment: services.WorkforceStaffAssignmentLock(membership),
+		DB:                  db,
+		LiveStaffIDs:        services.WorkforceLiveStaffIDs(membership),
 		// A Sonderarbeitszeit never sets a target on a statutory holiday.
 		StatutoryHolidays: calendar.TenantHolidayDates,
 		Observe: func(observation workforceCompose.Observation) {

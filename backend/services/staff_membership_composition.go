@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationSvc "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	offboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
 	"github.com/uptrace/bun"
@@ -169,7 +170,7 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 	if roles == nil {
 		panic("staff membership runtime: identity role administration is required")
 	}
-	employment := MustNewStaffEmployment(db)
+	employment := workforceCompose.MustNewStaffEmployment(db)
 	offboarding, err := offboardingcompose.New(offboardingcompose.Dependencies{
 		DB: db, Access: access, Cleanup: hooks.QueueOffboardedDocumentCleanup,
 		Employment:  MembershipStaffEmployment(employment),

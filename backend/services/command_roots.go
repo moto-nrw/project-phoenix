@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
@@ -87,7 +88,10 @@ func NewTimeTrackingCleanupRepositories(db *bun.DB) TimeTrackingCleanupRepositor
 	if err != nil {
 		panic(fmt.Sprintf("time tracking cleanup repositories: compose school membership: %v", err))
 	}
-	workTime, err := NewWorkforce(db, membership)
+	workTime, err := workforceCompose.New(workforceCompose.Dependencies{
+		LockStaffAssignment: WorkforceStaffAssignmentLock(membership), DB: db,
+		LiveStaffIDs: WorkforceLiveStaffIDs(membership), Observe: func(workforceCompose.Observation) {},
+	})
 	if err != nil {
 		panic(fmt.Sprintf("time tracking cleanup repositories: compose workforce: %v", err))
 	}

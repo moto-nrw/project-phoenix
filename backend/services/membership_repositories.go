@@ -7,6 +7,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
@@ -25,7 +26,7 @@ import (
 func newMembershipRepositories(db *bun.DB, persons userModels.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) MembershipTestRepositories {
 	group := NewGroupRepository(db, rooms, membership, workTime)
 	groupTeachers := newGroupTeacherRepository(membership, group)
-	deps := newStaffMembershipDeps(persons, identity, MustNewStaffEmployment(db))
+	deps := newStaffMembershipDeps(persons, identity, workforceCompose.MustNewStaffEmployment(db))
 	deps.groupTeachers = func() GroupTeacherRepository { return groupTeachers }
 	return MembershipTestRepositories{
 		Person:       persons,

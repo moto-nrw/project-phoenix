@@ -16377,17 +16377,17 @@
         },
         {
           "file": "api/base.go",
-          "line": 396,
+          "line": 393,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 445,
+          "line": 442,
           "declaration": "withRootWiring"
         },
         {
           "file": "api/base.go",
-          "line": 703,
+          "line": 700,
           "declaration": "type serveGraph"
         },
         {
