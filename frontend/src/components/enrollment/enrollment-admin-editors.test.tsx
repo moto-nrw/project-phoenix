@@ -578,7 +578,7 @@ describe("CareOfferingsEditor", () => {
     );
 
     expect(
-      screen.getByText("Bedingung 1: Wähle mindestens eine Klassenstufe."),
+      screen.getByText("Bedingung 1: Wählen Sie mindestens eine Klassenstufe."),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Erstellen" })).toBeDisabled();
     const availabilityFields = within(
