@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -154,39 +153,4 @@ func (r groupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Con
 		return nil, err
 	}
 	return rows, nil
-}
-
-type groupParentMessageReadRepository struct {
-	usersModels.ParentMessageReadRepository
-	groups schoolstructure.Query
-}
-
-func (r groupParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*usersModels.InboxThread, error) {
-	rows, err := r.ParentMessageReadRepository.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
-	return enrichInboxGroups(ctx, r.groups, rows, err)
-}
-
-func (r groupParentMessageReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*usersModels.InboxThread, error) {
-	rows, err := r.ParentMessageReadRepository.ListThreadsForStudent(ctx, accountID, studentID)
-	return enrichInboxGroups(ctx, r.groups, rows, err)
-}
-
-func (r groupParentMessageReadRepository) ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64) ([]*usersModels.InboxThread, error) {
-	rows, err := r.ParentMessageReadRepository.ListThreadsForGuardianStudent(ctx, accountID, studentID)
-	return enrichInboxGroups(ctx, r.groups, rows, err)
-}
-
-func (r groupParentMessageReadRepository) ListThreadsForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) ([]*usersModels.InboxThread, error) {
-	rows, err := r.ParentMessageReadRepository.ListThreadsForGuardianTenants(ctx, accountID, tenantIDs)
-	return enrichInboxGroups(ctx, r.groups, rows, err)
-}
-
-func enrichInboxGroups(ctx context.Context, query schoolstructure.Query, rows []*usersModels.InboxThread, queryErr error) ([]*usersModels.InboxThread, error) {
-	if queryErr != nil {
-		return nil, queryErr
-	}
-	return enrichGroupNames(ctx, query, rows,
-		func(row *usersModels.InboxThread) int64 { return optionalGroupID(row.GroupID) },
-		func(row *usersModels.InboxThread, name string) { row.GroupName = name },
-		"", "parent message inbox")
 }

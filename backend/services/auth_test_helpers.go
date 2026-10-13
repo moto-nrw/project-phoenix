@@ -181,7 +181,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		return AuthTestModule{}, err
 	}
 	r := identityChainOf(db, members)
-	parentEnrollments, err := repositories.NewAuthTestParentEnrollments(db)
+	parentPortal, err := repositories.NewAuthTestParentPortal(db)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -278,7 +278,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 			guardianMail: &guardianInvitationWiring{
 				settings: settings.Settings, schools: organizations,
 				outbox:      func() platformModels.OutboxResultEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
-				enrollments: parentEnrollments, parentsURL: parentsURL,
+				enrollments: parentPortal.ParentEnrollmentRequest, parentsURL: parentsURL,
 				fallbackExpiry: time.Duration(inviteHours) * time.Hour, logger: logger,
 			},
 		},

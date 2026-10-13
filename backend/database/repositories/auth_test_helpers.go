@@ -1,23 +1,21 @@
 package repositories
 
 import (
-	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/uptrace/bun"
 )
 
-// NewAuthTestParentEnrollments supplies the parent enrollment requests the
-// auth constructors read, with the school names bound. The People Directory
-// and School Membership repositories of the auth graph are composed by
-// services (#2743); the auth events and the operator ledger come from the
-// Audit composition.
-func NewAuthTestParentEnrollments(db *bun.DB) (parentModels.EnrollmentRequestRepository, error) {
+// NewAuthTestParentPortal supplies the parent enrollment requests the auth
+// constructors read (ParentEnrollmentRequest), with the school names bound.
+// The People Directory and School Membership repositories of the auth graph
+// are composed by services (#2743); the auth events and the operator ledger
+// come from the Audit composition.
+func NewAuthTestParentPortal(db *bun.DB) (carePlanCompose.ParentPortalRepositories, error) {
 	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
-		return nil, err
+		return carePlanCompose.ParentPortalRepositories{}, err
 	}
-	requests := parentRepo.NewEnrollmentRequestRepository(parentRepo.RuntimeFunc(carePlanCompose.TenantAmbientDatabase(db)), enrollmentCompose.New(), identityAccountDirectory{accounts: newIdentityAccess(db, nil)})
-	return schoolEnrollmentRequestRepository{EnrollmentRequestRepository: requests, schools: organizations}, nil
+	requests := carePlanCompose.NewParentEnrollmentRequestRepository(db, enrollmentCompose.New(), identityAccountDirectory{accounts: newIdentityAccess(db, nil)})
+	return carePlanCompose.ParentPortalRepositories{ParentEnrollmentRequest: requests}.WithSchools(parentPortalSchools{schools: organizations}), nil
 }

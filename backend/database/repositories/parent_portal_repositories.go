@@ -4,10 +4,6 @@ import (
 	"context"
 	"time"
 
-	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	"github.com/moto-nrw/project-phoenix/database/repositories/users"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
@@ -15,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/uptrace/bun"
@@ -31,8 +28,6 @@ type ParentPortalOwners struct {
 	Groups schoolstructure.Query
 	// Membership resolves the live staff accounts behind the read cursors.
 	Membership schoolmembership.Capability
-	// Persons is the person repository those staff accounts are loaded from.
-	Persons userModels.PersonRepository
 	// Identity owns the accounts, their school memberships and role classes.
 	Identity *identityaccess.Module
 	// Enrollment owns the phases, applications and announcement applicants.
@@ -41,16 +36,12 @@ type ParentPortalOwners struct {
 	Now func() time.Time
 }
 
-// ParentPortalRepositories are the retained guardian-portal and messaging
-// repositories over their owners.
+// ParentPortalRepositories are the retained guardian-portal repositories
+// (built by the Care Plan composition) and the parent-messaging and
+// announcement repositories (built by Communication) over their owners.
 type ParentPortalRepositories struct {
-	ParentChild             parentModels.ChildRepository
-	ParentEnrollablePhase   parentModels.EnrollablePhaseRepository
-	ParentEnrollmentRequest parentModels.EnrollmentRequestRepository
-	ParentAnnouncement      userModels.ParentAnnouncementRepository
-	ParentMessageThread     userModels.ParentMessageThreadRepository
-	ParentMessageRead       userModels.ParentMessageReadRepository
-	StaffMessageRead        userModels.StaffMessageReadRepository
+	carePlanCompose.ParentPortalRepositories
+	parentStore.MessagingRepositories
 }
 
 // NewParentPortalRepositories builds the retained guardian-portal and
@@ -59,45 +50,25 @@ type ParentPortalRepositories struct {
 // names are bound by WithSchools.
 func NewParentPortalRepositories(db *bun.DB, owners ParentPortalOwners) ParentPortalRepositories {
 	identity := owners.Identity
-	phases := parentRepo.NewEnrollablePhaseRepository(owners.Enrollment, identity.ListActiveAccountSchoolIDs)
-	requests := parentRepo.NewEnrollmentRequestRepository(parentRepo.RuntimeFunc(carePlanCompose.TenantAmbientDatabase(db)), owners.Enrollment, identityAccountDirectory{accounts: identity})
-	if repo, ok := phases.(*parentRepo.EnrollablePhaseRepository); ok {
-		repo.BindStudentDirectory(parentStudentDirectory{owners.People})
-		repo.BindGuardianDirectory(parentGuardianDirectory{owners.People})
-	}
-	if repo, ok := requests.(*parentRepo.EnrollmentRequestRepository); ok {
-		repo.BindGuardianDirectory(parentGuardianDirectory{owners.People})
-	}
-	membership := func() schoolmembership.Capability { return owners.Membership }
-	persons := func() userModels.PersonRepository { return owners.Persons }
+	members := parentStaffMembers{membership: owners.Membership}.list
+	// The staff accounts are loaded from the person rows.
+	persons := newPersonRepository(db)
 	return ParentPortalRepositories{
-		ParentChild:             NewParentChildRepository(identity.ListActiveAccountSchoolIDs, owners.People),
-		ParentEnrollablePhase:   personEnrollablePhaseRepository{EnrollablePhaseRepository: phases, persons: owners.People},
-		ParentEnrollmentRequest: requests,
-		ParentAnnouncement:      NewParentAnnouncementRepository(db, owners.Enrollment, owners.Now),
-		ParentMessageThread:     parentStore.NewParentMessageThreadRepository(db, users.NewMessageableGuardianRepository(peopleRuntime(db), identity.FindActiveSchoolMemberships)),
-		ParentMessageRead: groupParentMessageReadRepository{
-			ParentMessageReadRepository: parentMessageStaffRepository{
-				ParentMessageReads: parentStore.NewParentMessageReadRepository(db), membership: membership, persons: persons,
-			},
-			groups: owners.Groups,
+		ParentPortalRepositories: carePlanCompose.NewParentPortalRepositories(carePlanCompose.ParentPortalDependencies{
+			DB: db, Directory: parentPortalDirectory{people: owners.People},
+			AccountSchools: identity.ListActiveAccountSchoolIDs,
+			Phases:         owners.Enrollment, Applications: owners.Enrollment,
+			Accounts: identityAccountDirectory{accounts: identity},
+		}),
+		MessagingRepositories: parentStore.MessagingRepositories{
+			ParentAnnouncement:  NewParentAnnouncementRepository(db, owners.Enrollment, owners.Now),
+			ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, peopleCompose.NewMessageableGuardians(db, identity.FindActiveSchoolMemberships)),
+			ParentMessageRead: parentStore.WithInboxGroupNames(
+				parentStore.NewStaffParentMessageReadRepository(db, members, persons), parentGroupNames{groups: owners.Groups}.list),
+			StaffMessageRead: staffStore.NewStaffMessageReadRepository(db, peopleCompose.NewMessageableStaff(db,
+				parentStore.CurrentTenantStaffAccounts(members, persons), staffMessageIdentity(identity))),
 		},
-		StaffMessageRead: staffStore.NewStaffMessageReadRepository(db, users.NewMessageableStaffRepository(peopleRuntime(db), func(ctx context.Context) ([]int64, error) {
-			return currentTenantStaffAccounts(ctx, membership(), persons())
-		}, staffMessageIdentity(identity))),
 	}
-}
-
-// NewParentChildRepository lists a guardian account's children across its
-// active schools, with the students, guardian links and person names read
-// through the People Directory. The school names are bound by WithSchools.
-func NewParentChildRepository(schools parentRepo.ActiveSchoolMemberships, people peopledirectory.Capability) parentModels.ChildRepository {
-	child := parentRepo.NewChildRepository(schools)
-	if repo, ok := child.(*parentRepo.ChildRepository); ok {
-		repo.BindStudentDirectory(parentStudentDirectory{people})
-		repo.BindGuardianDirectory(parentGuardianDirectory{people})
-	}
-	return personChildRepository{ChildRepository: child, persons: people}
 }
 
 // WithSchools returns the repositories with the school names and the school
@@ -107,12 +78,115 @@ func (r ParentPortalRepositories) WithSchools(schools organizationtenancy.Query)
 		panic("parent portal repositories: organization tenancy query is required")
 	}
 	return ParentPortalRepositories{
-		ParentChild:             schoolChildRepository{ChildRepository: r.ParentChild, schools: schools},
-		ParentEnrollablePhase:   schoolEnrollablePhaseRepository{EnrollablePhaseRepository: r.ParentEnrollablePhase, schools: schools},
-		ParentEnrollmentRequest: schoolEnrollmentRequestRepository{EnrollmentRequestRepository: r.ParentEnrollmentRequest, schools: schools},
-		ParentAnnouncement:      schoolParentAnnouncementRepository{ParentAnnouncementRepository: r.ParentAnnouncement, schools: schools},
-		ParentMessageThread:     r.ParentMessageThread,
-		ParentMessageRead:       schoolParentMessageReadRepository{ParentMessageReadRepository: r.ParentMessageRead, schools: schools},
-		StaffMessageRead:        r.StaffMessageRead,
+		ParentPortalRepositories: r.ParentPortalRepositories.WithSchools(parentPortalSchools{schools: schools}),
+		MessagingRepositories:    r.WithSchoolNames(parentPortalSchools{schools: schools}),
 	}
+}
+
+// parentPortalDirectory serves the guardian portal's People Directory port.
+type parentPortalDirectory struct{ people peopledirectory.Capability }
+
+func (d parentPortalDirectory) ListParentPortalStudents(ctx context.Context, ids []int64) ([]carePlanCompose.ParentPortalStudent, error) {
+	students, err := d.people.ListStudentsByID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]carePlanCompose.ParentPortalStudent, 0, len(students))
+	for _, student := range students {
+		result = append(result, carePlanCompose.ParentPortalStudent{
+			ID: student.ID, TenantID: student.TenantID, PersonID: student.PersonID,
+			SchoolClass: student.SchoolClass, Status: student.Status,
+			EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil,
+		})
+	}
+	return result, nil
+}
+
+func (d parentPortalDirectory) ListParentPortalGuardianLinks(ctx context.Context, accountID int64) ([]carePlanCompose.ParentPortalGuardianLink, error) {
+	links, err := d.people.ListGuardianLinksByAccount(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]carePlanCompose.ParentPortalGuardianLink, 0, len(links))
+	for _, link := range links {
+		result = append(result, carePlanCompose.ParentPortalGuardianLink{
+			TenantID: link.TenantID, StudentID: link.StudentID, GuardianProfileID: link.GuardianProfileID, Permissions: link.Permissions,
+		})
+	}
+	return result, nil
+}
+
+func (d parentPortalDirectory) ListParentPortalPersons(ctx context.Context, ids []int64) ([]carePlanCompose.ParentPortalPerson, error) {
+	persons, err := d.people.ListPersonsByID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]carePlanCompose.ParentPortalPerson, 0, len(persons))
+	for _, person := range persons {
+		result = append(result, carePlanCompose.ParentPortalPerson{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName})
+	}
+	return result, nil
+}
+
+// parentPortalSchools serves the guardian portal's and the parent inbox's
+// school ports from the Organisation & Tenancy owner.
+type parentPortalSchools struct{ schools organizationtenancy.Query }
+
+func (d parentPortalSchools) ListParentPortalSchools(ctx context.Context, ids []int64) ([]carePlanCompose.ParentPortalSchool, error) {
+	schools, err := d.schools.ListSchoolsByID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]carePlanCompose.ParentPortalSchool, 0, len(schools))
+	for _, school := range schools {
+		result = append(result, carePlanCompose.ParentPortalSchool{
+			ID: school.ID, Name: school.Name, Slug: school.Slug, Subdomain: school.Subdomain,
+			Active: school.Active, Hidden: school.Hidden, Deleted: school.IsDeleted(),
+		})
+	}
+	return result, nil
+}
+
+func (d parentPortalSchools) SchoolName(ctx context.Context, tenantID int64) (string, error) {
+	school, err := d.schools.FindSchool(ctx, tenantID)
+	if err != nil {
+		return "", err
+	}
+	return school.Name, nil
+}
+
+func (d parentPortalSchools) SchoolNames(ctx context.Context, ids []int64) (map[int64]string, error) {
+	schools, err := schoolsByID(ctx, d.schools, ids)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[int64]string, len(schools))
+	for id, school := range schools {
+		names[id] = school.Name
+	}
+	return names, nil
+}
+
+// parentStaffMembers serves the parent inbox's staff port from School
+// Membership.
+type parentStaffMembers struct{ membership schoolmembership.Query }
+
+func (d parentStaffMembers) list(ctx context.Context, tenantIDs []int64) ([]parentStore.StaffMember, error) {
+	members, err := d.membership.ListStaff(ctx, schoolmembership.StaffFilter{TenantIDs: tenantIDs})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]parentStore.StaffMember, 0, len(members))
+	for _, member := range members {
+		result = append(result, parentStore.StaffMember{TenantID: member.TenantID, PersonID: member.PersonID})
+	}
+	return result, nil
+}
+
+// parentGroupNames serves the parent inbox's group port from School
+// Structure.
+type parentGroupNames struct{ groups schoolstructure.Query }
+
+func (d parentGroupNames) list(ctx context.Context, ids []int64) (map[int64]string, error) {
+	return groupNamesByID(ctx, d.groups, ids)
 }

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -64,27 +63,22 @@ func (d identityAccountDirectory) AccountEmail(ctx context.Context, accountID in
 }
 
 // staffMessageIdentity returns the Identity & Access owner queries the staff
-// messaging reads filter through.
-func staffMessageIdentity(accounts identityaccess.StaffAccountQueries) usersRepo.StaffMessageIdentity {
-	return usersRepo.StaffMessageIdentity{
+// messaging reads filter through, including the role classification
+// (#2721).
+func staffMessageIdentity(accounts identityaccess.StaffAccountQueries) peopleCompose.StaffMessageIdentity {
+	return peopleCompose.StaffMessageIdentity{
 		ActiveSchoolAccounts: accounts.ListActiveAccountIDsForTenant,
-		RoleClasses:          schoolRoleClassQuery(accounts),
-	}
-}
-
-// schoolRoleClassQuery adapts the owner's role classification to the staff
-// messaging projection (#2721).
-func schoolRoleClassQuery(roles identityaccess.StaffAccountQueries) usersRepo.SchoolRoleClassQuery {
-	return func(ctx context.Context, tenantID int64, accountIDs []int64) ([]usersRepo.SchoolRoleClass, error) {
-		rows, err := roles.ClassifySchoolRoles(ctx, tenantID, accountIDs)
-		if err != nil {
-			return nil, err
-		}
-		result := make([]usersRepo.SchoolRoleClass, 0, len(rows))
-		for _, row := range rows {
-			result = append(result, usersRepo.SchoolRoleClass{AccountID: row.AccountID, IsAdmin: row.IsAdmin, IsLehrkraft: row.IsLehrkraft})
-		}
-		return result, nil
+		RoleClasses: func(ctx context.Context, tenantID int64, accountIDs []int64) ([]peopleCompose.StaffMessageRole, error) {
+			rows, err := accounts.ClassifySchoolRoles(ctx, tenantID, accountIDs)
+			if err != nil {
+				return nil, err
+			}
+			result := make([]peopleCompose.StaffMessageRole, 0, len(rows))
+			for _, row := range rows {
+				result = append(result, peopleCompose.StaffMessageRole{AccountID: row.AccountID, IsAdmin: row.IsAdmin, IsLehrkraft: row.IsLehrkraft})
+			}
+			return result, nil
+		},
 	}
 }
 

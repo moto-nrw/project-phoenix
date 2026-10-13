@@ -1,11 +1,10 @@
 package repositories
 
 import (
-	"context"
-
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -23,8 +22,8 @@ func NewStaffMessagingTestRepositories(db *bun.DB, members MembershipTestReposit
 	return StaffMessagingTestRepositories{
 		Thread:  staffStore.NewStaffMessageThreadRepository(db),
 		Message: staffStore.NewStaffMessageRepository(db),
-		Read: staffStore.NewStaffMessageReadRepository(db, usersRepo.NewMessageableStaffRepository(peopleRuntime(db), func(ctx context.Context) ([]int64, error) {
-			return currentTenantStaffAccounts(ctx, membership, members.Person)
-		}, staffMessageIdentity(newIdentityAccess(db, nil)))),
+		Read: staffStore.NewStaffMessageReadRepository(db, peopleCompose.NewMessageableStaff(db,
+			parentStore.CurrentTenantStaffAccounts(parentStaffMembers{membership: membership}.list, members.Person),
+			staffMessageIdentity(newIdentityAccess(db, nil)))),
 	}, nil
 }

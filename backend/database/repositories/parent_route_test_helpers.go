@@ -54,7 +54,7 @@ func NewParentRouteTestRepositories(db *bun.DB, members MembershipTestRepositori
 		return ParentRouteTestRepositories{}, err
 	}
 	return ParentRouteTestRepositories{
-		ParentChild: NewParentChildRepository(newIdentityAccess(db, nil).ListActiveAccountSchoolIDs, people), Student: members.Student, Person: members.Person,
+		ParentChild: carePlanCompose.NewParentChildRepository(newIdentityAccess(db, nil).ListActiveAccountSchoolIDs, parentPortalDirectory{people: people}), Student: members.Student, Person: members.Person,
 		GuardianProfile: members.GuardianProfile, StudentGuardian: members.StudentGuardian,
 		StudentStatusDay: NewStudentStatusDayRepository(care), CareExceptions: care, ExcusedAbsenceRequest: NewExcusedAbsenceRequestRepository(care),
 		ExcusedRequests: excusedRequests,

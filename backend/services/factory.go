@@ -584,7 +584,7 @@ func newFactory(
 	calendarPeriods := arrivalTimetable.NewCalendarPeriodRepository(calendar, arrivalTimetable.NewPlanningCalendarPeriodUsage(enrollmentModule, timetableCapability))
 	statusDays := repositories.NewStudentStatusDayRepository(carePlan)
 	parentPortal := repositories.NewParentPortalRepositories(db, repositories.ParentPortalOwners{
-		People: persons, Groups: groups, Membership: membership, Persons: personRepository,
+		People: persons, Groups: groups, Membership: membership,
 		Identity: peopleIdentity, Enrollment: enrollmentModule, Now: now,
 	}).WithSchools(organizations)
 	caregiverBindingLock := NewCaregiverBindingLocker(membership, workTime, newStudentPresence(db, logger), timetableCapability)

@@ -165,7 +165,7 @@ func newPeopleRepositorySuiteFactory(db *bun.DB, deps repositories.TimetableDepe
 		CareScheduleRepositories:   repositories.NewCareScheduleRepositories(carePlan),
 		SchoolCalendarRepositories: timetableCompose.NewSchoolCalendarRepositories(calendar, timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), deps.Capability)),
 		ParentPortalRepositories: repositories.NewParentPortalRepositories(db, repositories.ParentPortalOwners{
-			People: deps.Students, Groups: deps.Groups, Membership: deps.Membership, Persons: NewPersonRepository(db),
+			People: deps.Students, Groups: deps.Groups, Membership: deps.Membership,
 			Identity: newPeopleIdentityAccess(db, IdentityAccessObserver(deps.ObserveIdentityAccess)), Enrollment: enrollment, Now: now,
 		}),
 		GuardianPhoneNumber:      peopleCompose.NewGuardianPhoneNumberRepository(db),

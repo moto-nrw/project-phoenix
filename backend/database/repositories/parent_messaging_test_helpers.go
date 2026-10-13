@@ -4,7 +4,6 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/uptrace/bun"
 )
 
@@ -40,10 +39,6 @@ func NewParentMessagingTestRepositories(db *bun.DB) (ParentMessagingTestReposito
 		Message: parentStore.NewParentMessageRepository(db),
 		// The three guardian-facing projections resolve the school's staff
 		// accounts through School Membership, exactly as the factory binds them.
-		Read: parentMessageStaffRepository{
-			ParentMessageReads: parentStore.NewParentMessageReadRepository(db),
-			membership:         func() schoolmembership.Capability { return membership },
-			persons:            func() userModels.PersonRepository { return persons },
-		},
+		Read: parentStore.NewStaffParentMessageReadRepository(db, parentStaffMembers{membership: membership}.list, persons),
 	}, nil
 }
