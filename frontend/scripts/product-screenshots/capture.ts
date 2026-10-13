@@ -68,17 +68,21 @@ nextjs-portal { display: none !important; }
  * kennt; deshalb beantwortet dieses Skript die Frage für jeden Schlüssel dieser
  * Form mit "erledigt". Dasselbe gilt für die Erste-Schritte-Liste der Eltern
  * (components/parent/onboarding), die sich beim ersten Besuch über den Inhalt
- * legt: Sie gilt als ausgeblendet. Ein Produkt-Screenshot zeigt die App im
- * Alltag, nicht ihren Erststart.
+ * legt: Sie gilt als ausgeblendet. Die Erste-Schritte-Liste der Betreuer
+ * (components/staff-onboarding) geht einmal je Sitzung von selbst auf; sie
+ * gilt als schon geöffnet und bleibt damit zugeklappt. Ein Produkt-Screenshot
+ * zeigt die App im Alltag, nicht ihren Erststart.
  */
 const PRESET_DECISIONS = `
 (() => {
   const setupKey = /^moto\\.[a-z]+\\.notification-setup\\.v1\\./;
   const parentFirstStepsKey = /^parent-first-steps:v1:/;
+  const staffOnboardingOpenedKey = /^staff-onboarding-opened:/;
   const original = Storage.prototype.getItem;
   Storage.prototype.getItem = function (key) {
     if (setupKey.test(key)) return '{"done":true}';
     if (parentFirstStepsKey.test(key)) return '{"dismissed":true}';
+    if (staffOnboardingOpenedKey.test(key)) return "1";
     return original.call(this, key);
   };
 })();
@@ -161,14 +165,50 @@ async function sessionFor(
   }
 }
 
-async function waitForSettled(page: Page, timeoutMs: number): Promise<number> {
+/**
+ * Bilder im Ausschnitt, die noch nicht geladen sind. Avatare laden über
+ * next/image mit loading="lazy"; ohne dieses Warten zeigte ein Shot leere
+ * Kreise statt Fotos. Ein Bild, das nicht lädt, ersetzt die Avatar-Komponente
+ * durch Initialen; es zählt hier also nur, solange es unterwegs ist.
+ */
+function countUnloadedImages(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      Array.from(document.images).filter((image) => {
+        const { top, bottom, left, right, width, height } =
+          image.getBoundingClientRect();
+        const inView =
+          width > 0 &&
+          height > 0 &&
+          bottom > 0 &&
+          right > 0 &&
+          top < window.innerHeight &&
+          left < window.innerWidth;
+        return inView && (!image.complete || image.naturalWidth === 0);
+      }).length,
+  );
+}
+
+interface Settled {
+  readonly loadingIndicators: number;
+  readonly unloadedImages: number;
+}
+
+async function waitForSettled(page: Page, timeoutMs: number): Promise<Settled> {
   const deadline = Date.now() + timeoutMs;
   while ((await countLoadingIndicators(page)) > 0 && Date.now() < deadline) {
     await page.waitForTimeout(200);
   }
+  // Erst nach den Ladeanzeigen: vorher stehen die Bilder noch nicht im DOM.
+  while ((await countUnloadedImages(page)) > 0 && Date.now() < deadline) {
+    await page.waitForTimeout(200);
+  }
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(SETTLE_MS);
-  return countLoadingIndicators(page);
+  return {
+    loadingIndicators: await countLoadingIndicators(page),
+    unloadedImages: await countUnloadedImages(page),
+  };
 }
 
 async function runStep(page: Page, step: Step): Promise<void> {
@@ -275,7 +315,7 @@ async function captureOne(
     const opensDialog = (shot.vorbereitung ?? []).some(
       (step) => "klicken" in step,
     );
-    let loadingIndicators = await waitForSettled(page, loadTimeoutMs);
+    let settled = await waitForSettled(page, loadTimeoutMs);
     // Die Umleitungsprüfung gilt der Seite, auf der der Shot landet. Ein Klick
     // der Vorbereitung darf danach weiterführen, etwa von der Kindersuche auf
     // ein Kind, dessen ID erst der Seed vergibt.
@@ -291,7 +331,7 @@ async function captureOne(
         );
         break;
       }
-      loadingIndicators = await waitForSettled(page, loadTimeoutMs);
+      settled = await waitForSettled(page, loadTimeoutMs);
     }
 
     const reasons = [
@@ -311,7 +351,8 @@ async function captureOne(
             .locator("nextjs-portal")
             .locator("[data-nextjs-dialog], [data-nextjs-dialog-overlay]")
             .count()) > 0,
-        loadingIndicators,
+        loadingIndicators: settled.loadingIndicators,
+        unloadedImages: settled.unloadedImages,
         unexpectedDialogs: opensDialog
           ? 0
           : await page.locator('[role="dialog"]:visible, dialog[open]').count(),

@@ -1,8 +1,9 @@
 // Qualitätsprüfung der Produkt-Screenshots (#3759). Ein Shot gilt als kaputt
 // bei HTTP-Fehler, Fehler-Boundary, Umleitung auf den Login, sichtbarem
-// Ladezustand nach Timeout oder Konsolenfehler. Ein kaputter Shot bricht den
-// ganzen Lauf ab, damit "Aktuell" nie ein kaputtes Bild enthält. Einen
-// visuellen Diff gibt es bewusst nicht; Menschen prüfen die Bilder.
+// Ladezustand nach Timeout, nicht geladenem Bild oder Konsolenfehler. Ein
+// kaputter Shot bricht den ganzen Lauf ab, damit "Aktuell" nie ein kaputtes
+// Bild enthält. Einen visuellen Diff gibt es bewusst nicht; Menschen prüfen
+// die Bilder.
 //
 // Diese Datei enthält nur die Bewertung. Die Beobachtungen sammelt capture.ts
 // im Browser.
@@ -30,6 +31,8 @@ export interface ShotObservation {
   readonly devErrorOverlayPresent: boolean;
   /** Ladeanzeigen, die nach dem Warten noch sichtbar sind. */
   readonly loadingIndicators: number;
+  /** Bilder im Ausschnitt, die nach dem Warten noch nicht geladen sind. */
+  readonly unloadedImages: number;
   /**
    * Sichtbare Dialoge in einem Shot, dessen Vorbereitung keinen Klick enthält.
    * Ein Dialog ist nur gewollt, wenn der Shot ihn selbst öffnet.
@@ -130,6 +133,11 @@ export function findBrokenReasons(observation: ShotObservation): string[] {
   if (observation.loadingIndicators > 0) {
     reasons.push(
       `${observation.loadingIndicators} Ladeanzeige(n) nach dem Timeout noch sichtbar`,
+    );
+  }
+  if (observation.unloadedImages > 0) {
+    reasons.push(
+      `${observation.unloadedImages} Bild(er) nach dem Timeout nicht geladen (etwa Fotos in Avataren)`,
     );
   }
 
