@@ -7,15 +7,13 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -24,20 +22,20 @@ import (
 // relAcctHandlerSettings is a configurable settings stub for the related-
 // accounts gate at the HTTP layer.
 type relAcctHandlerSettings struct {
-	configService.SettingsService
+	parentService.SettingsService
 	inviteMode string
 	canRemove  bool
 }
 
 func (s relAcctHandlerSettings) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
-	if key == configModels.KeyGuardianParentInviteMode {
+	if key == settings.KeyGuardianParentInviteMode {
 		return s.inviteMode, nil
 	}
 	return "", nil
 }
 
 func (s relAcctHandlerSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	if key == configModels.KeyGuardianParentCanRemove {
+	if key == settings.KeyGuardianParentCanRemove {
 		return s.canRemove, nil
 	}
 	return false, nil
@@ -73,11 +71,11 @@ func (relAcctSocialWorkerInvites) RevokeAccess(context.Context, parentService.Gu
 
 func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove bool) http.Handler {
 	t.Helper()
-	repos, repoErr := services.NewParentRouteTestRepositories(db, services.MustNewMembershipTestRepositories(db))
+	repos, repoErr := testutil.NewParentRouteTestRepositories(db)
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CareExceptions,
-		People:              services.MustNewPeopleDirectory(db),
+		People:              testutil.MustNewPeopleDirectory(db),
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
@@ -87,7 +85,7 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 		GuardianProfileRepo: repos.GuardianProfile,
 		Logger:              slog.Default(),
 	})
-	rs := parent.NewResource(parent.ResourceConfig{Parent: svc, DB: db})
+	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router())
 }
 
@@ -97,7 +95,7 @@ func TestRelatedAccountsEndpoint_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	router := newRelAcctRouter(t, db, configModels.ParentInviteModeDirect, false)
+	router := newRelAcctRouter(t, db, settings.ParentInviteModeDirect, false)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
 
@@ -116,7 +114,7 @@ func TestRelatedAccountsEndpoint_InviteGate(t *testing.T) {
 	t.Run("disabled → 403", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		router := newRelAcctRouter(t, db, configModels.ParentInviteModeDisabled, false)
+		router := newRelAcctRouter(t, db, settings.ParentInviteModeDisabled, false)
 		token := parentToken(t, chain.AccountID)
 
 		rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid(chain)+"/related-accounts", token,
@@ -127,7 +125,7 @@ func TestRelatedAccountsEndpoint_InviteGate(t *testing.T) {
 	t.Run("direct → 201", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		router := newRelAcctRouter(t, db, configModels.ParentInviteModeDirect, false)
+		router := newRelAcctRouter(t, db, settings.ParentInviteModeDirect, false)
 		token := parentToken(t, chain.AccountID)
 
 		rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid(chain)+"/related-accounts", token,
@@ -142,7 +140,7 @@ func TestRelatedAccountsEndpoint_RemoveGate(t *testing.T) {
 	t.Run("removal disabled → 403", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		router := newRelAcctRouter(t, db, configModels.ParentInviteModeDirect, false)
+		router := newRelAcctRouter(t, db, settings.ParentInviteModeDirect, false)
 		token := parentToken(t, chain.AccountID)
 		sid := strconv.FormatInt(chain.StudentID, 10)
 		gid := strconv.FormatInt(chain.GuardianProfileID, 10)
@@ -154,7 +152,7 @@ func TestRelatedAccountsEndpoint_RemoveGate(t *testing.T) {
 	t.Run("removal enabled → 200", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		router := newRelAcctRouter(t, db, configModels.ParentInviteModeDirect, true)
+		router := newRelAcctRouter(t, db, settings.ParentInviteModeDirect, true)
 		token := parentToken(t, chain.AccountID)
 		sid := strconv.FormatInt(chain.StudentID, 10)
 		gid := strconv.FormatInt(chain.GuardianProfileID, 10)
@@ -182,21 +180,21 @@ func (s *relAcctCaptureInvites) RevokeAccess(context.Context, parentService.Guar
 
 func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService.GuardianAccess) http.Handler {
 	t.Helper()
-	repos, repoErr := services.NewParentRouteTestRepositories(db, services.MustNewMembershipTestRepositories(db))
+	repos, repoErr := testutil.NewParentRouteTestRepositories(db)
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CareExceptions,
-		People:              services.MustNewPeopleDirectory(db),
+		People:              testutil.MustNewPeopleDirectory(db),
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
-		Settings:            relAcctHandlerSettings{inviteMode: configModels.ParentInviteModeDirect},
+		Settings:            relAcctHandlerSettings{inviteMode: settings.ParentInviteModeDirect},
 		GuardianInvites:     invites,
 		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: repos.GuardianProfile,
 		Logger:              slog.Default(),
 	})
-	rs := parent.NewResource(parent.ResourceConfig{Parent: svc, DB: db})
+	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router())
 }
 

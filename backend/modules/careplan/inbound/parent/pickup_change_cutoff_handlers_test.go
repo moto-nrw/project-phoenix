@@ -10,28 +10,28 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // cutoffPassedSettings keeps every parent feature on and sets the same-day
 // pickup cutoff to midnight, so today is closed at any time the test runs.
-type cutoffPassedSettings struct{ configService.SettingsService }
+type cutoffPassedSettings struct{ parentService.SettingsService }
 
 func (cutoffPassedSettings) ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error) {
 	return alwaysOnSettings{}.ResolveBoolForTenant(ctx, tenantID, key)
 }
 
 func (cutoffPassedSettings) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
-	if key == configModels.KeyParentPickupChangeCutoffTime {
+	if key == settings.KeyParentPickupChangeCutoffTime {
 		return "00:00", nil
 	}
 	return "", nil
 }
 
 func (s cutoffPassedSettings) ResolveStringForTenantInTx(ctx context.Context, tenantID int64, key string) (string, error) {
-	if key == configModels.KeyParentPickupChangeEnabled {
+	if key == settings.KeyParentPickupChangeEnabled {
 		return "true", nil
 	}
 	return s.ResolveStringForTenant(ctx, tenantID, key)

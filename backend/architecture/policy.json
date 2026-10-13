@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 38,
+  "policy_epoch": 39,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -9538,6 +9538,51 @@
       "source_role": "http",
       "target_owner": "care-plan",
       "target_role": "public"
+    },
+    {
+      "id": "inbound-parent.http.inbound-common",
+      "description": "The guardian portal routes render, gate and bind requests through the shared HTTP runtime of api/common, as every other HTTP adapter does (ADR 0051, #3421).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-parent.http.identity-adapter",
+      "description": "The guardian portal routes authenticate the parent-scope session through the Identity & Access session adapter (ADR 0031, ADR 0051, #3421).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-parent.http.tenant-runtime",
+      "description": "The guardian portal enrollment routes open their tenant and administrative transactions through the tenant runtime the request carries (ADR 0051, #3421).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-parent.adapter-test.identity-adapter",
+      "description": "The guardian portal handler suites put parent-scope claims on requests and mint session tokens through the Identity & Access session adapter (ADR 0051, #3421).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
     },
     {
       "id": "care-plan.public.excused-request-contract",

@@ -40,12 +40,18 @@ const (
 	KeyChildSearchOnlyNavigation             = configModel.KeyChildSearchOnlyNavigation
 	KeyFeedbackEnabled                       = configModel.KeyFeedbackEnabled
 	KeyGroupMode                             = configModel.KeyGroupMode
+	KeyGuardianParentCanRemove               = configModel.KeyGuardianParentCanRemove
+	KeyGuardianParentInviteMode              = configModel.KeyGuardianParentInviteMode
 	KeyOperationalOverviewScope              = configModel.KeyOperationalOverviewScope
 	KeyParentAbsenceReviewScope              = configModel.KeyParentAbsenceReviewScope
+	KeyParentExcusedRequiresApproval         = configModel.KeyParentExcusedRequiresApproval
 	KeyParentNotesEnabled                    = configModel.KeyParentNotesEnabled
+	KeyParentPickupChangeCutoffTime          = configModel.KeyParentPickupChangeCutoffTime
+	KeyParentPickupChangeEnabled             = configModel.KeyParentPickupChangeEnabled
 	KeyParentRequestGroupLeaderReviewEnabled = configModel.KeyParentRequestGroupLeaderReviewEnabled
 	KeyParentRequestReasonPolicy             = configModel.KeyParentRequestReasonPolicy
 	KeyParentRequestReviewScope              = configModel.KeyParentRequestReviewScope
+	KeyParentSickRequiresApproval            = configModel.KeyParentSickRequiresApproval
 	KeyPresenceMode                          = configModel.KeyPresenceMode
 	KeyPrivacyConsentRetentionDays           = configModel.KeyPrivacyConsentRetentionDays
 	KeyRequirePickupOfferingReview           = configModel.KeyRequirePickupOfferingReview
@@ -78,6 +84,9 @@ const (
 	OverviewScopeAdmins   = configModel.OverviewScopeAdmins
 	OverviewScopeAllStaff = configModel.OverviewScopeAllStaff
 	OverviewScopeOwn      = configModel.OverviewScopeOwn
+
+	ParentInviteModeDirect   = configModel.ParentInviteModeDirect
+	ParentInviteModeDisabled = configModel.ParentInviteModeDisabled
 
 	PresenceModeBinary   = configModel.PresenceModeBinary
 	PresenceModeDetailed = configModel.PresenceModeDetailed

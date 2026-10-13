@@ -5,11 +5,9 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -26,7 +24,7 @@ type PortalService interface {
 	// ListChildrenForAccount returns every child linked to any
 	// guardian profile owned by the account, across every active
 	// tenant mapping. Sorted by school then by name.
-	ListChildrenForAccount(ctx context.Context, accountID int64) ([]*parentModels.ChildSummary, error)
+	ListChildrenForAccount(ctx context.Context, accountID int64) ([]*parentService.ChildSummary, error)
 
 	// GetChildTodayStatus liefert den auf Elternsicht reduzierten
 	// Betreuungsstatus des laufenden Berliner Kalendertages: eine
@@ -39,20 +37,20 @@ type PortalService interface {
 	// pair the parent could enroll a new child at, with a flag for
 	// schools they're already linked to. Sorted with linked schools
 	// first.
-	ListEnrollableForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error)
+	ListEnrollableForAccount(ctx context.Context, accountID int64) ([]*parentService.EnrollablePhase, error)
 
 	// GetEnrollmentSubmitStatus resolves whether the account is linked
 	// to the school and whether its guardian relationships grant
 	// parent_portal.enrollment.submit there (#1663). Reuses a caller-
 	// provided admin transaction when one is in context.
-	GetEnrollmentSubmitStatus(ctx context.Context, accountID, schoolID int64) (*parentModels.GuardianSubmitStatus, error)
+	GetEnrollmentSubmitStatus(ctx context.Context, accountID, schoolID int64) (*parentService.GuardianSubmitStatus, error)
 
 	// ListEnrollmentsForAccount returns every enrollment.requests row
 	// where guardian_account_id matches the calling account, joined
 	// to phase + school + child summaries. Used by the dashboard to
 	// surface in-progress / decided submissions without the parent
 	// having to dig out the email-link status URL.
-	ListEnrollmentsForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollmentRequestSummary, error)
+	ListEnrollmentsForAccount(ctx context.Context, accountID int64) ([]*parentService.EnrollmentRequestSummary, error)
 
 	// GetChildConsents returns the four consent/acknowledgement states currently
 	// stored for the child. Visibility requires parent_portal.access; only the
@@ -99,7 +97,7 @@ type PortalService interface {
 
 	// EditMasterDataRequest rewrites the proposed value of the caller's own
 	// pending Stammdaten request (#2267). Target and field stay fixed.
-	EditMasterDataRequest(ctx context.Context, accountID, studentID, requestID int64, newValue json.RawMessage, expectedVersion string) (*usersModels.StudentDataChangeRequest, error)
+	EditMasterDataRequest(ctx context.Context, accountID, studentID, requestID int64, newValue json.RawMessage, expectedVersion string) (*parentService.StudentDataChangeRequest, error)
 
 	// EditOfferingChangeRequest rewrites the caller's own pending offering
 	// change (#2267).
@@ -182,11 +180,11 @@ type PortalService interface {
 	// already-pending fields are skipped/rejected. Gated by
 	// operations.parent_master_data_request_enabled and
 	// GuardianPermissionMasterDataRequest.
-	SubmitMasterDataChangeRequest(ctx context.Context, accountID, studentID int64, changes []parentService.MasterDataFieldChange, recipientGuardianProfileIDs []int64) ([]*usersModels.StudentDataChangeRequest, error)
+	SubmitMasterDataChangeRequest(ctx context.Context, accountID, studentID int64, changes []parentService.MasterDataFieldChange, recipientGuardianProfileIDs []int64) ([]*parentService.StudentDataChangeRequest, error)
 
 	// ListMyMasterDataRequests returns the child's change requests (any status),
 	// newest-first. Authorization only.
-	ListMyMasterDataRequests(ctx context.Context, accountID, studentID int64) ([]*usersModels.StudentDataChangeRequest, error)
+	ListMyMasterDataRequests(ctx context.Context, accountID, studentID int64) ([]*parentService.StudentDataChangeRequest, error)
 
 	// ListChildGuardians returns every guardian linked to the child with
 	// contact + pickup detail and the caller's per-guardian edit capabilities.
@@ -213,13 +211,13 @@ type PortalService interface {
 	// ListMessageThreads returns every conversation the guardian owns across
 	// all their children's schools (newest activity first), with the unread
 	// staff-message count. Cross-tenant.
-	ListMessageThreads(ctx context.Context, accountID int64) ([]*usersModels.InboxThread, error)
+	ListMessageThreads(ctx context.Context, accountID int64) ([]*parentService.InboxThread, error)
 
 	// ListChildThreads returns the guardian's conversation(s) about ONE owned
 	// child (at most one per the chat model), newest activity first, with the
 	// unread staff-message count. Does NOT mark the thread read. Authorization
 	// resolves ownership + tenant first.
-	ListChildThreads(ctx context.Context, accountID, studentID int64) ([]*usersModels.InboxThread, error)
+	ListChildThreads(ctx context.Context, accountID, studentID int64) ([]*parentService.InboxThread, error)
 
 	// UnreadMessageCount returns the guardian's total count of conversations
 	// with unread staff-side activity across all their children's schools — the
@@ -275,7 +273,7 @@ type PortalService interface {
 	// ListAnnouncements returns the guardian's parent-news feed across all their
 	// (news-enabled) children's schools, newest-published first, each with the
 	// guardian's read/ack state. Cross-tenant; broadcast (#1669).
-	ListAnnouncements(ctx context.Context, accountID int64) ([]*usersModels.AnnouncementFeedItem, error)
+	ListAnnouncements(ctx context.Context, accountID int64) ([]*parentService.AnnouncementFeedItem, error)
 
 	// UnreadAnnouncementCount returns how many feed announcements the guardian
 	// has not read — the parent-portal Neuigkeiten badge. Cross-tenant.
@@ -301,7 +299,7 @@ type PortalService interface {
 	RespondToAnnouncement(ctx context.Context, accountID, announcementID, studentID int64, optionIDs []int64, expectedPublishedAt time.Time) error
 	// SubmitDeclaration records one Erklärung for one child (#3430); false =
 	// the same action was already the latest and nothing new was stored.
-	SubmitDeclaration(ctx context.Context, accountID, announcementID int64, in parentService.DeclarationInput, confirm parentService.PasswordConfirmer) (*usersModels.DeclarationSubmission, bool, error)
+	SubmitDeclaration(ctx context.Context, accountID, announcementID int64, in parentService.DeclarationInput, confirm parentService.PasswordConfirmer) (*parentService.DeclarationSubmission, bool, error)
 	// DeclarationProof returns the account's own proof for one child.
 	DeclarationProof(ctx context.Context, accountID, announcementID, studentID int64) (*parentService.DeclarationProof, error)
 }

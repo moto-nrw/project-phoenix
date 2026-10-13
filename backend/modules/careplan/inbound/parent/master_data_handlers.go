@@ -9,8 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -45,8 +44,8 @@ type MasterDataResponse struct {
 	PrimaryPhone           *string `json:"primary_phone,omitempty"`
 
 	// Permanent weekday departure config — Track B editable, read-only here.
-	DepartureDays         usersModels.DepartureDays         `json:"departure_days,omitempty"`
-	AllowedDepartureModes usersModels.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
+	DepartureDays         parentService.DepartureDays         `json:"departure_days,omitempty"`
+	AllowedDepartureModes parentService.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
 
 	PendingChanges []MasterDataChangeResponse `json:"pending_changes"`
 }
@@ -180,7 +179,7 @@ type MasterDataChangeInput struct {
 	Value    json.RawMessage `json:"value"`
 }
 
-func toMasterDataChangeResponses(rows []*usersModels.StudentDataChangeRequest, accountID int64) []MasterDataChangeResponse {
+func toMasterDataChangeResponses(rows []*parentService.StudentDataChangeRequest, accountID int64) []MasterDataChangeResponse {
 	out := make([]MasterDataChangeResponse, 0, len(rows))
 	for _, c := range rows {
 		out = append(out, MasterDataChangeResponse{
