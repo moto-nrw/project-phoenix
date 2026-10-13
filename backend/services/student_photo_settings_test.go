@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +26,7 @@ func (f *fakeStudentPhotoService) HandleFeatureToggle(_ context.Context, _ int64
 func TestRegisterStudentPhotoSettingsSideEffectsDispatchesToTheService(t *testing.T) {
 	t.Parallel()
 
-	registry := sideeffects.NewRegistry()
+	registry := services.NewSettingsSideEffects()
 	service := &fakeStudentPhotoService{}
 
 	services.RegisterStudentPhotoSettingsSideEffects(registry, service)
@@ -42,7 +41,7 @@ func TestRegisterStudentPhotoSettingsSideEffectsDispatchesToTheService(t *testin
 func TestRegisterStudentPhotoSettingsSideEffectsIgnoresOtherKeys(t *testing.T) {
 	t.Parallel()
 
-	registry := sideeffects.NewRegistry()
+	registry := services.NewSettingsSideEffects()
 	service := &fakeStudentPhotoService{}
 
 	services.RegisterStudentPhotoSettingsSideEffects(registry, service)

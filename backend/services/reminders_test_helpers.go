@@ -6,9 +6,9 @@ import (
 	"time"
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
@@ -18,7 +18,7 @@ import (
 
 type RemindersTestModule struct {
 	Reminders   reminder.Query
-	Settings    config.SettingsService
+	Settings    settingsCompose.SettingsService
 	UserContext *CallerRows
 }
 

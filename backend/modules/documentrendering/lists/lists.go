@@ -148,3 +148,27 @@ func SanitizeUserText(text string) string {
 func ClassGroupTitle(schoolClass string) string {
 	return listexport.ClassGroupTitle(schoolClass)
 }
+
+// Columns of the guardian finance export.
+const (
+	ColumnStudentName  = listexport.ColumnStudentName
+	ColumnStudentClass = listexport.ColumnStudentClass
+	ColumnContactName  = listexport.ColumnContactName
+	ColumnIBAN         = listexport.ColumnIBAN
+)
+
+// RendererService is the concrete renderer behind every renderer interface
+// above; compositions that hand one instance to several consumers hold it
+// under this name (#2747).
+type RendererService = listexport.RendererService
+
+// NewRendererService returns the Document Rendering renderer.
+func NewRendererService() *RendererService {
+	return listexport.NewService()
+}
+
+// RenderWorkbook renders a plain XLSX sheet: one header row and the given
+// rows, with the listed columns formatted as decimals.
+func RenderWorkbook(sheet string, headers []string, rows [][]any, decimalColumns []int) ([]byte, error) {
+	return listexport.RenderWorkbook(sheet, headers, rows, decimalColumns)
+}

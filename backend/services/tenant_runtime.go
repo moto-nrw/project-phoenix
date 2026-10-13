@@ -7,7 +7,7 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/services/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -83,7 +83,9 @@ type tenantRuntimeBinder interface {
 // one. Fields are discovered by reflection so a new service with a
 // SetTenantRuntime method cannot be forgotten in a hand-maintained list.
 func (f *Factory) SetTenantRuntime(runtime tenant.UnitOfWork) error {
-	if setter, ok := f.Settings.(interface{ SetRuntime(config.Runtime) }); ok {
+	if setter, ok := f.Settings.(interface {
+		SetRuntime(settingsCompose.SettingsRuntime)
+	}); ok {
 		setter.SetRuntime(newSettingsRuntime(f.settingsRuntimeDB, &runtime))
 	}
 	fields := reflect.ValueOf(f).Elem()

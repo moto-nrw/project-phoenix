@@ -18,8 +18,8 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -34,7 +34,7 @@ type AuthTestModule struct {
 	Invitation            InvitationCapability
 	GuardianInvitation    GuardianInvitationCapability
 	Schools               organizationtenancy.Capability
-	Settings              config.SettingsService
+	Settings              settingsCompose.SettingsService
 	// MFA, Passkeys, OperatorMFA and OperatorPasskeys are the Identity &
 	// Access second factor and both portals' WebAuthn ceremonies (#3331),
 	// composed over the same repositories the root uses.
@@ -381,7 +381,7 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, db *bun.DB, logger *sl
 type IdentityAccessTestConfig struct {
 	TokenAuth           *authjwt.TokenAuth
 	TenantRuntime       tenant.UnitOfWork
-	Settings            config.SettingsService
+	Settings            settingsCompose.SettingsService
 	Audit               auditModels.Command
 	Dispatcher          *email.Dispatcher
 	DefaultFrom         email.Email

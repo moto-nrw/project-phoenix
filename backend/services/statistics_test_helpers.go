@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -19,7 +19,7 @@ import (
 type StatisticsTestModule struct {
 	Statistics     studentpresence.StatisticsReports
 	SchoolCalendar schoolcalendar.Calendar
-	ListExport     *listexport.RendererService
+	ListExport     *lists.RendererService
 	// CreateClosingDay stores a closure range through the calendar owner.
 	CreateClosingDay func(ctx context.Context, start, end timezone.Date, reason string) error
 }
@@ -63,5 +63,5 @@ func NewStatisticsTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func(
 		}})
 		return err
 	}
-	return StatisticsTestModule{Statistics: service, SchoolCalendar: calendar, ListExport: listexport.NewService(), CreateClosingDay: createClosingDay}, nil
+	return StatisticsTestModule{Statistics: service, SchoolCalendar: calendar, ListExport: lists.NewRendererService(), CreateClosingDay: createClosingDay}, nil
 }

@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 36,
+  "policy_epoch": 37,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -5211,6 +5211,17 @@
       "source_role": "compose",
       "target_owner": "document-rendering",
       "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.document-rendering-lists",
+      "description": "The legacy composition hands the list renderer and the list vocabulary to the retained exports through the Document Rendering list contract (#2747).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "contract"
     },
     {
       "id": "request-review-view.compose.impact-token",

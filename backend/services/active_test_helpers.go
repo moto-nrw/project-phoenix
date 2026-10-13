@@ -7,6 +7,7 @@ import (
 	"time"
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
@@ -19,8 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
-	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 	sessionEndCompose "github.com/moto-nrw/project-phoenix/workflows/sessionend/compose"
@@ -32,14 +31,14 @@ func (ActiveTestModule) WithAttendanceStaff(ctx context.Context, staffID, tenant
 }
 
 type activeTestYard struct {
-	facilities.SchulhofService
+	facilitiesLegacy.SchulhofService
 	supervisiondashboard.Yard
 }
 
 type ActiveTestModule struct {
 	GroupsTestModule
 	IoTDataTestModule
-	Settings            config.BatchSettingsService
+	Settings            settingsCompose.BatchSettingsService
 	Schulhof            activeTestYard
 	PickupSchedule      careplan.PickupScheduleService
 	ArrivalSchedule     careplan.ArrivalScheduleService
@@ -173,7 +172,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 	presence := presenceservice.NewPresence(presenceDeps, presenceservice.WithPresenceSettings(PresenceSettings(settings.Settings)))
 	groups.Active = presence
 	groups.Users = data.Users
-	yard := facilities.NewSchulhofService(data.Facilities, facilitiesLegacy.ActivityCatalog(data.Activities), facilitiesLegacy.OpenGroupCatalog(facilitiesGroupSupervisions(newStudentPresence(db, logger)), facilitiesRoomSessions(newStudentPresence(db, logger)), facilitiesGroupVisits(newStudentPresence(db, logger))), logger)
+	yard := facilitiesLegacy.NewSchulhofService(data.Facilities, facilitiesLegacy.ActivityCatalog(data.Activities), facilitiesLegacy.OpenGroupCatalog(facilitiesGroupSupervisions(newStudentPresence(db, logger)), facilitiesRoomSessions(newStudentPresence(db, logger)), facilitiesGroupVisits(newStudentPresence(db, logger))), logger)
 	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
 		DB: db, Records: carePlan, Baselines: pickup, Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(r.Timetable, db),
 	})

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -333,7 +332,7 @@ func TestNewFactory_NegativePasswordResetExpiry(t *testing.T) {
 func TestEnableStudentPhotos(t *testing.T) {
 	t.Parallel()
 
-	f := &services.Factory{SettingsSideEffects: sideeffects.NewRegistry()}
+	f := &services.Factory{SettingsSideEffects: services.NewSettingsSideEffects()}
 	f.EnableStudentPhotos(services.StudentPhotoBootstrap{Logger: slog.Default()})
 	require.NotNil(t, f.StudentPhotos)
 	post, err := f.SettingsSideEffects.Dispatch(context.Background(), 1, "operations.student_photos_enabled", "x")

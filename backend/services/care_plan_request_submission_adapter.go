@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 )
 
 type requestSubmissionAdapter struct{ s *careScheduleRequestService }
@@ -30,7 +30,7 @@ func (a requestSubmissionAdapter) RecordSubmission(ctx context.Context, request 
 
 func (a requestSubmissionAdapter) NotifySubmission(ctx context.Context, request *carerequests.Request) error {
 	row := request
-	event := parentmessaging.ChildEvent{EventType: "request_created", ActorKind: usersModels.ParentMessageSenderGuardian,
+	event := communicationCompose.ParentChildEvent{EventType: "request_created", ActorKind: usersModels.ParentMessageSenderGuardian,
 		ActorAccountID: row.SubmittedBy, Body: careRequestCreatedBody, RequestType: usersModels.ParentMessageRequestCareSchedule, RequestStatus: usersModels.ParentMessageRequestStatusOpen}
 	if row.RequestKind == "pickup_change" {
 		event.Body = withPickupDetail(pickupRequestCreatedBody, row)

@@ -5,10 +5,10 @@ import (
 	"time"
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -18,7 +18,7 @@ type TimetableScenarioTestModule struct {
 	Active           studentpresence.Presence
 	Users            *peopleCompose.PersonDirectory
 	UserContext      *CallerRows
-	Settings         config.SettingsService
+	Settings         settingsCompose.SettingsService
 	TimetableCleanup timetable.TimetableCleanup
 	// People serves the People port of the timetable routes from Users, as
 	// the root binds it.

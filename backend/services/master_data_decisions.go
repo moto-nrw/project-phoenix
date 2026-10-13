@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -16,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
 
 // The Stammdaten decision and the cross-kind parent-request commands are
@@ -33,7 +33,7 @@ type masterDataDecisionWiring struct {
 	persons     usersModels.PersonRepository
 	audit       peopleCompose.StudentChangeRecorder
 	scope       carePlanCompose.ReviewScopeResolver
-	emitter     *parentmessaging.Emitter
+	emitter     *communicationCompose.ParentEventEmitter
 	broadcaster realtime.Broadcaster
 	events      usersModels.ParentRequestEventRepository
 	shares      carePlanCompose.ShareVisibility

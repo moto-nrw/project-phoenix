@@ -6,17 +6,16 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 // SettingsTestModule contains only the settings application capabilities.
 type SettingsTestModule struct {
-	Settings       config.BatchSettingsService
-	TenantSettings *config.TenantOperations
-	payroll        config.PayrollStatusGetter
-	runtime        config.TenantOperationsRuntime
+	Settings       settingsCompose.BatchSettingsService
+	TenantSettings *settingsCompose.TenantOperations
+	payroll        settingsCompose.PayrollStatusGetter
+	runtime        settingsCompose.TenantOperationsRuntime
 }
 
 // NewSettingsTestModule retains the real settings storage, guards and tenant
@@ -32,8 +31,8 @@ func NewSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (SettingsTestModu
 	}
 	runtime := newSettingsRuntime(db, &unit)
 	repos := NewSettingsTestRepositories(runtime)
-	homeLayouts := config.NewHomeLayoutService(settingsCompose.NewHomeLayoutRepository(runtime), runtime, slog.Default())
-	settings := config.NewSettingsServiceWithHomeLayouts(
+	homeLayouts := settingsCompose.NewHomeLayoutService(settingsCompose.NewHomeLayoutRepository(runtime), runtime, slog.Default())
+	settings := settingsCompose.NewSettingsServiceWithHomeLayouts(
 		repos.Values, repos.Audit,
 		newSchoolSettingsStore(organizations), runtime, slog.Default(), homeLayouts,
 	)
@@ -45,7 +44,7 @@ func NewSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (SettingsTestModu
 	guards.SetClassRestrictionGuard(repos.ClassRestriction)
 	guards.SetGradeRestrictionGuard(repos.GradeRestriction)
 	guards.SetGradeCapGuard(repos.GradeCap)
-	payroll := config.NewPayrollStatusService(settings, func(ctx context.Context) (int, int, error) {
+	payroll := settingsCompose.NewPayrollStatusService(settings, func(ctx context.Context) (int, int, error) {
 		staff, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{})
 		if err != nil {
 			return 0, 0, err
@@ -62,7 +61,7 @@ func NewSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (SettingsTestModu
 		Settings:       settings,
 		payroll:        payroll,
 		runtime:        runtime,
-		TenantSettings: config.NewTenantOperations(settings, payroll, runtime, nil, nil),
+		TenantSettings: settingsCompose.NewTenantOperations(settings, payroll, runtime, nil, nil),
 	}, nil
 }
 

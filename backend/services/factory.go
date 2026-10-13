@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
@@ -81,16 +82,10 @@ import (
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/activities"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/database"
-	"github.com/moto-nrw/project-phoenix/services/facilities"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
@@ -157,22 +152,22 @@ type Factory struct {
 	StaffOverview        timetracking.StaffOverviewService
 	TimeTrackingAuditLog timetracking.TimeTrackingAuditLogService
 	StaffTimeExport      timetracking.StaffTimeExportService
-	Activities           activities.ActivityService
+	Activities           arrivalTimetable.ActivityService
 	Education            schoolstructure.GroupManagement
 	Substitution         education.SubstitutionModule
 	// GradeTransition is the owner workflow behind the school-year rollover
 	// (#2711): the admin HTTP surface calls exactly its public commands.
 	GradeTransition    *gradetransition.Workflow
-	Facilities         facilities.Service
-	Schulhof           facilities.SchulhofService
-	WC                 facilities.WCService
+	Facilities         facilitiesLegacy.RoomService
+	Schulhof           facilitiesLegacy.SchulhofService
+	WC                 facilitiesLegacy.WCService
 	Invitation         InvitationCapability
 	GuardianInvitation GuardianInvitationCapability
 	IoT                devicefleetCompose.IoTService
 	StaffClock         *staffclock.Service
-	Settings           config.SettingsService
-	TenantSettings     *config.TenantOperations
-	PayrollStatus      config.PayrollStatusGetter
+	Settings           settingsCompose.SettingsService
+	TenantSettings     *settingsCompose.TenantOperations
+	PayrollStatus      settingsCompose.PayrollStatusGetter
 	// The Dienstplan side of Workforce (#3418): the planning capability the
 	// staff-shift route mounts, the self-service assignments and the week
 	// overview, and the shift-type administration, all public contracts.
@@ -212,7 +207,7 @@ type Factory struct {
 	StaffImport               *importService.ImportService[importModels.StaffImportRow]          // Staff (Mitarbeiter) import service
 	ClassListImport           *importService.ImportService[importModels.ClassListEntryImportRow] // Class-list entry import (#2382)
 	OpeningBalanceImport      importService.OpeningBalanceImportFactory                          // Opening balance import (#2132), request-scoped
-	ListExport                *listexport.RendererService
+	ListExport                *lists.RendererService
 	Emergency                 emergencysnapshot.Query
 	SlotLists                 classday.SlotLists
 	PlanExport                planexport.Service
@@ -300,7 +295,7 @@ type Factory struct {
 	// Exposed so the API layer can wake a child's guardians (its message-
 	// independent parent_child_updated SSE fan-out) after staff-side care writes,
 	// so an open parents-app tab refetches the child's care state live (#1725).
-	ParentEventEmitter *parentmessaging.Emitter
+	ParentEventEmitter *communicationCompose.ParentEventEmitter
 
 	// Calendar (staff and parent personal calendars)
 	Calendar            calendarCompose.Application
@@ -313,7 +308,7 @@ type Factory struct {
 	// SettingsResource.OnValueSet. Domain packages register handlers here
 	// (facilities at startup, students via EnableStudentPhotos). API never
 	// owns the registry - its only job is to dispatch.
-	SettingsSideEffects *sideeffects.Registry
+	SettingsSideEffects *settingsCompose.SideEffectRegistry
 	// StudentPhotos is set by EnableStudentPhotos. nil until the API layer
 	// supplies a PhotoUnlinker (file IO is an api-layer concern, not a
 	// service-layer one).
@@ -324,11 +319,11 @@ type Factory struct {
 // SetSettingsObservers wires delivery-owned metrics without coupling the
 // settings application layer to a metrics implementation.
 func (f *Factory) SetSettingsObservers(
-	lookup config.SettingsLookupObserver,
-	sideEffectFailure sideeffects.FailureObserver,
+	lookup settingsCompose.SettingsLookupObserver,
+	sideEffectFailure settingsCompose.SideEffectFailureObserver,
 ) {
 	if observable, ok := f.Settings.(interface {
-		SetLookupObserver(config.SettingsLookupObserver)
+		SetLookupObserver(settingsCompose.SettingsLookupObserver)
 	}); ok {
 		observable.SetLookupObserver(lookup)
 	}
@@ -777,7 +772,7 @@ func newFactory(
 		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key})
 		_ = realtimeHub.BroadcastToTenant(tenantID, event)
 	}
-	homeLayoutService := config.NewHomeLayoutService(
+	homeLayoutService := settingsCompose.NewHomeLayoutService(
 		settingsCompose.NewHomeLayoutRepository(settingsRuntime),
 		settingsRuntime,
 		logger,
@@ -785,7 +780,7 @@ func newFactory(
 	)
 
 	// Initialize settings service (new schema-driven settings system)
-	settingsService := config.NewSettingsServiceWithHomeLayouts(
+	settingsService := settingsCompose.NewSettingsServiceWithHomeLayouts(
 		settingsCompose.NewSettingValueRepository(settingsRuntime),
 		settingsCompose.NewSettingAuditRepository(settingsRuntime),
 		newSchoolSettingsStore(organizations),
@@ -1078,7 +1073,7 @@ func newFactory(
 	// writes an audit.data_access_logs row or fails.
 	// One payroll-status instance: the /payroll page and the DATEV writers
 	// must judge completeness identically.
-	payrollStatusService := config.NewPayrollStatusService(settingsService, func(ctx context.Context) (int, int, error) {
+	payrollStatusService := settingsCompose.NewPayrollStatusService(settingsService, func(ctx context.Context) (int, int, error) {
 		staff, err := staffRepository.List(ctx, nil)
 		if err != nil {
 			return 0, 0, err
@@ -1242,7 +1237,7 @@ func newFactory(
 	)
 
 	// Initialize activities service
-	activitiesService, err := activities.NewService(
+	activitiesService, err := arrivalTimetable.NewService(
 		timetableCapability,
 		timetableRepos.ActivityGroup,
 		timetableRepos.ActivitySchedule,
@@ -1283,7 +1278,7 @@ func newFactory(
 	}
 
 	// Initialize facilities service
-	facilitiesService := facilities.NewServiceWithConfig(facilities.ServiceConfig{
+	facilitiesService := facilitiesLegacy.NewRoomService(facilitiesLegacy.RoomServiceConfig{
 		Rooms:     rooms,
 		Occupancy: facilitiesLegacy.OccupancyProjection(roomOccupancyPresence{newStudentPresence(db, logger)}, timetableRepos.ActivityGroup, membership, persons),
 		History:   facilitiesLegacy.HistoryProjection(roomHistoryPresence{newStudentPresence(db, logger)}, timetableRepos.ActivityGroup, membership, persons),
@@ -1306,7 +1301,7 @@ func newFactory(
 	})
 
 	// Initialize Schulhof service (depends on facilities, activities, and active services)
-	schulhofService := facilities.NewSchulhofService(
+	schulhofService := facilitiesLegacy.NewSchulhofService(
 		facilitiesService,
 		facilitiesLegacy.ActivityCatalog(activitiesService),
 		facilitiesLegacy.OpenGroupCatalog(facilitiesGroupSupervisions(newStudentPresence(db, logger)), facilitiesRoomSessions(newStudentPresence(db, logger)), facilitiesGroupVisits(newStudentPresence(db, logger))),
@@ -1314,7 +1309,7 @@ func newFactory(
 	)
 
 	// Initialize WC service (depends on facilities and activities services)
-	wcService := facilities.NewWCService(
+	wcService := facilitiesLegacy.NewWCService(
 		facilitiesService,
 		facilitiesLegacy.ActivityCatalog(activitiesService),
 		facilitiesLogger,
@@ -2295,7 +2290,7 @@ func newFactory(
 	// The sharing rules live in the parents domain, which is composed after the
 	// request services it serves, so the sharing port resolves that service
 	// lazily through requestShareVisibility (#2267, story 47).
-	var requestShareVisibility parentmessaging.ShareVisibilityResolver
+	var requestShareVisibility communicationCompose.ParentShareVisibilityResolver
 	requestShares := shareVisibilityFunc(func(ctx context.Context, studentID int64, requestType string, requestID int64) ([]int64, error) {
 		if requestShareVisibility == nil {
 			return nil, nil
@@ -2645,7 +2640,7 @@ func newFactory(
 		return nil, fmt.Errorf("compose operator provisioning: %w", err)
 	}
 
-	listExportService := listexport.NewService()
+	listExportService := lists.NewRendererService()
 	// The Notfallliste is the emergency snapshot read projection (#2704): the
 	// owner facades are its tenant-safe reads, the retained student and
 	// guardian repositories, the presence-mode read and the renderer its
@@ -2875,8 +2870,8 @@ func newFactory(
 	// the request services, and the request domains must not import it just to
 	// ask who a request was shared with. Every request domain reads it lazily
 	// through requestShares, which resolves the parents service bound here.
-	var _ parentmessaging.ShareVisibilityResolver = parentService
-	if resolver, ok := any(parentService).(parentmessaging.ShareVisibilityResolver); ok {
+	var _ communicationCompose.ParentShareVisibilityResolver = parentService
+	if resolver, ok := any(parentService).(communicationCompose.ParentShareVisibilityResolver); ok {
 		requestShareVisibility = resolver
 	}
 
@@ -3048,10 +3043,10 @@ func newFactory(
 		ParentEventEmitter:  pillEmitter,
 	}
 
-	factory.SettingsSideEffects = sideeffects.NewRegistry()
+	factory.SettingsSideEffects = NewSettingsSideEffects()
 	facilitiesLegacy.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
 	registerCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
-	tenantSettings := config.NewTenantOperations(
+	tenantSettings := settingsCompose.NewTenantOperations(
 		settingsService,
 		payrollStatusService,
 		settingsRuntime,

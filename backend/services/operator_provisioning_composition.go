@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/services/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -28,7 +28,7 @@ type operatorProvisioningSources struct {
 	administration identityaccess.AccountAdministration
 	schoolIdentity identityaccess.SchoolIdentityProvisioning
 	roles          provisioningRoles
-	settings       config.SettingsService
+	settings       settingsCompose.SettingsService
 	logger         *slog.Logger
 }
 
@@ -261,7 +261,9 @@ func (e invalidSchoolIdentityError) Unwrap() []error {
 }
 
 // provisioningSettings resolves the device online window of one school.
-type provisioningSettings struct{ settings config.SettingsService }
+type provisioningSettings struct {
+	settings settingsCompose.SettingsService
+}
 
 func (s provisioningSettings) DeviceOnlineWindowMinutes(ctx context.Context, tenantID int64) (int, error) {
 	return s.settings.ResolveIntForTenant(ctx, tenantID, configModels.KeyDeviceOnlineWindowMinutes)

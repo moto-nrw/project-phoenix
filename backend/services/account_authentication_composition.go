@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/services/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -35,7 +35,7 @@ import (
 type accountAuthenticationWiring struct {
 	repos         sessionRepositories
 	codec         identityaccessCompose.SignedIdentityTokens
-	settings      config.SettingsService
+	settings      settingsCompose.SettingsService
 	audit         auditModels.Command
 	logger        *slog.Logger
 	observe       IdentityAccessObserver
@@ -405,7 +405,9 @@ func (passwordVerifier) VerifyPassword(password, hash string) (bool, error) {
 	return securityruntime.VerifyPassword(password, hash)
 }
 
-type mfaPolicyLock struct{ settings config.SettingsService }
+type mfaPolicyLock struct {
+	settings settingsCompose.SettingsService
+}
 
 // LockMFAPolicySharedForTenant is a no-op without a settings service, as
 // the retained mint guard treated it.

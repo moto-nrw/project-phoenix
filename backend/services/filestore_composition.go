@@ -8,10 +8,12 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	"github.com/moto-nrw/project-phoenix/services/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 )
 
-type fileStorageSettings struct{ service config.SettingsService }
+type fileStorageSettings struct {
+	service settingsCompose.SettingsService
+}
 
 func (s fileStorageSettings) StaffUploadEnabled(ctx context.Context) (bool, error) {
 	enabled, err := s.service.ResolveBool(ctx, configModels.KeyFilesStaffUploadEnabled)

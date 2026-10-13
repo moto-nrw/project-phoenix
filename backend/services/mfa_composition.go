@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/services/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 )
 
 // Identity & Access owns the account and operator second factor and both
@@ -36,7 +36,7 @@ type mfaWiring struct {
 	// operatorAuditLog is the operator ledger the operator second factor
 	// appends to (#3331).
 	operatorAuditLog platformModels.OperatorAuditLogRepository
-	settings         config.SettingsService
+	settings         settingsCompose.SettingsService
 	dispatcher       *email.Dispatcher
 	defaultFrom      email.Email
 	frontendURL      string
@@ -90,7 +90,9 @@ func mfaDependencies(wiring *mfaWiring, codec identityaccessCompose.MFAChallenge
 // mfaSettings resolves the gate's parameters. A root composed without a
 // settings service answers the registry defaults, which is what the retained
 // service did with a nil one.
-type mfaSettings struct{ settings config.SettingsService }
+type mfaSettings struct {
+	settings settingsCompose.SettingsService
+}
 
 func (s mfaSettings) MFAMode(ctx context.Context, tenantID int64) (string, error) {
 	if s.settings == nil {

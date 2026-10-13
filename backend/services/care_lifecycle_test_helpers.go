@@ -4,6 +4,7 @@ import (
 	"context"
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -11,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -19,7 +19,7 @@ import (
 type CareLifecycleTestModule struct {
 	CareLifecycle careplan.CareLifecycle
 	StudentAudit  peopleCompose.StudentAuditService
-	Settings      config.SettingsService
+	Settings      settingsCompose.SettingsService
 }
 
 func NewCareLifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork) (CareLifecycleTestModule, error) {

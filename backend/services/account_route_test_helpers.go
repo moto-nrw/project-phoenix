@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -24,5 +24,5 @@ func StoreRawTenantSettingForTests(ctx context.Context, db *bun.DB, tenantID int
 // cache production requests run with, for tests that mount a route without
 // the root router.
 func WithSettingsRequestCacheForTests(ctx context.Context) context.Context {
-	return config.WithSettingsRequestCache(ctx)
+	return settingsCompose.WithSettingsRequestCache(ctx)
 }

@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -87,7 +87,7 @@ type schoolSettingsStore struct {
 	schools organizationtenancy.Capability
 }
 
-func newSchoolSettingsStore(schools organizationtenancy.Capability) configService.SchoolSettingsStore {
+func newSchoolSettingsStore(schools organizationtenancy.Capability) settingsCompose.SchoolSettingsStore {
 	if schools == nil {
 		return nil
 	}

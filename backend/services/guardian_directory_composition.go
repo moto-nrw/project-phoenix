@@ -9,10 +9,10 @@ import (
 	"time"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -767,20 +767,20 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 			if f.ListExport == nil {
 				return GuardianExportFile{}, errors.New("list export service is not configured")
 			}
-			doc := listexport.Document{
+			doc := lists.Document{
 				Title:       "Bankverbindungen",
 				Subtitle:    paymentExportSubtitle(rows),
 				GeneratedAt: time.Now(),
 				Footer:      exportConfidentialityNote,
-				Columns: []listexport.Column{
-					{ID: listexport.ColumnStudentName, Label: "Kind"},
-					{ID: listexport.ColumnStudentClass, Label: "Klasse"},
-					{ID: listexport.ColumnContactName, Label: "Kontoinhaber"},
-					{ID: listexport.ColumnIBAN, Label: "IBAN"},
+				Columns: []lists.Column{
+					{ID: lists.ColumnStudentName, Label: "Kind"},
+					{ID: lists.ColumnStudentClass, Label: "Klasse"},
+					{ID: lists.ColumnContactName, Label: "Kontoinhaber"},
+					{ID: lists.ColumnIBAN, Label: "IBAN"},
 				},
 				Rows: buildPaymentExportRows(rows),
 			}
-			file, err := f.ListExport.Render(doc, listexport.Format(format), doc.Title)
+			file, err := f.ListExport.Render(doc, lists.Format(format), doc.Title)
 			if err != nil {
 				return GuardianExportFile{}, err
 			}
@@ -826,8 +826,8 @@ func paymentExportSubtitle(rows []peopledirectory.GuardianPaymentRow) string {
 // buildPaymentExportRows renders one line per child. Children without a payer
 // or without an IBAN keep their row and say what is missing, so the list can
 // be used as a to-do rather than read as complete.
-func buildPaymentExportRows(rows []peopledirectory.GuardianPaymentRow) []listexport.Row {
-	out := make([]listexport.Row, 0, len(rows))
+func buildPaymentExportRows(rows []peopledirectory.GuardianPaymentRow) []lists.Row {
+	out := make([]lists.Row, 0, len(rows))
 	for _, row := range rows {
 		holder := row.AccountHolder
 		iban := row.IBAN
@@ -838,12 +838,12 @@ func buildPaymentExportRows(rows []peopledirectory.GuardianPaymentRow) []listexp
 		case iban == "":
 			iban = "Fehlt"
 		}
-		out = append(out, listexport.Row{
-			Values: map[listexport.ColumnID]string{
-				listexport.ColumnStudentName:  row.StudentName,
-				listexport.ColumnStudentClass: row.SchoolClass,
-				listexport.ColumnContactName:  holder,
-				listexport.ColumnIBAN:         iban,
+		out = append(out, lists.Row{
+			Values: map[lists.ColumnID]string{
+				lists.ColumnStudentName:  row.StudentName,
+				lists.ColumnStudentClass: row.SchoolClass,
+				lists.ColumnContactName:  holder,
+				lists.ColumnIBAN:         iban,
 			},
 		})
 	}

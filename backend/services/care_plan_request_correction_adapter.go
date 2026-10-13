@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 )
 
 func (s *careScheduleRequestService) Correct(ctx context.Context, id int64, approve bool, version, reason string, actorID int64) error {
@@ -59,7 +59,7 @@ func (a requestCorrectionAdapter) NotifyCorrection(ctx context.Context, request 
 	if approve {
 		status = usersModels.ParentMessageRequestStatusDone
 	}
-	return a.s.emitRequestPillAfterCommit(ctx, row, parentmessaging.ChildEvent{
+	return a.s.emitRequestPillAfterCommit(ctx, row, communicationCompose.ParentChildEvent{
 		EventType: usersModels.ParentMessageEventRequestStatus, ActorKind: usersModels.ParentMessageSenderStaff,
 		ActorAccountID: actorID, Body: "Entscheidung geändert. " + correctedCarePillBody(row, approve),
 		RequestType: careRequestPillType(row.RequestKind), RequestStatus: status, DecisionReason: reason, Payload: pickupPillPayload(row),

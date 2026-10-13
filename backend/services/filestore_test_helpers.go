@@ -9,8 +9,8 @@ import (
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -24,7 +24,7 @@ type UploadsBackend = filestorageCompose.ObjectBackend
 // service that switches staff uploads.
 type FileStoreTestModule struct {
 	FileStore *filestorageModule.Module
-	Settings  config.SettingsService
+	Settings  settingsCompose.SettingsService
 }
 
 // NewFileStoreTestModule composes the File Storage module over the test

@@ -15,7 +15,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/services/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -39,7 +39,7 @@ type GuardianInvitationCapability interface {
 // seams are bound to. outbox is read at call time because the delivery
 // module is composed after the identity module.
 type guardianInvitationWiring struct {
-	settings    config.SettingsService
+	settings    settingsCompose.SettingsService
 	schools     organizationtenancy.Query
 	outbox      func() platformModels.OutboxResultEnqueuer
 	enrollments guardianEnrollmentClaims
@@ -104,7 +104,7 @@ func (d guardianInvitationDelivery) logger() *slog.Logger {
 // InvitationExpiry follows the tenant override, then the registry default,
 // and falls back to the invitation lifetime the deployment configured.
 func (d guardianInvitationDelivery) InvitationExpiry(ctx context.Context) time.Duration {
-	hours := config.ResolveIntOrDefault(ctx, d.wiring.settings, configModels.KeyGuardianInvitationTokenExpiryHours, 0, d.logger())
+	hours := settingsCompose.ResolveIntOrDefault(ctx, d.wiring.settings, configModels.KeyGuardianInvitationTokenExpiryHours, 0, d.logger())
 	if hours > 0 {
 		return time.Duration(hours) * time.Hour
 	}

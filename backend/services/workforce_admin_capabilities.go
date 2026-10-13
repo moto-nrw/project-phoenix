@@ -5,9 +5,9 @@ import (
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
-	"github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // WorkforceAdminCapabilities bundles the public Workforce contracts the staff
@@ -77,7 +77,7 @@ func NewWorkforceAdminCapabilities(
 // TimeTrackingAccountStartDate resolves the tenant's time-account start day
 // for the time-tracking config endpoint; the setting key stays next to its
 // registry definition. A nil settings service leaves the start date unset.
-func TimeTrackingAccountStartDate(settings config.SettingsService) func(context.Context) (string, error) {
+func TimeTrackingAccountStartDate(settings settingsCompose.SettingsService) func(context.Context) (string, error) {
 	if settings == nil {
 		return nil
 	}

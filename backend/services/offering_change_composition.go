@@ -13,9 +13,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -39,7 +39,7 @@ type offeringChangeInputs struct {
 	Planning    carePlanCompose.OfferingChangePlanning
 	Bookings    careplan.BookingMaterializationCapability
 	Reviews     offeringChangeReviewPolicy
-	Emitter     *parentmessaging.Emitter
+	Emitter     *communicationCompose.ParentEventEmitter
 	Events      usersModels.ParentRequestEventRepository
 	Shares      carePlanCompose.ShareVisibility
 	Today       func() calendar.Date

@@ -5,9 +5,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // The operator's school settings (modules/settings/compose, #2736) take two
@@ -17,7 +17,7 @@ import (
 // SettingsChangedNotifier tells the school's open tenant tabs that a setting
 // changed, so they drop their settings caches across origins. It is nil
 // without a realtime hub, which disables the broadcast.
-func (f *Factory) SettingsChangedNotifier() config.SettingsChangedNotifier {
+func (f *Factory) SettingsChangedNotifier() settingsCompose.SettingsChangedNotifier {
 	if f.RealtimeHub == nil {
 		return nil
 	}
@@ -31,7 +31,7 @@ func (f *Factory) SettingsChangedNotifier() config.SettingsChangedNotifier {
 // OpenAttendanceChecker answers the presence-mode guard from Student
 // Presence. Without the presence service it reports no open attendance,
 // which disables the guard.
-func (f *Factory) OpenAttendanceChecker() config.OpenAttendanceChecker {
+func (f *Factory) OpenAttendanceChecker() settingsCompose.OpenAttendanceChecker {
 	return openAttendanceChecker{service: f.Active}
 }
 

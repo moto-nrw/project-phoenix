@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/services/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 )
 
 // Identity & Access owns the admin staff-view preview, staff offboarding
@@ -25,7 +25,7 @@ import (
 // The module composition fills repos from the session repositories.
 type lifecycleWiring struct {
 	repos    lifecycleRepositories
-	settings config.SettingsService
+	settings settingsCompose.SettingsService
 	audit    auditModels.Command
 	// caregivers is the Lehrkraft guard the role administration reads.
 	caregivers caregiverProfiles

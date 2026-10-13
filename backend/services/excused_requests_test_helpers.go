@@ -8,8 +8,8 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
 
 // ExcusedRequestTestOptions builds the Care Plan excused-absence workflow
@@ -20,7 +20,7 @@ type ExcusedRequestTestOptions struct {
 	Students    usersModels.StudentRepository
 	Persons     usersModels.PersonRepository
 	Scope       carePlanCompose.ReviewScopeResolver
-	Emitter     *parentmessaging.Emitter
+	Emitter     *communicationCompose.ParentEventEmitter
 	Broadcaster realtime.Broadcaster
 	Events      usersModels.ParentRequestEventRepository
 	Logger      *slog.Logger

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -21,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -118,14 +118,14 @@ type careScheduleRequestService struct {
 	pickupAutoExcusal careplan.PickupAutoExcusal
 	dayLocker         careplan.CareDayLocker
 	userContext       CareRequestStaff
-	emitter           *parentmessaging.Emitter
+	emitter           *communicationCompose.ParentEventEmitter
 	broadcaster       realtime.Broadcaster
 	studentAudit      peopleCompose.StudentChangeRecorder
 	logger            *slog.Logger
 	reviewPolicy      RequestReviewPolicy
 	// shareVisibility answers who the parent explicitly shared a request
 	// with; nil means nobody was, so every co-guardian gets the neutral line.
-	shareVisibility parentmessaging.ShareVisibilityResolver
+	shareVisibility communicationCompose.ParentShareVisibilityResolver
 	events          *parentRequestLedger
 	today           func() timezone.Date
 
@@ -166,7 +166,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	pickupAutoExcusal careplan.PickupAutoExcusal,
 	dayLocker careplan.CareDayLocker,
 	userContext CareRequestStaff,
-	emitter *parentmessaging.Emitter,
+	emitter *communicationCompose.ParentEventEmitter,
 	broadcaster realtime.Broadcaster,
 	reviewPolicy RequestReviewPolicy,
 	events usersModels.ParentRequestEventRepository,
@@ -240,7 +240,7 @@ func newCareScheduleRequestService(
 	arrival RequestArrivalPlans,
 	pickup RequestPickupPlans,
 	userContext CareRequestStaff,
-	emitter *parentmessaging.Emitter,
+	emitter *communicationCompose.ParentEventEmitter,
 	broadcaster realtime.Broadcaster,
 	reviewPolicy RequestReviewPolicy,
 	events *parentRequestLedger,
@@ -383,7 +383,7 @@ func (s *careScheduleRequestService) registerCareDecisionEffects(ctx context.Con
 			)
 		})
 	}
-	decisionPill := parentmessaging.ChildEvent{
+	decisionPill := communicationCompose.ParentChildEvent{
 		EventType: "request_status", ActorKind: usersModels.ParentMessageSenderStaff,
 		ActorAccountID: input.ReviewedBy, Body: state.pillBody,
 		RequestType: careRequestPillType(req.RequestKind), RequestStatus: state.pillStatus,
@@ -472,7 +472,7 @@ func (s *careScheduleRequestService) resolvePickupChangeStaff(ctx context.Contex
 
 // emitRequestPillAfterCommit writes the durable decision intent in the ambient
 // transaction, then schedules the best-effort chat pill after commit.
-func (s *careScheduleRequestService) emitRequestPillAfterCommit(ctx context.Context, req *carerequests.Request, ev parentmessaging.ChildEvent) error {
+func (s *careScheduleRequestService) emitRequestPillAfterCommit(ctx context.Context, req *carerequests.Request, ev communicationCompose.ParentChildEvent) error {
 	if s.emitter == nil {
 		return nil
 	}
@@ -615,7 +615,7 @@ func correctedCarePillBody(req *carerequests.Request, approve bool) string {
 
 // WithRequestShareVisibility wires the sharing resolver. The composition root
 // passes a resolver that reaches the later-built parents service lazily.
-func WithRequestShareVisibility(resolver parentmessaging.ShareVisibilityResolver) CareRequestOption {
+func WithRequestShareVisibility(resolver communicationCompose.ParentShareVisibilityResolver) CareRequestOption {
 	return func(s *careScheduleRequestService) { s.shareVisibility = resolver }
 }
 
@@ -649,7 +649,7 @@ func (s *careScheduleRequestService) sharedRecipients(
 func (s *careScheduleRequestService) notifyOtherGuardiansAfterCommit(
 	ctx context.Context,
 	req *carerequests.Request,
-	ev parentmessaging.ChildEvent,
+	ev communicationCompose.ParentChildEvent,
 ) {
 	if s.emitter == nil {
 		return

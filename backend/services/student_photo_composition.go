@@ -12,8 +12,8 @@ import (
 	jwtPkg "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -268,8 +268,14 @@ type StudentPhotoFeatureToggle interface {
 	HandleFeatureToggle(ctx context.Context, tenantID int64, value any) (postCommit func(), err error)
 }
 
+// NewSettingsSideEffects returns the empty per-key side-effect registry the
+// settings writes dispatch through; owners register their handlers on it.
+func NewSettingsSideEffects() *settingsCompose.SideEffectRegistry {
+	return settingsCompose.NewSideEffectRegistry()
+}
+
 // RegisterStudentPhotoSettingsSideEffects wires the student-photo feature flag
 // to the photo lifecycle service.
-func RegisterStudentPhotoSettingsSideEffects(registry *sideeffects.Registry, service StudentPhotoFeatureToggle) {
+func RegisterStudentPhotoSettingsSideEffects(registry *settingsCompose.SideEffectRegistry, service StudentPhotoFeatureToggle) {
 	registry.Register(configModel.KeyStudentPhotosEnabled, service.HandleFeatureToggle)
 }

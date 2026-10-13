@@ -6,13 +6,12 @@ import (
 
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services/activities"
-	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -45,8 +44,8 @@ func NewAbsenceTypeTestModule(db *bun.DB) (AbsenceTypeTestModule, error) {
 type BirthdayTestModule struct {
 	Birthdays   peopledirectory.Birthdays
 	UserContext *CallerRows
-	Settings    config.SettingsService
-	ListExport  *listexport.RendererService
+	Settings    settingsCompose.SettingsService
+	ListExport  *lists.RendererService
 }
 
 func NewBirthdayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (BirthdayTestModule, error) {
@@ -61,7 +60,7 @@ func NewBirthdayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 	birthdays := NewBirthdays(
 		BirthdayRepositories{Students: NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
 		settings.Settings, slog.Default(), optionalClock(clocks))
-	return BirthdayTestModule{Birthdays: birthdays, UserContext: identity, Settings: settings.Settings, ListExport: listexport.NewService()}, nil
+	return BirthdayTestModule{Birthdays: birthdays, UserContext: identity, Settings: settings.Settings, ListExport: lists.NewRendererService()}, nil
 }
 
 // NewBirthdayCapabilityForTests composes the birthday capability over the
@@ -79,7 +78,7 @@ func NewBirthdayCapabilityForTests(db *bun.DB, settings BirthdaySettingsSource, 
 
 type ShiftTypeTestModule struct {
 	ShiftTypes   workforce.ShiftTypeAdministration
-	Activities   activities.ActivityService
+	Activities   timetableCompose.ActivityService
 	Repositories ShiftTypeTestRepositories
 }
 
@@ -88,7 +87,7 @@ type ShiftTypeTestModule struct {
 // repositories, with the Kategorie↔Schichtart linker of the activity service.
 func NewShiftTypeTestModule(db *bun.DB) (ShiftTypeTestModule, error) {
 	repos := NewShiftTypeTestRepositories(db, MustNewMembershipTestRepositories(db))
-	linker, err := activities.NewService(repos.Timetable, nil, nil, nil, nil, nil, nil, nil)
+	linker, err := timetableCompose.NewService(repos.Timetable, nil, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		return ShiftTypeTestModule{}, err
 	}

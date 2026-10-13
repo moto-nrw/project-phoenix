@@ -6,14 +6,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/services/config"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type StaffMessagingTestModule struct {
 	StaffMessaging communication.StaffMessagingRuntime
-	Settings       config.SettingsService
+	Settings       settingsCompose.SettingsService
 }
 
 func NewStaffMessagingTestModule(db *bun.DB, unit tenant.UnitOfWork) (StaffMessagingTestModule, error) {
