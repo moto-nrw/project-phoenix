@@ -559,6 +559,7 @@ export interface BackendSlimStudent {
   pending_excused_note?: string;
   departure_modes?: DepartureMode[];
   departure_label?: string;
+  departure_is_exception?: boolean;
   pickup_time?: string;
   pickup_is_exception?: boolean;
   pickup_notes?: string;
@@ -657,6 +658,8 @@ export interface Student {
   allowed_departure_modes?: AllowedDepartureModes;
   departure_modes?: DepartureMode[];
   departure_label?: string;
+  // The listed day's Abholart was set for that day only (#3945, #3946).
+  departure_is_exception?: boolean;
   // Sickness status (only visible to supervisors/admins)
   sick?: boolean;
   sick_since?: string;
@@ -891,6 +894,7 @@ export function mapSlimStudentResponse(
     pending_excused_note: backendStudent.pending_excused_note,
     departure_modes: backendStudent.departure_modes,
     departure_label: backendStudent.departure_label,
+    departure_is_exception: backendStudent.departure_is_exception,
     pickup_time: backendStudent.pickup_time,
     pickup_is_exception: backendStudent.pickup_is_exception,
     pickup_notes: backendStudent.pickup_notes,

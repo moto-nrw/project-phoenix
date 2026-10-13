@@ -118,11 +118,11 @@ func (m *mockOperationsService) ActiveSessions(_ context.Context, day timezone.D
 }
 
 type mockPickupService struct {
-	careplan.BulkPickupTimes
+	careplan.BulkPickupDays
 	getBulkEffectivePickupTimesForDateFn func([]int64, timezone.Date) (map[int64]*careplan.EffectivePickupTime, error)
 }
 
-func (m *mockPickupService) GetBulkEffectivePickupTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectivePickupTime, error) {
+func (m *mockPickupService) GetBulkEffectivePickupDaysForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectivePickupTime, error) {
 	return m.getBulkEffectivePickupTimesForDateFn(studentIDs, date)
 }
 
@@ -455,7 +455,7 @@ func TestPlanningMapsEffectiveTimes(t *testing.T) {
 			assert.Equal(t, []int64{42}, studentIDs)
 			assert.Equal(t, date, gotDate)
 			return map[int64]*careplan.EffectivePickupTime{
-				42: {Date: date, PickupTime: &pickup, WeekdayName: "Mittwoch", IsException: true, Notes: "Oma", DayNotes: []careplan.NoteData{{ID: 3, Content: "Klingeln"}}},
+				42: {Date: date, PickupTime: &pickup, WeekdayName: "Mittwoch", IsException: true, Notes: "Oma", DayNotes: []careplan.NoteData{{ID: 3, Content: "Klingeln"}}, DayDepartureMode: "pickup"},
 				43: nil,
 			}, nil
 		}},
@@ -471,8 +471,9 @@ func TestPlanningMapsEffectiveTimes(t *testing.T) {
 	clock := "15:30"
 	assert.Equal(t, map[int64]supervisiondashboard.Pickup{42: {
 		Date: "2026-08-19", WeekdayName: "Mittwoch", PickupTime: &clock, IsException: true, Notes: "Oma",
-		DayNotes: []supervisiondashboard.DayNote{{ID: 3, Content: "Klingeln"}},
-	}}, pickups, "nil plans are dropped, not projected as empty")
+		DayNotes:         []supervisiondashboard.DayNote{{ID: 3, Content: "Klingeln"}},
+		DayDepartureMode: "pickup",
+	}}, pickups, "nil plans are dropped, not projected as empty; a day Abholart marks the row (#3946)")
 
 	arrivals, err := p.Arrivals(ctx, []int64{42}, "2026-08-19")
 	require.NoError(t, err)

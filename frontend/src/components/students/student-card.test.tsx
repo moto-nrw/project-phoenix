@@ -362,6 +362,70 @@ describe("StudentCard", () => {
   });
 });
 
+describe("StudentCard one-day pickup change (#3946)", () => {
+  const props = {
+    studentId: "1",
+    firstName: "Max",
+    lastName: "Mustermann",
+    onClick: vi.fn(),
+    locationBadge: <span>badge</span>,
+  };
+
+  it("shows no strip without a change", () => {
+    render(<StudentCard {...props} />);
+
+    const button = screen.getByRole("button");
+    expect(button).not.toHaveAttribute("data-day-home-change");
+    expect(
+      button.querySelector('[data-day-home-change-strip="true"]'),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["time", { time: true }, "Gehzeit heute geändert"],
+    [
+      "mode",
+      { time: false, mode: "pickup" },
+      "Abholart heute geändert: Wird abgeholt",
+    ],
+    [
+      "both",
+      { time: true, mode: "bus" },
+      "Gehzeit und Abholart heute geändert: Fährt Bus",
+    ],
+  ] as const)(
+    "names the %s change in a strip and in the card's label",
+    (kind, change, label) => {
+      render(<StudentCard {...props} dayHomeChange={change} />);
+
+      const button = screen.getByRole("button", {
+        name: `Max Mustermann, ${label} - Details öffnen`,
+      });
+      expect(button).toHaveAttribute("data-day-home-change", kind);
+      expect(
+        button.querySelector('[data-day-home-change-strip="true"]'),
+      ).toHaveTextContent(label);
+    },
+  );
+
+  it("puts the strip above the check-in tap strip", () => {
+    render(
+      <StudentCard
+        {...props}
+        checkinMode
+        checkinState="anwesend"
+        onCheckinClick={vi.fn()}
+        dayHomeChange={{ time: true }}
+      />,
+    );
+
+    const button = screen.getByRole("button");
+    const change = button.querySelector('[data-day-home-change-strip="true"]');
+    const tap = button.querySelector('[data-checkin-tap-strip="true"]');
+    expect(change?.nextElementSibling).toBe(tap);
+  });
+});
+
 describe("SchoolClassIcon", () => {
   it("renders an SVG icon", () => {
     const { container } = render(<SchoolClassIcon />);

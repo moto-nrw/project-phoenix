@@ -256,6 +256,7 @@ describe("GET /api/active-supervision-dashboard", () => {
             weekday_name: "Mittwoch",
             pickup_time: "15:30",
             is_exception: true,
+            day_departure_mode: "pickup",
             day_notes: [{ id: "1", content: "Oma holt ab" }],
           },
         ],
@@ -391,6 +392,7 @@ describe("GET /api/active-supervision-dashboard", () => {
     expect(data.pickupTimes[0]).toMatchObject({
       studentId: "100",
       pickupTime: "15:30",
+      dayDepartureMode: "pickup",
       dayNotes: [{ id: "1", content: "Oma holt ab" }],
     });
     expect(data.arrivalTimes[0]).toMatchObject({

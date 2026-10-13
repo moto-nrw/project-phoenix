@@ -5,6 +5,7 @@
 // contract — it must never grow personal fields the page does not display.
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
+import type { DepartureMode } from "~/lib/student-helpers";
 
 // Wire types (Go DTOs from backend/api/students/ogs_group_live_handlers.go)
 
@@ -52,6 +53,7 @@ interface OgsLiveWirePickupTime {
   student_id: string;
   pickup_time?: string;
   is_exception: boolean;
+  day_departure_mode?: DepartureMode;
   notes?: string;
   day_notes?: Array<{ id: string; content: string }>;
 }
@@ -97,6 +99,8 @@ interface OgsLiveGroup {
 export interface OgsPickupInfo {
   pickupTime?: string;
   isException: boolean;
+  /** The Abholart set for today only (#3946); absent for the weekly plan. */
+  dayDepartureMode?: DepartureMode;
   notes?: string;
   dayNotes: Array<{ id: string; content: string }>;
 }
@@ -134,6 +138,7 @@ export function mapOgsGroupLiveResponse(
     pickupTimes.set(pt.student_id, {
       pickupTime: pt.pickup_time,
       isException: pt.is_exception,
+      dayDepartureMode: pt.day_departure_mode,
       notes: pt.notes,
       dayNotes: (pt.day_notes ?? []).map((note) => ({
         id: note.id,
