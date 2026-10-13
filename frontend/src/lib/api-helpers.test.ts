@@ -367,6 +367,28 @@ describe("handleApiError", () => {
     });
   });
 
+  it("strips diagnostic ApiError extensions from a 5xx response", async () => {
+    const response = handleApiError(
+      new ApiError("database host db.internal refused the connection", 503, {
+        code: "iot.schulhof_not_configured",
+        errors: [{ field: "database_password", reason: "secret" }],
+        details: { host: "db.internal", password: "secret" },
+        instance: "request-503",
+      }),
+    );
+
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      status: 503,
+      detail: "Service Unavailable",
+      code: "iot.schulhof_not_configured",
+      instance: "request-503",
+    });
+    expect(body).not.toContain("database_password");
+    expect(body).not.toContain("db.internal");
+    expect(body).not.toContain("secret");
+  });
+
   it("adds the request ID to frontend-generated errors", async () => {
     const response = handleApiError(
       new ApiError("bad date", 400),
@@ -595,7 +617,8 @@ describe("handleDomainApiError", () => {
     expect(thrown).toMatchObject({
       status: 409,
       code: "students.partial_absence_conflict",
-      message: "conflict",
+      message: "Failed to fetch students",
+      detail: "conflict",
     });
   });
 

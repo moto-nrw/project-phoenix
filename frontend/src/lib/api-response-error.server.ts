@@ -147,15 +147,35 @@ export function problemResponse(
   responseHeaders.set("Content-Type", "application/problem+json");
   const publicDetail = status >= 500 ? problemTitle(status) : detail;
   return NextResponse.json(
-    problemBody(status, publicDetail, {
-      ...extra,
-      instance: extra?.instance ?? requestInstance(request),
-    }),
+    problemBody(
+      status,
+      publicDetail,
+      publicProblemExtensions(status, extra, request),
+    ),
     {
       status,
       headers: responseHeaders,
     },
   );
+}
+
+function publicProblemExtensions(
+  status: number,
+  extra: ProblemResponseExtra | undefined,
+  request: Request | undefined,
+): ProblemResponseExtra {
+  const instance = extra?.instance ?? requestInstance(request);
+  if (status < 500) return { ...extra, instance };
+
+  // A 5xx can contain backend diagnostics in every extension, not only in
+  // `detail`. Its code is the only backend value the browser may use; the
+  // instance remains safe for correlating the response with server logs.
+  return {
+    ...(extra?.code && registeredErrorCodes.has(extra.code)
+      ? { code: extra.code }
+      : {}),
+    ...(instance ? { instance } : {}),
+  };
 }
 
 function isRequest(value: unknown): value is Request {

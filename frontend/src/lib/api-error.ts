@@ -13,6 +13,8 @@ export function wireErrorCode(code: unknown): ErrorCode | undefined {
 export class ApiError extends Error {
   status?: number;
   code?: ErrorCode;
+  /** Backend diagnostic detail. It is for logs, never for user-facing copy. */
+  detail?: string;
   details?: Record<string, unknown>;
   errors?: { field: string; reason: string }[];
   instance?: string;
@@ -24,6 +26,7 @@ export class ApiError extends Error {
     status?: number,
     payload?: {
       code?: string;
+      detail?: string;
       details?: Record<string, unknown>;
       errors?: { field: string; reason: string }[];
       instance?: string;
@@ -35,6 +38,7 @@ export class ApiError extends Error {
     this.code =
       wireErrorCode(payload?.code) ||
       (status === undefined ? undefined : errorClassCode(status));
+    this.detail = payload?.detail;
     this.details = payload?.details;
     this.errors = payload?.errors;
     this.instance = payload?.instance;
@@ -156,8 +160,8 @@ export function problemDetail(body: unknown): string | undefined {
 }
 
 /**
- * Turns an error body into an ApiError. The message is the envelope's
- * diagnostic `detail`; `message` is the fallback for a body without one.
+ * Turns an error body into an ApiError. The caller supplies the user-safe
+ * message; the envelope's diagnostic `detail` remains separate for logs.
  */
 export function apiErrorFromBody(
   message: string,
@@ -181,8 +185,9 @@ export function apiErrorFromBody(
           typeof entry.reason === "string",
       )
     : undefined;
-  return new ApiError(problemDetail(data) ?? message, status, {
+  return new ApiError(message, status, {
     code: typeof data.code === "string" && data.code ? data.code : undefined,
+    detail: problemDetail(data),
     details,
     errors,
     instance: typeof data.instance === "string" ? data.instance : undefined,
@@ -245,6 +250,7 @@ export function enrichApiError<T extends ApiError>(
     error.code = parsed.code;
   }
   error.details = parsed.details ?? error.details;
+  error.detail = parsed.detail ?? error.detail;
   error.errors = parsed.errors ?? error.errors;
   error.instance = parsed.instance ?? error.instance;
   error.requestId = parsed.requestId ?? error.requestId;
