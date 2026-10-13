@@ -208,6 +208,7 @@ const (
 	CodeFilesAnnouncementPublished                       = "files.announcement_published"
 	CodeFilesAttachmentLimitReached                      = "files.attachment_limit_reached"
 	CodeFilesFileMissing                                 = "files.file_missing"
+	CodeFilesFileNameInvalid                             = "files.file_name_invalid"
 	CodeFilesFileTooLarge                                = "files.file_too_large"
 	CodeFilesFileTypeNotAllowed                          = "files.file_type_not_allowed"
 	CodeFilesFileUnreadable                              = "files.file_unreadable"
@@ -873,6 +874,7 @@ var errorClassByCode = map[string]string{
 	"files.announcement_published":                         "business_rejection",
 	"files.attachment_limit_reached":                       "business_rejection",
 	"files.file_missing":                                   "input",
+	"files.file_name_invalid":                              "input",
 	"files.file_too_large":                                 "input",
 	"files.file_type_not_allowed":                          "input",
 	"files.file_unreadable":                                "input",

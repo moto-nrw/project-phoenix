@@ -5,6 +5,7 @@ import { auth } from "../server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import type { ApiErrorResponse, ApiResponse } from "./api-helpers.server";
 import { handleApiError } from "./api-helpers.server";
+import type { ErrorCode } from "./error-codes.generated";
 
 interface FileUploadOptions {
   maxSizeInMB?: number;
@@ -17,11 +18,20 @@ const MULTIPART_OVERHEAD_BYTES = 2 * 1024 * 1024;
 /** Error thrown by file validation with the appropriate HTTP status code. */
 export class FileValidationError extends Error {
   readonly status: number;
+  readonly code: ErrorCode;
+  readonly details?: Record<string, unknown>;
 
-  constructor(message: string, status: number) {
+  constructor(
+    message: string,
+    status: number,
+    code: ErrorCode,
+    details?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = "FileValidationError";
     this.status = status;
+    this.code = code;
+    this.details = details;
   }
 }
 
@@ -51,6 +61,8 @@ function validateFile(file: File, options: FileUploadOptions): void {
     throw new FileValidationError(
       `File size exceeds ${maxSizeInMB}MB limit`,
       413,
+      "files.file_too_large",
+      { max_mb: maxSizeInMB },
     );
   }
 
@@ -59,6 +71,7 @@ function validateFile(file: File, options: FileUploadOptions): void {
     throw new FileValidationError(
       `File type ${file.type} is not allowed. Allowed types: ${allowedMimeTypes.join(", ")}`,
       415,
+      "files.file_type_not_allowed",
     );
   }
 
@@ -71,6 +84,7 @@ function validateFile(file: File, options: FileUploadOptions): void {
     throw new FileValidationError(
       `File extension not allowed. Allowed extensions: ${allowedExtensions.join(", ")}`,
       415,
+      "files.file_type_not_allowed",
     );
   }
 
@@ -81,7 +95,11 @@ function validateFile(file: File, options: FileUploadOptions): void {
     fileName.includes("/") ||
     fileName.includes("\\")
   ) {
-    throw new FileValidationError("Invalid filename", 422);
+    throw new FileValidationError(
+      "Invalid filename",
+      422,
+      "files.file_name_invalid",
+    );
   }
 }
 
@@ -95,6 +113,8 @@ async function parseBoundedMultipartFormData(
     throw new FileValidationError(
       `Request body exceeds ${maxSizeInBytes / (1024 * 1024)}MB limit`,
       413,
+      "files.file_too_large",
+      { max_mb: maxSizeInBytes / (1024 * 1024) },
     );
   }
 
@@ -117,6 +137,8 @@ async function parseBoundedMultipartFormData(
         throw new FileValidationError(
           `Request body exceeds ${maxSizeInBytes / (1024 * 1024)}MB limit`,
           413,
+          "files.file_too_large",
+          { max_mb: maxSizeInBytes / (1024 * 1024) },
         );
       }
       const chunk = new Uint8Array(value.byteLength);
@@ -192,11 +214,7 @@ export function createFileUploadHandler<T>(
           }
         } catch (validationError) {
           if (validationError instanceof FileValidationError) {
-            return problemResponse(
-              validationError.status,
-              validationError.message,
-              request,
-            );
+            return fileValidationProblemResponse(validationError, request);
           }
           throw validationError;
         }
@@ -217,10 +235,25 @@ export function createFileUploadHandler<T>(
         return NextResponse.json(response);
       } catch (error) {
         if (error instanceof FileValidationError) {
-          return problemResponse(error.status, error.message, request);
+          return fileValidationProblemResponse(error, request);
         }
         return handleApiError(error, request);
       }
     },
+  );
+}
+
+function fileValidationProblemResponse(
+  error: FileValidationError,
+  request: Request,
+) {
+  return problemResponse(
+    error.status,
+    error.message,
+    {
+      code: error.code,
+      ...(error.details ? { details: error.details } : {}),
+    },
+    request,
   );
 }

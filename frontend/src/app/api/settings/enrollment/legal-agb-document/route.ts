@@ -31,7 +31,11 @@ export const POST = createFileUploadHandler<LegalAGBDocumentResponse>(
   async (_request: NextRequest, formData: FormData, token: string) => {
     const file = formData.get("document");
     if (!file || !(file instanceof File)) {
-      throw new FileValidationError("No PDF document provided", 400);
+      throw new FileValidationError(
+        "No PDF document provided",
+        400,
+        "files.file_missing",
+      );
     }
 
     const validatedFormData = new FormData();

@@ -154,7 +154,7 @@ func addProblemFields(body map[string]json.RawMessage, status int, requestID str
 	delete(body, "message")
 	body["status"] = json.RawMessage(strconv.Itoa(status))
 	code := problemStringField(body, "code")
-	if code == "" {
+	if _, registered := errorClassByCode[code]; !registered {
 		code = ErrorClassCode(status)
 		setProblemString(body, "code", code)
 	}

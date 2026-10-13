@@ -32,11 +32,19 @@ export const POST = createFileUploadHandler<unknown>(
 
     const file = formData.get("file");
     if (!file || !(file instanceof File)) {
-      throw new FileValidationError("No document file provided", 400);
+      throw new FileValidationError(
+        "No document file provided",
+        400,
+        "files.file_missing",
+      );
     }
     const category = formData.get("category");
     if (typeof category !== "string" || category === "") {
-      throw new FileValidationError("No document category provided", 400);
+      throw new FileValidationError(
+        "No document category provided",
+        400,
+        "general.input",
+      );
     }
 
     const backendUrl = `${getServerApiUrl()}/api/students/${studentId}/documents`;

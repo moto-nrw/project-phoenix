@@ -40,7 +40,11 @@ export const POST = createFileUploadHandler<UploadResult>(
       // 400 — caller-shaped: form is missing the field. FileValidationError
       // travels through the wrapper's catch block and is rendered as a 4xx
       // instead of being collapsed into a 500 by handleApiError.
-      throw new FileValidationError("No photo file provided", 400);
+      throw new FileValidationError(
+        "No photo file provided",
+        400,
+        "files.file_missing",
+      );
     }
 
     // Magic-byte check via the shared helper. The user-avatar route
@@ -63,6 +67,7 @@ export const POST = createFileUploadHandler<UploadResult>(
       throw new FileValidationError(
         "Ungültiges Bildformat. Bitte JPEG, PNG oder WebP hochladen.",
         415,
+        "files.file_type_not_allowed",
       );
     }
 

@@ -20,7 +20,7 @@ func TestProblemResponseCarriesTheRFC9457EnvelopeAndRequestID(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/api/rooms", nil)
 	request = request.WithContext(context.WithValue(request.Context(), middleware.RequestIDKey, "request-123"))
 	handler := common.ProblemResponseMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		common.RenderError(w, r, common.ErrorConflictWithDetails(errors.New("occupied"), "room.occupied", map[string]any{"room_id": "42"}))
+		common.RenderError(w, r, common.ErrorConflictWithDetails(errors.New("occupied"), common.CodeTimetableRoomOccupied, map[string]any{"room_id": "42"}))
 	}))
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
@@ -30,7 +30,7 @@ func TestProblemResponseCarriesTheRFC9457EnvelopeAndRequestID(t *testing.T) {
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
 	require.Equal(t, float64(http.StatusConflict), body["status"])
-	require.Equal(t, "room.occupied", body["code"])
+	require.Equal(t, common.CodeTimetableRoomOccupied, body["code"])
 	require.Equal(t, map[string]any{"room_id": "42"}, body["details"])
 	require.Equal(t, "occupied", body["detail"])
 	require.Equal(t, "request-123", body["instance"])
@@ -124,6 +124,7 @@ func TestProblemResponseAnswersEveryLegacyBodyInTheSharedEnvelope(t *testing.T) 
 		{name: "human status text without error text", status: http.StatusForbidden, contentType: "application/json", body: `{"status":"Forbidden"}`, wantDetail: "Forbidden", wantCode: "general.permission"},
 		{name: "success envelope on a conflict", status: http.StatusConflict, contentType: "application/json", body: `{"status":"success","data":{"status":"conflict"},"message":"Conflict detected"}`, wantDetail: "Conflict detected", wantCode: "general.business_rejection", wantKept: map[string]any{"data": map[string]any{"status": "conflict"}}},
 		{name: "numeric legacy code", status: http.StatusUnauthorized, contentType: "application/json", body: `{"status":"error","code":401,"error":"token unauthorized"}`, wantDetail: "token unauthorized", wantCode: "general.permission"},
+		{name: "unregistered code", status: http.StatusConflict, contentType: "application/json", body: `{"status":409,"code":"care.not_registered","detail":"companion conflict"}`, wantDetail: "companion conflict", wantCode: "general.business_rejection"},
 		{name: "extension members stay", status: http.StatusConflict, contentType: "application/json", body: `{"conflicts":[{"id":"1"}],"message":"companion conflict"}`, wantDetail: "companion conflict", wantCode: "general.business_rejection", wantKept: map[string]any{"conflicts": []any{map[string]any{"id": "1"}}}},
 		{name: "plain text", status: http.StatusNotFound, contentType: "text/plain", body: "not found", wantDetail: "not found", wantCode: "general.input"},
 		{name: "empty body", status: http.StatusInternalServerError, wantDetail: "Internal Server Error", wantCode: "general.server"},

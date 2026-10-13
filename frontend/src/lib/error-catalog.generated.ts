@@ -232,6 +232,8 @@ export const ERROR_CATALOG = {
         "Eine Mitteilung kann höchstens 5 Anhänge haben. Bitte entfernen Sie einen Anhang.",
       "files.file_missing":
         "Es wurde keine Datei ausgewählt. Bitte wählen Sie eine Datei aus.",
+      "files.file_name_invalid":
+        "Der Name der Datei ist nicht erlaubt. Bitte wählen Sie die Datei noch einmal aus.",
       "files.file_too_large":
         "Diese Datei ist zu groß. Erlaubt sind bis zu {max_mb} MB.",
       "files.file_type_not_allowed":
@@ -1314,6 +1316,8 @@ export const ERROR_CATALOG = {
         "This weekday is not available for this option. Please only choose the days shown.",
       "enrollment.window_closed":
         "The enrollment period has ended or has not started yet. Please contact the school.",
+      "files.file_name_invalid":
+        "This file name is not allowed. Please choose the file again.",
       "general.request_too_large":
         "{object} could not be processed. Please delete the cookies of this site in your browser. Then sign in again.",
       "identity.account_already_has_tenant_access":
@@ -1578,6 +1582,8 @@ export const ERROR_CATALOG = {
         "Этот день недели недоступен для программы. Выбирайте только показанные дни.",
       "enrollment.window_closed":
         "Срок записи истёк или ещё не начался. Обратитесь в школу.",
+      "files.file_name_invalid":
+        "Имя файла недопустимо. Выберите файл ещё раз.",
       "general.request_too_large":
         "Не удалось обработать: {object}. Удалите в браузере файлы cookie этого сайта. Затем войдите снова.",
       "identity.account_already_has_tenant_access":
@@ -1842,6 +1848,8 @@ export const ERROR_CATALOG = {
         "Kjo ditë nuk ofrohet për këtë ofertë. Ju lutemi zgjidhni vetëm ditët e treguara.",
       "enrollment.window_closed":
         "Afati i regjistrimit ka mbaruar ose nuk ka filluar ende. Ju lutemi kontaktoni shkollën.",
+      "files.file_name_invalid":
+        "Emri i skedarit nuk lejohet. Ju lutemi zgjidhni skedarin përsëri.",
       "general.request_too_large":
         "Nuk u përpunua: {object}. Fshini në shfletues cookies e kësaj faqeje. Pastaj hyni përsëri.",
       "identity.account_already_has_tenant_access":
@@ -2112,6 +2120,8 @@ export const ERROR_CATALOG = {
         "Ten dzień tygodnia nie jest dostępny dla oferty. Wybieraj tylko pokazane dni.",
       "enrollment.window_closed":
         "Termin zapisów minął lub jeszcze się nie zaczął. Skontaktuj się ze szkołą.",
+      "files.file_name_invalid":
+        "Nazwa pliku jest niedozwolona. Wybierz plik ponownie.",
       "general.request_too_large":
         "Nie udało się przetworzyć: {object}. Usuń w przeglądarce pliki cookie tej strony. Następnie zaloguj się ponownie.",
       "identity.account_already_has_tenant_access":
@@ -2374,6 +2384,8 @@ export const ERROR_CATALOG = {
         "Bu gün bu hizmet için mümkün değil. Lütfen yalnızca gösterilen günleri seçin.",
       "enrollment.window_closed":
         "Kayıt süresi bitti veya henüz başlamadı. Lütfen okulla iletişime geçin.",
+      "files.file_name_invalid":
+        "Dosya adı kabul edilmiyor. Lütfen dosyayı yeniden seçin.",
       "general.request_too_large":
         "{object} işlenemedi. Lütfen tarayıcınızda bu sitenin çerezlerini silin. Ardından yeniden giriş yapın.",
       "identity.account_already_has_tenant_access":
@@ -2638,6 +2650,8 @@ export const ERROR_CATALOG = {
         "Цей день тижня недоступний для програми. Обирайте лише показані дні.",
       "enrollment.window_closed":
         "Термін запису минув або ще не почався. Зверніться до школи.",
+      "files.file_name_invalid":
+        "Назва файлу не дозволена. Виберіть файл ще раз.",
       "general.request_too_large":
         "Не вдалося обробити: {object}. Видаліть у браузері файли cookie цього сайту. Потім увійдіть знову.",
       "identity.account_already_has_tenant_access":

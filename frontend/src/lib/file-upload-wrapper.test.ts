@@ -8,6 +8,8 @@ vi.mock("@sentry/nextjs", () => ({ captureException }));
 interface ErrorResponse {
   status: number;
   detail: string;
+  code: string;
+  details?: Record<string, unknown>;
 }
 
 interface SuccessResponse<T> {
@@ -130,7 +132,12 @@ describe("createFileUploadHandler", () => {
 
       const response = await wrappedHandler(request, context);
 
+      const data = (await response.json()) as ErrorResponse;
       expect(response.status).toBe(413);
+      expect(data).toMatchObject({
+        code: "files.file_too_large",
+        details: { max_mb: 5 },
+      });
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -154,7 +161,12 @@ describe("createFileUploadHandler", () => {
 
       const response = await wrappedHandler(request, context);
 
+      const data = (await response.json()) as ErrorResponse;
       expect(response.status).toBe(413);
+      expect(data).toMatchObject({
+        code: "files.file_too_large",
+        details: { max_mb: 1 },
+      });
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -185,6 +197,10 @@ describe("createFileUploadHandler", () => {
 
       expect(response.status).toBe(413);
       expect(data.detail).toContain("File size exceeds 5MB limit");
+      expect(data).toMatchObject({
+        code: "files.file_too_large",
+        details: { max_mb: 5 },
+      });
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -264,6 +280,7 @@ describe("createFileUploadHandler", () => {
 
       expect(response.status).toBe(415);
       expect(data.detail).toContain("File type text/plain is not allowed");
+      expect(data.code).toBe("files.file_type_not_allowed");
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -358,6 +375,7 @@ describe("createFileUploadHandler", () => {
 
       expect(response.status).toBe(415);
       expect(data.detail).toContain("File extension not allowed");
+      expect(data.code).toBe("files.file_type_not_allowed");
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -430,6 +448,7 @@ describe("createFileUploadHandler", () => {
 
       expect(response.status).toBe(422);
       expect(data.detail).toBe("Invalid filename");
+      expect(data.code).toBe("files.file_name_invalid");
       expect(handler).not.toHaveBeenCalled();
     });
 
@@ -455,6 +474,7 @@ describe("createFileUploadHandler", () => {
 
       expect(response.status).toBe(422);
       expect(data.detail).toBe("Invalid filename");
+      expect(data.code).toBe("files.file_name_invalid");
       expect(handler).not.toHaveBeenCalled();
     });
 
