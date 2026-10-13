@@ -3,8 +3,6 @@ package users
 import (
 	"context"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // ParentMessageRead is a reader's read cursor in a thread. The reader is an
@@ -13,10 +11,10 @@ import (
 // did not send.
 type ParentMessageRead struct {
 	// Documents the source table; bun reads table tags only from bun.BaseModel.
-	base.TenantModel `bun:"table:users.parent_message_reads,alias:pmr"`
-	ThreadID         int64     `bun:"thread_id,pk" json:"thread_id"`
-	AccountID        int64     `bun:"account_id,pk" json:"account_id"`
-	LastReadAt       time.Time `bun:"last_read_at,notnull" json:"last_read_at"`
+	TenantModel `bun:"table:users.parent_message_reads,alias:pmr"`
+	ThreadID    int64     `bun:"thread_id,pk" json:"thread_id"`
+	AccountID   int64     `bun:"account_id,pk" json:"account_id"`
+	LastReadAt  time.Time `bun:"last_read_at,notnull" json:"last_read_at"`
 	// LastReadMessageID is the id tie-breaker for LastReadAt: the cursor is the
 	// composite (LastReadAt, LastReadMessageID). Two messages in a thread can
 	// share a created_at, and the message list orders ties by id DESC, so unread

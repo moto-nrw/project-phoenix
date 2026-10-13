@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -55,12 +54,12 @@ var ErrDepartureCompanionNoteRequired = departure.ErrDepartureCompanionNoteRequi
 var ErrStudentRowMissing = errors.New("student row not found")
 
 // MissingStudentError is the error a lookup returns for a child that is not
-// there: a DatabaseError wrapping both base.ErrNotFound and noRows, which is
+// there: a DatabaseError wrapping both ErrRepositoryNotFound and noRows, which is
 // the shape the retained callers branch on. The persistence callers pass
 // sql.ErrNoRows as noRows, because retained consumers still match that
 // sentinel and this package stays free of database/sql.
 func MissingStudentError(op string, noRows error) error {
-	return &base.DatabaseError{Op: op, Err: errors.Join(base.ErrNotFound, noRows, ErrStudentRowMissing)}
+	return &DatabaseError{Op: op, Err: errors.Join(ErrRepositoryNotFound, noRows, ErrStudentRowMissing)}
 }
 
 // Student is the joined student DTO consumed by the retained API and service
@@ -68,8 +67,8 @@ func MissingStudentError(op string, noRows error) error {
 // Directory, School Membership and Care Plan. The column tags support scans
 // of explicit projections, not persistence through the retired student shape.
 type Student struct {
-	base.Model
-	base.TenantModel
+	Model
+	TenantModel
 	PersonID          int64   `bun:"person_id,notnull" json:"person_id"`
 	SchoolClass       string  `bun:"school_class,notnull" json:"school_class"`
 	GroupID           *int64  `bun:"group_id" json:"group_id,omitempty"`

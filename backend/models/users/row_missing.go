@@ -2,8 +2,6 @@ package users
 
 import (
 	"errors"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // RowMissing reports the "no row" outcomes the retained repositories use: the
@@ -12,6 +10,6 @@ import (
 // before it gets here. The composition root classifies repository results
 // with it when it binds the Identity & Access seams (#3364).
 func RowMissing(err error) bool {
-	return errors.Is(err, base.ErrNotFound) ||
+	return errors.Is(err, ErrRepositoryNotFound) ||
 		errors.Is(err, ErrGuardianProfileNotFound) || errors.Is(err, ErrStudentGuardianNotFound)
 }

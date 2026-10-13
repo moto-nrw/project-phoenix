@@ -2,8 +2,6 @@ package users
 
 import (
 	"context"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Event types of the parent-request ledger. They mirror the CHECK constraint
@@ -28,8 +26,8 @@ const (
 // staff and guardians see that a request was edited before it was decided, or
 // that a decision was later corrected.
 type ParentRequestEvent struct {
-	base.Model `bun:"schema:users,table:parent_request_events"`
-	base.TenantModel
+	Model `bun:"schema:users,table:parent_request_events"`
+	TenantModel
 	StudentID   int64  `bun:"student_id,notnull" json:"student_id"`
 	RequestType string `bun:"request_type,notnull" json:"request_type"`
 	RequestID   int64  `bun:"request_id,notnull" json:"request_id"`

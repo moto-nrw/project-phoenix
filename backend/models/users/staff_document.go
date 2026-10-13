@@ -3,8 +3,6 @@ package users
 import (
 	"context"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Staff document categories (#1424). Fixed enum, mirrored by the CHECK
@@ -34,8 +32,8 @@ var StaffDocumentCategories = []string{
 // download handler. The row is soft-deleted so the metadata survives as an
 // audit trail after the file itself is removed.
 type StaffDocument struct {
-	base.Model `bun:"schema:users,table:staff_documents"`
-	base.TenantModel
+	Model `bun:"schema:users,table:staff_documents"`
+	TenantModel
 	StaffID         int64      `bun:"staff_id,notnull" json:"staff_id"`
 	Category        string     `bun:"category,notnull" json:"category"`
 	FilenameDisplay string     `bun:"filename_display,notnull" json:"filename_display"`
@@ -55,8 +53,8 @@ type StaffDocument struct {
 // staff row that was concurrently offboarded, but the sensitive file still
 // must remain queued.
 type StaffDocumentFileCleanup struct {
-	base.Model `bun:"schema:users,table:staff_document_file_cleanup"`
-	base.TenantModel
+	Model `bun:"schema:users,table:staff_document_file_cleanup"`
+	TenantModel
 	StaffID        int64      `bun:"staff_id,notnull"`
 	FilenameStored string     `bun:"filename_stored,notnull"`
 	RetryAfter     time.Time  `bun:"retry_after,notnull"`

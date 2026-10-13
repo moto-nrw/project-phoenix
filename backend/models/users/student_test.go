@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestStudent_Validate(t *testing.T) {
@@ -216,7 +215,7 @@ func TestStudent_SetPerson(t *testing.T) {
 		}
 
 		person := &Person{
-			Model:     base.Model{ID: 42},
+			Model:     Model{ID: 42},
 			FirstName: "John",
 			LastName:  "Doe",
 		}

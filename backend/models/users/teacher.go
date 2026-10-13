@@ -4,14 +4,12 @@ import (
 	"errors"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Teacher represents a pedagogical specialist in the system
 type Teacher struct {
-	base.Model `bun:"schema:users,table:teachers"`
-	base.TenantModel
+	Model `bun:"schema:users,table:teachers"`
+	TenantModel
 	StaffID        int64      `bun:"staff_id,notnull" json:"staff_id"`
 	Specialization string     `bun:"specialization,nullzero" json:"specialization,omitempty"`
 	Role           string     `bun:"role" json:"role,omitempty"`

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestGuardianPhoneNumber_Validate(t *testing.T) {
@@ -213,7 +212,7 @@ func TestGuardianPhoneNumber_GetID(t *testing.T) {
 	t.Parallel()
 
 	phone := &GuardianPhoneNumber{
-		Model:             base.Model{ID: 42},
+		Model:             Model{ID: 42},
 		GuardianProfileID: 1,
 		PhoneNumber:       "+49 30 123456",
 		PhoneType:         PhoneTypeHome,
@@ -229,7 +228,7 @@ func TestGuardianPhoneNumber_GetCreatedAt(t *testing.T) {
 
 	now := time.Now()
 	phone := &GuardianPhoneNumber{
-		Model:             base.Model{CreatedAt: now},
+		Model:             Model{CreatedAt: now},
 		GuardianProfileID: 1,
 		PhoneNumber:       "+49 30 123456",
 		PhoneType:         PhoneTypeHome,
@@ -245,7 +244,7 @@ func TestGuardianPhoneNumber_GetUpdatedAt(t *testing.T) {
 
 	now := time.Now()
 	phone := &GuardianPhoneNumber{
-		Model:             base.Model{UpdatedAt: now},
+		Model:             Model{UpdatedAt: now},
 		GuardianProfileID: 1,
 		PhoneNumber:       "+49 30 123456",
 		PhoneType:         PhoneTypeHome,

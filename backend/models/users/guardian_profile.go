@@ -4,8 +4,6 @@ import (
 	"errors"
 	"net/mail"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // ErrGuardianProfileNotFound is returned by repositories when no guardian
@@ -21,8 +19,8 @@ var ErrGuardianAccountConflict = errors.New("guardian account link conflicts wit
 // GuardianProfile represents a guardian's personal information
 // Guardians can exist with or without portal accounts
 type GuardianProfile struct {
-	base.Model `bun:"schema:users,table:guardian_profiles"`
-	base.TenantModel
+	Model `bun:"schema:users,table:guardian_profiles"`
+	TenantModel
 
 	// Personal Information (optional - may be empty for imported guardians)
 	FirstName string `bun:"first_name" json:"first_name"`
@@ -121,7 +119,7 @@ func (g *GuardianProfile) GetPreferredContact() string {
 	if primary := g.GetPrimaryPhone(); primary != "" {
 		return primary
 	}
-	return base.Deref(g.Email)
+	return deref(g.Email)
 }
 
 // GetPrimaryPhone returns the primary phone number from PhoneNumbers relation
@@ -153,7 +151,7 @@ func (g *GuardianProfile) GetPhoneByType(phoneType PhoneType) string {
 func (g *GuardianProfile) getContactByMethod(method string) string {
 	switch method {
 	case "email":
-		return base.Deref(g.Email)
+		return deref(g.Email)
 	case "mobile", "sms":
 		return g.GetPhoneByType(PhoneTypeMobile)
 	case "phone":

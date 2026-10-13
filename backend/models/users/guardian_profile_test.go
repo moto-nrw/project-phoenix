@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestGuardianProfile_Validate(t *testing.T) {
@@ -490,7 +489,7 @@ func TestGuardianProfile_GetID(t *testing.T) {
 	t.Parallel()
 
 	profile := &GuardianProfile{
-		Model:     base.Model{ID: 42},
+		Model:     Model{ID: 42},
 		FirstName: "John",
 		LastName:  "Doe",
 		Email:     ptrtest.Ptr("john@example.com"),
@@ -506,7 +505,7 @@ func TestGuardianProfile_GetCreatedAt(t *testing.T) {
 
 	now := time.Now()
 	profile := &GuardianProfile{
-		Model:     base.Model{CreatedAt: now},
+		Model:     Model{CreatedAt: now},
 		FirstName: "John",
 		LastName:  "Doe",
 		Email:     ptrtest.Ptr("john@example.com"),
@@ -522,7 +521,7 @@ func TestGuardianProfile_GetUpdatedAt(t *testing.T) {
 
 	now := time.Now()
 	profile := &GuardianProfile{
-		Model:     base.Model{UpdatedAt: now},
+		Model:     Model{UpdatedAt: now},
 		FirstName: "John",
 		LastName:  "Doe",
 		Email:     ptrtest.Ptr("john@example.com"),

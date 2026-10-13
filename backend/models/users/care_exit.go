@@ -1,7 +1,6 @@
 package users
 
 import (
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -30,8 +29,8 @@ const MaxCareExitNoteLen = 200
 // the acting person. Both are read behind users:delete, which is also why they
 // do not live on the student row half the app reads.
 type CareExit struct {
-	base.Model `bun:"schema:users,table:student_care_exits"`
-	base.TenantModel
+	Model `bun:"schema:users,table:student_care_exits"`
+	TenantModel
 	StudentID              int64          `bun:"student_id,notnull" json:"student_id"`
 	PreviousEnrolledUntil  *calendar.Date `bun:"previous_enrolled_until,type:date" json:"-"`
 	Reason                 string         `bun:"reason,notnull" json:"reason"`

@@ -4,8 +4,6 @@ import (
 	"errors"
 	"regexp"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // PhoneType represents the type of phone number
@@ -36,8 +34,8 @@ const (
 
 // GuardianPhoneNumber represents a phone number associated with a guardian
 type GuardianPhoneNumber struct {
-	base.Model `bun:"schema:users,table:guardian_phone_numbers"`
-	base.TenantModel
+	Model `bun:"schema:users,table:guardian_phone_numbers"`
+	TenantModel
 	GuardianProfileID int64     `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
 	PhoneNumber       string    `bun:"phone_number,notnull" json:"phone_number"`
 	PhoneType         PhoneType `bun:"phone_type,notnull,default:'mobile'" json:"phone_type"`
