@@ -836,7 +836,6 @@
       "pickupOptionalHint": "Leave empty if the time stays the same.",
       "modeStaffSet": "The OGS has already set the way home for this day: {mode}.",
       "pendingMode": "New way home: {to}",
-      "pendingModeChange": "{from} → {to}",
       "statusApprovedChange": "Confirmed, the change has been applied.",
       "errorStaffConflictGeneric": "The OGS has already set a change for this day. Please contact the team."
     },

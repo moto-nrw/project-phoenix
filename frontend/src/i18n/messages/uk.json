@@ -836,7 +836,6 @@
       "pickupOptionalHint": "Залиште порожнім, якщо час не змінюється.",
       "modeStaffSet": "OGS уже встановила спосіб забирання на цей день: {mode}.",
       "pendingMode": "Новий спосіб забирання: {to}",
-      "pendingModeChange": "{from} → {to}",
       "statusApprovedChange": "Підтверджено, зміну застосовано.",
       "errorStaffConflictGeneric": "OGS уже внесла зміну на цей день. Зверніться до команди OGS."
     },

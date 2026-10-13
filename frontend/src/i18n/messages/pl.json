@@ -836,7 +836,6 @@
       "pickupOptionalHint": "Proszę zostawić puste, jeśli godzina się nie zmienia.",
       "modeStaffSet": "OGS ustaliła już sposób odbioru na ten dzień: {mode}.",
       "pendingMode": "Nowy sposób odbioru: {to}",
-      "pendingModeChange": "{from} → {to}",
       "statusApprovedChange": "Potwierdzono, zmiana obowiązuje.",
       "errorStaffConflictGeneric": "OGS wpisała już zmianę na ten dzień. Proszę skontaktować się z zespołem OGS."
     },

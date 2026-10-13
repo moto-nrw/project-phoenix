@@ -836,7 +836,6 @@
       "pickupOptionalHint": "Leer lassen, wenn die Uhrzeit gleich bleibt.",
       "modeStaffSet": "Die OGS hat die Abholart für diesen Tag schon festgelegt: {mode}.",
       "pendingMode": "Neue Abholart: {to}",
-      "pendingModeChange": "{from} → {to}",
       "statusApprovedChange": "Bestätigt, die Änderung wurde übernommen.",
       "errorStaffConflictGeneric": "Für diesen Tag hat die OGS schon eine Änderung eingetragen. Bitte wenden Sie sich an das Team."
     },

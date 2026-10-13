@@ -836,7 +836,6 @@
       "pickupOptionalHint": "Saat değişmiyorsa boş bırakın.",
       "modeStaffSet": "OGS bu gün için teslim alma şeklini zaten belirledi: {mode}.",
       "pendingMode": "Yeni teslim alma şekli: {to}",
-      "pendingModeChange": "{from} → {to}",
       "statusApprovedChange": "Onaylandı, değişiklik uygulandı.",
       "errorStaffConflictGeneric": "OGS bu gün için zaten bir değişiklik girdi. Lütfen ekiple iletişime geçin."
     },

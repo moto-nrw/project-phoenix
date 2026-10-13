@@ -1429,12 +1429,9 @@ export function PickupTimeModal({
             {request.departure_mode && (
               <p className="text-base font-semibold">
                 {request.previous_departure_modes?.length
-                  ? t("pickup.pendingModeChange", {
-                      from: request.previous_departure_modes
-                        .map(modeLabel)
-                        .join(" / "),
-                      to: modeLabel(request.departure_mode),
-                    })
+                  ? `${request.previous_departure_modes
+                      .map(modeLabel)
+                      .join(" / ")} → ${modeLabel(request.departure_mode)}`
                   : t("pickup.pendingMode", {
                       to: modeLabel(request.departure_mode),
                     })}

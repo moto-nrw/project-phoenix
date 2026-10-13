@@ -836,7 +836,6 @@
       "pickupOptionalHint": "Оставьте пустым, если время не меняется.",
       "modeStaffSet": "Продлёнка уже указала способ ухода на этот день: {mode}.",
       "pendingMode": "Новый способ ухода: {to}",
-      "pendingModeChange": "{from} → {to}",
       "statusApprovedChange": "Подтверждено, изменение сохранено.",
       "errorStaffConflictGeneric": "Продлёнка уже внесла изменение на этот день. Пожалуйста, свяжитесь с командой."
     },

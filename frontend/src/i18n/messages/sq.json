@@ -836,7 +836,6 @@
       "pickupOptionalHint": "Lëreni bosh nëse ora mbetet e njëjtë.",
       "modeStaffSet": "OGS-ja e ka caktuar tashmë mënyrën e marrjes për këtë ditë: {mode}.",
       "pendingMode": "Mënyra e re e marrjes: {to}",
-      "pendingModeChange": "{from} → {to}",
       "statusApprovedChange": "U konfirmua, ndryshimi u ruajt.",
       "errorStaffConflictGeneric": "OGS-ja ka regjistruar tashmë një ndryshim për këtë ditë. Ju lutemi kontaktoni ekipin."
     },
