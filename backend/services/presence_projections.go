@@ -2,36 +2,10 @@ package services
 
 import (
 	"context"
-	"fmt"
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/uptrace/bun"
 )
-
-func mustPresenceReads(db *bun.DB) timetableCompose.PresenceReads {
-	reads, err := timetableCompose.NewPresenceReads(db)
-	if err != nil {
-		panic(err)
-	}
-	return reads
-}
-
-// NewPartialAbsencePreview composes the Timetable partial-absence preview over
-// the People Directory, the Care Plan pickup exceptions and the joined plan
-// reads of the database, for the retained services and their tests.
-func NewPartialAbsencePreview(db *bun.DB) timetableCompose.PartialAbsencePreview {
-	exceptions, err := carePlanCompose.NewExceptionQueries(db, func(carePlanCompose.Observation) {})
-	if err != nil {
-		panic(fmt.Sprintf("partial absence preview: compose care plan exception queries: %v", err))
-	}
-	return newPartialAbsencePreview(mustPresenceReads(db), peopleCompose.MustNewReads(db), exceptions)
-}
-
-// NewPresenceReads exposes the joined block, roster and attendance reads of
-// the Timetable compose (#2762) to the retained services and their tests.
-func NewPresenceReads(db *bun.DB) timetableCompose.PresenceReads { return mustPresenceReads(db) }
 
 // PickupReviewBlocks previews the blocks a pickup change under review would
 // excuse, including the blocks a course enrollment covers but no roster
@@ -39,10 +13,6 @@ func NewPresenceReads(db *bun.DB) timetableCompose.PresenceReads { return mustPr
 // execution and attendance (#2762).
 type PickupReviewBlocks struct {
 	reads timetableCompose.PresenceReads
-}
-
-func NewPickupReviewBlocks(db *bun.DB) carePlanCompose.PickupReviewBlocks {
-	return PickupReviewBlocks{reads: mustPresenceReads(db)}
 }
 
 func (p PickupReviewBlocks) PreviewPickupBlocks(ctx context.Context, input carePlanCompose.PickupReviewImpact) ([]carePlanCompose.PickupReviewBlock, error) {

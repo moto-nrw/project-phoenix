@@ -3026,7 +3026,8 @@ func newFactory(
 		StudentStatusDays:    studentStatusDayService,
 		AbsenceOverview:      studentStatusDayOverviewService,
 		StudentHistory:       presenceservice.NewStudentHistory(newStudentPresence(db, logger), historyRoomNames(rooms), NewDataAccessAudit(audits.DataAccessLog), NewHistorySlots(timetableRepos.InstanceStudent)),
-		Statistics: newStatistics(db, logger, presenceCompose.StatisticsDependencies{
+		Statistics: newStatistics(logger, presenceCompose.StatisticsDependencies{
+			DB:          db,
 			StatusDays:  statisticsStatusDays{carePlan},
 			Courses:     newCourseStatistics(mustPresenceReads(db)),
 			Holidays:    tenantHolidays{calendar: calendar},

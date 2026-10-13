@@ -4,6 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
@@ -99,4 +107,46 @@ func NewParentPortalRepositories(db *bun.DB, owners ParentPortalOwners) ParentPo
 				parentStore.CurrentTenantStaffAccounts(members, persons), staffMessageIdentity(identity))),
 		},
 	}
+}
+
+// NewDeviceFleet composes the device owner behind the legacy composition seam
+// for graphs that do not record observations and never serve the info-point
+// dashboard. Production roots compose the module themselves (api/base.go) so
+// runtime evidence and the dashboard collaborators are kept.
+func NewDeviceFleet(db *bun.DB, onlineWindows ...func(context.Context) time.Duration) (devicefleet.Capability, error) {
+	rooms, err := facilitiesCompose.NewUnobserved(db)
+	if err != nil {
+		return nil, err
+	}
+	var onlineWindow func(context.Context) time.Duration
+	if len(onlineWindows) > 0 {
+		onlineWindow = onlineWindows[0]
+	}
+	return devicefleetCompose.New(devicefleetCompose.Dependencies{
+		DB:           db,
+		Rooms:        rooms,
+		OnlineWindow: onlineWindow,
+		Observe:      func(devicefleetCompose.Observation) {},
+	})
+}
+
+// NewFacilities composes the unobserved room owner for the test and CLI
+// compositions that reach Facilities through the legacy composition.
+func NewFacilities(db *bun.DB) (facilitiesModule.Capability, error) {
+	return facilitiesCompose.NewUnobserved(db)
+}
+
+// NewManualPlanningQuery forwards to Enrollment's manual-planning query for
+// the Care Plan contract suites, which may not import Enrollment's
+// composition; the legacy composition calls the owner directly.
+func NewManualPlanningQuery(db *bun.DB) *enrollmentCompose.ManualPlanningQuery {
+	return enrollmentCompose.NewManualPlanningQuery(db)
+}
+
+// NewSickCascadeTimetableRows binds the sick cascade's Betreuungsplan rows to
+// the retained repositories and its day lock to the day-wide staffing lock
+// the Timetable owner's staffing writes take (#1840, #3551). The
+// shift-plan-sync workflow tests compose the cascade with it too.
+func NewSickCascadeTimetableRows(rows timetableCompose.OwnerRows, db *bun.DB) shiftplansyncCompose.TimetableRows {
+	return rows.SickCascadeRows(timetableCompose.SubstituteDayLock(db))
 }

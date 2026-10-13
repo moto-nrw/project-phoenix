@@ -2,35 +2,10 @@ package services
 
 import (
 	"context"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/uptrace/bun"
 )
-
-// NewDeviceFleet composes the device owner behind the legacy composition seam
-// for graphs that do not record observations and never serve the info-point
-// dashboard. Production roots compose the module themselves (api/base.go) so
-// runtime evidence and the dashboard collaborators are kept.
-func NewDeviceFleet(db *bun.DB, onlineWindows ...func(context.Context) time.Duration) (devicefleet.Capability, error) {
-	rooms, err := facilitiesCompose.NewUnobserved(db)
-	if err != nil {
-		return nil, err
-	}
-	var onlineWindow func(context.Context) time.Duration
-	if len(onlineWindows) > 0 {
-		onlineWindow = onlineWindows[0]
-	}
-	return devicefleetCompose.New(devicefleetCompose.Dependencies{
-		DB:           db,
-		Rooms:        rooms,
-		OnlineWindow: onlineWindow,
-		Observe:      func(devicefleetCompose.Observation) {},
-	})
-}
 
 // activeDeviceDirectory hands the device owner to the session repository that
 // used to join iot.devices itself (#2676).

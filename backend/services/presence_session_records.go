@@ -14,7 +14,6 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/uptrace/bun"
 )
 
 func presenceObservation(observation presenceCompose.Observation) {
@@ -24,18 +23,6 @@ func presenceObservation(observation presenceCompose.Observation) {
 			"error", observation.Err,
 		)
 	}
-}
-
-// NewPresenceSessionRecords builds the Student Presence session records
-// without owner directories: the reads that project rooms, activities or
-// devices fail loudly, and supervision reads carry no staff members. The
-// optional clock fixes the supervision "today".
-func NewPresenceSessionRecords(db *bun.DB, clocks ...func() time.Time) *presenceCompose.SessionRecords {
-	var now func() time.Time
-	if len(clocks) > 0 {
-		now = clocks[0]
-	}
-	return newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{DB: db, Now: now})
 }
 
 func newPresenceSessionRecords(deps presenceCompose.SessionRecordDependencies) *presenceCompose.SessionRecords {
@@ -61,18 +48,18 @@ type SessionRecordOwners struct {
 	Persons    peopledirectory.Query
 }
 
-// NewSessionRecords builds the Student Presence session records with every
-// owner directory bound at construction (#2743).
-func NewSessionRecords(db *bun.DB, owners SessionRecordOwners) *presenceCompose.SessionRecords {
+// sessionRecordDependencies binds every owner directory of the Student
+// Presence session records (#2743); the caller adds the database.
+func sessionRecordDependencies(owners SessionRecordOwners) presenceCompose.SessionRecordDependencies {
 	deps := presenceCompose.SessionRecordDependencies{
-		DB: db, Now: owners.Now, Rooms: activeRoomDirectory{rooms: owners.Rooms},
+		Now: owners.Now, Rooms: activeRoomDirectory{rooms: owners.Rooms},
 		Activities: NewSessionActivities(timetableCompose.NewTimetableGroupReads(timetableCompose.NewActivityGroupRecords(owners.Timetable))),
 		Staff:      presenceSupervisionStaff{membership: owners.Membership, persons: owners.Persons},
 	}
 	if owners.Devices != nil {
 		deps.Devices = activeDeviceDirectory{devices: owners.Devices}
 	}
-	return newPresenceSessionRecords(deps)
+	return deps
 }
 
 // presenceSupervisionStaff resolves the staff members behind supervision rows

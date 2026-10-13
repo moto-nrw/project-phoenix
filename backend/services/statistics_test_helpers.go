@@ -52,7 +52,8 @@ func NewStatisticsTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func(
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	service := newStatistics(db, slog.Default(), presenceCompose.StatisticsDependencies{
+	service := newStatistics(slog.Default(), presenceCompose.StatisticsDependencies{
+		DB:         db,
 		StatusDays: statisticsStatusDays{r.CarePlan}, Courses: newCourseStatistics(mustPresenceReads(db)),
 		Holidays:    tenantHolidays{calendar: calendar},
 		ClosingDays: tenantClosingDays{calendar: calendar}, Periods: statisticsReportPeriods{calendar}, Students: statisticsReportStudents{students}, Rooms: statisticsReportRooms{rooms},
