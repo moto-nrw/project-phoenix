@@ -3397,7 +3397,9 @@ adds it to the shared fixture targets in a narrower shape: only the
 Epoch 37 registers `shared-fixtures.transaction-runtime-compose` with the
 seam's own rules, which are anchored to the new package. The seam reaches the
 Audit context adapters through `modules/auditlog`; `test -> database` falls
-(112 -> 111).
+(112 -> 111). The roots `api` and `cmd` build their runtimes and pools there
+too, under two rules anchored to the new package, and
+`services.BindTenantRuntime` is deleted.
 
 A reviewed epoch may also add the one owner-agnostic shared-kernel rule
 ([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),

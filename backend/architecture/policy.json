@@ -23402,6 +23402,28 @@
       "source_role": "workflow-integration-test",
       "target_owner": "transaction-runtime",
       "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.transaction-runtime-compose",
+      "description": "The serving root builds the tenant runtime, its demo variant and the serve pool through the Transaction Runtime bootstrap (#3970).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "transaction-runtime",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.cli.transaction-runtime-compose",
+      "description": "The CLI commands build the tenant runtime and open their pool through the Transaction Runtime bootstrap (#3970).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "cli",
+      "target_owner": "transaction-runtime",
+      "target_role": "compose"
     }
   ],
   "relocations": [

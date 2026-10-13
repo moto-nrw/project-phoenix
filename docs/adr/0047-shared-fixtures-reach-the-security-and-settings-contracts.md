@@ -169,6 +169,17 @@ carry the Audit tenant through the runtime they are bound to instead of
 setting it themselves. `test -> database` falls. `test -> models/audit` stays
 for model types only, which #3967 removes. The two assertions that the fixture
 contexts carry the Audit tenant moved to the Audit integration suite, which
-reads the Audit context directly. `api`, `cmd` and `services.BindTenantRuntime`
-move onto the same seam with #2750 and #2747. No runtime write owner, table,
-route, status code or error string changes.
+reads the Audit context directly.
+
+The composition roots move onto the seam in the same change, because the
+dead-code gate admits no production function that only tests reach. `api`
+builds its serve pool, lock-wait hook, tenant runtime and demo runtime there,
+`cmd` its cleanup and parent-seeding runtimes and the pools of `seed-parents`
+and `backfill`, under two rules anchored to the new package
+(`root-composition.to.transaction-runtime-compose`,
+`root-composition.cli.transaction-runtime-compose`).
+`services.BindTenantRuntime` and its two observer bridges are deleted. `api ->
+database` and `cmd -> database` stay on #2750 for the other database functions
+the roots call. The Audit readers that only tests need live in
+`_test_helpers.go` files. No runtime write owner, table, route, status code or
+error string changes.

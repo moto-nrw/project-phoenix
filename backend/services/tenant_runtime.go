@@ -1,66 +1,12 @@
 package services
 
 import (
-	"context"
 	"fmt"
 	"reflect"
-	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
-
-func BindTenantRuntime(
-	withinTenant func(context.Context, int64, func(context.Context, any) error) error,
-	withinAdmin func(context.Context, func(context.Context, any) error) error,
-	savepoints tenant.SavepointController,
-	retryable func(error) bool,
-) (tenant.UnitOfWork, error) {
-	lockController, _ := savepoints.(interface {
-		AcquireLock(context.Context, string, bool) error
-	})
-	var acquireLock func(context.Context, string, bool) error
-	if lockController != nil {
-		acquireLock = lockController.AcquireLock
-	}
-	runtime, err := tenant.NewUnitOfWork(
-		withinTenant,
-		withinAdmin,
-		tenant.SavepointFunc(savepoints),
-		retryable,
-		acquireLock,
-	)
-	if err != nil {
-		return tenant.UnitOfWork{}, err
-	}
-	if detacher, ok := savepoints.(interface {
-		ContextWithoutTransaction(context.Context) context.Context
-	}); ok {
-		runtime = runtime.WithTransactionDetacher(detacher.ContextWithoutTransaction)
-	}
-	if adapter, ok := savepoints.(interface {
-		ContextWithTenant(context.Context, int64) context.Context
-		ContextWithTransaction(context.Context, any) context.Context
-	}); ok {
-		runtime = runtime.WithContextAdapters(adapter.ContextWithTenant, adapter.ContextWithTransaction)
-	}
-	runtime = runtime.WithTransactionDetacher(func(ctx context.Context) context.Context {
-		return auditModels.WithTransaction(ctx, nil)
-	})
-	runtime = runtime.WithContextAdapters(auditModels.WithTenantID, auditModels.WithTransaction)
-	return runtime, nil
-}
-
-// ObserveUnitOfWorkPoolWait bridges the PostgreSQL adapter to the transaction
-// observer without exposing the tenant package to composition callers.
-func ObserveUnitOfWorkPoolWait(ctx context.Context, duration time.Duration) {
-	tenant.ObservePoolWait(ctx, duration)
-}
-
-func ObserveUnitOfWorkLockWait(ctx context.Context, duration time.Duration) {
-	tenant.ObserveLockWait(ctx, duration)
-}
 
 // TenantRuntime is the unit of work composed services run tenant work under.
 // Package-local callers name it through this alias so composition tests stay

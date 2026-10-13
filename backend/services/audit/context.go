@@ -16,13 +16,3 @@ func ContextWithTenant(ctx context.Context, tenantID int64) context.Context {
 func ContextWithTransaction(ctx context.Context, transaction any) context.Context {
 	return auditModels.WithTransaction(ctx, transaction)
 }
-
-// TenantIDFromContext returns the tenant the Audit adapters read, or zero.
-func TenantIDFromContext(ctx context.Context) int64 {
-	return auditModels.TenantIDFromContext(ctx)
-}
-
-// TransactionFromContext returns the transaction the Audit adapters read.
-func TransactionFromContext(ctx context.Context) (any, bool) {
-	return auditModels.TransactionFromContext(ctx)
-}

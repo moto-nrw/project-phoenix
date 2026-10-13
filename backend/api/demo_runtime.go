@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationcompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/uptrace/bun"
 )
@@ -49,11 +49,7 @@ func NewDemoRuntime(db *bun.DB, now func() time.Time) (*DemoRuntime, error) {
 	if err != nil {
 		return nil, err
 	}
-	pgRuntime, err := database.NewDemoPostgresUnitOfWork(db, func(context.Context, time.Duration) {})
-	if err != nil {
-		return nil, err
-	}
-	transactions, err := services.BindTenantRuntime(pgRuntime.WithinTenant, pgRuntime.WithinAdmin, pgRuntime, func(error) bool { return false })
+	transactions, err := transactionruntime.NewDemoTenantRuntime(db)
 	if err != nil {
 		return nil, err
 	}
