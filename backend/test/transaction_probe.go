@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -42,14 +41,14 @@ func (p *TransactionProbe) Write(ctx context.Context) error {
 		return errors.New("transaction probe: the tenant transaction is required")
 	}
 	email := fmt.Sprintf(testEmailFormat, "transaction-probe", uniqueFixtureSuffix())
-	profile := &users.GuardianProfile{
+	profile := &GuardianProfile{
 		FirstName:              "Transaction",
 		LastName:               "Probe",
 		Email:                  &email,
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	profile.SetTenantID(tenant.FromContext(ctx))
+	profile.TenantID = tenant.FromContext(ctx)
 	if err := tx.NewInsert().Model(profile).ModelTableExpr(`users.guardian_profiles`).Scan(ctx); err != nil {
 		return fmt.Errorf("transaction probe: %w", err)
 	}

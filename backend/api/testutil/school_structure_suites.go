@@ -95,6 +95,12 @@ var (
 	SubstitutionSuiteErrSelfAssignment    = services.SubstitutionSuiteErrSelfAssignment
 )
 
+// The query shapes the substitution suites list with (#3966).
+var (
+	NewSchoolStructureQueryOptions = services.NewSchoolStructureSuiteQueryOptions
+	NewSchoolStructureQueryFilter  = services.NewSchoolStructureSuiteQueryFilter
+)
+
 // NewEducationSuiteService composes the group service over the repositories.
 func NewEducationSuiteService(repos *services.PeopleRepositorySuiteFactory, db *bun.DB, broadcasters ...*testpkg.RecordingBroadcaster) services.EducationSuiteService {
 	if len(broadcasters) > 0 {

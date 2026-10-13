@@ -34,7 +34,9 @@ func TestInviteToStudent_RecreatedContactRecoversOrphanedAccount(t *testing.T) {
 	require.Len(t, links, 1)
 	require.NoError(t, env.repos.StudentGuardian.Delete(ctx, links[0].ID))
 
-	replacement := testpkg.CreateTestGuardianProfile(t, env.db, "replacement-contact")
+	replacementFixture := testpkg.CreateTestGuardianProfile(t, env.db, "replacement-contact")
+	replacement, err := env.repos.GuardianProfile.FindByID(ctx, replacementFixture.ID)
+	require.NoError(t, err)
 	replacement.Email = &account.Email
 	require.NoError(t, env.repos.GuardianProfile.Update(ctx, replacement))
 	testpkg.CreateTestStudentGuardianLink(t, env.db, student.ID, replacement.ID, "legal_guardian")
@@ -75,18 +77,20 @@ func TestInviteToStudent_RecreatedContactDoesNotDetachOtherChildren(t *testing.T
 	child := testpkg.CreateTestStudent(t, env.db, "Retained", "Child", "1a")
 	testpkg.CreateTestStudentGuardianLink(t, env.db, child.ID, old.ID, "legal_guardian")
 
-	replacement := testpkg.CreateTestGuardianProfile(t, env.db, "conflicting-contact")
+	replacementFixture := testpkg.CreateTestGuardianProfile(t, env.db, "conflicting-contact")
+	replacement, err := env.repos.GuardianProfile.FindByID(ctx, replacementFixture.ID)
+	require.NoError(t, err)
 	replacement.Email = &account.Email
 	require.NoError(t, env.repos.GuardianProfile.Update(ctx, replacement))
-	_, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
+	_, err = env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: child.ID, Email: account.Email, CreatedBy: actor.ID,
 	})
 	require.ErrorContains(t, err, "guardian account link conflicts with an existing profile")
 	assert.Equal(t, services.GuardianFailureConflict, services.ClassifyGuardianInvitationFailure(err))
 	assert.True(t, env.linkExists(t, child.ID, old.ID))
 	assert.False(t, env.linkExists(t, child.ID, replacement.ID))
-	old, err = env.repos.GuardianProfile.FindByID(ctx, old.ID)
+	stored, err := env.repos.GuardianProfile.FindByID(ctx, old.ID)
 	require.NoError(t, err)
-	require.NotNil(t, old.AccountID)
-	assert.Equal(t, account.ID, *old.AccountID)
+	require.NotNil(t, stored.AccountID)
+	assert.Equal(t, account.ID, *stored.AccountID)
 }

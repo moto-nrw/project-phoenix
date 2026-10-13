@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -86,7 +87,7 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []s
 		sf.UserContext,
 		nil, // emitter — best-effort, after commit
 		nil, // broadcaster — cache fan-out
-		testpkg.RequestReviewPolicy{UserContext: sf.UserContext},
+		testpkg.RequestReviewPolicy[*userModels.Student]{UserContext: sf.UserContext},
 		nil,
 		slog.Default(),
 		sf.StudentAudit,

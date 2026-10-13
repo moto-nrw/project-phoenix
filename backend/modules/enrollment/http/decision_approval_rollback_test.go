@@ -42,14 +42,16 @@ func TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync(t *testing.
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, env.db, "existing-student-lock-order")
-	existing := testpkg.CreateTestStudent(t, env.db, "Existing", "Child", "1a")
+	existingFixture := testpkg.CreateTestStudent(t, env.db, "Existing", "Child", "1a")
+	existing, err := env.repos.Student.FindByID(ctx, existingFixture.ID)
+	require.NoError(t, err)
 	// Not cared for right now, so the approval writes the class at once; an
 	// active child would keep its class until the phase starts (#3917).
 	existing.Status = usersModels.StudentStatusInactive
 	require.NoError(t, env.repos.Student.Update(ctx, existing))
 	requestID, childID := submitOneChild(t, env, account.Email, "Existing", "Child")
 	matchChildToExistingStudent(t, env, childID, existing.ID)
-	_, err := env.db.NewRaw("UPDATE enrollment.request_children SET target_school_class = '2a' WHERE id = ? AND tenant_id = ?", childID, testpkg.Tenant(t)).Exec(ctx)
+	_, err = env.db.NewRaw("UPDATE enrollment.request_children SET target_school_class = '2a' WHERE id = ? AND tenant_id = ?", childID, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
 	var txDB bun.IDB
 	checked := false

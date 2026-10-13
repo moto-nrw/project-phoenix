@@ -172,7 +172,7 @@ func insertGuardianLink(t *testing.T, db *bun.DB, spec guardianLinkSpec) int64 {
 		StudentID: spec.studentID, GuardianProfileID: spec.guardianProfileID, RelationshipType: spec.relationshipType,
 		IsPrimary: spec.isPrimary, IsPayer: spec.isPayer, EmergencyPriority: 1,
 	}
-	link.SetTenantID(testpkg.Tenant(t))
+	link.TenantID = testpkg.Tenant(t)
 	require.NoError(t, testpkg.InsertTestStudentGuardian(context.Background(), db, link))
 	return link.ID
 }

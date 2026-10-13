@@ -9,9 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -1590,7 +1587,6 @@ func TestAbsenceMutations_RollBackWritesOnConflictResponses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 
-	profileRepo := services.NewGuardianProfileTestRepository(db)
 	tests := []struct {
 		name   string
 		method string
@@ -1604,18 +1600,13 @@ func TestAbsenceMutations_RollBackWritesOnConflictResponses(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// A committed row of the same shape is the only model-free way to
-			// obtain a writable probe here; the copy written inside the failed
-			// mutation is the one whose rollback this test observes.
-			probe := testpkg.CreateTestGuardianProfileForTenant(t, db, scope.TenantID, "Absence", "Rollback",
-				fmt.Sprintf("absence-rollback-%s-%d", tc.name, time.Now().UnixNano()))
-			probe.ID = 0
-			email := fmt.Sprintf("absence-rollback-probe-%s-%d@test.local", tc.name, time.Now().UnixNano())
-			probe.Email = &email
+			// The probe row written inside the failed mutation is the one whose
+			// rollback this test observes.
+			probe := testpkg.NewTransactionProbe(t, db)
 
 			writeThenConflict := func(ctx context.Context) error {
-				require.NoError(t, profileRepo.Create(ctx, probe))
-				require.Positive(t, probe.ID)
+				require.NoError(t, probe.Write(ctx))
+				require.True(t, probe.Written())
 				return fmt.Errorf("sick cascade conflict: %w", workforce.ErrStaffShiftOverlap)
 			}
 
@@ -1660,12 +1651,7 @@ func TestAbsenceMutations_RollBackWritesOnConflictResponses(t *testing.T) {
 			router.ServeHTTP(w, req)
 
 			assert.Equal(t, http.StatusConflict, w.Code)
-			_, err := profileRepo.FindByID(scope.Context(), probe.ID)
-			assert.Error(t, err, "the rolled-back probe row must be gone")
-			count, countErr := db.NewSelect().Table("users.guardian_profiles").
-				Where("id = ?", probe.ID).Count(scope.Context())
-			require.NoError(t, countErr)
-			assert.Zero(t, count,
+			assert.False(t, probe.Committed(t),
 				"conflict responses must roll back writes from the failed absence mutation")
 		})
 	}

@@ -640,9 +640,10 @@ func TestListSickDays_HidesAnotherGuardiansReason(t *testing.T) {
 	otherProfile.SetTenantID(chain.TenantID)
 	_, err := db.NewInsert().Model(otherProfile).ModelTableExpr(`users.guardian_profiles`).Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
-	link := &userModels.StudentGuardian{StudentID: chain.StudentID, GuardianProfileID: otherProfile.ID, RelationshipType: "parent"}
-	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleLegalGuardian)
-	link.SetTenantID(chain.TenantID)
+	link := &testpkg.StudentGuardian{StudentID: chain.StudentID, GuardianProfileID: otherProfile.ID, RelationshipType: "parent"}
+	link.GuardianRole = authorize.NormalizeGuardianRole(authorize.GuardianRoleLegalGuardian)
+	link.Permissions = authorize.StudentGuardianPermissionSet(link.GuardianRole)
+	link.TenantID = chain.TenantID
 	err = testpkg.InsertTestStudentGuardian(testpkg.Ctx(t), db, link)
 	require.NoError(t, err)
 

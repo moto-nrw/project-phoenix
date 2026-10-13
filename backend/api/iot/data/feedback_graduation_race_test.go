@@ -36,7 +36,7 @@ func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 
 	// What an unlocked read returned before the transition committed.
 	snapshot := *student
-	require.False(t, snapshot.IsAlumnus())
+	require.NotEqual(t, testpkg.StudentStatusAlumnus, snapshot.Status)
 
 	_, err := ctx.db.NewUpdate().
 		TableExpr(`users.student_school_memberships`).

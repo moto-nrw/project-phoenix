@@ -59,7 +59,7 @@ func TestDienstplanExportStaysInsideTheTenant(t *testing.T) {
 	type fixture struct {
 		ctx      context.Context
 		tenantID int64
-		staff    *usersModels.Staff
+		staff    *testpkg.Staff
 		title    string
 		room     string
 	}
@@ -81,7 +81,7 @@ func TestDienstplanExportStaysInsideTheTenant(t *testing.T) {
 	require.Len(t, fixtures, 2)
 
 	capability := buildPlanningWorkforce(t, db)
-	rooms := planningDependencies(t, db, capability, fixtures[0].staff).Rooms
+	rooms := planningDependencies(t, fixtures[0].ctx, db, capability, fixtures[0].staff.ID).Rooms
 	params, err := planexport.ParseParams(dienstplanMonday.String(), dienstplanMonday.AddDays(4).String(), string(planexport.TemplateByPerson), "", "")
 	require.NoError(t, err)
 	for _, fixture := range fixtures {
