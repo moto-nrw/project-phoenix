@@ -33,6 +33,7 @@ import { operatorPath } from "~/lib/operator-url";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import {
   useAttendanceLogEnabled,
+  useChildSearchOnlyNavigation,
   useDisplayEnabled,
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -612,6 +613,14 @@ const BINARY_HIDDEN_HREFS = new Set<string>([
   "/active-supervisions",
 ]);
 
+// Seiten, die bei „Kinder nur über Alle Kinder“ (#1321) keinen eigenen
+// Eintrag mehr haben. Sie bleiben über Links erreichbar und zählen dann zu
+// „Suchen“.
+const CHILD_SEARCH_MERGED_HREFS = new Set<string>([
+  "/ogs-groups",
+  "/active-supervisions",
+]);
+
 interface MobileBottomNavProps {
   readonly className?: string;
 }
@@ -792,6 +801,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Gruppenübergaben (#1940) sind nur bei festen Gruppen sinnvoll.
   const openCareGroupMode = useOpenCareGroupMode();
+  // Kinder nur über „Alle Kinder“ (#1321): Gruppe und Aufsicht verlassen die
+  // Leiste wie in der Seitenleiste; „Suchen“ steht dann auch für ihre Seiten.
+  const childSearchOnlyNavigation = useChildSearchOnlyNavigation();
   const staffMessagingEnabled = useStaffMessagingEnabled();
   // Betreuungsplan-Flag für den Tagesplan-Eintrag (#2383): vom Tenant-Resolve,
   // damit es auch ohne config:read aufgelöst ist.
@@ -833,29 +845,41 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const canAnnounce = hasPermission(session, "admin:*");
 
   // Filter additional navigation items based on permissions
-  const filteredMainItemsByMode = filteredMainItems.filter(
-    (item) =>
-      (showActivityNav || !NFC_ONLY_HREFS.has(item.href)) &&
-      // Binärer Anwesenheitsmodus (#2915): dieselbe Sichtbarkeitsregel wie in
-      // der Desktop-Sidebar.
-      !(isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) &&
-      (item.href !== "/ogs-groups" ||
-        userIsCaregiver ||
-        userHasEffectiveAdminScope) &&
-      // Bei offener Betreuung gibt es keine "meine Gruppe" — der
-      // gruppenbasierte Einstieg entfällt (#1544).
-      !(openCareGroupMode && item.href === "/ogs-groups") &&
-      // Tagesplan (#2383): nur im detaillierten Modus, nur an Schulen mit
-      // aktiviertem Betreuungsplan (Flag vom Tenant-Resolve, ohne
-      // config:read) und nur mit schedules:read — das Gate der Route
-      // (/timetable/operations/planned-now), sonst wäre der Tab ein 403.
-      !(
-        item.href === "/tagesplan" &&
-        (presenceMode === "binary" ||
-          !tagesplanEnabled ||
-          !hasPermission(session, "schedules:read"))
-      ),
-  );
+  const filteredMainItemsByMode = filteredMainItems
+    .filter(
+      (item) =>
+        !(
+          childSearchOnlyNavigation && CHILD_SEARCH_MERGED_HREFS.has(item.href)
+        ),
+    )
+    .map((item) =>
+      childSearchOnlyNavigation && item.href === "/students/search"
+        ? { ...item, activePaths: [...CHILD_SEARCH_MERGED_HREFS] }
+        : item,
+    )
+    .filter(
+      (item) =>
+        (showActivityNav || !NFC_ONLY_HREFS.has(item.href)) &&
+        // Binärer Anwesenheitsmodus (#2915): dieselbe Sichtbarkeitsregel wie in
+        // der Desktop-Sidebar.
+        !(isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) &&
+        (item.href !== "/ogs-groups" ||
+          userIsCaregiver ||
+          userHasEffectiveAdminScope) &&
+        // Bei offener Betreuung gibt es keine "meine Gruppe" — der
+        // gruppenbasierte Einstieg entfällt (#1544).
+        !(openCareGroupMode && item.href === "/ogs-groups") &&
+        // Tagesplan (#2383): nur im detaillierten Modus, nur an Schulen mit
+        // aktiviertem Betreuungsplan (Flag vom Tenant-Resolve, ohne
+        // config:read) und nur mit schedules:read — das Gate der Route
+        // (/timetable/operations/planned-now), sonst wäre der Tab ein 403.
+        !(
+          item.href === "/tagesplan" &&
+          (presenceMode === "binary" ||
+            !tagesplanEnabled ||
+            !hasPermission(session, "schedules:read"))
+        ),
+    );
 
   // Laufzeit-Regeln je Seite (Schulschalter, Anwesenheitsmodus, Rolle) —
   // dieselben wie in der Desktop-Sidebar, damit beide dieselben Seiten
@@ -867,6 +891,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     // Anfragen (#2429/#2911): dieselbe effektive Regel wie in Sidebar,
     // Seiten-Guard und Badge.
     if (href === "/anfragen") return changeRequestAccess.canOpenRequestsPage;
+    if (childSearchOnlyNavigation && CHILD_SEARCH_MERGED_HREFS.has(href)) {
+      return false;
+    }
     if (href === "/ogs-groups") {
       // Bei offener Betreuung gibt es keine "meine Gruppe" (#1544). Wie in der
       // Seitenleiste zählt auch die schulweite Übersicht (#2380): eine

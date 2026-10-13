@@ -28,7 +28,8 @@ vi.mock("next/cache", () => ({
   revalidateTag: mockRevalidateTag,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   handleApiError: vi.fn((error: unknown) => {
     const message =
       error instanceof Error ? error.message : "Internal Server Error";
@@ -121,8 +122,8 @@ describe("POST /api/settings/login-image", () => {
     const response = await POST(request, createMockContext());
 
     expect(response.status).toBe(400);
-    const json = (await response.json()) as { error: string };
-    expect(json.error).toContain("No image file provided");
+    const json = (await response.json()) as { detail: string };
+    expect(json.detail).toContain("No image file provided");
   });
 
   it("handles backend error", async () => {

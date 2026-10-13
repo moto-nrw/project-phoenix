@@ -574,7 +574,7 @@ describe("createCrudService", () => {
           Promise.resolve(
             JSON.stringify({
               status: "error",
-              error: "group has students",
+              detail: "group has students",
               code: "general.business_rejection",
               instance: "req-delete",
             }),
@@ -617,12 +617,12 @@ describe("createCrudService", () => {
   describe("rejected requests", () => {
     // The companion-plan 409 is the reason the raw body travels: the backend
     // reports WHICH children and weekdays conflict as a top-level `conflicts`
-    // array next to `error`. extractErrorMessage keeps only the German
-    // sentence, so a caller reading `message` alone can never name what the
-    // user confirmed — "Ergänzen und speichern" then re-sends an empty
-    // confirmation and earns the identical 409 forever.
+    // array next to `detail`. The ApiError keeps only the standard members,
+    // so a caller reading it alone can never name what the user confirmed —
+    // "Ergänzen und speichern" then re-sends an empty confirmation and earns
+    // the identical 409 forever.
     const conflictBody = JSON.stringify({
-      error:
+      detail:
         "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
       conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
     });
@@ -645,13 +645,9 @@ describe("createCrudService", () => {
       expect(caught).toBeInstanceOf(Error);
       expect(caught.status).toBe(409);
       expect(caught.body).toBe(conflictBody);
-      // The human sentence stays exactly what it was — the body is additive,
-      // existing consumers keep reading `message`.
-      expect(caught.message).toBe(
-        "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
-      );
-      // ...and it is precisely why the body is needed: the structured part of
-      // the answer never survives into the message.
+      // The message stays a safe fallback; the raw body is retained for the
+      // caller's diagnostic handling.
+      expect(caught.message).toBe("API error: 409");
       expect(caught.message).not.toContain("conflicts");
     });
 
@@ -662,7 +658,7 @@ describe("createCrudService", () => {
         text: () =>
           Promise.resolve(
             JSON.stringify({
-              error: "quota",
+              detail: "quota",
               code: "students.child_quota_reached",
               details: { booked_places: 10, occupied_places: 10 },
               instance: "req-crud",
@@ -682,35 +678,6 @@ describe("createCrudService", () => {
         details: { booked_places: 10, occupied_places: 10 },
         requestId: "req-crud",
       });
-    });
-
-    it("keeps the raw body when the message is dug out of the route-handler wrapping", async () => {
-      // The real chain wraps twice (backend → route handler → here). The
-      // message unwraps to the innermost German sentence; the body must stay
-      // the untouched outer text so the caller can still parse it.
-      const routeHandlerError = JSON.stringify({
-        error: `API error (409): ${conflictBody}`,
-      });
-
-      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-        ok: false,
-        status: 409,
-        text: () => Promise.resolve(routeHandlerError),
-      });
-
-      const service = createCrudService(mockConfig);
-      const caught = (await service
-        .create({ name: "Test" })
-        .catch((error: unknown) => error)) as Error & {
-        status?: number;
-        body?: string;
-      };
-
-      expect(caught.status).toBe(409);
-      expect(caught.body).toBe(routeHandlerError);
-      expect(caught.message).toBe(
-        "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
-      );
     });
 
     it("attaches the body of a non-JSON server error too", async () => {

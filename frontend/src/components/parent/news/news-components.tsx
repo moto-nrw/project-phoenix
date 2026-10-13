@@ -15,6 +15,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { ApiError } from "~/lib/api-error";
 import { Check, ChevronRight, ExternalLink } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -39,7 +40,6 @@ import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { AttachmentList } from "~/components/ui/attachment-list";
 import {
-  ParentApiError,
   type ParentAnnouncement,
   type ParentAnnouncementAttachment,
   type ParentAnnouncementPollChild,
@@ -70,9 +70,7 @@ function refreshUnreadBadge() {
  * correction). Both mean the wording on screen may be outdated.
  */
 function isStaleAnnouncementError(err: unknown): boolean {
-  return (
-    err instanceof ParentApiError && (err.status === 404 || err.status === 409)
-  );
+  return err instanceof ApiError && (err.status === 404 || err.status === 409);
 }
 
 /** True when the announcement asks a question the parent can still answer. */

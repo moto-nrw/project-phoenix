@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET } from "./route";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 
 interface ExtendedSession extends Session {
   user: Session["user"] & { token?: string };
@@ -16,22 +17,17 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(403)")
-        ? 403
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: mockApiGet,
+    apiPost: vi.fn(),
+    apiPut: vi.fn(),
+    apiDelete: vi.fn(),
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 function createMockRequest(path: string): NextRequest {
   return new NextRequest(new URL(path, "http://localhost:3000"));
@@ -96,7 +92,7 @@ describe("GET /api/active/supervisors/all", () => {
   });
 
   it("handles backend 403 error", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("API error (403): Forbidden"));
+    mockApiGet.mockRejectedValueOnce(new ApiResponseError(403, "Forbidden"));
 
     const request = createMockRequest("/api/active/supervisors/all");
     const response = await GET(request, createMockContext());

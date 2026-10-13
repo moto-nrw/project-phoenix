@@ -2193,9 +2193,7 @@ describe("BetreuungsplanView", () => {
 
   it("logs a warning when the bootstrap fails with 403", async () => {
     setupSWR({ periods: [] });
-    mockBootstrap.mockRejectedValue(
-      Object.assign(new Error("permission denied"), { httpStatus: 403 }),
-    );
+    mockBootstrap.mockRejectedValue(new ApiError("permission denied", 403));
 
     render(<BetreuungsplanView />);
 

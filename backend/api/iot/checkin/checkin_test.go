@@ -183,7 +183,7 @@ func TestDevicePing_Unauthorized(t *testing.T) {
 	rr := k.call(t, "POST", "/ping", nil)
 
 	testutil.AssertUnauthorized(t, rr)
-	assert.JSONEq(t, `{"status":"error","error":"device API key is required"}`, rr.Body.String())
+	assert.JSONEq(t, `{"status":401,"detail":"device API key is required","code":"general.permission"}`, rr.Body.String())
 }
 
 func TestDeviceStatus(t *testing.T) {
@@ -241,7 +241,7 @@ func TestDeviceCheckin_UnknownCardIsNotFoundWithCode(t *testing.T) {
 
 	testutil.AssertNotFound(t, rr)
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	assert.Equal(t, "RFID tag not found", response["error"])
+	assert.Equal(t, "RFID tag not found", response["detail"])
 	assert.Equal(t, "iot.rfid_tag_not_found", response["code"])
 }
 
@@ -520,7 +520,7 @@ func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 	require.Equal(t, 409, rr.Code, rr.Body.String())
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	assert.Equal(t, "iot.room_capacity_exceeded", response["code"])
-	assert.Equal(t, "Room capacity exceeded", response["error"])
+	assert.Equal(t, "Room capacity exceeded", response["detail"])
 	details, ok := response["details"].(map[string]any)
 	require.True(t, ok, "room details are disclosed by default")
 	assert.EqualValues(t, 1, details["current_occupancy"])

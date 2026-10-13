@@ -49,7 +49,6 @@ import {
   deleteStudentPhoto,
   fetchStudentDeletionImpact,
   deleteStudentWithData,
-  StudentDeletionApiError,
   type StudentFilters,
 } from "./student-api";
 
@@ -409,11 +408,11 @@ describe("student-api", () => {
       });
     });
 
-    it("preserves the status and original backend message on conflicts", async () => {
+    it("preserves the status and keeps conflict diagnostics separate", async () => {
       fetchMock.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            error: "Vorschau veraltet",
+            detail: "Vorschau veraltet",
             code: "students.deletion_preview_changed",
           }),
           {
@@ -430,22 +429,22 @@ describe("student-api", () => {
         acknowledged: true,
       }).catch((caught: unknown) => caught);
 
-      expect(error).toBeInstanceOf(StudentDeletionApiError);
+      expect(error).toBeInstanceOf(ApiError);
       expect(error).toMatchObject({
         status: 409,
-        message: "Vorschau veraltet",
+        message: "Das Kind konnte nicht gelöscht werden.",
+        detail: "Vorschau veraltet",
         code: "students.deletion_preview_changed",
       });
     });
 
-    it("extracts conflict codes embedded by the deletion proxy", async () => {
+    it("reads the conflict code from the forwarded envelope", async () => {
       fetchMock.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            error: JSON.stringify({
-              error: "Vorschau veraltet",
-              code: "students.deletion_preview_changed",
-            }),
+            status: 409,
+            detail: "Vorschau veraltet",
+            code: "students.deletion_preview_changed",
           }),
           { status: 409, headers: { "Content-Type": "application/json" } },
         ),
@@ -460,7 +459,8 @@ describe("student-api", () => {
 
       expect(error).toMatchObject({
         status: 409,
-        message: "Vorschau veraltet",
+        message: "Das Kind konnte nicht gelöscht werden.",
+        detail: "Vorschau veraltet",
         code: "students.deletion_preview_changed",
       });
     });
@@ -724,7 +724,6 @@ describe("student-api", () => {
         expect(mockedHandleDomainApiError).toHaveBeenCalledWith(
           expect.any(Error),
           "update privacy consent",
-          "STUDENT",
         );
       });
     });
@@ -814,7 +813,6 @@ describe("student-api", () => {
       expect(mockedHandleDomainApiError).toHaveBeenCalledWith(
         expect.any(Error),
         "fetch student enrollment extra fields",
-        "STUDENT",
       );
     });
   });
@@ -841,7 +839,6 @@ describe("student-api", () => {
       expect(mockedHandleDomainApiError).toHaveBeenCalledWith(
         expect.any(Error),
         "fetch students",
-        "STUDENT",
       );
     });
 
@@ -853,7 +850,6 @@ describe("student-api", () => {
       expect(mockedHandleDomainApiError).toHaveBeenCalledWith(
         expect.any(Error),
         "fetch student",
-        "STUDENT",
       );
     });
     it("passes a structured ApiError through unchanged", async () => {

@@ -1142,7 +1142,7 @@
       "ruleAtMostOne": "Më së shumti një",
       "availabilitySelectionRemoved": "Disa oferta kujdesi nuk janë më të disponueshme për klasën e zgjedhur. Zgjedhjet, ditët dhe shtesat automatike u hoqën."
     },
-    "captchaMisconfigured": "Regjistrimi aktualisht nuk është i mundur: konfigurimi i mbrojtjes kundër botëve është i paplotë. Ju lutemi kontaktoni drejtimin e OGS-së.",
+    "captchaMisconfigured": "Regjistrimi online nuk është i mundur tani. Nuk është faji juaj. Ju lutemi kontaktoni OGS-në.",
     "structured": {
       "yes": "Po",
       "no": "Jo",
@@ -2082,6 +2082,7 @@
     },
     "codes": {
       "attendance": {
+        "log_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "web_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       },
       "care": {
@@ -2292,6 +2293,7 @@
         "announcement_published": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "attachment_limit_reached": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "file_missing": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "file_name_invalid": "Emri i skedarit nuk lejohet. Ju lutemi zgjidhni skedarin përsëri.",
         "file_too_large": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "file_type_not_allowed": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "file_unreadable": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2487,6 +2489,7 @@
         "class_list_entry_student_exists": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "class_list_entry_student_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "companion_lock_busy": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "companion_plan_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "companion_would_lose_departure": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "companions_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "conflict_kind_unsupported": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2788,6 +2791,12 @@
       },
       "billing": {
         "invalid_key_day": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+      },
+      "display": {
+        "disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
+      },
+      "feedback": {
+        "disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       }
     },
     "actions": {

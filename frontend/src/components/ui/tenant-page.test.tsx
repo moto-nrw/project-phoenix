@@ -276,6 +276,36 @@ describe("TenantPage", () => {
     expect(onChange).toHaveBeenLastCalledWith("verlauf");
   });
 
+  it("keeps a tab reachable when the current value matches no tab", () => {
+    const onChange = vi.fn();
+    render(
+      <TenantPage
+        title="Personalakte"
+        tabs={{
+          value: "eigener-filter",
+          onChange,
+          items: [
+            { value: "stammdaten", label: "Stammdaten" },
+            { value: "dokumente", label: "Dokumente" },
+          ],
+        }}
+      />,
+    );
+
+    const first = screen.getByRole("tab", { name: "Stammdaten" });
+    const second = screen.getByRole("tab", { name: "Dokumente" });
+    expect(first).toHaveAttribute("aria-selected", "false");
+    expect(second).toHaveAttribute("aria-selected", "false");
+    expect(first).toHaveAttribute("tabindex", "0");
+    expect(second).toHaveAttribute("tabindex", "-1");
+
+    first.focus();
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+
+    expect(second).toHaveFocus();
+    expect(onChange).toHaveBeenCalledWith("dokumente");
+  });
+
   it("lässt einen Reiter mit Zielpfad wie einen Link navigieren", () => {
     const onChange = vi.fn();
     render(

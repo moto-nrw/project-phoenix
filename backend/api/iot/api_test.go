@@ -55,8 +55,8 @@ func TestGetSchoolName_NoDeviceContext(t *testing.T) {
 	var body map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &body)
 	require.NoError(t, err)
-	assert.Equal(t, "error", body["status"])
-	assert.Equal(t, devicescan.MessageDeviceAPIKeyRequired, body["error"])
+	assert.Equal(t, float64(401), body["status"])
+	assert.Equal(t, devicescan.MessageDeviceAPIKeyRequired, body["detail"])
 }
 
 func TestGetSchoolName_SchoolNotFound(t *testing.T) {
@@ -78,7 +78,7 @@ func TestGetSchoolName_SchoolNotFound(t *testing.T) {
 	var body map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &body)
 	require.NoError(t, err)
-	assert.Equal(t, "error", body["status"])
+	assert.Equal(t, float64(500), body["status"])
 }
 
 func TestGetSchoolName_DatabaseError(t *testing.T) {

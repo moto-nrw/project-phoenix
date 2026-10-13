@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "./api-error";
 
-import { ParentApiError, downloadDeclarationProofPdf } from "./parent-api";
+import { downloadDeclarationProofPdf } from "./parent-api";
 
 const downloadBlobMock = vi.hoisted(() => vi.fn());
 vi.mock("~/lib/file-download", async (importOriginal) => ({
@@ -46,7 +47,7 @@ describe("downloadDeclarationProofPdf (#3430)", () => {
     );
   });
 
-  it("throws a ParentApiError instead of saving an error body", async () => {
+  it("throws an ApiError instead of saving an error body", async () => {
     mockFetch(
       new Response(
         JSON.stringify({
@@ -61,7 +62,7 @@ describe("downloadDeclarationProofPdf (#3430)", () => {
     const error = await downloadDeclarationProofPdf("42", "5").catch(
       (err: unknown) => err,
     );
-    expect(error).toBeInstanceOf(ParentApiError);
+    expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({ status: 404, code: "not_found" });
     expect(downloadBlobMock).not.toHaveBeenCalled();
   });

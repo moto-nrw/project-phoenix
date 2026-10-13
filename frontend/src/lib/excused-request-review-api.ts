@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError, transportFetch } from "./api-error";
+import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 /**
  * Staff client for the parent absence-request review queue. Calls the Next.js proxy routes under
  * /api/students/excused-absence-requests which forward (with the tenant session
@@ -45,43 +45,27 @@ function unwrap<T>(json: Envelope<T>): T {
 }
 
 /**
- * Error thrown by the excused-request client. Carries the backend's stable 409
- * `code` (e.g. "students.change_request_not_pending") so the review UI can name the
- * concrete recovery action instead of collapsing every failure into one generic
- * message. The raw `error` string stays the Error message for logging.
+ * Turns a failed response into an ApiError. The backend's stable 409 `code`
+ * (e.g. "students.change_request_not_pending") lets the review UI name the
+ * concrete recovery action; `detail` stays diagnostics for the log.
  */
-export class ExcusedRequestApiError extends ApiError {
-  constructor(message: string, code?: string) {
-    super(message, undefined, { code });
-    this.name = "ExcusedRequestApiError";
-  }
-}
-
 async function readError(
   response: Response,
   fallback: string,
-): Promise<ExcusedRequestApiError> {
-  let message = fallback;
-  let code: string | undefined;
+): Promise<ApiError> {
   let payload: unknown;
   try {
-    const body = (await response.json()) as { error?: string; code?: string };
-    payload = body;
-    if (body.error) message = body.error;
-    if (body.code) code = body.code;
+    payload = await response.json();
   } catch {
     // not JSON
   }
+  const error = apiErrorFromBody(fallback, response.status, payload);
   logger.error("excused_request_review_request_failed", {
     status: response.status,
-    message,
-    ...(code ? { code } : {}),
+    message: error.message,
+    ...(error.code ? { code: error.code } : {}),
   });
-  return enrichApiError(
-    new ExcusedRequestApiError(message, code),
-    payload,
-    response.status,
-  );
+  return error;
 }
 
 /** Approves (marks the child absent) or rejects one absence request. */

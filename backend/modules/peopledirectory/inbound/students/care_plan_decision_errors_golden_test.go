@@ -76,7 +76,7 @@ func TestCarePlanDecisionErrorsGolden(t *testing.T) {
 				assert.Equal(t, wantType, body.Type)
 			}
 			assertDecisionErrorGolden(t, wireWant, &body)
-			assert.Equal(t, "error", body.Status)
+			assert.Equal(t, tt.status, body.Status)
 			assert.Equal(t, tt.text, body.Detail)
 			assert.Equal(t, http.StatusText(tt.status), body.Title)
 			assert.Empty(t, body.Instance) // Direct renderer has no RequestID middleware.
@@ -106,5 +106,5 @@ func assertDecisionErrorGolden(t *testing.T, want decisionErrorGolden, got *comm
 	t.Helper()
 	assert.Equal(t, want.status, got.HTTPStatusCode, want.text)
 	assert.Equal(t, want.code, got.Code, want.text)
-	assert.Equal(t, want.text, got.ErrorText)
+	assert.Equal(t, want.text, got.Detail)
 }

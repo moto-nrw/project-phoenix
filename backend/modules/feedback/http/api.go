@@ -17,6 +17,10 @@ type Middleware = func(http.Handler) http.Handler
 
 // Failure is a refused request: its HTTP status and the error whose text the
 // shared error envelope carries.
+// ErrFeatureDisabled refuses the feedback of a school that has switched it
+// off; the root answers it with its registered code.
+var ErrFeatureDisabled = errors.New("feature_disabled")
+
 type Failure struct {
 	Status int
 	Err    error
@@ -168,7 +172,7 @@ func (rs *Resource) getStudentFeedback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !enabled {
-		rs.failure(w, r, Failure{Status: http.StatusForbidden, Err: errors.New("feature_disabled")}, "feature_disabled")
+		rs.failure(w, r, Failure{Status: http.StatusForbidden, Err: ErrFeatureDisabled}, "feature_disabled")
 		return
 	}
 	studentID, err := parseID(r)

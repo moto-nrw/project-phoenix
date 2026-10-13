@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
@@ -106,9 +105,7 @@ func renderDataFailure(w http.ResponseWriter, r *http.Request, status int, err e
 	}
 	switch status {
 	case http.StatusUnauthorized:
-		if render.Render(w, r, device.ErrDeviceUnauthorized(err)) != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		}
+		common.RenderError(w, r, device.ErrDeviceUnauthorized(err))
 	case http.StatusBadRequest:
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case http.StatusNotFound:

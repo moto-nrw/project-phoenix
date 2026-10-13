@@ -364,7 +364,9 @@ describe("CareWeeklyPlanEditForm", () => {
     const heading = await screen.findByText(
       "Angebot oder dauerhafte Ausnahme wählen",
     );
-    expect(heading).toHaveFocus();
+    await waitFor(() => {
+      expect(heading).toHaveFocus();
+    });
     fireEvent.submit(
       screen.getByRole("form", { name: "Wochenplan bearbeiten" }),
     );

@@ -4,6 +4,7 @@ import {
   isStringParam,
   operatorApiGet,
 } from "~/lib/operator/route-wrapper.server";
+import { bffError } from "~/lib/api-response-error.server";
 
 const VALID_KEY_PATTERN = /^[a-z0-9_.]{1,255}$/;
 
@@ -14,7 +15,7 @@ export const GET = createOperatorGetHandler(
     }
     const key = params.key as string;
     if (!VALID_KEY_PATTERN.test(key)) {
-      throw new Error("API error (400): Invalid settings key format");
+      throw bffError(400, "Invalid settings key format");
     }
     return await operatorApiGet(
       `/operator/schools/${params.id}/settings/values/${key}/reveal`,

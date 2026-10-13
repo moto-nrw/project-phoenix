@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ApiError } from "~/lib/api-error";
 import { FileText } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -27,7 +28,6 @@ import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { parentPath } from "~/lib/parent-url";
 import {
-  ParentApiError,
   type ParentAnnouncement,
   type ParentDeclaration,
   type ParentDeclarationAction,
@@ -101,7 +101,7 @@ export function declarationErrorOutcome(err: unknown): {
 } {
   const keep = { keepDialog: true, reload: false, uncertain: false };
   const close = { keepDialog: false, reload: true, uncertain: false };
-  if (err instanceof ParentApiError) {
+  if (err instanceof ApiError) {
     if (err.status === 429) return { ...keep, clearPassword: false };
     switch (err.code) {
       case "care.declaration_password_required":
@@ -116,7 +116,7 @@ export function declarationErrorOutcome(err: unknown): {
         return { ...close, clearPassword: false };
     }
     if (err.status === 404) return { ...close, clearPassword: false };
-    if (err.status >= 500) {
+    if (err.status !== undefined && err.status >= 500) {
       return { ...close, uncertain: true, clearPassword: false };
     }
     return { ...keep, clearPassword: false };
@@ -253,8 +253,8 @@ export function DeclarationSection({
     } catch (err: unknown) {
       const outcome = declarationErrorOutcome(err);
       logger.warn("parent_declaration_submit_failed", {
-        status: err instanceof ParentApiError ? err.status : undefined,
-        code: err instanceof ParentApiError ? err.code : undefined,
+        status: err instanceof ApiError ? err.status : undefined,
+        code: err instanceof ApiError ? err.code : undefined,
       });
       if (outcome.keepDialog) {
         if (outcome.clearPassword) setPassword("");

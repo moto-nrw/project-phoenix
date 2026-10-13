@@ -23,17 +23,19 @@ vi.mock("next/image", () => ({
 
 // Mock Toast Context
 const mockToastSuccess = vi.fn();
-const mockToastError = vi.fn();
+const mockShowMessage = vi.fn();
 // Stable references: the component lists them as effect dependencies.
 const mockShowActionError = vi.fn();
 const mockShowLoadError = vi.fn();
 const mockClearLoadError = vi.fn();
 const toastApi = {
   success: mockToastSuccess,
-  error: mockToastError,
   info: vi.fn(),
 };
-const actionErrorApi = { show: mockShowActionError };
+const actionErrorApi = {
+  show: mockShowActionError,
+  showMessage: mockShowMessage,
+};
 const loadErrorApi = {
   error: null,
   show: mockShowLoadError,
@@ -355,7 +357,7 @@ describe("PersonalizationTab", () => {
     fireEvent.change(input, { target: { files: [largeFile] } });
 
     await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(
+      expect(mockShowMessage).toHaveBeenCalledWith(
         "Das Bild ist zu groß. Bitte wählen Sie ein Bild bis 2 MB.",
       );
     });
@@ -382,7 +384,7 @@ describe("PersonalizationTab", () => {
     fireEvent.change(input, { target: { files: [svgFile] } });
 
     await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(
+      expect(mockShowMessage).toHaveBeenCalledWith(
         "Bitte wählen Sie ein Bild im Format JPG, PNG oder WebP.",
       );
     });

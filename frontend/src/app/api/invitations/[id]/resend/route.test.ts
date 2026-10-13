@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { POST } from "./route";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 
 // ============================================================================
 // Types
@@ -24,20 +25,17 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: vi.fn(),
-  apiPost: mockApiPost,
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    // Extract status code from error message like "Error message (404)"
-    const statusMatch = /\((\d+)\)/.exec(message);
-    const status = statusMatch ? parseInt(statusMatch[1]!, 10) : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: vi.fn(),
+    apiPost: mockApiPost,
+    apiPut: vi.fn(),
+    apiDelete: vi.fn(),
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 // ============================================================================
 // Test Helpers
@@ -163,7 +161,7 @@ describe("POST /api/invitations/[id]/resend", () => {
   });
 
   it("forwards backend errors", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("Not found (404)"));
+    mockApiPost.mockRejectedValueOnce(new ApiResponseError(404, "Not found"));
 
     const request = createMockRequest("/api/invitations/999/resend");
     const response = await POST(request, createMockContext({ id: "999" }));

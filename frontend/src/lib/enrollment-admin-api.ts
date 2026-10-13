@@ -288,7 +288,6 @@ export interface AdminRequestGuardian {
 interface BackendEnvelope<T> {
   status?: string;
   data?: T;
-  error?: string;
   message?: string;
 }
 

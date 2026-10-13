@@ -613,12 +613,12 @@ func TestErrResponse_Render(t *testing.T) {
 	errResp := &ErrResponse{
 		Err:            ErrTokenExpired,
 		HTTPStatusCode: http.StatusUnauthorized,
-		StatusText:     "error",
-		ErrorText:      "token expired",
+		Detail:         "token expired",
 	}
 
 	err := errResp.Render(rr, req)
 	assert.NoError(t, err)
+	assert.Equal(t, http.StatusUnauthorized, errResp.Status, "the envelope status is the HTTP status number")
 }
 
 func TestErrUnauthorized(t *testing.T) {
@@ -630,8 +630,8 @@ func TestErrUnauthorized(t *testing.T) {
 	errResp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusUnauthorized, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.StatusText)
-	assert.Equal(t, "token expired", errResp.ErrorText)
+	assert.Equal(t, "general.permission", errResp.Code)
+	assert.Equal(t, "token expired", errResp.Detail)
 }
 
 // =============================================================================

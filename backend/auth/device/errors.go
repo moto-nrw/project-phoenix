@@ -26,20 +26,27 @@ const (
 	CodePINRequired         = "iot.device_pin_required"
 	CodePINInvalid          = "iot.device_pin_invalid"
 	CodeDeviceInactive      = "iot.device_inactive"
+	// codeGeneralPermission is the registered class code of any other
+	// refusal of device authentication.
+	codeGeneralPermission = "general.permission"
 )
 
-// ErrResponse renderer type for handling all sorts of device authentication errors.
+// ErrResponse is the shared error envelope (ADR 0006) of a refused device:
+// the HTTP status number, the diagnostic text and the registered code. This
+// package may not import api/common; ProblemResponseMiddleware adds type,
+// title and instance like for every error answer.
 type ErrResponse struct {
 	Err            error `json:"-"` // low-level runtime error
 	HTTPStatusCode int   `json:"-"` // http response status code
 
-	StatusText string `json:"status"`          // user-level status message
-	Code       string `json:"code,omitempty"`  // registered error code
-	ErrorText  string `json:"error,omitempty"` // application-level error message, for debugging
+	Status int    `json:"status"`
+	Detail string `json:"detail"`
+	Code   string `json:"code"`
 }
 
 // Render sets the response status.
 func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
+	e.Status = e.HTTPStatusCode
 	render.Status(r, e.HTTPStatusCode)
 	return nil
 }
@@ -49,9 +56,8 @@ func ErrDeviceUnauthorized(err error) *ErrResponse {
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusUnauthorized,
-		StatusText:     "error",
 		Code:           errorCode(err),
-		ErrorText:      err.Error(),
+		Detail:         err.Error(),
 	}
 }
 
@@ -60,14 +66,13 @@ func ErrDeviceForbidden(err error) *ErrResponse {
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusForbidden,
-		StatusText:     "error",
 		Code:           errorCode(err),
-		ErrorText:      err.Error(),
+		Detail:         err.Error(),
 	}
 }
 
 // errorCode names the registered code of a device authentication error. Any
-// other error leaves the code empty, so the response gets its class code.
+// other error answers with the class code.
 func errorCode(err error) string {
 	switch {
 	case errors.Is(err, ErrMissingAPIKey):
@@ -83,5 +88,5 @@ func errorCode(err error) string {
 	case errors.Is(err, ErrDeviceInactive):
 		return CodeDeviceInactive
 	}
-	return ""
+	return codeGeneralPermission
 }

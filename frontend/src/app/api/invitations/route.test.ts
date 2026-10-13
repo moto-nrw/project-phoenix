@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 
 // ============================================================================
 // Types
@@ -24,20 +25,17 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers.server", () => ({
-  apiGet: mockApiGet,
-  apiPost: mockApiPost,
-  apiPut: vi.fn(),
-  apiDelete: vi.fn(),
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    // Extract status code from error message like "Error message (409)"
-    const statusMatch = /\((\d+)\)/.exec(message);
-    const status = statusMatch ? parseInt(statusMatch[1]!, 10) : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+vi.mock("~/lib/api-helpers.server", async () => {
+  const { mockHandleApiError } =
+    await import("~/test/helpers/handle-api-error");
+  return {
+    apiGet: mockApiGet,
+    apiPost: mockApiPost,
+    apiPut: vi.fn(),
+    apiDelete: vi.fn(),
+    handleApiError: vi.fn(mockHandleApiError),
+  };
+});
 
 const { GET, POST } = await import("./route");
 
@@ -346,7 +344,7 @@ describe("POST /api/invitations", () => {
       email: "newteacher@example.com",
     };
     mockApiPost.mockRejectedValueOnce(
-      new Error("API error (400): role_id: cannot be blank."),
+      new ApiResponseError(400, "role_id: cannot be blank."),
     );
 
     const request = createMockRequest("/api/invitations", {
@@ -370,7 +368,7 @@ describe("POST /api/invitations", () => {
     };
 
     mockApiPost.mockRejectedValueOnce(
-      new Error("User already has invitation (409)"),
+      new ApiResponseError(409, "User already has invitation"),
     );
 
     const request = createMockRequest("/api/invitations", {
@@ -380,7 +378,8 @@ describe("POST /api/invitations", () => {
     const response = await POST(request, createMockContext());
 
     expect(response.status).toBe(409);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("User already has invitation");
+    const json = await parseJsonResponse<{ detail: string }>(response);
+    expect(json.detail).toBe("Conflict");
+    expect(JSON.stringify(json)).not.toContain("User already has invitation");
   });
 });

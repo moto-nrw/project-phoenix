@@ -40,7 +40,6 @@ import {
   fetchCareOfferingBookingStats,
 } from "~/lib/care-offering-booking-stats";
 import { TranslationsSection } from "~/components/enrollment/translations-section";
-import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
@@ -83,6 +82,7 @@ import { FeaturePill } from "~/components/enrollment/feature-pill";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
 
@@ -1226,21 +1226,6 @@ function fieldErrorProps(id: string, message: string | undefined) {
     : {};
 }
 
-function FieldErrorHint({
-  id,
-  message,
-}: Readonly<{ id: string; message: string | undefined }>) {
-  if (!message) return null;
-  return (
-    <span
-      id={`${id}-error`}
-      className="text-moto-red-strong mt-1 block text-xs"
-    >
-      {message}
-    </span>
-  );
-}
-
 function NoPhaseState() {
   const tenantPath = useTenantAwarePath();
 
@@ -1510,6 +1495,7 @@ function CareOfferingTemplateField({
   templates,
   periods,
   metadataStatus,
+  unverifiableChange,
   onChange,
 }: Readonly<{
   draft: CareOfferingInput;
@@ -1517,6 +1503,8 @@ function CareOfferingTemplateField({
   templates: TimetableTemplate[];
   periods: CalendarPeriod[];
   metadataStatus: PlannerMetadataStatus;
+  /** The link changed while the planner data is unavailable. */
+  unverifiableChange: boolean;
   onChange: (patch: Partial<CareOfferingInput>) => void;
 }>) {
   const selectedPhase = phases.find(
@@ -1567,6 +1555,16 @@ function CareOfferingTemplateField({
     templates,
     metadataStatus,
   );
+  let templateError: string | undefined;
+  if (periodMismatch) {
+    templateError = inactivePeriodMismatch
+      ? INACTIVE_TEMPLATE_PERIOD_MESSAGE
+      : CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE;
+  } else if (weekdayError) {
+    templateError = weekdayError;
+  } else if (unverifiableChange) {
+    templateError = UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE;
+  }
   const options: Array<{
     value: string;
     label: string;
@@ -1608,32 +1606,27 @@ function CareOfferingTemplateField({
           }
           disabled={selectorDisabled}
           className="mt-1 border-gray-200 bg-white"
-          invalid={periodMismatch || weekdayError !== null}
+          invalid={templateError !== undefined}
+          ariaDescribedBy={
+            templateError ? "care-offering-template-error" : undefined
+          }
           options={options}
+        />
+        <FieldErrorHint
+          id="care-offering-template-error"
+          as="span"
+          message={templateError}
+          live
         />
       </label>
       <p className="mt-2 text-xs text-gray-600">
         Genehmigte Anmeldungen werden in diesen Regeltermin übernommen und an
         den ausgewählten Angebotstagen erwartet.
       </p>
-      {periodMismatch ? (
-        <Alert
-          type="error"
-          className="mt-2"
-          message={
-            inactivePeriodMismatch
-              ? INACTIVE_TEMPLATE_PERIOD_MESSAGE
-              : CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE
-          }
-        />
-      ) : null}
       {compatibilityUnknown ? (
         <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 rounded-lg border px-3 py-2 text-xs">
           {unknownCompatibilityMessage(metadataStatus)}
         </p>
-      ) : null}
-      {weekdayError ? (
-        <Alert type="error" className="mt-2" message={weekdayError} />
       ) : null}
       {metadataStatus === "ready" &&
       !periodMismatch &&
@@ -2151,7 +2144,12 @@ function CareOfferingAvailabilityFields({
             <Plus className="h-4 w-4" />
             Bedingung hinzufügen
           </Button>
-          {error ? <Alert type="error" message={error} /> : null}
+          <FieldErrorHint
+            id="care-offering-availability-error"
+            as="span"
+            message={error ?? undefined}
+            live
+          />
           {!error && conflicts > 0 ? (
             <p
               role="status"
@@ -2213,7 +2211,8 @@ function CareOfferingCommercialFields({
           className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
         />
         <FieldErrorHint
-          id="care-offering-capacity"
+          id="care-offering-capacity-error"
+          as="span"
           message={fieldError("capacity")}
         />
         {draft.is_required ? (
@@ -2237,7 +2236,8 @@ function CareOfferingCommercialFields({
           className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         />
         <FieldErrorHint
-          id="care-offering-price"
+          id="care-offering-price-error"
+          as="span"
           message={fieldError("price_cents")}
         />
       </label>
@@ -2410,7 +2410,8 @@ function CareOfferingForm({
             className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           />
           <FieldErrorHint
-            id="care-offering-name"
+            id="care-offering-name-error"
+            as="span"
             message={fieldError("name")}
           />
         </label>
@@ -2455,12 +2456,9 @@ function CareOfferingForm({
         templates={templates}
         periods={periods}
         metadataStatus={metadataStatus}
+        unverifiableChange={unverifiableTemplateChange}
         onChange={update}
       />
-
-      {unverifiableTemplateChange ? (
-        <Alert type="error" message={UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE} />
-      ) : null}
 
       <label className="block">
         <span className="text-xs font-medium text-gray-700">Beschreibung</span>

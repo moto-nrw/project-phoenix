@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import { PUT, DELETE } from "./route";
 
 interface ExtendedSession extends Session {
@@ -17,21 +18,14 @@ vi.mock("@/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-helpers.server", () => ({
+vi.mock("@/lib/api-helpers.server", async () => ({
   apiGet: vi.fn(),
   apiPost: vi.fn(),
   apiPut: mockApiPut,
   apiDelete: mockApiDelete,
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
+  handleApiError: vi.fn(
+    (await import("~/test/helpers/handle-api-error")).mockHandleApiError,
+  ),
 }));
 
 function createMockRequest(
@@ -159,7 +153,7 @@ describe("DELETE /api/students/class-arrival-exceptions/[schoolClass]/[date]", (
   });
 
   it("handles deletion errors", async () => {
-    mockApiDelete.mockRejectedValueOnce(new Error("Not found (404)"));
+    mockApiDelete.mockRejectedValueOnce(new ApiResponseError(404, "Not found"));
 
     const request = createMockRequest(
       "/api/students/class-arrival-exceptions/4a/2027-03-01",

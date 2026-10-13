@@ -51,9 +51,7 @@ export async function fetchStudentFeedback(
       // The message is diagnosis only; callers read status and code.
       throw await apiErrorFromResponse(
         response,
-        response.status === 403
-          ? "feature_disabled"
-          : `Failed to fetch feedback: ${response.status} ${response.statusText}`,
+        `Failed to fetch feedback: ${response.status} ${response.statusText}`,
       );
     }
 

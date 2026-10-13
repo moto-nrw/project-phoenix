@@ -23,7 +23,7 @@ func TestLoginCachingAdapterReusesTokenPerAccount(t *testing.T) {
 		if r.URL.Path == "/parent/auth/login" && failNext {
 			failNext = false
 			w.WriteHeader(401)
-			_, _ = fmt.Fprint(w, `{"status":"error","message":"invalid credentials"}`)
+			_, _ = fmt.Fprint(w, `{"status":401,"detail":"invalid credentials","code":"care.invalid_credentials"}`)
 			return
 		}
 		_, _ = fmt.Fprintf(w, `{"status":"success","data":{"access_token":"token-%d"}}`, logins[r.URL.Path])

@@ -48,7 +48,6 @@ export const nodeLogicTestFiles = [
   "src/lib/analytics-pseudonym.test.ts",
   "src/lib/analytics-session-header.server.test.ts",
   "src/lib/analytics.test.ts",
-  "src/lib/api-error-message.test.ts",
   "src/lib/api-error.test.ts",
   "src/lib/api-helpers.server.test.ts",
   "src/lib/app-route-invariants.test.ts",

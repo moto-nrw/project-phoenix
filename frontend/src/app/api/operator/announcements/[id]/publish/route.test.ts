@@ -103,7 +103,7 @@ describe("POST /api/operator/announcements/[id]/publish", () => {
   it("returns 404 for non-existent announcement", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "Not found" }), {
+      new Response(JSON.stringify({ detail: "Not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json" },
       }),

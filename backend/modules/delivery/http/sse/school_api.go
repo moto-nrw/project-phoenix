@@ -69,7 +69,7 @@ func (rs *Resource) SchoolRouter() chi.Router {
 func (rs *Resource) schoolEventsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel, ok := withSSETokenDeadline(r.Context())
 	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeSSEProblem(w, http.StatusUnauthorized, codeGeneralPermission, "Unauthorized")
 		return
 	}
 	defer cancel()
@@ -78,21 +78,21 @@ func (rs *Resource) schoolEventsHandler(w http.ResponseWriter, r *http.Request) 
 
 	if rs.schoolAccess == nil {
 		logger.ErrorContext(ctx, "school SSE has no access checker wired")
-		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
+		writeSSEProblem(w, http.StatusServiceUnavailable, codeGeneralUnavailable, "Service unavailable")
 		return
 	}
 
 	conn, statusCode := rs.setupSSEConnection(w)
 	if conn == nil {
 		logger.WarnContext(ctx, "school SSE streaming unsupported by client")
-		http.Error(w, "Streaming unsupported", statusCode)
+		writeSSEProblem(w, statusCode, codeGeneralServer, "Streaming unsupported")
 		return
 	}
 
 	accountID := int64(jwt.ClaimsFromCtx(ctx).ID)
 	tenantID := tenant.FromContext(ctx)
 	if accountID <= 0 || tenantID <= 0 {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeSSEProblem(w, http.StatusUnauthorized, codeGeneralPermission, "Unauthorized")
 		return
 	}
 
@@ -100,14 +100,14 @@ func (rs *Resource) schoolEventsHandler(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		logger.ErrorContext(ctx, "school SSE failed to verify portal access",
 			slog.String("error", err.Error()))
-		http.Error(w, "Failed to verify access", http.StatusInternalServerError)
+		writeSSEProblem(w, http.StatusInternalServerError, codeGeneralServer, "Failed to verify access")
 		return
 	}
 	if !allowed {
 		logger.WarnContext(ctx, "school SSE rejected: no school portal role",
 			slog.Int64("account_id", accountID),
 			slog.Int64("tenant_id", tenantID))
-		http.Error(w, "Forbidden", http.StatusForbidden)
+		writeSSEProblem(w, http.StatusForbidden, codeGeneralPermission, "Forbidden")
 		return
 	}
 
@@ -118,7 +118,7 @@ func (rs *Resource) schoolEventsHandler(w http.ResponseWriter, r *http.Request) 
 	if err := conn.sendConnectedEvent(&sseTopics{}); err != nil {
 		logger.ErrorContext(ctx, "school SSE failed to send connected event",
 			slog.String("error", err.Error()))
-		http.Error(w, "Failed to initialize SSE stream", http.StatusInternalServerError)
+		writeSSEProblem(w, http.StatusInternalServerError, codeGeneralServer, "Failed to initialize SSE stream")
 		return
 	}
 

@@ -83,9 +83,10 @@ func RespondSuccess(w http.ResponseWriter, r *http.Request, status int, data any
 
 func RespondNoContent(w http.ResponseWriter, r *http.Request) { render.NoContent(w, r) }
 
+// RespondError renders err in the shared error envelope with the class code
+// of status, the way api/common answers a failure without a code of its own.
 func RespondError(w http.ResponseWriter, r *http.Request, status int, err error) {
-	render.Status(r, status)
-	render.JSON(w, r, Response{Status: "error", Error: err.Error()})
+	RespondCoded(w, r, status, ClassCode(status), err, nil, "")
 }
 
 func RespondInvalidRequest(w http.ResponseWriter, r *http.Request, err error) {
@@ -93,9 +94,10 @@ func RespondInvalidRequest(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 // RespondCoded renders the shared error envelope with a stable code and the
-// optional structured details, the way api/common does for the kiosk. It
-// stands in for a composition root's failure renderer in HTTP adapter tests
-// that must not import the shared HTTP package themselves.
+// optional structured details, the way api/common does for the kiosk; an
+// empty code takes the class code of status. It stands in for a composition
+// root's failure renderer in HTTP adapter tests that must not import the
+// shared HTTP package themselves.
 func RespondCoded(w http.ResponseWriter, r *http.Request, status int, code string, err error, details map[string]string, clientMessage string) {
 	message := clientMessage
 	if message == "" && err != nil {
@@ -108,13 +110,16 @@ func RespondCoded(w http.ResponseWriter, r *http.Request, status int, code strin
 			payload[key] = value
 		}
 	}
+	if code == "" {
+		code = ClassCode(status)
+	}
 	render.Status(r, status)
 	render.JSON(w, r, struct {
-		Status  string         `json:"status"`
-		Error   string         `json:"error,omitempty"`
-		Code    string         `json:"code,omitempty"`
+		Status  int            `json:"status"`
+		Detail  string         `json:"detail"`
+		Code    string         `json:"code"`
 		Details map[string]any `json:"details,omitempty"`
-	}{Status: "error", Error: message, Code: code, Details: payload})
+	}{Status: status, Detail: message, Code: code, Details: payload})
 }
 
 func ErrorResponder(resolve func(error) (int, error)) func(http.ResponseWriter, *http.Request, error, string) {
@@ -281,12 +286,11 @@ func ExecuteRequestForTest(t *testing.T, router chi.Router, req *http.Request) *
 	return rr
 }
 
-// Response represents a standard API response for testing.
+// Response represents a standard success response for testing.
 type Response struct {
 	Status  string      `json:"status"`
 	Data    interface{} `json:"data,omitempty"`
 	Message string      `json:"message,omitempty"`
-	Error   string      `json:"error,omitempty"`
 }
 
 // ParseResponse parses the response body into a Response struct.
@@ -324,9 +328,12 @@ func AssertSuccessResponse(t *testing.T, rr *httptest.ResponseRecorder, expected
 }
 
 // AssertErrorResponse validates the expected HTTP code and, for a JSON body,
-// the shared error envelope's members a handler writes itself: status "error"
-// and the text in `error`, never `message` (#2507). The remaining problem
-// members are filled by ProblemResponseMiddleware, which handler tests bypass.
+// the shared error envelope's members a handler writes itself (ADR 0006,
+// #2520): `status` is the HTTP status number, the text travels in `detail`
+// (never `error` or `message`) and `code` is registered in
+// error-registry.json. type, title and instance are filled by
+// ProblemResponseMiddleware where a renderer leaves them out; handler tests
+// bypass it.
 func AssertErrorResponse(t *testing.T, rr *httptest.ResponseRecorder, expectedStatus int) {
 	t.Helper()
 
@@ -338,12 +345,12 @@ func assertHandlerErrorEnvelope(t *testing.T, rr *httptest.ResponseRecorder) {
 	t.Helper()
 	var body map[string]json.RawMessage
 	if json.Unmarshal(rr.Body.Bytes(), &body) != nil || body == nil {
-		return // plain-text bodies get their envelope from ProblemResponseMiddleware
+		return // chi's plain-text 404/405 get their envelope from ProblemResponseMiddleware
 	}
-	if status, ok := body["status"]; ok {
-		assert.JSONEq(t, `"error"`, string(status), "error body status must be \"error\". Body: %s", rr.Body.String())
-	}
-	assert.NotContains(t, body, "message", "error body text belongs in \"error\". Body: %s", rr.Body.String())
+	assert.Empty(t, legacyMemberViolations(body, rr.Code), "error body. Body: %s", rr.Body.String())
+	assert.NotEmpty(t, envelopeString(body, "detail"), "error body needs a detail. Body: %s", rr.Body.String())
+	code := envelopeString(body, "code")
+	assert.True(t, IsRegisteredCode(code), "error body code %q must be in error-registry.json. Body: %s", code, rr.Body.String())
 }
 
 // AssertUnauthorized validates a 401 Unauthorized response.

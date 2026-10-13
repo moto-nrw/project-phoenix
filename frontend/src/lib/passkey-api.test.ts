@@ -1,3 +1,4 @@
+import { ApiError } from "./api-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -27,7 +28,6 @@ import {
   isPasskeyCeremonyIncompleteError,
   listPasskeys,
   loginWithPasskey,
-  PasskeyApiError,
   registerPasskey,
   revokePasskey,
   startPasskeyEnrollment,
@@ -81,11 +81,12 @@ describe("passkey-api", () => {
         ),
       ),
     ).toBe(true);
+    // The ceremony is identified by the error name, never by its text.
     expect(
       isPasskeyCeremonyIncompleteError(
         new Error("The operation either timed out or was not allowed."),
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       isPasskeyCeremonyIncompleteError(
         new Error("Passkey-Anfrage fehlgeschlagen."),
@@ -294,24 +295,28 @@ describe("passkey-api", () => {
   });
 
   it.each([
-    [{ error: "Direkter Fehler" }, "Direkter Fehler"],
-    [{ message: "Backend-Nachricht" }, "Backend-Nachricht"],
-    [{ error_text: "Legacy-Fehler" }, "Legacy-Fehler"],
-  ])("uses backend error messages from %j", async (body, expected) => {
-    mockAuthenticatedSession();
-    vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse(403, body));
+    [{ detail: "Direkter Fehler" }, "Direkter Fehler"],
+    [{ message: "Backend-Nachricht" }, undefined],
+    [{ error_text: "Legacy-Fehler" }, undefined],
+  ])(
+    "keeps the diagnostic separate from the enrollment fallback: %j",
+    async (body, detail) => {
+      mockAuthenticatedSession();
+      vi.mocked(global.fetch).mockResolvedValueOnce(jsonResponse(403, body));
 
-    await expect(startPasskeyEnrollment("tenant")).rejects.toMatchObject({
-      status: 403,
-      message: expected,
-    });
-  });
+      await expect(startPasskeyEnrollment("tenant")).rejects.toMatchObject({
+        status: 403,
+        message: "Passkey-Anfrage fehlgeschlagen (403).",
+        detail,
+      });
+    },
+  );
 
   it("preserves a stable backend error code", async () => {
     mockAuthenticatedSession();
     vi.mocked(global.fetch).mockResolvedValueOnce(
       jsonResponse(403, {
-        error: "school portal accounts must log in at the school portal",
+        detail: "school portal accounts must log in at the school portal",
         code: "identity.use_school_portal",
       }),
     );
@@ -329,7 +334,7 @@ describe("passkey-api", () => {
     );
 
     const promise = startPasskeyEnrollment("tenant");
-    await expect(promise).rejects.toBeInstanceOf(PasskeyApiError);
+    await expect(promise).rejects.toBeInstanceOf(ApiError);
     await expect(promise).rejects.toMatchObject({
       status: 502,
       message: "Passkey-Anfrage fehlgeschlagen (502).",

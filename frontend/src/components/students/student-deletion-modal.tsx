@@ -1,6 +1,7 @@
 "use client";
 
 import { Database } from "lucide-react";
+import { ApiError } from "~/lib/api-error";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useEffect, useMemo, useState } from "react";
 
@@ -20,7 +21,6 @@ import {
 import {
   deleteStudentWithData,
   fetchStudentDeletionImpact,
-  StudentDeletionApiError,
   type StudentDeletionCounts,
   type StudentDeletionImpact,
   type StudentDeletionReason,
@@ -202,9 +202,7 @@ export function StudentDeletionModal({
       logger.error("student_delete_failed", {
         student_id: studentId,
         status:
-          deleteError instanceof StudentDeletionApiError
-            ? deleteError.status
-            : undefined,
+          deleteError instanceof ApiError ? deleteError.status : undefined,
         error:
           deleteError instanceof Error
             ? deleteError.message
@@ -212,7 +210,7 @@ export function StudentDeletionModal({
       });
 
       if (
-        deleteError instanceof StudentDeletionApiError &&
+        deleteError instanceof ApiError &&
         deleteError.code === "students.deletion_preview_changed"
       ) {
         // The backend re-checks the preview under a row lock. A 409 means the

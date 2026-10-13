@@ -14,6 +14,7 @@ import {
   normalizeLocation,
 } from "~/lib/location-helper";
 import type { BackendRoom } from "~/lib/rooms-helpers";
+import { isApiResponseError } from "~/lib/api-response-error.server";
 
 // Define proper types for the API responses
 interface StudentApiResponse {
@@ -362,30 +363,18 @@ function handleLocationFetchError(error: unknown): LocationResponse {
   };
 }
 
-// Maps error to error code
+// Maps a failed backend call to an error code: the HTTP status of a backend
+// answer, or NETWORK when the request never got one (fetch rejects with a
+// TypeError).
 function mapAxiosErrorToCode(
   error: unknown,
 ): UnknownLocation["errorCode"] | undefined {
-  if (!(error instanceof Error)) {
+  if (isApiResponseError(error)) {
+    if (error.status === 401) return "UNAUTHORIZED";
+    if (error.status === 403) return "FORBIDDEN";
+    if (error.status === 404) return "NOT_FOUND";
+    if ([500, 502, 503].includes(error.status)) return "SERVER";
     return undefined;
   }
-
-  const message = error.message;
-  if (
-    message.includes("fetch") ||
-    message.includes("network") ||
-    message.includes("ECONNREFUSED")
-  ) {
-    return "NETWORK";
-  }
-  if (message.includes("401")) return "UNAUTHORIZED";
-  if (message.includes("403")) return "FORBIDDEN";
-  if (message.includes("404")) return "NOT_FOUND";
-  if (
-    message.includes("500") ||
-    message.includes("502") ||
-    message.includes("503")
-  )
-    return "SERVER";
-  return undefined;
+  return error instanceof TypeError ? "NETWORK" : undefined;
 }

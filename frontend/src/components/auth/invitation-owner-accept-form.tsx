@@ -18,7 +18,7 @@ import type { TenantSummary } from "~/lib/tenant-api";
 import { schoolPortalLoginUrl } from "~/lib/school-url";
 import { parentsPortalLoginUrl } from "~/lib/parent-url";
 import { clientEnv } from "~/env.client";
-import { credentialError } from "./credential-error";
+import { credentialError, INVITATION_REFUSALS } from "./credential-error";
 
 const logger = createLogger({ component: "InvitationOwnerAccept" });
 
@@ -90,10 +90,10 @@ export function InvitationOwnerAcceptForm({
       logger.warn("invitation_owner_accept_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(
-        credentialError(err, ["identity.invitation_account_login_required"]),
-        { object: "die Einladung", retry: () => latestSubmitRef.current() },
-      );
+      void formErrors.show(credentialError(err, INVITATION_REFUSALS), {
+        object: "die Einladung",
+        retry: () => latestSubmitRef.current(),
+      });
     } finally {
       setPending(false);
     }

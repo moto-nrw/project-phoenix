@@ -89,7 +89,7 @@ A direct fetch outside this inventory needs a reason and a shared proxy path.
 
 | Route under `app/api/` | Reason the transparent JSON factory is not used |
 | --- | --- |
-| `activities/[id]/supervisors/[supervisorId]` | Performs session refresh and the documented TOKEN_EXPIRED mapping before forwarding. |
+| `activities/[id]/supervisors/[supervisorId]` | Refreshes the session before forwarding; an exhausted refresh answers 401 with `general.permission`. |
 | `announcement-attachments/[announcementId]` | Multipart attachment upload uses the shared file-upload validator. |
 | `announcement-attachments/[announcementId]/[attachmentId]/download` | Streams attachment bytes and disposition for a browser download. |
 | `auth/login` | Relays login response cookies as well as the backend body. |
@@ -172,8 +172,8 @@ Business adapters are not transparent proxies: room history maps the
 documented 404 and `feature_disabled` 403 to an empty/disabled view;
 student privacy-consent GET maps an absent consent to its default model, and
 student PUT marks a consent write that succeeded before a later student write
-failed. Demo handoff produces a redirect after checking readiness. Auth
-refresh/retry and `TOKEN_EXPIRED` follow the session contract. All other
+failed. Demo handoff produces a redirect after checking readiness. An exhausted
+auth refresh/retry answers 401 with `general.permission`. All other
 backend errors in those routes retain the shared error contract. Logout
 forwards backend errors unchanged even though the browser always clears its
 local session.

@@ -57,7 +57,7 @@ func TestWireFormat_RoomCapacityExceeded(t *testing.T) {
 	rr := scanWith(t, &fakeScanner{scanErr: &devicescan.RoomCapacityExceededError{RoomID: 42, RoomName: "Room A", CurrentOccupancy: 15, MaxCapacity: 10, Details: true}})
 	assert.Equal(t, 409, rr.Code)
 	assert.Equal(t,
-		"{\"status\":\"error\",\"error\":\"Room capacity exceeded\",\"code\":\"iot.room_capacity_exceeded\",\"details\":{\"room_id\":42,\"room_name\":\"Room A\",\"current_occupancy\":15,\"max_capacity\":10}}\n",
+		"{\"status\":409,\"detail\":\"Room capacity exceeded\",\"code\":\"iot.room_capacity_exceeded\",\"details\":{\"room_id\":42,\"room_name\":\"Room A\",\"current_occupancy\":15,\"max_capacity\":10}}\n",
 		rr.Body.String(),
 	)
 }
@@ -69,14 +69,14 @@ func TestWireFormat_PingPreservesLegacyOwnerFailure(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/ping", nil)
 	rr := testutil.ExecuteRequest(resource.Router(), req)
 	require.Equal(t, 500, rr.Code)
-	require.Equal(t, "{\"status\":\"error\",\"error\":\"IoT service error in PingDevice: device not found\"}\n", rr.Body.String())
+	require.Equal(t, "{\"status\":500,\"detail\":\"IoT service error in PingDevice: device not found\",\"code\":\"general.server\"}\n", rr.Body.String())
 }
 
 func TestWireFormat_RoomCapacityExceeded_NoDetails(t *testing.T) {
 	t.Parallel()
 	rr := scanWith(t, &fakeScanner{scanErr: &devicescan.RoomCapacityExceededError{RoomID: 42, RoomName: "Room A", CurrentOccupancy: 15, MaxCapacity: 10}})
 	assert.Equal(t, 409, rr.Code)
-	assert.Equal(t, "{\"status\":\"error\",\"error\":\"Room capacity exceeded\",\"code\":\"iot.room_capacity_exceeded\"}\n", rr.Body.String())
+	assert.Equal(t, "{\"status\":409,\"detail\":\"Room capacity exceeded\",\"code\":\"iot.room_capacity_exceeded\"}\n", rr.Body.String())
 }
 
 func TestWireFormat_ActivityCapacityExceeded(t *testing.T) {
@@ -84,7 +84,7 @@ func TestWireFormat_ActivityCapacityExceeded(t *testing.T) {
 	rr := scanWith(t, &fakeScanner{scanErr: &devicescan.ActivityCapacityExceededError{ActivityID: 7, ActivityName: "Bastelraum", CurrentOccupancy: 5, MaxCapacity: 4, Details: true}})
 	assert.Equal(t, 409, rr.Code)
 	assert.Equal(t,
-		"{\"status\":\"error\",\"error\":\"Activity capacity exceeded\",\"code\":\"iot.activity_capacity_exceeded\",\"details\":{\"activity_id\":7,\"activity_name\":\"Bastelraum\",\"current_occupancy\":5,\"max_capacity\":4}}\n",
+		"{\"status\":409,\"detail\":\"Activity capacity exceeded\",\"code\":\"iot.activity_capacity_exceeded\",\"details\":{\"activity_id\":7,\"activity_name\":\"Bastelraum\",\"current_occupancy\":5,\"max_capacity\":4}}\n",
 		rr.Body.String(),
 	)
 }
@@ -93,7 +93,7 @@ func TestWireFormat_ActivityCapacityExceeded_NoDetails(t *testing.T) {
 	t.Parallel()
 	rr := scanWith(t, &fakeScanner{scanErr: &devicescan.ActivityCapacityExceededError{ActivityID: 7, ActivityName: "Bastelraum", CurrentOccupancy: 5, MaxCapacity: 4}})
 	assert.Equal(t, 409, rr.Code)
-	assert.Equal(t, "{\"status\":\"error\",\"error\":\"Activity capacity exceeded\",\"code\":\"iot.activity_capacity_exceeded\"}\n", rr.Body.String())
+	assert.Equal(t, "{\"status\":409,\"detail\":\"Activity capacity exceeded\",\"code\":\"iot.activity_capacity_exceeded\"}\n", rr.Body.String())
 }
 
 func TestWireFormat_StudentAlreadyActive(t *testing.T) {
@@ -102,7 +102,7 @@ func TestWireFormat_StudentAlreadyActive(t *testing.T) {
 		t.Parallel()
 		rr := scanWith(t, &fakeScanner{scanErr: &devicescan.StudentAlreadyActiveError{StudentID: 99}})
 		assert.Equal(t, 409, rr.Code)
-		assert.Equal(t, "{\"status\":\"error\",\"error\":\"student already has an active visit\",\"code\":\"iot.student_already_active\",\"details\":{\"student_id\":99}}\n", rr.Body.String())
+		assert.Equal(t, "{\"status\":409,\"detail\":\"student already has an active visit\",\"code\":\"iot.student_already_active\",\"details\":{\"student_id\":99}}\n", rr.Body.String())
 	})
 	t.Run("full path carries the existing stay", func(t *testing.T) {
 		t.Parallel()
@@ -111,7 +111,7 @@ func TestWireFormat_StudentAlreadyActive(t *testing.T) {
 		rr := scanWith(t, &fakeScanner{scanErr: &devicescan.StudentAlreadyActiveError{StudentID: 99, ExistingVisitID: 123, EntryTime: &entry, RoomID: &roomID, RoomName: "Room A"}})
 		assert.Equal(t, 409, rr.Code)
 		assert.Equal(t,
-			"{\"status\":\"error\",\"error\":\"student already has an active visit\",\"code\":\"iot.student_already_active\",\"details\":{\"student_id\":99,\"existing_visit_id\":123,\"entry_time\":\"2026-07-12T10:30:00Z\",\"room_id\":5,\"room_name\":\"Room A\"}}\n",
+			"{\"status\":409,\"detail\":\"student already has an active visit\",\"code\":\"iot.student_already_active\",\"details\":{\"student_id\":99,\"existing_visit_id\":123,\"entry_time\":\"2026-07-12T10:30:00Z\",\"room_id\":5,\"room_name\":\"Room A\"}}\n",
 			rr.Body.String(),
 		)
 	})
@@ -125,18 +125,18 @@ func TestWireFormat_ClassifiedFailures(t *testing.T) {
 		status int
 		body   string
 	}{
-		{"unauthorized", devicescan.ErrDeviceUnauthorized, 401, `{"status":"error","error":"device API key is required"}`},
-		{"not found with code", devicescan.NotFoundWithCode(devicescan.MessageRFIDTagNotFound, devicescan.CodeRFIDTagNotFound), 404, `{"status":"error","error":"RFID tag not found","code":"iot.rfid_tag_not_found"}`},
-		{"not found", devicescan.NotFound(devicescan.MessageNoGroupsInRoom), 404, `{"status":"error","error":"no active groups in specified room"}`},
-		{"invalid request", devicescan.InvalidRequest(devicescan.MessageRoomIDRequired), 400, `{"status":"error","error":"room_id is required for check-in"}`},
-		{"conflict", devicescan.Conflict("active: op: session conflict detected"), 409, `{"status":"error","error":"active: op: session conflict detected"}`},
-		{"internal with hidden cause", devicescan.Internal(devicescan.MessageInternalServerError, errors.New("rfid lookup exploded")), 500, `{"status":"error","error":"Internal server error"}`},
-		{"internal pinned text", devicescan.Internal(devicescan.MessageCreateVisitFailed, nil), 500, `{"status":"error","error":"failed to create visit record"}`},
-		{"unassigned card", devicescan.NotFoundWithCode(devicescan.MessageRFIDTagUnassigned, devicescan.CodeRFIDTagUnassigned), 404, `{"status":"error","error":"RFID tag not assigned to any person","code":"iot.rfid_tag_unassigned"}`},
-		{"schulhof not configured", devicescan.InternalWithCode(devicescan.MessageSchulhofNotConfigured, devicescan.CodeSchulhofNotConfigured), 500, `{"status":"error","error":"schulhof activity not configured","code":"iot.schulhof_not_configured"}`},
-		{"wc not configured", devicescan.InternalWithCode(devicescan.MessageWCNotConfigured, devicescan.CodeWCNotConfigured), 500, `{"status":"error","error":"WC activity not configured","code":"iot.wc_not_configured"}`},
-		{"wc needs staff", devicescan.InternalWithCode(devicescan.MessageWCNeedsStaff, devicescan.CodeWCNeedsStaff), 500, `{"status":"error","error":"WC activity auto-create requires staff context","code":"iot.wc_needs_staff"}`},
-		{"unknown error", errors.New("something unexpected"), 500, `{"status":"error","error":"something unexpected"}`},
+		{"unauthorized", devicescan.ErrDeviceUnauthorized, 401, `{"status":401,"detail":"device API key is required","code":"general.permission"}`},
+		{"not found with code", devicescan.NotFoundWithCode(devicescan.MessageRFIDTagNotFound, devicescan.CodeRFIDTagNotFound), 404, `{"status":404,"detail":"RFID tag not found","code":"iot.rfid_tag_not_found"}`},
+		{"not found", devicescan.NotFound(devicescan.MessageNoGroupsInRoom), 404, `{"status":404,"detail":"no active groups in specified room","code":"general.input"}`},
+		{"invalid request", devicescan.InvalidRequest(devicescan.MessageRoomIDRequired), 400, `{"status":400,"detail":"room_id is required for check-in","code":"general.input"}`},
+		{"conflict", devicescan.Conflict("active: op: session conflict detected"), 409, `{"status":409,"detail":"active: op: session conflict detected","code":"general.business_rejection"}`},
+		{"internal with hidden cause", devicescan.Internal(devicescan.MessageInternalServerError, errors.New("rfid lookup exploded")), 500, `{"status":500,"detail":"Internal server error","code":"general.server"}`},
+		{"internal pinned text", devicescan.Internal(devicescan.MessageCreateVisitFailed, nil), 500, `{"status":500,"detail":"failed to create visit record","code":"general.server"}`},
+		{"unassigned card", devicescan.NotFoundWithCode(devicescan.MessageRFIDTagUnassigned, devicescan.CodeRFIDTagUnassigned), 404, `{"status":404,"detail":"RFID tag not assigned to any person","code":"iot.rfid_tag_unassigned"}`},
+		{"schulhof not configured", devicescan.InternalWithCode(devicescan.MessageSchulhofNotConfigured, devicescan.CodeSchulhofNotConfigured), 500, `{"status":500,"detail":"schulhof activity not configured","code":"iot.schulhof_not_configured"}`},
+		{"wc not configured", devicescan.InternalWithCode(devicescan.MessageWCNotConfigured, devicescan.CodeWCNotConfigured), 500, `{"status":500,"detail":"WC activity not configured","code":"iot.wc_not_configured"}`},
+		{"wc needs staff", devicescan.InternalWithCode(devicescan.MessageWCNeedsStaff, devicescan.CodeWCNeedsStaff), 500, `{"status":500,"detail":"WC activity auto-create requires staff context","code":"iot.wc_needs_staff"}`},
+		{"unknown error", errors.New("something unexpected"), 500, `{"status":500,"detail":"something unexpected","code":"general.server"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

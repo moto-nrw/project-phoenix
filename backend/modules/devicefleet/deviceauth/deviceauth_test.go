@@ -191,12 +191,12 @@ func TestDeviceOnly_WireContract(t *testing.T) {
 		wantCode int
 		wantBody string
 	}{
-		{"missing header", "", http.StatusUnauthorized, `"error":"device API key is required"`},
-		{"basic scheme", "Basic active-key", http.StatusUnauthorized, `"error":"invalid API key format - use Bearer token"`},
-		{"lowercase bearer", "bearer active-key", http.StatusUnauthorized, `"error":"invalid API key format - use Bearer token"`},
-		{"empty bearer", "Bearer ", http.StatusUnauthorized, `"error":"device API key is required"`},
-		{"unknown key", "Bearer unknown", http.StatusUnauthorized, `"error":"invalid device API key"`},
-		{"inactive device", "Bearer inactive-key", http.StatusForbidden, `"error":"device is not active"`},
+		{"missing header", "", http.StatusUnauthorized, `"detail":"device API key is required"`},
+		{"basic scheme", "Basic active-key", http.StatusUnauthorized, `"detail":"invalid API key format - use Bearer token"`},
+		{"lowercase bearer", "bearer active-key", http.StatusUnauthorized, `"detail":"invalid API key format - use Bearer token"`},
+		{"empty bearer", "Bearer ", http.StatusUnauthorized, `"detail":"device API key is required"`},
+		{"unknown key", "Bearer unknown", http.StatusUnauthorized, `"detail":"invalid device API key"`},
+		{"inactive device", "Bearer inactive-key", http.StatusForbidden, `"detail":"device is not active"`},
 		{"active device", "Bearer active-key", http.StatusOK, ""},
 	}
 	for _, tc := range tests {
@@ -210,7 +210,8 @@ func TestDeviceOnly_WireContract(t *testing.T) {
 			assert.Equal(t, tc.wantCode, rr.Code)
 			if tc.wantBody != "" {
 				assert.Contains(t, rr.Body.String(), tc.wantBody)
-				assert.Contains(t, rr.Body.String(), `"status":"error"`)
+				assert.Contains(t, rr.Body.String(), fmt.Sprintf(`"status":%d`, tc.wantCode))
+				assert.NotContains(t, rr.Body.String(), `"error"`)
 			}
 		})
 	}
@@ -223,7 +224,7 @@ func TestDeviceOnly_ReadFailureIsInvalidAPIKey(t *testing.T) {
 	fleet.findErr = errors.New("connection reset")
 	rr := serve(router(New(Dependencies{Devices: fleet}).DeviceOnly(), nil), request(http.MethodGet, "any", nil))
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	assert.Contains(t, rr.Body.String(), `"error":"invalid device API key"`)
+	assert.Contains(t, rr.Body.String(), `"detail":"invalid device API key"`)
 }
 
 func TestDeviceOnly_ZeroTenantIsObservedAndRejected(t *testing.T) {
@@ -237,7 +238,7 @@ func TestDeviceOnly_ZeroTenantIsObservedAndRejected(t *testing.T) {
 
 	rr := serve(handler, request(http.MethodGet, "zero-tenant", nil))
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	assert.Contains(t, rr.Body.String(), `"error":"invalid device API key"`)
+	assert.Contains(t, rr.Body.String(), `"detail":"invalid device API key"`)
 	assert.Zero(t, fleet.writes())
 }
 
@@ -305,7 +306,7 @@ func TestDevice_PINResolution(t *testing.T) {
 			rr := serve(handler, request(http.MethodPost, "kiosk-key", map[string]string{"X-Staff-PIN": tc.pin}))
 			assert.Equal(t, tc.wantCode, rr.Code, rr.Body.String())
 			if tc.wantCode != http.StatusOK {
-				assert.Contains(t, rr.Body.String(), `"error":"invalid staff PIN"`)
+				assert.Contains(t, rr.Body.String(), `"detail":"invalid staff PIN"`)
 			}
 		})
 	}
@@ -318,7 +319,7 @@ func TestDevice_MissingPIN(t *testing.T) {
 	fleet.add("kiosk-key", activeDevice(7, "kiosk"))
 	rr := serve(router(New(Dependencies{Devices: fleet, FallbackPIN: "1234"}).Device(), nil), request(http.MethodPost, "kiosk-key", nil))
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	assert.Contains(t, rr.Body.String(), `"error":"staff PIN is required"`)
+	assert.Contains(t, rr.Body.String(), `"detail":"staff PIN is required"`)
 }
 
 // Kiosks share one device PIN, so the staff headers a client sends are
@@ -440,7 +441,7 @@ func TestDeviceOnly_SchoolGuard(t *testing.T) {
 			rr := serve(router(New(Dependencies{Devices: fleet, Schools: tc.schools}).DeviceOnly(), nil), request(http.MethodGet, "kiosk-key", nil))
 			assert.Equal(t, tc.wantCode, rr.Code, rr.Body.String())
 			if tc.wantCode == http.StatusForbidden {
-				assert.Contains(t, rr.Body.String(), `"error":"device is not active"`)
+				assert.Contains(t, rr.Body.String(), `"detail":"device is not active"`)
 			}
 		})
 	}

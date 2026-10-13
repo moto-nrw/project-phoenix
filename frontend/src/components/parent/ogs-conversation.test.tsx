@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ParentApiError } from "~/lib/parent-api";
 import { catalogText } from "~/test/error-catalog-text";
 
 const { mockGetConversation, mockPostMessage } = vi.hoisted(() => ({
@@ -52,7 +52,7 @@ describe("OgsConversation errors", () => {
   it("shows a failed load in the thread and retries it", async () => {
     mockGetConversation
       .mockRejectedValueOnce(
-        new ParentApiError("thread kaputt", 503, "general.unavailable"),
+        new ApiError("thread kaputt", 503, { code: "general.unavailable" }),
       )
       .mockResolvedValueOnce(thread);
 
@@ -76,7 +76,7 @@ describe("OgsConversation errors", () => {
   it("shows a failed send above the composer and keeps the draft", async () => {
     mockGetConversation.mockResolvedValue(thread);
     mockPostMessage.mockRejectedValueOnce(
-      new ParentApiError("not allowed", 403, "general.permission"),
+      new ApiError("not allowed", 403, { code: "general.permission" }),
     );
 
     render(<OgsConversation studentId="42" />);

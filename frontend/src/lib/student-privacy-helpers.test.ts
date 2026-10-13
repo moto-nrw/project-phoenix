@@ -5,6 +5,7 @@ import {
   shouldCreatePrivacyConsent,
   updatePrivacyConsent,
 } from "./student-privacy-helpers";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 
 describe("student-privacy-helpers", () => {
   describe("DEFAULT_PRIVACY_CONSENT", () => {
@@ -52,7 +53,9 @@ describe("student-privacy-helpers", () => {
     });
 
     it("should return defaults on 404 error", async () => {
-      const apiGet = vi.fn().mockRejectedValue(new Error("Not found (404)"));
+      const apiGet = vi
+        .fn()
+        .mockRejectedValue(new ApiResponseError(404, "Not found"));
 
       const result = await fetchPrivacyConsent("789", apiGet, "test-token");
 
@@ -60,7 +63,9 @@ describe("student-privacy-helpers", () => {
     });
 
     it("should return defaults on 403 error", async () => {
-      const apiGet = vi.fn().mockRejectedValue(new Error("Forbidden (403)"));
+      const apiGet = vi
+        .fn()
+        .mockRejectedValue(new ApiResponseError(403, "Forbidden"));
 
       const result = await fetchPrivacyConsent("101", apiGet, "test-token");
 
@@ -70,11 +75,14 @@ describe("student-privacy-helpers", () => {
     it("should re-throw other errors", async () => {
       const apiGet = vi
         .fn()
-        .mockRejectedValue(new Error("Internal Server Error (500)"));
+        .mockRejectedValue(new ApiResponseError(500, "Internal Server Error"));
 
       await expect(
         fetchPrivacyConsent("202", apiGet, "test-token"),
-      ).rejects.toThrow("Internal Server Error (500)");
+      ).rejects.toMatchObject({
+        status: 500,
+        bodyText: "Internal Server Error",
+      });
     });
 
     it("should re-throw non-Error throws", async () => {

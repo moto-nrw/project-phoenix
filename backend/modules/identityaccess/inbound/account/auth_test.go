@@ -2345,12 +2345,12 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rr.Code, "Soft-deleted tenant must return 404, body: %s", rr.Body.String())
 
 	var response struct {
-		Status  string `json:"status"`
-		Message string `json:"message"`
+		Status int    `json:"status"`
+		Detail string `json:"detail"`
 	}
 	err = json.Unmarshal(rr.Body.Bytes(), &response)
 	require.NoError(t, err, "Failed to parse error response: %s", rr.Body.String())
-	assert.Equal(t, "error", response.Status)
+	assert.Equal(t, rr.Code, response.Status)
 }
 
 // TestCreateInvitationRequiresRoleGrantAuthority guards the invitation endpoint

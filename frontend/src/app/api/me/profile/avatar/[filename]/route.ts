@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
-import { handleApiError } from "~/lib/api-helpers.server";
+import { handleApiError, problemResponse } from "~/lib/api-helpers.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 
@@ -17,24 +17,14 @@ export const GET = withTenantAuth(
       const session = await auth();
 
       if (!session?.user?.token) {
-        return NextResponse.json(
-          { error: "Unauthorized", success: false, message: "Unauthorized" },
-          { status: 401 },
-        );
+        return problemResponse(401, "Unauthorized", request);
       }
 
       const params = await context.params;
       const filename = params.filename as string;
 
       if (!filename) {
-        return NextResponse.json(
-          {
-            error: "Filename is required",
-            success: false,
-            message: "Filename is required",
-          },
-          { status: 400 },
-        );
+        return problemResponse(400, "Filename is required", request);
       }
 
       // Validate filename to prevent path traversal attacks
@@ -43,14 +33,7 @@ export const GET = withTenantAuth(
         filename.includes("/") ||
         filename.includes("\\")
       ) {
-        return NextResponse.json(
-          {
-            error: "Invalid filename",
-            success: false,
-            message: "Invalid filename",
-          },
-          { status: 400 },
-        );
+        return problemResponse(400, "Invalid filename", request);
       }
 
       // Fetch from backend
@@ -62,7 +45,7 @@ export const GET = withTenantAuth(
       });
 
       if (!response.ok) {
-        return forwardBackendResponse(response);
+        return forwardBackendResponse(response, request);
       }
 
       // Get the image data and content type

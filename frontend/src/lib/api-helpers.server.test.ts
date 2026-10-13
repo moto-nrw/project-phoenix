@@ -45,7 +45,11 @@ describe("api-helpers.server", () => {
       expect(result?.status).toBe(401);
 
       const json = (await result?.json()) as { error: string };
-      expect(json).toEqual({ error: "Unauthorized" });
+      expect(json).toMatchObject({
+        status: 401,
+        detail: "Unauthorized",
+        code: "general.permission",
+      });
     });
 
     it("returns 401 response when session has no token", async () => {
@@ -60,7 +64,11 @@ describe("api-helpers.server", () => {
       expect(result?.status).toBe(401);
 
       const json = (await result?.json()) as { error: string };
-      expect(json).toEqual({ error: "Unauthorized" });
+      expect(json).toMatchObject({
+        status: 401,
+        detail: "Unauthorized",
+        code: "general.permission",
+      });
     });
 
     it("returns 401 response when user is missing", async () => {

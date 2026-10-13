@@ -281,7 +281,7 @@ func TestDeviceOnly_MissingAuthHeader(t *testing.T) {
 	_, errResp := newTestAuthenticator(newMockDeviceDirectory()).authenticateDeviceOnly(context.Background(), credentials{})
 	require.NotNil(t, errResp)
 	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-	assert.Equal(t, ErrMissingAPIKey.Error(), errResp.ErrorText)
+	assert.Equal(t, ErrMissingAPIKey.Error(), errResp.Detail)
 }
 
 func TestDeviceOnly_InvalidAuthFormat(t *testing.T) {
@@ -304,7 +304,7 @@ func TestDeviceOnly_InvalidAuthFormat(t *testing.T) {
 			_, errResp := newTestAuthenticator(newMockDeviceDirectory()).authenticateDeviceOnly(context.Background(), credentials{authorization: tc.header})
 			require.NotNil(t, errResp)
 			assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-			assert.Equal(t, tc.wantErr.Error(), errResp.ErrorText)
+			assert.Equal(t, tc.wantErr.Error(), errResp.Detail)
 		})
 	}
 }
@@ -315,7 +315,7 @@ func TestDeviceOnly_InvalidAPIKey(t *testing.T) {
 	_, errResp := newTestAuthenticator(newMockDeviceDirectory()).authenticateDeviceOnly(context.Background(), bearer("invalid-api-key"))
 	require.NotNil(t, errResp)
 	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-	assert.Equal(t, ErrInvalidAPIKey.Error(), errResp.ErrorText)
+	assert.Equal(t, ErrInvalidAPIKey.Error(), errResp.Detail)
 }
 
 func TestDeviceOnly_DirectoryErrorIsInvalidAPIKey(t *testing.T) {
@@ -327,7 +327,7 @@ func TestDeviceOnly_DirectoryErrorIsInvalidAPIKey(t *testing.T) {
 	_, errResp := newTestAuthenticator(directory).authenticateDeviceOnly(context.Background(), bearer("any-key"))
 	require.NotNil(t, errResp)
 	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-	assert.Equal(t, ErrInvalidAPIKey.Error(), errResp.ErrorText, "read failures are not distinguishable from unknown keys on the wire")
+	assert.Equal(t, ErrInvalidAPIKey.Error(), errResp.Detail, "read failures are not distinguishable from unknown keys on the wire")
 }
 
 func TestDeviceOnly_NilDeviceReturn(t *testing.T) {
@@ -352,7 +352,7 @@ func TestDeviceOnly_InactiveDeviceStates(t *testing.T) {
 			_, errResp := newTestAuthenticator(directory).authenticateDeviceOnly(context.Background(), bearer("valid-api-key-123"))
 			require.NotNil(t, errResp)
 			assert.Equal(t, statusForbidden, errResp.HTTPStatusCode)
-			assert.Equal(t, ErrDeviceInactive.Error(), errResp.ErrorText)
+			assert.Equal(t, ErrDeviceInactive.Error(), errResp.Detail)
 			assert.False(t, directory.wasUpdated(), "rejected devices are not marked as seen")
 		})
 	}
@@ -384,7 +384,7 @@ func TestAuthenticators_ZeroTenantID_IsRejected(t *testing.T) {
 			require.NotNil(t, errResp)
 			assert.Nil(t, ctx)
 			assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-			assert.Equal(t, ErrInvalidAPIKey.Error(), errResp.ErrorText)
+			assert.Equal(t, ErrInvalidAPIKey.Error(), errResp.Detail)
 			assert.Equal(t, int64(0), observedTenant, "the binder sees the zero tenant and reports it")
 			assert.False(t, directory.wasUpdated())
 		})
@@ -424,7 +424,7 @@ func TestDevice_MissingPIN(t *testing.T) {
 	_, errResp := authenticator.authenticateDevice(context.Background(), bearer("valid-api-key-123"))
 	require.NotNil(t, errResp)
 	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-	assert.Equal(t, ErrMissingPIN.Error(), errResp.ErrorText)
+	assert.Equal(t, ErrMissingPIN.Error(), errResp.Detail)
 }
 
 func TestDevice_InvalidPIN(t *testing.T) {
@@ -437,7 +437,7 @@ func TestDevice_InvalidPIN(t *testing.T) {
 	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-123", "wrong-pin"))
 	require.NotNil(t, errResp)
 	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-	assert.Equal(t, ErrInvalidPIN.Error(), errResp.ErrorText)
+	assert.Equal(t, ErrInvalidPIN.Error(), errResp.Detail)
 	assert.False(t, directory.wasUpdated(), "a rejected PIN must not mark the device as seen")
 }
 
@@ -451,7 +451,7 @@ func TestDevice_MissingOGSPINConfig(t *testing.T) {
 	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-123", "any-pin"))
 	require.NotNil(t, errResp)
 	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-	assert.Equal(t, ErrInvalidPIN.Error(), errResp.ErrorText)
+	assert.Equal(t, ErrInvalidPIN.Error(), errResp.Detail)
 }
 
 func TestDevice_MissingAPIKey(t *testing.T) {
@@ -461,7 +461,7 @@ func TestDevice_MissingAPIKey(t *testing.T) {
 	_, errResp := authenticator.authenticateDevice(context.Background(), credentials{devicePIN: "test-pin"})
 	require.NotNil(t, errResp)
 	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-	assert.Equal(t, ErrMissingAPIKey.Error(), errResp.ErrorText)
+	assert.Equal(t, ErrMissingAPIKey.Error(), errResp.Detail)
 }
 
 func TestDevice_InvalidAPIKey(t *testing.T) {
@@ -471,7 +471,7 @@ func TestDevice_InvalidAPIKey(t *testing.T) {
 	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("invalid-key", "test-pin"))
 	require.NotNil(t, errResp)
 	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-	assert.Equal(t, ErrInvalidAPIKey.Error(), errResp.ErrorText)
+	assert.Equal(t, ErrInvalidAPIKey.Error(), errResp.Detail)
 }
 
 func TestDevice_InactiveDevice(t *testing.T) {
@@ -486,7 +486,7 @@ func TestDevice_InactiveDevice(t *testing.T) {
 	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-123", "test-pin"))
 	require.NotNil(t, errResp)
 	assert.Equal(t, statusForbidden, errResp.HTTPStatusCode)
-	assert.Equal(t, ErrDeviceInactive.Error(), errResp.ErrorText)
+	assert.Equal(t, ErrDeviceInactive.Error(), errResp.Detail)
 }
 
 func TestDevice_NilDeviceReturn(t *testing.T) {
@@ -593,7 +593,7 @@ func TestRejectDeletedSchool(t *testing.T) {
 			}
 			require.NotNil(t, result)
 			assert.Equal(t, statusForbidden, result.HTTPStatusCode)
-			assert.Equal(t, ErrDeviceInactive.Error(), result.ErrorText)
+			assert.Equal(t, ErrDeviceInactive.Error(), result.Detail)
 		})
 	}
 }
@@ -633,8 +633,8 @@ func TestErrDeviceUnauthorized(t *testing.T) {
 	errResp := ErrDeviceUnauthorized(ErrInvalidAPIKey)
 	require.NotNil(t, errResp)
 	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.StatusText)
-	assert.Equal(t, "invalid device API key", errResp.ErrorText)
+	assert.Equal(t, CodeAPIKeyInvalid, errResp.Code)
+	assert.Equal(t, "invalid device API key", errResp.Detail)
 	assert.Equal(t, ErrInvalidAPIKey, errResp.Err)
 }
 
@@ -644,8 +644,8 @@ func TestErrDeviceForbidden(t *testing.T) {
 	errResp := ErrDeviceForbidden(ErrDeviceInactive)
 	require.NotNil(t, errResp)
 	assert.Equal(t, statusForbidden, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.StatusText)
-	assert.Equal(t, "device is not active", errResp.ErrorText)
+	assert.Equal(t, CodeDeviceInactive, errResp.Code)
+	assert.Equal(t, "device is not active", errResp.Detail)
 }
 
 // TestErrorTypes pins the error strings PyrePortal maps to German UI text.

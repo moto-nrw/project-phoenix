@@ -1,17 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export function useScrollToError(error: string | null | undefined) {
-  const errorRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (error && errorRef.current) {
-      errorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [error]);
-
-  return errorRef;
-}
-
 /**
  * Scroll-to-first-error for long, multi-field forms.
  *
@@ -23,10 +11,8 @@ export function useScrollToError(error: string | null | undefined) {
  * problem and its inline message, falling back to the banner for server-level
  * errors that mark no field.
  *
- * Unlike {@link useScrollToError} (which only scrolls a banner and is keyed on
- * the error string), this targets the offending field and is keyed on a
- * per-attempt counter, so a repeated submit with the same unchanged error
- * still scrolls back to it.
+ * It targets the offending field and is keyed on a per-attempt counter, so a
+ * repeated submit with the same unchanged error still scrolls back to it.
  */
 export function useScrollToFirstError() {
   const formRef = useRef<HTMLFormElement>(null);

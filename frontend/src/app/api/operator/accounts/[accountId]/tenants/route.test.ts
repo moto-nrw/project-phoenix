@@ -87,7 +87,11 @@ describe("/api/operator/accounts/[accountId]/tenants", () => {
   it("forwards the grant body and preserves the backend status and error", async () => {
     mockFetch.mockResolvedValue(
       jsonResponse(
-        { status: "error", error: "account already has access" },
+        {
+          status: 409,
+          detail: "account already has access",
+          code: "general.business_rejection",
+        },
         409,
       ),
     );
@@ -104,8 +108,9 @@ describe("/api/operator/accounts/[accountId]/tenants", () => {
 
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
-      status: "error",
-      error: "account already has access",
+      status: 409,
+      detail: "account already has access",
+      code: "general.business_rejection",
     });
     expect(mockFetch).toHaveBeenCalledWith(
       "http://server:8080/operator/accounts/42/tenants",
@@ -130,13 +135,17 @@ describe("/api/operator/accounts/[accountId]/tenants", () => {
     );
 
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: "Invalid JSON body" });
+    expect(await response.json()).toMatchObject({
+      status: 400,
+      detail: "Invalid JSON body",
+      code: "general.input",
+    });
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("retries once with a refreshed token on 401", async () => {
     mockFetch
-      .mockResolvedValueOnce(jsonResponse({ error: "expired" }, 401))
+      .mockResolvedValueOnce(jsonResponse({ detail: "expired" }, 401))
       .mockResolvedValueOnce(jsonResponse({ data: [] }));
     mockUncachedAuth.mockResolvedValue({ user: { token: "fresh-token" } });
 

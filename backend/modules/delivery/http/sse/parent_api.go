@@ -34,7 +34,7 @@ func (rs *Resource) ParentRouter() chi.Router {
 func (rs *Resource) parentEventsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel, ok := withSSETokenDeadline(r.Context())
 	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeSSEProblem(w, http.StatusUnauthorized, codeGeneralPermission, "Unauthorized")
 		return
 	}
 	defer cancel()
@@ -42,13 +42,13 @@ func (rs *Resource) parentEventsHandler(w http.ResponseWriter, r *http.Request) 
 	conn, statusCode := rs.setupSSEConnection(w)
 	if conn == nil {
 		slog.WarnContext(ctx, "parent SSE streaming unsupported by client")
-		http.Error(w, "Streaming unsupported", statusCode)
+		writeSSEProblem(w, statusCode, codeGeneralServer, "Streaming unsupported")
 		return
 	}
 
 	accountID := int64(jwt.ClaimsFromCtx(ctx).ID)
 	if accountID <= 0 {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		writeSSEProblem(w, http.StatusUnauthorized, codeGeneralPermission, "Unauthorized")
 		return
 	}
 	conn.staffID = accountID // reused as the connection's user id for logging
@@ -56,7 +56,7 @@ func (rs *Resource) parentEventsHandler(w http.ResponseWriter, r *http.Request) 
 	if err := conn.sendConnectedEvent(&sseTopics{}); err != nil {
 		slog.ErrorContext(ctx, "parent SSE failed to send connected event",
 			slog.String("error", err.Error()))
-		http.Error(w, "Failed to initialize SSE stream", http.StatusInternalServerError)
+		writeSSEProblem(w, http.StatusInternalServerError, codeGeneralServer, "Failed to initialize SSE stream")
 		return
 	}
 

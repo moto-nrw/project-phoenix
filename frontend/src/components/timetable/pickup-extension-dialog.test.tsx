@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockToast = vi.hoisted(() => ({
@@ -19,7 +20,6 @@ vi.mock("~/lib/pickup-extension-api", async (importActual) => {
 });
 
 import {
-  PickupExtensionApiError,
   resolvePickupExtension,
   type PickupExtension,
 } from "~/lib/pickup-extension-api";
@@ -164,11 +164,9 @@ describe("PickupExtensionDialog (#3261)", () => {
 
   it("bleibt offen und erklärt, wenn sich der Termin geändert hat", async () => {
     mockResolve.mockRejectedValue(
-      new PickupExtensionApiError(
-        "gone",
-        409,
-        "timetable.pickup_extension_block_gone",
-      ),
+      new ApiError("gone", 409, {
+        code: "timetable.pickup_extension_block_gone",
+      }),
     );
     const onClose = vi.fn();
     const onStale = vi.fn();
@@ -204,7 +202,7 @@ describe("PickupExtensionDialog (#3261)", () => {
   it("zeigt einen Serverfehler im Dialog und wiederholt die Auswahl", async () => {
     mockResolve
       .mockRejectedValueOnce(
-        new PickupExtensionApiError("boom", 500, "general.server"),
+        new ApiError("boom", 500, { code: "general.server" }),
       )
       .mockResolvedValueOnce(undefined);
     const onClose = vi.fn();

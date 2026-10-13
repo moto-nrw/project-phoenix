@@ -9,6 +9,7 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import type { StaffHistorySession } from "~/lib/staff-api";
 import { staffSessionService } from "~/lib/staff-api";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 
 const logger = createLogger({ component: "AdminSessionEditModal" });
 
@@ -326,15 +327,12 @@ function Field({
         {label}
       </span>
       {children}
-      {error ? (
-        <span
-          id={`admin-session-${children.props.name ?? ""}-error`}
-          role="alert"
-          className="text-moto-red mt-1 block text-xs"
-        >
-          {error}
-        </span>
-      ) : null}
+      <FieldErrorHint
+        id={`admin-session-${children.props.name ?? ""}-error`}
+        message={error}
+        live
+        as="span"
+      />
     </label>
   );
 }

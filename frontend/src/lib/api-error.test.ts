@@ -25,11 +25,24 @@ describe("ApiError", () => {
     expect(error.requestId).toBe("request-409");
   });
 
+  it("keeps a backend diagnostic separate from the user-safe fallback", () => {
+    const error = apiErrorFromBody("Laden fehlgeschlagen", 500, {
+      code: "general.server",
+      detail: "database host db.internal refused the connection",
+    });
+
+    expect(error.message).toBe("Laden fehlgeschlagen");
+    expect(error.detail).toBe(
+      "database host db.internal refused the connection",
+    );
+  });
+
   it.each([
     [400, "general.input"],
     [403, "general.permission"],
     [409, "general.business_rejection"],
     [429, "general.unavailable"],
+    [413, "general.request_too_large"],
     [431, "general.request_too_large"],
     [503, "general.unavailable"],
     [500, "general.server"],

@@ -82,7 +82,7 @@ func TestIoTFeedbackWireContractsStayStable(t *testing.T) {
 			request:  `{"student_id":42,"value":"positive"}`,
 			status:   400,
 			code:     "invalid_entry_data",
-			body:     `{"status":"error","error":"invalid feedback entry data: rejected"}` + "\n",
+			body:     `{"status":400,"detail":"invalid feedback entry data: rejected","code":"general.input"}` + "\n",
 		},
 		{
 			name:     "missing student ID",
@@ -90,7 +90,7 @@ func TestIoTFeedbackWireContractsStayStable(t *testing.T) {
 			request:  `{"value":"positive"}`,
 			status:   400,
 			code:     "invalid_parameters",
-			body:     `{"status":"error","error":"student_id is required and must be positive"}` + "\n",
+			body:     `{"status":400,"detail":"student_id is required and must be positive","code":"general.input"}` + "\n",
 		},
 		{
 			name:     "missing value",
@@ -98,7 +98,7 @@ func TestIoTFeedbackWireContractsStayStable(t *testing.T) {
 			request:  `{"student_id":42}`,
 			status:   400,
 			code:     "invalid_parameters",
-			body:     `{"status":"error","error":"value is required"}` + "\n",
+			body:     `{"status":400,"detail":"value is required","code":"general.input"}` + "\n",
 		},
 	}
 	for _, test := range tests {

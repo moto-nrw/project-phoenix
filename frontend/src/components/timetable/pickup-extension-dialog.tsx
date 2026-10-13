@@ -8,9 +8,9 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatStatusDate } from "~/lib/date-helpers";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import {
-  PickupExtensionApiError,
   resolvePickupExtension,
   type PickupExtension,
 } from "~/lib/pickup-extension-api";
@@ -158,7 +158,7 @@ function PickupExtensionStep({
         task_id: task.id,
       });
       const blockGone =
-        err instanceof PickupExtensionApiError &&
+        err instanceof ApiError &&
         err.code === "timetable.pickup_extension_block_gone";
       setBusy(null);
       // Eine geänderte Terminliste lädt neu; Wiederholen mit der alten

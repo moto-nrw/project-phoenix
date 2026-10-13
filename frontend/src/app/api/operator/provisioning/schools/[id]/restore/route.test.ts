@@ -80,7 +80,7 @@ describe("POST /api/operator/provisioning/schools/[id]/restore", () => {
   it("forwards 409 not deleted from backend", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({ error: "School is not deleted" }), {
+      new Response(JSON.stringify({ detail: "School is not deleted" }), {
         status: 409,
         headers: { "Content-Type": "application/json" },
       }),

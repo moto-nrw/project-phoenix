@@ -1,4 +1,4 @@
-import { ApiError, enrichApiError, transportFetch } from "./api-error";
+import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 import {
   browserSupportsWebAuthn,
   startAuthentication,
@@ -54,7 +54,7 @@ async function currentBearerToken(): Promise<string> {
   const session = await getCachedSession();
   const token = session?.user?.token;
   if (!token) {
-    throw new PasskeyApiError(401, "Nicht angemeldet.");
+    throw new ApiError("Nicht angemeldet.", 401);
   }
   return token;
 }
@@ -92,13 +92,9 @@ async function requestJson<T>(
   }
 
   if (!response.ok) {
-    throw enrichApiError(
-      new PasskeyApiError(
-        response.status,
-        extractErrorMessage(data) ??
-          `Passkey-Anfrage fehlgeschlagen (${response.status}).`,
-        extractErrorCode(data) ?? undefined,
-      ),
+    throw apiErrorFromBody(
+      `Passkey-Anfrage fehlgeschlagen (${response.status}).`,
+      response.status,
       data,
     );
   }
@@ -106,45 +102,12 @@ async function requestJson<T>(
   return data as T;
 }
 
-function extractErrorMessage(data: unknown): string | null {
-  if (!data || typeof data !== "object") return null;
-  const rec = data as Record<string, unknown>;
-  if (typeof rec.error === "string") return rec.error;
-  if (typeof rec.message === "string") return rec.message;
-  if (typeof rec.error_text === "string") return rec.error_text;
-  return null;
-}
-
-function extractErrorCode(data: unknown): string | null {
-  if (!data || typeof data !== "object") return null;
-  const rec = data as Record<string, unknown>;
-  return typeof rec.code === "string" ? rec.code : null;
-}
-
-export class PasskeyApiError extends ApiError {
-  constructor(
-    public status: number,
-    message: string,
-    code?: string,
-  ) {
-    super(message, status, { code });
-    this.name = "PasskeyApiError";
-  }
-}
-
 export function isPasskeyCeremonyIncompleteError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
 
-  if (error.name === "AbortError" || error.name === "NotAllowedError") {
-    return true;
-  }
-
-  const message = error.message.toLowerCase();
-  return (
-    message.includes("operation either timed out or was not allowed") ||
-    message.includes("user cancelled") ||
-    message.includes("user canceled")
-  );
+  // WebAuthnError from @simplewebauthn/browser takes the name of the
+  // browser's DOMException, so the name identifies a cancelled ceremony.
+  return error.name === "AbortError" || error.name === "NotAllowedError";
 }
 
 export function isPasskeySupported(): boolean {

@@ -1,7 +1,4 @@
-import { ApiError, enrichApiError, transportFetch } from "../api-error";
-import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "AccountTenantAccessAPI" });
+import { apiErrorFromBody, transportFetch } from "../api-error";
 
 /** One role an account holds at one school. */
 interface AccountTenantRole {
@@ -57,16 +54,6 @@ interface GrantAccountTenantAccessRequest {
   position?: string;
 }
 
-export class AccountTenantAccessApiError extends ApiError {
-  status: number;
-
-  constructor(message: string, status: number) {
-    super(message, status);
-    this.name = "AccountTenantAccessApiError";
-    this.status = status;
-  }
-}
-
 function mapAccess(entry: BackendAccountTenantAccess): AccountTenantAccess {
   const status =
     entry.status === "active" || entry.status === "pending"
@@ -94,21 +81,10 @@ function mapAccess(entry: BackendAccountTenantAccess): AccountTenantAccess {
 }
 
 async function throwApiError(response: Response): Promise<never> {
-  let message = `Die Anfrage ist fehlgeschlagen (${response.status}).`;
-  let body: unknown;
-  try {
-    const payload = (await response.json()) as { error?: string };
-    body = payload;
-    message = payload.error ?? message;
-  } catch (error) {
-    logger.warn("failed to parse school access error response", {
-      error: error instanceof Error ? error.message : String(error),
-      status: response.status,
-    });
-  }
-  throw enrichApiError(
-    new AccountTenantAccessApiError(message, response.status),
-    body,
+  throw apiErrorFromBody(
+    `school access request failed (${response.status})`,
+    response.status,
+    await response.json().catch(() => undefined),
   );
 }
 
