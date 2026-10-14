@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -318,13 +317,13 @@ func (s *staffAbsenceService) GetTodayAbsenceLabelMap(ctx context.Context) (map[
 
 // staffAbsenceService implements StaffAbsenceService
 type staffAbsenceService struct {
-	absenceRepo     timerecords.StaffAbsenceRepository
-	workSessionRepo timerecords.WorkSessionRepository
-	quotaRepo       timerecords.StaffVacationQuotaRepository
+	absenceRepo     StaffAbsenceRepository
+	workSessionRepo WorkSessionRepository
+	quotaRepo       StaffVacationQuotaRepository
 	// openingRepo carries the vacation takeover rows (#2132); supplied by
 	// WithVacationOpenings, nil in bare unit fixtures.
-	openingRepo timerecords.StaffVacationOpeningRepository
-	auditRepo   timerecords.StaffAbsenceAuditRepository
+	openingRepo StaffVacationOpeningRepository
+	auditRepo   StaffAbsenceAuditRepository
 	settings    monthSettingsResolver
 	// monthService provides the daily-target and closing-balance math for
 	// the comp_time overdraft guard; nil in bare-constructed unit tests.
@@ -425,10 +424,10 @@ func (s *staffAbsenceService) planSyncer() ShiftPlanSyncer {
 
 // NewStaffAbsenceService creates a new staff absence service
 func NewStaffAbsenceService(
-	absenceRepo timerecords.StaffAbsenceRepository,
-	workSessionRepo timerecords.WorkSessionRepository,
-	quotaRepo timerecords.StaffVacationQuotaRepository,
-	auditRepo timerecords.StaffAbsenceAuditRepository,
+	absenceRepo StaffAbsenceRepository,
+	workSessionRepo WorkSessionRepository,
+	quotaRepo StaffVacationQuotaRepository,
+	auditRepo StaffAbsenceAuditRepository,
 	settings monthSettingsResolver,
 	monthService WorkTimeMonthService,
 	opts ...StaffAbsenceOption,
@@ -1316,7 +1315,7 @@ func (s *staffAbsenceService) ListAbsences(ctx context.Context, staffID int64, f
 	if filter.From == nil && filter.Status == "" {
 		return nil, fmt.Errorf("absence list filter is required")
 	}
-	if filter.Status != "" && !slices.Contains(timerecords.ValidAbsenceStatuses, filter.Status) {
+	if filter.Status != "" && !slices.Contains(ValidAbsenceStatuses, filter.Status) {
 		return nil, fmt.Errorf("invalid absence status")
 	}
 
@@ -1391,7 +1390,7 @@ func toAbsenceResponse(a *StaffAbsence) *StaffAbsenceResponse {
 	}
 	return &StaffAbsenceResponse{
 		StaffAbsence:  a,
-		DurationDays:  a.DurationDays(),
+		DurationDays:  absenceDurationDays(a),
 		AbsenceTypeID: absenceTypeID,
 	}
 }

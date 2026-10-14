@@ -81,7 +81,6 @@ import (
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
-	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
@@ -971,7 +970,7 @@ func newFactory(
 	// absences, month balances and their close, overview, exports and the
 	// audit feed, over the Workforce rows and the ports bound here.
 	timeTracking, err := newTimeTracking(TimeTrackingPortDependencies{
-		Workforce: workTime, StaffAbsences: staffAbsences, AbsenceAudits: workforceLegacy.NewStaffAbsenceAuditRepository(workTime),
+		Workforce: workTime, StaffAbsences: staffAbsences, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(workTime),
 		Audits: TimeTrackingAudits{
 			WorkSessionEdit: audits.WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
 			DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog,

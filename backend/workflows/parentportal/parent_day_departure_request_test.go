@@ -22,11 +22,13 @@ import (
 
 const dayDepartureRequestToday = timezone.Date("2026-08-24")
 
-func buildDayDepartureRequestService(t *testing.T) (*parentService.Portal, *bun.DB, *services.RepositoryTestFactory) {
+// buildDayDepartureRequestService pins both clocks to dayDepartureRequestToday,
+// so the requested days stay care days whatever the wall clock says.
+func buildDayDepartureRequestService(t *testing.T, departureModeRequests bool) (*parentService.Portal, *bun.DB, *services.RepositoryTestFactory) {
 	t.Helper()
 	return buildPickupChangeServiceWithRequestOptions(t,
 		[]services.CareRequestOption{services.WithCareRequestToday(func() timezone.Date { return dayDepartureRequestToday })},
-		withDepartureModeRequests(true),
+		withDepartureModeRequests(departureModeRequests),
 		func(cfg *parentportalcompose.Dependencies) {
 			cfg.Now = func() time.Time { return dayDepartureRequestToday.BerlinMidnight().Add(12 * time.Hour) }
 		},
@@ -50,12 +52,12 @@ func withDepartureModeRequests(enabled bool) func(*parentportalcompose.Dependenc
 func TestDayDepartureRequestStoresTheModeAndTheDayBefore(t *testing.T) {
 	t.Parallel()
 
-	svc, db, _ := buildPickupChangeServiceWithRequests(t, withDepartureModeRequests(true))
+	svc, db, _ := buildDayDepartureRequestService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.Ctx(t)
 
 	created, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID,
-		timezone.TodayDate().AddDays(3), time.Time{}, "pickup", "Die Oma holt ab", nil)
+		dayDepartureRequestToday.AddDays(3), time.Time{}, "pickup", "Die Oma holt ab", nil)
 	require.NoError(t, err)
 
 	var payload map[string]any
@@ -69,7 +71,7 @@ func TestDayDepartureRequestStoresTheModeAndTheDayBefore(t *testing.T) {
 func TestDayDepartureRequestStoresTheLegacyDepartureModeBefore(t *testing.T) {
 	t.Parallel()
 
-	svc, db, _ := buildDayDepartureRequestService(t)
+	svc, db, _ := buildDayDepartureRequestService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.Ctx(t)
 	_, err := db.NewUpdate().TableExpr("users.student_care_profiles").
@@ -94,10 +96,10 @@ func TestDayDepartureRequestStoresTheLegacyDepartureModeBefore(t *testing.T) {
 func TestDayDepartureRequestNeedsTheSchoolsAbholartSetting(t *testing.T) {
 	t.Parallel()
 
-	svc, db, _ := buildPickupChangeServiceWithRequests(t, withDepartureModeRequests(false))
+	svc, db, _ := buildDayDepartureRequestService(t, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.Ctx(t)
-	date := timezone.TodayDate().AddDays(3)
+	date := dayDepartureRequestToday.AddDays(3)
 
 	_, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, time.Time{}, "bus", "Ausflug", nil)
 	require.ErrorIs(t, err, parentService.ErrCareRequestFieldDisabled)
@@ -111,18 +113,18 @@ func TestDayDepartureRequestNeedsTheSchoolsAbholartSetting(t *testing.T) {
 func TestDayDepartureRequestRefusesInBegleitung(t *testing.T) {
 	t.Parallel()
 
-	svc, db, _ := buildPickupChangeServiceWithRequests(t, withDepartureModeRequests(true))
+	svc, db, _ := buildDayDepartureRequestService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := svc.SubmitPickupChangeRequest(testpkg.Ctx(t), chain.AccountID, chain.StudentID,
-		timezone.TodayDate().AddDays(3), time.Time{}, "accompanied", "Mit dem Nachbarskind", nil)
+		dayDepartureRequestToday.AddDays(3), time.Time{}, "accompanied", "Mit dem Nachbarskind", nil)
 	require.ErrorIs(t, err, parentService.ErrInvalidCareRequestPayload)
 }
 
 func TestDayDepartureRequestRefusesNonCareWeekend(t *testing.T) {
 	t.Parallel()
 
-	svc, db, _ := buildDayDepartureRequestService(t)
+	svc, db, _ := buildDayDepartureRequestService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	date := dayDepartureRequestToday.AddDays(5)
 
@@ -136,7 +138,7 @@ func TestDayDepartureRequestRefusesNonCareWeekend(t *testing.T) {
 func TestDayDepartureRequestRespectsTheOGSDayValue(t *testing.T) {
 	t.Parallel()
 
-	svc, db, repos := buildDayDepartureRequestService(t)
+	svc, db, repos := buildDayDepartureRequestService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Day", "Departure")
 	ctx := testpkg.Ctx(t)

@@ -11,7 +11,7 @@ import (
 // Presence cleanup owns one transaction per school. Output is published only
 // after commit; a failed school is reported while the remaining schools run.
 func forEachPresenceTenant(cc *cleanupContext, operation string, action func(context.Context, int64) (func(), error)) error {
-	ctx := tenant.WithUnitOfWork(context.Background(), cc.TenantRuntime)
+	ctx := tenant.WithUnitOfWork(context.Background(), cc.DB.UnitOfWork())
 	ids, err := listActiveTenantIDsForCLI(ctx, cc)
 	if err != nil {
 		return fmt.Errorf("%s: list active schools: %w", operation, err)

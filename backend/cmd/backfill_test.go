@@ -56,9 +56,9 @@ func TestBackfillCommandMetadata(t *testing.T) {
 
 func TestBackfillRootFailsFastWithoutDatabaseDependency(t *testing.T) {
 	t.Parallel()
-	err := (backfillRoot{}).run(t.Context(), func(context.Context, *testpkg.DB) error { return nil })
+	err := (backfillRoot{}).run(t.Context(), func(context.Context, testpkg.Database) error { return nil })
 	require.ErrorContains(t, err, "database opener is required")
-	err = backfillRoot{openDatabase: func() (*testpkg.DB, func(), error) { return nil, nil, nil }}.run(t.Context(), func(context.Context, *testpkg.DB) error { return nil })
+	err = backfillRoot{openDatabase: func() (testpkg.Database, func(), error) { return testpkg.Database{}, nil, nil }}.run(t.Context(), func(context.Context, testpkg.Database) error { return nil })
 	require.ErrorContains(t, err, "database opener returned nil")
 }
 
@@ -73,8 +73,8 @@ func TestBackfillStaffOwnerCommands(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Backfill", "Command")
 	released := 0
-	root := backfillRoot{openDatabase: func() (*testpkg.DB, func(), error) {
-		return db, func() { released++ }, nil
+	root := backfillRoot{openDatabase: func() (testpkg.Database, func(), error) {
+		return testpkg.NewDatabase(t, db), func() { released++ }, nil
 	}}
 	newCommand := func() (*cobra.Command, *bytes.Buffer) {
 		var out bytes.Buffer
@@ -165,7 +165,7 @@ func TestBackfillStaffOwnerReportsPartialFailure(t *testing.T) {
 		CREATE TRIGGER reject_backfill_fixture BEFORE INSERT OR UPDATE ON users.staff_school_memberships
 		FOR EACH ROW WHEN (NEW.tenant_id = %d) EXECUTE FUNCTION public.reject_backfill_fixture();`, failedTenant))
 	require.NoError(t, err)
-	root := backfillRoot{openDatabase: func() (*testpkg.DB, func(), error) { return db, nil, nil }}
+	root := backfillRoot{openDatabase: func() (testpkg.Database, func(), error) { return testpkg.NewDatabase(t, db), nil, nil }}
 	var out bytes.Buffer
 	cmd := &cobra.Command{}
 	cmd.SetContext(ctx)
@@ -203,8 +203,8 @@ func TestBackfillStudentOwnerCommands(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Backfill", "Command", "3a")
 	released := 0
-	root := backfillRoot{openDatabase: func() (*testpkg.DB, func(), error) {
-		return db, func() { released++ }, nil
+	root := backfillRoot{openDatabase: func() (testpkg.Database, func(), error) {
+		return testpkg.NewDatabase(t, db), func() { released++ }, nil
 	}}
 	newCommand := func() (*cobra.Command, *bytes.Buffer) {
 		var out bytes.Buffer
@@ -277,8 +277,8 @@ func TestBackfillGuardianOwnerCommands(t *testing.T) {
 	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, tenantID, "Backfill", "Guardian", "backfill-command")
 	link := testpkg.CreateTestStudentGuardianLinkForTenant(t, db, tenantID, student.ID, guardian.ID, "primary_guardian")
 	released := 0
-	root := backfillRoot{openDatabase: func() (*testpkg.DB, func(), error) {
-		return db, func() { released++ }, nil
+	root := backfillRoot{openDatabase: func() (testpkg.Database, func(), error) {
+		return testpkg.NewDatabase(t, db), func() { released++ }, nil
 	}}
 	newCommand := func() (*cobra.Command, *bytes.Buffer) {
 		var out bytes.Buffer

@@ -324,11 +324,9 @@ func TestRecentDeletionRow_Struct(t *testing.T) {
 
 func TestCleanupContext_Close_NilDB(t *testing.T) {
 	t.Parallel()
-	ctx := &cleanupContext{
-		DB: nil,
-	}
+	ctx := &cleanupContext{}
 
-	// Should not panic with nil DB
+	// Should not panic without a database
 	ctx.Close()
 }
 

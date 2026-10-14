@@ -168,7 +168,7 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 
 func newRuntimeCapacityLogger(graph *serveGraph, logger *slog.Logger) *capacityLogger {
 	return newCapacityLogger(func() dbCapacityStats {
-		stats := database.SnapshotCapacity(graph.db)
+		stats := database.SnapshotCapacity(graph.db.Pool())
 		return dbCapacityStats{
 			openConnections:   stats.OpenConnections,
 			inUse:             stats.InUse,
@@ -205,11 +205,11 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	if err != nil {
 		return nil, fmt.Errorf("compose worker billing: %w", err)
 	}
-	lease, err := newWorkerLease(graph.tenantRuntime)
+	lease, err := newWorkerLease(graph.db.UnitOfWork())
 	if err != nil {
 		return nil, fmt.Errorf("compose worker lease: %w", err)
 	}
-	runtime, err := schedulerTenantRuntime(graph.tenantRuntime)
+	runtime, err := schedulerTenantRuntime(graph.db.UnitOfWork())
 	if err != nil {
 		return nil, fmt.Errorf("compose worker tenant runtime: %w", err)
 	}
@@ -225,7 +225,7 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 		settings:             graph.services.Settings,
 		unregisteredTagScans: graph.services.UnregisteredTagScans,
 		statusDays:           reads.statusDayRetention,
-		parentMessages:       communicationCompose.NewParentMessageRetention(graph.db, graph.services.Settings),
+		parentMessages:       communicationCompose.NewParentMessageRetention(graph.db.Pool(), graph.services.Settings),
 		auditLedgers:         graph.services.Audit,
 	}, logger.With("service", "scheduler"))
 	if err != nil {
@@ -556,6 +556,6 @@ func (runtime *Runtime) closeResources() error {
 	if runtime.tracker != nil {
 		err = runtime.tracker.Close()
 	}
-	err = errors.Join(err, database.ClosePool(runtime.graph.db))
+	err = errors.Join(err, runtime.graph.db.Close())
 	return err
 }

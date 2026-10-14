@@ -5,7 +5,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -34,7 +33,7 @@ func TestFutureCompTimeCommitmentQueryBudget(t *testing.T) {
 	add := func(from, to int) {
 		for i := from; i < to; i++ {
 			date := first.AddDays(i * 7)
-			absence := &timerecords.StaffAbsence{
+			absence := &timetracking.StaffAbsence{
 				StaffID: staff.ID, AbsenceType: workforce.AbsenceTypeCompTime,
 				Status: workforce.AbsenceStatusApproved, DateStart: date, DateEnd: date,
 				CreatedBy: staff.ID,

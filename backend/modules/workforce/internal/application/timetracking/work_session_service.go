@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -365,10 +364,10 @@ func scheduleValidationErrorf(format string, args ...any) error {
 
 // workSessionService implements WorkSessionService
 type workSessionService struct {
-	repo        timerecords.WorkSessionRepository
-	breakRepo   timerecords.WorkSessionBreakRepository
+	repo        WorkSessionRepository
+	breakRepo   WorkSessionBreakRepository
 	auditRepo   WorkSessionAudit
-	absenceRepo timerecords.StaffAbsenceRepository
+	absenceRepo StaffAbsenceRepository
 	// absenceTypes resolves school-defined Abwesenheitsarten for exports
 	// (#2403). Setter injection; nil in bare-constructed unit fixtures.
 	absenceTypes   AbsenceTypeReader
@@ -423,7 +422,7 @@ func (s *workSessionService) lockStaffBalanceWritesOrdered(ctx context.Context, 
 
 // NewWorkSessionService creates a new work session service
 
-func NewWorkSessionService(repo timerecords.WorkSessionRepository, breakRepo timerecords.WorkSessionBreakRepository, auditRepo WorkSessionAudit, absenceRepo timerecords.StaffAbsenceRepository, supervisorRepo GroupSupervisorRepository, groupRepo GroupRepository, staffRepo WorkSessionStaff, scheduleRepo WorkSessionSchedules, workModelRepo WorkSessionTimeModels, settings settingsResolver, logger *slog.Logger, db DatabaseHandle, renderPDF TimeTrackingPDFRenderer, renderWorkbook TimeTrackingWorkbookRenderer, opts ...WorkSessionOption) WorkSessionService {
+func NewWorkSessionService(repo WorkSessionRepository, breakRepo WorkSessionBreakRepository, auditRepo WorkSessionAudit, absenceRepo StaffAbsenceRepository, supervisorRepo GroupSupervisorRepository, groupRepo GroupRepository, staffRepo WorkSessionStaff, scheduleRepo WorkSessionSchedules, workModelRepo WorkSessionTimeModels, settings settingsResolver, logger *slog.Logger, db DatabaseHandle, renderPDF TimeTrackingPDFRenderer, renderWorkbook TimeTrackingWorkbookRenderer, opts ...WorkSessionOption) WorkSessionService {
 	service := &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, groupRepo: groupRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger, db: db, renderPDF: renderPDF, renderWorkbook: renderWorkbook}
 	for _, opt := range opts {
 		opt(service)

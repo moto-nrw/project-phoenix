@@ -52,7 +52,7 @@ func TestMigrateBackfillRequestChildStorageReportsPerTenantEvidence(t *testing.T
 
 	var output bytes.Buffer
 	options := migrations.RequestChildStorageBackfillOptions{TenantIDs: []int64{tenant}}
-	require.NoError(t, runRequestChildStorageBackfill(t.Context(), db, options, &output))
+	require.NoError(t, runRequestChildStorageBackfill(t.Context(), testpkg.NewDatabase(t, db), options, &output))
 	assert.Regexp(t, `tenant +complete +hwm +scanned`, output.String())
 	assert.Regexp(t, strconv.FormatInt(tenant, 10)+` +true`, output.String())
 	assert.Contains(t, output.String(), "provenance=earliest-surviving-interval-v1 day_differences=0")
@@ -62,7 +62,7 @@ func TestMigrateBackfillRequestChildStorageReportsPerTenantEvidence(t *testing.T
 	require.NoError(t, err)
 	output.Reset()
 	options.VerifyOnly = true
-	err = runRequestChildStorageBackfill(t.Context(), db, options, &output)
+	err = runRequestChildStorageBackfill(t.Context(), testpkg.NewDatabase(t, db), options, &output)
 	require.ErrorContains(t, err, "incomplete for tenants")
 	assert.Regexp(t, strconv.FormatInt(tenant, 10)+` +false`, output.String())
 }

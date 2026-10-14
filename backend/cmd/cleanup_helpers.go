@@ -12,12 +12,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // Error message and format constants (S1192 fix - reduces string duplication)
@@ -36,14 +33,13 @@ const (
 // Note: Context should be passed as a parameter to methods that need it,
 // rather than stored in the struct (per Go best practices).
 type cleanupContext struct {
-	DB                         *bun.DB
+	DB                         transactionruntime.Database
 	CleanupService             studentpresence.PresenceCleanup
 	AuthCleanupService         authCleanupService
 	InvitationCleanupService   invitationCleanupService
 	SessionCleanupService      sessionCleanupService
 	TimetableCleanupService    services.TimetableCleanup
 	TimeTrackingCleanupService services.TimeTrackingCleanupService
-	TenantRuntime              tenant.UnitOfWork
 	Output                     io.Writer
 	Logger                     *log.Logger
 	Audit                      services.AuditCommand
@@ -71,7 +67,7 @@ type timetableCleanupService = services.TimetableCleanup
 type timeTrackingCleanupService = services.TimeTrackingCleanupService
 
 type cleanupRoot struct {
-	openDatabase        func() (*bun.DB, error)
+	openDatabase        func() (transactionruntime.Database, error)
 	authCleanup         func(*cleanupContext) authCleanupService
 	invitationCleanup   func(*cleanupContext) invitationCleanupService
 	sessionCleanup      func(*cleanupContext) sessionCleanupService
@@ -81,7 +77,7 @@ type cleanupRoot struct {
 }
 
 var defaultCleanupRoot = cleanupRoot{
-	openDatabase:        database.InitDB,
+	openDatabase:        transactionruntime.OpenDatabase,
 	authCleanup:         buildAuthCleanupService,
 	invitationCleanup:   buildInvitationCleanupService,
 	sessionCleanup:      buildSessionCleanupService,
@@ -144,21 +140,16 @@ func (root cleanupRoot) newContext() (*cleanupContext, error) {
 	if err != nil {
 		return nil, fmt.Errorf(errInitDB, err)
 	}
-	if db == nil {
+	if db.Pool() == nil {
 		return nil, fmt.Errorf("cleanup database opener returned nil")
 	}
 
-	tenantRuntime, err := transactionruntime.NewTenantRuntime(db)
-	if err != nil {
-		_ = db.Close()
-		return nil, err
-	}
 	auditCommand, err := newCleanupAuditCommand()
 	if err != nil {
 		_ = db.Close()
 		return nil, err
 	}
-	schools, err := services.NewOrganizationTenancy(db)
+	schools, err := services.NewOrganizationTenancy(db.Pool())
 	if err != nil {
 		_ = db.Close()
 		return nil, err
@@ -169,13 +160,12 @@ func (root cleanupRoot) newContext() (*cleanupContext, error) {
 		return nil, err
 	}
 	return &cleanupContext{
-		DB:            db,
-		TenantRuntime: tenantRuntime,
-		Output:        os.Stdout,
-		Logger:        log.Default(),
-		Audit:         auditCommand,
-		Schools:       schools,
-		Timetable:     timetableCapability,
+		DB:        db,
+		Output:    os.Stdout,
+		Logger:    log.Default(),
+		Audit:     auditCommand,
+		Schools:   schools,
+		Timetable: timetableCapability,
 	}, nil
 }
 
@@ -202,7 +192,7 @@ func newCleanupAuditCommand() (services.AuditCommand, error) {
 }
 
 func buildAuthCleanupService(ctx *cleanupContext) authCleanupService {
-	service, err := services.NewAuthCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "auth-cleanup-cli"), ctx.Audit)
+	service, err := services.NewAuthCleanupService(ctx.DB.Pool(), ctx.DB.UnitOfWork(), slog.Default().With("service", "auth-cleanup-cli"), ctx.Audit)
 	if err != nil {
 		slog.Default().Error("auth cleanup service composition failed", "error", err)
 		return nil
@@ -227,7 +217,7 @@ func newCleanupContextWithInvitationCleanup() (*cleanupContext, error) {
 }
 
 func buildInvitationCleanupService(ctx *cleanupContext) invitationCleanupService {
-	service, err := services.NewInvitationCleanupService(ctx.DB, slog.Default().With("service", "invitation-cleanup-cli"))
+	service, err := services.NewInvitationCleanupService(ctx.DB.Pool(), slog.Default().With("service", "invitation-cleanup-cli"))
 	if err != nil {
 		// buildCleanupDependency reports the nil as the missing capability,
 		// the same way a builder that cannot compose its service does.
@@ -254,7 +244,7 @@ func newCleanupContextWithSessionCleanup() (*cleanupContext, error) {
 }
 
 func buildSessionCleanupService(ctx *cleanupContext) sessionCleanupService {
-	return services.NewSessionCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, ctx.Timetable, slog.Default().With("service", "session-cleanup-cli"))
+	return services.NewSessionCleanupService(ctx.DB.Pool(), ctx.DB.UnitOfWork(), ctx.Schools, ctx.Timetable, slog.Default().With("service", "session-cleanup-cli"))
 }
 
 // newCleanupContextWithCleanupService initializes database and cleanup service.
@@ -278,7 +268,7 @@ func newCleanupContextWithCleanupService() (*cleanupContext, error) {
 }
 
 func buildRetentionCleanupService(ctx *cleanupContext) studentpresence.PresenceCleanup {
-	return services.NewRetentionCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, slog.Default().With("service", "retention-cleanup-cli"), ctx.Audit)
+	return services.NewRetentionCleanupService(ctx.DB.Pool(), ctx.DB.UnitOfWork(), ctx.Schools, slog.Default().With("service", "retention-cleanup-cli"), ctx.Audit)
 
 }
 
@@ -303,7 +293,7 @@ func newCleanupContextWithTimetableCleanup() (*cleanupContext, error) {
 
 func buildTimetableCleanupService(ctx *cleanupContext) services.TimetableCleanup {
 	logger := slog.Default().With("service", "timetable-cleanup-cli")
-	cleanup, err := services.NewTimetableCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, ctx.Timetable, logger, ctx.Audit)
+	cleanup, err := services.NewTimetableCleanupService(ctx.DB.Pool(), ctx.DB.UnitOfWork(), ctx.Schools, ctx.Timetable, logger, ctx.Audit)
 	if err != nil {
 		// buildCleanupDependency reports the missing service to the caller.
 		logger.Error("compose timetable cleanup", slog.String("error", err.Error()))
@@ -333,15 +323,13 @@ func newCleanupContextWithTimeTrackingCleanup() (*cleanupContext, error) {
 }
 
 func buildTimeTrackingCleanupService(ctx *cleanupContext) services.TimeTrackingCleanupService {
-	return services.NewTimeTrackingCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
+	return services.NewTimeTrackingCleanupService(ctx.DB.Pool(), ctx.DB.UnitOfWork(), ctx.Schools, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
 }
 
 // Close releases database resources.
 func (c *cleanupContext) Close() {
-	if c.DB != nil {
-		if err := c.DB.Close(); err != nil {
-			c.logger().Printf(errCloseDB, err)
-		}
+	if err := c.DB.Close(); err != nil {
+		c.logger().Printf(errCloseDB, err)
 	}
 }
 
@@ -495,8 +483,8 @@ type recentDeletionRow struct {
 }
 
 // queryRecentDeletions fetches recent deletion activity from the audit table.
-func queryRecentDeletions(ctx context.Context, db *bun.DB) ([]recentDeletionRow, error) {
-	summaries, err := services.ListRecentAuditRetentionSummaries(ctx, db, time.Now().AddDate(0, 0, -30), 10)
+func queryRecentDeletions(ctx context.Context, db transactionruntime.Database) ([]recentDeletionRow, error) {
+	summaries, err := services.ListRecentAuditRetentionSummaries(ctx, db.Pool(), time.Now().AddDate(0, 0, -30), 10)
 	if err != nil {
 		return nil, err
 	}
