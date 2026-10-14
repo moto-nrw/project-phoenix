@@ -34,10 +34,10 @@ func (r ParentRouteTestRepositories) ParentChildLinks() carePlanCompose.ParentCh
 	return carePlanCompose.NewParentChildLinks(r.ParentChild)
 }
 
-// SchoolWideReviewScope is the review scope of a caller who may decide every
-// child's request. Test graphs use it where the production policy is not
-// under test.
-func SchoolWideReviewScope(context.Context) (carePlanCompose.ReviewScope, error) {
+// schoolWideReviewScope is the review scope of a caller who may decide every
+// child's request, for the test graphs that do not test the production
+// policy. Care Plan's own suites take the same scope from careplantest.
+func schoolWideReviewScope(context.Context) (carePlanCompose.ReviewScope, error) {
 	return carePlanCompose.ReviewScope{SchoolWide: true}, nil
 }
 
@@ -57,7 +57,7 @@ func NewParentRouteTestRepositories(db transactionruntime.Database, members serv
 		return ParentRouteTestRepositories{}, err
 	}
 	excusedRequests, err := services.NewExcusedAbsenceRequests(services.ExcusedRequestWiring{
-		CarePlan: care, Students: members.Student, Persons: members.Person, Scope: SchoolWideReviewScope,
+		CarePlan: care, Students: members.Student, Persons: members.Person, Scope: schoolWideReviewScope,
 	})
 	if err != nil {
 		return ParentRouteTestRepositories{}, err

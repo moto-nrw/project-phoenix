@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -51,7 +52,7 @@ func newExcusedRequests(t *testing.T, repos *api.RepositoryTestFactory, capabili
 	t.Helper()
 	requests, err := services.NewExcusedAbsenceRequests(services.ExcusedRequestWiring{
 		CarePlan: capability, Students: repos.Student, Persons: repos.Person,
-		Scope: api.SchoolWideReviewScope, Today: func() careplan.Date { return excusedToday },
+		Scope: careplantest.SchoolWideReviewScope, Today: func() careplan.Date { return excusedToday },
 	})
 	require.NoError(t, err)
 	return requests

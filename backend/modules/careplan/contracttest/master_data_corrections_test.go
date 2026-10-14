@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -175,7 +176,7 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	svc := f.decisions(t)
-	queue := f.queue(t, api.SchoolWideReviewScope)
+	queue := f.queue(t, careplantest.SchoolWideReviewScope)
 	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
 	require.NoError(t, f.inTx(t, func(ctx context.Context) error {
@@ -217,7 +218,7 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 func TestMasterDataReview_ListHistory(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	queue := f.queue(t, api.SchoolWideReviewScope)
+	queue := f.queue(t, careplantest.SchoolWideReviewScope)
 	_, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, f.db, "Rieke", "Reviewer")
 
 	// One row per terminal state, plus a pending row that must never surface.
