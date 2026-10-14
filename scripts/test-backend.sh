@@ -43,21 +43,12 @@ if [ "$#" -eq 0 ]; then
   set -- ./...
 fi
 
-# Concurrency is pinned rather than left at GOMAXPROCS, because the budget
-# that matters is a server-side one: `go test` runs -p package binaries at
-# once and each opens a pool of (-parallel + headroom) connections plus one
-# keeper, i.e. 13 per binary at -parallel 8 (backend/test/db_clone.go).
-# The local postgres-test container runs max_connections=300
-# (docker-compose), so 10 x 13 = 130 leaves ample headroom for lifecycle
-# and maintenance sessions. CI's service container keeps PostgreSQL's stock
-# 100 but never runs this script: test.yml pins its own -p 4 / -p 6.
-# -parallel 8 stays pinned on purpose - -test.parallel is part of the Go
-# test cache key, and a drifting value would split the cache universe.
-# -p also bounds RAM: each package binary link peaks around 1.3 GB, so a
-# 16 GB laptop gets 4 instead of 10 (one per 4 GB, at most 10).
-package_workers=$(( $("$repo_root/scripts/total-memory-gb.sh") / 4 ))
-if [ "$package_workers" -lt 1 ]; then package_workers=1; fi
-if [ "$package_workers" -gt 10 ]; then package_workers=10; fi
+# Use the same conservative package budget as the changed-test loop. Heavy
+# links, nested tools and a running IDE/dev loop need headroom beyond each
+# package's own RSS. CLI arguments follow the defaults so an explicit -p
+# still overrides this budget. Keep -parallel 8 fixed: it sizes the DB pool
+# (13 connections per binary including its keeper) and is a test-cache input.
+package_workers=$("$repo_root/scripts/go-package-workers.sh")
 CONCURRENCY=(-p "$package_workers" -parallel 8)
 
 if go tool gotestsum --help >/dev/null 2>&1; then
