@@ -58,7 +58,7 @@ func CompareCompositionSurface(project, ref string) error {
 	if err != nil {
 		return err
 	}
-	candidate := newCompositionSnapshot()
+	candidate := newCompositionSnapshotSharingSyntax(base)
 	err = filepath.WalkDir(project, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -173,9 +173,15 @@ type compositionType struct {
 //nolint:staticcheck // Only parser-resolved local bindings are used, never field/type resolution.
 type compositionObject = ast.Object
 
+type parsedCompositionSource struct {
+	source []byte
+	syntax *ast.File
+}
+
 type compositionSnapshot struct {
 	module   string
 	fset     *token.FileSet
+	parsed   map[string]parsedCompositionSource
 	files    []*compositionFile
 	types    map[string]compositionType
 	external map[string]*types.Package
@@ -219,7 +225,18 @@ func loadCompositionExternalTypes(project string, snapshot *compositionSnapshot)
 }
 
 func newCompositionSnapshot() *compositionSnapshot {
-	return &compositionSnapshot{fset: token.NewFileSet(), types: map[string]compositionType{}}
+	return &compositionSnapshot{
+		fset: token.NewFileSet(), parsed: map[string]parsedCompositionSource{},
+		types: map[string]compositionType{},
+	}
+}
+
+func newCompositionSnapshotSharingSyntax(base *compositionSnapshot) *compositionSnapshot {
+	// Syntax is read-only; each snapshot still resolves it through its own
+	// module, import and type registries. This table lives for one comparison.
+	return &compositionSnapshot{
+		fset: base.fset, parsed: base.parsed, types: map[string]compositionType{},
+	}
 }
 
 func (s *compositionSnapshot) add(path string, source []byte) error {
@@ -233,10 +250,16 @@ func (s *compositionSnapshot) add(path string, source []byte) error {
 		}
 		return fmt.Errorf("composition source has no module declaration")
 	}
-	syntax, err := parser.ParseFile(s.fset, path, source, 0)
-	if err != nil {
-		return fmt.Errorf("parse composition source: %w", err)
+	parsed, samePath := s.parsed[path]
+	if !samePath || !bytes.Equal(parsed.source, source) {
+		syntax, err := parser.ParseFile(s.fset, path, source, 0)
+		if err != nil {
+			return fmt.Errorf("parse composition source: %w", err)
+		}
+		parsed = parsedCompositionSource{source: source, syntax: syntax}
+		s.parsed[path] = parsed
 	}
+	syntax := parsed.syntax
 	file := &compositionFile{pkg: filepath.ToSlash(filepath.Dir(path)), scope: "production", syntax: syntax, imports: map[string]string{}}
 	if strings.HasSuffix(path, "_test.go") {
 		file.scope = "internal_test"

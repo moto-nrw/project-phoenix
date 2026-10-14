@@ -81,7 +81,7 @@ func runCheck(args []string) error {
 	if options.baseline == "" {
 		return FormatViolations(violations)
 	}
-	return runRatchet(options, policy, violations)
+	return runRatchet(options, policy, violations, graph)
 }
 
 type checkOptions struct {
@@ -115,7 +115,7 @@ func parseCheckOptions(args []string) (checkOptions, error) {
 	}, nil
 }
 
-func runRatchet(options checkOptions, policy *Policy, violations []Violation) error {
+func runRatchet(options checkOptions, policy *Policy, violations []Violation, graph *Graph) error {
 	manifest, err := LoadLegacyManifest(options.baseline)
 	if err != nil {
 		return err
@@ -123,7 +123,7 @@ func runRatchet(options checkOptions, policy *Policy, violations []Violation) er
 	remaining, localErr := EnforceLegacyBaseline(violations, manifest)
 	var baseErr error
 	if options.baseRef != "" {
-		baseErr = compareWithBase(options, policy, manifest, violations)
+		baseErr = compareWithBase(options, policy, manifest, violations, graph)
 	}
 	if err := errors.Join(localErr, baseErr); err != nil {
 		return fmt.Errorf("%w\nremaining legacy violations: %d", err, remaining)
@@ -132,13 +132,13 @@ func runRatchet(options checkOptions, policy *Policy, violations []Violation) er
 	return nil
 }
 
-func compareWithBase(options checkOptions, policy *Policy, manifest *LegacyManifest, violations []Violation) error {
+func compareWithBase(options checkOptions, policy *Policy, manifest *LegacyManifest, violations []Violation, graph *Graph) error {
 	basePolicy, baseManifest, err := LoadBasePolicyAndManifest(options.project, options.policy, options.baseline, options.baseRef)
 	if err != nil {
 		return err
 	}
 	return errors.Join(
-		CompareCandidatePolicyStrictness(options.project, options.baseRef, basePolicy, policy, baseManifest, violations),
+		compareCandidatePolicyStrictness(options.project, options.baseRef, basePolicy, policy, baseManifest, violations, graph),
 		CompareCandidateLegacyBaselines(options.project, options.baseRef, manifest, baseManifest, basePolicy, policy),
 		CompareCompositionSurface(options.project, options.baseRef),
 	)
