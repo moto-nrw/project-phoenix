@@ -9,8 +9,8 @@ import (
 	"syscall"
 
 	"github.com/moto-nrw/project-phoenix/database/migrations"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/spf13/cobra"
-	"github.com/uptrace/bun"
 )
 
 var backfillStudentCompatibilityCmd = &cobra.Command{
@@ -33,8 +33,8 @@ any foreign key whose existing rows are still unconfirmed — and exits non-zero
 		}
 		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		return defaultBackfillRoot.run(ctx, func(ctx context.Context, db *bun.DB) error {
-			report, runErr := migrations.RepairStudentOwnerCompatibility(ctx, db,
+		return defaultBackfillRoot.run(ctx, func(ctx context.Context, db transactionruntime.Database) error {
+			report, runErr := migrations.RepairStudentOwnerCompatibility(ctx, db.Pool(),
 				migrations.StudentCompatibilityOptions{TenantIDs: tenants, VerifyOnly: verifyOnly})
 			return errors.Join(runErr, json.NewEncoder(cmd.OutOrStdout()).Encode(report))
 		})

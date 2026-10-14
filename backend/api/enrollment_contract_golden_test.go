@@ -161,7 +161,7 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *serveGraph) {
 	smallStudents := addStudents(0, 3)
 	addRolloverChain(smallStudents[0], 1)
 
-	counter := testpkg.CaptureQueries(t, api.db)
+	counter := testpkg.CaptureQueries(t, api.db.Pool())
 	type queryRun struct {
 		total     []string
 		overview  []string
