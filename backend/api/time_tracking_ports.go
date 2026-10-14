@@ -51,11 +51,10 @@ type timeTrackingAudits struct {
 // time-tracking ports over (#3413).
 type timeTrackingPortDependencies struct {
 	Workforce workforceModule.Capability
-	// Bound are the ports the composing graph binds itself: the staff
-	// absences and their audit, the supervisions and session records, the
-	// holidays, the events, the absence mail and the shift-plan sync.
-	// timeTrackingPorts adds the bindings over the retained rows, audit
-	// trails, settings and renderers.
+	// Bound are the ports the caller binds before timeTrackingPorts runs:
+	// the staff absences and their audit, the supervisions and session
+	// records, the holidays, the events, the absence mail and the shift-plan
+	// sync. timeTrackingPorts sets every other port and leaves these alone.
 	Bound           workforceCompose.TimeTrackingPorts
 	Audits          timeTrackingAudits
 	Staff           timeTrackingStaffRecords

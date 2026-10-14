@@ -566,7 +566,8 @@ and the typed roots compose the owners. #4001 grants the standing reaches in
 epoch 41 (see [Standing composition reaches](#standing-composition-reaches-adr-0053)).
 The three keys stay until #4005 to #4013 have moved the code out of
 `services` and #2747 deletes the package. #4008 moved the Workforce wiring:
-`services` keeps 225 of its 260 production files (32,949 of 35,482 LOC), and
+`services` keeps 225 of its 260 production files (32,949 of 35,482 LOC; the
+merge-base measures 35,473, the base fix of #4049 adds nine), and
 the Factory takes the Workforce bindings from the root as one value,
 `WorkforceWiring` (see [Workforce wiring out of services](#workforce-wiring-out-of-services-4008)).
 
@@ -3441,6 +3442,10 @@ ADR 0053 point 8 puts it:
   into `school_membership.go` (#4007), the session staff mapping into
   `presence_session_records.go` (#4010), and the caregiver chains into
   `operator_account_directory.go` (#4006). They leave with those builders.
+  Until #4007 moves them, three small lookups exist twice: `api` has
+  `staffMembersByID`, `absencePersonsByID` and `positiveUniqueIDs` next to
+  `services`' `staffByID`, `personsByID` and `uniqueIDs`. #4007 deletes the
+  `services` copies.
 
 Delivery's composition exposes `QueueStaffTimeTrackingChanged`, and the Audit
 vocabulary exposes `TimeTrackingAuditLogEntry`, because the root may not import
