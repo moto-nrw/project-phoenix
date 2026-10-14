@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 )
@@ -209,7 +210,7 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	if err != nil {
 		return nil, fmt.Errorf("compose worker lease: %w", err)
 	}
-	runtime, err := schedulerTenantRuntime(graph.db.UnitOfWork())
+	runtime, err := schedulerRuntimeCompose.NewTenantRuntime(graph.db.UnitOfWork())
 	if err != nil {
 		return nil, fmt.Errorf("compose worker tenant runtime: %w", err)
 	}
