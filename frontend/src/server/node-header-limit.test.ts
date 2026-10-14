@@ -35,12 +35,15 @@ function headerLimit(command: string[]): number | undefined {
 
 function nativeDevCommand(): string[] {
   const source = readFileSync(NATIVE_DEV_SCRIPT, "utf8");
-  const match = source.match(
-    /^  PORT=\$FRONTEND_HOST_PORT start_svc frontend frontend (.+)$/m,
+  const commands = [
+    ...source.matchAll(
+      /^[ \t]*PORT=\$FRONTEND_HOST_PORT start_svc frontend frontend (.+)$/gm,
+    ),
+  ];
+  expect(commands, "native development starts the frontend once").toHaveLength(
+    1,
   );
-  const command = match?.[1];
-  expect(command, "native development starts the frontend once").toBeDefined();
-  return command?.split(" ") ?? [];
+  return commands[0]?.[1]?.split(" ") ?? [];
 }
 
 function packageScript(name: "dev" | "start" | "preview"): string {

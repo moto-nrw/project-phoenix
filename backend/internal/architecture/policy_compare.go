@@ -403,14 +403,16 @@ func compositionLoosenings(base, candidate *Policy, deletedSymbols map[string]st
 func importLoosenings(base, candidate *Policy) []string {
 	basePackages := base.packageMap()
 	candidatePackages := candidate.packageMap()
+	basePermissions := newPolicyPermissionMemo(base)
+	candidatePermissions := newPolicyPermissionMemo(candidate)
 	var problems []string
 	for sourcePath, source := range candidatePackages {
 		baseSource, sourceExists := basePackages[sourcePath]
 		if !sourceExists {
 			continue
 		}
-		problems = append(problems, firstPartyImportLoosenings(base, candidate, sourcePath, baseSource, source, basePackages, candidatePackages)...)
-		problems = append(problems, externalImportLoosenings(base, candidate, sourcePath, baseSource, source)...)
+		problems = append(problems, firstPartyImportLoosenings(basePermissions, candidatePermissions, sourcePath, baseSource, source, basePackages, candidatePackages)...)
+		problems = append(problems, externalImportLoosenings(basePermissions, candidatePermissions, sourcePath, baseSource, source)...)
 	}
 	return uniqueStrings(problems)
 }
@@ -797,7 +799,8 @@ func sortedAllowedRoles() []string {
 	return roles
 }
 
-func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, baseSource, source Package, basePackages, candidatePackages map[string]Package) []string {
+func firstPartyImportLoosenings(basePermissions, candidatePermissions *policyPermissionMemo, sourcePath string, baseSource, source Package, basePackages, candidatePackages map[string]Package) []string {
+	base, candidate := basePermissions.policy, candidatePermissions.policy
 	var problems []string
 	for targetPath, target := range candidatePackages {
 		baseTarget, exists := basePackages[targetPath]
@@ -805,7 +808,7 @@ func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, base
 			continue
 		}
 		for _, scope := range allScopes() {
-			if policyAllowsFirstParty(candidate, scope, source, target) && !policyAllowsFirstParty(base, scope, baseSource, baseTarget) &&
+			if candidatePermissions.allowsFirstParty(scope, source, target) && !basePermissions.allowsFirstParty(scope, baseSource, baseTarget) &&
 				!careScheduleCutoverPermission(base, candidate, scope, baseSource, target) && !careLifecycleCutoverPermission(base, candidate, scope, baseSource, target) &&
 				!studentPresenceCutoverPermission(base, candidate, scope, baseSource, target) &&
 				!timetablePlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
@@ -826,7 +829,8 @@ func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, base
 	return problems
 }
 
-func externalImportLoosenings(base, candidate *Policy, sourcePath string, baseSource, source Package) []string {
+func externalImportLoosenings(basePermissions, candidatePermissions *policyPermissionMemo, sourcePath string, baseSource, source Package) []string {
+	base, candidate := basePermissions.policy, candidatePermissions.policy
 	baseExternal := base.externalPackageMap()
 	var problems []string
 	for targetPath, target := range candidate.externalPackageMap() {
@@ -835,7 +839,7 @@ func externalImportLoosenings(base, candidate *Policy, sourcePath string, baseSo
 			continue
 		}
 		for _, scope := range allScopes() {
-			if policyAllowsExternal(candidate, scope, source, target) && !policyAllowsExternal(base, scope, baseSource, baseTarget) {
+			if candidatePermissions.allowsExternal(scope, source, target) && !basePermissions.allowsExternal(scope, baseSource, baseTarget) {
 				if candidate.PolicyEpoch > base.PolicyEpoch && externalAllowedByReviewedTestInfrastructureRule(candidate, scope, source, target) {
 					continue
 				}

@@ -165,6 +165,8 @@ jobs:
               - 'scripts/test-changed.sh'
               - 'scripts/test-changed_test.sh'
               - 'scripts/test-run-id.sh'
+              - 'scripts/go-package-workers.sh'
+              - 'scripts/total-memory-gb.sh'
             frontend-test-infra:
               - 'frontend/package.json'
               - 'frontend/pnpm-lock.yaml'
@@ -196,6 +198,7 @@ jobs:
               - 'scripts/rollback-remote.sh'
               - 'scripts/restore-db.sh'
               - 'scripts/run-go-toolchain.sh'
+              - 'scripts/dev-native*'
               - '.github/**'
               - 'environments/**'
               - '.env.example'
@@ -233,7 +236,7 @@ jobs:
           fetch-depth: 0
 
       - name: Verify pre-push failure and selection behavior
-        run: node --test scripts/pre-push.test.mjs scripts/check-release-architecture.test.mjs scripts/check-migration-evidence.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/posthog-dashboards.test.mjs
+        run: node --test scripts/pre-push.test.mjs scripts/dev-native.test.mjs scripts/check-release-architecture.test.mjs scripts/check-migration-evidence.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/posthog-dashboards.test.mjs
 
       - name: Verify complete release restore with PostgreSQL
         if: needs.detect-changes.outputs.ci-files-changed == 'true'

@@ -5,9 +5,11 @@ deployment, or PR screenshots. Commands start at the repo root unless noted.
 
 ## Service commands
 
-Run the app with `scripts/dev-native.sh up`: `postgres` and `mailpit` run in
-Docker Compose, backend and frontend natively (see Native dev loop). The
-`server` and `frontend` containers sit behind the `full` Compose profile.
+When a task needs a running UI or API, use the smallest native mode below:
+`postgres` and `mailpit` run in Compose, the selected apps natively. Tests start
+their own test database and need neither app server. Use the full container
+stack for explicit container work; `server` and `frontend` otherwise stay behind
+the `full` Compose profile.
 Go uses the repo toolchain.
 Add tools through `devbox search <tool>` / `devbox add <tool>@latest`, not a global install.
 
@@ -18,6 +20,8 @@ through `devbox run` when the current process has not loaded the project environ
 | Task | Command |
 |---|---|
 | Start infra + backend + frontend | `scripts/dev-native.sh up` |
+| Start infra + backend only | `scripts/dev-native.sh up backend` |
+| Start infra + frontend only | `scripts/dev-native.sh up frontend` |
 | After go.mod changes | restart `scripts/dev-native.sh up` (air reloads plain Go edits) |
 | Migrate | `scripts/dev-native.sh backend go run . migrate` |
 | Reset local DB | `scripts/dev-native.sh backend go run . migrate reset` (seed credentials: `docs/getting-started.md`) |
@@ -27,8 +31,8 @@ through `devbox run` when the current process has not loaded the project environ
 | Backend suite | `cd backend && ../scripts/run-go-toolchain.sh go test ./...` |
 | Backend suite with immediate sweep | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
 | Backend unit-only loop | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` (skips DB tests) |
-| Changed-code tests | `scripts/test-changed.sh origin/development` |
-| Fast inner loop | `scripts/test-changed.sh --fast origin/development` (run without `--fast` before push) |
+| Changed-code tests | `scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development` |
+| Fast inner loop | `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development` (run without `--fast` before push) |
 | Generate route docs | `scripts/dev-native.sh backend go run . gendoc --routes` |
 | Standalone background jobs | `scripts/dev-native.sh backend go run . worker` with a free `PORT`; it waits in standby while `serve` leads (lease, cutover and rollback: [worker lease runbook](../operations/worker-lease-2726.md)) |
 
@@ -44,6 +48,8 @@ are rewritten to localhost with the published ports. Nothing else changes, so
 | Task | Command |
 |---|---|
 | Start infra + backend + frontend (foreground) | `scripts/dev-native.sh up` |
+| Start infra + backend only (foreground) | `scripts/dev-native.sh up backend` |
+| Start infra + frontend only (foreground) | `scripts/dev-native.sh up frontend` |
 | Stop native processes (infra keeps running) | `scripts/dev-native.sh down` |
 | Status | `scripts/dev-native.sh status` |
 | Backend CLI with the native env | `scripts/dev-native.sh backend go run . migrate` |
@@ -52,7 +58,12 @@ are rewritten to localhost with the published ports. Nothing else changes, so
 
 Logs land in `tmp/dev-native/backend.log` and `tmp/dev-native/frontend.log`.
 `up` stops the `server` and `frontend` containers first and refuses to start
-when a published port is taken. After `go.mod` changes restart `up`; plain Go
+when a selected app's published port is taken. Each `up` replaces both
+previously managed native app processes, then starts only the selected apps.
+All modes keep Postgres and Mailpit; frontend-only mode skips Go and migrations
+and expects a separately running backend for API calls. Backend children default
+to `GOFLAGS=-p=4` and `GOMAXPROCS=4`, preserving explicit caller values.
+After `go.mod` changes restart `up`; plain Go
 edits reload through air. Worktrees created with `wt` carry their own ports in
 the copied `.env`, so several native loops run side by side; on 16 GB
 machines run one at a time ([low-memory machines](../development-environment.md#low-memory-machines)).

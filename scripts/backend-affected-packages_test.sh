@@ -80,6 +80,26 @@ import "example.test/project/chainmid"
 const Value = chainmid.Value
 EOF
 
+# A real main package may legitimately end in .test. Keep it in the graph,
+# while excluding generated .test mains. Also cover test-only importers.
+mkdir -p "$fixture/backend"/{graphbase,legitimate.test,testonly}
+printf 'package graphbase\n\nconst Value = 1\n' >"$fixture/backend/graphbase/base.go"
+printf 'package graphbase\n' >"$fixture/backend/graphbase/base_test.go"
+cat >"$fixture/backend/legitimate.test/main.go" <<'EOF'
+package main
+
+import "example.test/project/graphbase"
+
+func main() { _ = graphbase.Value }
+EOF
+printf 'package main\n' >"$fixture/backend/legitimate.test/main_test.go"
+printf 'package testonly\n' >"$fixture/backend/testonly/consumer.go"
+cat >"$fixture/backend/testonly/consumer_test.go" <<'EOF'
+package testonly_test
+
+import _ "example.test/project/graphbase"
+EOF
+
 git -C "$fixture" init -q
 git -C "$fixture" config user.email selector-test@example.invalid
 git -C "$fixture" config user.name selector-test
@@ -232,6 +252,11 @@ git -C "$fixture" restore backend/chainbase/chainbase.go
 printf '\n// changed\n' >>"$fixture/backend/chainbase/chainbase_test.go"
 assert_output_direct 'example.test/project/chainbase'
 git -C "$fixture" restore backend/chainbase/chainbase_test.go
+
+printf '\n// changed\n' >>"$fixture/backend/graphbase/base.go"
+assert_output $'example.test/project/graphbase\nexample.test/project/legitimate.test\nexample.test/project/test\nexample.test/project/testonly'
+assert_output_direct $'example.test/project/graphbase\nexample.test/project/legitimate.test\nexample.test/project/testonly'
+git -C "$fixture" restore backend/graphbase/base.go
 
 mv "$fixture/backend/corex/corex.go" "$fixture/corex.go"
 if select_packages >/dev/null 2>&1; then
