@@ -3502,6 +3502,16 @@ People Directory suites already compose through. Both `test -> models/users`
 keys fall without a new key (111 -> 109), and the rule
 `people-directory.behavior-test.enrollment-support` is deleted with its last
 importer.
+[#4014](https://github.com/moto-nrw/project-phoenix/issues/4014) needed no
+rule either: the fixtures map their `enrollment.care_offerings` row
+(`CareOffering` in `test/care_offering_rows.go`) and take the phase, request,
+child and care-offering values from `modules/enrollment/enrollmenttest` under
+the existing `test-support.to.enrollment-support` rule. The care-offering
+values `fixed` and `parent_choice` have no public owner constant,
+so Enrollment test support names the stored column values. The Timetable
+template suites insert their source offerings through the fixtures, and the
+then unused `Factory.EnrollmentCareOfferingRows` is deleted. `test ->
+models/enrollment` falls without a new key (60 -> 59).
 
 A reviewed epoch may also add the one owner-agnostic shared-kernel rule
 ([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),

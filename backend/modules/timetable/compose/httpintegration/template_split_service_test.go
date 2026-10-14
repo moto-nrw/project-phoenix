@@ -257,14 +257,10 @@ func createLinkedCareOffering(
 
 	offering := testpkg.NewSourceCareOffering(phase.ID,
 		fmt.Sprintf("Linked care offering %d", time.Now().UnixNano()), []string{"mon"}, &s.template.ID)
-	var created *testpkg.CareOffering
-	require.NoError(t, testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		var createErr error
-		created, createErr = s.factory.EnrollmentCareOfferingRows().Create(txCtx, offering)
-		return createErr
-	}))
+	offering.TenantID = s.tenantID
+	testpkg.InsertTestCareOffering(t, s.db, s.ctx, offering)
 
-	return created
+	return offering
 }
 
 func createShortCalendarPeriod(t *testing.T, s *scenarioSetup, start, end calendar.Date) *scheduleModels.CalendarPeriod {

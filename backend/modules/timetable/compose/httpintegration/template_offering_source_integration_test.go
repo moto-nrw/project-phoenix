@@ -9,7 +9,6 @@
 package httpintegration_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -20,7 +19,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -67,14 +65,10 @@ func createSourceCareOfferingOnDays(
 	require.NoError(t, repos.Enrollment().InsertPhase(s.ctx, phase))
 
 	offering := testpkg.NewSourceCareOffering(phase.ID, fmt.Sprintf("Frühbetreuung %d", suffix), days, nil)
-	var created *testpkg.CareOffering
-	require.NoError(t, testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		var createErr error
-		created, createErr = s.factory.EnrollmentCareOfferingRows().Create(txCtx, offering)
-		return createErr
-	}))
+	offering.TenantID = s.tenantID
+	testpkg.InsertTestCareOffering(t, s.db, s.ctx, offering)
 
-	return created
+	return offering
 }
 
 // registerSourcedTemplateCleanup removes a template created during the test

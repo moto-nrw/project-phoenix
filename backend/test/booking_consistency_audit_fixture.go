@@ -9,7 +9,6 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModel "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,9 +47,9 @@ func VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.
 
 	bookedStudent := CreateTestStudent(t, db, "Gebucht", "Audit", "1a")
 	bookedChild := createApprovedBookingAuditChild(t, ctx, db, auditDate, bookedStudent.ID,
-		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
+		enrollmentOwner.PhaseCareOfferingSelectionAtLeastOne)
 	offering := CreateTestCareOffering(t, db, bookedChild.phase.ID, "Betreuung")
-	offering.DaysOfWeekMode = enrollmentModel.DaysOfWeekModeParentChoice
+	offering.DaysOfWeekMode = enrollmentOwner.DaysOfWeekModeParentChoice
 	offering.PickupTimes = map[string]string{"mon": "14:30"}
 	updateBookingAuditModel(t, db, ctx, offering, "days_of_week_mode", "pickup_times")
 	link := &auditOfferingSelection{
@@ -97,14 +96,14 @@ func VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.
 
 	missingRequiredStudent := CreateTestStudent(t, db, "Pflicht", "Audit", "1b")
 	createApprovedBookingAuditChild(t, ctx, db, auditDate, missingRequiredStudent.ID,
-		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
+		enrollmentOwner.PhaseCareOfferingSelectionAtLeastOne)
 	optionalStudent := CreateTestStudent(t, db, "Optional", "Audit", "1c")
 	createApprovedBookingAuditChild(t, ctx, db, auditDate, optionalStudent.ID,
-		enrollmentModel.PhaseCareOfferingSelectionOptional)
+		enrollmentOwner.PhaseCareOfferingSelectionOptional)
 	otherTenant := NewTenantScope(t, db)
 	otherStudent := CreateTestStudentForTenant(t, db, otherTenant.TenantID, "Fremd", "Audit", "1d")
 	createApprovedBookingAuditChild(t, otherTenant.Context(), db, auditDate, otherStudent.ID,
-		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
+		enrollmentOwner.PhaseCareOfferingSelectionAtLeastOne)
 
 	report, err := runAudit(ctx, auditDate.String())
 	require.NoError(t, err)
@@ -134,9 +133,9 @@ func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 
 	withArrivalException := CreateTestStudent(t, db, "Ankunft", "Ausnahme", "1a")
 	child := createApprovedBookingAuditChild(t, ctx, db, auditDate, withArrivalException.ID,
-		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
+		enrollmentOwner.PhaseCareOfferingSelectionAtLeastOne)
 	offering := CreateTestCareOffering(t, db, child.phase.ID, "Montagsbetreuung")
-	offering.DaysOfWeekMode = enrollmentModel.DaysOfWeekModeParentChoice
+	offering.DaysOfWeekMode = enrollmentOwner.DaysOfWeekModeParentChoice
 	offering.PickupTimes = map[string]string{"mon": "14:30"}
 	updateBookingAuditModel(t, db, ctx, offering, "days_of_week_mode", "pickup_times")
 	arrivalLink := &auditOfferingSelection{
@@ -150,9 +149,9 @@ func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 
 	futureStudent := CreateTestStudent(t, db, "Zukunft", "Ausnahme", "1c")
 	futureChild := createApprovedBookingAuditChild(t, ctx, db, auditDate, futureStudent.ID,
-		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
+		enrollmentOwner.PhaseCareOfferingSelectionAtLeastOne)
 	futureOffering := CreateTestCareOffering(t, db, futureChild.phase.ID, "Spätere Betreuung")
-	futureOffering.DaysOfWeekMode = enrollmentModel.DaysOfWeekModeParentChoice
+	futureOffering.DaysOfWeekMode = enrollmentOwner.DaysOfWeekModeParentChoice
 	futureOffering.PickupTimes = map[string]string{"mon": "14:30"}
 	updateBookingAuditModel(t, db, ctx, futureOffering, "days_of_week_mode", "pickup_times")
 	futureDate := auditDate.AddDays(1)
@@ -176,9 +175,9 @@ func VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing
 	staff := CreateTestStaff(t, db, "Audit", "Split")
 	student := CreateTestStudent(t, db, "Geteilt", "Audit", "1a")
 	child := createApprovedBookingAuditChild(t, ctx, db, auditDate, student.ID,
-		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
+		enrollmentOwner.PhaseCareOfferingSelectionAtLeastOne)
 	offering := CreateTestCareOffering(t, db, child.phase.ID, "Geteilte Betreuung")
-	offering.DaysOfWeekMode = enrollmentModel.DaysOfWeekModeParentChoice
+	offering.DaysOfWeekMode = enrollmentOwner.DaysOfWeekModeParentChoice
 	offering.PickupTimes = map[string]string{"mon": "14:30"}
 	updateBookingAuditModel(t, db, ctx, offering, "days_of_week_mode", "pickup_times")
 
@@ -222,10 +221,10 @@ func createApprovedBookingAuditChild(
 	tenantID := tenant.FromContext(ctx)
 	phase := &enrollmentOwner.Phase{
 		Name:                      fmt.Sprintf("Audit-%d", studentID),
-		Kind:                      enrollmentModel.PhaseKindSchoolYear,
+		Kind:                      enrollmentOwner.PhaseKindSchoolYear,
 		ServiceStartDate:          enrollmentOwner.Date(auditDate),
 		ServiceEndDate:            enrollmentOwner.Date(auditDate.AddDays(30)),
-		CareOverflowMode:          enrollmentModel.PhaseCareOverflowWaitlist,
+		CareOverflowMode:          enrollmentOwner.PhaseCareOverflowWaitlist,
 		CareOfferingSelectionMode: selectionMode,
 		IsActive:                  true,
 	}
@@ -238,7 +237,7 @@ func createApprovedBookingAuditChild(
 		GuardianEmail:     fmt.Sprintf("booking-audit-request-%d@example.test", studentID),
 		ConsentFlags:      []byte(`{}`),
 		CustomData:        []byte(`{}`),
-		SubmissionSource:  enrollmentModel.RequestSourceAdminManual,
+		SubmissionSource:  enrollmentOwner.RequestSourceAdminManual,
 		SourceMetadata:    []byte(`{}`),
 		StatusToken:       fmt.Sprintf("booking-audit-%d-%d", studentID, time.Now().UnixNano()),
 		SubmittedAt:       time.Now(),
@@ -249,7 +248,7 @@ func createApprovedBookingAuditChild(
 	child := &enrollmentOwner.RequestChild{
 		RequestID: request.ID, FirstName: "Audit", LastName: "Kind",
 		DateOfBirth: "2018-01-01", CustomData: []byte(`{}`),
-		Status: enrollmentModel.ChildStatusApproved, ActivationMode: enrollmentModel.ChildActivationImmediate,
+		Status: enrollmentOwner.ChildStatusApproved, ActivationMode: enrollmentOwner.ChildActivationImmediate,
 		CreatedStudentID: &studentID,
 	}
 	require.NoError(t, owner.InsertChild(ownerCtx, child))
@@ -271,13 +270,8 @@ func insertBookingAuditModel(t *testing.T, db *bun.DB, ctx context.Context, mode
 
 func updateBookingAuditModel(t *testing.T, db *bun.DB, ctx context.Context, model any, columns ...string) {
 	t.Helper()
-	query := db.NewUpdate().Model(model).ModelTableExpr(auditFixtureUpdateTable(model)).Column(columns...)
-	if offering, ok := model.(*enrollmentModel.CareOffering); ok {
-		query = query.Where("id = ?", offering.ID)
-	} else {
-		query = query.WherePK()
-	}
-	_, err := query.Exec(ctx)
+	_, err := db.NewUpdate().Model(model).ModelTableExpr(auditFixtureUpdateTable(model)).Column(columns...).
+		WherePK().Exec(ctx)
 	require.NoError(t, err)
 }
 
@@ -285,7 +279,7 @@ func auditFixtureUpdateTable(model any) string {
 	switch model.(type) {
 	case *enrollmentOwner.Phase:
 		return `enrollment.phases AS "phase"`
-	case *enrollmentModel.CareOffering:
+	case *CareOffering:
 		return `enrollment.care_offerings AS "care_offering"`
 	case *ActivityGroup:
 		return `activities.groups AS "group"`
@@ -298,7 +292,7 @@ func auditFixtureTable(model any) string {
 	switch model.(type) {
 	case *enrollmentOwner.Phase:
 		return "enrollment.phases"
-	case *enrollmentModel.CareOffering:
+	case *CareOffering:
 		return "enrollment.care_offerings"
 	case *auditOfferingSelection:
 		return "enrollment.care_offering_bookings"

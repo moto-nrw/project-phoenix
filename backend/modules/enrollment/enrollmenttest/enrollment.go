@@ -23,3 +23,24 @@ type CareOfferingLink = enrollment.CareOfferingLink
 const ChildStatusSubmitted = enrollment.ChildStatusSubmitted
 
 const ChildStatusApproved = enrollment.ChildStatusApproved
+
+// The phase, request and child values the shared fixtures write.
+const (
+	PhaseKindSchoolYear                  = enrollment.PhaseKindSchoolYear
+	PhaseCareOverflowWaitlist            = enrollment.PhaseCareOverflowWaitlist
+	PhaseCareOfferingSelectionOptional   = enrollment.PhaseCareOfferingSelectionOptional
+	PhaseCareOfferingSelectionAtLeastOne = enrollment.PhaseCareOfferingSelectionAtLeastOne
+	RequestSourcePublic                  = enrollment.RequestSourcePublic
+	RequestSourceAdminManual             = enrollment.RequestSourceAdminManual
+	ChildActivationImmediate             = enrollment.ChildActivationImmediate
+	ChildActivationScheduled             = enrollment.ChildActivationScheduled
+)
+
+// Care-offering values as the column CHECK constraints of
+// enrollment.care_offerings store them. No public package of the owners
+// declares them, so test support names the stored values the shared fixtures
+// write.
+const (
+	DaysOfWeekModeFixed        = "fixed"
+	DaysOfWeekModeParentChoice = "parent_choice"
+)
