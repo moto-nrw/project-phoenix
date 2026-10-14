@@ -14,5 +14,7 @@ jobs:
       run-seed-smoke: false
       changed-scope: true
       base_ref: verify/backend-pr-4039-base
-      full-backend-suite: false
+      # The real #4039 file list touches 72 Go package directories and selects
+      # this full-suite path in main.yml, without the serial planning runner.
+      full-backend-suite: true
       full-frontend-suite: false

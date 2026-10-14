@@ -38,7 +38,7 @@ env:
 jobs:
   plan-backend:
     name: Select backend tests
-    if: ${{ inputs.run-backend }}
+    if: ${{ inputs.run-backend && inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -95,14 +95,14 @@ jobs:
   test-backend:
     name: Backend tests (${{ matrix.shard }})
     needs: plan-backend
-    if: ${{ inputs.run-backend }}
+    if: ${{ !cancelled() && inputs.run-backend && (needs.plan-backend.result == 'success' || needs.plan-backend.result == 'skipped') }}
     strategy:
       fail-fast: false
       # Size the run from the actual affected graph, not just the event type.
       # Small PRs keep one modest runner; broad PRs use the existing full-suite
       # budgets, without mixing architecture/migrations into application work.
-      matrix: ${{ fromJSON(needs.plan-backend.outputs.matrix) }}
-    runs-on: ${{ matrix.runner }}
+      matrix: ${{ fromJSON(needs.plan-backend.outputs.matrix || '{"include":[{"shard":0},{"shard":1},{"shard":2},{"shard":3}]}') }}
+    runs-on: ${{ matrix.runner || 'blacksmith-8vcpu-ubuntu-2404' }}
     permissions:
       contents: read
       checks: write
@@ -248,8 +248,16 @@ jobs:
           NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
           TENANT_DOMAIN: localhost
           TEST_PACKAGES: ${{ matrix.packages }}
-          PACKAGE_WORKERS: ${{ matrix.workers }}
+          PACKAGE_WORKERS: ${{ matrix.workers || 6 }}
+          FULL_SUITE: ${{ !inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '' }}
+          SHARD_INDEX: ${{ matrix.shard }}
         run: |
+          if [ "$FULL_SUITE" = true ]; then
+            # Known full runs start immediately, without a planning runner.
+            all_packages=$(go list ./...)
+            TEST_PACKAGES=$(printf '%s\n' "$all_packages" | FULL_SUITE=true ../scripts/backend-test-matrix.sh |
+              jq -er --argjson shard "$SHARD_INDEX" '.include[] | select(.shard == $shard) | .packages')
+          fi
           packages=()
           while IFS= read -r package; do
             [ -n "$package" ] && packages+=("$package")

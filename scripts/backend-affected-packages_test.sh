@@ -298,6 +298,8 @@ assert_workflow_filter backend-lint 'scripts/backend-affected-packages_test.sh' 
 assert_workflow_filter backend-lint 'scripts/backend-lint-packages.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-lint-packages.sh' present
 assert_workflow_filter backend-test-infra 'scripts/test-run-id.sh' present
+assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix.sh' present
+assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix_test.sh' present
 for filter in backend-tests backend-lint backend-architecture; do
   assert_workflow_filter "$filter" 'scripts/backend-architecture.sh' present
   assert_workflow_filter "$filter" 'scripts/backend-architecture/**' present
@@ -324,6 +326,25 @@ assert_workflow_output_contains run-frontend '${{ github.event_name == '\''push'
 assert_workflow_output_contains run-backend-lint '${{ github.event_name == '\''push'\'' ||'
 assert_workflow_output_contains full-backend-lint '${{ github.event_name == '\''push'\'' ||'
 assert_workflow_output_contains run-backend-architecture '${{ github.event_name == '\''push'\'' ||'
+assert_workflow_output_contains full-backend-suite "steps.backend-size.outputs.full == 'true'"
+
+# Exercise the real cheap guard, including deduplication and non-Go files. A
+# broad refactor must enter the fast full-suite path before scheduling tests.
+size_script=$(awk '
+  /^      - name: Size backend test scope$/ { active = 1; next }
+  active && /^        run: \|$/ { script = 1; next }
+  script && /^  [a-z-]+:$/ { exit }
+  script { sub(/^          /, ""); print }
+' "$repo_root/.github/workflows/main.yml")
+[ -n "$size_script" ] || { echo 'backend scope size guard missing' >&2; exit 1; }
+for count in 63 64; do
+  files=$(jq -cn --argjson count "$count" '[range(0; $count) | "backend/package\(.)/source.go", "backend/package\(.)/source_test.go", "backend/notes\(.)/README.md"]')
+  CHANGED_FILES="$files" GITHUB_OUTPUT="$fixture/scope-size" bash -euo pipefail <<<"$size_script"
+  expected=false
+  [ "$count" -lt 64 ] || expected=true
+  grep -qx "full=$expected" "$fixture/scope-size"
+  rm "$fixture/scope-size"
+done
 
 # Execute the actual workflow guard: architecture-only changes may skip both
 # reusable jobs, but each independently requested job must run.

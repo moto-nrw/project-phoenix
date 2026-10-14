@@ -24,7 +24,7 @@ jq -Rsc --argjson full "$FULL_SUITE" '
       select(($packages | length) > 0) |
       job($part * 3; $packages; ($full or ($application | length) > 16))
     ] + [
-      if ($architecture | length) > 0 then job(1; $architecture; $full) else empty end,
+      if ($architecture | length) > 0 then job(1; $architecture; ($full or ($application | length) > 64)) else empty end,
       if ($migrations | length) > 0 then job(2; $migrations; $full) else empty end
     ])
   } |
