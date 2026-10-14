@@ -5,8 +5,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,7 @@ func TestPayrollExportSettings_ProjectsResolvedConfiguration(t *testing.T) {
 			ID: "krank", Label: "Krankheit", Number: "200", Unit: "tage", UnitRequired: true,
 		}},
 	}
-	adapter := services.PayrollExportSettings{Source: payrollStatusSource(func(received context.Context) (*config.PayrollStatus, error) {
+	adapter := api.PayrollExportSettings{Source: payrollStatusSource(func(received context.Context) (*config.PayrollStatus, error) {
 		require.Same(t, ctx, received)
 		return status, nil
 	})}
@@ -49,7 +50,7 @@ func TestPayrollExportSettings_ProjectsResolvedConfiguration(t *testing.T) {
 func TestPayrollExportSettings_PropagatesResolutionFailure(t *testing.T) {
 	t.Parallel()
 	want := errors.New("settings unavailable")
-	adapter := services.PayrollExportSettings{Source: payrollStatusSource(func(context.Context) (*config.PayrollStatus, error) {
+	adapter := api.PayrollExportSettings{Source: payrollStatusSource(func(context.Context) (*config.PayrollStatus, error) {
 		return nil, want
 	})}
 	got, err := adapter.GetPayrollConfiguration(context.Background())
@@ -59,7 +60,7 @@ func TestPayrollExportSettings_PropagatesResolutionFailure(t *testing.T) {
 
 func TestPayrollExportSettings_RejectsMissingConfiguration(t *testing.T) {
 	t.Parallel()
-	adapter := services.PayrollExportSettings{Source: payrollStatusSource(func(context.Context) (*config.PayrollStatus, error) {
+	adapter := api.PayrollExportSettings{Source: payrollStatusSource(func(context.Context) (*config.PayrollStatus, error) {
 		return nil, nil
 	})}
 	got, err := adapter.GetPayrollConfiguration(context.Background())

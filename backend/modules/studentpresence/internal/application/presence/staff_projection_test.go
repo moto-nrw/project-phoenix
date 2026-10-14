@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
@@ -67,7 +66,7 @@ func TestActiveSupervisionsCarryTheirStaffMember(t *testing.T) {
 func createAbsence(tb testing.TB, ctx context.Context, factory *api.RepositoryTestFactory, staffID int64, approvedBy *int64) {
 	tb.Helper()
 	today := timezone.TodayDate()
-	absence := &services.StaffAbsenceRow{
+	absence := &api.StaffAbsenceRow{
 		StaffID:     staffID,
 		AbsenceType: workforce.AbsenceTypeVacation,
 		DateStart:   today,
@@ -93,7 +92,7 @@ func TestAbsenceRequestsCarryTheirSubjectAndDeciderPerson(t *testing.T) {
 	createAbsence(t, ctx, factory, subject.ID, &deciderID)
 	createAbsence(t, ctx, factory, other.ID, nil)
 
-	filter := services.AbsenceRequestFilter{Statuses: []string{workforce.AbsenceStatusRequested}}
+	filter := api.AbsenceRequestFilter{Statuses: []string{workforce.AbsenceStatusRequested}}
 	rows, err := factory.StaffAbsence.ListRequests(ctx, filter)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)

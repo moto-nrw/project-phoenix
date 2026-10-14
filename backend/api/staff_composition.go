@@ -115,8 +115,8 @@ func newStaffComposition(module schoolMembershipModule.Capability, workforce wor
 	if err != nil {
 		return nil, nil, err
 	}
-	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession)
-	staffAdmin := newStaffAdminResource(capabilities, workforce, services.StaffTimeTrackingNotifier(svc.RealtimeHub), exportTransfer, db, logger)
+	capabilities := NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession)
+	staffAdmin := newStaffAdminResource(capabilities, workforce, staffTimeTrackingNotifier(svc.RealtimeHub), exportTransfer, db, logger)
 	return newStaffResource(module, svc.PeopleDirectory, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
 		return svc.NewStaffMembershipRuntime(db.Pool(), logger, hooks)
 	}, staffAdmin, logger), staffAdmin, nil

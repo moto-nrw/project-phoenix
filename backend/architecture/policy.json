@@ -9276,18 +9276,6 @@
       "target_role": "public"
     },
     {
-      "id": "legacy-composition.to.staff-clock-compose",
-      "description": "The legacy composition binds the Staff Clock workflow to the identity, work-session and card owners through its composition (#2747).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "staff-clock",
-      "target_role": "compose",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
-    },
-    {
       "id": "meal-plan.port-domain",
       "description": "Meal Plan ports express persistence operations using their own domain values.",
       "scopes": [

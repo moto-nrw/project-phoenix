@@ -1,10 +1,11 @@
-package services
+package api
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +15,7 @@ func TestAbsenceEmailDeliveryPreservesMetadataAndContent(t *testing.T) {
 	resolver := &testpkg.ReplyToResolverStub{Name: "School", Address: "school@example.test"}
 	dispatcher := absenceEmailDispatcher{identity: resolver}
 	dispatcher.from.Name, dispatcher.from.Address = "moto", "no-reply@example.test"
-	message := absenceEmailMessage{
+	message := workforceCompose.AbsenceEmailMessage{
 		Type: "absence_request_received", ReferenceID: 42, TenantID: 7, Recipient: "recipient@example.test",
 		Template: "absence-request-received.html", Subject: "Request",
 	}

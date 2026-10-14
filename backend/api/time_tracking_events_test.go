@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"context"
@@ -20,7 +20,7 @@ func TestTimeTrackingEventsBroadcastAfterCommit(t *testing.T) {
 	t.Parallel()
 
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	events := TimeTrackingEvents(broadcaster)
+	events := timeTrackingEvents(broadcaster)
 	ctx, commit := testpkg.WithAfterCommitHooks(testpkg.TenantContext(42))
 
 	events.QueueStaffTimeTrackingChanged(ctx, nil)
@@ -39,7 +39,7 @@ func TestTimeTrackingEventsIgnoreContextsWithoutTenant(t *testing.T) {
 	t.Parallel()
 
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	events := TimeTrackingEvents(broadcaster)
+	events := timeTrackingEvents(broadcaster)
 	ctx, commit := testpkg.WithAfterCommitHooks(context.Background())
 
 	events.QueueStaffTimeTrackingChanged(ctx, nil)

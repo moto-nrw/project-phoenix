@@ -83,9 +83,6 @@ var (
 	// NewRoomSnapshotPeople reads the room snapshot's students through the
 	// People Directory.
 	NewRoomSnapshotPeople = services.NewRoomSnapshotPeople
-	// NewWorkforceAdminCapabilities adapts the retained workforce services to
-	// the public Workforce contracts, as the root does.
-	NewWorkforceAdminCapabilities = services.NewWorkforceAdminCapabilities
 )
 
 // AccountRoleGrantPolicy returns Security Runtime's role grant decision the

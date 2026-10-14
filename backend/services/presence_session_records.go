@@ -87,3 +87,15 @@ func (d presenceSupervisionStaff) SupervisionStaff(ctx context.Context, staffIDs
 	}
 	return result, attachSupervisionPersons(ctx, d.persons, result)
 }
+
+// sessionStaff is the supervising staff member of an active-group
+// supervision. The replaced LEFT JOIN carried no soft-delete filter, so an
+// offboarded colleague keeps resolving here.
+func sessionStaff(member schoolmembership.Staff) *presenceCompose.SessionStaff {
+	return &presenceCompose.SessionStaff{
+		ID: member.ID, TenantID: member.TenantID, CreatedAt: member.CreatedAt, UpdatedAt: member.UpdatedAt,
+		PersonID: member.PersonID, StaffNotes: member.StaffNotes, EmploymentType: member.EmploymentType,
+		WorkTimeModelID: member.WorkTimeModelID, RotationAnchorDate: peopleCompose.ParseRetainedCalendarDate(member.RotationAnchorDate),
+		BirthdayDisplayOptOut: member.BirthdayDisplayOptOut,
+	}
+}
