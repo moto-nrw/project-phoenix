@@ -226,6 +226,7 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 		unregisteredTagScans: graph.services.UnregisteredTagScans,
 		statusDays:           reads.statusDayRetention,
 		parentMessages:       communicationCompose.NewParentMessageRetention(graph.db, graph.services.Settings),
+		auditLedgers:         graph.services.Audit,
 	}, logger.With("service", "scheduler"))
 	if err != nil {
 		return nil, err

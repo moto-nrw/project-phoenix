@@ -34,6 +34,7 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 		unregisteredTagScans: owners.UnregisteredTagScans,
 		statusDays:           owners.StatusDays,
 		parentMessages:       owners.ParentMessages,
+		auditLedgers:         owners.Audit,
 	}, nil)
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
@@ -249,4 +250,43 @@ func TestNightlyRetentionDeletesParentMessagesAfterTheirWindow(t *testing.T) {
 	assert.True(t, suite.exists(t, "users.parent_messages", otherExpired), "the run of one school never touches another")
 	assert.Equal(t, []int{3}, suite.loggedDeletions(t, school, retentionParentMessages))
 	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionParentMessages))
+}
+
+func TestNightlyRetentionDeletesExpiredAuditLedgerRows(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	otherSchool, _ := testpkg.CreateTestTenant(t, suite.admin)
+	account := testpkg.CreateTestAccount(t, suite.admin, "retention-ledger@example.com").ID
+
+	const insertAuthEvent = `INSERT INTO audit.auth_events (tenant_id, account_id, event_type, success, ip_address, created_at)
+		VALUES (?, ?, 'login', true, '127.0.0.1', CURRENT_TIMESTAMP - make_interval(days => ?)) RETURNING id`
+	expiredLogin := suite.insertID(t, insertAuthEvent, school, account, 91)
+	keptLogin := suite.insertID(t, insertAuthEvent, school, account, 89)
+	otherLogin := suite.insertID(t, insertAuthEvent, otherSchool, account, 91)
+
+	const lastYearStart = `((date_trunc('year', CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin') - INTERVAL '1 year') AT TIME ZONE 'Europe/Berlin')`
+	const insertAccess = `INSERT INTO audit.data_access_log (tenant_id, actor_account_id, actor_role, resource_type, range_start, range_end, accessed_at)
+		SELECT ?, ?, 'staff', 'attendance', at, at, at FROM (SELECT ` + lastYearStart + ` + make_interval(days => ?) AS at) AS access RETURNING id`
+	expiredAccess := suite.insertID(t, insertAccess, school, account, -1)
+	keptAccess := suite.insertID(t, insertAccess, school, account, 1)
+
+	const insertDeletion = `INSERT INTO audit.data_deletions (tenant_id, deletion_type, records_deleted, deleted_by, deleted_at)
+		VALUES (?, 'unregistered_tag_scan_retention', 1, 'system', CURRENT_TIMESTAMP - make_interval(years => 3, days => ?)) RETURNING id`
+	expiredDeletion := suite.insertID(t, insertDeletion, school, 1)
+	keptDeletion := suite.insertID(t, insertDeletion, school, -1)
+
+	suite.run(t, school)
+
+	assert.False(t, suite.exists(t, "audit.auth_events", expiredLogin), "a sign-in event older than 90 days is deleted")
+	assert.True(t, suite.exists(t, "audit.auth_events", keptLogin))
+	assert.True(t, suite.exists(t, "audit.auth_events", otherLogin), "the run of one school never touches another")
+	assert.False(t, suite.exists(t, "audit.data_access_log", expiredAccess), "an access from the year before last is deleted")
+	assert.True(t, suite.exists(t, "audit.data_access_log", keptAccess), "an access from last year stays until its end")
+	assert.False(t, suite.exists(t, "audit.data_deletions", expiredDeletion), "a deletion-log row older than three years is deleted")
+	assert.True(t, suite.exists(t, "audit.data_deletions", keptDeletion))
+	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, retentionAuthEvents))
+	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, retentionDataAccessLog))
+	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, retentionDeletionLog))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionAuthEvents))
 }

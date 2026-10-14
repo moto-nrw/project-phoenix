@@ -27,6 +27,9 @@ const (
 	retentionUnregisteredTagScans = "unregistered_tag_scan_retention"
 	retentionStatusDays           = "status_day_retention"
 	retentionParentMessages       = "parent_message_retention"
+	retentionAuthEvents           = "auth_event_retention"
+	retentionDataAccessLog        = "data_access_log_retention"
+	retentionDeletionLog          = "deletion_log_retention"
 )
 
 // Retention windows the moto team records per school (ADR 0048). The Settings
@@ -54,6 +57,13 @@ type retentionOwners struct {
 	}
 	statusDays     carePlanModule.StudentStatusDayRetention
 	parentMessages communicationModule.ParentMessageCleanup
+	// auditLedgers deletes the expired rows of the append-only audit ledgers
+	// through their fixed database functions (#3956).
+	auditLedgers interface {
+		DeleteExpiredAuthEvents(ctx context.Context) (deleted, retentionDays int, err error)
+		DeleteExpiredDataAccessLog(ctx context.Context) (deleted, retentionDays int, err error)
+		DeleteExpiredDeletionLog(ctx context.Context) (deleted, retentionDays int, err error)
+	}
 }
 
 func newWorkerRetention(owners retentionOwners, logger *slog.Logger) (workerRetention, error) {
@@ -78,14 +88,7 @@ func newWorkerRetention(owners retentionOwners, logger *slog.Logger) (workerRete
 func retentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 	var steps []scheduler.RetentionStep
 	if owners.unregisteredTagScans != nil {
-		scans := owners.unregisteredTagScans
-		steps = append(steps, scheduler.RetentionStep{
-			Kind: retentionUnregisteredTagScans,
-			Run: func(ctx context.Context) (scheduler.RetentionOutcome, error) {
-				deleted, days, err := scans.DeleteExpired(ctx)
-				return scheduler.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
-			},
-		})
+		steps = append(steps, fixedRetentionStep(retentionUnregisteredTagScans, owners.unregisteredTagScans.DeleteExpired))
 	}
 	if owners.statusDays != nil {
 		statusDays := owners.statusDays
@@ -111,7 +114,27 @@ func retentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 			},
 		})
 	}
+	if owners.auditLedgers != nil {
+		ledgers := owners.auditLedgers
+		steps = append(steps,
+			fixedRetentionStep(retentionAuthEvents, ledgers.DeleteExpiredAuthEvents),
+			fixedRetentionStep(retentionDataAccessLog, ledgers.DeleteExpiredDataAccessLog),
+			fixedRetentionStep(retentionDeletionLog, ledgers.DeleteExpiredDeletionLog),
+		)
+	}
 	return steps
+}
+
+// fixedRetentionStep runs an owner deletion whose window is the same for
+// every school.
+func fixedRetentionStep(kind string, deleteExpired func(context.Context) (int, int, error)) scheduler.RetentionStep {
+	return scheduler.RetentionStep{
+		Kind: kind,
+		Run: func(ctx context.Context) (scheduler.RetentionOutcome, error) {
+			deleted, days, err := deleteExpired(ctx)
+			return scheduler.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
+		},
+	}
 }
 
 // retentionDays resolves a school's retention window. It never guesses: an
