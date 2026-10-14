@@ -281,6 +281,10 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
 - A broken shot (HTTP error, error page, silent redirect away from its `pfad`,
   login redirect, unexpected dialog, loading state after the timeout, console
   error) aborts the whole run before anything is written.
+- `warten_auf` and the wait for loading indicators keep waiting while the page
+  has requests to the stack open (`next dev` on CI needs 20-40 s for the
+  parents child page). They give up after 30 s / 20 s without an open request,
+  and after 2 minutes at the latest (`network-activity.ts`).
 - Bezels live unchanged in `frontend/scripts/product-screenshots/bezels/`; the
   README there explains how to add one.
 
