@@ -110,7 +110,7 @@ func TestAdminCreateStaffAbsence_SickCascades(t *testing.T) {
 	assert.NotEqual(t, subjectID, absences[0].CreatedBy, "creator must be the editor, not the subject")
 
 	// The cascade cancelled + stamped the shift inside the request tx.
-	shift, err := repos.StaffShift.FindByID(ctx, shiftID)
+	shift, err := repos.FindShift(ctx, shiftID)
 	require.NoError(t, err)
 	assert.True(t, shift.Cancelled)
 	require.NotNil(t, shift.SickAbsenceID)
@@ -126,7 +126,7 @@ func TestAdminCreateStaffAbsence_SickCascades(t *testing.T) {
 	remaining, err := repos.StaffAbsence.GetByStaffAndDateRange(ctx, subjectID, tomorrow, tomorrow)
 	require.NoError(t, err)
 	assert.Empty(t, remaining)
-	shift, err = repos.StaffShift.FindByID(ctx, shiftID)
+	shift, err = repos.FindShift(ctx, shiftID)
 	require.NoError(t, err)
 	assert.False(t, shift.Cancelled)
 	assert.Nil(t, shift.SickAbsenceID)

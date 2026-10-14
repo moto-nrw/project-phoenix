@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
@@ -18,6 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -40,11 +39,11 @@ func TestNormalizeSickReason(t *testing.T) {
 // --- staff sick reason round-trip via status-days ---
 
 func newStaffNotesResource(db *bun.DB) *Resource {
-	rf := newStudentTestRepositories(db)
+	rows := ComposeStudentRows(db)
 	return NewResource(ResourceConfig{
-		PeopleDirectory:         testutil.NewStudentRoutePeople(db),
-		CompanionService:        testutil.NewStudentRouteCompanions(rf, testutil.NewStudentRoutePeople(db), nil),
-		StudentStatusDayService: presenceservice.NewStatusDays(rf.StudentStatusDay, nil, nil, rf.CarePlan.LockExceptionDay),
+		PeopleDirectory:         rows.PeopleDirectory,
+		CompanionService:        rows.Companions,
+		StudentStatusDayService: presenceservice.NewStatusDays(rows.StudentStatusDay, nil, nil, rows.LockExceptionDay),
 		Logger:                  slog.Default(),
 	})
 }

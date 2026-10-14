@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,7 +70,7 @@ func TestPasswordResetMailLinksToTheScopesPortal(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	mailer := testpkg.NewCapturingMailer()
-	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db), services.WithAuthTestMailer(mailer))
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.WithAuthTestMailer(mailer))
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	staff := resetAccount(t, db, "reset-mail-staff")
@@ -112,9 +113,9 @@ func TestPasswordResetMailFailureIsRecordedOnTheLink(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	mailer := &flakyMailer{failures: 3, err: errors.New("smtp down")}
-	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db),
-		services.WithAuthTestMailer(mailer),
-		services.WithAuthTestPasswordResetBackoff(10*time.Millisecond, 20*time.Millisecond, 40*time.Millisecond))
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db),
+		api.WithAuthTestMailer(mailer),
+		api.WithAuthTestPasswordResetBackoff(10*time.Millisecond, 20*time.Millisecond, 40*time.Millisecond))
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	email := resetAccount(t, db, "reset-mail-failure")
@@ -141,7 +142,7 @@ func TestPasswordResetMailSuccessIsRecordedOnTheLink(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	mailer := testpkg.NewCapturingMailer()
-	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db), services.WithAuthTestMailer(mailer))
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.WithAuthTestMailer(mailer))
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	email := resetAccount(t, db, "reset-mail-success")

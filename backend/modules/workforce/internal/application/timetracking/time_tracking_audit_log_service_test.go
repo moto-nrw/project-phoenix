@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/services"
 
@@ -26,7 +27,7 @@ type auditLogFixture struct {
 	staffA   int64
 	staffB   int64
 	admin    int64
-	repos    *services.RepositoryTestFactory
+	repos    *api.RepositoryTestFactory
 	db       *testpkg.DB
 	ctx      context.Context
 	svc      timetracking.TimeTrackingAuditLogService
@@ -54,8 +55,8 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	// resolve it.
 	admin, adminAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Audit", "Leitung")
 
-	owners := services.NewUnobservedTimetableDependencies(db)
-	repos := services.NewRepositoryTestFactory(db, owners)
+	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {
@@ -99,7 +100,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	for _, e := range edits {
 		e.SetTenantID(tenantID)
 	}
-	require.NoError(t, services.NewTestAuditPersistence(db, nil).WorkSessionEdit.CreateBatch(ctx, edits))
+	require.NoError(t, api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).WorkSessionEdit.CreateBatch(ctx, edits))
 
 	// Absence + status-transition audit row (actor = ACCOUNT id).
 	absence := &timetracking.StaffAbsence{
@@ -156,13 +157,13 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	// Delete staffB's adjustment through the real service path so the
 	// tombstone write is covered end to end.
 	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Adjustments, nil, wtmIntSettings{accountStart: "2025-01-01"}, nil,
-		timetracking.WithAdjustmentDeletionAudit(services.NewTimeTrackingDeletionAudit(services.NewTestAuditPersistence(db, nil).TimeTrackingDeletion)))
+		timetracking.WithAdjustmentDeletionAudit(services.NewTimeTrackingDeletionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)))
 	require.NoError(t, adjustSvc.DeleteAdjustment(ctx, staffB.ID, doomed.ID, admin.ID))
 
 	return &auditLogFixture{
 		tenantID: tenantID, staffA: staffA.ID, staffB: staffB.ID, admin: admin.ID,
 		repos: repos, db: db, ctx: ctx,
-		svc: timetracking.NewTimeTrackingAuditLogService(services.NewTimeTrackingAuditReader(services.NewTestAuditPersistence(db, nil).TimeTrackingAuditLog), services.StaffDisplayNames(repos.Staff), nil),
+		svc: timetracking.NewTimeTrackingAuditLogService(services.NewTimeTrackingAuditReader(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingAuditLog), services.StaffDisplayNames(repos.Staff), nil),
 	}
 }
 
@@ -303,7 +304,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 			9001: finalFraction,
 			9002: nextMidnight,
 		} {
-			require.NoError(t, services.NewTestAuditPersistence(f.db, nil).TimeTrackingDeletion.Create(f.ctx, &auditModels.TimeTrackingDeletion{
+			require.NoError(t, api.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).TimeTrackingDeletion.Create(f.ctx, &auditModels.TimeTrackingDeletion{
 				StaffID:    f.staffA,
 				Source:     auditModels.TimeTrackingDeletionSourceAbsence,
 				SourceID:   sourceID,

@@ -1,6 +1,7 @@
 package inbound
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -220,10 +222,22 @@ func TestAbsenceTypesRouteRejectsWritesWithoutManage(t *testing.T) {
 	}
 }
 
+// AbsenceTypesComposition is what the route suites take from the root's
+// absence type composition: the administration and the acting staff member.
+type AbsenceTypesComposition struct {
+	Administration workforce.AbsenceTypeAdministration
+	ActingStaff    func(context.Context) (int64, error)
+}
+
+// ComposeAbsenceTypes composes the root's absence type graph over the
+// package's test database. The root imports this package, so these internal
+// tests cannot import it; root_composition_test.go binds it.
+var ComposeAbsenceTypes func(t *testing.T, clocks ...func() time.Time) (*bun.DB, AbsenceTypesComposition)
+
 func setupAbsenceTypesRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, chi.Router) {
 	t.Helper()
 
-	db, svc := testutil.SetupAbsenceTypeModule(t, clocks...)
-	resource := NewAbsenceTypesResource(svc.Administration, svc.UserContext.Caller().StaffID)
+	db, svc := ComposeAbsenceTypes(t, clocks...)
+	resource := NewAbsenceTypesResource(svc.Administration, svc.ActingStaff)
 	return db, resource.Router()
 }

@@ -3,28 +3,23 @@ package enrollmenthttp_test
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-
 	"log/slog"
 	"testing"
 	"time"
-
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -47,18 +42,18 @@ func setupAutoApproveIntegrationEnv(t *testing.T) (*rolloverTestEnv, func()) {
 
 func setupAutoApproveIntegrationEnvWithSettings(
 	t *testing.T,
-	settings testutil.EnrollmentDecisionSettings,
+	settings api.EnrollmentDecisionSettings,
 ) (*rolloverTestEnv, func()) {
 	t.Helper()
 	env, cleanup := setupRolloverTest(t)
 
 	repoFactory := testRepositories(t, env.db)
 
-	decision := newTestDecisions(testutil.EnrollmentDecisionSources{
+	decision := newTestDecisions(api.EnrollmentDecisionSources{
 		Requests:          repoFactory.Enrollment(),
 		Children:          repoFactory.Enrollment(),
 		CareBookings:      testBookings(t, env, settings),
-		CareOfferings:     testutil.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
+		CareOfferings:     api.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
 		Phases:            repoFactory.Enrollment(),
 		Persons:           repoFactory.Person,
 		Staff:             repoFactory.Staff,
@@ -69,7 +64,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		StudentEnrollment: testStudentEnrollment(env.db),
 		Companions:        services.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:  repoFactory.CarePlan().DeleteCompanionEdges,
-		StudentAudit:      testutil.NewEnrollmentFlowStudentAudit(env.db, testpkg.RequestAuditActor),
+		StudentAudit:      api.NewEnrollmentFlowStudentAudit(testpkg.NewDatabase(t, env.db), testpkg.RequestAuditActor),
 		FrontendURL:       "http://localhost:3000",
 		ParentsURL:        "http://parents.localhost:3000",
 		Settings:          settings,
@@ -77,7 +72,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 	}, env.outbox)
 
 	// Rebuild the rollover service so DecisionService is injected.
-	env.rolloverSvc = newTestRolloverService(testutil.EnrollmentRolloverSources{
+	env.rolloverSvc = newTestRolloverService(api.EnrollmentRolloverSources{
 		Bookings:   requestTestBookingCommands(),
 		Phases:     env.repos.Enrollment(),
 		Requests:   env.repos.Enrollment(),
@@ -588,7 +583,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 		CareOfferingID: offering.ID,
 	}
 	link.TenantID = testpkg.Tenant(t)
-	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
+	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
 
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true

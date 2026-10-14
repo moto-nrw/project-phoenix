@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -87,7 +88,7 @@ func TestActiveService_CreateVisit(t *testing.T) {
 
 		// CreateVisit requires staff and device context for attendance FK constraints
 		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-		deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+		deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
@@ -121,7 +122,7 @@ func TestActiveService_CreateVisit(t *testing.T) {
 
 		// CreateVisit requires staff and device context for attendance FK constraints
 		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-		deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+		deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 		visit := &studentpresence.Visit{
 			StudentID:     99999999, // invalid
@@ -146,7 +147,7 @@ func TestActiveService_CreateVisit(t *testing.T) {
 
 		require.NoError(t, service.EndActiveGroupSession(ctx, activeGroup.ID))
 		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-		deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+		deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: activeGroup.ID,
@@ -176,7 +177,7 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().Add(-5*time.Minute), nil)
 
 		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-		deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+		deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 		duplicate := &studentpresence.Visit{
 			StudentID:     student.ID,
@@ -211,7 +212,7 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		testpkg.CreateTestVisit(t, db, existingStudent.ID, sourceGroup.ID, time.Now().Add(-time.Minute), nil)
 
 		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-		deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+		deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 		visit := &studentpresence.Visit{
 			StudentID:     incomingStudent.ID,
 			ActiveGroupID: targetGroup.ID,
@@ -244,7 +245,7 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		testpkg.CreateTestVisit(t, db, presentStudent.ID, activeGroup.ID, time.Now().Add(-time.Hour), nil)
 
 		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-		deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+		deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 		exitTime := time.Now().Add(-30 * time.Minute)
 		visit := &studentpresence.Visit{
 			StudentID:     historicalStudent.ID,
@@ -781,7 +782,7 @@ func TestActiveService_CheckIn_RejectsAlumnus(t *testing.T) {
 	require.NoError(t, err)
 
 	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-	deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+	deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 	t.Run("CreateVisit rejects alumnus", func(t *testing.T) {
 		visit := &studentpresence.Visit{

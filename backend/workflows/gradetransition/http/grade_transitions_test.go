@@ -40,7 +40,7 @@ type testContext struct {
 func setupGradeTransitionsModule(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupGradeTransitionModule(t)
+	db, svc := setupGradeTransitionModule(t)
 	resource := gradetransitionhttp.NewGradeTransitionResource(svc.GradeTransition)
 
 	return &testContext{

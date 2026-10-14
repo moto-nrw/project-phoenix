@@ -9,11 +9,9 @@ import (
 	"testing"
 	"time"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-
+	"github.com/moto-nrw/project-phoenix/api"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -25,7 +23,7 @@ import (
 )
 
 type cleanupLockSignalRepository struct {
-	testutil.EnrollmentDeletionOwner
+	api.EnrollmentDeletionOwner
 	targetRequestID int64
 	lockStarted     chan struct{}
 	once            sync.Once
@@ -137,7 +135,7 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 		targetRequestID:         request.ID,
 		lockStarted:             lockStarted,
 	}
-	cleaner := testutil.NewEnrollmentDeletionModule(testutil.EnrollmentDeletionSources{
+	cleaner := api.NewEnrollmentDeletionModule(api.EnrollmentDeletionSources{
 		Owner:    requestRepo,
 		Delivery: newTestEnrollmentDelivery(t, db),
 		Settings: cleanupRetentionSettings{days: 30},
@@ -278,7 +276,7 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 		return nil
 	}))
 
-	cleaner := testutil.NewEnrollmentDeletionModule(testutil.EnrollmentDeletionSources{
+	cleaner := api.NewEnrollmentDeletionModule(api.EnrollmentDeletionSources{
 		Owner:    repos.Enrollment(),
 		Delivery: deliveryPort,
 		Settings: cleanupRetentionSettings{days: 30},

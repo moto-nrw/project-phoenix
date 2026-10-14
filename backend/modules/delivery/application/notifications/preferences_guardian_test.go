@@ -10,9 +10,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +27,7 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	identity, err := services.NewIdentityAccessForTests(db)
+	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() {
@@ -46,7 +47,7 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 			return reminderEnabled[tenant.FromContext(settingsCtx)], nil
 		},
 	}
-	svc := notifications.NewPreferenceService(services.NewNotificationConsentTestStore(db), settings, db, identity)
+	svc := notifications.NewPreferenceService(api.NewNotificationConsentTestStore(testpkg.NewDatabase(t, db)), settings, db, identity)
 	testpkg.SetTenantRuntime(t, svc, db)
 
 	t.Run("starts empty", func(t *testing.T) {

@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -609,7 +610,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "StatusErrors", "Student", "SE1")
-	lockExceptionDay := newStudentTestRepositories(db).CarePlan.LockExceptionDay
+	lockExceptionDay := ComposeStudentRows(db).LockExceptionDay
 	baseResource := newStatusDayTestResource(db)
 
 	t.Run("get maps repository error to internal server error", func(t *testing.T) {
@@ -683,20 +684,31 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 	})
 }
 
-// newStudentTestRepositories composes the retained repositories the suites
-// arrange through, recording into the test audit store.
-var newStudentTestRepositories = testutil.MustNewStudentRouteRows
+// StudentRows are what the status-day suites take from the root's student
+// graph: the people and companion reads the routes bind, the status-day rows
+// and Care Plan's exception-day lock, recording into the test audit store.
+type StudentRows struct {
+	PeopleDirectory  peopleModule.Capability
+	Companions       careplan.StudentCompanions
+	StudentStatusDay presenceservice.StudentStatusDayRepository
+	LockExceptionDay presenceservice.LockExceptionDay
+}
+
+// ComposeStudentRows composes the root's student graph over db. The root
+// imports this package, so these internal tests cannot import it;
+// root_composition_test.go binds it.
+var ComposeStudentRows func(db *bun.DB) StudentRows
 
 func newStatusDayTestResource(db *bun.DB, clocks ...func() time.Time) *Resource {
-	repoFactory := newStudentTestRepositories(db)
+	rows := ComposeStudentRows(db)
 	var clock func() time.Time
 	if len(clocks) > 0 {
 		clock = clocks[0]
 	}
 	return NewResource(ResourceConfig{
-		PeopleDirectory:         testutil.NewStudentRoutePeople(db),
-		CompanionService:        testutil.NewStudentRouteCompanions(repoFactory, testutil.NewStudentRoutePeople(db), nil),
-		StudentStatusDayService: presenceservice.NewStatusDays(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan.LockExceptionDay, clock),
+		PeopleDirectory:         rows.PeopleDirectory,
+		CompanionService:        rows.Companions,
+		StudentStatusDayService: presenceservice.NewStatusDays(rows.StudentStatusDay, nil, nil, rows.LockExceptionDay, clock),
 		Logger:                  slog.Default(),
 		Now:                     clock,
 	})

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -17,7 +17,7 @@ import (
 func TestRFIDCardsRegistrationAndIsolation(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	cards, err := services.NewIdentityAccessForTests(db)
+	cards, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	tag := fmt.Sprintf("ABCD%016X", testpkg.UniqueTestTenantID(t))
@@ -72,7 +72,7 @@ func TestRFIDCardsRegistrationAndIsolation(t *testing.T) {
 func TestRFIDCardsDatabaseFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	cards, err := services.NewIdentityAccessForTests(db)
+	cards, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	ctx := testpkg.ContextWithTenantRuntime(testpkg.TenantContext(testpkg.Tenant(t)), testpkg.TenantRuntime(t, db))
 	require.NoError(t, db.Close())

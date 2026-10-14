@@ -20,16 +20,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -39,15 +39,15 @@ import (
 func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := services.NewRepositoryTestFactoryWithPeopleDirectory(db, services.NewUnobservedTimetableDependencies(db))
+	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	timetableRepos := testTimetableRepositories(db)
 	require.NoError(t, err)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(repos.ActiveGroup)
-	devices, err := services.NewDeviceRepository(db)
+	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	rooms, err := services.NewFacilities(db)
+	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	svc := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader:    services.AttendancePrincipal,
@@ -61,7 +61,7 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 		ActivityCatRepo:    services.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
-		StaffNames: services.NewAttendanceStaffNames(repos.Staff, services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
+		StaffNames: services.NewAttendanceStaffNames(repos.Staff, api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
 			RFIDCards: repos.RFIDCard, AccountExists: services.AccountExists(repos.Profile),
 		})),
@@ -93,7 +93,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := services.NewRepositoryTestFactoryWithPeopleDirectory(db, services.NewUnobservedTimetableDependencies(db))
+	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	today := timezone.NewDate(2026, 8, 24)
 	svc := newCareLifecycleServiceAt(t, db, today)
@@ -168,7 +168,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	})
 
 	t.Run("the child is gone from the group roster reads", func(t *testing.T) {
-		personSvc := services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
+		personSvc := api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
 			RFIDCards: repos.RFIDCard, AccountExists: services.AccountExists(repos.Profile),
 		}).WithCareParticipation(func(

@@ -11,9 +11,6 @@ import (
 	"testing"
 	"time"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
@@ -21,12 +18,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
@@ -54,7 +54,7 @@ type testContext struct {
 
 // newStudentTestRepositories composes the retained repositories the suites
 // arrange through, recording into the test audit store.
-var newStudentTestRepositories = testutil.MustNewStudentRouteRows
+var newStudentTestRepositories = api.MustNewStudentHTTPTestRows
 
 // settingsWriter is the override half of the Settings Platform service the
 // fixtures write through; the resource itself only reads.
@@ -86,8 +86,8 @@ func setupStudentsRouteWithCareLifecycle(t *testing.T, authoritative bool, clock
 func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...func() time.Time) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupStudentModule(t, clocks...)
-	repoFactory, err := testutil.NewStudentRouteRows(db, svc.Audit)
+	db, svc := setupStudentModule(t, clocks...)
+	repoFactory, err := api.NewStudentHTTPTestRows(testpkg.NewDatabase(t, db), svc.Audit)
 	require.NoError(t, err)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
@@ -200,7 +200,7 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
 		},
 		ObserveCare: func(requestreviewcompose.CareObservation) {}, ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
-		Blocks: testutil.NewStudentRoutePickupReviewBlocks(db),
+		Blocks: api.NewStudentHTTPTestPickupReviewBlocks(testpkg.NewDatabase(t, db)),
 	})
 	require.NoError(t, err)
 	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, func() requestreviewcompose.ReviewDate {
@@ -250,11 +250,11 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 		PeopleDirectory:        svc.PeopleDirectory,
 		Persons:                svc.StudentRoutePersons(),
 		StudentDeletion:        studentDeletion,
-		CompanionService:       testutil.NewStudentRouteCompanions(repoFactory, svc.PeopleDirectory, svc.StudentAudit),
+		CompanionService:       api.NewStudentHTTPTestCompanions(repoFactory, svc.PeopleDirectory, svc.StudentAudit),
 		SchoolGroups:           schoolGroups,
 		UserContextService:     tenantScopedCaller{svc.UserContext},
 		ActiveService:          svc.Active,
-		DeviceAuthenticator:    testutil.NewDeviceAuthenticators(svc.IoT.Fleet(), testutil.DeviceSchools(t, db), svc.Settings, testDevicePIN).Device(),
+		DeviceAuthenticator:    deviceAuthenticator(t, db, svc),
 		AuthenticatedDevice:    testutil.AuthenticatedDeviceID,
 		PickupScheduleService:  svc.PickupSchedule,
 		WeekdayPickupNotes:     repoFactory.CarePlan,
@@ -297,7 +297,7 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 		Broadcaster:              broadcaster,
 		ParentEventEmitter:       parentEventEmitter,
 		StudentPhotos:            svc.PeopleDirectory,
-		StudentConsents:          testutil.NewStudentRouteConsents(db),
+		StudentConsents:          api.NewStudentHTTPTestConsents(testpkg.NewDatabase(t, db)),
 		ListExportService:        lists.NewRenderer(),
 		Logger:                   slog.Default(),
 		Now:                      firstClock(clocks),
@@ -432,7 +432,7 @@ func mustTimetableRecurrenceLock(t *testing.T, db *bun.DB) interface {
 	LockRecurrenceWrites(context.Context) error
 } {
 	t.Helper()
-	lock, err := testutil.NewTimetableRecurrenceLock(db)
+	lock, err := api.NewTimetableHTTPTestRecurrenceLock(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return lock
 }
@@ -470,7 +470,7 @@ func careLifecycleFor(t *testing.T, db *bun.DB, module careplan.CareLifecycle, a
 		now = time.Now
 	}
 	bookings := *authoritative
-	lifecycle, err := testutil.NewStudentRouteCareLifecycle(db, testutil.StudentRouteCareLifecycleConfig{
+	lifecycle, err := api.NewStudentHTTPTestCareLifecycle(testpkg.NewDatabase(t, db), api.StudentHTTPTestCareLifecycle{
 		AuditActor: testpkg.RequestAuditActor,
 		BookingsAuthoritative: func(context.Context) (bool, error) {
 			return bookings, nil

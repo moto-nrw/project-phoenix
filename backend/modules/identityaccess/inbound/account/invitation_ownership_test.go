@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -15,11 +17,11 @@ import (
 
 func TestInvitationHTTPRequiresVerifiedOwner(t *testing.T) {
 	t.Parallel()
-	db, module := testutil.SetupInvitationModule(t)
+	db, module := setupInvitationModule(t)
 	service := module.Invitation
 	// Unrelated route registrations capture method values but never call this
 	// account-lifecycle capability.
-	resource := authAPI.NewResource(module.Auth, service, nil, nil, testutil.AccountRouteTenantRuntime())
+	resource := authAPI.NewResource(module.Auth, service, nil, nil, identityaccessCompose.TenantUnitOfWork{})
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/auth", resource.Router())
 	owner := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("http-owner-%d@example.com", testpkg.Tenant(t)), "OwnerPass123!")

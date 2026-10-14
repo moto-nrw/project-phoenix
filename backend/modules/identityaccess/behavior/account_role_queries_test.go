@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -16,7 +16,7 @@ import (
 func TestAccountRoleQueriesScopeAndSystemRoles(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	identity, err := services.NewIdentityAccessForTests(db)
+	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "role-facts")
@@ -76,7 +76,7 @@ func TestAccountRoleQueriesScopeAndSystemRoles(t *testing.T) {
 func TestAccountRoleQueriesDatabaseFailures(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	identity, err := services.NewIdentityAccessForTests(db)
+	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 	_, _, err = identity.FindSystemRoleID(context.Background(), "user")

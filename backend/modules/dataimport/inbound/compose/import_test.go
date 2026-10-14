@@ -15,17 +15,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
 	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
 	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
-
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -60,7 +58,7 @@ type testContext struct {
 func setupImportRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupImportModule(t)
+	db, svc := setupImportModule(t)
 	// Create import resource
 	resource := importAPI.NewResource(importAPI.Dependencies{Students: svc.Import, Staff: svc.StaffImport, ClassList: svc.ClassListImport, Files: fileformat.Decoder{}, Runtime: importCompose.HTTPRuntime(db, svc.PeopleDirectory, svc.Membership, nil)})
 

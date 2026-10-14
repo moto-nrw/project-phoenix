@@ -50,7 +50,7 @@ func decodeData[T any](t *testing.T, body []byte) T {
 func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoolportal.Resource, int64, string) {
 	t.Helper()
 
-	db, services := testutil.SetupSchoolModule(t, clocks...)
+	db, services := setupSchoolModule(t, clocks...)
 	classDayResource := classdayhttp.NewResource(services.ClassDay, nil)
 	timetableResource := timetable.NewResource(timetable.Dependencies{
 		OperationsService: services.TimetableOperations,

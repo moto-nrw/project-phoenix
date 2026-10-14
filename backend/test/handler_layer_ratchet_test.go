@@ -22,7 +22,9 @@ import (
 // Five patterns, each with its own per-file allowlist:
 //
 //	R1 — repository-typed declarations (struct fields, constructor params)
-//	     anywhere under api/.
+//	     anywhere under api/ except the test composition hooks
+//	     (api/*_test_helpers.go, #4005), which build the retained repositories
+//	     for tests and serve no request.
 //	R2 — service repository-getter calls (`.XxxRepository()`) anywhere in the
 //	     backend except database/ and test/: the getters are scheduled for
 //	     deletion from the PersonService interface, so non-api consumers
@@ -179,9 +181,27 @@ func ratchetViolations(check string, counts, allowlist map[string]int, fix strin
 }
 
 func scanAPIRepoDecls(backendRoot string) (map[string]int, error) {
-	return scanTree(backendRoot, filepath.Join(backendRoot, "api"), nil, func(line string) int {
+	counts, err := scanTree(backendRoot, filepath.Join(backendRoot, "api"), nil, func(line string) int {
 		return len(apiRepoDeclPattern.FindAllString(line, -1))
 	})
+	if err != nil {
+		return nil, err
+	}
+	for file := range counts {
+		if isAPITestHookFile(file) {
+			delete(counts, file)
+		}
+	}
+	return counts, nil
+}
+
+// isAPITestHookFile reports whether a backend-relative path is one of the
+// root's test composition hooks: the api/*_test_helpers.go files that moved
+// out of the legacy composition (#4005). They compose the graph tests run
+// against and are no request handlers.
+func isAPITestHookFile(rel string) bool {
+	return strings.HasPrefix(rel, "api/") && !strings.Contains(strings.TrimPrefix(rel, "api/"), "/") &&
+		strings.HasSuffix(rel, "_test_helpers.go")
 }
 
 func scanRepoGetterCalls(backendRoot string) (map[string]int, error) {

@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/services"
 	importPorts "github.com/moto-nrw/project-phoenix/services/import/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -56,7 +56,7 @@ func newImporter(t *testing.T, db *bun.DB) importer {
 	return importer{staffID: staff.ID, accountID: account.ID}
 }
 
-func runStudentImport(t *testing.T, db *bun.DB, module services.ImportTestModule, actor importer, mode importModels.ImportMode, rows []importModels.StudentImportRow, after func(context.Context, *importModels.ImportResult[importModels.StudentImportRow]) error) (*importModels.ImportResult[importModels.StudentImportRow], error) {
+func runStudentImport(t *testing.T, db *bun.DB, module api.ImportTestModule, actor importer, mode importModels.ImportMode, rows []importModels.StudentImportRow, after func(context.Context, *importModels.ImportResult[importModels.StudentImportRow]) error) (*importModels.ImportResult[importModels.StudentImportRow], error) {
 	t.Helper()
 	var result *importModels.ImportResult[importModels.StudentImportRow]
 	err := testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
@@ -92,7 +92,7 @@ func TestDataImportCutover_StudentCreateUpdateAndReplay(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.OwnTenant(t)
-	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	actor := newImporter(t, db)
 	card := testpkg.CreateTestRFIDCard(t, db, "CUT")
@@ -231,7 +231,7 @@ func TestDataImportCutover_ReusesPhoneOnlyGuardian(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.OwnTenant(t)
-	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	actor := newImporter(t, db)
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano()%1_000_000)
@@ -291,7 +291,7 @@ func TestDataImportCutover_FindsGuardianByExactEmailAmongSubstringMatches(t *tes
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.OwnTenant(t)
-	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	actor := newImporter(t, db)
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano()%1_000_000)
@@ -337,7 +337,7 @@ func TestDataImportCutover_BatchValidationRowSavepointAndRollback(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.OwnTenant(t)
 	failLinkFor := ""
-	module, err := services.NewImportTestModuleWithOptions(db, testpkg.TenantRuntime(t, db), services.ImportTestOptions{
+	module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.ImportTestOptions{
 		WrapGuardians: func(inner importPorts.GuardianDirectory) importPorts.GuardianDirectory {
 			return failingGuardians{GuardianDirectory: inner, failFor: &failLinkFor}
 		},
@@ -482,7 +482,7 @@ func TestDataImportCutover_StaffStammdatenThroughOwners(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.OwnTenant(t)
-	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	actor := newImporter(t, db)
 	role := testpkg.CreateTestRoleForTenant(t, db, "Betreuungskraft", tenantID)
@@ -606,7 +606,7 @@ func TestDataImportCutover_ClassListThroughMembership(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.OwnTenant(t)
-	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	actor := newImporter(t, db)
 	testpkg.CreateTestStudent(t, db, "Schon", "Angemeldet", "1a")

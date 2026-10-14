@@ -12,7 +12,8 @@ package contracttest_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +26,7 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student
 	ctx := testpkg.Ctx(t)
 
 	readStatus := func(t *testing.T, db *bun.DB, studentID int64) string {

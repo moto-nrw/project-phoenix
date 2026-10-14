@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -22,16 +23,16 @@ import (
 // scope and the admin overrides — is what production runs.
 
 // newMFATestModule composes the module the way the service root does.
-func newMFATestModule(t *testing.T, db *bun.DB, options ...services.AuthTestOption) services.AuthTestModule {
+func newMFATestModule(t *testing.T, db *bun.DB, options ...api.AuthTestOption) api.AuthTestModule {
 	t.Helper()
-	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db), options...)
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), options...)
 	require.NoError(t, err)
 	return module
 }
 
 // newTestMFAService wires a test-DB-backed second factor with a successful
 // mailer, so StartMFAChallenge exercises the delivered-code path.
-func newTestMFAService(t *testing.T, options ...services.AuthTestOption) (identityaccess.AccountMFA, services.MembershipTestRepositories, *bun.DB) {
+func newTestMFAService(t *testing.T, options ...api.AuthTestOption) (identityaccess.AccountMFA, services.MembershipTestRepositories, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module := newMFATestModule(t, db, withDeliveringMailer(options)...)
@@ -42,19 +43,23 @@ func newTestMFAService(t *testing.T, options ...services.AuthTestOption) (identi
 // default only logs and then reports the transport unavailable — which the
 // fail-closed code send correctly refuses on. A caller that supplies its own
 // mailer still wins, options being applied in order.
-func withDeliveringMailer(options []services.AuthTestOption) []services.AuthTestOption {
-	return append([]services.AuthTestOption{
-		services.WithAuthTestMailer(testpkg.NewCapturingMailer()),
-		services.WithAuthTestMFABackoff(time.Millisecond),
+func withDeliveringMailer(options []api.AuthTestOption) []api.AuthTestOption {
+	return append([]api.AuthTestOption{
+		api.WithAuthTestMailer(testpkg.NewCapturingMailer()),
+		api.WithAuthTestMFABackoff(time.Millisecond),
 	}, options...)
 }
 
-// challengeTokenAuth is the signer the composed module mints and parses the
-// challenge JWTs with, so a test can read the claims it carries.
-func challengeTokenAuth(t *testing.T, module services.AuthTestModule) *authjwt.TokenAuth {
+// challengeTokenAuth is Identity's session token adapter over the signing
+// configuration the composed module mints and parses the challenge JWTs with,
+// so a test can read the claims it carries.
+func challengeTokenAuth(t *testing.T, module api.AuthTestModule) *authjwt.TokenAuth {
 	t.Helper()
-	require.NotNil(t, module.TokenAuth)
-	return module.TokenAuth
+	signing := module.SessionSigning
+	require.NotEmpty(t, signing.Secret)
+	tokenAuth, err := authjwt.NewTokenAuthWithDurations(signing.Secret, signing.AccessExpiry, signing.RefreshExpiry)
+	require.NoError(t, err)
+	return tokenAuth
 }
 
 // newMFATestScenario composes the second factor together with the material a
@@ -68,7 +73,7 @@ type mfaTestScenario struct {
 	AccountID int64
 }
 
-func newMFATestScenario(t *testing.T, options ...services.AuthTestOption) mfaTestScenario {
+func newMFATestScenario(t *testing.T, options ...api.AuthTestOption) mfaTestScenario {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module := newMFATestModule(t, db, withDeliveringMailer(options)...)
@@ -85,12 +90,12 @@ func newMFATestScenario(t *testing.T, options ...services.AuthTestOption) mfaTes
 // the service instead of setting it afterwards.
 func newGatedAuthService(t *testing.T, db *bun.DB, mfa identityaccess.AccountMFA) gatedAuthService {
 	t.Helper()
-	module := newMFATestModule(t, db, withDeliveringMailer([]services.AuthTestOption{
-		services.WithAuthTestMFACapability(mfa),
+	module := newMFATestModule(t, db, withDeliveringMailer([]api.AuthTestOption{
+		api.WithAuthTestMFACapability(mfa),
 	})...)
 	return gatedAuthService{
 		testAuthService: newFixtureAuthService(t, db, module.Auth),
-		TokenAuth:       module.TokenAuth,
+		TokenAuth:       challengeTokenAuth(t, module),
 	}
 }
 
@@ -108,7 +113,7 @@ type gatedAuthService struct {
 // port and leaves the rest untouched, which is the situation a fail-open bug
 // needs to show itself: everything around the failing read still works.
 type failingMFARecords struct {
-	services.AccountMFARecords
+	api.AccountMFARecords
 	countChallengesSince func(ctx context.Context, accountID int64, since time.Time) (int, error)
 	consumeChallenge     func(ctx context.Context, id int64, consumedAt time.Time) error
 	findCredential       func(ctx context.Context, accountID int64) (identityaccess.AccountMFACredential, bool, error)
@@ -144,8 +149,8 @@ func (r failingMFARecords) FindGlobalOverride(ctx context.Context, accountID int
 }
 
 // withFailingMFARecords composes the module with one statement replaced.
-func withFailingMFARecords(replace failingMFARecords) services.AuthTestOption {
-	return services.WithAuthTestMFARecords(func(records services.AccountMFARecords) services.AccountMFARecords {
+func withFailingMFARecords(replace failingMFARecords) api.AuthTestOption {
+	return api.WithAuthTestMFARecords(func(records api.AccountMFARecords) api.AccountMFARecords {
 		replace.AccountMFARecords = records
 		return replace
 	})

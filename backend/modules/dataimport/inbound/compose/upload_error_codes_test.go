@@ -21,7 +21,7 @@ import (
 func TestUploadRefusalsAnswerWithRegisteredCodes(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	_, module := testutil.SetupImportModule(t, db)
+	_, module := setupImportModule(t, db)
 	resource := importAPI.NewResource(importAPI.Dependencies{Students: module.Import, Staff: module.StaffImport, ClassList: module.ClassListImport, Files: fileformat.Decoder{}, Runtime: importCompose.HTTPRuntime(db, module.PeopleDirectory, module.Membership, nil)})
 	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Upload", "Admin")
 

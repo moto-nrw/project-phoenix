@@ -14,16 +14,16 @@ import (
 
 // These test-support builders share the root's adapter wiring without invoking
 // its production bootstrap. Each accepts only the module under test.
-func newStaffTestResource(module schoolmembership.Capability, svc services.StaffTestModule, db transactionruntime.Database, logger *slog.Logger) *staffHTTP.Resource {
+func newStaffTestResource(module schoolmembership.Capability, svc StaffTestModule, db transactionruntime.Database, logger *slog.Logger) *staffHTTP.Resource {
 	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffAdmin, svc.TimeTracking)
 	admin := newStaffAdminResource(capabilities, nil, nil, nil, db, logger)
 	return newStaffResource(module, svc.PeopleDirectory, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
-		return svc.NewStaffMembershipRuntime(db.Pool(), logger, hooks)
+		return svc.NewStaffMembershipRuntime(db, logger, hooks)
 	}, admin, logger)
 }
 
-func newCareScheduleTestRouter(db transactionruntime.Database, module services.StudentTestModule) (chi.Router, error) {
-	parent, err := services.NewParentCareScheduleTestService(db.Pool(), module)
+func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTestModule) (chi.Router, error) {
+	parent, err := NewParentCareScheduleTestService(db, module)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func newStudentPhotoTestBootstrap() services.StudentPhotoBootstrap {
 }
 
 func newDatabaseStatsTestRouter(db transactionruntime.Database) (chi.Router, error) {
-	read, err := services.NewDatabaseStatsTestReader(db.Pool())
+	read, err := NewDatabaseStatsTestReader(db)
 	if err != nil {
 		return nil, err
 	}

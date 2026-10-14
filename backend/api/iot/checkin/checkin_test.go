@@ -37,7 +37,7 @@ func testRuntime() checkinAPI.Runtime {
 // clock pins the instant the scans are admitted.
 func setupCheckinRoute(t *testing.T, clocks ...func() time.Time) *kiosk {
 	t.Helper()
-	db, module := testutil.SetupCheckinModule(t, clocks...)
+	db, module := setupCheckinModule(t, clocks...)
 	return &kiosk{db: db, resource: checkinAPI.NewResource(module.DeviceScan, testRuntime(), nil), rosters: module.Rosters}
 }
 

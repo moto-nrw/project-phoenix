@@ -31,7 +31,7 @@ type feedbackTestContext struct {
 func setupFeedbackModule(t *testing.T) *feedbackTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupFeedbackModule(t)
+	db, svc := composeFeedbackModule(t)
 	setEnabled := func(enabled bool) {
 		require.NoError(t, svc.Settings.SetValue(testpkg.Ctx(t), feedbackEnabledSetting, enabled, nil, nil))
 	}

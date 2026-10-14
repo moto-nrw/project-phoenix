@@ -23,12 +23,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,7 @@ type sickCascadeEnv struct {
 	planSyncEnv
 	// absences is the retained absence lifecycle the composition root binds
 	// the cascade into; the end-to-end cases drive it.
-	absences services.WorkforceTestModule
+	absences api.WorkforceTestModule
 	ctx      context.Context
 	// tenantID is this test's own tenant (#2419); the env's raw-SQL and
 	// WithTenantTx paths need the ID, not just the context.
@@ -70,7 +71,7 @@ func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 func buildSickCascadeEnvWith(t *testing.T, cascadeBroadcaster realtime.Broadcaster) *sickCascadeEnv {
 	t.Helper()
 	env := newPlanSyncEnv(t, cascadeBroadcaster, sickCascadeNow)
-	absences, err := services.NewWorkforceTestModule(env.db, testpkg.TenantRuntime(t, env.db), sickCascadeNow)
+	absences, err := api.NewWorkforceTestModule(testpkg.NewDatabase(t, env.db), testpkg.TenantRuntime(t, env.db), sickCascadeNow)
 	require.NoError(t, err)
 
 	suffix := time.Now().UnixNano()

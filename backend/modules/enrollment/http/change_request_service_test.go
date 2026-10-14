@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"testing"
 
-	testutil "github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -31,16 +31,16 @@ func newChangeRequestServiceForTest(env *requestTestEnv) enrollmentAPI.ChangeReq
 
 func newChangeRequestServiceForTestWithAuthorizer(
 	env *requestTestEnv,
-	authorizer testutil.EnrollmentGuardianAuthorizer,
+	authorizer api.EnrollmentGuardianAuthorizer,
 ) enrollmentAPI.ChangeRequestService {
 	repoFactory := env.repos
-	return newTestChangeRequestService(testutil.EnrollmentChangeRequestSources{
+	return newTestChangeRequestService(api.EnrollmentChangeRequestSources{
 		Bookings:            requestTestBookingCommands(),
 		Requests:            repoFactory.Enrollment(),
 		Children:            repoFactory.Enrollment(),
 		Guardians:           repoFactory.Enrollment(),
 		LateInviteRepo:      repoFactory.Enrollment(),
-		CareOfferingRepo:    testutil.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
+		CareOfferingRepo:    api.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
 		Catalog:             repoFactory.Enrollment(),
 		Notifications:       testNotifications(repoFactory.Enrollment(), env.settings, env.outbox, factorySchools{repos: repoFactory}),
 		GuardianProfileRepo: repoFactory.GuardianProfile,
@@ -97,16 +97,16 @@ func newChangeRequestServiceWithDecisionForTest(t *testing.T, env *decisionTestE
 func newChangeRequestServiceWithDecisionAndIntakeForTest(
 	t *testing.T,
 	env *decisionTestEnv,
-	requests testutil.EnrollmentChangeRequestRecords,
+	requests api.EnrollmentChangeRequestRecords,
 ) enrollmentAPI.ChangeRequestService {
 	t.Helper()
-	return newTestChangeRequestService(testutil.EnrollmentChangeRequestSources{
+	return newTestChangeRequestService(api.EnrollmentChangeRequestSources{
 		Bookings:            requestTestBookingCommands(),
 		Requests:            requests,
 		Children:            env.repos.Enrollment(),
 		Guardians:           env.repos.Enrollment(),
 		LateInviteRepo:      env.repos.Enrollment(),
-		CareOfferingRepo:    testutil.NewEnrollmentCareOfferingRecords(env.repos.CarePlan()),
+		CareOfferingRepo:    api.NewEnrollmentCareOfferingRecords(env.repos.CarePlan()),
 		Catalog:             env.repos.Enrollment(),
 		Notifications:       testNotifications(requests, env.settings, env.outbox, factorySchools{repos: env.repos}),
 		GuardianProfileRepo: env.repos.GuardianProfile,
@@ -124,7 +124,7 @@ func newChangeRequestServiceWithDecisionAndIntakeForTest(
 }
 
 type failAdminAuditChangeRequestIntake struct {
-	testutil.EnrollmentChangeRequestRecords
+	api.EnrollmentChangeRequestRecords
 }
 
 func (r failAdminAuditChangeRequestIntake) InsertChangeRequest(ctx context.Context, row *capability.ChangeRequest) error {
@@ -177,7 +177,7 @@ func TestNewChangeRequestService_ParentsURLRequired(t *testing.T) {
 	t.Parallel()
 
 	assert.PanicsWithValue(t, "PARENTS_URL is required", func() {
-		newTestChangeRequestService(testutil.EnrollmentChangeRequestSources{
+		newTestChangeRequestService(api.EnrollmentChangeRequestSources{
 			Bookings:    requestTestBookingCommands(),
 			FrontendURL: "http://localhost:3000",
 		})
@@ -187,7 +187,7 @@ func TestNewChangeRequestService_ParentsURLRequired(t *testing.T) {
 func TestChangeRequestService_CorrectApprovedChildData_RequiresReason(t *testing.T) {
 	t.Parallel()
 
-	svc := newTestChangeRequestService(testutil.EnrollmentChangeRequestSources{
+	svc := newTestChangeRequestService(api.EnrollmentChangeRequestSources{
 		Bookings:   requestTestBookingCommands(),
 		ParentsURL: "http://parents.localhost:3000",
 	})
@@ -1740,7 +1740,7 @@ func TestChangeRequestService_Approve_RollsBackApprovedChildScheduleReplacementF
 
 // Inject failures at the consumer port, after real tenant/aggregate setup.
 type failingChangeRequestReader struct {
-	testutil.EnrollmentChangeRequestRecords
+	api.EnrollmentChangeRequestRecords
 	fail string
 }
 
@@ -1773,7 +1773,7 @@ func (r failingChangeRequestReader) RequestByToken(ctx context.Context, token st
 }
 
 type failingChangeRequestCatalog struct {
-	testutil.EnrollmentIntakeCatalog
+	api.EnrollmentIntakeCatalog
 }
 
 func (r failingChangeRequestCatalog) Phase(context.Context, int64) (*capability.Phase, error) {
@@ -1797,9 +1797,9 @@ func TestChangeRequestService_PreservesReadFailures(t *testing.T) {
 		{"detail", "read"}, {"detail", "parent"}, {"question", "read"}, {"question", "lock"}, {"question", "parent"}, {"reply", "lock"}, {"reply", "token"}, {"detail", "phase"}, {"create", "phase"},
 	} {
 		t.Run(tc.operation+"/"+tc.fail, func(t *testing.T) {
-			svc := newTestChangeRequestService(testutil.EnrollmentChangeRequestSources{
+			svc := newTestChangeRequestService(api.EnrollmentChangeRequestSources{
 				Bookings: requestTestBookingCommands(),
-				Requests: failingChangeRequestReader{EnrollmentChangeRequestRecords: env.config.Requests.(testutil.EnrollmentChangeRequestRecords), fail: tc.fail},
+				Requests: failingChangeRequestReader{EnrollmentChangeRequestRecords: env.config.Requests.(api.EnrollmentChangeRequestRecords), fail: tc.fail},
 				Children: env.config.Children, Settings: env.settings,
 				Catalog:    failingChangeRequestCatalog{EnrollmentIntakeCatalog: env.config.Catalog},
 				ParentsURL: "http://parents.localhost:3000",

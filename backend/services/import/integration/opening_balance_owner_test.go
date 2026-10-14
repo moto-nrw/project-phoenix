@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -20,7 +20,7 @@ func TestDataImportCutover_OpeningBalanceOwnerContract(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	now := time.Date(2026, time.September, 12, 12, 0, 0, 0, time.UTC)
-	module, err := services.NewWorkforceTestModule(db, testpkg.TenantRuntime(t, db), func() time.Time { return now })
+	module, err := api.NewWorkforceTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), func() time.Time { return now })
 	require.NoError(t, err)
 	staff := testpkg.CreateTestStaff(t, db, "Opening", "Subject")
 	actor := newImporter(t, db)

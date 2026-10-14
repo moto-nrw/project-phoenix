@@ -5,12 +5,10 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	"github.com/moto-nrw/project-phoenix/services"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -44,12 +42,12 @@ func newCompanionSyncApplier(
 	t.Helper()
 	repoFactory := testRepositories(t, env.db)
 	bookings := testBookings(t, env.rolloverTestEnv, nil)
-	decisions := newTestDecisions(testutil.EnrollmentDecisionSources{
+	decisions := newTestDecisions(api.EnrollmentDecisionSources{
 		Requests:            repoFactory.Enrollment(),
 		Children:            repoFactory.Enrollment(),
 		Guardians:           repoFactory.Enrollment(),
 		CareBookings:        bookings,
-		CareOfferings:       testutil.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
+		CareOfferings:       api.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
 		Phases:              repoFactory.Enrollment(),
 		Schemas:             repoFactory.Enrollment(),
 		OfferingAdjustments: repoFactory.EnrollmentOfferingAdjustment,
@@ -159,9 +157,9 @@ func linkCompanionPartnerOnTuesday(t *testing.T, env *decisionTestEnv, studentID
 	stored.DepartureCompanionNote = &note
 	require.NoError(t, env.repos.Student.Update(ctx, stored))
 
-	edge, err := services.NewStudentCompanionEdge(studentID, partner.ID, 2)
+	edge, err := api.NewStudentCompanionEdge(studentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, services.ReplaceStudentCompanions(ctx, services.NewStudentCompanionRepository(env.repos.CarePlan()), studentID,
+	require.NoError(t, api.ReplaceStudentCompanions(ctx, services.NewStudentCompanionRepository(env.repos.CarePlan()), studentID,
 		[]*usersModels.StudentCompanion{edge}))
 
 	if !withOwnNote {

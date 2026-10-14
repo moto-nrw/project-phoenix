@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestVerifyStudentSchema_FullyMigrated pins the startup guard's happy path:
@@ -19,5 +19,5 @@ func TestVerifyStudentSchema_FullyMigrated(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	require.NoError(t, testutil.VerifyPeopleRepositorySuiteStudentSchema(context.Background(), db))
+	require.NoError(t, api.VerifyPeopleRepositorySuiteStudentSchema(context.Background(), testpkg.NewDatabase(t, db)))
 }

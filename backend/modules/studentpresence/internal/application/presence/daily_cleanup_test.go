@@ -36,7 +36,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -74,7 +74,7 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 	require.NotNil(t, session)
 
 	// Create a visit for this group using real student ID
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	presence := testSchoolPresence(t, db)
 
 	visit := studentpresence.Visit{
@@ -158,7 +158,7 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create visits for both groups using real student IDs
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	presence := testSchoolPresence(t, db)
 
 	visit1 := studentpresence.Visit{

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -21,7 +21,7 @@ func TestPresenceCleanupRollsBackFailedSchoolAndContinues(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	first, _ := testpkg.CreateTestTenant(t, db)
 	second, _ := testpkg.CreateTestTenant(t, db)
-	schools, err := testutil.NewOrganizationTenancy(db)
+	schools, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	cc := &cleanupContext{
 		DB:      testpkg.NewDatabase(t, db),

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -29,8 +30,8 @@ import (
 func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	sf, err := services.NewFactoryForTests(repos, db, slog.Default(), func() time.Time {
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	sf, err := api.NewFactoryForTests(repos, testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
@@ -65,9 +66,9 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		ParentRequestShares:    repos.ParentRequestShare,
 		StatusDayRepo:          repos.StudentStatusDay,
 		MessageThreadRepo:      repos.ParentMessageThread,
-		MessageRepo:            services.NewParentMessageRepository(db),
+		MessageRepo:            api.NewParentMessageRepository(testpkg.NewDatabase(t, db)),
 		MessageReadRepo:        repos.ParentMessageRead,
-		Conversations:          communicationtest.NewParentConversationCore(repos.ParentMessageThread, services.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
+		Conversations:          communicationtest.NewParentConversationCore(repos.ParentMessageThread, api.NewParentMessageRepository(testpkg.NewDatabase(t, db)), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Logger:                 slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)

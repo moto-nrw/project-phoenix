@@ -6,13 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -24,11 +23,11 @@ import (
 // substitute a row reads it here instead of through a repository.
 
 // newOperatorMFATestModule composes the module the way the service root does.
-func newOperatorMFATestModule(t *testing.T, db *bun.DB, options ...services.AuthTestOption) services.AuthTestModule {
+func newOperatorMFATestModule(t *testing.T, db *bun.DB, options ...api.AuthTestOption) api.AuthTestModule {
 	t.Helper()
-	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db), options...)
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), options...)
 	require.NoError(t, err)
-	require.NotNil(t, module.TokenAuth)
+	require.NotEmpty(t, module.SessionSigning.Secret)
 	return module
 }
 
@@ -36,11 +35,11 @@ func newOperatorMFATestModule(t *testing.T, db *bun.DB, options ...services.Auth
 // successful mailer, so StartOperatorMFAChallenge exercises the
 // delivered-code path. The signer it returns is the one the module mints and
 // parses the operator challenge JWTs with.
-func newTestOperatorMFAService(t *testing.T, options ...services.AuthTestOption) (identityaccess.OperatorMFAFlows, *authjwt.TokenAuth, *bun.DB) {
+func newTestOperatorMFAService(t *testing.T, options ...api.AuthTestOption) (identityaccess.OperatorMFAFlows, *authjwt.TokenAuth, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module := newOperatorMFATestModule(t, db, withDeliveringMailer(options)...)
-	return module.OperatorMFA, module.TokenAuth, db
+	return module.OperatorMFA, challengeTokenAuth(t, module), db
 }
 
 // operatorChallengeRow is the test's read side of

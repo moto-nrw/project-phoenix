@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
@@ -30,16 +31,16 @@ import (
 // buildReadService wires the full parent messaging stack including the guardian
 // profile repo (so resolveGuardianName resolves a real name) and returns the
 // service, broadcaster, db, and repo factory.
-func buildReadService(t *testing.T, enabled bool) (*messaging.Service, *testpkg.RecordingBroadcaster, *bun.DB, *services.RepositoryTestFactory) {
+func buildReadService(t *testing.T, enabled bool) (*messaging.Service, *testpkg.RecordingBroadcaster, *bun.DB, *api.RepositoryTestFactory) {
 	return buildReadServiceWithNotifier(t, enabled, nil)
 }
 
-func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificationsSvc.StaffParentMessageNotifier) (*messaging.Service, *testpkg.RecordingBroadcaster, *bun.DB, *services.RepositoryTestFactory) {
+func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificationsSvc.StaffParentMessageNotifier) (*messaging.Service, *testpkg.RecordingBroadcaster, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	// Child names come from the People Directory composition (#2661); bind
 	// it before the school projections, as the service graph does.
-	repos, err := services.NewRepositoryTestFactoryWithPeopleDirectory(db, services.NewUnobservedTimetableDependencies(db))
+	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	organizationTenancy, err := services.NewOrganizationTenancy(db)
 	require.NoError(t, err)
@@ -60,9 +61,9 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificat
 			},
 		},
 		MessageThreadRepo:     repos.ParentMessageThread,
-		MessageRepo:           services.NewParentMessageRepository(db),
+		MessageRepo:           api.NewParentMessageRepository(testpkg.NewDatabase(t, db)),
 		MessageReadRepo:       repos.ParentMessageRead,
-		Conversations:         communicationtest.NewParentConversationCore(repos.ParentMessageThread, services.NewParentMessageRepository(db), repos.ParentMessageRead, bc, slog.Default()),
+		Conversations:         communicationtest.NewParentConversationCore(repos.ParentMessageThread, api.NewParentMessageRepository(testpkg.NewDatabase(t, db)), repos.ParentMessageRead, bc, slog.Default()),
 		ParentMessageNotifier: notifier,
 		Logger:                slog.Default(),
 	})
@@ -81,7 +82,7 @@ func (n *recordingStaffParentMessageNotifier) NotifyStaffParentMessage(_ context
 // seedStaffReply inserts a staff-authored message into the guardian's child
 // thread (creating the thread), simulating an OGS reply that is unread to the
 // guardian. Returns the thread id and the staff account id (caller cleans it up).
-func seedStaffReply(t *testing.T, db *bun.DB, repos *services.RepositoryTestFactory, chain testpkg.ParentChain, body string) (int64, int64) {
+func seedStaffReply(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, chain testpkg.ParentChain, body string) (int64, int64) {
 	t.Helper()
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
@@ -99,7 +100,7 @@ func seedStaffReply(t *testing.T, db *bun.DB, repos *services.RepositoryTestFact
 	m.SetTenantID(chain.TenantID)
 	// AppendMessage also touches the thread's last-activity, so it surfaces in the
 	// guardian's thread list (empty conversations stay hidden).
-	require.NoError(t, communicationtest.NewParentConversationCore(repos.ParentMessageThread, services.NewParentMessageRepository(db), repos.ParentMessageRead, nil, nil).AppendMessage(ctx, m))
+	require.NoError(t, communicationtest.NewParentConversationCore(repos.ParentMessageThread, api.NewParentMessageRepository(testpkg.NewDatabase(t, db)), repos.ParentMessageRead, nil, nil).AppendMessage(ctx, m))
 	return thread.ID, staffAccount.ID
 }
 

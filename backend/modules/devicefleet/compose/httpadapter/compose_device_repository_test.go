@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/services"
 
 	iot "github.com/moto-nrw/project-phoenix/models/iot"
@@ -21,7 +23,7 @@ import (
 // contract their callers hold.
 func newDeviceRepository(t *testing.T, db *bun.DB) iot.DeviceRepository {
 	t.Helper()
-	repository, err := services.NewDeviceRepository(db)
+	repository, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err, "Failed to compose the device repository")
 	return repository
 }

@@ -8,11 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-
+	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -22,17 +21,17 @@ import (
 )
 
 type failingIntakeWrites struct {
-	testutil.EnrollmentIntakeRequests
-	testutil.EnrollmentIntakeChildren
-	testutil.EnrollmentIntakeGuardians
-	testutil.EnrollmentIntakeLateInvites
+	api.EnrollmentIntakeRequests
+	api.EnrollmentIntakeChildren
+	api.EnrollmentIntakeGuardians
+	api.EnrollmentIntakeLateInvites
 	writes    int
 	failAfter int
 	failure   error
 }
 
 type failingSubmissionRateLimiter struct {
-	testutil.EnrollmentSubmissionRateLimiter
+	api.EnrollmentSubmissionRateLimiter
 	failKey string
 	failure error
 }
@@ -280,7 +279,7 @@ func assertSubmissionEmailCount(t *testing.T, db *bun.DB, delivery testEnrollmen
 }
 
 type failingIntakeOfferingLinks struct {
-	testutil.EnrollmentIntakeChildren
+	api.EnrollmentIntakeChildren
 	writes    int
 	failAfter int
 	failure   error

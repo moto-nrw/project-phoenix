@@ -4,8 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 
@@ -22,9 +21,9 @@ func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	timetableDeps := services.NewUnobservedTimetableDependencies(db)
-	repos := services.NewRepositoryTestFactory(db, timetableDeps)
-	svc, err := compose.NewPartialAbsences(db, repos.CarePlan(), services.NewStudentPresenceForTests(db), nil)
+	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
+	svc, err := compose.NewPartialAbsences(db, repos.CarePlan(), api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db)), nil)
 	require.NoError(t, err)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

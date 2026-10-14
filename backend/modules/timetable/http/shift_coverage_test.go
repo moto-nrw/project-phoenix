@@ -27,8 +27,8 @@ import (
 
 func setupShiftCoverageRoute(t *testing.T) chi.Router {
 	t.Helper()
-	_, services := testutil.SetupTimetableModule(t)
-	resource := NewResource(Dependencies{Templates: services.TimetableData.Templates, TimetableData: services.TimetableData.Data, ConflictDetection: services.ConflictDetection})
+	_, services := RootCompositions.Module(t)
+	resource := NewResource(Dependencies{Templates: services.Templates, TimetableData: services.Data, ConflictDetection: services.ConflictDetection})
 	router := chi.NewRouter()
 	router.Mount("/timetable", resource.Router())
 	return router

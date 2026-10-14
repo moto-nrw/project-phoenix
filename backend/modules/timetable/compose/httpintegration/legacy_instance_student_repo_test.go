@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -20,17 +21,17 @@ import (
 )
 
 func newBoundPickupExceptionRepository(db *bun.DB) scheduleModels.StudentPickupExceptionRepository {
-	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentPickupException
+	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).StudentPickupException
 }
 
-func instanceStudentFactory(t *testing.T, db *bun.DB) *services.RepositoryTestFactory {
+func instanceStudentFactory(t *testing.T, db *bun.DB) *api.RepositoryTestFactory {
 	t.Helper()
-	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	return api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 }
 
 func instanceStudentRepository(t *testing.T, db *bun.DB) scheduleModels.InstanceStudentRepository {
 	t.Helper()
-	return services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db)).InstanceStudent
+	return services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).InstanceStudent
 }
 
 func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
@@ -1043,7 +1044,7 @@ func TestInstanceStudentRepository_MarkExpectedAbsentByActiveGroupIDs_PairScoped
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db)).ActivityInstance
+	instanceRepo := services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance
 
 	fx := newActivityInstanceFixtures(t, db, "mark-pairs")
 	defer fx.cleanup()
@@ -1776,7 +1777,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *te
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db)).ActivityInstance
+	instanceRepo := services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance
 
 	account := testpkg.CreateTestAccount(t, db, "roster-restore-frozen@test.local")
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
@@ -2247,7 +2248,7 @@ func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instRepo := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db)).ActivityInstance
+	instRepo := services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance
 
 	student := testpkg.CreateTestStudent(t, db, "Paula", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()), "1a")
 	other := testpkg.CreateTestStudent(t, db, "Otto", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()+1), "1a")

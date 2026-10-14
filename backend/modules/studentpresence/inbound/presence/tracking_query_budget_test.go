@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -19,6 +20,18 @@ import (
 )
 
 func init() { testutil.SeedTestJWTConfig() }
+
+// TrackingSettings is the settings service the budget test seeds and the
+// tracking route reads.
+type TrackingSettings interface {
+	Settings
+	SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
+}
+
+// ComposeTrackingSettings composes the root's settings service over db. The
+// root imports this package, so these internal tests cannot import it;
+// root_composition_test.go binds it.
+var ComposeTrackingSettings func(t *testing.T, db *bun.DB) TrackingSettings
 
 // TestTrackingIndicatorsIssuesOneSettingValuesQuery drives the REAL router
 // (ProtectedTenantGroup chain, so the request cache middleware is attached the
@@ -37,7 +50,7 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_values WHERE tenant_id = ?`, tenantID)
 	})
 
-	settings := testutil.SetupSettingsModuleWithDB(t, db).Settings
+	settings := ComposeTrackingSettings(t, db)
 
 	seedCtx := tenant.WithTenantID(context.Background(), tenantID)
 	require.NoError(t, settings.SetValue(seedCtx, tenantsettings.KeyTrackingIndicatorsEnabled, true, nil, nil))

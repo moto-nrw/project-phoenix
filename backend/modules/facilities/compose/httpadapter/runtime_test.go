@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,11 +33,26 @@ func init() {
 
 // testContext holds shared test dependencies.
 type testContext struct {
-	services services.RoomsTestModule
+	services RoomsComposition
 	db       *bun.DB
 	resource *Resource
 	router   chi.Router
 }
+
+// RoomsComposition is what the route suites take from the root's Rooms
+// composition: the route dependencies and the settings service they toggle.
+type RoomsComposition struct {
+	Dependencies Dependencies
+	Settings     interface {
+		SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
+		ResetValue(ctx context.Context, key string, changedBy *int64, userPermissions []string) error
+	}
+}
+
+// ComposeRooms composes the root's Rooms graph over the package's test
+// database. The root imports this package, so these internal tests cannot
+// import it; root_composition_test.go binds it.
+var ComposeRooms func(t *testing.T) (*bun.DB, RoomsComposition)
 
 // setupRoomsRoute initializes the test environment. The router serves the
 // resource through the production middleware chain (Verifier → Authenticator →
@@ -48,13 +61,13 @@ type testContext struct {
 func setupRoomsRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupRoomsModule(t)
+	db, svc := ComposeRooms(t)
 
 	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB:           db,
 		DeletionLock: func(context.Context) error { return nil },
 		DeletionGuard: func(ctx context.Context, roomID int64) error {
-			err := svc.Facilities.ValidateRoomDeletion(ctx, roomID)
+			err := svc.Dependencies.Facilities.ValidateRoomDeletion(ctx, roomID)
 			var coded interface{ Code() string }
 			if !errors.As(err, &coded) {
 				return err
@@ -71,10 +84,7 @@ func setupRoomsRoute(t *testing.T) *testContext {
 		Observe: func(facilitiesCompose.Observation) {},
 	})
 	require.NoError(t, err)
-	resource := NewResource(rooms, Dependencies{
-		Facilities: svc.Facilities, Settings: svc.Settings, UserContext: svc.UserContext,
-		Active: svc.Active, Users: services.NewRoomSnapshotPeople(svc.Users), Education: svc.Education, ListExport: svc.ListExport,
-	}, slog.Default())
+	resource := NewResource(rooms, svc.Dependencies, slog.Default())
 
 	return &testContext{
 		services: svc,

@@ -6,20 +6,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -109,7 +106,7 @@ func (f *calendarPeriodValidationFixture) createPeriod(
 		IsActive:        true,
 	}
 	period.SetTenantID(f.tenantID)
-	require.NoError(t, services.NewRepositoryTestFactory(f.db, services.NewUnobservedTimetableDependencies(f.db)).CalendarPeriod.Create(f.ctx, period))
+	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db))).CalendarPeriod.Create(f.ctx, period))
 	return period
 }
 
@@ -209,7 +206,7 @@ func (f *calendarPeriodValidationFixture) selectOfferingForSubmittedChild(
 		CareOfferingID: offeringID,
 		SelectedDays:   []string{"mon"},
 	}
-	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(f.ctx, row))
+	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(f.ctx, row))
 }
 
 // validate runs the validation inside a tenant transaction, which is how it
@@ -290,7 +287,7 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering
 	_, offering := fixture.createLinkedTemplate(t, &period.ID, nil)
 	fixture.selectOfferingForSubmittedChild(t, offering.ID)
 	offering.IsActive = false
-	require.NoError(t, newCareOfferingFixtureRecords(services.NewRepositoryTestFactory(fixture.db, services.NewUnobservedTimetableDependencies(fixture.db)).CarePlan()).Update(fixture.ctx, offering))
+	require.NoError(t, newCareOfferingFixtureRecords(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, fixture.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, fixture.db))).CarePlan()).Update(fixture.ctx, offering))
 
 	replacement := calendarPeriodReplacementOf(*period)
 	replacement.IsActive = false
@@ -385,9 +382,9 @@ func setupCareGuardTest(t *testing.T) (*bun.DB, *enrollmentTest.CareOfferingRows
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	catalog := testCareOfferingCatalog(t, db,
-		testutil.WithCareOfferingPickupResync(&pickupResyncer{}))
+		api.WithCareOfferingPickupResync(&pickupResyncer{}))
 
 	phase := &enrollmentTest.Phase{
 		Name:             uniqueSchemaName("phase-" + t.Name()),
@@ -467,7 +464,7 @@ func setCareTestPhaseWindow(
 	t.Helper()
 	phase.ServiceStartDate = enrollmentTest.Date(start)
 	phase.ServiceEndDate = enrollmentTest.Date(end)
-	require.NoError(t, services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
+	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
 }
 
 func createCareMaterializationException(

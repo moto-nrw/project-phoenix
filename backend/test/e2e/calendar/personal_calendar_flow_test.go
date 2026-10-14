@@ -21,7 +21,7 @@ import (
 
 func setupPersonalCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
-	db, serviceFactory := testutil.SetupCalendarModule(t)
+	db, serviceFactory := setupCalendarModule(t)
 	resource := calendarAPI.NewResource(serviceFactory.Calendar, slog.Default())
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))

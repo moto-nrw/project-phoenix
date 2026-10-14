@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -21,7 +21,7 @@ func TestDataImportCutover_DuplicateTagInFileIsNamed(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.OwnTenant(t)
-	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	actor := newImporter(t, db)
 	card := testpkg.CreateTestRFIDCard(t, db, "DUP")
@@ -50,7 +50,7 @@ func TestDataImportCutover_ClassListEntryAndAuditShareASavepoint(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	actor := newImporter(t, db)
 	ctx := testpkg.Ctx(t)

@@ -1,13 +1,12 @@
 package enrollmenthttp_test
 
 import (
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -21,9 +20,9 @@ func TestOwnerOfferingSelectionsAtDate_DoesNotReturnFutureSelection(t *testing.T
 	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "FutureSelection")
 
-	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ReplaceRequestChildOfferings(ctx, fx.childID, nil))
+	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ReplaceRequestChildOfferings(ctx, fx.childID, nil))
 	futureStart := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
-	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
+	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		fx.childID,
 		owner.Date(futureStart),
@@ -75,7 +74,7 @@ func TestOwnerOfferingSelectionsAtDates_DoesNotReturnHistoricalSelection(t *test
 	fx := setupOfferingChangeFixture(t, env, "HistoricalSelection")
 
 	futureStart := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
-	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
+	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		fx.childID,
 		owner.Date(futureStart),

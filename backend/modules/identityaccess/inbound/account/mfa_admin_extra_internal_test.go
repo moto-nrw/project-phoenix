@@ -10,13 +10,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 )
 
 // adminAuthStub embeds the unrelated account capability. These MFA handlers

@@ -25,7 +25,7 @@ import (
 
 func setupClassListEntriesRoute(t *testing.T) (*testpkg.DB, chi.Router) {
 	t.Helper()
-	db, module := testutil.SetupClassListModule(t)
+	db, module := setupClassListModule(t)
 	return db, newClassListEntriesResource(module.Membership, slog.Default()).Router()
 }
 

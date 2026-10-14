@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -18,7 +19,7 @@ import (
 
 // The caller-context behaviour suites port the DB-backed tests of the
 // dissolved modules/identityaccess/legacy/usercontext package (#3501). They
-// drive the capability through services.NewUserContextTestModule, which
+// drive the capability through api.NewUserContextTestModule, which
 // composes it over the same owners as production.
 
 // nonexistentCallerRowID names a row that no fixture creates.
@@ -27,7 +28,7 @@ const nonexistentCallerRowID int64 = 999999999
 // setupCallerRows composes the caller context over db.
 func setupCallerRows(t *testing.T, db *bun.DB) *services.CallerRows {
 	t.Helper()
-	module, err := services.NewUserContextTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewUserContextTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	return module.UserContext
 }
@@ -625,7 +626,7 @@ func TestParentRequestReviews_UsesRealTeacherGroupAssignments(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	reviews := setupCallerRows(t, db).Caller().ParentRequestReviews
 	require.NotNil(t, reviews)
-	settingsModule, err := services.NewSettingsTestModule(db, testpkg.TenantRuntime(t, db))
+	settingsModule, err := api.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	settings := settingsModule.Settings
 

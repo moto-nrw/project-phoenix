@@ -23,7 +23,7 @@ type attendanceKiosk struct {
 
 func setupAttendanceRoute(t *testing.T) *attendanceKiosk {
 	t.Helper()
-	db, module := testutil.SetupCheckinModule(t)
+	db, module := setupCheckinModule(t)
 	return &attendanceKiosk{
 		kiosk:      kiosk{db: db, resource: checkinAPI.NewResource(module.DeviceScan, testRuntime(), nil)},
 		attendance: checkinAPI.NewAttendanceResource(module.DeviceScan, testRuntime(), nil),

@@ -7,16 +7,16 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -27,7 +27,7 @@ import (
 func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, usersModels.ParentRequestEventRepository, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	events := repos.ParentRequestEvent
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CarePlan(),
@@ -226,7 +226,7 @@ func TestEditMasterDataRequestRefusesUnchangedValue(t *testing.T) {
 		}, nil)
 	require.NoError(t, err)
 
-	person, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Person.FindByID(ctx, chain.PersonID)
+	person, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Person.FindByID(ctx, chain.PersonID)
 	require.NoError(t, err)
 	live, err := json.Marshal(person.FirstName)
 	require.NoError(t, err)

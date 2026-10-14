@@ -50,7 +50,7 @@ type birthdayTestContext struct {
 func setupBirthdaysRoute(t *testing.T, clocks ...func() time.Time) *birthdayTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupBirthdayModule(t, clocks...)
+	db, svc := setupBirthdayModule(t, clocks...)
 	return &birthdayTestContext{
 		db: db,
 		resource: birthdaysAPI.NewResource(

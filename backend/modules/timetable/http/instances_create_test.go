@@ -22,7 +22,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -330,7 +329,7 @@ func setupDuplicateInstanceRoute(
 ) chi.Router {
 	t.Helper()
 
-	_, serviceFactory := testutil.SetupTimetableModule(t)
+	_, serviceFactory := RootCompositions.Module(t)
 	resource := NewResource(Dependencies{
 		TimetableData:   testTimetableData(db, clock).TimetableData(),
 		InstanceService: serviceFactory.Instance,

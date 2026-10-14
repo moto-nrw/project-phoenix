@@ -1,8 +1,11 @@
-package services
+package services_test
 
 import (
 	"context"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -14,7 +17,7 @@ func TestSessionCleanupRootResolvesRoomsThroughOwner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	repos := NewSessionCleanupRepositories(db, timetabletest.New(t, db))
+	repos := services.NewSessionCleanupRepositories(db, timetabletest.New(t, db))
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 	activity := testpkg.CreateTestActivityGroup(t, db, "Room Activity")
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
@@ -37,8 +40,8 @@ func TestFactoryResolvesRoomsThroughTheOwner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
-	devices, err := NewDeviceRepository(db)
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "Room Activity")

@@ -1,0 +1,154 @@
+package api
+
+import (
+	"context"
+	"log/slog"
+	"time"
+
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/services"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
+	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
+)
+
+type WorkforceTestModule struct {
+	Users      *peopleCompose.PersonDirectory
+	StaffAdmin *workforce.StaffAdmin
+	// TimeTracking is the Workforce time-tracking side composed the way
+	// the factory composes it (#3413).
+	TimeTracking *workforceCompose.TimeTracking
+	Settings     settingsCompose.SettingsService
+}
+
+func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (WorkforceTestModule, error) {
+	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
+	repos, err := NewWorkforceTestRepositories(db, command, clocks...)
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
+	settings, err := NewSettingsTestModule(db, unit)
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
+	logger := slog.Default()
+	identityAccess, err := lifecycleTestModule(db, unit, GuardianInvitationTestConfig{Audit: command, Logger: logger})
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
+	identityRoles := services.RoleAdministration{Current: func() *identityaccess.Module { return identityAccess }}
+	settingsService := settings.Settings
+	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
+	usersService := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
+		PersonDirectory:  peopleCompose.NewPersonWrites(services.MustNewPeopleDirectory(db.Pool())),
+		StudentDirectory: peopleCompose.NewStudentDirectory(services.MustNewPeopleDirectory(db.Pool())),
+		PersonRepo:       repos.Person, RFIDRepo: services.NewPeopleIdentityAccess(db.Pool(), nil), AccountExists: services.AccountExists(identityAccess), StudentRepo: repos.Student,
+		TeacherRepo:    repos.Teacher,
+		StaffDirectory: services.NewStaffDirectory(services.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher, LehrkraftRoles: identityRoles}),
+	})
+	staffAdmin, err := NewStaffAdmin(StaffAdminDependencies{
+		DB: db, Staff: repos.Staff, Persons: repos.Person, Membership: repos.Membership,
+		MasterDataAudit: repos.StaffMasterDataChange, PersonnelNumber: repos.PersonnelNumberChange, DataAccessLog: repos.DataAccessLog, Logger: logger,
+	})
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
+	calendarAdministration := services.SchoolCalendarAdministration(settingsService, func(context.Context) error { return nil }, nil)
+	calendar, err := NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
+	nonWorkingDayService := services.NonWorkingDays{Calendar: calendar}
+	today := timezone.CalendarDateClock(services.OptionalClock(clocks))
+	var shiftPlanSyncer shiftplansync.SickCascade
+	timeTracking, err := newTimeTrackingTestModule(db, repos.WorkSessionTestRepositories, timeTrackingTestGraph{
+		Audits: services.TimeTrackingAudits{
+			WorkSessionEdit: repos.WorkSessionEdit, TimeTrackingDeletion: repos.TimeTrackingDeletion,
+			DataAccessLog: repos.DataAccessLog, TimeTrackingAuditLog: repos.TimeTrackingAuditLog,
+		},
+		Settings: settingsService, People: usersService, Holidays: nonWorkingDayService,
+		Events:        services.TimeTrackingEvents(realtimeHub),
+		ShiftPlanSync: shiftplansyncCompose.DeferredSickCascade(func() shiftplansync.SickCascade { return shiftPlanSyncer }),
+		Logger:        logger, Today: today,
+	})
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
+
+	timetable, err := NewTimetableTestModule(db, unit, clocks...)
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
+	// The #1843 sick cascade is the shift-plan-sync workflow over the
+	// Workforce planning composition and the timetable test module, bound
+	// the way the factory binds it (#3418).
+	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
+		Workforce: repos.StaffAbsenceType, Staff: repos.Staff, CalendarPeriods: repos.SchoolCalendar(), DeviationEvents: repos.DeviationEvent,
+		Instances: timetableCompose.NewTimetableInstanceReads(repos.ActivityInstance), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(repos.InstanceStaff),
+		Rooms: repos.Room, ActivityGroups: timetableCompose.NewTimetableGroupReads(repos.ActivityGroup),
+		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel, Holidays: nonWorkingDayService,
+		DB: db.Pool(), Broadcaster: realtimeHub, Logger: logger, Today: today,
+	})
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
+	shiftPlanSyncer, err = shiftplansyncCompose.NewSickCascade(shiftplansyncCompose.SickCascadeDependencies{
+		Planning: planning.Planning(nil), Workforce: repos.StaffAbsenceType, LockStaffShifts: workforceCompose.NewStaffShiftLock(db.Pool()),
+		Deviations: timetable.TimetableData.Deviations, TimetableData: repos.OwnerRows().SickCascadeRows(timetableCompose.SubstituteDayLock(db.Pool())),
+		InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(repos.InstanceStaff), Broadcaster: realtimeHub, Logger: logger, Today: today,
+	})
+	if err != nil {
+		return WorkforceTestModule{}, err
+	}
+	return WorkforceTestModule{Users: usersService, StaffAdmin: staffAdmin, TimeTracking: timeTracking, Settings: settingsService}, nil
+}
+
+// MustNewStaffEmployment is workforceCompose.MustNewStaffEmployment for the
+// test graphs outside this package whose test roles may not name the Workforce
+// composition.
+func MustNewStaffEmployment(db transactionruntime.Database) workforce.StaffEmployments {
+	return workforceCompose.MustNewStaffEmployment(db.Pool())
+}
+
+// StaffAdminDependencies are the collaborators of the personnel-record
+// administration for the test graphs outside this package whose test roles
+// may not name the Workforce composition.
+type StaffAdminDependencies struct {
+	DB         transactionruntime.Database
+	Staff      userModels.StaffRepository
+	Persons    userModels.PersonRepository
+	Membership schoolmembership.Capability
+
+	MasterDataAudit auditModels.StaffMasterDataChangeCreator
+	PersonnelNumber auditModels.PersonnelNumberChangeCreator
+	DataAccessLog   auditModels.DataAccessLogRepository
+	Observe         func(workforceCompose.Observation)
+	Logger          *slog.Logger
+	Now             func() time.Time
+}
+
+// NewStaffAdmin is ComposeStaffAdmin over one flat dependency set.
+func NewStaffAdmin(deps StaffAdminDependencies) (*workforce.StaffAdmin, error) {
+	return services.ComposeStaffAdmin(workforceCompose.StaffAdminDependencies{
+		DB: deps.DB.Pool(), Observe: deps.Observe, Logger: deps.Logger, Now: deps.Now,
+	}, services.StaffAdminOwners{
+		Staff: deps.Staff, Persons: deps.Persons, Membership: deps.Membership,
+		MasterDataAudit: deps.MasterDataAudit, PersonnelNumber: deps.PersonnelNumber, DataAccessLog: deps.DataAccessLog,
+	})
+}

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -119,7 +120,7 @@ func TestDemoAccessRequestStopsAtTheDemoSchoolCapacity(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	capacity := activeDemoSchools(t, db) + 1
-	env := mountDemoEnv(t, db, "", testutil.WithDemoMaxActiveSchools(capacity))
+	env := mountDemoEnv(t, db, "", api.WithDemoMaxActiveSchools(capacity))
 
 	_, slug := env.requestOwnSchool(t, env.address())
 	second := env.requestBodyFor(t, fmt.Sprintf("zweite-%d@ogs-beispiel.de", testpkg.Tenant(t)))

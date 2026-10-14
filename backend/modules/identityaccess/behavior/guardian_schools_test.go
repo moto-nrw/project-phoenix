@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -15,7 +15,7 @@ import (
 func TestGuardianSchoolsEligibilityAndTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	identity, err := services.NewIdentityAccessForTests(db)
+	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "guardian-schools")
 	ctx := testpkg.Ctx(t)
@@ -69,7 +69,7 @@ func TestGuardianSchoolsEligibilityAndTransaction(t *testing.T) {
 func TestGuardianSchoolsDatabaseFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	identity, err := services.NewIdentityAccessForTests(db)
+	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 	_, err = identity.ListGuardianSchoolIDs(context.Background(), 1)

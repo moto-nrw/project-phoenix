@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,8 +38,8 @@ func isProfileLockTimeout(err error) bool {
 
 // setupGuardianService creates a GuardianService with real database connection
 func setupGuardianService(t *testing.T, db *bun.DB) *peopleCompose.GuardianService {
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	serviceFactory, err := api.NewFactoryForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Guardian
 }
@@ -2316,7 +2316,7 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 		}},
 	}
 
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	for _, w := range writers {
 		t.Run(w.name+" blocks on a held profile lock", func(t *testing.T) {
 			// Hold the profile FOR UPDATE lock from an uncommitted tx.
@@ -2357,7 +2357,7 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	service := setupGuardianService(t, db)
 	ctx := testpkg.Ctx(t)
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "acct-pending")
 	student := testpkg.CreateTestStudent(t, db, "AcctPending", "Student", "1a")

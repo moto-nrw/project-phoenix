@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -16,7 +16,7 @@ import (
 func TestSchoolRoleClassesRespectTenantAndRoleKind(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	access, err := services.NewIdentityAccessForTests(db)
+	access, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
@@ -84,7 +84,7 @@ func TestSchoolRoleClassesRespectTenantAndRoleKind(t *testing.T) {
 func TestSchoolRoleClassesDatabaseFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	access, err := services.NewIdentityAccessForTests(db)
+	access, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	school := testpkg.Tenant(t)
 	require.NoError(t, db.Close())

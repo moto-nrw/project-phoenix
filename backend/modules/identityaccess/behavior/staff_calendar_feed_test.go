@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -22,7 +22,7 @@ func calendarFeedHash(accountID int64, candidate int) string {
 func TestNativeStaffFeedConcurrentCreationKeepsOneWinner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	feeds, err := services.NewIdentityAccessForTests(db)
+	feeds, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "feed-race")
 	ctx := testpkg.Ctx(t)
@@ -62,7 +62,7 @@ func TestNativeStaffFeedConcurrentCreationKeepsOneWinner(t *testing.T) {
 func TestNativeStaffFeedScopeRotationAndAmbientRollback(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	feeds, err := services.NewIdentityAccessForTests(db)
+	feeds, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "feed-scope")
 	ctx := testpkg.Ctx(t)

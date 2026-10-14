@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,12 +27,12 @@ func TestGroupRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates group with valid data", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("TestGroup-%d", time.Now().UnixNano())
-		group := &testutil.SchoolStructureGroup{
+		group := &api.SchoolStructureSuiteGroup{
 			Name: uniqueName,
 		}
 
@@ -46,7 +47,7 @@ func TestGroupRepository_Create(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "GroupRoom")
 
 		uniqueName := fmt.Sprintf("GroupWithRoom-%d", time.Now().UnixNano())
-		group := &testutil.SchoolStructureGroup{
+		group := &api.SchoolStructureSuiteGroup{
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
@@ -68,7 +69,7 @@ func TestGroupRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing group", func(t *testing.T) {
@@ -92,7 +93,7 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds multiple groups by IDs", func(t *testing.T) {
@@ -118,11 +119,11 @@ func TestGroupRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates group name", func(t *testing.T) {
-		group := testutil.SchoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "UpdateTest"))
+		group := schoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "UpdateTest"))
 
 		newName := fmt.Sprintf("UpdatedName-%d", time.Now().UnixNano())
 		group.Name = newName
@@ -141,7 +142,7 @@ func TestGroupRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing group", func(t *testing.T) {
@@ -164,7 +165,7 @@ func TestGroupRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all groups with no filters", func(t *testing.T) {
@@ -181,13 +182,13 @@ func TestGroupRepository_ListWithRooms(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists groups with pagination", func(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
 
-		groups, err := repo.ListWithRooms(ctx, &testutil.SchoolStructureGroupListQuery{Limit: 10})
+		groups, err := repo.ListWithRooms(ctx, &api.SchoolStructureSuiteGroupListQuery{Limit: 10})
 		require.NoError(t, err)
 		assert.NotEmpty(t, groups)
 		assert.LessOrEqual(t, len(groups), 10)
@@ -199,7 +200,7 @@ func TestGroupRepository_FindByName(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds group by exact name", func(t *testing.T) {
@@ -221,7 +222,7 @@ func TestGroupRepository_FindByTeacher(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds groups by teacher ID", func(t *testing.T) {
@@ -267,14 +268,14 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds group with room data loaded", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "WithRoomTest")
 
 		uniqueName := fmt.Sprintf("GroupWithRoom-%d", time.Now().UnixNano())
-		group := &testutil.SchoolStructureGroup{
+		group := &api.SchoolStructureSuiteGroup{
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
@@ -306,7 +307,7 @@ func TestGroupRepository_Create_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil group", func(t *testing.T) {
@@ -316,7 +317,7 @@ func TestGroupRepository_Create_Validation(t *testing.T) {
 	})
 
 	t.Run("returns error for empty name", func(t *testing.T) {
-		group := &testutil.SchoolStructureGroup{
+		group := &api.SchoolStructureSuiteGroup{
 			Name: "",
 		}
 		err := repo.Create(ctx, group)
@@ -329,7 +330,7 @@ func TestGroupRepository_Update_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil group", func(t *testing.T) {
@@ -339,7 +340,7 @@ func TestGroupRepository_Update_Validation(t *testing.T) {
 	})
 
 	t.Run("returns error for invalid name", func(t *testing.T) {
-		group := testutil.SchoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "UpdateValidation"))
+		group := schoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "UpdateValidation"))
 
 		group.Name = "" // Invalid empty name
 		err := repo.Update(ctx, group)
@@ -356,7 +357,7 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("filters by name_like", func(t *testing.T) {
@@ -388,7 +389,7 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 
 		// Create group with room
 		uniqueName := fmt.Sprintf("WithRoom-%d", time.Now().UnixNano())
-		groupWithRoom := &testutil.SchoolStructureGroup{
+		groupWithRoom := &api.SchoolStructureSuiteGroup{
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
@@ -431,7 +432,7 @@ func TestGroupRepository_ListWithRooms_Advanced(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists with sorting by name", func(t *testing.T) {
@@ -439,7 +440,7 @@ func TestGroupRepository_ListWithRooms_Advanced(t *testing.T) {
 		group1 := testpkg.CreateTestEducationGroup(t, db, "AAA-First")
 		group2 := testpkg.CreateTestEducationGroup(t, db, "ZZZ-Last")
 
-		groups, err := repo.ListWithRooms(ctx, &testutil.SchoolStructureGroupListQuery{SortByName: true})
+		groups, err := repo.ListWithRooms(ctx, &api.SchoolStructureSuiteGroupListQuery{SortByName: true})
 		require.NoError(t, err)
 		assert.NotEmpty(t, groups)
 
@@ -461,7 +462,7 @@ func TestGroupRepository_ListWithRooms_Advanced(t *testing.T) {
 	t.Run("lists with filter and pagination combined", func(t *testing.T) {
 		combined := testpkg.CreateTestEducationGroup(t, db, "CombinedTest")
 
-		groups, err := repo.ListWithRooms(ctx, &testutil.SchoolStructureGroupListQuery{NameContains: "CombinedTest", Limit: 5})
+		groups, err := repo.ListWithRooms(ctx, &api.SchoolStructureSuiteGroupListQuery{NameContains: "CombinedTest", Limit: 5})
 		require.NoError(t, err)
 		require.Len(t, groups, 1)
 		assert.Equal(t, combined.ID, groups[0].ID)
@@ -471,7 +472,7 @@ func TestGroupRepository_ListWithRooms_Advanced(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "CountedTest-1")
 		testpkg.CreateTestEducationGroup(t, db, "CountedTest-2")
 
-		count, err := repo.CountGroups(ctx, &testutil.SchoolStructureGroupListQuery{NameContains: "countedtest", Limit: 1})
+		count, err := repo.CountGroups(ctx, &api.SchoolStructureSuiteGroupListQuery{NameContains: "countedtest", Limit: 1})
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
 	})
@@ -482,12 +483,12 @@ func TestGroupRepository_FindByName_CaseInsensitive(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds group case-insensitively", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("CaseTest-%d", time.Now().UnixNano())
-		group := &testutil.SchoolStructureGroup{
+		group := &api.SchoolStructureSuiteGroup{
 			Name: uniqueName,
 		}
 		err := repo.Create(ctx, group)
@@ -511,12 +512,12 @@ func TestGroupRepository_FindByName_CaseInsensitive(t *testing.T) {
 func TestGroupWritesStayInsideTheCallerTenant(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repo := testutil.NewSchoolStructureRepositorySuiteFactory(db).Group
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Group
 	foreignTenant := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, foreignTenant)
 	foreign := testpkg.CreateTestEducationGroupForTenant(t, db, foreignTenant, "Foreign write boundary")
 
-	forged := *testutil.SchoolStructureGroupOf(foreign)
+	forged := *schoolStructureGroupOf(foreign)
 	forged.Name = "Must not replace the foreign group"
 	forged.TenantID = testpkg.Tenant(t)
 	err := testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
@@ -528,7 +529,7 @@ func TestGroupWritesStayInsideTheCallerTenant(t *testing.T) {
 		return repo.Delete(ctx, foreign.ID)
 	}), "deleting an invisible id remains the legacy no-op")
 
-	forgedInsert := &testutil.SchoolStructureGroup{Name: "Must not enter the foreign school"}
+	forgedInsert := &api.SchoolStructureSuiteGroup{Name: "Must not enter the foreign school"}
 	forgedInsert.TenantID = foreignTenant
 	err = testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 		return repo.Create(ctx, forgedInsert)
@@ -542,4 +543,13 @@ func TestGroupWritesStayInsideTheCallerTenant(t *testing.T) {
 		assert.Equal(t, foreignTenant, kept.TenantID)
 		return nil
 	}))
+}
+
+// schoolStructureGroupOf is the group a fixture row stores, as the owner's
+// group reads return it.
+func schoolStructureGroupOf(row *testpkg.EducationGroup) *api.SchoolStructureSuiteGroup {
+	return &api.SchoolStructureSuiteGroup{
+		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		Name: row.Name, RoomID: row.RoomID,
+	}
 }

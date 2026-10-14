@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -30,7 +32,7 @@ import (
 func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:       repos.CarePlan(),
 		People:         services.MustNewPeopleDirectory(db),
@@ -56,19 +58,19 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentSe
 // submit/list/withdraw round trip runs against actual rows. configure adjusts
 // the service configuration before the service is built (#3163 uses it to
 // reuse the wiring for further services).
-func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *services.RepositoryTestFactory) {
+func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	return buildPickupChangeServiceWithRequestOptions(t, nil, configure...)
 }
 
 // buildPickupChangeServiceWithRequestOptions is buildPickupChangeServiceWithRequests
 // with construction options for the request service (#3163 pins its clock).
-func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []services.CareRequestOption, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *services.RepositoryTestFactory) {
+func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []services.CareRequestOption, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	timetableDeps := services.NewUnobservedTimetableDependencies(db)
-	repos := services.NewRepositoryTestFactory(db, timetableDeps)
-	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
+	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
+	sf, err := api.NewFactoryForTests(repos, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
@@ -296,9 +298,9 @@ func TestPickupChangeRequiresConfiguredRequestService(t *testing.T) {
 	assert.Contains(t, err.Error(), "not configured")
 }
 
-func approvedOfferingProjection(t *testing.T) *services.ApprovedOfferingTestProjection {
+func approvedOfferingProjection(t *testing.T) *api.ApprovedOfferingTestProjection {
 	t.Helper()
-	projection, err := services.NewOwnerApprovedOfferingTestProjection(testpkg.SetupTestDB(t))
+	projection, err := api.NewOwnerApprovedOfferingTestProjection(testpkg.NewDatabase(t, testpkg.SetupTestDB(t)))
 	require.NoError(t, err)
 	return projection
 }

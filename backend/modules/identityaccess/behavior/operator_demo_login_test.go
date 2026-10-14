@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ func TestOperatorLogin_OnlyTheDemoEnvironmentSkipsTheSecondFactor(t *testing.T) 
 	assert.Equal(t, identityaccess.LoginStatusMFAEnrollmentRequired, result.Status)
 	assert.Empty(t, result.RefreshToken)
 
-	demo := newOperatorMFATestModule(t, db, services.WithDemoOperatorWithoutSecondFactor()).AccountAuthentication
+	demo := newOperatorMFATestModule(t, db, api.WithDemoOperatorWithoutSecondFactor()).AccountAuthentication
 	operator = testpkg.CreateTestOperatorWithPassword(t, db, operatorLoginEmail("operator-demo"), testPassword)
 	result, err = demo.LoginOperatorWithMFAGate(ctx, operator.Email, testPassword, "127.0.0.1", "ua", "")
 	require.NoError(t, err)

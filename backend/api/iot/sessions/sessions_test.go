@@ -28,7 +28,7 @@ type testContext struct {
 func setupSessionsRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupActiveModule(t)
+	db, svc := setupActiveModule(t)
 
 	// Create sessions resource
 	resource := sessionsAPI.NewResource(svc.SessionLifecycle, svc.SessionEnd, testRuntime())

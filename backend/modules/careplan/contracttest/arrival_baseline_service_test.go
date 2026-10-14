@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -20,7 +21,7 @@ import (
 
 // classArrivalBaseline builds the projection with the booking mode off, which
 // is the default and what every school without a Halbjahresanmeldung sees.
-func classArrivalBaseline(t *testing.T, repos *services.RepositoryTestFactory) careplan.ArrivalBaselineReader {
+func classArrivalBaseline(t *testing.T, repos *api.RepositoryTestFactory) careplan.ArrivalBaselineReader {
 	t.Helper()
 	classArrivalQueries, err := arrivalTimetable.NewClassArrivalQueries(testpkg.SetupTestDB(t), func(arrivalTimetable.Observation) {})
 	if err != nil {
@@ -35,7 +36,7 @@ func classArrivalBaseline(t *testing.T, repos *services.RepositoryTestFactory) c
 
 func approvedOfferingProjection(t *testing.T) careplan.ApprovedBookingReader {
 	t.Helper()
-	projection, err := services.NewOwnerApprovedOfferingTestProjection(testpkg.SetupTestDB(t))
+	projection, err := api.NewOwnerApprovedOfferingTestProjection(testpkg.NewDatabase(t, testpkg.SetupTestDB(t)))
 	require.NoError(t, err)
 	return projection
 }
@@ -67,7 +68,7 @@ func TestArrivalBaselineTakesTimeFromTheClass(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -120,7 +121,7 @@ func TestArrivalBaselineHandlesStudentWithoutClassTimetable(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 	student := testpkg.CreateTestStudent(t, db, "Ohne", "Klasse", "3c")
@@ -145,7 +146,7 @@ func TestArrivalBaselineClassTimeAloneIsNoCareDay(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -172,7 +173,7 @@ func TestArrivalBaselineCareDayWithoutAnyClassTime(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 
@@ -194,7 +195,7 @@ func TestArrivalBaselineManualRowOverridesClassTime(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	baseline := classArrivalBaseline(t, repos)
 

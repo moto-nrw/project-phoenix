@@ -45,7 +45,7 @@ type testContext struct {
 func setupUserContextRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, module := testutil.SetupUserContextModule(t)
+	db, module := setupUserContextModule(t)
 	resource := me.NewResource(module.UserContext.Caller(), module.UserContext)
 
 	return &testContext{

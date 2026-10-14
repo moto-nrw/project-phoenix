@@ -50,7 +50,7 @@ func (s *recordingEndActiveGroupService) EndSession(ctx context.Context, id int6
 func setupActiveRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupActiveModule(t)
+	db, svc := setupActiveModule(t)
 	resource := presenceAPI.NewResource(svc.PresenceOperations(), activePeople{source: svc.AttendancePeople()}, svc.TeacherGroupIDs, svc.Schulhof, activeStaffAccess{source: svc.AttendanceStaff()}, svc.Settings, common.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(svc.WithAttendanceStaff), authorizationForTest(), nil)
 	resource.SupervisionDashboardService = svc.SupervisionDashboard
 

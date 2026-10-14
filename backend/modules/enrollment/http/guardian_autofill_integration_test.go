@@ -3,11 +3,11 @@ package enrollmenthttp_test
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // The autofill of the enrollment form reads the guardian profile of the
@@ -19,7 +19,7 @@ func TestGuardianAutofillReadsTheGuardiansProfileAndChildren(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	profile, err := testutil.NewEnrollmentGuardianAutofill(db).
+	profile, err := api.NewEnrollmentGuardianAutofillSuite(testpkg.NewDatabase(t, db)).
 		LoadForTenant(testpkg.WithTestTenantRuntime(t, testpkg.Ctx(t)), chain.AccountID, chain.TenantID)
 
 	require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestGuardianAutofillWithoutProfileIsNil(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	account := testpkg.CreateTestAccount(t, db, "autofill-no-profile")
 
-	profile, err := testutil.NewEnrollmentGuardianAutofill(db).
+	profile, err := api.NewEnrollmentGuardianAutofillSuite(testpkg.NewDatabase(t, db)).
 		LoadForTenant(testpkg.WithTestTenantRuntime(t, testpkg.Ctx(t)), account.ID, testpkg.Tenant(t))
 
 	require.NoError(t, err)

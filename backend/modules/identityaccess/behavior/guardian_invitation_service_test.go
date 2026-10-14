@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/moto-nrw/project-phoenix/services"
@@ -25,7 +26,7 @@ const strongTestPassword = "GuardianTest!2026"
 // guardianTestEnv bundles the real-DB dependencies tests need.
 type guardianTestEnv struct {
 	db      *bun.DB
-	repos   *services.RepositoryTestFactory
+	repos   *api.RepositoryTestFactory
 	service services.GuardianInvitationCapability
 	cleanup func()
 }
@@ -34,13 +35,13 @@ type guardianTestEnv struct {
 // the owner module and the test database, the way the factory does it. Each
 // mutate hook may steer what the test observes (the outbox, the audit
 // command, the enrollment claims).
-func setupGuardianInvitationTest(t *testing.T, mutate ...func(*bun.DB, *services.GuardianInvitationTestConfig)) *guardianTestEnv {
+func setupGuardianInvitationTest(t *testing.T, mutate ...func(*bun.DB, *api.GuardianInvitationTestConfig)) *guardianTestEnv {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 
-	cfg := services.GuardianInvitationTestConfig{
+	cfg := api.GuardianInvitationTestConfig{
 		Outbox: testpkg.NewCapturingOutbox(),
 		Expiry: 48 * time.Hour,
 		Logger: slog.Default(),
@@ -48,7 +49,7 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*bun.DB, *services
 	for _, m := range mutate {
 		m(db, &cfg)
 	}
-	service, err := services.NewGuardianInvitationServiceForTests(db, testpkg.TenantRuntime(t, db), cfg)
+	service, err := api.NewGuardianInvitationServiceForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), cfg)
 	require.NoError(t, err)
 
 	cleanup := func() {
@@ -587,7 +588,7 @@ func TestGuardianInvitationService_Resend_ResetsEmailColumns(t *testing.T) {
 	// dispatcher path would asynchronously re-populate email_sent_at after
 	// delivery, racing the nil assertions below.
 	outbox := testpkg.NewCapturingOutbox()
-	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})
 	defer env.cleanup()
@@ -668,7 +669,7 @@ func (s *stubEnrollmentBackfiller) BackfillGuardianAccountID(_ context.Context, 
 // accept flow's backfill call can be observed.
 func setupGuardianInviteWithBackfiller(t *testing.T, backfiller services.GuardianEnrollmentClaims) *guardianTestEnv {
 	t.Helper()
-	return setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+	return setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) {
 		cfg.Enrollments = backfiller
 	})
 }
@@ -744,7 +745,7 @@ func TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransa
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	realBackfiller := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ParentEnrollmentRequest
+	realBackfiller := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ParentEnrollmentRequest
 	env := setupGuardianInviteWithBackfiller(t, realBackfiller)
 
 	profile := testpkg.CreateTestGuardianProfile(t, db, "backfill-outer-admin")

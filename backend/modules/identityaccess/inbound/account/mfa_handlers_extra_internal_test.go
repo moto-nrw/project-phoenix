@@ -11,13 +11,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -333,7 +333,7 @@ func TestMFAEnrollConfirm_InjectsTenantFromClaims(t *testing.T) {
 	rs := &Resource{
 		MFAService:   svc,
 		Sessions:     &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"},
-		transactions: testutil.AccountRouteTenantRuntime(),
+		transactions: identityaccessCompose.TenantUnitOfWork{},
 	}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",

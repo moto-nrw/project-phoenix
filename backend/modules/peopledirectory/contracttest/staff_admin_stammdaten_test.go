@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ import (
 
 type stammdatenScenario struct {
 	db    *bun.DB
-	repos *services.RepositoryTestFactory
+	repos *api.RepositoryTestFactory
 	svc   workforce.StaffRecordAdmin
 	ctx   context.Context
 }
@@ -31,17 +32,17 @@ func newStammdatenScenario(t *testing.T) *stammdatenScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	svc, err := services.NewStaffAdmin(stammdatenAdminDeps(db, repos))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	svc, err := api.NewStaffAdmin(stammdatenAdminDeps(db, repos))
 	require.NoError(t, err)
 
 	return &stammdatenScenario{db: db, repos: repos, svc: svc, ctx: testpkg.Ctx(t)}
 }
 
-func stammdatenAdminDeps(db *bun.DB, repos *services.RepositoryTestFactory) services.StaffAdminDependencies {
-	return services.StaffAdminDependencies{
-		DB: db, Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
-		MasterDataAudit: services.NewTestAuditPersistence(db, nil).StaffMasterDataChange, PersonnelNumber: services.NewTestAuditPersistence(db, nil).PersonnelNumberChange, DataAccessLog: services.NewTestAuditPersistence(db, nil).DataAccessLog,
+func stammdatenAdminDeps(db *bun.DB, repos *api.RepositoryTestFactory) api.StaffAdminDependencies {
+	return api.StaffAdminDependencies{
+		DB: testpkg.MustDatabase(db), Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
+		MasterDataAudit: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).StaffMasterDataChange, PersonnelNumber: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).PersonnelNumberChange, DataAccessLog: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).DataAccessLog,
 	}
 }
 
@@ -363,12 +364,12 @@ func TestStaffStammdaten_FinancialValidation(t *testing.T) {
 	// cannot be composed without the access-log repository.
 	noAccessLog := stammdatenAdminDeps(s.db, s.repos)
 	noAccessLog.DataAccessLog = nil
-	_, err = services.NewStaffAdmin(noAccessLog)
+	_, err = api.NewStaffAdmin(noAccessLog)
 	require.Error(t, err, "without the access-log repository no financial value may be served")
 
 	// Unaudited writes are refused too.
 	noAudit := stammdatenAdminDeps(s.db, s.repos)
 	noAudit.MasterDataAudit = nil
-	_, err = services.NewStaffAdmin(noAudit)
+	_, err = api.NewStaffAdmin(noAudit)
 	require.Error(t, err)
 }

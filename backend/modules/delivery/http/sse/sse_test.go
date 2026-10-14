@@ -29,7 +29,7 @@ type testContext struct {
 func setupSSERoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupUserContextModule(t)
+	db, svc := setupUserContextModule(t)
 
 	// Create realtime hub
 	hub := realtime.NewHub(slog.Default())

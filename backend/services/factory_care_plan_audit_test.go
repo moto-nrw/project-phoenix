@@ -1,9 +1,12 @@
-package services
+package services_test
 
 import (
 	"log/slog"
 	"reflect"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/services"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -15,11 +18,11 @@ func TestNewFactoryRetainsCarePlanForBookingConsistencyAudit(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
-	_, err := NewFactoryForTestsWithConfig(repos, db, slog.Default(), testFactoryConfig())
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	_, err := api.NewFactoryForTestsWithConfig(repos, testpkg.NewDatabase(t, db), slog.Default(), testFactoryConfig())
 	require.NoError(t, err)
 
-	bookings, err := NewBookingConsistencyAudit(db, MustNewPeopleDirectory(db), repos.CarePlan())
+	bookings, err := services.NewBookingConsistencyAudit(db, services.MustNewPeopleDirectory(db), repos.CarePlan())
 	require.NoError(t, err)
 	audit := reflect.ValueOf(bookings)
 	auditDate := reflect.New(audit.Type().In(1)).Elem()

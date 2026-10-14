@@ -4,7 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -17,10 +18,10 @@ import (
 func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos, err := testutil.NewSchoolStructurePeopleSuiteFactory(db)
+	repos, err := api.NewSchoolStructurePeopleSuiteFactory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	now := fixedNow
-	module := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor},
 		Now:                     func() time.Time { return now },

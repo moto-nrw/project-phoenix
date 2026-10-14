@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -58,7 +61,7 @@ func (f *overviewFixture) newDatevExportService(values settingstest.Values) time
 		f.svc,
 		f.newWorkSessionService(),
 		services.TimeExportStaff(f.repos.Staff),
-		services.NewTimeTrackingDataAccessAudit(services.NewTestAuditPersistence(f.db, nil).DataAccessLog),
+		services.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).DataAccessLog),
 		services.PayrollExportSettings{Source: payrollStatus},
 		nil,
 		services.RenderTimeTrackingWorkbook,

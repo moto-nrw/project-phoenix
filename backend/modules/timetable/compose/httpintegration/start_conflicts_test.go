@@ -6,9 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -23,7 +22,7 @@ import (
 func TestDetectStartConflicts_EmptyInstance_NoWarnings(t *testing.T) {
 	t.Parallel()
 
-	db, module := testutil.SetupTimetableModule(t)
+	db, module := setupTimetableModule(t)
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SC-Room-%d", time.Now().UnixNano()))
 	instance := testpkg.CreateTestActivityInstance(t, db, calendar.NewDate(2026, time.April, 20), room.ID,
 		testpkg.ActivityInstanceOpts{Title: "Lifecycle-Test"})
@@ -38,7 +37,7 @@ func TestStaffPoolForInstance_UnknownInstanceIsNotFound(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos, err := services.NewTimetableTestRepositoriesWithMembers(db, services.MustNewMembershipTestRepositories(db))
+	repos, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SC-Pool-Room-%d", time.Now().UnixNano()))
 	instance := testpkg.CreateTestActivityInstance(t, db, calendar.NewDate(2026, time.April, 20), room.ID,
@@ -68,7 +67,7 @@ func TestWindowConflicts_FingerprintsMatchPersistedAcknowledgements(t *testing.T
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos, err := services.NewTimetableTestRepositoriesWithMembers(db, services.MustNewMembershipTestRepositories(db))
+	repos, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	detection := newConflictDetection(t, repos)
 

@@ -6,19 +6,16 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
+	"github.com/moto-nrw/project-phoenix/api"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	"github.com/moto-nrw/project-phoenix/services"
 
 	"log/slog"
 	"os"
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -32,7 +29,7 @@ import (
 type deletionTestFixture struct {
 	t     *testing.T
 	db    *bun.DB
-	repos *services.EnrollmentFlowTestRepositories
+	repos *api.EnrollmentFlowTestRepositories
 	scope testpkg.TenantScope
 	actor int64
 	phase int64
@@ -95,20 +92,20 @@ func (f *deletionTestFixture) child(requestID int64, label, status string, creat
 	return child
 }
 
-func (f *deletionTestFixture) service(auditRepo testutil.EnrollmentFlowDeletionAudits, requestRepo testutil.EnrollmentDeletionOwner) enrollmentAPI.EnrollmentDeletionService {
-	return testutil.NewEnrollmentDeletionModule(f.sources(auditRepo, requestRepo)).Deletions
+func (f *deletionTestFixture) service(auditRepo api.EnrollmentFlowDeletionAudits, requestRepo api.EnrollmentDeletionOwner) enrollmentAPI.EnrollmentDeletionService {
+	return api.NewEnrollmentDeletionModule(f.sources(auditRepo, requestRepo)).Deletions
 }
 
 // sources binds the admin deletion and the retention cleanup the way the
 // root does; requestRepo replaces the owner's request lock.
-func (f *deletionTestFixture) sources(auditRepo testutil.EnrollmentFlowDeletionAudits, requestRepo testutil.EnrollmentDeletionOwner) testutil.EnrollmentDeletionSources {
+func (f *deletionTestFixture) sources(auditRepo api.EnrollmentFlowDeletionAudits, requestRepo api.EnrollmentDeletionOwner) api.EnrollmentDeletionSources {
 	if auditRepo == nil {
 		auditRepo = f.repos.EnrollmentDeletionAudit
 	}
 	if requestRepo == nil {
 		requestRepo = f.repos.Enrollment()
 	}
-	return testutil.EnrollmentDeletionSources{
+	return api.EnrollmentDeletionSources{
 		Owner:                 requestRepo,
 		Guardians:             f.guardians(),
 		CountAuditAdjustments: f.repos.EnrollmentOfferingAdjustment.CountForDeletion,
@@ -147,7 +144,7 @@ func TestEnrollmentDeletionOwner_MismatchedRequestPreservesChildSelections(t *te
 	offering := &enrollmentModels.CareOffering{PhaseID: f.phase, Name: "Care", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true, CountsAsCare: true, CountsAsCareSet: true}
 	require.NoError(t, newCareOfferingFixtures(f.repos.CarePlan()).Create(f.scope.Context(), offering))
 	selection := &capability.RequestChildOffering{RequestChildID: child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}}
-	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(f.scope.Context(), selection))
+	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(f.scope.Context(), selection))
 	counts, err := f.repos.Enrollment().DeletionChildCounts(f.scope.Context(), other.ID, child.ID)
 	require.NoError(t, err)
 	require.Zero(t, counts.Offerings)
@@ -261,7 +258,7 @@ func TestEnrollmentDeletion_DeleteRequestCleansDependenciesAndPreservesPeople(t 
 	require.NoError(t, f.repos.Enrollment().MarkLateInviteUsed(f.scope.Context(), invite.ID, request.ID, time.Now()))
 	outbox := enqueueTestEnrollmentEmail(t, db, f.scope.TenantID, request.ID, fmt.Sprintf("request-%d", request.ID), map[string]any{"request_id": request.ID})
 	student := testpkg.CreateTestStudentForTenant(t, db, f.scope.TenantID, "Adjustment", "Student", "1a")
-	adjustment := &testutil.EnrollmentFlowOfferingAdjustmentAudit{RequestID: request.ID, RequestChildID: child.ID, StudentID: student.ID, ActorAccountID: f.actor, ActorRole: "admin", Reason: "test adjustment", Before: json.RawMessage(`{}`), After: json.RawMessage(`{}`), ChangedAt: time.Now()}
+	adjustment := &api.EnrollmentFlowOfferingAdjustmentAudit{RequestID: request.ID, RequestChildID: child.ID, StudentID: student.ID, ActorAccountID: f.actor, ActorRole: "admin", Reason: "test adjustment", Before: json.RawMessage(`{}`), After: json.RawMessage(`{}`), ChangedAt: time.Now()}
 	require.NoError(t, f.repos.EnrollmentOfferingAdjustment.Create(f.scope.Context(), adjustment))
 
 	preview, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (*capability.DeletionImpact, error) {
@@ -350,7 +347,7 @@ func TestEnrollmentDeletion_BlocksExistingStudent(t *testing.T) {
 
 type failingDeletionAudit struct{ err error }
 
-func (a failingDeletionAudit) Create(context.Context, *testutil.EnrollmentFlowDeletionAudit) error {
+func (a failingDeletionAudit) Create(context.Context, *api.EnrollmentFlowDeletionAudit) error {
 	return a.err
 }
 
@@ -389,7 +386,7 @@ func TestEnrollmentDeletion_RLSDeniesOtherTenant(t *testing.T) {
 }
 
 type deletionLockSignalRepository struct {
-	testutil.EnrollmentDeletionOwner
+	api.EnrollmentDeletionOwner
 	targetID int64
 	started  chan struct{}
 	once     sync.Once
@@ -457,7 +454,7 @@ func TestRejectedEnrollmentCleanup_WritesSystemDeletionAudit(t *testing.T) {
 
 	sources := f.sources(nil, nil)
 	sources.Settings = cleanupRetentionSettings{days: 90}
-	cleaner := testutil.NewEnrollmentDeletionModule(sources).Cleanup
+	cleaner := api.NewEnrollmentDeletionModule(sources).Cleanup
 	result, err := tenantCall(t, db, f.scope.TenantID, func(ctx context.Context) (capability.RejectedEnrollmentCleanupResult, error) {
 		return cleaner.CleanupRejectedEnrollments(ctx)
 	})

@@ -10,9 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
-	testutil "github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
@@ -228,7 +226,7 @@ func (r *recordingOutbox) ByKind(kind string) []platformModels.OutboxEnqueueRequ
 type requestTestEnv struct {
 	db        *bun.DB
 	svc       enrollmentAPI.RequestService
-	config    testutil.EnrollmentIntakeSources
+	config    api.EnrollmentIntakeSources
 	phase     *enrollmentCapability.Phase
 	schemaID  int64
 	creatorID int64
@@ -236,7 +234,7 @@ type requestTestEnv struct {
 	outbox    *recordingOutbox
 	phaseID   int64
 	// repos are the repositories the env's services run on.
-	repos *services.EnrollmentFlowTestRepositories
+	repos *api.EnrollmentFlowTestRepositories
 }
 
 func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
@@ -258,12 +256,12 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	settings.intValues[configModel.KeyEnrollmentStatusTokenTTLDays] = 365
 
 	outbox := &recordingOutbox{}
-	config := testutil.EnrollmentIntakeSources{
+	config := api.EnrollmentIntakeSources{
 		Requests:         repoFactory.Enrollment(),
 		Children:         repoFactory.Enrollment(),
 		Bookings:         requestTestBookingCommands(),
 		Guardians:        repoFactory.Enrollment(),
-		CareOfferingRepo: testutil.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
+		CareOfferingRepo: api.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
 		Catalog:          repoFactory.Enrollment(),
 		SchoolRepo:       factorySchools{repos: repoFactory},
 		RateLimitRepo:    repoFactory.Enrollment(),
@@ -3482,7 +3480,7 @@ func TestRequestService_Edit_AdminContextUsesPinnedSchema(t *testing.T) {
 }
 
 type failingEditSchemaCatalog struct {
-	testutil.EnrollmentIntakeCatalog
+	api.EnrollmentIntakeCatalog
 	err error
 }
 

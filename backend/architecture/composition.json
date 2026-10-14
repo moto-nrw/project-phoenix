@@ -16391,6 +16391,26 @@
           "declaration": "type serveGraph"
         },
         {
+          "file": "api/factory_test_helpers.go",
+          "line": 42,
+          "declaration": "NewFactoryForTests"
+        },
+        {
+          "file": "api/factory_test_helpers.go",
+          "line": 55,
+          "declaration": "NewFactoryForTestsWithConfig"
+        },
+        {
+          "file": "api/factory_test_helpers.go",
+          "line": 136,
+          "declaration": "OwnerCapabilities.factory"
+        },
+        {
+          "file": "api/guardian_test_helpers.go",
+          "line": 59,
+          "declaration": "NewGuardianTestModule"
+        },
+        {
           "file": "api/session_end.go",
           "line": 17,
           "declaration": "newSessionEnd"
@@ -16404,6 +16424,11 @@
           "file": "api/staff_composition.go",
           "line": 129,
           "declaration": "newExportTransferModule"
+        },
+        {
+          "file": "api/staff_test_helpers.go",
+          "line": 39,
+          "declaration": "NewStaffTestModule"
         },
         {
           "file": "api/time_tracking_composition.go",
@@ -16482,7 +16507,6 @@
   "schema_version": 1,
   "smoke_tests": [
     "api/route_table_golden_test.go#TestFullProductionRouterGolden",
-    "api/testutil/helpers_test.go#TestSetupAuthModule",
     "cmd/root_test.go#TestRootCmd_HasCommands",
     "internal/architecture/composition_inventory_test.go#TestCompositionLegacyCallerInventory",
     "services/factory_test.go#TestNewFactory",
@@ -16498,14 +16522,6 @@
       "file": "api/main_test.go",
       "declaration": "TestMain",
       "smoke_test": "api/route_table_golden_test.go#TestFullProductionRouterGolden",
-      "tables": []
-    },
-    {
-      "id": "api-testutil-tests",
-      "kind": "test-binary",
-      "file": "api/testutil/main_test.go",
-      "declaration": "TestMain",
-      "smoke_test": "api/testutil/helpers_test.go#TestSetupAuthModule",
       "tables": []
     },
     {

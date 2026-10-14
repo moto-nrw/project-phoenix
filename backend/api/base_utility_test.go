@@ -305,8 +305,8 @@ func setupCaregiverCompositionModule(t *testing.T, graph *serveGraph) *caregiver
 
 func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	t.Helper()
-	db, module := testutil.SetupSettingsCallbacksModule(t, newStudentPhotoTestBootstrap())
-	repos, err := testutil.NewEnrollmentTestRepositoriesWithMembers(db, testutil.MustNewMembershipTestRepositories(db))
+	db, module := setupSettingsCallbacksModule(t)
+	repos, err := NewEnrollmentTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	homeLayouts, ok := module.Settings.(interface {
 		HomeLayout(context.Context, int64, int64, []string) (any, error)
@@ -905,9 +905,9 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	people, err := testutil.NewPeopleDirectory(db)
+	people, err := NewPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	identity, err := testutil.NewIdentityAccessForTests(db)
+	identity, err := NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	resource := newUsersResource(people, identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
 		_, _, found, err := identity.LookupRFIDCard(ctx, tagID)

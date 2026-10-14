@@ -4,11 +4,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ func TestStaffAbsenceAuditRowsWriteTheRecordedAuditBack(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	workTime := services.NewUnobservedTimetableDependencies(db).Workforce
+	workTime := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Workforce
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Audit", "Actor")
 	ctx := testpkg.Ctx(t)
 	day := timezone.NewDate(2026, time.March, 2).String()
@@ -53,7 +54,7 @@ func TestStaffAbsenceAuditRowsRejectAnAuditWithoutAbsence(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	workTime := services.NewUnobservedTimetableDependencies(db).Workforce
+	workTime := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Workforce
 
 	err := workforceCompose.NewStaffAbsenceAuditRepository(workTime).Create(testpkg.Ctx(t), &timetracking.StaffAbsenceAudit{
 		ToStatus: workforce.AbsenceStatusApproved,

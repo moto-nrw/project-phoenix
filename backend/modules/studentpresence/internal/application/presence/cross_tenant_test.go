@@ -8,15 +8,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func createActiveServiceWithCrossTenant(t *testing.T, db *testpkg.DB) active.Service {
 	t.Helper()
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	serviceFactory, err := api.NewFactoryForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 	return composedEngine(t, serviceFactory.Active)
 }
@@ -129,7 +129,7 @@ func TestCrossTenantRepository_Direct(t *testing.T) {
 
 	// Visitor names come from the People Directory composition (#2661), so
 	// the test drives the composed repository the service graph uses.
-	factory, err := services.NewRepositoryTestFactoryWithPeopleDirectory(db, services.NewUnobservedTimetableDependencies(db))
+	factory, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	repo := factory.CrossTenant
 

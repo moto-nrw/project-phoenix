@@ -20,9 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/services"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
@@ -46,8 +46,8 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	owners := services.NewUnobservedTimetableDependencies(db)
-	repos := services.NewRepositoryTestFactory(db, owners)
+	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 	timetableRepos := services.NewTimetableRepositories(db, owners)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -60,9 +60,9 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	devices, err := services.NewDeviceRepository(db)
+	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	rooms, err := services.NewFacilities(db)
+	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		GroupRepo:          sessionGroups(repos.ActiveGroup),
@@ -117,7 +117,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 
 	// ACT: drive a check-in through the service.
 	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-	deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+	deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
@@ -209,8 +209,8 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	owners := services.NewUnobservedTimetableDependencies(db)
-	repos := services.NewRepositoryTestFactory(db, owners)
+	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 	timetableRepos := services.NewTimetableRepositories(db, owners)
 	suffix := time.Now().UnixNano()
 	syncer := newAttendanceMirror(t,
@@ -220,9 +220,9 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	devices, err := services.NewDeviceRepository(db)
+	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	rooms, err := services.NewFacilities(db)
+	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		GroupRepo:          sessionGroups(repos.ActiveGroup),
@@ -252,7 +252,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-	deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+	deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,

@@ -23,7 +23,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -74,10 +76,10 @@ type tenantSettingsWriter interface {
 // store tenant overrides.
 func setupAuthDependenciesRouteWithSettings(t *testing.T) (*bun.DB, *authAPI.Resource, tenantSettingsWriter) {
 	t.Helper()
-	db, svc := testutil.SetupAuthModule(t)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, testutil.AccountRouteTenantRuntime())
+	db, svc := setupAuthModule(t)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{})
 	resource.SettingsService = svc.Settings
-	resource.RoleGrants = testutil.AccountRoleGrantPolicy()
+	resource.RoleGrants = api.AccountRoleGrantPolicy()
 	return db, resource, svc.Settings
 }
 
@@ -2040,7 +2042,7 @@ func TestListTenants(t *testing.T) {
 	t.Parallel()
 	_, authRoute := setupAuthDependenciesRoute(t)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
@@ -2111,7 +2113,7 @@ func setupAuthRouteWithSchoolRepo(t *testing.T) *testContext {
 	t.Helper()
 
 	db, authRoute := setupAuthDependenciesRoute(t)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
 
 	return &testContext{
 		db:       db,
@@ -2332,7 +2334,7 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 		`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, tenantID)
 	require.NoError(t, err)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())

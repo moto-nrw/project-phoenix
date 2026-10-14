@@ -1,8 +1,11 @@
-package services
+package services_test
 
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/services"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -12,10 +15,10 @@ func TestSessionActivitiesPreserveTimetableWireProjection(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	fixture := testpkg.CreateTestActivityGroup(t, db, "Session projection")
-	repos, err := NewActiveTestRepositories(db, MustNewMembershipTestRepositories(db))
+	repos, err := api.NewActiveTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
-	directory := NewSessionActivities(repos.GroupReads())
+	directory := services.NewSessionActivities(repos.GroupReads())
 	want, err := repos.ActivityGroup.FindByID(ctx, fixture.ID)
 	require.NoError(t, err)
 	got, err := directory.FindByID(ctx, fixture.ID)

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -69,7 +69,7 @@ func TestParentAnnouncementReminderDueScanAndClaim(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
 	now := databaseTimestamp(t, db)
@@ -197,7 +197,7 @@ func TestParentAnnouncementReminderDueScanBatchLoadsTargets(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 	now := databaseTimestamp(t, db)
 	window := now.Add(-time.Hour)
@@ -233,7 +233,7 @@ func TestParentAnnouncementReminderFeedOrderAndTenantIsolation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 	now := databaseTimestamp(t, db)
 

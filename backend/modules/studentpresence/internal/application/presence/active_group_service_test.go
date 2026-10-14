@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -21,8 +22,8 @@ import (
 
 // createActiveService creates an Active Service with real database connection
 func createActiveService(t *testing.T, db *testpkg.DB) active.Service {
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	serviceFactory, err := api.NewFactoryForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return composedEngine(t, serviceFactory.Active)
 }
@@ -1089,7 +1090,7 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 
 		// Create visits for students using context with device/staff
 		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-		deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+		deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 		visit1 := &studentpresence.Visit{
 			StudentID:     student1.ID,
@@ -1262,7 +1263,7 @@ func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
 
 		// Add a visit to session1
 		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-		deviceCtx := services.WithAttendanceDevice(staffCtx, device1.ID, device1.TenantID)
+		deviceCtx := api.WithAttendanceDevice(staffCtx, device1.ID, device1.TenantID)
 		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: session1.ID,

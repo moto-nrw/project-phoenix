@@ -17,7 +17,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -58,7 +57,7 @@ func buildStudentDaySetup(t *testing.T) *studentDaySetup {
 	// Wire the full resource with real repos for the B11 path.
 	res := NewResource(Dependencies{
 		TimetableData: testTimetableData(db).TimetableData(),
-		People:        must(testutil.NewTimetablePeople(db)),
+		People:        must(RootCompositions.People(db)),
 		// UserContextService + SettingsService intentionally nil:
 		// admin-perm path short-circuits CanReadStudent; the 403 test relies on
 		// the fallthrough returning false when userCtx is nil.

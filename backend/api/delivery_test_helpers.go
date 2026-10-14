@@ -1,0 +1,113 @@
+package api
+
+import (
+	"context"
+	"log/slog"
+	"strings"
+	"time"
+
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
+)
+
+// NewNotificationConsentTestStore builds Communication's consent capability
+// for tests that need the real rows. It lives at this composition seam because
+// a consumer's test package may not reach into another owner's composition.
+func NewNotificationConsentTestStore(db transactionruntime.Database) deliveryCompose.NotificationConsentStore {
+	consent, err := communicationCompose.NewNotificationConsent(communicationCompose.NotificationConsentConfig{DB: db.Pool()})
+	if err != nil {
+		panic(err)
+	}
+	return consent
+}
+
+// NewEnrollmentAdminSubscribersForTests binds the intake's opt-in admin mail
+// (#3780) to Communication's real consent rows and Identity & Access, and
+// returns the consent store the suite records decisions with.
+func NewEnrollmentAdminSubscribersForTests(db transactionruntime.Database) (enrollmentCompose.AdminMailSubscribers, deliveryCompose.NotificationConsentStore, error) {
+	consent, err := communicationCompose.NewNotificationConsent(communicationCompose.NotificationConsentConfig{DB: db.Pool()})
+	if err != nil {
+		return nil, nil, err
+	}
+	identity, err := NewIdentityAccessForTests(db)
+	if err != nil {
+		return nil, nil, err
+	}
+	return services.NewEnrollmentAdminSubscribers(consent, identity), consent, nil
+}
+
+type DeliveryTestModule struct {
+	Delivery                *deliveryModule.Module
+	EmailOutbox             *deliveryCompose.EmailOutbox
+	Notifications           deliveryCompose.Notifier
+	PushSubscriptions       deliveryCompose.PushSubscriptionService
+	NotificationPreferences deliveryCompose.NotificationPreferenceService
+}
+
+func NewPushSubscriptionTestService(db transactionruntime.Database, unit tenant.UnitOfWork, vapid deliveryCompose.VAPIDConfig) (deliveryCompose.PushSubscriptionService, error) {
+	identity, err := NewIdentityAccessForTests(db)
+	if err != nil {
+		return nil, err
+	}
+	service := deliveryCompose.NewPushSubscriptionService(db.Pool(), deliveryCompose.NewPushSubscriptionRepository(db.Pool()), identity, vapid, slog.Default())
+	service.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
+	return service, nil
+}
+
+func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (DeliveryTestModule, error) {
+	settings, err := NewSettingsTestModule(db, unit)
+	if err != nil {
+		return DeliveryTestModule{}, err
+	}
+	members, err := NewIdentityAccessForTests(db)
+	if err != nil {
+		return DeliveryTestModule{}, err
+	}
+	organizations, err := services.NewOrganizationTenancy(db.Pool())
+	if err != nil {
+		return DeliveryTestModule{}, err
+	}
+	logger := slog.Default()
+	cfg := services.CurrentFactoryConfig()
+	vapid := deliveryCompose.VAPIDConfig{PublicKey: strings.TrimSpace(cfg.VAPIDPublicKey), PrivateKey: strings.TrimSpace(cfg.VAPIDPrivateKey), Subscriber: strings.TrimSpace(cfg.VAPIDSubscriber)}
+	if err := vapid.Validate(); err != nil {
+		return DeliveryTestModule{}, err
+	}
+	pushRepo := deliveryCompose.NewPushSubscriptionRepository(db.Pool())
+	identity := deliveryCompose.NewTenantMailIdentity(services.SchoolContactDirectory{Schools: organizations},
+		func(ctx context.Context, tenantID int64) (string, error) {
+			return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
+		}, logger)
+	guardians := peopleCompose.NewGuardianService(peopleCompose.GuardianServiceDependencies{GuardianProfileRepo: NewGuardianProfileTestRepository(db), DB: db.Pool()})
+	delivery, err := deliveryCompose.New(deliveryCompose.Dependencies{
+		DB: db.Pool(), People: services.GuardianDisplayResolver{Query: guardians}, Observe: func(deliveryModule.Observation) {},
+		Provider: &services.DeliveryProvider{Registry: deliveryCompose.NewEmailTemplateRegistry(nil), Mailer: email.NewMockMailer(), MailIdentity: identity,
+			Push:   deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{Subscriber: vapid.Subscriber, PublicKey: vapid.PublicKey, PrivateKey: vapid.PrivateKey}, services.NewExpiredPushSubscriptionCleaner(deliveryCompose.NewTenantTransactions(db.Pool()), pushRepo)),
+			Logger: logger, Tenants: deliveryCompose.NewTenantTransactions(db.Pool()), PushAuthorized: services.NewPushAuthorizationChecker(deliveryCompose.NewTenantTransactions(db.Pool()), pushRepo)},
+	})
+	if err != nil {
+		return DeliveryTestModule{}, err
+	}
+	parents, err := NewParentRouteTestRepositories(db, MustNewMembershipTestRepositories(db))
+	if err != nil {
+		return DeliveryTestModule{}, err
+	}
+	service := deliveryCompose.NewNotifier(settings.Settings, logger, func(string, string, string, time.Duration, error) {},
+		deliveryCompose.NewSSEChannel(deliveryCompose.NewRealtimeHub(logger), deliveryCompose.WithGuardianChildAccess(db.Pool(), parents.StudentGuardian, logger)),
+		deliveryCompose.NewDurableWebPushChannel(db.Pool(), pushRepo, vapid, deliveryCompose.NewDurablePushOutbox(delivery.Module), logger))
+	service.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
+	push := deliveryCompose.NewPushSubscriptionService(db.Pool(), pushRepo, members, vapid, logger)
+	push.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
+	preferences := deliveryCompose.NewPreferenceService(NewNotificationConsentTestStore(db), settings.Settings, db.Pool(), members)
+	preferences.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
+	return DeliveryTestModule{Delivery: delivery.Module, EmailOutbox: deliveryCompose.NewEmailOutbox(services.DurableEmailAdapter{Module: delivery.Module}),
+		Notifications: service, PushSubscriptions: push, NotificationPreferences: preferences}, nil
+}

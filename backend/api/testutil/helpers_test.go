@@ -7,31 +7,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 )
-
-// =============================================================================
-// Auth module setup tests
-// =============================================================================
-
-func TestSetupAuthModule(t *testing.T) {
-	t.Parallel()
-
-	db, services := testutil.SetupAuthModule(t)
-	require.NotNil(t, db)
-	require.NotNil(t, services)
-
-	// Verify services are available
-	assert.NotNil(t, services.Auth)
-	assert.NotNil(t, services.MFA)
-}
 
 // =============================================================================
 // Request Option Tests

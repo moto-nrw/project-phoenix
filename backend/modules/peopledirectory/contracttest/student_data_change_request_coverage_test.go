@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -41,7 +41,7 @@ func TestStudentDataChangeRequestRepository_CoverageFiltersAndDecisionBranches(t
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).StudentDataChangeRequest
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).StudentDataChangeRequest
 	ctx := testpkg.TenantContext(chain.TenantID)
 
 	pending := coverageChangeRequest(chain.StudentID, chain.AccountID, chain.TenantID,
@@ -90,7 +90,7 @@ func TestStudentDataChangeRequestRepository_CoveragePendingQueueTenantIsolation(
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).StudentDataChangeRequest
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).StudentDataChangeRequest
 
 	chainA := testpkg.CreateTestParentGuardianChain(t, db)
 	ctxA := testpkg.TenantContext(chainA.TenantID)

@@ -22,7 +22,7 @@ import (
 func TestDeviceScanRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	isolated := testpkg.SetupIsolatedTestDB(t)
-	db, module := testutil.SetupCheckinModule(t)
+	db, module := setupCheckinModule(t)
 	require.Same(t, isolated, db)
 	ctx := testpkg.Ctx(t)
 	var postgres string

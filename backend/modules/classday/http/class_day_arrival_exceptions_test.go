@@ -61,7 +61,7 @@ type arrivalExceptionFixture struct {
 // reader of the day report the capability builds.
 func setupArrivalExceptionRoute(t *testing.T) (*testpkg.DB, func(t *testing.T, class string, accountID int64) []byte, chi.Router) {
 	t.Helper()
-	db, factory := testutil.SetupClassDayModule(t)
+	db, factory := setupClassDayModule(t)
 	retainedMondayReport := func(t *testing.T, class string, accountID int64) []byte {
 		t.Helper()
 		report, err := factory.ClassDay.DayReport(testpkg.Ctx(t), class, classday.Date(arrivalExceptionMonday), classday.Actor{AccountID: accountID, Roles: "lehrkraft"})

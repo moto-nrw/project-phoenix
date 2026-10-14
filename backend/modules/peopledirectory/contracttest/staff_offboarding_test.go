@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -40,10 +42,10 @@ type offboardingIdentity interface {
 
 type offboardingScenario struct {
 	db        *bun.DB
-	repos     *services.RepositoryTestFactory
+	repos     *api.RepositoryTestFactory
 	timetable services.TimetableRepositories
 	workTime  workforce.Capability
-	rows      services.TimetableTestRepositories
+	rows      api.TimetableTestRepositories
 	authSvc   offboardingIdentity
 	svc       *offboardingTestRunner
 	deps      offboardingcompose.Dependencies
@@ -60,22 +62,22 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 		db = databases[0]
 	}
 
-	rows, err := services.NewTimetableTestRepositoriesWithMembers(db, services.MustNewMembershipTestRepositories(db))
+	rows, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	owners := services.NewUnobservedTimetableDependencies(db)
-	repos := services.NewRepositoryTestFactory(db, owners)
+	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 
-	authService, err := services.IdentityAccessForTests(services.IdentityAccessTestConfig{
+	authService, err := api.IdentityAccessForTests(api.IdentityAccessTestConfig{
 		TenantRuntime: testpkg.TenantRuntime(t, db),
-		Audit:         testpkg.NewAuditCommand(services.NewTestAuditPersistence(db, nil).AuthEvent.Create),
+		Audit:         testpkg.NewAuditCommand(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).AuthEvent.Create),
 		FrontendURL:   "http://localhost:3000", PasswordResetExpiry: time.Hour,
-	}, db, nil)
+	}, testpkg.NewDatabase(t, db), nil)
 	require.NoError(t, err)
 
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
 	deps := offboardingcompose.Dependencies{
 		DB: db, Access: services.StaffOffboardingAccess(authService),
-		Employment: services.MembershipStaffEmployment(services.MustNewStaffEmployment(db)),
+		Employment: services.MembershipStaffEmployment(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
 		Authorize: func(ctx context.Context) (staffoffboarding.Actor, error) {
 			actor, _ := ctx.Value(offboardingTestActorKey{}).(staffoffboarding.Actor)
 			actor.AccountID = actorAccount.ID
@@ -138,7 +140,7 @@ func TestOffboardStaff_ConcurrentSupervisionCannotAttachAfterRetirement(t *testi
 func assertConcurrentSupervisionRejected(t *testing.T, operation string) {
 	t.Helper()
 	sc := newOffboardingScenario(t, testpkg.SetupIsolatedTestDB(t))
-	active, err := services.NewActiveTestModule(sc.db, testpkg.TenantRuntime(t, sc.db))
+	active, err := api.NewActiveTestModule(testpkg.NewDatabase(t, sc.db), testpkg.TenantRuntime(t, sc.db))
 	require.NoError(t, err)
 	staff := testpkg.CreateTestStaff(t, sc.db, "Concurrent", "Supervisor")
 	activity := testpkg.CreateTestActivityGroup(t, sc.db, "Concurrent supervision")
@@ -316,7 +318,7 @@ func TestOffboardingRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	sc := newOffboardingScenario(t, testpkg.SetupIsolatedTestDB(t))
 	actor := testpkg.CreateTestStaff(t, sc.db, "Runtime", "Actor")
-	queue, err := services.NewStaffDocumentCleanup(sc.db, nil)
+	queue, err := api.NewStaffDocumentCleanup(testpkg.NewDatabase(t, sc.db), nil)
 	require.NoError(t, err)
 	sc.deps.Cleanup = queue.Enqueue
 	workflow, err := offboardingcompose.New(sc.deps)
@@ -558,7 +560,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 
 	sc := newOffboardingScenario(t)
 
-	factory, factoryErr := services.NewFactoryForTests(sc.repos, sc.db, slog.Default())
+	factory, factoryErr := api.NewFactoryForTests(sc.repos, testpkg.NewDatabase(t, sc.db), slog.Default())
 	require.NoError(t, factoryErr)
 	require.NoError(t, factory.SetTenantRuntime(testpkg.TenantRuntime(t, sc.db)))
 	invSvc := factory.Invitation
@@ -1186,7 +1188,7 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 		RotationLength:     1,
 		RotationAnchorDate: configModel.NewCalendarDate(2026, time.January, 5),
 	}
-	require.NoError(t, services.NewWorkTimeModelRepository(sc.workTime).Create(sc.ctx, model, []*configModel.WorkTimeModelEntry{
+	require.NoError(t, api.NewWorkTimeModelRepository(sc.workTime).Create(sc.ctx, model, []*configModel.WorkTimeModelEntry{
 		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 300},
 	}))
 	_, err := sc.db.ExecContext(context.Background(),
@@ -1209,7 +1211,7 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 		Scan(context.Background(), &workTimeModelID))
 	assert.Nil(t, workTimeModelID, "work_time_model_id must be cleared on offboarding")
 
-	require.NoError(t, services.NewWorkTimeModelRepository(sc.workTime).Delete(sc.ctx, model.ID),
+	require.NoError(t, api.NewWorkTimeModelRepository(sc.workTime).Delete(sc.ctx, model.ID),
 		"work-time-model deletion must succeed once the offboarded staff no longer references it")
 }
 

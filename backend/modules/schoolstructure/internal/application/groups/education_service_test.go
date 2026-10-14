@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +18,7 @@ import (
 func setupEducationService(t *testing.T, db *bun.DB) Service {
 	t.Helper()
 
-	return testutil.NewEducationSuiteService(testutil.NewSchoolStructureRepositorySuiteFactory(db), db)
+	return api.NewEducationSuiteService(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)), testpkg.NewDatabase(t, db))
 }
 
 // ============================================================================
@@ -69,7 +70,7 @@ func TestListGroups(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
 
 		// ACT: List with pagination
-		query := &testutil.SchoolStructureGroupListQuery{Limit: 100}
+		query := &api.SchoolStructureSuiteGroupListQuery{Limit: 100}
 		groups, err := service.ListGroups(ctx, query)
 
 		// ASSERT
@@ -176,7 +177,7 @@ func TestGroupOperations(t *testing.T) {
 
 	t.Run("create group successfully", func(t *testing.T) {
 		// ARRANGE
-		group := &testutil.SchoolStructureGroup{
+		group := &api.SchoolStructureSuiteGroup{
 			Name: "New Test Group " + time.Now().Format("20060102150405"),
 		}
 
@@ -269,7 +270,7 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 
 	t.Run("updates group successfully", func(t *testing.T) {
 		// ARRANGE
-		group := testutil.SchoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "OriginalName"))
+		group := schoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "OriginalName"))
 
 		// Use a unique name to avoid conflicts with other test data
 		newName := fmt.Sprintf("UpdatedName-%d", time.Now().UnixNano())
@@ -290,7 +291,7 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 	t.Run("rejects update with duplicate name", func(t *testing.T) {
 		// ARRANGE
 		group1 := testpkg.CreateTestEducationGroup(t, db, "ExistingName")
-		group2 := testutil.SchoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "ToBeRenamed"))
+		group2 := schoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "ToBeRenamed"))
 
 		// Use the actual unique name from group1 (fixtures add timestamps)
 		group2.Name = group1.Name // Try to rename to existing name
@@ -305,7 +306,7 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 
 	t.Run("updates group with room change", func(t *testing.T) {
 		// ARRANGE
-		group := testutil.SchoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "RoomChangeGroup"))
+		group := schoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "RoomChangeGroup"))
 		room := testpkg.CreateTestRoom(t, db, "NewRoom")
 
 		group.RoomID = &room.ID
@@ -319,7 +320,7 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 
 	t.Run("returns error for non-existent group", func(t *testing.T) {
 		// ARRANGE
-		group := &testutil.SchoolStructureGroup{Name: "NonExistent"}
+		group := &api.SchoolStructureSuiteGroup{Name: "NonExistent"}
 		group.ID = 999999999
 
 		// ACT
@@ -512,7 +513,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 
 	t.Run("rejects group with invalid name", func(t *testing.T) {
 		// ARRANGE
-		group := &testutil.SchoolStructureGroup{Name: ""} // Empty name is invalid
+		group := &api.SchoolStructureSuiteGroup{Name: ""} // Empty name is invalid
 
 		// ACT
 		err := service.CreateGroup(ctx, group)
@@ -525,7 +526,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 		// ARRANGE
 		nonExistentRoomID := int64(999999999)
 		uniqueName := fmt.Sprintf("GroupWithBadRoom-%d", time.Now().UnixNano())
-		group := &testutil.SchoolStructureGroup{
+		group := &api.SchoolStructureSuiteGroup{
 			Name:   uniqueName,
 			RoomID: &nonExistentRoomID,
 		}
@@ -542,7 +543,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "GroupCreateRoom")
 		uniqueName := fmt.Sprintf("GroupWithRoom-%d", time.Now().UnixNano())
-		group := &testutil.SchoolStructureGroup{
+		group := &api.SchoolStructureSuiteGroup{
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
@@ -560,7 +561,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 		// ARRANGE
 		existingGroup := testpkg.CreateTestEducationGroup(t, db, "DuplicateTest")
 
-		duplicateGroup := &testutil.SchoolStructureGroup{Name: existingGroup.Name}
+		duplicateGroup := &api.SchoolStructureSuiteGroup{Name: existingGroup.Name}
 
 		// ACT
 		err := service.CreateGroup(ctx, duplicateGroup)
@@ -584,7 +585,7 @@ func TestEducationService_ListGroups(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "ListTestGroup")
 
 		// ACT
-		groups, err := service.ListGroups(ctx, &testutil.SchoolStructureGroupListQuery{Limit: 10})
+		groups, err := service.ListGroups(ctx, &api.SchoolStructureSuiteGroupListQuery{Limit: 10})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -603,7 +604,7 @@ func TestEducationService_FindGroupWithRoom(t *testing.T) {
 	t.Run("finds group with room", func(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "FindGroupRoom")
-		group := testutil.SchoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "FindGroupWithRoom"))
+		group := schoolStructureGroupOf(testpkg.CreateTestEducationGroup(t, db, "FindGroupWithRoom"))
 
 		group.RoomID = &room.ID
 		require.NoError(t, service.UpdateGroup(ctx, group))
@@ -657,4 +658,13 @@ func TestEducationError_Unwrap(t *testing.T) {
 		// ASSERT
 		assert.Equal(t, innerErr, unwrapped)
 	})
+}
+
+// schoolStructureGroupOf is the group a fixture row stores, as the owner's
+// group reads return it.
+func schoolStructureGroupOf(row *testpkg.EducationGroup) *api.SchoolStructureSuiteGroup {
+	return &api.SchoolStructureSuiteGroup{
+		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		Name: row.Name, RoomID: row.RoomID,
+	}
 }

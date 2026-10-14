@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -24,7 +26,7 @@ const dayDepartureRequestToday = timezone.Date("2026-08-24")
 
 // buildDayDepartureRequestService pins both clocks to dayDepartureRequestToday,
 // so the requested days stay care days whatever the wall clock says.
-func buildDayDepartureRequestService(t *testing.T, departureModeRequests bool) (*parentService.Portal, *bun.DB, *services.RepositoryTestFactory) {
+func buildDayDepartureRequestService(t *testing.T, departureModeRequests bool) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	return buildPickupChangeServiceWithRequestOptions(t,
 		[]services.CareRequestOption{services.WithCareRequestToday(func() timezone.Date { return dayDepartureRequestToday })},

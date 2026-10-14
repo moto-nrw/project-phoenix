@@ -3,8 +3,9 @@ package presence_test
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +20,7 @@ func TestGroupsCompositionPreservesYardColor(t *testing.T) {
 		Set("name = ?", "Schulhof").Set("is_system = TRUE").Set("color = ?", color).
 		Where("id = ? AND tenant_id = ?", room.ID, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
-	module, err := services.NewGroupsTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewGroupsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	got := studentpresence.ResolveYardRoomColor(ctx, module.Active)
 	require.NotNil(t, got)

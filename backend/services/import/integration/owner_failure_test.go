@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -32,7 +32,7 @@ func TestDataImportCutover_StudentOwnerFailuresRollbackAndReplay(t *testing.T) {
 	} {
 		t.Run(table, func(t *testing.T) {
 			tenantID := testpkg.OwnTenant(t)
-			module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+			module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 			require.NoError(t, err)
 			actor := newImporter(t, db)
 			before := countImportRows(t, db, tenantID)
@@ -87,7 +87,7 @@ func TestDataImportCutover_StaffOwnerFailuresRollbackAndReplay(t *testing.T) {
 	for _, table := range tables {
 		t.Run(table, func(t *testing.T) {
 			tenantID := testpkg.OwnTenant(t)
-			module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+			module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 			require.NoError(t, err)
 			actor := newImporter(t, db)
 			role := testpkg.CreateTestRoleForTenant(t, db, "Betreuungskraft", tenantID)

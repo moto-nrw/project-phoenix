@@ -4,7 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -19,7 +20,7 @@ import (
 // giveAccompaniedMonday writes an "Anderes Kind" Monday (plus the required
 // note) through the repository, mirroring what the HTTP flow would have
 // stored: the accompanied mode widens the plan, it never narrows it.
-func giveAccompaniedMonday(t *testing.T, ctx context.Context, factory *testutil.PeopleRepositorySuiteFactory, studentID int64) {
+func giveAccompaniedMonday(t *testing.T, ctx context.Context, factory *api.PeopleRepositorySuiteFactory, studentID int64) {
 	t.Helper()
 	student, err := factory.Student.FindByID(ctx, studentID)
 	require.NoError(t, err)
@@ -56,15 +57,15 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := testutil.NewPeopleRepositorySuiteFactory(db)
+	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	first := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchOK", "1a")
 	second := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "BatchOK", "1a")
 
 	giveAccompaniedMonday(t, ctx, factory, first.ID)
 	giveAccompaniedMonday(t, ctx, factory, second.ID)
-	require.NoError(t, testutil.ReplacePeopleRepositorySuiteCompanions(ctx, testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), first.ID,
-		companionEdge(t, testutil.NewPeopleRepositorySuiteCompanionEdge, first.ID, second.ID, 1)))
+	require.NoError(t, api.ReplacePeopleRepositorySuiteCompanions(ctx, api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), first.ID,
+		companionEdge(t, api.NewPeopleRepositorySuiteCompanionEdge, first.ID, second.ID, 1)))
 	// Neither child has any other "mit wem" detail than the shared edge.
 	testpkg.ClearTestStudentCompanionNote(t, db, first.ID)
 	testpkg.ClearTestStudentCompanionNote(t, db, second.ID)
@@ -84,7 +85,7 @@ func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *test
 	// ASSERT — the batch verdict passes and the shared edge is gone.
 	require.NoError(t, factory.Student.VerifyCompanionStrandingBatch(batchCtx))
 
-	edges, err := testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, first.ID)
+	edges, err := api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, first.ID)
 	require.NoError(t, err)
 	assert.Empty(t, edges, "the edge lost its basis on both sides and must be gone")
 }
@@ -99,15 +100,15 @@ func TestStudentRepository_Update_BatchStillRefusesStrandingCompanion(t *testing
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := testutil.NewPeopleRepositorySuiteFactory(db)
+	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchStrand", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "BatchStrand", "1a")
 
 	giveAccompaniedMonday(t, ctx, factory, subject.ID)
 	giveAccompaniedMonday(t, ctx, factory, companion.ID)
-	require.NoError(t, testutil.ReplacePeopleRepositorySuiteCompanions(ctx, testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), subject.ID,
-		companionEdge(t, testutil.NewPeopleRepositorySuiteCompanionEdge, subject.ID, companion.ID, 1)))
+	require.NoError(t, api.ReplacePeopleRepositorySuiteCompanions(ctx, api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), subject.ID,
+		companionEdge(t, api.NewPeopleRepositorySuiteCompanionEdge, subject.ID, companion.ID, 1)))
 	// The companion keeps its accompanied Monday, answered ONLY by the link.
 	testpkg.ClearTestStudentCompanionNote(t, db, companion.ID)
 

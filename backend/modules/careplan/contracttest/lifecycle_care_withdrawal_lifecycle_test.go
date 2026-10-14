@@ -7,13 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -88,7 +87,7 @@ func TestCareWithdrawalLifecycle_CompletionEndsBookingsFromEveryEnrollmentReques
 		SourceRequestChildID:  &requestChildIDs[0],
 		WithdrawalConfirmedBy: &actorID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
 	}
-	require.NoError(t, services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CareWithdrawal.UpsertPending(ctx, completion))
+	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CareWithdrawal.UpsertPending(ctx, completion))
 
 	input := careplan.CareExitInput{
 		LastCareDay: timezone.NewDate(2026, 8, 24), Reason: careplan.CareExitReasonNoCareNeed,
@@ -172,7 +171,7 @@ func TestCareWithdrawalLifecycle_ResolvedCompletionIsAConflict(t *testing.T) {
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Mila", "Erledigt", "3a")
 	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, actorID, timezone.TodayDate())
-	changed, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CareWithdrawal.MarkResolved(ctx, completion.ID, actorID, time.Now())
+	changed, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CareWithdrawal.MarkResolved(ctx, completion.ID, actorID, time.Now())
 	require.NoError(t, err)
 	require.True(t, changed)
 

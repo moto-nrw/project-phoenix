@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,7 @@ import (
 
 type staffDocumentScenario struct {
 	db       *bun.DB
-	repos    *services.RepositoryTestFactory
+	repos    *api.RepositoryTestFactory
 	workTime workforce.Capability
 	svc      workforce.StaffDocuments
 	ctx      context.Context
@@ -38,11 +39,11 @@ func newStaffDocumentScenario(t *testing.T) *staffDocumentScenario {
 
 	db := testpkg.SetupTestDB(t)
 
-	owners := services.NewUnobservedTimetableDependencies(db)
-	repos := services.NewRepositoryTestFactory(db, owners)
-	admin, err := services.NewStaffAdmin(services.StaffAdminDependencies{
-		DB: db, Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
-		MasterDataAudit: services.NewTestAuditPersistence(db, nil).StaffMasterDataChange, PersonnelNumber: services.NewTestAuditPersistence(db, nil).PersonnelNumberChange, DataAccessLog: services.NewTestAuditPersistence(db, nil).DataAccessLog,
+	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
+	admin, err := api.NewStaffAdmin(api.StaffAdminDependencies{
+		DB: testpkg.NewDatabase(t, db), Staff: repos.Staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
+		MasterDataAudit: api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StaffMasterDataChange, PersonnelNumber: api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).PersonnelNumberChange, DataAccessLog: api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataAccessLog,
 	})
 	require.NoError(t, err)
 

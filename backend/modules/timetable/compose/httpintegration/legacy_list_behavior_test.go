@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -16,7 +16,7 @@ func TestDateframeRepositoryListPreservesQueryOptionsBehavior(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Dateframe.(dateframeQueryRepository)
+	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Dateframe.(dateframeQueryRepository)
 	ctx := testpkg.Ctx(t)
 
 	alpha := &schedule.Dateframe{

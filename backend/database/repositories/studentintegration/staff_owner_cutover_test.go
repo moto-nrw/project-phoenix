@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -133,8 +134,8 @@ func TestStaffOwnersWorkOnContractedStorage(t *testing.T) {
 	require.True(t, retired, "the Contract must have removed the compatibility storage")
 	membership, err := services.NewSchoolMembership(db)
 	require.NoError(t, err)
-	employment := services.MustNewStaffEmployment(db)
-	workTime, err := services.NewWorkforce(db, membership)
+	employment := api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))
+	workTime, err := api.NewWorkforce(testpkg.NewDatabase(t, db), membership)
 	require.NoError(t, err)
 
 	model, err := workTime.CreateWorkTimeModel(ctx, workforce.CreateWorkTimeModel{WorkTimeModelFields: workforce.WorkTimeModelFields{
@@ -292,7 +293,7 @@ func TestStaffOwnersAreTenantIsolated(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	membership, err := services.NewSchoolMembership(db)
 	require.NoError(t, err)
-	employment := services.MustNewStaffEmployment(db)
+	employment := api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))
 	person := testpkg.CreateTestPerson(t, db, "Tenant", "Bound")
 	created, err := membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: person.ID, StaffNotes: "vertraulich"}})
 	require.NoError(t, err)

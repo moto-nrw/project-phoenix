@@ -3,7 +3,8 @@ package contracttest_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -19,7 +20,7 @@ func TestStudentClassRosterHydratesOrdersAndReturnsNilWhenEmpty(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student
 	ctx := testpkg.Ctx(t)
 
 	class := "List behavior"
@@ -49,7 +50,7 @@ func TestGuardianProfileRepositoryListWithOptionsPreservesDefaultOrderAndEmptySl
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 	zuluFixture := testpkg.CreateTestGuardianProfile(t, db, "guardian-list-zulu")
 	zulu, err := repo.FindByID(ctx, zuluFixture.ID)
@@ -81,7 +82,7 @@ func TestGuardianProfileRepositoryListWithOptionsStaysWithinTenant(t *testing.T)
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 	own := testpkg.CreateTestGuardianProfile(t, db, "guardian-list-own")
 	otherTenant, _ := testpkg.CreateTestTenant(t, db)

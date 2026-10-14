@@ -32,7 +32,7 @@ import (
 // unmounted.
 func setupSchoolArrivalExceptionRoute(t *testing.T) (*testpkg.DB, *schoolportal.Resource) {
 	t.Helper()
-	db, services := testutil.SetupSchoolModule(t)
+	db, services := setupSchoolModule(t)
 	classDay := classdayhttp.NewResource(services.ClassDay, nil)
 	return db, schoolportal.NewResource(portaltest.AuthRuntime(services.SchoolAuth), portaltest.MFARuntime(services.SchoolMFA), schoolportal.PasswordResetRuntime{}, classDay, nil, nil, nil, nil)
 }

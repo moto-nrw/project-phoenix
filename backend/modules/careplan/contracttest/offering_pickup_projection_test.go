@@ -3,15 +3,6 @@ package contracttest_test
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-
 	"log/slog"
 	"testing"
 	"time"
@@ -20,9 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -85,7 +80,7 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 	)
 
 	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
-	err := services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(effectiveFrom), nil)
+	err := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(effectiveFrom), nil)
 	require.NoError(t, err)
 
 	reader := projectedPickupReader(env)
@@ -138,7 +133,7 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 	)
 
 	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
-	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
+	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		childID,
 		enrollmentTest.Date(effectiveFrom),
@@ -237,9 +232,9 @@ func TestOfferingPickupResetClearsManualWeekdayExtension(t *testing.T) {
 
 	var clearedStudentID int64
 	var clearedWeekday int
-	reset := testutil.NewBookingMaterialization(t, env.db,
-		testutil.WithBookingCatalog(env.offeringCatalog),
-		testutil.WithBookingPickupWeekdayExtension(func(_ context.Context, gotStudentID int64, gotWeekday int) error {
+	reset := newBookingMaterialization(t, env.db,
+		api.WithBookingCatalog(env.offeringCatalog),
+		api.WithBookingPickupWeekdayExtension(func(_ context.Context, gotStudentID int64, gotWeekday int) error {
 			clearedStudentID, clearedWeekday = gotStudentID, gotWeekday
 			return nil
 		}),
@@ -312,7 +307,7 @@ func TestOfferingPickupProjection_ResetWaitsForOfferingSourceGate(t *testing.T) 
 	monday := nextWeekday(decisionTestToday, time.Monday)
 
 	resetter := newBookingsForTest(env, nil, func(ctx context.Context) error {
-		return services.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(ctx)
+		return api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, env.db)).LockRecurrenceWrites(ctx)
 	}, nil)
 	releaseHolder, holderDone := holdOfferingSourceGate(t, env)
 	resetDone := startPickupReset(t, env, resetter, studentID, monday)
@@ -330,7 +325,7 @@ func holdOfferingSourceGate(t *testing.T, env *decisionTestEnv) (chan struct{}, 
 	acquired, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
 	go func() {
 		done <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
-			if err := services.MustNewTimetableRecurrenceLock(env.db).LockRecurrenceWrites(ctx); err != nil {
+			if err := api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, env.db)).LockRecurrenceWrites(ctx); err != nil {
 				return err
 			}
 			close(acquired)

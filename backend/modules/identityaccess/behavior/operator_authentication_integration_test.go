@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -240,8 +241,8 @@ func testSchoolID(tb testing.TB) int64 { return testpkg.Tenant(tb) }
 // Identity & Access module the operator routes call.
 func buildOperatorIdentity(t *testing.T, db *bun.DB) *identityaccess.Module {
 	t.Helper()
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := services.NewFactoryForTestsWithConfig(repoFactory, db, slog.Default(), authTestFactoryConfig(false))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	serviceFactory, err := api.NewFactoryForTestsWithConfig(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), authTestFactoryConfig(false))
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 	module := serviceFactory.AccountAuthentication()

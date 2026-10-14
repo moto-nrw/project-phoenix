@@ -7,15 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -45,7 +45,7 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub,
 	if len(moduleOverride) == 1 {
 		mealPlan = moduleOverride[0]
 	}
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:      repos.CarePlan(),
 		People:        services.MustNewPeopleDirectory(db),

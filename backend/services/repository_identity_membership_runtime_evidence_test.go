@@ -1,10 +1,13 @@
-package services
+package services_test
 
 import (
 	"context"
 	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/services"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -21,13 +24,13 @@ import (
 func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	factory, err := NewRepositoryTestFactoryWithPeopleDirectory(db, NewUnobservedTimetableDependencies(db))
+	factory, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	identity, err := NewIdentityAccessForTests(db)
+	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	organizations, err := NewOrganizationTenancy(db)
+	organizations, err := services.NewOrganizationTenancy(db)
 	require.NoError(t, err)
-	staff, err := NewStaffMessagingTestRepositories(db, MustNewMembershipTestRepositories(db))
+	staff, err := api.NewStaffMessagingTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

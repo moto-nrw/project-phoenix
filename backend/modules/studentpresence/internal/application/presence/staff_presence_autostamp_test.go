@@ -7,8 +7,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
@@ -53,7 +53,7 @@ func TestToggleStudentAttendance_IoTAutoOpensWorkSession(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "AutoStamp", "Supervisor")
 	dev := testpkg.CreateTestDevice(t, db, "autostamp-device-1")
 
-	ctx := services.WithIoTAttendanceRequest(testpkg.Ctx(t))
+	ctx := api.WithIoTAttendanceRequest(testpkg.Ctx(t))
 
 	result, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, dev.ID, true)
 	require.NoError(t, err)

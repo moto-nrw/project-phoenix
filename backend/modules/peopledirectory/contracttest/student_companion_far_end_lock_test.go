@@ -17,7 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -34,7 +35,7 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := testutil.NewPeopleRepositorySuiteFactory(db)
+	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	// The companion is created FIRST so its id is the lower one — the direction
 	// that cannot wait.
@@ -44,7 +45,7 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
-	require.NoError(t, testutil.ReplacePeopleRepositorySuiteCompanions(ctx, testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), subject.ID, []*userModels.StudentCompanion{
+	require.NoError(t, api.ReplacePeopleRepositorySuiteCompanions(ctx, api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), subject.ID, []*userModels.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 		newCompanionEdge(t, subject.ID, companion.ID, 2),
 	}))
@@ -68,7 +69,7 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 
 	// Nothing was written: both edges survive and the plan is untouched, so the
 	// retry the user is asked for starts from the same state.
-	edges, err := testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)
+	edges, err := api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, err)
 	assert.Len(t, edges, 2)
 
@@ -87,14 +88,14 @@ func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	factory := testutil.NewPeopleRepositorySuiteFactory(db)
+	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 
 	companion := testpkg.CreateTestStudent(t, db, "FarEndKept", "Companion", "1a")
 	subject := testpkg.CreateTestStudent(t, db, "FarEndKeeper", "Companion", "1a")
 
 	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
 	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
-	require.NoError(t, testutil.ReplacePeopleRepositorySuiteCompanions(ctx, testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), subject.ID, []*userModels.StudentCompanion{
+	require.NoError(t, api.ReplacePeopleRepositorySuiteCompanions(ctx, api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()), subject.ID, []*userModels.StudentCompanion{
 		newCompanionEdge(t, subject.ID, companion.ID, 1),
 	}))
 
@@ -110,7 +111,7 @@ func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
 
 	require.NoError(t, factory.Student.Update(ctx, loaded))
 
-	edges, err := testutil.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)
+	edges, err := api.NewPeopleRepositorySuiteCompanions(factory.CarePlan()).ListForStudent(ctx, subject.ID)
 	require.NoError(t, err)
 	assert.Len(t, edges, 1)
 }

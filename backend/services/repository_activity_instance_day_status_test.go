@@ -1,9 +1,11 @@
-package services
+package services_test
 
 import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/api"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +30,7 @@ func TestActivityInstancesOfTheDayCarryTheirSessionStatus(t *testing.T) {
 		Title: "Overdue started", IsSpontaneous: true, StartHHMM: "10:15",
 	})
 	testpkg.SetActivityInstanceLifecycle(t, ctx, db, started.ID, "active")
-	repos, err := NewTimetableTestRepositoriesWithMembers(db, MustNewMembershipTestRepositories(db))
+	repos, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 
 	rows, err := repos.ActivityInstance.FindByTenantAndDate(ctx, dayISO)

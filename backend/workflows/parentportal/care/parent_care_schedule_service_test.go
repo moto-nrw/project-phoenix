@@ -19,14 +19,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
@@ -34,10 +33,10 @@ import (
 // buildCareScheduleService wires the parent service with the full care-schedule
 // request stack (arrival/pickup read services + the schedule-domain request
 // service), so the Stammdaten read view and request lifecycle run for real.
-func buildCareScheduleService(t *testing.T, notesEnabled bool) (*care.Service, *bun.DB, *services.RepositoryTestFactory) {
+func buildCareScheduleService(t *testing.T, notesEnabled bool) (*care.Service, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	return careScheduleServiceOn(t, db, repos, notesEnabled), db, repos
 }
 
@@ -45,7 +44,7 @@ func buildCareScheduleService(t *testing.T, notesEnabled bool) (*care.Service, *
 // db/repos, so a test can rebuild the service with a different messaging toggle
 // while keeping the seeded guardian chain and persisted requests. Allocating a
 // fresh SetupTestDB instead would point the rebuilt service at an empty schema.
-func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *services.RepositoryTestFactory, notesEnabled bool) *care.Service {
+func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, notesEnabled bool) *care.Service {
 	t.Helper()
 	return careScheduleServiceWithSettings(t, db, repos, map[string]bool{
 		configModels.KeyParentSickNoteEnabled:           true,
@@ -56,9 +55,9 @@ func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *services.RepositoryT
 	})
 }
 
-func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *services.RepositoryTestFactory, boolValues map[string]bool, requestService ...*carerequests.Service) *care.Service {
+func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, boolValues map[string]bool, requestService ...*carerequests.Service) *care.Service {
 	t.Helper()
-	sf, err := services.NewFactoryForTests(repos, db, slog.Default(), func() time.Time {
+	sf, err := api.NewFactoryForTests(repos, testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)

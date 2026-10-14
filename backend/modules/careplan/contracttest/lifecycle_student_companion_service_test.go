@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -20,14 +21,14 @@ import (
 // service — the companion rules span three tables, so a mock would only test
 // the mock.
 func newCompanionTestService(db *bun.DB) careplan.StudentCompanions {
-	factory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	return services.MustNewStudentCompanions(factory.CarePlan(), factory.Student, services.MustNewPeopleDirectory(db), nil)
+	factory := api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db)))
+	return api.MustNewStudentCompanions(factory.CarePlan(), factory.Student, services.MustNewPeopleDirectory(db), nil)
 }
 
 // studentPlans is the child repository the departure-plan helper writes
 // through, so a staged plan is the normalized one a production write leaves.
 func studentPlans(db *bun.DB) studentPlanWriter {
-	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Student
+	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).Student
 }
 
 // studentPlanWriter is the slice of the child repository the departure-plan
@@ -171,7 +172,7 @@ func TestStudentService_ReplaceCompanions_ExtendPreservesCompanionFields(t *test
 
 	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
-	studentRepo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Student
+	studentRepo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Student
 
 	subject := testpkg.CreateTestStudent(t, db, "ExtendSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "ExtendCompanion", "Companion", "1a")
@@ -226,10 +227,10 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 		FirstName: "Clara",
 		LastName:  "Confirm",
 	})
-	factory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	trail := services.NewStudentAudit(db)
-	audit := services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, trail)
-	service := services.MustNewStudentCompanions(factory.CarePlan(), factory.Student, services.MustNewPeopleDirectory(db), audit)
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	trail := api.NewStudentAudit(testpkg.NewDatabase(t, db))
+	audit := api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, trail)
+	service := api.MustNewStudentCompanions(factory.CarePlan(), factory.Student, services.MustNewPeopleDirectory(db), audit)
 
 	subject := testpkg.CreateTestStudent(t, db, "AuditSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "AuditCompanion", "Companion", "1a")
@@ -273,7 +274,7 @@ func TestStudentUpdate_CompanionLinkSatisfiesNoteRequirement(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
-	studentRepo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Student
+	studentRepo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Student
 
 	subject := testpkg.CreateTestStudent(t, db, "NoteSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "NoteCompanion", "Companion", "1a")
@@ -538,7 +539,7 @@ func TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
-	studentRepo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Student
+	studentRepo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Student
 
 	subject := testpkg.CreateTestStudent(t, db, "PerDaySubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "PerDayCompanion", "Companion", "1a")
@@ -594,7 +595,7 @@ func TestStudentUpdate_CompanionLinkCoversOnlyItsWeekdays(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 	service := newCompanionTestService(db)
-	studentRepo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Student
+	studentRepo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Student
 
 	subject := testpkg.CreateTestStudent(t, db, "CoverSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "CoverCompanion", "Companion", "1a")

@@ -118,6 +118,16 @@ func NewDatabase(tb testing.TB, db *bun.DB) Database {
 	return database
 }
 
+// MustDatabase is NewDatabase for fixture helpers that hold no testing.TB. A
+// pool the tenant runtime cannot bind is a broken test setup and panics.
+func MustDatabase(db *bun.DB) Database {
+	database, err := transactionruntime.NewDatabase(db)
+	if err != nil {
+		panic(fmt.Sprintf("create root database: %v", err))
+	}
+	return database
+}
+
 // TenantRuntime builds the production tenant runtime against a test database.
 func TenantRuntime(tb testing.TB, db *bun.DB) tenant.UnitOfWork {
 	tb.Helper()

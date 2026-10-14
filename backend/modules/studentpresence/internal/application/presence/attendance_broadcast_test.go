@@ -7,14 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -112,14 +111,14 @@ func checkinEventsOnTopic(b *testpkg.RecordingBroadcaster, topic string) []activ
 func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
-	owners := services.NewUnobservedTimetableDependencies(db)
-	repos := services.NewRepositoryTestFactory(db, owners)
+	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 	timetableRepos := services.NewTimetableRepositories(db, owners)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	devices, err := services.NewDeviceRepository(db)
+	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	rooms, err := services.NewFacilities(db)
+	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		GroupRepo:          sessionGroups(repos.ActiveGroup),
@@ -132,7 +131,7 @@ func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *tes
 		ActivityCatRepo:    services.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
-		StaffNames: services.NewAttendanceStaffNames(repos.Staff, services.NewTestPersonDirectory(db, services.TestPersonDirectorySources{
+		StaffNames: services.NewAttendanceStaffNames(repos.Staff, api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
 			RFIDCards: repos.RFIDCard, AccountExists: services.AccountExists(repos.Profile),
 		})),

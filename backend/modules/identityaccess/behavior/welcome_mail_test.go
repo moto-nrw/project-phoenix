@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -25,7 +27,7 @@ import (
 
 // welcomeSchoolSettings gives the school settings that differ from the
 // registry defaults, so the help link has to carry the school's values.
-func welcomeSchoolSettings(t *testing.T, module services.AuthTestModule) {
+func welcomeSchoolSettings(t *testing.T, module api.AuthTestModule) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, module.Settings.SetValue(ctx, "attendance.nfc_enabled", true, nil, nil))
@@ -104,9 +106,9 @@ func TestCreateSchoolInvitationSendsOneWelcomeAndResendDoesNot(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	mailer := testpkg.NewCapturingMailer()
-	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db),
-		services.WithAuthTestMailer(mailer),
-		services.WithAuthTestPasswordResetBackoff(time.Millisecond),
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db),
+		api.WithAuthTestMailer(mailer),
+		api.WithAuthTestPasswordResetBackoff(time.Millisecond),
 	)
 	require.NoError(t, err)
 	welcomeSchoolSettings(t, module)
@@ -148,9 +150,9 @@ func TestSchoolWelcomeWaitsForAcceptedInvitation(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	mailer := &retryingInvitationMailer{}
-	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db),
-		services.WithAuthTestMailer(mailer),
-		services.WithAuthTestPasswordResetBackoff(time.Millisecond),
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db),
+		api.WithAuthTestMailer(mailer),
+		api.WithAuthTestPasswordResetBackoff(time.Millisecond),
 	)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
@@ -178,9 +180,9 @@ func TestSchoolWelcomeRejectsPermanentlyFailedInvitation(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	mailer := &permanentlyFailingInvitationMailer{}
-	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db),
-		services.WithAuthTestMailer(mailer),
-		services.WithAuthTestPasswordResetBackoff(time.Millisecond),
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db),
+		api.WithAuthTestMailer(mailer),
+		api.WithAuthTestPasswordResetBackoff(time.Millisecond),
 	)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
@@ -209,7 +211,7 @@ func TestSchoolWelcomeRejectsPermanentlyFailedInvitation(t *testing.T) {
 func TestSchoolWelcomeRejectsRevokedAndReplacedInvitations(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	creator := testpkg.CreateTestAccount(t, db, "welcome-revoke-creator")
@@ -243,9 +245,9 @@ func TestSchoolWelcomeOpensTheLeadArticleForALeadRole(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	mailer := testpkg.NewCapturingMailer()
-	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db),
-		services.WithAuthTestMailer(mailer),
-		services.WithAuthTestPasswordResetBackoff(time.Millisecond),
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db),
+		api.WithAuthTestMailer(mailer),
+		api.WithAuthTestPasswordResetBackoff(time.Millisecond),
 	)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
@@ -325,7 +327,7 @@ func emailOutboxPayload(t *testing.T, db *bun.DB, id int64) map[string]any {
 func TestGuardianInvitationQueuesOneWelcomePerGuardianAndSchool(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	welcomeSchoolSettings(t, module)
 	ctx := testpkg.Ctx(t)
@@ -396,7 +398,7 @@ func TestGuardianWelcomeFailureKeepsTheInvitation(t *testing.T) {
 		_, err := raw.(bun.IDB).ExecContext(ctx, "SELECT 1/0")
 		return err
 	})
-	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "welcome-failure")

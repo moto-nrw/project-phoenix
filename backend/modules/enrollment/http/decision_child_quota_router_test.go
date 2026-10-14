@@ -13,18 +13,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -172,7 +171,7 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos, err := services.NewEnrollmentTestRepositories(db, services.NewTestAuditStore(db))
+	repos, err := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), api.NewTestAuditStore(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	_, reviewer := testpkg.CreateTestStaffWithAccount(t, db, "Rita", "Pruefung")
 	schema, err := NewTestFormSchemas(repos.Enrollment()).CreateSchema(ctx, "Testformular "+t.Name(), []capability.FormField{
@@ -196,15 +195,15 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 	require.NoError(t, err)
 	studentEnrollment, err := services.NewPeopleDirectory(db)
 	require.NoError(t, err)
-	bookings := testutil.NewBookingMaterialization(t, db,
-		testutil.WithBookingCatalog(testutil.NewCareOfferingCatalog(t, db).Catalog),
-		testutil.WithBookingSettings(offeringGuardSettings(false)),
+	bookings := newBookingMaterialization(t, db,
+		api.WithBookingCatalog(newCareOfferingCatalog(t, db).Catalog),
+		api.WithBookingSettings(offeringGuardSettings(false)),
 	).Bookings
 	decisions := newOfferingGuardDecisions(repos, false, repos.Enrollment(), guardianAccess, studentEnrollment, bookings)
-	decision := enrollmentAPI.NewDecisionService(testutil.PublicEnrollmentDecisions(decisions))
-	requests := enrollmentAPI.NewRequestService(testutil.NewEnrollmentIntake(testutil.EnrollmentIntakeSources{
+	decision := enrollmentAPI.NewDecisionService(api.PublicEnrollmentDecisions(decisions))
+	requests := enrollmentAPI.NewRequestService(api.NewEnrollmentIntake(api.EnrollmentIntakeSources{
 		Requests: repos.Enrollment(), Children: repos.Enrollment(), Guardians: repos.Enrollment(),
-		CareOfferingRepo: testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan), Catalog: repos.Enrollment(),
+		CareOfferingRepo: api.NewEnrollmentCareOfferingRecords(repos.CarePlan), Catalog: repos.Enrollment(),
 		SchoolRepo: capabilitySchools{schools: repos.School}, RateLimitRepo: repos.Enrollment(),
 		LateInviteRepo: repos.Enrollment(), OutboxEnqueuer: discardingOutbox{}, Settings: stubTakeoverSettings{},
 		ManualDecider: decisions, FrontendURL: "http://localhost:3000", ParentsURL: "http://parents.localhost:3000",

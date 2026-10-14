@@ -84,7 +84,7 @@
     "sources": [
       "backend/modules/timetable/http/router.go",
       "backend/services/timetable_http_ports.go",
-      "backend/services/timetable_http_test_helpers.go",
+      "backend/api/timetable_http_test_helpers.go",
       "backend/api/testdata/route_table.golden",
       "backend/test/query_budgets.go"
     ],

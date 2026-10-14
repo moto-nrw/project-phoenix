@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	remindersService "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/stretchr/testify/assert"
@@ -13,7 +12,7 @@ import (
 
 func TestPresentStudentsInRoomsQueryBudget(t *testing.T) {
 	t.Parallel()
-	db, serviceFactory := testutil.SetupRemindersModule(t)
+	db, serviceFactory := setupRemindersModule(t)
 	require.NoError(t, serviceFactory.Settings.SetValue(
 		testpkg.Ctx(t), "reminders.pickup_upcoming_enabled", true, nil, nil,
 	))

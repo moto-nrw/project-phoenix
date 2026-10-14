@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -33,7 +35,7 @@ import (
 // lifecycle drives.
 func newInstancePresence(t *testing.T, db *bun.DB) studentpresence.Capability {
 	t.Helper()
-	return services.NewStudentPresenceForTests(db)
+	return api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db))
 }
 
 // lifecycleSetup bundles the wired lifecycle + common fixtures. Rows belong
@@ -42,7 +44,7 @@ type lifecycleSetup struct {
 	presence compose.LifecyclePresence
 	svc      *compose.InstanceLifecycleService
 	factory  *services.Factory
-	repos    *services.RepositoryTestFactory
+	repos    *api.RepositoryTestFactory
 	// timetable are the retained Timetable adapters over the same owners.
 	timetable services.TimetableRepositories
 	db        *bun.DB
@@ -61,9 +63,9 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	timetableDependencies := services.NewUnobservedTimetableDependencies(db)
-	repoFactory := services.NewRepositoryTestFactory(db, timetableDependencies)
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
+	timetableDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDependencies)
+	serviceFactory, err := api.NewFactoryForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
@@ -138,11 +140,11 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 	}
 	// The deviation protocol's Audit trail writes through an Audit command,
 	// as the test service graph routes it.
-	audits, err := services.NewRoutedTestAuditPersistence(s.db)
+	audits, err := api.NewRoutedTestAuditPersistence(testpkg.MustDatabase(s.db))
 	if err != nil {
 		panic(err)
 	}
-	rooms, err := services.NewFacilities(s.db)
+	rooms, err := api.NewFacilities(testpkg.MustDatabase(s.db))
 	if err != nil {
 		panic(err)
 	}
@@ -157,7 +159,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		ExceptionRepo:       s.timetable.ActivityException,
 		ActiveGroupRepo:     s.repos.ActiveGroup,
 		SupervisorRepo:      s.repos.GroupSupervisor,
-		Rooms:               services.NewTimetableRoomNames(rooms),
+		Rooms:               api.NewTimetableRoomNames(rooms),
 		ActivityGroupRepo:   s.timetable.ActivityGroup,
 		StaffRepo:           s.repos.Staff,
 		StudentRepo:         s.repos.Student,

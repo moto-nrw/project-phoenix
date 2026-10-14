@@ -7,15 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-
-	"github.com/moto-nrw/project-phoenix/services"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
-
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // loginGateScenario wires the composed Identity & Access module + real MFA service on top
@@ -53,7 +51,7 @@ func randomTestPassword() string {
 // composed since #3331 — the school's security.mfa_mode decides, and these
 // tests drive it through the platform-wide override row instead, which
 // short-circuits the verdict without a settings registry.
-func newLoginGateScenario(t *testing.T, options ...services.AuthTestOption) *loginGateScenario {
+func newLoginGateScenario(t *testing.T, options ...api.AuthTestOption) *loginGateScenario {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)

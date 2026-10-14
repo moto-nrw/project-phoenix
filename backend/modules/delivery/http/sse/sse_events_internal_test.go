@@ -46,17 +46,22 @@ func withValidSSEToken(t *testing.T, ctx context.Context) context.Context {
 	return jwtauth.NewContext(ctx, token, nil)
 }
 
+// ComposeSubscriptionResolver composes the root's caller rows over the
+// package's test database. The root imports this package, so these internal
+// tests cannot import it; root_composition_test.go binds it.
+var ComposeSubscriptionResolver func(t *testing.T) (*bun.DB, SubscriptionResolver)
+
 // setupEventsModule initializes the DB-backed SSE capability under test.
 func setupEventsModule(t *testing.T) *eventsTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupUserContextModule(t)
+	db, subscriptions := ComposeSubscriptionResolver(t)
 
 	hub := realtime.NewHub(slog.Default())
 
 	resource := NewResource(
 		hub,
-		svc.UserContext,
+		subscriptions,
 		db,
 		slog.Default(),
 	)

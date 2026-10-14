@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/stretchr/testify/assert"
@@ -56,7 +57,7 @@ func (s stubExcused) ListForStudent(_ context.Context, _ int64, _ time.Time) ([]
 func buildParentServiceWithExcused(t *testing.T, excused careplan.ExcusedAbsenceRequests) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	bc := testpkg.NewRecordingBroadcaster()
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:        repos.CarePlan(),

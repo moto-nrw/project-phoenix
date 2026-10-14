@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -68,9 +70,9 @@ func newPhotoSeam(
 	t *testing.T,
 	directory *stubPhotoDirectory,
 	broadcaster servicesPkg.PhotoBroadcaster,
-	unlinker servicesPkg.PeopleDirectorySuitePhotoUnlinker,
+	unlinker api.PeopleDirectorySuitePhotoUnlinker,
 	logger *slog.Logger,
-) servicesPkg.PeopleDirectorySuiteStudentPhotos {
+) api.PeopleDirectorySuiteStudentPhotos {
 	t.Helper()
 	return servicesPkg.NewStudentPhotos(directory, nil, servicesPkg.StudentPhotoRuntimeDependencies{
 		Broadcaster: broadcaster, Unlinker: unlinker, Logger: logger,
@@ -195,7 +197,7 @@ func TestPhotoRoutesRequireATenantContext(t *testing.T) {
 	seam := newPhotoSeam(t, &stubPhotoDirectory{}, testpkg.NewRecordingBroadcaster(), nil, slog.Default())
 
 	require.ErrorIs(t,
-		seam.CommitUpload(context.Background(), servicesPkg.PeopleDirectorySuiteCommitUpload{StudentID: 1}),
+		seam.CommitUpload(context.Background(), api.PeopleDirectorySuiteCommitUpload{StudentID: 1}),
 		servicesPkg.ErrPhotoNoTenant)
 	_, err := seam.CommitDelete(context.Background(), 1)
 	require.ErrorIs(t, err, servicesPkg.ErrPhotoNoTenant)

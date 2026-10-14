@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -54,11 +54,11 @@ func (g groupsByAccount) MyGroupIDs(ctx context.Context) ([]int64, error) {
 func newCountScopeFixture(t *testing.T, groups groupsByAccount) *fixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
 		ThreadRepo:       repos.ParentMessageThread,
-		MessageRepo:      services.NewParentMessageRepository(db),
+		MessageRepo:      api.NewParentMessageRepository(testpkg.NewDatabase(t, db)),
 		ReadRepo:         repos.ParentMessageRead,
 		Persons:          newPersons(repos, db),
 		Settings:         stubSettings{messagingEnabled: true},

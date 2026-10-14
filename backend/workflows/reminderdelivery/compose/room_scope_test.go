@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +36,7 @@ func TestSupervisedRoomScopeAgreesWithBulkReader(t *testing.T) {
 	t.Parallel()
 	day := testpkg.Date(2026, time.September, 4)
 	now := day.BerlinMidnight().Add(12 * time.Hour)
-	db, module := testutil.SetupRemindersModule(t, func() time.Time { return now })
+	db, module := setupRemindersModule(t, func() time.Time { return now })
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, module.Settings.SetValue(ctx, "reminders.activity_start_enabled", true, nil, nil))
 

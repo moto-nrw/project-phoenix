@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -19,7 +19,7 @@ func TestImportBatches_OpeningBalanceOwnersRollbackAndReplay(t *testing.T) {
 	for _, table := range []string{"active.staff_balance_adjustments", "active.staff_vacation_quota", "active.staff_vacation_openings", "audit.data_imports"} {
 		t.Run(table, func(t *testing.T) {
 			testpkg.OwnTenant(t)
-			module, err := services.NewImportTestModuleWithOptions(db, testpkg.TenantRuntime(t, db), services.ImportTestOptions{
+			module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.ImportTestOptions{
 				Clock: func() time.Time { return time.Date(2026, time.September, 12, 12, 0, 0, 0, time.UTC) },
 			})
 			require.NoError(t, err)

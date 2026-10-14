@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
@@ -107,9 +108,9 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repos, err := services.NewActiveTestRepositories(db, services.MustNewMembershipTestRepositories(db))
+	repos, err := api.NewActiveTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	devices, err := services.NewDeviceRepository(db)
+	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	deviceFault := activeService.NewCheckinDeviceFault(services.NewSessionDeviceDirectory(devices, nil, nil))
 	groupFault := &checkinAttributionFault{ActiveGroupRepository: sessionGroups(repos.ActiveGroup)}
@@ -150,7 +151,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	}))
 	device := testpkg.EnsureWebManualDevice(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Planned", "Rollback")
-	ctx = services.WithAttendanceDevice(ctx, device.ID, device.TenantID)
+	ctx = api.WithAttendanceDevice(ctx, device.ID, device.TenantID)
 	ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 	studentFixture := testpkg.CreateTestStudent(t, db, "Planned", "Rollback", "3a")
 	student, err := repos.Student.FindByID(ctx, studentFixture.ID)
@@ -193,7 +194,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 			checkinCtx = services.WithAttendanceStaff(testpkg.Ctx(t), staff.ID, staff.TenantID)
 		}
 		if stage == "staff attribution" {
-			checkinCtx = services.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
+			checkinCtx = api.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
 		}
 		if mode == "visit" {
 			return svc.CreateVisit(checkinCtx, &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: groupID, EntryTime: time.Now()})

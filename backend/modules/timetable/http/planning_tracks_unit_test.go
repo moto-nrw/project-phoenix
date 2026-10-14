@@ -56,7 +56,7 @@ func (s *planningTrackServiceStub) ValidatePlanningTrackAssignment(context.Conte
 func TestPlanningTrackListRouteAllowsSchedulesManage(t *testing.T) {
 	t.Parallel()
 
-	_, _ = testutil.SetupTimetableModule(t)
+	_, _ = RootCompositions.Module(t)
 	resource := NewResource(Dependencies{
 		PlanningTracks: new(planningTrackServiceStub),
 	})

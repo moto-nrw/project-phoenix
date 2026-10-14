@@ -23,7 +23,7 @@ func TestNewFailsFastWithoutTheRequiredCapabilities(t *testing.T) {
 // records its heartbeat through the real Device Fleet capability.
 func TestComposedWorkflowServesTheKiosk(t *testing.T) {
 	t.Parallel()
-	db, module := testutil.SetupCheckinModule(t)
+	db, module := setupCheckinModule(t)
 	device := testpkg.CreateTestDevice(t, db, "composed-kiosk")
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/ping", nil, testutil.WithDeviceContext(device))
 	ctx := testpkg.WithTestTenantRuntime(t, req.Context())
@@ -45,7 +45,7 @@ func TestComposedWorkflowServesTheKiosk(t *testing.T) {
 
 func TestComposedWorkflowRejectsRequestsWithoutADevice(t *testing.T) {
 	t.Parallel()
-	_, module := testutil.SetupCheckinModule(t)
+	_, module := setupCheckinModule(t)
 
 	_, err := module.DeviceScan.Device(testpkg.Ctx(t))
 
@@ -55,7 +55,7 @@ func TestComposedWorkflowRejectsRequestsWithoutADevice(t *testing.T) {
 
 func TestComposedWritesRequireTenantTransaction(t *testing.T) {
 	t.Parallel()
-	db, module := testutil.SetupCheckinModule(t)
+	db, module := setupCheckinModule(t)
 	device := testpkg.CreateTestDevice(t, db, "transaction-required-kiosk")
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", nil, testutil.WithDeviceContext(device))
 	ctx := testpkg.WithTestTenantRuntime(t, req.Context())

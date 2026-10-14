@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -15,7 +15,7 @@ import (
 func TestAccountProfiles(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	profiles, err := services.NewIdentityAccessForTests(db)
+	profiles, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "account-profile")

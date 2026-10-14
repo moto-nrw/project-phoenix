@@ -20,10 +20,10 @@ import (
 	"testing"
 	"time"
 
-	bookingFixtures "github.com/moto-nrw/project-phoenix/services"
-
+	"github.com/moto-nrw/project-phoenix/api"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	bookingFixtures "github.com/moto-nrw/project-phoenix/services"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -252,7 +252,7 @@ func createLinkedCareOffering(
 		IsActive:                  true,
 	}
 	phase.TenantID = s.tenantID
-	repos := bookingFixtures.NewRepositoryTestFactory(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db)))
 	require.NoError(t, repos.Enrollment().InsertPhase(s.ctx, phase))
 
 	offering := testpkg.NewSourceCareOffering(phase.ID,
@@ -343,7 +343,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		require.ErrorIs(t, err, timetable.ErrSplitInvalidInput)
 
 		assert.Nil(t, reloadSplitSchedule(t, s, s.schedule.ID).ValidUntil)
-		series, seriesErr := bookingFixtures.NewTimetableRepositories(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, s.template.ID)
+		series, seriesErr := bookingFixtures.NewTimetableRepositories(s.db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.FindTemplateSeries(s.ctx, s.template.ID)
 		require.NoError(t, seriesErr)
 		require.Len(t, series, 1)
 		assert.Equal(t, s.template.ID, series[0].ID)
@@ -404,7 +404,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 			CareOfferingID: offering.ID,
 			SelectedDays:   []string{"mon"},
 		}
-		require.NoError(t, bookingFixtures.NewEnrollmentBookingFixture().InsertRequestChildOffering(s.ctx, selection))
+		require.NoError(t, api.NewEnrollmentBookingFixture().InsertRequestChildOffering(s.ctx, selection))
 		s.extraCleanups = append([]func(){func() {
 		}}, s.extraCleanups...)
 		offering.IsActive = false
@@ -2073,7 +2073,7 @@ func TestTemplateSplit_SecondSuccessorKeepsOriginalSeriesRoot(t *testing.T) {
 	secondSuccessor := reloadSplitGroup(t, s, second.NewTemplateID)
 	require.NotNil(t, secondSuccessor.SeriesRootID)
 	assert.Equal(t, s.template.ID, *secondSuccessor.SeriesRootID)
-	series, err := bookingFixtures.NewTimetableRepositories(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, second.NewTemplateID)
+	series, err := bookingFixtures.NewTimetableRepositories(s.db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.FindTemplateSeries(s.ctx, second.NewTemplateID)
 	require.NoError(t, err)
 	assert.Len(t, series, 3)
 }

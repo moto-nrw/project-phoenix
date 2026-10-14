@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -19,7 +19,7 @@ import (
 func TestSessionEndPreservesActiveSupervisionDateSelection(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := services.NewStudentPresenceForTests(db)
+	module := api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db))
 	for _, bulk := range []bool{false, true} {
 		name := "single"
 		if bulk {

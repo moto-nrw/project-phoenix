@@ -3,7 +3,8 @@ package contracttest_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -16,7 +17,7 @@ func TestStudentRepository_FindPendingDueForActivation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student
 	ctx := testpkg.Ctx(t)
 
 	yesterday := calendar.TodayDate().AddDays(-1)
@@ -61,7 +62,7 @@ func TestStudentRepository_FindActiveDueForDeactivation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student
 	ctx := testpkg.Ctx(t)
 
 	yesterday := calendar.TodayDate().AddDays(-1)
@@ -95,7 +96,7 @@ func TestStudentRepository_UpdateStatus(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("transitions pending student to active", func(t *testing.T) {
@@ -121,7 +122,7 @@ func TestStudentRepository_TransitionStatus(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Conditional", "Lifecycle", "1a")
 	testpkg.SetStudentLifecycle(t, db, student.ID, testpkg.StudentStatusPending, nil, nil)

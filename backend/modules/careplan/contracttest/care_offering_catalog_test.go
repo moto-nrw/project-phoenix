@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
+	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -26,14 +26,14 @@ import (
 // test database, served in enrollment rows, and creates a phase the offerings
 // can FK against. Phase model replaced calendar periods as the parent entity
 // for care offerings (migration 1.15.68).
-func setupCareTest(t *testing.T, options ...testutil.CareOfferingCatalogOption) (*bun.DB, *enrollmentTest.CareOfferingRows, *enrollmentTest.Phase, func()) {
+func setupCareTest(t *testing.T, options ...api.CareOfferingCatalogOption) (*bun.DB, *enrollmentTest.CareOfferingRows, *enrollmentTest.Phase, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	// Register pool closure before fixture cleanups. testing.Cleanup runs in
 	// LIFO order, so groups/periods created later are deleted while the pool is
 	// still open instead of leaking into subsequent package tests.
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := careOfferingRows(t, db, options...)
 
 	phase := &enrollmentTest.Phase{
@@ -66,10 +66,10 @@ func setupCareTest(t *testing.T, options ...testutil.CareOfferingCatalogOption) 
 // careOfferingRows composes the catalog in rows with a pickup resync bound
 // (as the old service tests always bound one) plus the given options, which
 // are applied after it and may replace it.
-func careOfferingRows(t *testing.T, db *bun.DB, options ...testutil.CareOfferingCatalogOption) *enrollmentTest.CareOfferingRows {
+func careOfferingRows(t *testing.T, db *bun.DB, options ...api.CareOfferingCatalogOption) *enrollmentTest.CareOfferingRows {
 	t.Helper()
-	all := append([]testutil.CareOfferingCatalogOption{
-		testutil.WithCareOfferingPickupResync(&pickupResyncer{}),
+	all := append([]api.CareOfferingCatalogOption{
+		api.WithCareOfferingPickupResync(&pickupResyncer{}),
 	}, options...)
 	return enrollmentTest.NewCareOfferingRows(testCareOfferingCatalog(t, db, all...))
 }
@@ -167,7 +167,7 @@ func TestCareOfferingCatalog_MutationsAcquireTemplateRecurrenceGate(t *testing.T
 	t.Parallel()
 
 	lockCalls := 0
-	_, svc, phase, cleanup := setupCareTest(t, testutil.WithCareOfferingRecurrenceLock(func(context.Context) error {
+	_, svc, phase, cleanup := setupCareTest(t, api.WithCareOfferingRecurrenceLock(func(context.Context) error {
 		lockCalls++
 		return nil
 	}))
@@ -223,7 +223,7 @@ func TestCareOfferingCatalog_ListActiveByPhase_FiltersInactive(t *testing.T) {
 	_, err = svc.Create(ctx, inactive)
 	require.NoError(t, err)
 
-	records := testutil.NewEnrollmentCareOfferingRecords(testRepositories(t, db).CarePlan())
+	records := api.NewEnrollmentCareOfferingRecords(testRepositories(t, db).CarePlan())
 	publicList, err := records.ListActiveByPhase(ctx, phase.ID)
 	require.NoError(t, err)
 	require.Len(t, publicList, 1, "ListActiveByPhase must drop is_active=false rows")
@@ -398,7 +398,7 @@ func TestCareOfferingCatalog_Create_RejectsAdvertisedDayAbsentFromShortPhase(t *
 	defer cleanup()
 	phase.ServiceStartDate = enrollmentTest.Date(timezone.NewDate(2026, time.April, 21)) // Tuesday
 	phase.ServiceEndDate = enrollmentTest.Date(timezone.NewDate(2026, time.April, 22))   // Wednesday
-	require.NoError(t, services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
+	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
 	period := createCareOfferingTestPeriod(t, db, "care-zero-occurrence-period",
 		timezone.NewDate(2026, 4, 1), timezone.NewDate(2026, 4, 30))
 	group := createCareOfferingTemplateGroup(t, db, "care-zero-occurrence-template")
@@ -458,7 +458,7 @@ func TestCareOfferingCatalog_Create_AllowsNonOccurrencePhaseBoundaries(t *testin
 	defer cleanup()
 	phase.ServiceStartDate = enrollmentTest.Date(timezone.NewDate(2026, time.April, 17)) // Friday
 	phase.ServiceEndDate = enrollmentTest.Date(timezone.NewDate(2026, time.April, 26))   // Sunday
-	require.NoError(t, services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
+	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Enrollment().UpdatePhase(testpkg.Ctx(t), ownerPhaseForTest(phase)))
 	period := createCareOfferingTestPeriod(t, db, "care-boundary-period",
 		timezone.NewDate(2026, 4, 1), timezone.NewDate(2026, 4, 30))
 	group := createCareOfferingTemplateGroup(t, db, "care-boundary-template")
@@ -488,7 +488,7 @@ func TestCareOfferingCatalog_Create_ActiveOfferingRequiresActivePeriod(t *testin
 		WeekCycleLength: 1, IsActive: false,
 	}
 	period.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CalendarPeriod.Create(testpkg.Ctx(t), period))
+	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod.Create(testpkg.Ctx(t), period))
 	group := createCareOfferingTemplateGroup(t, db, "inactive-care-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
 	offering := baseLinkedOffering(t, phase.ID, group.ID)
@@ -643,7 +643,7 @@ func TestCareOfferingCatalog_Update_RefreshesPickupProjectionConsumers(t *testin
 
 	// A fresh recorder bound after the create, as the old test rebound it.
 	resyncer := &pickupResyncer{}
-	svc = careOfferingRows(t, db, testutil.WithCareOfferingPickupResync(resyncer))
+	svc = careOfferingRows(t, db, api.WithCareOfferingPickupResync(resyncer))
 	created.PickupTimes = map[string]string{"mon": "15:00"}
 
 	require.NoError(t, svc.Update(ctx, created))
@@ -673,7 +673,7 @@ func TestCareOfferingCatalog_Clone_RepointsToTargetPhase(t *testing.T) {
 	require.NoError(t, err)
 
 	// Build a second phase as the clone target.
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	target := &enrollmentTest.Phase{
 		Name:             uniqueSchemaName("phase-clone-target-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
@@ -727,7 +727,7 @@ func TestCareOfferingCatalog_Clone_ClearsLinkedTemplateAcrossPhases(t *testing.T
 	created, err := svc.Create(ctx, source)
 	require.NoError(t, err)
 
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	target := &enrollmentTest.Phase{
 		Name:             uniqueSchemaName("phase-clone-linked-target-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
@@ -808,7 +808,7 @@ func TestCareOfferingCatalog_Delete_DetachesSourcedTemplates(t *testing.T) {
 
 	// The roster resync is bound after the create, as the old test bound it.
 	resyncer := &recordingSourcedTemplateResyncer{}
-	svc = careOfferingRows(t, db, testutil.WithCareOfferingRosterResync(resyncer))
+	svc = careOfferingRows(t, db, api.WithCareOfferingRosterResync(resyncer))
 
 	require.NoError(t, svc.Delete(ctx, created.ID))
 
@@ -976,9 +976,9 @@ func TestCareOfferingCatalog_AllowsAutoAddTriggersOutsideExclusiveSelectionGroup
 // The fixtures below were shared by the enrollment suites from the
 // care-offering service tests; the catalog itself moved to Care Plan (#3559).
 
-func testRepositories(t *testing.T, db *bun.DB) *services.RepositoryTestFactory {
+func testRepositories(t *testing.T, db *bun.DB) *api.RepositoryTestFactory {
 	t.Helper()
-	factory, err := services.NewRepositoryTestFactoryWithPeopleDirectory(db, services.NewUnobservedTimetableDependencies(db))
+	factory, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	return factory
 }
@@ -986,7 +986,7 @@ func testRepositories(t *testing.T, db *bun.DB) *services.RepositoryTestFactory 
 // testTimetableRepositories builds the retained Timetable adapters over the
 // unobserved owners of the test database (#2743).
 func testTimetableRepositories(db *bun.DB) services.TimetableRepositories {
-	return services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
+	return services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db)))
 }
 
 func testActivityScheduleRepository(t *testing.T, db *bun.DB) activitiesModels.ScheduleRepository {
@@ -996,9 +996,9 @@ func testActivityScheduleRepository(t *testing.T, db *bun.DB) activitiesModels.S
 
 // testCareOfferingCatalog composes the Care Plan catalog over the test
 // database, as the server binds it.
-func testCareOfferingCatalog(t *testing.T, db *bun.DB, options ...testutil.CareOfferingCatalogOption) careplan.CareOfferingCatalogCapability {
+func testCareOfferingCatalog(t *testing.T, db *bun.DB, options ...api.CareOfferingCatalogOption) careplan.CareOfferingCatalogCapability {
 	t.Helper()
-	return testutil.NewCareOfferingCatalog(t, db, options...).Catalog
+	return newCareOfferingCatalog(t, db, options...).Catalog
 }
 
 func createCareOfferingTestPeriod(t *testing.T, db *bun.DB, name string, start, end timezone.Date) *scheduleModels.CalendarPeriod {
@@ -1012,7 +1012,7 @@ func createCareOfferingTestPeriod(t *testing.T, db *bun.DB, name string, start, 
 		IsActive:        true,
 	}
 	period.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CalendarPeriod.Create(testpkg.Ctx(t), period))
+	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CalendarPeriod.Create(testpkg.Ctx(t), period))
 	return period
 }
 
@@ -1060,4 +1060,44 @@ func carePickupTimes(days ...string) map[string]string {
 		times[day] = "14:30"
 	}
 	return times
+}
+
+// The typed root's test compositions these suites build over the package's
+// test database (#4005).
+
+func newBookingMaterialization(tb testing.TB, db *bun.DB, options ...api.BookingMaterializationOption) api.BookingMaterializationTestModule {
+	tb.Helper()
+	module, err := api.NewBookingMaterialization(testpkg.NewDatabase(tb, db), testpkg.TenantRuntime(tb, db), options...)
+	require.NoError(tb, err)
+	return module
+}
+
+func newCareOfferingCatalog(tb testing.TB, db *bun.DB, options ...api.CareOfferingCatalogOption) api.CareOfferingCatalogTestModule {
+	tb.Helper()
+	module, err := api.NewCareOfferingCatalog(testpkg.NewDatabase(tb, db), testpkg.TenantRuntime(tb, db), options...)
+	require.NoError(tb, err)
+	return module
+}
+
+func newOfferingChanges(
+	tb testing.TB,
+	db *bun.DB,
+	settings interface {
+		ResolveBool(context.Context, string) (bool, error)
+		ResolveString(context.Context, string) (string, error)
+	},
+	bookings api.OfferingChangeTestBookings,
+	options ...api.OfferingChangeOption,
+) api.OfferingChangeTestCapability {
+	tb.Helper()
+	changes, err := api.NewOfferingChanges(testpkg.NewDatabase(tb, db), settings, bookings, options...)
+	require.NoError(tb, err)
+	return changes
+}
+
+func newOfferingReviewQuery(tb testing.TB, db *bun.DB, today func() calendar.Date) api.OfferingReviewTestQuery {
+	tb.Helper()
+	query, err := api.NewOfferingReviewTestQuery(testpkg.NewDatabase(tb, db), today)
+	require.NoError(tb, err)
+	return query
 }

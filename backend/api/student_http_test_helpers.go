@@ -1,0 +1,129 @@
+package api
+
+import (
+	"context"
+
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/services"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// The compositions the student route suites
+// (modules/peopledirectory/inbound/students) drive (#2731), composed here so
+// the suites import neither the retained repositories nor the retained
+// models and services.
+
+// StudentHTTPTestRows are the retained repositories the student route suites
+// arrange and assert through.
+type StudentHTTPTestRows = StudentTestRepositories
+
+// StudentHTTPTestAuditCommand is the audit command the suite's rows record
+// into.
+type StudentHTTPTestAuditCommand = auditModels.Command
+
+// StudentHTTPTestChangeRecorder records a companion widening in the
+// change history.
+type StudentHTTPTestChangeRecorder = peopleCompose.StudentChangeRecorder
+
+// The owner capabilities the student route suites receive, named here so the
+// test support forwarding them imports none of the owners.
+type (
+	StudentHTTPTestPeople             = peopledirectory.Capability
+	StudentHTTPTestCompanions         = careplan.StudentCompanions
+	StudentHTTPTestPickupReviewBlocks = carePlanCompose.PickupReviewBlocks
+	StudentHTTPTestMembership         = schoolmembership.Capability
+	StudentHTTPTestCareLifecycleOwner = careplan.CareLifecycle
+)
+
+// NewStudentHTTPTestRows composes the retained repositories over the test
+// database, recording into command; nil records into the test audit store.
+func NewStudentHTTPTestRows(db transactionruntime.Database, command auditModels.Command) (StudentHTTPTestRows, error) {
+	if command == nil {
+		command = NewTestAuditStore(db)
+	}
+	return NewStudentTestRepositories(db, command)
+}
+
+// NewStudentHTTPTestPeople is the People Directory owner over the test
+// database.
+func NewStudentHTTPTestPeople(db transactionruntime.Database) peopledirectory.Capability {
+	return services.MustNewPeopleDirectory(db.Pool())
+}
+
+// NewStudentHTTPTestCompanions composes Care Plan's companion graph over the
+// suite's rows. audit may be nil only for suites that never widen a
+// companion's plan.
+func NewStudentHTTPTestCompanions(rows StudentHTTPTestRows, people peopledirectory.Capability, audit peopleCompose.StudentChangeRecorder) careplan.StudentCompanions {
+	var recorder services.StudentChangeAudit
+	if audit != nil {
+		recorder = audit
+	}
+	return MustNewStudentCompanions(rows.CarePlan, rows.Student, people, recorder)
+}
+
+// StudentHTTPTestConsents is the consent projection and trail the student
+// routes read and append to.
+type StudentHTTPTestConsents = *services.StudentConsents
+
+// NewStudentHTTPTestConsents binds the consent projection and the Audit
+// Platform trail over the test database.
+func NewStudentHTTPTestConsents(db transactionruntime.Database) StudentHTTPTestConsents {
+	return NewStudentConsents(db)
+}
+
+// NewStudentHTTPTestPickupReviewBlocks are the timetable blocks a pickup
+// review shows, over the test database.
+func NewStudentHTTPTestPickupReviewBlocks(db transactionruntime.Database) carePlanCompose.PickupReviewBlocks {
+	return services.NewPickupReviewBlocks(db.Pool())
+}
+
+// NewStudentHTTPTestMembership is the School Membership owner over the test
+// database.
+func NewStudentHTTPTestMembership(db transactionruntime.Database) (schoolmembership.Capability, error) {
+	return services.NewSchoolMembership(db.Pool())
+}
+
+// StudentHTTPTestCareLifecycle tunes the Care Plan lifecycle a student route
+// suite composes.
+type StudentHTTPTestCareLifecycle struct {
+	BookingsAuthoritative func(context.Context) (bool, error)
+	Today                 func() timezone.Date
+	AuditActor            peopleCompose.RequestAuditActor
+}
+
+// NewStudentHTTPTestCareLifecycle composes the native Care Plan lifecycle
+// over the test database, recording care-end history through the owner's
+// change history.
+func NewStudentHTTPTestCareLifecycle(db transactionruntime.Database, config StudentHTTPTestCareLifecycle) (careplan.CareLifecycle, error) {
+	repos, err := NewCareLifecycleTestRepositories(db, nil)
+	if err != nil {
+		return nil, err
+	}
+	return repos.NewCareLifecycle(CareLifecycleTestConfig{
+		Audit:                 peopleCompose.NewStudentAuditService(config.AuditActor, NewStudentAudit(db)),
+		BookingsAuthoritative: config.BookingsAuthoritative,
+		Today:                 config.Today,
+	})
+}
+
+// StudentRoutePersons binds the student routes' person port over the
+// module's retained person service.
+func (m StudentTestModule) StudentRoutePersons() peopleCompose.StudentRoutePersons {
+	return peopleCompose.NewStudentRoutePersons(m.Users)
+}
+
+// MustNewStudentHTTPTestRows is NewStudentHTTPTestRows recording into the
+// test audit store; a composition failure is a broken graph and panics.
+func MustNewStudentHTTPTestRows(db transactionruntime.Database) StudentHTTPTestRows {
+	rows, err := NewStudentHTTPTestRows(db, nil)
+	if err != nil {
+		panic(err)
+	}
+	return rows
+}

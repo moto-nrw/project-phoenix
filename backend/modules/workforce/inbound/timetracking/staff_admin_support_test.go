@@ -12,7 +12,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/workforcetest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +34,6 @@ func (d isoDay) String() string { return string(d) }
 // testContext holds shared test dependencies of the workforce routes.
 type testContext struct {
 	db       *bun.DB
-	module   services.WorkforceTestModule
 	resource *StaffAdminResource
 	router   chi.Router
 }
@@ -49,32 +49,23 @@ func testIdentity(ctx context.Context) Identity {
 	return Identity{AccountID: int64(claims.ID), Roles: claims.Roles, Permissions: permissions, DisplayName: name}
 }
 
-func newWorkforceTestRepositories(t *testing.T, db *bun.DB) services.WorkforceTestRepositories {
+// The typed root composes the workforce graph these route suites run over. It
+// imports this package, so these internal tests cannot import it; the seams
+// in workforcetest are bound by root_composition_test.go.
+func newWorkforceTestRepositories(t *testing.T, db *bun.DB) workforcetest.Rows {
 	t.Helper()
-	repos, err := services.NewWorkforceTestRepositories(db, services.NewTestAuditStore(db))
-	require.NoError(t, err)
-	return repos
+	return workforcetest.ComposeRows(t, db)
 }
 
 // newWorkforceCapability composes the Workforce module the schedule views read
 // from, pinned to the given clock when one is supplied.
 func newWorkforceCapability(t *testing.T, db *bun.DB, clocks ...func() time.Time) workforce.Capability {
 	t.Helper()
-	membership, err := services.NewSchoolMembership(db)
-	require.NoError(t, err)
 	var now func() time.Time
 	if len(clocks) > 0 {
 		now = clocks[0]
 	}
-	capability, err := services.NewWorkforceWithClock(db, membership, now)
-	require.NoError(t, err)
-	return capability
-}
-
-// testCapabilities adapts the retained services of a test module to the
-// public Workforce contracts exactly as the composition root does.
-func testCapabilities(svc services.WorkforceTestModule) services.WorkforceAdminCapabilities {
-	return services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffAdmin, svc.TimeTracking)
+	return workforcetest.ComposeCapability(t, db, now)
 }
 
 // setupStaffRoute initializes test database, services, and resource. The
@@ -84,9 +75,8 @@ func testCapabilities(svc services.WorkforceTestModule) services.WorkforceAdminC
 func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupWorkforceModule(t, clocks...)
-	capabilities := testCapabilities(svc)
-	cleanup, err := services.NewStaffDocumentCleanup(db, nil)
+	db, capabilities := workforcetest.ComposeAdmin(t, clocks...)
+	cleanup, err := workforceCompose.NewDocumentCleanup(db, nil)
 	require.NoError(t, err)
 	workforceCapability := newWorkforceCapability(t, db, clocks...)
 
@@ -115,7 +105,6 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 
 	return &testContext{
 		db:       db,
-		module:   svc,
 		resource: resource,
 		router:   router,
 	}

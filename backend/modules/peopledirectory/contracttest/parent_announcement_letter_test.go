@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -21,7 +21,7 @@ func TestLetterChildStatuses_DerivesFulfilmentFromAcknowledgement(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
@@ -70,7 +70,7 @@ func TestLetterChildStatuses_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
@@ -100,7 +100,7 @@ func TestResolveDeliveryRecipients_IncludesGuardiansWithoutPortalAccess(t *testi
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
@@ -167,7 +167,7 @@ func TestLetterChildStatuses_KeepsChildrenNobodyCanConfirmFor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,

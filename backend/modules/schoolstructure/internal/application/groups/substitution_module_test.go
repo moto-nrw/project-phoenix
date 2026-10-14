@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -46,11 +47,11 @@ func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	// Supervisor names come from the People Directory composition (#2661),
 	// so the module is built on the composed repositories the graph uses.
-	repos, err := testutil.NewSchoolStructurePeopleSuiteFactory(db)
+	repos, err := api.NewSchoolStructurePeopleSuiteFactory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
 	now := fixedNow
-	module := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Now:                     func() time.Time { return now },
@@ -131,7 +132,7 @@ func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 func TestAdditionalSupervisionAuthorizationMatrix(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "Werken")
@@ -148,7 +149,7 @@ func TestAdditionalSupervisionAuthorizationMatrix(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	newModule := func(broad bool) SubstitutionModule {
-		return testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+		return api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 			ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 			ActiveSupervisorCreator: activeService,
 
@@ -214,9 +215,9 @@ func TestAdditionalSupervisionAuthorizationMatrix(t *testing.T) {
 func TestAdditionalSupervisionAuditFailureRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
-	module := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Audit:                   failingAudit{},
@@ -239,8 +240,8 @@ func TestAdditionalSupervisionAuditFailureRollsBack(t *testing.T) {
 func TestAdditionalSupervisionTreatsFutureEndDateAsActive(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
-	module := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor},
 	})
@@ -268,10 +269,10 @@ func TestAdditionalSupervisionTreatsFutureEndDateAsActive(t *testing.T) {
 func TestAdditionalSupervisionSignalsOnlyAfterCommit(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	module := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Broadcaster:             broadcaster,
@@ -296,7 +297,7 @@ func TestAdditionalSupervisionSignalsOnlyAfterCommit(t *testing.T) {
 func TestAdditionalSupervisionRejectsConcurrentSessionEnd(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "Race activity")
@@ -308,7 +309,7 @@ func TestAdditionalSupervisionRejectsConcurrentSessionEnd(t *testing.T) {
 	entered := make(chan struct{})
 	groups := &testpkg.SignalingGroupRepository{SessionRecords: repos.ActiveGroup, Entered: entered}
 
-	module := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		ActiveGroups: groups, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 	})
@@ -353,8 +354,8 @@ func TestGroupHandoverExternalInterface(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
-	service := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	service := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		Now: func() time.Time { return fixedNow },
 	})
 	group := testpkg.CreateTestEducationGroup(t, db, "Robins Gruppe")
@@ -415,8 +416,8 @@ func TestGroupHandoverPermissionsAndPeriod(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
-	service := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	service := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		Now: func() time.Time { return fixedNow },
 	})
 	owned := testpkg.CreateTestEducationGroup(t, db, "Own")
@@ -526,8 +527,8 @@ func TestGroupHandoverAllStaffVisibilityDoesNotGrantActions(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
-	service := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	service := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		Now:       func() time.Time { return fixedNow },
 		CanSeeAll: func(context.Context, bool, bool, bool) (bool, error) { return true, nil },
 	})
@@ -574,8 +575,8 @@ func TestGroupHandoverAuditFailureRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
-	service := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	service := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		Audit: failingAudit{}, Now: func() time.Time { return fixedNow },
 	})
 	group := testpkg.CreateTestEducationGroup(t, db, "Rollback")
@@ -589,7 +590,7 @@ func TestGroupHandoverAuditFailureRollsBack(t *testing.T) {
 	require.NoError(t, listErr)
 	require.Empty(t, rows)
 
-	workingService := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	workingService := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		Now: func() time.Time { return fixedNow },
 	})
 	created, err := workingService.Assign(testpkg.Ctx(t), substitutionCaller(t, admin.ID, true), Assignment{
@@ -610,9 +611,9 @@ func TestGroupHandoverSignalsOnlyAfterCommit(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	service := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	service := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		Broadcaster: broadcaster,
 		Now:         func() time.Time { return fixedNow },
 	})
@@ -649,7 +650,7 @@ func TestGroupHandoverRechecksOwnershipAfterGroupLock(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.Tenant(t)
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	group := testpkg.CreateTestEducationGroup(t, db, "OwnershipRace")
 	owner, accountID := activeTeacher(t, db, "Owner", "Race")
 	target, _ := activeTeacher(t, db, "Target", "Race")
@@ -657,7 +658,7 @@ func TestGroupHandoverRechecksOwnershipAfterGroupLock(t *testing.T) {
 	groups := &ownershipRevokingGroups{
 		GroupStore: repos.Group, links: repos.GroupTeacher, teacherID: owner.ID,
 	}
-	service := testutil.NewSubstitutionSuiteModule(repos, db, SubstitutionDependencies{
+	service := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		Groups: groups, Now: func() time.Time { return fixedNow },
 	})
 
@@ -679,7 +680,7 @@ func TestGroupHandoverRechecksOwnershipAfterGroupLock(t *testing.T) {
 // groupTeacherLinks is the slice of the group teacher store the ownership
 // race reads and changes.
 type groupTeacherLinks interface {
-	FindByGroup(ctx context.Context, groupID int64) ([]*testutil.SchoolStructureGroupTeacher, error)
+	FindByGroup(ctx context.Context, groupID int64) ([]*api.SchoolStructureSuiteGroupTeacher, error)
 	Delete(ctx context.Context, id any) error
 }
 
@@ -689,7 +690,7 @@ type ownershipRevokingGroups struct {
 	teacherID int64
 }
 
-func (g *ownershipRevokingGroups) FindByIDForUpdate(ctx context.Context, id any) (*testutil.SchoolStructureGroup, error) {
+func (g *ownershipRevokingGroups) FindByIDForUpdate(ctx context.Context, id any) (*api.SchoolStructureSuiteGroup, error) {
 	group, err := g.GroupStore.FindByIDForUpdate(ctx, id)
 	if err != nil {
 		return nil, err
@@ -711,7 +712,7 @@ func (g *ownershipRevokingGroups) FindByIDForUpdate(ctx context.Context, id any)
 
 type failingAudit struct{}
 
-func (failingAudit) RecordSubstitutionChange(context.Context, testutil.SchoolStructureSubstitutionChange) error {
+func (failingAudit) RecordSubstitutionChange(context.Context, api.SchoolStructureSuiteSubstitutionChange) error {
 	return errors.New("audit unavailable")
 }
 

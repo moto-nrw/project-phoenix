@@ -5,10 +5,11 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // reviewsFake is a func-field double of the Identity & Access review
@@ -77,7 +78,7 @@ func TestParentRequestReviewerPolicyAdminsKeepSchoolWideAccess(t *testing.T) {
 
 	filter, err := policy.StudentFilter(context.Background(), []string{"admin:*"})
 	require.NoError(t, err)
-	assert.True(t, filter(services.ParentRequestReviewStudent(nil)))
+	assert.True(t, filter(api.ParentRequestReviewStudent(nil)))
 	assert.False(t, filter(nil))
 }
 
@@ -88,7 +89,7 @@ func TestParentRequestReviewerPolicyGroupLeadersAreDeniedByDefault(t *testing.T)
 
 	filter, err := policy.StudentFilter(context.Background(), []string{"users:update"})
 	require.NoError(t, err)
-	assert.False(t, filter(services.ParentRequestReviewStudent(nil)))
+	assert.False(t, filter(api.ParentRequestReviewStudent(nil)))
 }
 
 func TestParentRequestReviewerPolicyEnabledGroupLeadersOnlyReachTheirGroups(t *testing.T) {
@@ -100,15 +101,15 @@ func TestParentRequestReviewerPolicyEnabledGroupLeadersOnlyReachTheirGroups(t *t
 
 	filter, err := policy.StudentFilter(context.Background(), []string{"users:update"})
 	require.NoError(t, err)
-	assert.True(t, filter(services.ParentRequestReviewStudent(&groupID)))
-	assert.False(t, filter(services.ParentRequestReviewStudent(&otherGroupID)))
-	assert.False(t, filter(services.ParentRequestReviewStudent(nil)))
+	assert.True(t, filter(api.ParentRequestReviewStudent(&groupID)))
+	assert.False(t, filter(api.ParentRequestReviewStudent(&otherGroupID)))
+	assert.False(t, filter(api.ParentRequestReviewStudent(nil)))
 	assert.False(t, filter(nil))
 
-	allowed, err := policy.Allows(context.Background(), []string{"users:update"}, services.ParentRequestReviewStudent(&groupID))
+	allowed, err := policy.Allows(context.Background(), []string{"users:update"}, api.ParentRequestReviewStudent(&groupID))
 	require.NoError(t, err)
 	assert.True(t, allowed)
-	allowed, err = policy.Allows(context.Background(), []string{"users:update"}, services.ParentRequestReviewStudent(&otherGroupID))
+	allowed, err = policy.Allows(context.Background(), []string{"users:update"}, api.ParentRequestReviewStudent(&otherGroupID))
 	require.NoError(t, err)
 	assert.False(t, allowed)
 }
@@ -123,7 +124,7 @@ func TestParentRequestReviewerPolicyFailsClosedWhenPolicyCannotBeResolved(t *tes
 		require.ErrorIs(t, err, scopeErr)
 		assert.Nil(t, filter)
 
-		allowed, err := policy.Allows(context.Background(), []string{"users:update"}, services.ParentRequestReviewStudent(nil))
+		allowed, err := policy.Allows(context.Background(), []string{"users:update"}, api.ParentRequestReviewStudent(nil))
 		require.ErrorIs(t, err, scopeErr)
 		assert.False(t, allowed)
 	}
@@ -140,7 +141,7 @@ func TestParentRequestReviewerPolicyRefusesAbsenceWithoutRead(t *testing.T) {
 	_, err := policy.StudentFilter(context.Background(), []string{"users:absence"})
 	require.ErrorContains(t, err, "users:read permission is required")
 
-	_, allowErr := policy.Allows(context.Background(), []string{"users:absence"}, services.ParentRequestReviewStudent(nil))
+	_, allowErr := policy.Allows(context.Background(), []string{"users:absence"}, api.ParentRequestReviewStudent(nil))
 	require.ErrorContains(t, allowErr, "users:read permission is required")
 }
 
@@ -153,8 +154,8 @@ func TestParentRequestReviewerPolicyStudentFilterResolvesTheScopeOnce(t *testing
 	filter, err := services.NewParentRequestReviewPolicy(reviews).StudentFilter(context.Background(), []string{"users:update"})
 	require.NoError(t, err)
 
-	filter(services.ParentRequestReviewStudent(&groupID))
-	filter(services.ParentRequestReviewStudent(nil))
+	filter(api.ParentRequestReviewStudent(&groupID))
+	filter(api.ParentRequestReviewStudent(nil))
 	assert.Equal(t, 1, reviews.scopeCall)
 }
 
@@ -169,7 +170,7 @@ func TestParentRequestReviewerPolicyStudentFilterRequiresQueuePermission(t *test
 	filter, err := policy.StudentFilter(context.Background(), []string{"users:read"})
 
 	require.NoError(t, err)
-	assert.False(t, filter(services.ParentRequestReviewStudent(&groupID)))
+	assert.False(t, filter(api.ParentRequestReviewStudent(&groupID)))
 }
 
 func TestParentRequestReviewerPolicyWithoutReviewsIsNotConfigured(t *testing.T) {
@@ -189,7 +190,7 @@ func TestParentRequestReviewerPolicyWithoutReviewsIsNotConfigured(t *testing.T) 
 			require.Error(t, err)
 			_, err = policy.StudentFilter(context.Background(), []string{"users:update"})
 			require.Error(t, err)
-			_, err = policy.Allows(context.Background(), []string{"users:update"}, services.ParentRequestReviewStudent(nil))
+			_, err = policy.Allows(context.Background(), []string{"users:update"}, api.ParentRequestReviewStudent(nil))
 			require.Error(t, err)
 		})
 	}

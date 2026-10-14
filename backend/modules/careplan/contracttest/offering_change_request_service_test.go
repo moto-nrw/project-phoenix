@@ -4,14 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-
 	"testing"
 	"time"
 
@@ -20,11 +12,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -60,22 +56,22 @@ func newOfferingChangeServiceForTestWithCatalog(
 	env.settings.boolValues[enrollmentKeys.OfferingChangesEnabled] = true
 	env.settings.boolValues[enrollmentKeys.ParentCourseRequestsEnabled] = true
 	env.settings.stringValues[enrollmentKeys.OfferingChangesLeadDays] = "14"
-	options := []testutil.OfferingChangeOption{
+	options := []api.OfferingChangeOption{
 		// Mirrors newDecisionServiceForTest's fixed clock: the lead-day and
 		// earliest-date assertions in this file compare against this date.
-		testutil.WithOfferingChangeToday(func() timezone.Date { return timezone.NewDate(2026, 8, 24) }),
+		api.WithOfferingChangeToday(func() timezone.Date { return timezone.NewDate(2026, 8, 24) }),
 	}
 	if catalog != nil {
-		options = append(options, testutil.WithOfferingChangeCatalog(catalog))
+		options = append(options, api.WithOfferingChangeCatalog(catalog))
 	}
-	return testutil.NewOfferingChanges(t, env.db, env.settings, env.bookings, options...)
+	return newOfferingChanges(t, env.db, env.settings, env.bookings, options...)
 }
 
 // offeringReviewQueueForTest is the staff review queue the office decides
 // from, on the suite's fixed day.
 func offeringReviewQueueForTest(t *testing.T, env *decisionTestEnv) careplan.OfferingReviewQuery {
 	t.Helper()
-	return testutil.NewOfferingReviewQuery(t, env.db, func() timezone.Date { return timezone.NewDate(2026, 8, 24) })
+	return newOfferingReviewQuery(t, env.db, func() timezone.Date { return timezone.NewDate(2026, 8, 24) })
 }
 
 // offeringChangeFixture sets up an approved child booked into oldOffering, plus
@@ -262,7 +258,7 @@ func TestOfferingChangeRequestService_Create_StripsChangedCurrentAutomaticOfferi
 	// This row represents an offering materialized from another selection. A
 	// crafted request must not be able to change its days and persist it as a
 	// manual booking.
-	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &enrollmentTest.RequestChildOffering{
+	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &enrollmentTest.RequestChildOffering{
 		RequestChildID:        fx.childID,
 		CareOfferingID:        automatic.ID,
 		SelectedDays:          []string{"mon"},
@@ -1256,7 +1252,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 		o.ActivityGroupID = &parentChoiceGroup.ID
 		o.CountsAsCare, o.CountsAsCareSet = true, true
 	})
-	require.NoError(t, services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &enrollmentTest.RequestChildOffering{
+	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &enrollmentTest.RequestChildOffering{
 		RequestChildID: fx.childID,
 		CareOfferingID: parentChoiceOffering.ID,
 		SelectedDays:   []string{},
@@ -1478,7 +1474,7 @@ func TestManualPlanningReaderRejectsInvalidCalendarWindows(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	student := testpkg.CreateTestStudent(t, db, "Planning", "Validation", "2a")
-	reader := services.NewManualPlanningQuery(nil)
+	reader := api.NewManualPlanningQuery(testpkg.Database{})
 	for _, tc := range []struct {
 		name, from, to string
 	}{
@@ -1500,7 +1496,7 @@ func TestManualPlanningReaderRejectsInvalidCalendarWindows(t *testing.T) {
 }
 
 func (r manualPlanningFixture) ListManualPlanningOccurrences(ctx context.Context, studentID int64, from, to string) ([]careplanCompose.ManualPlanningOccurrence, error) {
-	rows, err := services.NewManualPlanningQuery(r.db).ListManualPlanningOccurrences(ctx, studentID, from, to)
+	rows, err := api.NewManualPlanningQuery(testpkg.MustDatabase(r.db)).ListManualPlanningOccurrences(ctx, studentID, from, to)
 	if err != nil {
 		return nil, err
 	}

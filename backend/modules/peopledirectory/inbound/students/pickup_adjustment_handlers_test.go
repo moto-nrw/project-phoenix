@@ -106,7 +106,7 @@ func TestPickupAdjustmentProtectedRouterRequiresExplicitExceptionAndAuditsApply(
 		TenantID: student.TenantID, StudentID: student.ID, Weekday: 1, PickupTime: manualTime, CreatedBy: staff.StaffID,
 		Source: careplan.ScheduleSourceStaff,
 	}
-	repoFactory := newStudentTestRepositories(tc.db)
+	repoFactory := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db))
 	_, err = repoFactory.CarePlan.UpsertPickupSchedule(testpkg.Ctx(t), manual)
 	require.NoError(t, err)
 
@@ -181,7 +181,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	manual := careplan.PickupSchedule{
 		TenantID: student.TenantID, StudentID: student.ID, Weekday: 5, PickupTime: manualTime, Notes: &existingNote, CreatedBy: staff.StaffID,
 	}
-	_, err = newStudentTestRepositories(tc.db).CarePlan.UpsertPickupSchedule(testpkg.Ctx(t), manual)
+	_, err = newStudentTestRepositories(testpkg.NewDatabase(t, tc.db)).CarePlan.UpsertPickupSchedule(testpkg.Ctx(t), manual)
 	require.NoError(t, err)
 
 	effectiveFrom := studentsTestToday.String()
@@ -256,7 +256,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	)
 	assert.Equal(t, http.StatusConflict, futureRec.Code, futureRec.Body.String())
 	assert.Contains(t, futureRec.Body.String(), `"code":"pickup.future_manual_reset"`)
-	futureLinks, err := newStudentTestRepositories(tc.db).Enrollment().
+	futureLinks, err := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db)).Enrollment().
 		RequestChildOfferingsAtDate(testpkg.Ctx(t), fixture.child.ID, owner.Date(futureDate))
 	require.NoError(t, err)
 	require.Len(t, futureLinks, 1)
@@ -296,7 +296,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 		TenantID: student.TenantID, StudentID: student.ID, Weekday: timetable.WeekdayMonday,
 		ExpectedArrival: concurrentArrivalTime, CreatedBy: staff.StaffID,
 	}
-	_, err = newStudentTestRepositories(tc.db).CarePlan.UpsertArrivalSchedule(
+	_, err = newStudentTestRepositories(testpkg.NewDatabase(t, tc.db)).CarePlan.UpsertArrivalSchedule(
 		testpkg.Ctx(t), concurrentArrival,
 	)
 	require.NoError(t, err)
@@ -312,7 +312,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	assert.Equal(t, http.StatusConflict, staleArrivalRec.Code, staleArrivalRec.Body.String())
 	assert.Contains(t, staleArrivalRec.Body.String(), `"code":"pickup.preview_stale"`)
 	confirmedPreview = postPickupAdjustmentPreview(t, tc, student.ID, account.ID, offeringBody)
-	arrivalRowsBefore, err := newStudentTestRepositories(tc.db).StudentArrivalSchedule.FindByStudentID(
+	arrivalRowsBefore, err := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db)).StudentArrivalSchedule.FindByStudentID(
 		testpkg.Ctx(t), student.ID,
 	)
 	require.NoError(t, err)
@@ -340,7 +340,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 		Where("source <> ?", careplan.ScheduleSourceCareOffering).
 		Scan(t.Context(), &manualRows))
 	assert.Empty(t, manualRows, "the selected offering must replace every lasting manual pickup time")
-	arrivalRows, err := newStudentTestRepositories(tc.db).StudentArrivalSchedule.FindByStudentID(testpkg.Ctx(t), student.ID)
+	arrivalRows, err := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db)).StudentArrivalSchedule.FindByStudentID(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	assert.Equal(t, arrivalRowsBefore, arrivalRows,
 		"an offering change must leave the existing arrival plan unchanged")

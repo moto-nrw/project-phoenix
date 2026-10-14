@@ -1,7 +1,9 @@
-package services
+package services_test
 
 import (
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -11,7 +13,7 @@ import (
 func TestMembershipCompositionKeepsGroupSupervisionBound(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	members, err := NewMembershipTestRepositories(db)
+	members, err := api.NewMembershipTestRepositories(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	teacher := testpkg.CreateTestTeacher(t, db, "Group", "Supervisor")
 	group := testpkg.CreateTestEducationGroup(t, db, "Membership supervision")
@@ -26,7 +28,7 @@ func TestMembershipCompositionKeepsGroupSupervisionBound(t *testing.T) {
 func TestGroupCompositionFailsWhileRoomOwnerIsUnbound(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repo := NewEducationGroupRepository(db)
+	repo := api.NewEducationGroupRepository(testpkg.NewDatabase(t, db))
 	group := testpkg.CreateTestEducationGroup(t, db, "Missing room owner")
 	_, err := repo.FindWithRoom(testpkg.Ctx(t), group.ID)
 	require.EqualError(t, err, "database error during find with room: education repositories: room directory is not bound")

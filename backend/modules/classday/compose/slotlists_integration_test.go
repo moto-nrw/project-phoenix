@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -25,7 +26,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
-	"github.com/moto-nrw/project-phoenix/modules/classday/classdaytest"
 	"github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -73,11 +73,11 @@ var pickupNow = time.Date(2025, 9, 3, 12, 0, 0, 0, timezone.Berlin)
 var pickupDate = timezone.DateFromTime(pickupNow)
 
 func studentPickupScheduleRepository(db *bun.DB) scheduleModels.StudentPickupScheduleRepository {
-	return classdaytest.NewStudentScheduleRepositories(db).PickupSchedule
+	return api.NewStudentScheduleRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).PickupSchedule
 }
 
 func studentPickupExceptionRepository(db *bun.DB) scheduleModels.StudentPickupExceptionRepository {
-	return classdaytest.NewStudentScheduleRepositories(db).PickupException
+	return api.NewStudentScheduleRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).PickupException
 }
 
 // atOn returns the given Berlin wall-clock instant on calendar date d, so a
@@ -2959,7 +2959,7 @@ func (slotListTestTB) Helper() {}
 func (slotListTestTB) Fatalf(format string, args ...any) { panic(fmt.Sprintf(format, args...)) }
 
 func newApprovedOfferingProjection(db *bun.DB) careplan.ApprovedBookingReader {
-	projection, err := classdaytest.NewApprovedOfferingProjection(db)
+	projection, err := api.NewOwnerApprovedOfferingTestProjection(testpkg.MustDatabase(db))
 	if err != nil {
 		panic(err)
 	}

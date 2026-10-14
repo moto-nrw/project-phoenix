@@ -3,7 +3,8 @@ package groups_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +18,7 @@ func TestEducationGroupSupervisionResolvesTeachersToStaff(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	factory := testutil.NewSchoolStructureRepositorySuiteFactory(db)
+	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	today := calendar.TodayDate()
 
 	group := testpkg.CreateTestEducationGroup(t, db, "Zuordnung Gruppe")
@@ -62,7 +63,7 @@ func TestGroupSubstitutionsCarryTheirStaffMembers(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	factory := testutil.NewSchoolStructureRepositorySuiteFactory(db)
+	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	today := calendar.TodayDate()
 
 	group := testpkg.CreateTestEducationGroup(t, db, "Vertretung Gruppe")

@@ -3,6 +3,8 @@ package timetracking_test
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -19,14 +21,14 @@ func TestFutureCompTimeCommitmentQueryBudget(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "CompTime", "Budget")
-	owners := services.NewUnobservedTimetableDependencies(db)
-	repos := services.NewRepositoryTestFactory(db, owners)
+	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 	ctx := testpkg.TenantContext(tenantID)
 
 	testpkg.CreateTestStaffWorkScheduleForTenant(t, db, tenantID, staff.ID, timetracking.DayMonday, 480, scheduleValidFrom)
 	service := timetracking.NewWorkTimeMonthService(
-		workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Breaks, repos.StaffAbsence, services.StaffScheduleAssignments(services.MustNewStaffEmployment(db)),
-		services.NewWorkScheduleTargets(services.NewStaffWorkScheduleRepository(owners.Workforce)), services.NewWorkTimeTargetModels(services.NewWorkTimeModelRepository(owners.Workforce)), services.NewTimeTrackingShifts(owners.Workforce),
+		workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Breaks, repos.StaffAbsence, services.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
+		services.NewWorkScheduleTargets(api.NewStaffWorkScheduleRepository(owners.Workforce)), services.NewWorkTimeTargetModels(api.NewWorkTimeModelRepository(owners.Workforce)), services.NewTimeTrackingShifts(owners.Workforce),
 		wtmIntSettings{accountStart: "2020-01-01"}, nil,
 	)
 	first := timezone.TodayDate().AddDays(14)

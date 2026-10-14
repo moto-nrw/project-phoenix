@@ -1,4 +1,4 @@
-package services
+package services_test
 
 // The staff, teacher and guest repositories are compositions over the School
 // Membership owner (#2667). The tests below pin what the composition adds on
@@ -10,6 +10,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/api"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -46,7 +48,7 @@ func TestStaffMembershipAdapter_NotFoundKeepsTheLegacyErrorShape(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Missing", "Contract")
@@ -103,7 +105,7 @@ func TestStaffMembershipAdapter_ListsAreTenantScoped(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 
 	own := testpkg.CreateTestStaff(t, db, "Own", "Tenant")
@@ -133,7 +135,7 @@ func TestStaffMembershipAdapter_AttachesPersonAndAccount(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Person", "Attached")
@@ -162,7 +164,7 @@ func TestStaffMembershipAdapter_IDLookupsKeepLegacyDeletedSemantics(t *testing.T
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Historical", "Staff")
 	require.NoError(t, factory.Staff.Delete(ctx, staff.ID))
@@ -180,7 +182,7 @@ func TestStaffMembershipAdapter_AccountIDsExcludeUnreachableStaff(t *testing.T) 
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 
 	withAccount, account := testpkg.CreateTestCalendarStaff(t, db, "Reachable", "Colleague")
@@ -201,7 +203,7 @@ func TestStaffMembershipAdapter_ExcludesSoftDeletedPersons(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	staff, _ := testpkg.CreateTestStaffWithAccount(t, db, "Deleted", "Person")
 	_, err := db.NewRaw(`UPDATE users.persons SET deleted_at = NOW() WHERE id = ?`, staff.PersonID).Exec(ctx)
@@ -225,7 +227,7 @@ func TestStaffMembershipAdapter_AccountActivityStaysTenantScoped(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	primary, account := testpkg.CreateTestStaffWithAccount(t, db, "Primary", "Account")
 	foreignTenant, _ := testpkg.CreateTestTenant(t, db)
 	foreign, _ := testpkg.CreateTestStaffWithAccountForTenant(t, db, foreignTenant, "Foreign", "Account")
@@ -260,7 +262,7 @@ func TestStaffMembershipAdapter_CalendarReachabilityUsesEffectivePermissions(t *
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 
 	reachable, _ := testpkg.CreateTestCalendarStaff(t, db, "Calendar", "User")
@@ -276,7 +278,7 @@ func TestTeacherMembershipAdapter_ResolvesStaffAndPerson(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Composed", "Teacher")
@@ -309,7 +311,7 @@ func TestTeacherMembershipAdapter_ActiveCaregiversNeedAccountAndSystemRole(t *te
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 
@@ -354,7 +356,7 @@ func TestTeacherMembershipAdapter_ActiveCaregiversResolveInAdminContext(t *testi
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	foreignTenant, _ := testpkg.CreateTestTenant(t, db)
 	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, foreignTenant, "Admin", "Caregiver")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -391,7 +393,7 @@ func TestGuestMembershipAdapter_FindsByStaffAndActiveWindow(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 
 	guest := testpkg.CreateTestGuest(t, db, "Zirkus")
@@ -409,7 +411,7 @@ func TestStaffMembershipAdapter_ExpiredGuestIsNotExternal(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	guest := testpkg.CreateTestGuest(t, db, "Tanz")
 
@@ -430,7 +432,7 @@ func TestStaffMembershipAdapter_ListRejectsUnknownFilters(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Filter", "Staff")
@@ -451,7 +453,7 @@ func TestTeacherMembershipAdapter_ActiveCaregiversSortInGermanDictionaryOrder(t 
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	factory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 

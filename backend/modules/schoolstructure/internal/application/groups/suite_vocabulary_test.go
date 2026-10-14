@@ -1,46 +1,46 @@
 package groups_test
 
-import "github.com/moto-nrw/project-phoenix/api/testutil"
+import "github.com/moto-nrw/project-phoenix/api"
 
 // The suites of the retained School Structure services name the service's
 // vocabulary through test support (#2742); these local names keep the suites
 // readable.
 
 type (
-	Service                         = testutil.EducationSuiteService
-	EducationError                  = testutil.EducationSuiteError
-	SubstitutionModule              = testutil.SubstitutionSuiteModule
-	SubstitutionDependencies        = testutil.SubstitutionSuiteDependencies
-	GroupStore                      = testutil.SubstitutionSuiteGroupStore
-	SubstitutionCaller              = testutil.SubstitutionSuiteCaller
-	OverviewQuery                   = testutil.SubstitutionSuiteOverviewQuery
-	OverviewResult                  = testutil.SubstitutionSuiteOverviewResult
-	RunningSupervision              = testutil.SubstitutionSuiteRunningSupervision
-	GroupHandover                   = testutil.SubstitutionSuiteGroupHandover
-	GroupRef                        = testutil.SubstitutionSuiteGroupRef
-	StaffRef                        = testutil.SubstitutionSuiteStaffRef
-	Assignment                      = testutil.SubstitutionSuiteAssignment
-	AssignmentResult                = testutil.SubstitutionSuiteAssignmentResult
-	GroupHandoverAssignment         = testutil.SubstitutionSuiteGroupHandoverAssignment
-	AdditionalSupervisionAssignment = testutil.SubstitutionSuiteAdditionalSupervisionAssign
-	EndRequest                      = testutil.SubstitutionSuiteEndRequest
+	Service                         = api.EducationSuiteService
+	EducationError                  = api.EducationSuiteError
+	SubstitutionModule              = api.SubstitutionSuiteModule
+	SubstitutionDependencies        = api.SubstitutionSuiteDependencies
+	GroupStore                      = api.SubstitutionSuiteGroupStore
+	SubstitutionCaller              = api.SubstitutionSuiteCaller
+	OverviewQuery                   = api.SubstitutionSuiteOverviewQuery
+	OverviewResult                  = api.SubstitutionSuiteOverviewResult
+	RunningSupervision              = api.SubstitutionSuiteRunningSupervision
+	GroupHandover                   = api.SubstitutionSuiteGroupHandover
+	GroupRef                        = api.SubstitutionSuiteGroupRef
+	StaffRef                        = api.SubstitutionSuiteStaffRef
+	Assignment                      = api.SubstitutionSuiteAssignment
+	AssignmentResult                = api.SubstitutionSuiteAssignmentResult
+	GroupHandoverAssignment         = api.SubstitutionSuiteGroupHandoverAssignment
+	AdditionalSupervisionAssignment = api.SubstitutionSuiteAdditionalSupervisionAssign
+	EndRequest                      = api.SubstitutionSuiteEndRequest
 )
 
 const (
-	TargetGroupHandover         = testutil.SubstitutionSuiteTargetGroupHandover
-	TargetAdditionalSupervision = testutil.SubstitutionSuiteTargetAdditionalSupervision
+	TargetGroupHandover         = api.SubstitutionSuiteTargetGroupHandover
+	TargetAdditionalSupervision = api.SubstitutionSuiteTargetAdditionalSupervision
 )
 
 var (
-	ErrGroupNotFound    = testutil.EducationSuiteErrGroupNotFound
-	ErrGroupHasHandover = testutil.EducationSuiteErrGroupHasHandover
-	ErrStaffNotFound    = testutil.EducationSuiteErrStaffNotFound
-	ErrEmptySchoolClass = testutil.EducationSuiteErrEmptySchoolClass
-	ErrNotFound         = testutil.SubstitutionSuiteErrNotFound
-	ErrForbidden        = testutil.SubstitutionSuiteErrForbidden
-	ErrInvalidTarget    = testutil.SubstitutionSuiteErrInvalidTarget
-	ErrInvalidPeriod    = testutil.SubstitutionSuiteErrInvalidPeriod
-	ErrNotRunning       = testutil.SubstitutionSuiteErrNotRunning
-	ErrAlreadyAssigned  = testutil.SubstitutionSuiteErrAlreadyAssigned
-	ErrSelfAssignment   = testutil.SubstitutionSuiteErrSelfAssignment
+	ErrGroupNotFound    = api.EducationSuiteErrGroupNotFound
+	ErrGroupHasHandover = api.EducationSuiteErrGroupHasHandover
+	ErrStaffNotFound    = api.EducationSuiteErrStaffNotFound
+	ErrEmptySchoolClass = api.EducationSuiteErrEmptySchoolClass
+	ErrNotFound         = api.SubstitutionSuiteErrNotFound
+	ErrForbidden        = api.SubstitutionSuiteErrForbidden
+	ErrInvalidTarget    = api.SubstitutionSuiteErrInvalidTarget
+	ErrInvalidPeriod    = api.SubstitutionSuiteErrInvalidPeriod
+	ErrNotRunning       = api.SubstitutionSuiteErrNotRunning
+	ErrAlreadyAssigned  = api.SubstitutionSuiteErrAlreadyAssigned
+	ErrSelfAssignment   = api.SubstitutionSuiteErrSelfAssignment
 )

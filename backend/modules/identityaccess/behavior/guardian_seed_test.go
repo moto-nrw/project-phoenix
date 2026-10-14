@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -16,7 +16,7 @@ import (
 func TestGuardianSeedPreservesExistingInactiveAccount(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	identity, err := services.NewIdentityAccessForTests(db)
+	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("seed-reuse-%d@test.local", testpkg.Tenant(t)), "Existing-seed-test-9!")
@@ -48,7 +48,7 @@ func TestGuardianSeedPreservesExistingInactiveAccount(t *testing.T) {
 func TestGuardianSeedRejectsMalformedEmail(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	identity, err := services.NewIdentityAccessForTests(db)
+	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	email := fmt.Sprintf("not-an-email-%d", testpkg.Tenant(t))

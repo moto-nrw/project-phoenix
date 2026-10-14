@@ -1,4 +1,4 @@
-package services
+package services_test
 
 // Hermetic tests for the #1419 email-recipient lookups:
 // ListStaffWithPermission (approver fan-out) and GetStaffContactInfo
@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +21,7 @@ func TestListStaffWithPermission_DirectGrant(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db)).Staff
+	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Staff
 	ctx := testpkg.Ctx(t)
 
 	// Staff WITH an active tenant mapping (calendar helper adds mapping + base
@@ -69,7 +71,7 @@ func TestGetStaffContactInfo_ReturnsNameAndEmail(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db)).Staff
+	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Staff
 	ctx := testpkg.Ctx(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Mila", "Muster")

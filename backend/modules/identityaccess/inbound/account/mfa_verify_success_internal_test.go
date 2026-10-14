@@ -12,11 +12,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // completeMFAExchangeStub is a narrow AuthService stub for the verify
