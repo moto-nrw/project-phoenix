@@ -223,7 +223,9 @@ The JWT plumbing (claims incl. MFA challenge/enrollment, tokenauth,
 tenant/parent middleware) is the Identity & Access session token adapter and
 lives in `backend/modules/identityaccess/sessiontoken/` since #3487 (ADR 0054).
 It is the only home for session middleware and claims; HTTP owners read claims
-through it. Do not add a second one or move it back.
+through it. Do not add a second home or move it back under `legacy/`, and do
+not give it a dependency on process configuration, the tenant runtime or
+persistence.
 
 `backend/modules/identityaccess/` owns the business flows (login, invitations, MFA orchestration, password reset, operator identity); they depend on the lower-level `backend/auth/` packages. The retained `services/auth` and `services/platform` ports are gone (#3364).
 
