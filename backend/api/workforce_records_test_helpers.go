@@ -10,7 +10,9 @@ import (
 
 // The constructors below hand suites that may not import the Workforce
 // adapters themselves the retained record contracts over the Workforce
-// facade (#2690), built the way NewFactoryWithConfig builds them.
+// facade (#2690), built the way NewFactoryWithConfig builds them. Workforce's
+// own suites call its composition; the People Directory and Data Import
+// suites build it through the root (ADR 0053 point 7.2, #4005).
 
 // NewWorkTimeModelRepository serves the retained work-time templates.
 func NewWorkTimeModelRepository(workTime workforceModule.Capability) configModels.WorkTimeModelRepository {

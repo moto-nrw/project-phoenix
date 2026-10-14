@@ -281,7 +281,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	settings := parentSettingsStub{boolDefault: true}
 	emitter := communicationtest.NewParentEventEmitter(
-		db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, api.NewParentMessageRepository(testpkg.NewDatabase(t, db)),
+		db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db),
 		settings, nil, slog.Default(),
 	)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
@@ -318,7 +318,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 			return gErr
 		}
 		for _, row := range rows {
-			pill, fErr := api.NewParentMessageRepository(testpkg.NewDatabase(t, db)).FindEventByRef(txCtx, thread.ID, "request_created", "users.student_data_change_requests", row.ID)
+			pill, fErr := communicationtest.NewParentMessageRepository(db).FindEventByRef(txCtx, thread.ID, "request_created", "users.student_data_change_requests", row.ID)
 			if fErr != nil {
 				return fErr
 			}

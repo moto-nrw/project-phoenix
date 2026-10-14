@@ -5,9 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +16,7 @@ func TestGuardianAccountLink_PreservesExistingChildren(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := api.NewPeopleRepositorySuiteRetainedGuardianProfiles(testpkg.NewDatabase(t, db))
+	repo := peopleCompose.NewRetainedGuardianProfileRepository(db)
 	account := testpkg.CreateTestAccount(t, db, "linked-parent")
 	old := testpkg.CreateTestGuardianProfile(t, db, "old-contact")
 	next := testpkg.CreateTestGuardianProfile(t, db, "new-contact")
@@ -39,7 +38,7 @@ func TestGuardianAccountLink_RejectsTakingOverAnotherAccount(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := api.NewPeopleRepositorySuiteRetainedGuardianProfiles(testpkg.NewDatabase(t, db))
+	repo := peopleCompose.NewRetainedGuardianProfileRepository(db)
 	first := testpkg.CreateTestAccount(t, db, "first-parent")
 	second := testpkg.CreateTestAccount(t, db, "second-parent")
 	profile := testpkg.CreateTestGuardianProfile(t, db, "owned-contact")
@@ -55,7 +54,7 @@ func TestGuardianAccountLink_DoesNotDetachAnotherSchool(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := api.NewPeopleRepositorySuiteRetainedGuardianProfiles(testpkg.NewDatabase(t, db))
+	repo := peopleCompose.NewRetainedGuardianProfileRepository(db)
 	account := testpkg.CreateTestAccount(t, db, "multischool-parent")
 	otherTenant, _ := testpkg.CreateTestTenant(t, db)
 	otherCtx := testpkg.ContextForTenant(ctx, otherTenant)
@@ -76,7 +75,7 @@ func TestGuardianAccountLink_RollsBackWithInvitation(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := api.NewPeopleRepositorySuiteRetainedGuardianProfiles(testpkg.NewDatabase(t, db))
+	repo := peopleCompose.NewRetainedGuardianProfileRepository(db)
 	account := testpkg.CreateTestAccount(t, db, "rollback-parent")
 	old := testpkg.CreateTestGuardianProfile(t, db, "rollback-old")
 	next := testpkg.CreateTestGuardianProfile(t, db, "rollback-new")
@@ -102,7 +101,7 @@ func TestGuardianAccountLink_ConcurrentReplacementsDoNotStealChildren(t *testing
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := api.NewPeopleRepositorySuiteRetainedGuardianProfiles(testpkg.NewDatabase(t, db))
+	repo := peopleCompose.NewRetainedGuardianProfileRepository(db)
 	account := testpkg.CreateTestAccount(t, db, "concurrent-parent")
 	old := testpkg.CreateTestGuardianProfile(t, db, "concurrent-old")
 	require.NoError(t, repo.LinkAccount(ctx, old.ID, account.ID))

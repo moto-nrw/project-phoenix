@@ -149,9 +149,9 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*
 		},
 		Broadcaster:       bc,
 		MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo:       api.NewParentMessageRepository(testpkg.NewDatabase(t, db)),
+		MessageRepo:       communicationtest.NewParentMessageRepository(db),
 		MessageReadRepo:   repos.ParentMessageRead,
-		Conversations:     communicationtest.NewParentConversationCore(repos.ParentMessageThread, api.NewParentMessageRepository(testpkg.NewDatabase(t, db)), repos.ParentMessageRead, bc, slog.Default()),
+		Conversations:     communicationtest.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, bc, slog.Default()),
 		Logger:            slog.Default(),
 	})
 	return svc, bc, db, repos

@@ -3382,9 +3382,13 @@ and `root-composition.reach.workflow.port` under
 reach ADR 0053 grants (7.2 lets every test package import the root, 7.1 every
 owner's tests its own composition, points 2 and 3 the root's and an owner
 composition's reaches), and #4001 wrote only the instances the imports of its
-time used. A hook that builds one owner for that owner's own tests sits in
-its test support (`careplantest.SchoolWideReviewScope`); a test of another
-owner that needs it builds the root (7.2). `rules.stale` removed 13 rules no import used
+time used. A hook that builds one owner sits in that owner's test support
+when its consumers may import it: `careplantest.SchoolWideReviewScope`, the
+parent message store in `communicationtest` and the Enrollment compositions in
+`enrollmenttest`, which Care Plan's and the Parent Portal's suites reach under
+their existing rules. Tests of the same owner call its composition directly.
+A test of another owner without such a rule builds the root (7.2), so those
+hooks stay in `api` and say why. `rules.stale` removed 13 rules no import used
 any more, among them `own-test.projection.test-support` with the deleted
 `modules/classday/classdaytest`. An internal test of a package the root
 imports cannot import `api`: it declares the composition it needs as a

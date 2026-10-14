@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -46,7 +45,7 @@ func setupCareOfferingRepoTest(t *testing.T) (
 	carePlan := carePlanTest.NewCarePlan(t, db)
 	return db, careOfferingRepoUnderTest{
 		careOfferingFixtureRecords: newCareOfferingFixtureRecords(carePlan),
-		CareOfferingRecords:        api.NewEnrollmentCareOfferingRecords(carePlan),
+		CareOfferingRecords:        enrollmentTest.NewCareOfferingRecords(carePlan),
 	}, tenantID, phase.ID
 }
 

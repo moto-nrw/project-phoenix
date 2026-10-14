@@ -241,36 +241,6 @@ func NewPeopleRepositorySuiteRecipients(db transactionruntime.Database) *peopleC
 	return NewMessageableGuardianRepository(db)
 }
 
-// NewPeopleRepositorySuiteRetainedPersons is the person store without the
-// account lookup.
-func NewPeopleRepositorySuiteRetainedPersons(db transactionruntime.Database) usersModels.PersonRepository {
-	return peopleCompose.NewRetainedPersonRepository(db.Pool())
-}
-
-// NewPeopleRepositorySuiteRetainedGuardianProfiles is the guardian profile
-// store with only the given options bound.
-func NewPeopleRepositorySuiteRetainedGuardianProfiles(db transactionruntime.Database, options ...peopleCompose.RetainedGuardianProfileOption) usersModels.GuardianProfileRepository {
-	return peopleCompose.NewRetainedGuardianProfileRepository(db.Pool(), options...)
-}
-
-// NewPeopleRepositorySuiteRetainedRelationships is the relationship store
-// with only the given options bound.
-func NewPeopleRepositorySuiteRetainedRelationships(db transactionruntime.Database, options ...peopleCompose.RetainedGuardianRelationshipOption) usersModels.StudentGuardianRepository {
-	return peopleCompose.NewRetainedGuardianRelationshipRepository(db.Pool(), options...)
-}
-
-// NewPeopleRepositorySuiteRetainedRecipients is the recipient lookup over the
-// given membership lookup.
-func NewPeopleRepositorySuiteRetainedRecipients(db transactionruntime.Database, memberships peopleCompose.RetainedSchoolMembershipLookup) *peopleCompose.RetainedMessageableGuardians {
-	return peopleCompose.NewRetainedMessageableGuardianRepository(db.Pool(), memberships)
-}
-
-// NewPeopleRepositorySuiteRetainedColleagues is the colleague lookup over the
-// given owner queries.
-func NewPeopleRepositorySuiteRetainedColleagues(db transactionruntime.Database, staffAccounts peopleCompose.RetainedStaffAccountsFunc, identity peopleCompose.RetainedStaffMessageIdentity) *peopleCompose.RetainedMessageableStaff {
-	return peopleCompose.NewRetainedMessageableStaffRepository(db.Pool(), staffAccounts, identity)
-}
-
 // PeopleRepositorySuiteWithPortalMemberships binds the reachability query.
 func PeopleRepositorySuiteWithPortalMemberships(query peopleCompose.RetainedPortalMembershipQuery) peopleCompose.RetainedGuardianProfileOption {
 	return peopleCompose.RetainedWithPortalMemberships(query)
@@ -289,11 +259,6 @@ func PeopleRepositorySuiteWithOwners(pickup peopleCompose.RetainedGuardianPickup
 // PeopleRepositorySuiteWithDefaultRole binds the default role preset.
 func PeopleRepositorySuiteWithDefaultRole() peopleCompose.RetainedGuardianRelationshipOption {
 	return peopleCompose.RetainedWithGuardianDefaultRole(services.ApplyDefaultGuardianRole)
-}
-
-// VerifyPeopleRepositorySuiteStudentSchema runs the students table check.
-func VerifyPeopleRepositorySuiteStudentSchema(ctx context.Context, db transactionruntime.Database) error {
-	return peopleCompose.VerifyRetainedStudentSchema(ctx, db.Pool())
 }
 
 // RepositoryTestFactory is the repository factory test graphs compose, next to
