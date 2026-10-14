@@ -3368,6 +3368,27 @@ surface stays at 252. `cycles --graph target` is unchanged at 58 owners, 335
 edges and one component of 32 members: the target projection omits
 composition owners and self-edges, so the reaches add no edge to it.
 
+#4003 removes the tuples by letting each owner's composition build what the
+root took from its implementation roles:
+
+- `modules/workforce/compose/httpadapter` serves `/absence-types` and
+  `/substitutions` (`AbsenceTypesRoutes`, `SubstitutionsRoutes`). It returns
+  `chi.Router`, because a Workforce composition may not name the
+  `inbound-absence-types` and `inbound-substitutions` resources. The routes
+  live in `httpadapter` and not in `compose`: the internal tests of
+  `modules/workforce/inbound` import `services`, which imports `compose`, so
+  `compose` importing `inbound` would be an import cycle in those tests.
+- `modules/dataimport/compose` returns the file decoder (`NewFileDecoder`).
+  That import is the first use of a workflow composition's own `adapter`
+  role. Policy epoch 42 → 43 adds `owner-compose.workflow.adapter` under
+  `reviewedOwnerCompositionRule`, as constraint 3 above describes.
+
+The baseline goes from 46 to 44 and the policy from 1,438 to 1,439 rules. The
+composition surface stays at 252, and `cycles --graph target` is unchanged at
+58 owners, 335 edges and one component of 32 members. The two Scheduler
+Runtime tuples (`api -> modules/schedulerruntime/jobruntime` and
+`api -> modules/schedulerruntime/workerlease`) remain.
+
 ## Changing the policy
 
 1. Add or move the exact package classification and data-object owner.

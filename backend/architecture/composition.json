@@ -16372,22 +16372,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 163,
+          "line": 162,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 394,
+          "line": 393,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 443,
+          "line": 442,
           "declaration": "withRootWiring"
         },
         {
           "file": "api/base.go",
-          "line": 702,
+          "line": 701,
           "declaration": "type serveGraph"
         },
         {

@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 14.10.2026 · Ratchet 46 · Composition 252 · Policy-Epoche 42 · 3 Regeln mit
+Stand 14.10.2026 · Ratchet 44 · Composition 252 · Policy-Epoche 43 · 3 Regeln mit
 `convert it to exact debt` · 3.050 LOC unter `modules/*/legacy`
 
-Summenprobe: 1 + 0 + 0 + 0 + 1 + 0 + 0 + 4 + 40 = 46 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 1 + 0 + 0 + 0 + 1 + 0 + 0 + 2 + 40 = 44 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -100,7 +100,7 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 - [x] [#2706](https://github.com/moto-nrw/project-phoenix/issues/2706) Dokument-Rendering — Plan-Export über `modules/planexport/compose` an Lesepfade im öffentlichen Vokabular von Workforce, Timetable und Facilities gebunden (Block-, Personal-, Angebots- und Kinderzahl-Lesepfade laufen in der Root weiter über die Retained-Repositories, Abbau mit #2743), `modules/planexport/legacy` gelöscht; File Storage bedient `documents.file_cleanup` mit eigenem Adapter und übernimmt die Tabelle per ADR 0045 (Policy-Epoche 31 → 32), generisches Dokument-Repository, Modell und Binder gelöscht; Upload-Koordinator mit eigenem Objektspeicher-Port; alle 17 Keys weg (282 → 265), Composition 596 → 596. Offen bleibt die benannte Ausnahme `people-directory.http.file-storage-adapter` (Kinderdokumente brauchen eine öffentliche File-Storage-Capability)
 
-## Schnitt von #2747 (ADR 0053) · 4 Keys
+## Schnitt von #2747 (ADR 0053) · 2 Keys
 
 Die Keys bleiben bei ihren Carriern. Jede Produktionsdatei von `services` gehört genau einem Ticket von #4006 bis #4013; `factory.go` und `tenant_runtime.go` bleiben für #2747.
 
@@ -113,7 +113,7 @@ Die Keys bleiben bei ihren Carriern. Jede Produktionsdatei von `services` gehör
 - [ ] [#4011](https://github.com/moto-nrw/project-phoenix/issues/4011) Care Plan — 45 Dateien, 5.988 LOC
 - [ ] [#4012](https://github.com/moto-nrw/project-phoenix/issues/4012) Enrollment — 19 Dateien, 3.131 LOC
 - [ ] [#4013](https://github.com/moto-nrw/project-phoenix/issues/4013) Plattform, Kommunikation, Tenancy, Kommandos — 21 Dateien, 2.463 LOC
-- [ ] [#4003](https://github.com/moto-nrw/project-phoenix/issues/4003) Root ohne fremde `adapter`/`postgres`-Rollen (Workforce, Data Import, Scheduler Runtime) — 4 (#4001 hat die drei Regeln zu exaktem Debt konvertiert: `api -> modules/workforce/inbound`, `api -> modules/dataimport/fileformat`, `api -> modules/schedulerruntime/jobruntime` und `api -> modules/schedulerruntime/workerlease`)
+- [ ] [#4003](https://github.com/moto-nrw/project-phoenix/issues/4003) Root ohne fremde `adapter`/`postgres`-Rollen (Workforce, Data Import, Scheduler Runtime) — 2 (`api -> modules/workforce/inbound` und `api -> modules/dataimport/fileformat` weg, 46 → 44: `modules/workforce/compose/httpadapter` baut `/absence-types` und `/substitutions` (`AbsenceTypesRoutes`, `SubstitutionsRoutes`, nicht in `compose`, weil die internen Tests von `workforce/inbound` über `services` sonst einen Importzyklus hätten); `modules/dataimport/compose` liefert den Datei-Decoder (`NewFileDecoder`), Policy-Epoche 42 → 43 für `owner-compose.workflow.adapter` (stehende Reichweite, ADR 0053 Punkt 3, erste Nutzung); Regeln 1.438 → 1.439, Composition 252 → 252. Offen: `api -> modules/schedulerruntime/jobruntime` und `api -> modules/schedulerruntime/workerlease`)
 
 ## Endkette · 40 Keys
 
