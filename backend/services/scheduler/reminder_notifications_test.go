@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	// Populates the settings registry, so the tick test can assert against the
 	// registered default instead of a literal copy of it.
@@ -657,7 +658,12 @@ func TestPersonalRemindersTenantIsolationAndDayRotation(t *testing.T) {
 		map[int64]*reminders.Result{caregiverStaffID: resultOf(pickupFixture("11", "14:00"))},
 		map[string][]int64{notifications.TypePickupUpcoming: {caregiverAccountID}},
 	)
-	now := time.Now()
+	// 00:30 on the night the clocks go back: that day has 25 hours, so
+	// now+24h would still fall on it. The next civil date comes from the
+	// calendar, never from a fixed duration (#4027).
+	day := calendar.NewDate(2026, time.October, 25)
+	now := day.BerlinMidnight().Add(30 * time.Minute)
+	nextDay := day.AddDays(1).BerlinMidnight().Add(30 * time.Minute)
 
 	// Production rotates at the top of every tick; initialize the day first so
 	// the later same-day rotation call is a genuine no-op check.
@@ -672,8 +678,8 @@ func TestPersonalRemindersTenantIsolationAndDayRotation(t *testing.T) {
 	assert.Len(t, setup.notifier.events, 2)
 
 	// Next civil date → guard cleared, identical schedule fires again.
-	setup.sched.rotateReminderNotificationCacheIfNewDay(now.Add(24 * time.Hour))
-	setup.sched.runReminderNotificationsForTenant(context.Background(), 7, now)
+	setup.sched.rotateReminderNotificationCacheIfNewDay(nextDay)
+	setup.sched.runReminderNotificationsForTenant(context.Background(), 7, nextDay)
 	assert.Len(t, setup.notifier.events, 3)
 }
 

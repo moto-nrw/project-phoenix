@@ -18,7 +18,7 @@ func TestCustomAbsenceAllowanceSummarizesOnlyItsOwnType(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Rena", "Generation")
 	admin := testpkg.CreateTestStaff(t, db, "Lea", "Leitung")
 
-	svc := buildWorkforce(t, db)
+	svc := buildWorkforceAt(t, db, allowanceNow)
 
 	absenceType, err := svc.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Regenerationstag"})
 	require.NoError(t, err)

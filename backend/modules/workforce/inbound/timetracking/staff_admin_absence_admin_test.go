@@ -136,6 +136,7 @@ func TestAdminCreateStaffAbsence_CompTimeAllowedForManager(t *testing.T) {
 	t.Parallel()
 
 	tc, token, subjectID, _ := setupAbsenceAdminTest(t)
+	setAccountStart(t, tc, "2026-01-01")
 	tomorrow := testpkg.Date(2026, time.August, 24).AddDays(1)
 
 	rec := postAbsence(t, tc, token, subjectID, map[string]any{
@@ -337,6 +338,7 @@ func TestAdminCompTimePreview_ReturnsProjection(t *testing.T) {
 	t.Parallel()
 
 	tc, token, subjectID, _ := setupAbsenceAdminTest(t)
+	setAccountStart(t, tc, "2026-01-01")
 	day := testpkg.Date(2026, time.September, 7)
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf(
