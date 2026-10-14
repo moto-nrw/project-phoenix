@@ -216,7 +216,9 @@ jobs:
 
   test-frontend:
     if: ${{ inputs.run-frontend }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Vitest uses half the CPUs, at most four workers (frontend/vitest.config.ts):
+    # four vCPUs ran the suite with two workers, eight run it with four.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:
       contents: read
 
