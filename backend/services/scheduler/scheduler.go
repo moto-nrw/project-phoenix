@@ -896,7 +896,20 @@ func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *Sched
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, opName, func(tenantCtx context.Context, tenantID int64) error {
-		if !s.dataCleanupEnabled(tenantCtx, tenantID) {
+		enabled, err := s.dataCleanupEnabled(tenantCtx)
+		if err != nil {
+			cleanupTime := s.resolveStringSetting(tenantCtx, settingDataCleanupTime, "CLEANUP_SCHEDULER_TIME", "02:00")
+			now := s.cleanupNow()
+			due, dueErr := s.dailyCleanupDue(tenantCtx, dayCache, task.Name, tenantID, cleanupTime, now)
+			if dueErr != nil {
+				return errors.Join(err, dueErr)
+			}
+			if due {
+				s.noteCleanupFailure(task.Name, tenantID, now)
+			}
+			return err
+		}
+		if !enabled {
 			return nil
 		}
 
@@ -919,20 +932,16 @@ func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *Sched
 	})
 }
 
-func (s *Scheduler) dataCleanupEnabled(ctx context.Context, tenantID int64) bool {
+func (s *Scheduler) dataCleanupEnabled(ctx context.Context) (bool, error) {
 	if s.settings == nil {
-		return false
+		return false, errors.New("data cleanup settings are not configured")
 	}
 
 	enabled, err := s.settings.ResolveBool(ctx, settingDataCleanupEnabled)
 	if err != nil {
-		s.getLogger().Warn("data cleanup setting unreadable, skipping tenant",
-			slog.Int64("tenant_id", tenantID),
-			slog.String("error", err.Error()),
-		)
-		return false
+		return false, fmt.Errorf("resolve %s: %w", settingDataCleanupEnabled, err)
 	}
-	return enabled
+	return enabled, nil
 }
 
 // checkAndRunCleanup evaluates each tenant's cleanup settings and runs if time matches.

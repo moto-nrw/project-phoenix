@@ -24,7 +24,7 @@ func NewRetentionStore(database Database) *RetentionStore {
 const deleteExpiredParentMessagesSQL = `DELETE FROM users.parent_messages
 WHERE tenant_id = ?
   AND created_at < ?
-  AND NOT (kind = 'request' AND request_status = 'offen')`
+  AND (kind <> 'request' OR request_status IS DISTINCT FROM 'offen')`
 
 // repairThreadPreviewSQL recomputes the inbox preview of every thread whose
 // last message was just deleted, from its newest remaining message the

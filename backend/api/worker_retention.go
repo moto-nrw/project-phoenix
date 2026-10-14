@@ -35,6 +35,7 @@ const (
 
 var retentionSettingKeys = []string{
 	settingsModule.KeyGDPRStatusDayRetentionDays,
+	settingsModule.KeyGDPRParentMessageRetentionDays,
 }
 
 // retentionOwners are the owner capabilities whose data the nightly cleanup

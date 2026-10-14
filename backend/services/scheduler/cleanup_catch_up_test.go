@@ -219,6 +219,51 @@ func TestNightlyCleanupUsesRegistryDefaultInsteadOfLegacyEnvironmentFallback(t *
 	assert.Equal(t, 1, cleanup.cleanupCalls, "the registry default must not be overridden by an environment variable")
 }
 
+func TestDataCleanupEnabledReturnsResolutionError(t *testing.T) {
+	t.Parallel()
+
+	resolutionErr := errors.New("settings unavailable")
+	s := unitScheduler(&Scheduler{
+		logger:   slog.Default(),
+		settings: &stubSettingsResolver{boolErr: resolutionErr},
+	})
+
+	enabled, err := s.dataCleanupEnabled(context.Background())
+
+	assert.False(t, enabled)
+	require.ErrorIs(t, err, resolutionErr)
+}
+
+func TestNightlyCleanupRetriesAfterCleanupSettingReadFailure(t *testing.T) {
+	t.Parallel()
+
+	resolutionErr := errors.New("settings unavailable")
+	clock := &cleanupClock{now: berlin(14, 2, 0)}
+	cleanup := &fakeTimetableCleanup{}
+	settings := &stubSettingsResolver{boolErr: resolutionErr}
+	s := unitScheduler(&Scheduler{
+		logger:           slog.Default(),
+		timetableCleanup: cleanup,
+		cleanupClock:     clock.Now,
+		settings:         settings,
+	})
+
+	runTimetableTick(s)
+	assert.Zero(t, cleanup.cleanupCalls)
+	_, failed := s.cleanupFailures.Load(cleanupAttemptKey{jobID: "timetable-cleanup", tenantID: schedulerUnitTenantID})
+	require.True(t, failed, "a failed scheduled setting read enables the retry path")
+
+	settings.boolErr = nil
+	settings.boolVal = true
+	clock.Set(berlin(14, 2, 1))
+	runTimetableTick(s)
+	assert.Zero(t, cleanup.cleanupCalls, "the retry waits for its backoff")
+
+	clock.Set(berlin(14, 3, 0))
+	runTimetableTick(s)
+	assert.Equal(t, 1, cleanup.cleanupCalls, "the cleanup catches up after the setting becomes readable")
+}
+
 func TestFirstCleanupLedgerWriteFailureIsCaughtUp(t *testing.T) {
 	t.Parallel()
 

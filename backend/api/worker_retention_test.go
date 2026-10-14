@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,6 +72,15 @@ func (s retentionSuite) loggedDeletions(t *testing.T, tenantID int64, kind strin
 		WHERE tenant_id = ? AND deletion_type = ? AND student_id IS NULL AND staff_id IS NULL
 		ORDER BY id`, tenantID, kind).Scan(context.Background(), &counts))
 	return counts
+}
+
+func TestWorkerRetentionPreloadsRetentionWindows(t *testing.T) {
+	t.Parallel()
+
+	assert.ElementsMatch(t, []string{
+		settingsModule.KeyGDPRStatusDayRetentionDays,
+		settingsModule.KeyGDPRParentMessageRetentionDays,
+	}, retentionSettingKeys)
 }
 
 func TestNightlyRetentionDeletesUnregisteredTagScansAfterNinetyDays(t *testing.T) {
@@ -195,6 +205,16 @@ func (f parentThreadFixture) openRequest(t *testing.T, body string, daysAgo int)
 		f.tenantID, f.id, f.student, f.guardian, body, daysAgo)
 }
 
+// requestWithoutStatus exercises the nullable request status. Only the
+// explicit status "offen" remains protected from retention; NULL is not open.
+func (f parentThreadFixture) requestWithoutStatus(t *testing.T, body string, daysAgo int) int64 {
+	t.Helper()
+	return f.suite.insertID(t, `INSERT INTO users.parent_messages
+		(tenant_id, thread_id, student_id, sender_account_id, sender_kind, sender_name, body, created_at, kind, request_type)
+		VALUES (?, ?, ?, ?, 'guardian', 'Elternteil', ?, CURRENT_TIMESTAMP - make_interval(days => ?), 'request', 'care_change') RETURNING id`,
+		f.tenantID, f.id, f.student, f.guardian, body, daysAgo)
+}
+
 func (f parentThreadFixture) touch(t *testing.T, messageID int64) {
 	t.Helper()
 	_, err := f.suite.admin.ExecContext(context.Background(), `UPDATE users.parent_message_threads AS thread
@@ -231,6 +251,8 @@ func TestNightlyRetentionDeletesParentMessagesAfterTheirWindow(t *testing.T) {
 	waiting := suite.parentThread(t, school, child.ID, 500)
 	request := waiting.openRequest(t, "Bitte Betreuung ändern", 450)
 	waiting.message(t, "Vertrauliche alte Antwort", 400)
+	withoutStatus := suite.parentThread(t, school, child.ID, 500)
+	requestWithoutStatus := withoutStatus.requestWithoutStatus(t, "Alte Anfrage", 400)
 
 	otherThread := suite.parentThread(t, otherSchool, otherChild.ID, 500)
 	otherExpired := otherThread.message(t, "Andere Schule", 400)
@@ -243,12 +265,14 @@ func TestNightlyRetentionDeletesParentMessagesAfterTheirWindow(t *testing.T) {
 	assert.False(t, suite.exists(t, "users.parent_message_threads", finished.id), "a conversation without messages disappears")
 	assert.Zero(t, suite.count(t, `SELECT COUNT(*) FROM users.parent_message_reads WHERE thread_id = ?`, finished.id))
 	assert.True(t, suite.exists(t, "users.parent_messages", request), "an undecided request stays")
+	assert.False(t, suite.exists(t, "users.parent_messages", requestWithoutStatus), "a request without the explicit open status is deleted")
+	assert.False(t, suite.exists(t, "users.parent_message_threads", withoutStatus.id), "the thread of a deleted request disappears")
 	var preview string
 	require.NoError(t, suite.admin.NewRaw(`SELECT last_message_body FROM users.parent_message_threads WHERE id = ?`, waiting.id).
 		Scan(context.Background(), &preview))
 	assert.Equal(t, "Bitte Betreuung ändern", preview, "the preview shows the newest remaining message, never the deleted one")
 	assert.True(t, suite.exists(t, "users.parent_messages", otherExpired), "the run of one school never touches another")
-	assert.Equal(t, []int{4}, suite.loggedDeletions(t, school, retentionParentMessages), "three expired messages and their empty thread are logged")
+	assert.Equal(t, []int{6}, suite.loggedDeletions(t, school, retentionParentMessages), "expired messages and their empty threads are logged")
 	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionParentMessages))
 }
 

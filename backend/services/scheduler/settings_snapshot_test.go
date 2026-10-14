@@ -44,6 +44,13 @@ func TestSchedulerPollingSettingKeysIncludeWeekendFollowsFriday(t *testing.T) {
 		"a bound snapshot answers only its keys; care-day jobs read this one on weekends")
 }
 
+func TestSchedulerPollingSettingKeysIncludeRetentionWindows(t *testing.T) {
+	t.Parallel()
+
+	assert.Contains(t, schedulerPollingSettingKeys, settingStatusDayRetentionDays)
+	assert.Contains(t, schedulerPollingSettingKeys, settingParentMessageRetentionDays)
+}
+
 func TestSchedulerPollingSettingKeysIncludeAutoEndSettings(t *testing.T) {
 	t.Parallel()
 

@@ -40,6 +40,7 @@ const (
 	KeyChildSearchOnlyNavigation             = configModel.KeyChildSearchOnlyNavigation
 	KeyFeedbackEnabled                       = configModel.KeyFeedbackEnabled
 	KeyGroupMode                             = configModel.KeyGroupMode
+	KeyGDPRParentMessageRetentionDays        = configModel.KeyGDPRParentMessageRetentionDays
 	KeyGDPRStatusDayRetentionDays            = configModel.KeyGDPRStatusDayRetentionDays
 	KeyGuardianParentCanRemove               = configModel.KeyGuardianParentCanRemove
 	KeyGuardianParentInviteMode              = configModel.KeyGuardianParentInviteMode

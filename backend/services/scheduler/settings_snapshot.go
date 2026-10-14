@@ -37,13 +37,16 @@ type schedulerMinuteSnapshotLoad struct {
 	err      error
 }
 
-// schedulerPollingSettingKeys lists settings read by idle polling paths and
-// the reminder/notification services they invoke every minute. Job-specific
-// values used only when a daily job actually fires stay demand-loaded.
+// schedulerPollingSettingKeys lists settings read by idle polling paths, the
+// reminder/notification services they invoke every minute, and nightly
+// retention owners. Bound settings snapshots reject undeclared keys, so every
+// setting a fired daily job reads belongs here too.
 var schedulerPollingSettingKeys = []string{
 	settingDataCleanupEnabled,
 	settingDataCleanupTime,
 	settingDataCleanupTimeoutMinutes,
+	settingStatusDayRetentionDays,
+	settingParentMessageRetentionDays,
 	settingFeedbackDataRetentionDays,
 	settingSessionEndEnabled,
 	settingSessionEndTime,

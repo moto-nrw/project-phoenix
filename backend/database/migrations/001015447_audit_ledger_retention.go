@@ -153,12 +153,18 @@ func auditLedgerRetentionUp(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-func auditLedgerRetentionDown(ctx context.Context, db *bun.DB) error {
-	if _, err := db.ExecContext(ctx, `
+const auditLedgerRetentionDownSQL = `
+		GRANT DELETE ON audit.auth_events TO phoenix_tenant;
+		GRANT DELETE ON audit.data_access_log TO phoenix_tenant;
+		GRANT DELETE ON audit.data_deletions TO phoenix_tenant;
+
 		DROP FUNCTION IF EXISTS audit.delete_expired_auth_events(BIGINT, TIMESTAMPTZ);
 		DROP FUNCTION IF EXISTS audit.delete_expired_data_access_log(BIGINT, TIMESTAMPTZ);
 		DROP FUNCTION IF EXISTS audit.delete_expired_data_deletions(BIGINT, TIMESTAMPTZ);
-	`); err != nil {
+`
+
+func auditLedgerRetentionDown(ctx context.Context, db *bun.DB) error {
+	if _, err := db.ExecContext(ctx, auditLedgerRetentionDownSQL); err != nil {
 		return fmt.Errorf("drop audit ledger retention capabilities: %w", err)
 	}
 	return nil
