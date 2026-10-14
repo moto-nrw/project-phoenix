@@ -64,7 +64,9 @@ jobs:
     name: Fotografieren und rahmen
     # Ältere Releases mit Tags wie pr-1768-… sind QA-Ablagen, keine Versionen.
     if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Standard-Runner sind für dieses öffentliche Repository kostenlos; auf die
+    # Laufzeit wartet hier niemand.
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     # Ein neuer Push auf denselben PR ersetzt dessen Probelauf.
     concurrency:

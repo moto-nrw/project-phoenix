@@ -42,33 +42,36 @@ jobs:
       # recheck both full suites. A docs-only release must not report green while
       # inheriting a broken development head. Backend lint also runs in full;
       # frontend lint/build stays change-scoped.
-      run-backend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.ci == 'true' }}
-      run-frontend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.ci == 'true' }}
-      run-backend-lint: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-lint == 'true' || steps.filter.outputs.ci == 'true' }}
-      run-backend-architecture: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-architecture == 'true' || steps.filter.outputs.ci == 'true' }}
-      full-backend-lint: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-lint-full == 'true' || steps.filter.outputs.ci == 'true' }}
-      run-frontend-lint: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' }}
+      # A workflow change reruns only the jobs its file defines: main.yml
+      # orchestrates every job, test.yml the test suites, lint.yml the lint
+      # jobs. Other .github files reach only the script suites below.
+      run-backend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' }}
+      run-frontend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' }}
+      run-backend-lint: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-lint == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.quality-scripts == 'true' }}
+      run-backend-architecture: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-architecture == 'true' || steps.filter.outputs.workflow-main == 'true' }}
+      full-backend-lint: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-lint-full == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.quality-scripts == 'true' }}
+      run-frontend-lint: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.quality-scripts == 'true' }}
       # The seed smoke drives runtime API contracts. Test-only edits,
       # frontend-only pushes and CI changes outside its own workflow definition
       # cannot affect it and must not buy another runner.
       run-seed-smoke: ${{ steps.filter.outputs.backend-production == 'true' || steps.filter.outputs.seed-smoke-infra == 'true' }}
-      # Workflow/config changes validate the complete test commands. Ordinary
-      # PRs use changed-test selection; protected-branch pushes and release pull
-      # requests are always full because they revalidate the whole tree, not
-      # just what the change touched.
-      full-backend-suite: ${{ steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.ci == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
-      full-frontend-suite: ${{ steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.ci == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
+      # Changes to main.yml or test.yml validate the complete test commands.
+      # Ordinary PRs use changed-test selection; protected-branch pushes and
+      # release pull requests are always full because they revalidate the whole
+      # tree, not just what the change touched.
+      full-backend-suite: ${{ steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
+      full-frontend-suite: ${{ steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
       # Pull requests test what changed against the base branch. Protected-branch
       # pushes and release pull requests run the full suites.
       changed-scope: ${{ github.event_name != 'push' && steps.scope.outputs.release != 'true' }}
       base-ref: ${{ github.base_ref }}
       # The script suites, the env sync and the error-code registry check only
       # files their own filter lists. Docs-only pull requests skip all three.
-      run-ci-scripts: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.ci == 'true' || steps.filter.outputs.hooks == 'true' }}
+      run-ci-scripts: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.tooling == 'true' || steps.filter.outputs.quality-scripts == 'true' || steps.filter.outputs.hooks == 'true' || steps.filter.outputs.toolchain == 'true' }}
       run-env-check: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.env == 'true' }}
       run-error-codes: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.error-codes == 'true' }}
-      ci-files-changed: ${{ steps.filter.outputs.ci == 'true' }}
-      hook-files-changed: ${{ steps.filter.outputs.hooks == 'true' }}
+      tooling-changed: ${{ steps.filter.outputs.tooling == 'true' }}
+      toolchain-changed: ${{ steps.filter.outputs.toolchain == 'true' }}
     steps:
       # Pull requests need no checkout: paths-filter reads their changed files
       # through the GitHub API. Pushes compare against the previous commit.
@@ -120,6 +123,9 @@ jobs:
               - 'backend/internal/architecture/**'
               - 'backend/tools/go.mod'
               - 'backend/tools/go.sum'
+              # Notes such as backend/architecture/WORKPLAN.md feed no check.
+              # Without a Go change they would select a full ./... lint.
+              - '!backend/**/*.md'
               - 'scripts/backend-affected-packages.sh'
               - 'scripts/backend-affected-packages_test.sh'
               - 'scripts/backend-lint-packages.sh'
@@ -136,6 +142,8 @@ jobs:
               - 'docs/runtime-checkpoints/**'
               - 'docs/operations/**'
               - 'scripts/check-migration-evidence*'
+              # The evidence gate reads docs/ markdown, never backend/ notes.
+              - '!backend/**/*.md'
             backend-lint-full:
               - 'backend/go.mod'
               - 'backend/go.sum'
@@ -175,17 +183,32 @@ jobs:
               - 'frontend/vitest.config.ts'
               - 'frontend/src/test/setup.ts'
               - 'scripts/test-changed.sh'
-            # Local Git hooks only. CI never runs them; the script suites and
-            # the toolchain ratchet are the only checks that read these files.
-            hooks:
-              - 'lefthook.yml'
-              - 'scripts/pre-push*'
-            ci:
+            # The workflows that run on pull requests. Each one reruns the
+            # jobs it defines in full; see the outputs above.
+            workflow-main:
+              - '.github/workflows/main.yml'
+            workflow-test:
+              - '.github/workflows/test.yml'
+            workflow-lint:
+              - '.github/workflows/lint.yml'
+            # Shared with pre-push; CI calls them from the lint jobs.
+            quality-scripts:
               - 'scripts/check-quality.sh'
               - 'scripts/check-backend-quality.sh'
               - 'scripts/check-frontend-quality.sh'
               - 'scripts/quality-timing.sh'
+            # Local developer tooling: Git hooks and the native dev loop. CI
+            # never runs them; the script suites and the toolchain ratchet are
+            # the only checks that read these files.
+            hooks:
+              - 'lefthook.yml'
+              - 'scripts/pre-push*'
               - 'scripts/check-secrets.sh'
+              - 'scripts/run-go-toolchain.sh'
+              - 'scripts/dev-native*'
+            # Release, deploy and demo tooling and the workflow files the
+            # script suites read. None of it feeds the test or lint suites.
+            tooling:
               - 'scripts/check-release-architecture*'
               - 'scripts/check-migration-evidence*'
               - 'scripts/release-backup*'
@@ -197,12 +220,27 @@ jobs:
               - 'scripts/deploy-remote.sh'
               - 'scripts/rollback-remote.sh'
               - 'scripts/restore-db.sh'
-              - 'scripts/run-go-toolchain.sh'
-              - 'scripts/dev-native*'
               - '.github/**'
               - 'environments/**'
               - '.env.example'
               - 'package.json'
+            # Inputs of TestToolchainPinsRatchet. Changed-test selection adds
+            # ./test only for backend changes, so ci-scripts runs the
+            # ratchets for these files instead of the full backend suite.
+            toolchain:
+              - 'lefthook.yml'
+              - 'scripts/pre-push.sh'
+              - 'scripts/run-go-toolchain.sh'
+              - '.claude/hooks/format-go.sh'
+              - '.github/workflows/**'
+              - 'devbox.json'
+              - 'devbox.lock'
+              - 'package.json'
+              - 'frontend/package.json'
+              - 'backend/Dockerfile'
+              - 'backend/Dockerfile.dev'
+              - 'backend/tools/go.mod'
+              - 'scripts/backend-architecture/go.mod'
             env:
               - 'environments/**'
               - '.env.example'
@@ -239,14 +277,14 @@ jobs:
         run: node --test scripts/pre-push.test.mjs scripts/dev-native.test.mjs scripts/check-release-architecture.test.mjs scripts/check-migration-evidence.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/posthog-dashboards.test.mjs
 
       - name: Verify complete release restore with PostgreSQL
-        if: needs.detect-changes.outputs.ci-files-changed == 'true'
+        if: needs.detect-changes.outputs.tooling-changed == 'true'
         run: node --test scripts/release-backup.integration.test.mjs
 
-      # TestToolchainPinsRatchet reads lefthook.yml and scripts/pre-push.sh.
-      # Changed-test selection adds ./test only for backend changes, so a
-      # hooks-only change runs the ratchets here instead of the full suite.
+      # TestToolchainPinsRatchet reads the files of the toolchain filter.
+      # Changed-test selection adds ./test only for backend changes, so such a
+      # change runs the ratchets here instead of the full backend suite.
       - name: Setup Go with cache
-        if: needs.detect-changes.outputs.hook-files-changed == 'true'
+        if: needs.detect-changes.outputs.toolchain-changed == 'true'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
@@ -254,9 +292,15 @@ jobs:
           cache-dependency-path: backend/go.sum
 
       - name: Verify source ratchets
-        if: needs.detect-changes.outputs.hook-files-changed == 'true'
+        if: needs.detect-changes.outputs.toolchain-changed == 'true'
         working-directory: backend
         run: go test -count=1 -run Ratchet ./test
+
+      # The selector suite also pins contracts in main.yml and lint.yml. A
+      # lint.yml-only change does not start test-backend, which runs it too.
+      - name: Verify workflow selection contracts
+        if: needs.detect-changes.outputs.toolchain-changed == 'true'
+        run: scripts/backend-affected-packages_test.sh
 
   lint:
     permissions:
@@ -279,7 +323,9 @@ jobs:
       github.event_name == 'push'
       || needs.detect-changes.outputs.run-backend-architecture == 'true'
     needs: detect-changes
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Standard runners are free for this public repository. Blacksmith minutes
+    # go to the test suites, which set the pull request's wall-clock time.
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: read
@@ -287,15 +333,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Keeps the full clone: the composition ratchet reads base-revision
+          # sources through git cat-file, which a blobless clone would fetch
+          # one object at a time.
           fetch-depth: 0
       - name: Setup Go with cache
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
           cache: true
-          cache-dependency-path: |
-            backend/go.sum
-            scripts/backend-architecture/go.sum
+          # The development cache build.yml saves under this key. The
+          # architecture module pins the same golang.org/x versions.
+          cache-dependency-path: backend/go.sum
       - name: Check deterministic architecture ratchet
         env:
           BASE_REF: ${{ github.base_ref }}
