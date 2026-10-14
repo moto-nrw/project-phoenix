@@ -11,7 +11,6 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // RetentionTestOwners are the retained owners the Worker's nightly retention
@@ -27,13 +26,9 @@ type RetentionTestOwners struct {
 	ParentMessages       communication.ParentMessageCleanup
 }
 
-// NewRetentionTestOwners composes the retention owners over pool; unit is
-// the tenant runtime the settings resolve in.
-func NewRetentionTestOwners(pool *bun.DB, unit tenant.UnitOfWork) (RetentionTestOwners, error) {
-	db, err := transactionruntime.NewDatabase(pool)
-	if err != nil {
-		return RetentionTestOwners{}, err
-	}
+// NewRetentionTestOwners composes the retention owners over db; unit is the
+// tenant runtime the settings resolve in.
+func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWork) (RetentionTestOwners, error) {
 	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return RetentionTestOwners{}, err
@@ -60,6 +55,6 @@ func NewRetentionTestOwners(pool *bun.DB, unit tenant.UnitOfWork) (RetentionTest
 	}
 	return RetentionTestOwners{
 		Audit: command, Settings: settings.Settings, UnregisteredTagScans: scans, StatusDays: statusDays,
-		ParentMessages: communicationCompose.NewParentMessageRetention(pool, settings.Settings),
+		ParentMessages: communicationCompose.NewParentMessageRetention(db.Pool(), settings.Settings),
 	}, nil
 }
