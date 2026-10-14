@@ -896,8 +896,7 @@ func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *Sched
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, opName, func(tenantCtx context.Context, tenantID int64) error {
-		enabled := s.resolveBoolSetting(tenantCtx, settingDataCleanupEnabled, "CLEANUP_SCHEDULER_ENABLED", true)
-		if !enabled {
+		if !s.dataCleanupEnabled(tenantCtx, tenantID) {
 			return nil
 		}
 
@@ -918,6 +917,22 @@ func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *Sched
 		}
 		return nil
 	})
+}
+
+func (s *Scheduler) dataCleanupEnabled(ctx context.Context, tenantID int64) bool {
+	if s.settings == nil {
+		return false
+	}
+
+	enabled, err := s.settings.ResolveBool(ctx, settingDataCleanupEnabled)
+	if err != nil {
+		s.getLogger().Warn("data cleanup setting unreadable, skipping tenant",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return false
+	}
+	return enabled
 }
 
 // checkAndRunCleanup evaluates each tenant's cleanup settings and runs if time matches.

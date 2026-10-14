@@ -1588,8 +1588,11 @@ func TestRunCleanupTask_ExecutesOnSchedule(t *testing.T) {
 		s := unitScheduler(&Scheduler{
 			cleanupService: cleanupSvc,
 			tasks:          make(map[string]*ScheduledTask),
-			done:           make(chan struct{})})
-		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "02:00")
+			done:           make(chan struct{}),
+			settings: &fakeSettingsResolver{
+				boolValues: map[string]bool{settingDataCleanupEnabled: true},
+			}})
+		s.getenv = testEnv("CLEANUP_SCHEDULER_TIME", "02:00")
 
 		// Schedule cleanup task (spawns goroutine)
 		// Task is scheduled for 02:00, and synctest starts at 01:00:00

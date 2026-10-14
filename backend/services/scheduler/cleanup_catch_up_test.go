@@ -201,6 +201,24 @@ func TestFailedFirstNightlyCleanupIsCaughtUp(t *testing.T) {
 	assert.Equal(t, berlin(14, 3, 0), last)
 }
 
+func TestNightlyCleanupUsesRegistryDefaultInsteadOfLegacyEnvironmentFallback(t *testing.T) {
+	t.Parallel()
+
+	clock := &cleanupClock{now: berlin(14, 2, 0)}
+	cleanup := &fakeTimetableCleanup{}
+	s := unitScheduler(&Scheduler{
+		logger:           slog.Default(),
+		timetableCleanup: cleanup,
+		cleanupClock:     clock.Now,
+		settings:         &stubSettingsResolver{boolVal: true},
+	})
+	s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "false")
+
+	runTimetableTick(s)
+
+	assert.Equal(t, 1, cleanup.cleanupCalls, "the registry default must not be overridden by an environment variable")
+}
+
 func TestFirstCleanupLedgerWriteFailureIsCaughtUp(t *testing.T) {
 	t.Parallel()
 
