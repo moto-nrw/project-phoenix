@@ -7,7 +7,7 @@ import (
 
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/cleanupruns"
+	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -80,7 +80,7 @@ func newWorkerRetention(owners retentionOwners, logger *slog.Logger) (workerRete
 	if err != nil {
 		return workerRetention{}, fmt.Errorf("compose worker retention: %w", err)
 	}
-	return workerRetention{run: run, runs: cleanupruns.NewStore()}, nil
+	return workerRetention{run: run, runs: schedulerRuntimeCompose.NewCleanupRunLedger()}, nil
 }
 
 // retentionSteps lists the deletions of the nightly cleanup of one school.
