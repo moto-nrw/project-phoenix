@@ -36,17 +36,73 @@ env:
   GOTOOLCHAIN: local
 
 jobs:
+  plan-backend:
+    name: Select backend tests
+    if: ${{ inputs.run-backend }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.packages.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          filter: blob:none
+      - name: Fetch backend comparison history
+        env:
+          BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          refs=("$(git rev-parse HEAD)" "+refs/heads/development:refs/remotes/origin/development")
+          if [ -n "$BASE_REF" ] && [ "$BASE_REF" != development ]; then
+            refs+=("+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF")
+          fi
+          git fetch --no-tags --unshallow origin "${refs[@]}"
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+      - name: Test backend test scripts
+        run: |
+          scripts/backend-affected-packages_test.sh
+          scripts/backend-test-matrix_test.sh
+          scripts/test-changed_test.sh
+      - name: Select and partition backend packages
+        id: packages
+        working-directory: backend
+        env:
+          CHANGED_SCOPE: ${{ inputs.changed-scope }}
+          FULL_SUITE: ${{ inputs.full-backend-suite }}
+          BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
+            packages=$(../scripts/backend-affected-packages.sh "origin/$BASE_REF")
+            if [ "$packages" = ./... ]; then
+              packages=$(go list ./...)
+              FULL_SUITE=true
+            fi
+          else
+            packages=$(go list ./...)
+            FULL_SUITE=true
+          fi
+          matrix=$(printf '%s\n' "$packages" | FULL_SUITE="$FULL_SUITE" ../scripts/backend-test-matrix.sh)
+          printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$matrix" | jq '.include | map({shard, runner, packages: (.packages | split("\n") | map(select(length > 0)) | length)})'
+
   test-backend:
+    name: Backend tests (${{ matrix.shard }})
+    needs: plan-backend
     if: ${{ inputs.run-backend }}
     strategy:
       fail-fast: false
-      matrix:
-        # Affected PRs keep one runner. Full suites isolate architecture (1)
-        # and migrations (2), then balance application packages across 0/3.
-        shard: ${{ fromJSON(inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' && '[0]' || '[0,1,2,3]') }}
-    # Change-scoped runs cover only affected packages; full suites need eight
-    # vCPUs even when triggered by a pull request.
-    runs-on: ${{ inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+      # Size the run from the actual affected graph, not just the event type.
+      # Small PRs keep one modest runner; broad PRs use the existing full-suite
+      # budgets, without mixing architecture/migrations into application work.
+      matrix: ${{ fromJSON(needs.plan-backend.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       checks: write
@@ -76,9 +132,9 @@ jobs:
         with:
           # Fetch only the checked-out revision here. The next step expands
           # its history and comparison refs without downloading every branch
-          # and tag. Architecture and affected PRs still need historical blobs.
+          # and tag. Only the architecture suite needs historical blobs.
           fetch-depth: 1
-          filter: ${{ matrix.shard != 1 && (!inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '') && 'blob:none' || '' }}
+          filter: ${{ matrix.shard != 1 && 'blob:none' || '' }}
 
       - name: Fetch backend comparison history
         env:
@@ -98,11 +154,6 @@ jobs:
           go-version-file: backend/go.mod
           cache: true
           cache-dependency-path: backend/go.sum
-
-      - name: Test backend test scripts
-        run: |
-          scripts/backend-affected-packages_test.sh
-          scripts/test-changed_test.sh
 
       - name: Restore migrated DB snapshot
         if: ${{ matrix.shard != 1 }}
@@ -196,59 +247,23 @@ jobs:
           SCHOOL_URL: http://schule.localhost:3000
           NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
           TENANT_DOMAIN: localhost
-          BASE_REF: ${{ inputs.base_ref }}
-          FULL_SUITE: ${{ inputs.full-backend-suite }}
-          CHANGED_SCOPE: ${{ inputs.changed-scope }}
-          SHARD_INDEX: ${{ matrix.shard }}
+          TEST_PACKAGES: ${{ matrix.packages }}
+          PACKAGE_WORKERS: ${{ matrix.workers }}
         run: |
-          packages=(./...)
-          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
-            affected_output=$(../scripts/backend-affected-packages.sh "origin/$BASE_REF")
-            packages=()
-            while IFS= read -r package; do
-              [ -n "$package" ] && packages+=("$package")
-            done <<< "$affected_output"
-            if [ "${#packages[@]}" -eq 0 ]; then
-              echo "No changed Go packages"
-              exit 0
-            fi
-            echo "Running ${#packages[@]} changed/affected Go packages"
-          else
-            # Assign every package exactly once. The architecture suite runs
-            # without competing application builds or DB setup. Capture
-            # discovery failures before entering the pipe.
-            all_packages=$(go list ./...)
-            packages=()
-            while IFS= read -r package; do
-              [ -n "$package" ] && packages+=("$package")
-            done < <(printf '%s\n' "$all_packages" | awk -v shard="$SHARD_INDEX" '
-              {
-                if ($0 ~ /\/internal\/architecture(\/|$)/) target = 1
-                else if ($0 ~ /\/database\/migrations(\/|$)/) target = 2
-                else target = (application++ % 2) * 3
-                if (target == shard) print
-              }
-            ')
-            if [ "${#packages[@]}" -eq 0 ]; then
-              echo "Full-suite shard has no Go packages" >&2
-              exit 1
-            fi
-            echo "Running ${#packages[@]} Go packages in full-suite shard $SHARD_INDEX"
+          packages=()
+          while IFS= read -r package; do
+            [ -n "$package" ] && packages+=("$package")
+          done <<< "$TEST_PACKAGES"
+          if [ "${#packages[@]}" -eq 0 ]; then
+            echo "No changed Go packages"
+            exit 0
           fi
-
-          test_args=(-parallel 8)
-          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
-            test_args+=(-p 4)
-          else
-            # The full suite compiles every package; six package binaries in
-            # flight match the eight-vCPU runner it gets.
-            test_args+=(-p 6)
-          fi
+          echo "Running ${#packages[@]} selected Go packages"
 
           # Single pass produces junit.xml. No retries: flaky tests should fail
           # loudly, not be hidden.
           go tool gotestsum --format pkgname-and-test-fails \
-            --junitfile junit.xml -- "${test_args[@]}" "${packages[@]}"
+            --junitfile junit.xml -- -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
 
       - name: Publish backend test results
         uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1

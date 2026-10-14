@@ -83,6 +83,8 @@ EOF
 # A real main package may legitimately end in .test. Keep it in the graph,
 # while excluding generated .test mains. Also cover test-only importers.
 mkdir -p "$fixture/backend"/{graphbase,legitimate.test,testonly}
+mkdir -p "$fixture/backend/retired"
+printf 'package retired\n' >"$fixture/backend/retired/retired.go"
 printf 'package graphbase\n\nconst Value = 1\n' >"$fixture/backend/graphbase/base.go"
 printf 'package graphbase\n' >"$fixture/backend/graphbase/base_test.go"
 cat >"$fixture/backend/legitimate.test/main.go" <<'EOF'
@@ -257,6 +259,23 @@ printf '\n// changed\n' >>"$fixture/backend/graphbase/base.go"
 assert_output $'example.test/project/graphbase\nexample.test/project/legitimate.test\nexample.test/project/test\nexample.test/project/testonly'
 assert_output_direct $'example.test/project/graphbase\nexample.test/project/legitimate.test\nexample.test/project/testonly'
 git -C "$fixture" restore backend/graphbase/base.go
+
+# Removing an unused package must validate imports without compiling the whole
+# backend first. A cold cache makes accidental export builds observable even
+# when this test is run repeatedly on a developer's warm Go cache.
+cat >"$fixture/no-compile" <<'EOF'
+#!/usr/bin/env bash
+echo 'package selection unexpectedly invoked the Go compiler' >&2
+exit 1
+EOF
+chmod +x "$fixture/no-compile"
+mv "$fixture/backend/retired/retired.go" "$fixture/retired.go"
+actual=$(GOCACHE="$fixture/cold-cache" GOFLAGS="${GOFLAGS:-} -toolexec=$fixture/no-compile" select_packages)
+if [ -n "$actual" ]; then
+  echo "deleted unused package unexpectedly selected packages: $actual" >&2
+  exit 1
+fi
+mv "$fixture/retired.go" "$fixture/backend/retired/retired.go"
 
 mv "$fixture/backend/corex/corex.go" "$fixture/corex.go"
 if select_packages >/dev/null 2>&1; then

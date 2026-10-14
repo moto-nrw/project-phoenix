@@ -170,6 +170,8 @@ jobs:
               - 'scripts/backend-affected-packages_test.sh'
               - 'scripts/backend-lint-packages.sh'
               - 'scripts/test-backend.sh'
+              - 'scripts/backend-test-matrix.sh'
+              - 'scripts/backend-test-matrix_test.sh'
               - 'scripts/test-changed.sh'
               - 'scripts/test-changed_test.sh'
               - 'scripts/test-run-id.sh'

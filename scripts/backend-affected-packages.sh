@@ -61,7 +61,7 @@ if [ -z "$changed_dirs" ]; then
 fi
 
 existing_dirs=()
-deleted_production=false
+deleted_production_dirs=()
 while read -r kind dir; do
   package_dir="$repo_root/backend"
   if [ "$dir" != "." ]; then
@@ -79,14 +79,28 @@ while read -r kind dir; do
   if [ -n "$package_exists" ]; then
     existing_dirs+=("$kind $dir")
   elif [ "$kind" = production ]; then
-    deleted_production=true
+    deleted_production_dirs+=("$dir")
   fi
 done <<< "$changed_dirs"
 
-if [ "$deleted_production" = true ]; then
+if [ "${#deleted_production_dirs[@]}" -gt 0 ]; then
   # There is no package left to test, but surviving imports of the removed
   # package must fail instead of turning the changed-test run into a no-op.
-  (cd "$repo_root/backend" && go list -deps -test -export ./... >/dev/null)
+  # -export would compile every test dependency before selection even starts.
+  # Load the graph only, and also reject imports of packages left with just
+  # test files: go list accepts those, but an ordinary import cannot build.
+  module=$(cd "$repo_root/backend" && go list -m)
+  deleted_packages=$(printf '%s\n' "${deleted_production_dirs[@]}" | awk -v module="$module" '
+    { print ($0 == "." ? module : module "/" $0) }
+  ')
+  (cd "$repo_root/backend" && go list -deps -test -f '{{range .Imports}}{{println .}}{{end}}' ./...) |
+    awk 'NR == FNR { deleted[$0] = 1; next }
+      $0 in deleted {
+        print "deleted production package is still imported: " $0 > "/dev/stderr"
+        failed = 1
+      }
+      END { exit failed }
+    ' <(printf '%s\n' "$deleted_packages") -
 fi
 
 if [ "${#existing_dirs[@]}" -eq 0 ]; then

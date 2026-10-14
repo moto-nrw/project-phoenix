@@ -1,0 +1,18 @@
+name: Backend PR regression benchmark
+on:
+  push:
+    branches: [fix/backend-pr-ci-runtime]
+permissions:
+  contents: read
+  checks: write
+jobs:
+  replay:
+    uses: ./.github/workflows/test.yml
+    with:
+      run-backend: true
+      run-frontend: false
+      run-seed-smoke: false
+      changed-scope: true
+      base_ref: verify/backend-pr-4039-base
+      full-backend-suite: false
+      full-frontend-suite: false
