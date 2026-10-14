@@ -20,10 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -345,7 +344,7 @@ func TestStaffDocumentsAPI_OffboardingCleanupLeaseRetriesFileFailure(t *testing.
 	t.Parallel()
 	c := setupDocumentsAPI(t)
 	now := time.Now()
-	queue, err := services.NewStaffDocumentCleanup(c.tc.db, func() time.Time { return now })
+	queue, err := workforceCompose.NewDocumentCleanup(c.tc.db, func() time.Time { return now })
 	require.NoError(t, err)
 	c.tc.resource.OffboardingCleanup = queue
 	rec := c.upload(t, "zeugnis", "retry.pdf", fakePDF, "staff:documents")

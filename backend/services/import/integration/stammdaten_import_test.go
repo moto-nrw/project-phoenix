@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"testing"
 
-	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
-	importService "github.com/moto-nrw/project-phoenix/services/import"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
 	"github.com/moto-nrw/project-phoenix/services"
+	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -23,13 +23,13 @@ import (
 // records, both importers support update mode, and the child import carries
 // address, RFID and the guardian role preset.
 
-func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels.StaffInviter) (*importService.StaffImportConfig, *services.RepositoryTestFactory, services.TimetableDependencies) {
+func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels.StaffInviter) (*importService.StaffImportConfig, *api.RepositoryTestFactory, services.TimetableDependencies) {
 	t.Helper()
-	owners := services.NewUnobservedTimetableDependencies(db)
-	repos := services.NewRepositoryTestFactory(db, owners)
+	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 	organizations, err := services.NewOrganizationTenancy(db)
 	require.NoError(t, err)
-	identity, err := services.NewIdentityAccessForTests(db)
+	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	config := importService.NewStaffImportConfig(importService.StaffImportDeps{RolePolicy: dataImportCompose.NewSchoolRolePolicy(), Authorization: dataImportCompose.NewAuthorization(), Transactions: dataImportCompose.NewTransactions(),
 		Invitations:         invitations,
@@ -103,7 +103,7 @@ func TestStaffImportConfig_Create_FilesStammdatensatzAndInvitation(t *testing.T)
 	require.NotNil(t, teacher, "a caregiver-tier role gets its profile")
 	assert.Equal(t, "Gruppenleitung", teacher.Role)
 
-	master, err := services.NewStaffMasterDataRepository(owners.Workforce).FindByStaffID(ctx, staffID)
+	master, err := api.NewStaffMasterDataRepository(owners.Workforce).FindByStaffID(ctx, staffID)
 	require.NoError(t, err)
 	require.NotNil(t, master)
 	assert.Equal(t, "female", *master.Gender)
@@ -112,7 +112,7 @@ func TestStaffImportConfig_Create_FilesStammdatensatzAndInvitation(t *testing.T)
 	assert.InDelta(t, 19.5, *master.WeeklyHours, 0.001)
 	assert.Equal(t, timezone.NewDate(2023, 8, 1), *master.EntryDate)
 
-	quals, err := services.NewStaffQualificationRepository(owners.Workforce).ListByStaffID(ctx, staffID)
+	quals, err := api.NewStaffQualificationRepository(owners.Workforce).ListByStaffID(ctx, staffID)
 	require.NoError(t, err)
 	require.Len(t, quals, 2)
 	assert.Equal(t, "Erste Hilfe", quals[0].Name)
@@ -161,7 +161,7 @@ func TestStaffImportConfig_Create_WithoutEmailSkipsInvitation(t *testing.T) {
 	staff, err := repos.Staff.FindWithPerson(testpkg.Ctx(t), staffID)
 	require.NoError(t, err)
 	assert.Equal(t, "Yilmaz", staff.Person.LastName)
-	master, err := services.NewStaffMasterDataRepository(owners.Workforce).FindByStaffID(testpkg.Ctx(t), staffID)
+	master, err := api.NewStaffMasterDataRepository(owners.Workforce).FindByStaffID(testpkg.Ctx(t), staffID)
 	require.NoError(t, err)
 	assert.Nil(t, master, "no master data row without master data columns")
 }
@@ -202,7 +202,7 @@ func TestStaffImportConfig_Update_PatchesOnlyGivenCells(t *testing.T) {
 	assert.Equal(t, "P-9", *updated.PersonnelNumber)
 	assert.Equal(t, ports.EmploymentTypeFullTime, *updated.EmploymentType)
 
-	master, err := services.NewStaffMasterDataRepository(owners.Workforce).FindByStaffID(ctx, staff.ID)
+	master, err := api.NewStaffMasterDataRepository(owners.Workforce).FindByStaffID(ctx, staff.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Bonn", *master.AddressCity, "empty address cell keeps the stored city")
 	assert.InDelta(t, 39, *master.WeeklyHours, 0.001)
@@ -224,26 +224,26 @@ func TestStaffImportConfig_FindExisting_RefusesAmbiguousName(t *testing.T) {
 	})
 }
 
-func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*importService.StudentImportConfig, *services.RepositoryTestFactory) {
+func newStammdatenStudentConfig(t *testing.T, db *bun.DB) (*importService.StudentImportConfig, *api.RepositoryTestFactory) {
 	t.Helper()
 	// Guardian commands need the owner's provider, which the legacy root
 	// binds; the guardian-bearing cutover tests therefore live in the
 	// services package (import_cutover_test.go). This config covers the
 	// person, student, schedule and consent paths.
-	owners := services.NewUnobservedTimetableDependencies(db)
-	repos := services.NewRepositoryTestFactory(db, owners)
-	groups, err := services.NewSchoolStructure(db)
+	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
+	groups, err := api.NewSchoolStructure(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	rooms, err := services.NewFacilities(db)
+	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	references := dataImportCompose.NewReferences(groups, rooms)
-	rfid, err := services.NewIdentityAccessForTests(db)
+	rfid, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	config := importService.NewStudentImportConfig(importService.StudentImportDeps{Transactions: dataImportCompose.NewTransactions(),
 		Persons:         owners.Students,
 		Students:        owners.Students,
 		Schedules:       repos.CarePlan(),
-		PrivacyConsents: services.NewStudentPresenceForTests(db),
+		PrivacyConsents: api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db)),
 		FindRFIDCard:    rfid.FindRFIDCard,
 		Resolver:        importService.NewRelationshipResolver(references.Groups, references.Rooms),
 	})

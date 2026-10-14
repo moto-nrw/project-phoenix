@@ -39,10 +39,10 @@ type guardianFinancialAudit struct {
 	changes auditModels.GuardianFinancialChangeCreator
 }
 
-// newGuardianFinancialAudit binds the change-trail port. A nil repository
+// NewGuardianFinancialAudit binds the change-trail port. A nil repository
 // leaves the port unbound, so the service refuses the change instead of
 // committing it without an audit row.
-func newGuardianFinancialAudit(changes auditModels.GuardianFinancialChangeCreator) peopleCompose.GuardianFinancialAudit {
+func NewGuardianFinancialAudit(changes auditModels.GuardianFinancialChangeCreator) peopleCompose.GuardianFinancialAudit {
 	if changes == nil {
 		return nil
 	}
@@ -71,9 +71,9 @@ type guardianDataAccessLog struct {
 	log auditModels.DataAccessLogRepository
 }
 
-// newGuardianDataAccessLog binds the read-trail port. A nil repository leaves
+// NewGuardianDataAccessLog binds the read-trail port. A nil repository leaves
 // the port unbound, so the service serves no bank value.
-func newGuardianDataAccessLog(log auditModels.DataAccessLogRepository) peopleCompose.GuardianDataAccessLog {
+func NewGuardianDataAccessLog(log auditModels.DataAccessLogRepository) peopleCompose.GuardianDataAccessLog {
 	if log == nil {
 		return nil
 	}
@@ -96,15 +96,15 @@ func (l guardianDataAccessLog) RecordGuardianDataAccess(ctx context.Context, acc
 	})
 }
 
-// guardianRolePresets binds the guardian service's role presets to the
+// GuardianRolePresets binds the guardian service's role presets to the
 // Security Runtime.
-type guardianRolePresets struct{}
+type GuardianRolePresets struct{}
 
-func (guardianRolePresets) DefaultRole(relationshipType string, isPrimary, isEmergencyContact, canPickup bool) string {
+func (GuardianRolePresets) DefaultRole(relationshipType string, isPrimary, isEmergencyContact, canPickup bool) string {
 	return securityruntime.DefaultStudentGuardianRole(relationshipType, isPrimary, isEmergencyContact, canPickup)
 }
 
-func (guardianRolePresets) Preset(role string) (string, []string) {
+func (GuardianRolePresets) Preset(role string) (string, []string) {
 	return securityruntime.StudentGuardianRolePreset(role)
 }
 

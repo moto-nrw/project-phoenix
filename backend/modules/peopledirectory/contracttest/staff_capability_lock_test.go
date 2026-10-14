@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -13,7 +14,7 @@ import (
 )
 
 func newCaregiverBindingLocker(db *bun.DB) userModels.CaregiverBindingLocker {
-	return testutil.NewPeopleRepositorySuiteCaregiverBindingLocker(db)
+	return api.NewPeopleRepositorySuiteCaregiverBindingLocker(testpkg.MustDatabase(db))
 }
 
 func TestStaffRepository_ReleasesCaregiverBindingLocksOnRollback(t *testing.T) {

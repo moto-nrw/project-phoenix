@@ -3,22 +3,19 @@ package enrollmenthttp_test
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 )
 
 // factorySchools reads the seeded schools through the repository factory's
 // Organisation & Tenancy capability, the owner the serving root binds.
 // Callers pass a factory built on the pool from testpkg.SetupTestDB.
 type factorySchools struct {
-	repos *services.EnrollmentFlowTestRepositories
+	repos *api.EnrollmentFlowTestRepositories
 }
 
 func (s factorySchools) FindSchool(ctx context.Context, id int64) (*enrollmentOwner.School, error) {
@@ -110,7 +107,7 @@ func (o phaseOfferings) CountOfferingsForPhase(ctx context.Context, phaseID int6
 
 // newTestDecisions composes Enrollment's decision flow over the sources; the
 // optional outbox records its parent mails.
-func newTestDecisions(src testutil.EnrollmentDecisionSources, outboxes ...platformModels.OutboxEnqueuer) *TestDecisions {
+func newTestDecisions(src api.EnrollmentDecisionSources, outboxes ...platformModels.OutboxEnqueuer) *TestDecisions {
 	if src.Notifications == nil {
 		var outbox platformModels.OutboxEnqueuer
 		if len(outboxes) > 0 {
@@ -119,36 +116,36 @@ func newTestDecisions(src testutil.EnrollmentDecisionSources, outboxes ...platfo
 		modes, _ := src.Requests.(TestNotificationModePin)
 		src.Notifications = testNotifications(modes, src.Settings, outbox, nil)
 	}
-	return testutil.NewEnrollmentDecisions(src)
+	return api.NewEnrollmentDecisions(src)
 }
 
-func newTestDecisionService(src testutil.EnrollmentDecisionSources, outboxes ...platformModels.OutboxEnqueuer) enrollmentAPI.DecisionService {
+func newTestDecisionService(src api.EnrollmentDecisionSources, outboxes ...platformModels.OutboxEnqueuer) enrollmentAPI.DecisionService {
 	return newFlowDecisionService(newTestDecisions(src, outboxes...))
 }
 
 // newTestRequestService composes the intake; without an explicit gate it
 // binds the owner's capacity gate over the suite's offerings, children and
 // settings, the way the root binds it.
-func newTestRequestService(cfg testutil.EnrollmentIntakeSources) enrollmentAPI.RequestService {
+func newTestRequestService(cfg api.EnrollmentIntakeSources) enrollmentAPI.RequestService {
 	if cfg.Notifications == nil {
 		cfg.Notifications = testNotifications(cfg.Requests, cfg.Settings, cfg.OutboxEnqueuer, cfg.SchoolRepo)
 	}
 	if cfg.Capacity == nil {
 		offerings, _ := cfg.CareOfferingRepo.(capacityOfferings)
-		cfg.Capacity = testutil.NewEnrollmentOfferingCapacity(offerings, cfg.Children, cfg.Settings)
+		cfg.Capacity = api.NewEnrollmentOfferingCapacity(offerings, cfg.Children, cfg.Settings)
 	}
-	return enrollmentAPI.NewRequestService(testutil.NewEnrollmentIntake(cfg))
+	return enrollmentAPI.NewRequestService(api.NewEnrollmentIntake(cfg))
 }
 
-func newTestChangeRequestService(cfg testutil.EnrollmentChangeRequestSources) enrollmentAPI.ChangeRequestService {
+func newTestChangeRequestService(cfg api.EnrollmentChangeRequestSources) enrollmentAPI.ChangeRequestService {
 	if cfg.Notifications == nil {
 		cfg.Notifications = testNotifications(cfg.Requests, cfg.Settings, cfg.OutboxEnqueuer, nil)
 	}
 	if cfg.Capacity == nil {
 		offerings, _ := cfg.CareOfferingRepo.(capacityOfferings)
-		cfg.Capacity = testutil.NewEnrollmentOfferingCapacity(offerings, cfg.Children, cfg.Settings)
+		cfg.Capacity = api.NewEnrollmentOfferingCapacity(offerings, cfg.Children, cfg.Settings)
 	}
-	return enrollmentAPI.NewChangeRequestService(testutil.NewEnrollmentChangeRequests(cfg))
+	return enrollmentAPI.NewChangeRequestService(api.NewEnrollmentChangeRequests(cfg))
 }
 
 // capacityOfferings locks the offerings a capacity check claims.
@@ -156,14 +153,14 @@ type capacityOfferings interface {
 	ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error)
 }
 
-func newTestRolloverService(src testutil.EnrollmentRolloverSources) enrollmentAPI.RolloverService {
+func newTestRolloverService(src api.EnrollmentRolloverSources) enrollmentAPI.RolloverService {
 	if src.Notifications == nil {
 		src.Notifications = testNotifications(nil, nil, nil, nil)
 	}
 	if src.PhaseEligibility == nil && src.Settings != nil {
 		src.PhaseEligibility = NewTestPhases(TestPhaseDependencies{Settings: collectionSettings{settings: src.Settings}})
 	}
-	return enrollmentAPI.NewRolloverService(testutil.NewEnrollmentRollovers(src))
+	return enrollmentAPI.NewRolloverService(api.NewEnrollmentRollovers(src))
 }
 
 // testNotifications composes Enrollment's parent mails for a flow under

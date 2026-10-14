@@ -102,7 +102,7 @@ type groupTeacherRepository struct {
 
 var _ GroupTeacherRepository = (*groupTeacherRepository)(nil)
 
-func newGroupTeacherRepository(membership schoolmembership.Capability, groups EducationGroupRepository) GroupTeacherRepository {
+func NewGroupTeacherRepository(membership schoolmembership.Capability, groups EducationGroupRepository) GroupTeacherRepository {
 	return &groupTeacherRepository{membership: membership, groups: groups}
 }
 

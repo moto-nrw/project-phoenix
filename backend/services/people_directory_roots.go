@@ -90,15 +90,15 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 		Membership: membership, CareProfiles: careProfiles, Companions: companions,
 		Audit:               peopleDirectoryAudit(db),
 		GuardianLinks:       newGuardianLinkOwners(db),
-		GuardianMemberships: newPeopleIdentityAccess(db, nil).FindActiveGuardianMemberships,
+		GuardianMemberships: NewPeopleIdentityAccess(db, nil).FindActiveGuardianMemberships,
 	})
 }
 
-// newPeopleIdentityAccess composes the Identity & Access module the People
+// NewPeopleIdentityAccess composes the Identity & Access module the People
 // Directory repositories read accounts and memberships through. A nil
 // observer composes it unobserved, which is what test graphs and CLI roots
 // use.
-func newPeopleIdentityAccess(db *bun.DB, observe IdentityAccessObserver) *identityaccess.Module {
+func NewPeopleIdentityAccess(db *bun.DB, observe IdentityAccessObserver) *identityaccess.Module {
 	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: identityAccessObservation(observe)})
 	if err != nil {
 		panic(fmt.Sprintf("compose identity access: %v", err))
@@ -142,14 +142,14 @@ func newGuardianLinkOwners(db *bun.DB) guardianLinkOwners {
 // NewPersonRepository is the person repository with the Identity & Access
 // account lookup FindWithAccount attaches (#2720).
 func NewPersonRepository(db *bun.DB) userModels.PersonRepository {
-	return peopleCompose.NewPersonRepository(db, accountLookup(newPeopleIdentityAccess(db, nil)))
+	return peopleCompose.NewPersonRepository(db, accountLookup(NewPeopleIdentityAccess(db, nil)))
 }
 
 // NewGuardianProfileRepository is the guardian profile repository with the
 // Identity & Access active-membership and login-ready-membership queries its
 // portal reachability check joins (#2720, #2721).
 func NewGuardianProfileRepository(db *bun.DB) userModels.GuardianProfileRepository {
-	identity := newPeopleIdentityAccess(db, nil)
+	identity := NewPeopleIdentityAccess(db, nil)
 	return peopleCompose.NewGuardianProfileRepository(db,
 		identity.FindActiveGuardianMemberships, identity.FindLoginReadyGuardianMemberships)
 }
@@ -158,7 +158,7 @@ func NewGuardianProfileRepository(db *bun.DB) userModels.GuardianProfileReposito
 // membership facts, unobserved, for graphs that do not compose the serving
 // root.
 func NewStudentGuardianRepository(db *bun.DB) userModels.StudentGuardianRepository {
-	return newStudentGuardianRepository(db, newPeopleIdentityAccess(db, nil), nil)
+	return newStudentGuardianRepository(db, NewPeopleIdentityAccess(db, nil), nil)
 }
 
 // newStudentGuardianRepository is the relationship store with its membership
@@ -167,7 +167,7 @@ func newStudentGuardianRepository(db *bun.DB, memberships activeSchoolMembership
 	pickup, access := newGuardianRelationshipOwners(db, observe)
 	return peopleCompose.NewGuardianRelationshipRepository(db, peopleCompose.GuardianRelationshipDependencies{
 		Memberships: memberships.FindActiveSchoolMemberships,
-		Pickup:      pickup, Access: access, DefaultRole: applyDefaultGuardianRole,
+		Pickup:      pickup, Access: access, DefaultRole: ApplyDefaultGuardianRole,
 	})
 }
 
@@ -192,11 +192,11 @@ func NewGuardianSeedRepositories(db *bun.DB) GuardianSeedRepositories {
 	return GuardianSeedRepositories{GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: NewStudentGuardianRepository(db)}
 }
 
-// newMembershipRepositories composes the staff, teacher and guest adapters
+// NewMembershipRepositories composes the staff, teacher and guest adapters
 // over membership, with the group store and the teaching assignments they
 // resolve through. members.People, Person, Student and the guardian fields
 // stay unset; the caller composes them.
-func newMembershipRepositories(db *bun.DB, persons userModels.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) MembershipTestRepositories {
+func NewMembershipRepositories(db *bun.DB, persons userModels.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) MembershipTestRepositories {
 	return bindMembershipRepositories(persons, identity, membership,
 		NewGroupRepository(educationRepo.NewLegacyRepositoryRuntime(db), rooms, membership, workTime),
 		workforceCompose.MustNewStaffEmployment(db))
@@ -207,7 +207,7 @@ func newMembershipRepositories(db *bun.DB, persons userModels.PersonRepository, 
 // (the Worker's reminder recipients). observe records the Identity & Access
 // operations the account half reads through; nil composes it unobserved.
 func NewStaffRepository(db *bun.DB, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability, observe IdentityAccessObserver) userModels.StaffRepository {
-	return newMembershipRepositories(db, NewPersonRepository(db), newPeopleIdentityAccess(db, observe), membership, rooms, workTime).Staff
+	return NewMembershipRepositories(db, NewPersonRepository(db), NewPeopleIdentityAccess(db, observe), membership, rooms, workTime).Staff
 }
 
 // PresenceStudents reads Directory records and writes only Care Plan's live

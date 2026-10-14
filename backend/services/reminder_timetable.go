@@ -10,15 +10,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 
-type reminderTimetableReader struct {
-	source interface {
+type ReminderTimetableReader struct {
+	Source interface {
 		timetable.ActivityInstanceQuery
 		timetable.InstanceStaffQuery
 	}
 }
 
-func (r reminderTimetableReader) FindByTenantAndDate(ctx context.Context, date string) ([]*ports.ActivityInstance, error) {
-	values, err := r.source.ListActivityInstances(ctx, timetable.ActivityInstanceFilter{Date: &date, OrderByDateAndTime: true})
+func (r ReminderTimetableReader) FindByTenantAndDate(ctx context.Context, date string) ([]*ports.ActivityInstance, error) {
+	values, err := r.Source.ListActivityInstances(ctx, timetable.ActivityInstanceFilter{Date: &date, OrderByDateAndTime: true})
 	if err != nil {
 		return nil, timetableCompose.WrapDatabaseError("find by tenant and date", err)
 	}
@@ -49,11 +49,11 @@ func reminderInstance(value timetable.ActivityInstance) (*ports.ActivityInstance
 	return &ports.ActivityInstance{ID: value.ID, Title: value.Title, RoomID: value.RoomID, StartTime: start, EndTime: end, Status: value.Status}, nil
 }
 
-func (r reminderTimetableReader) FindByInstanceIDs(ctx context.Context, ids []int64) ([]*ports.InstanceStaff, error) {
+func (r ReminderTimetableReader) FindByInstanceIDs(ctx context.Context, ids []int64) ([]*ports.InstanceStaff, error) {
 	if len(ids) == 0 {
 		return []*ports.InstanceStaff{}, nil
 	}
-	values, err := r.source.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{InstanceIDs: ids, OrderByInstanceAndCreated: true})
+	values, err := r.Source.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{InstanceIDs: ids, OrderByInstanceAndCreated: true})
 	if err != nil {
 		return nil, timetableCompose.WrapDatabaseError("find by instance ids", err)
 	}

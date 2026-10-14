@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -56,7 +56,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		before, err := service.GetDashboardAnalytics(ctx)
 		require.NoError(t, err)
 
-		statusRepo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentStatusDay
+		statusRepo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentStatusDay
 		plannedExcusedStudent := testpkg.CreateTestStudent(t, db, "PlannedExcused", "Dashboard", "PE1")
 		legacyOverlapStudent := testpkg.CreateTestStudent(t, db, "LegacyOverlap", "Dashboard", "PE2")
 
@@ -153,7 +153,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		studentA := testpkg.CreateTestStudentForTenant(t, db, tenantA, "TenantA", "ClassTrip", "CTA")
 		studentB := testpkg.CreateTestStudentForTenant(t, db, tenantB, "TenantB", "ClassTrip", "CTB")
 
-		statusRepo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentStatusDay
+		statusRepo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentStatusDay
 		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		require.NoError(t, statusRepo.UpsertReported(ctxA, &absencerecords.StudentStatusDay{
 			StudentID:  studentA.ID,

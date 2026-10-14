@@ -9,21 +9,21 @@ import (
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// groupStudentRepository and overlappingRosterGroupNames name the groups of
+// groupStudentRepository and OverlappingRosterGroupNames name the groups of
 // the student roster and birthday reads through the School Structure owner, so
 // no student read joins education.groups itself.
-type overlappingRosterGroupNames struct {
+type OverlappingRosterGroupNames struct {
 	userModels.StudentRepository
-	groups schoolstructure.Query
+	Groups schoolstructure.Query
 }
 
-func (r overlappingRosterGroupNames) FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*userModels.StudentWithGroupInfo, error) {
+func (r OverlappingRosterGroupNames) FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*userModels.StudentWithGroupInfo, error) {
 	return r.StudentRepository.FindByTeacherStaffIDsWithGroups(ctx, staffIDs)
 }
 
-func (r overlappingRosterGroupNames) FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*userModels.StudentWithGroupInfo, error) {
+func (r OverlappingRosterGroupNames) FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*userModels.StudentWithGroupInfo, error) {
 	rows, err := r.StudentRepository.FindOverlappingWithGroups(ctx, from, to, today)
-	return EnrichStudentGroupNames(ctx, r.groups, rows, err)
+	return EnrichStudentGroupNames(ctx, r.Groups, rows, err)
 }
 
 type groupStudentRepository struct {

@@ -7,15 +7,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func TestImportBatches_StudentCrossBatchGuardianAndExplicitPermissionRevocation(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	actor := newImporter(t, db)
 	rows := make([]importModels.StudentImportRow, 101)
@@ -77,7 +77,7 @@ func TestImportBatches_StudentCrossBatchGuardianAndExplicitPermissionRevocation(
 func TestImportBatches_StudentAmbiguousMatchSkipsRowAndContinuesBatch(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	actor := newImporter(t, db)
 	testpkg.CreateTestStudent(t, db, "Doppelt", "Namenskollision", "1A")

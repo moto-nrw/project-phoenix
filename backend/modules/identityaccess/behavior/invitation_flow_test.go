@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -29,13 +31,13 @@ const (
 
 type invitationEnv struct {
 	service services.InvitationCapability
-	repos   *services.InvitationPersistence
+	repos   *api.InvitationPersistence
 	db      *bun.DB
 }
 
 func newInvitationEnv(t *testing.T, db *bun.DB) invitationEnv {
 	t.Helper()
-	repos, err := services.NewInvitationPersistence(db)
+	repos, err := api.NewInvitationPersistence(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return invitationEnv{service: setupInvitationService(t, db), repos: repos, db: db}
 }
@@ -419,9 +421,9 @@ func TestCreateInvitationMailUsesTheSchoolReplyTo(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	mailer := testpkg.NewCapturingMailer()
-	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db),
-		services.WithAuthTestMailer(mailer),
-		services.WithAuthTestPasswordResetBackoff(time.Millisecond),
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db),
+		api.WithAuthTestMailer(mailer),
+		api.WithAuthTestPasswordResetBackoff(time.Millisecond),
 	)
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
@@ -450,9 +452,9 @@ func TestAcceptInvitationRollsBackEveryWriteOfTheFailedChain(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	provisioningErr := errors.New("staff insert failed")
-	failing, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db), services.WithAuthTestStaffCreateFailure(provisioningErr))
+	failing, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.WithAuthTestStaffCreateFailure(provisioningErr))
 	require.NoError(t, err)
-	working, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db))
+	working, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	env := newInvitationEnv(t, db)
 	ctx := testpkg.Ctx(t)

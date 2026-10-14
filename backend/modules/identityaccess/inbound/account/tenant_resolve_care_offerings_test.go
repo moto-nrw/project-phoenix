@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -50,7 +50,7 @@ func TestResolveTenant_CareOfferingsEnabled(t *testing.T) {
 	schoolService := authRoute.SchoolService
 	request := func(t *testing.T, reader settings.TenantReader) resolveCareOfferingsResponse {
 		t.Helper()
-		resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, schoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
+		resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, schoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
 		resource.SettingsService = reader
 		router := chi.NewRouter()
 		router.Mount("/auth", resource.Router())

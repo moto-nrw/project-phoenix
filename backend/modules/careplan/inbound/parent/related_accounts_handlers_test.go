@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -71,11 +71,11 @@ func (relAcctSocialWorkerInvites) RevokeAccess(context.Context, parentService.Gu
 
 func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove bool) http.Handler {
 	t.Helper()
-	repos, repoErr := testutil.NewParentRouteTestRepositories(db)
+	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CareExceptions,
-		People:              testutil.MustNewPeopleDirectory(db),
+		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
@@ -180,11 +180,11 @@ func (s *relAcctCaptureInvites) RevokeAccess(context.Context, parentService.Guar
 
 func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService.GuardianAccess) http.Handler {
 	t.Helper()
-	repos, repoErr := testutil.NewParentRouteTestRepositories(db)
+	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CareExceptions,
-		People:              testutil.MustNewPeopleDirectory(db),
+		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,

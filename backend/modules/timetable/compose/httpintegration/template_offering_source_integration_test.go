@@ -13,16 +13,15 @@ import (
 	"testing"
 	"time"
 
-	bookingFixtures "github.com/moto-nrw/project-phoenix/services"
-
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	bookingFixtures "github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -61,7 +60,7 @@ func createSourceCareOfferingOnDays(
 		IsActive:                  true,
 	}
 	phase.TenantID = s.tenantID
-	repos := bookingFixtures.NewRepositoryTestFactory(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db)))
 	require.NoError(t, repos.Enrollment().InsertPhase(s.ctx, phase))
 
 	offering := testpkg.NewSourceCareOffering(phase.ID, fmt.Sprintf("Frühbetreuung %d", suffix), days, nil)
@@ -90,7 +89,7 @@ func registerSourcedTemplateCleanup(t *testing.T, s *scenarioSetup, templateID i
 
 func loadTemplateGroup(t *testing.T, s *scenarioSetup, templateID int64) *activitiesModels.Group {
 	t.Helper()
-	group, err := bookingFixtures.NewTimetableRepositories(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.FindByID(s.ctx, templateID)
+	group, err := bookingFixtures.NewTimetableRepositories(s.db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.FindByID(s.ctx, templateID)
 	require.NoError(t, err)
 	require.NotNil(t, group)
 	return group
@@ -121,7 +120,7 @@ func linkApprovedChildToOffering(
 		CareOfferingID: offering.ID,
 	}
 	link.TenantID = s.tenantID
-	require.NoError(t, bookingFixtures.NewEnrollmentBookingFixture().InsertRequestChildOffering(s.ctx, link))
+	require.NoError(t, api.NewEnrollmentBookingFixture().InsertRequestChildOffering(s.ctx, link))
 }
 
 // Create with an offering source + materialize must land the approved
@@ -891,7 +890,7 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 		IsActive:        true,
 	}
 	latePeriod.SetTenantID(s.tenantID)
-	require.NoError(t, bookingFixtures.NewRepositoryTestFactory(s.db, bookingFixtures.NewUnobservedTimetableDependencies(s.db)).CalendarPeriod.Create(s.ctx, latePeriod))
+	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).CalendarPeriod.Create(s.ctx, latePeriod))
 	s.extraCleanups = append([]func(){func() {
 	}}, s.extraCleanups...)
 
@@ -1080,7 +1079,7 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 func templatesSourcingOffering(t *testing.T, s *scenarioSetup, offeringID int64) []timetable.Group {
 	t.Helper()
 	isTemplate := true
-	sourced, err := bookingFixtures.NewUnobservedTimetableDependencies(s.db).Capability.ListGroups(s.ctx, timetable.GroupFilter{
+	sourced, err := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db)).Capability.ListGroups(s.ctx, timetable.GroupFilter{
 		IsTemplate: &isTemplate, ActiveOnly: true, SourceOfferingIDs: []int64{offeringID}, OrderByID: true,
 	})
 	require.NoError(t, err)

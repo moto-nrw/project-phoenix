@@ -20,9 +20,9 @@ type timeTrackingStaffRecords interface {
 	ListAllWithPerson(context.Context) ([]*users.Staff, error)
 }
 
-// timeTrackingStaffLookup resolves the staff record a schedule update is
+// TimeTrackingStaffLookup resolves the staff record a schedule update is
 // written for.
-type timeTrackingStaffLookup interface {
+type TimeTrackingStaffLookup interface {
 	GetStaffByID(ctx context.Context, id int64) (*users.Staff, error)
 }
 
@@ -47,7 +47,7 @@ type TimeTrackingPortDependencies struct {
 	Supervisions    workforceCompose.GroupSupervisorRepository
 	SessionRecords  workforceCompose.GroupRepository
 	Staff           timeTrackingStaffRecords
-	People          timeTrackingStaffLookup
+	People          TimeTrackingStaffLookup
 	StaffEmployment staffScheduleRecords
 	WorkSchedules   interface {
 		WorkSessionScheduleRecords
@@ -69,9 +69,9 @@ type TimeTrackingPortDependencies struct {
 	Today         func() timezone.Date
 }
 
-// newTimeTracking composes the Workforce time-tracking side over the root's
+// NewTimeTracking composes the Workforce time-tracking side over the root's
 // port bindings.
-func newTimeTracking(deps TimeTrackingPortDependencies) (*workforceCompose.TimeTracking, error) {
+func NewTimeTracking(deps TimeTrackingPortDependencies) (*workforceCompose.TimeTracking, error) {
 	return workforceCompose.NewTimeTracking(deps.Workforce, TimeTrackingPorts(deps), staffScheduleBindings(deps.People))
 }
 
@@ -113,7 +113,7 @@ func TimeTrackingPorts(deps TimeTrackingPortDependencies) workforceCompose.TimeT
 
 // staffScheduleBindings reads the work time model and rotation anchor a
 // schedule update starts from.
-func staffScheduleBindings(people timeTrackingStaffLookup) workforceCompose.StaffScheduleBindingLookup {
+func staffScheduleBindings(people TimeTrackingStaffLookup) workforceCompose.StaffScheduleBindingLookup {
 	return func(ctx context.Context, staffID int64) (workforceCompose.StaffScheduleBinding, error) {
 		staff, err := people.GetStaffByID(ctx, staffID)
 		if err != nil {

@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -109,7 +110,7 @@ func TestInviteToStudent_StaffAccountAsParent_GetsPortalAccessEmail(t *testing.T
 	t.Parallel()
 
 	outbox := testpkg.NewCapturingOutbox()
-	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})
 	defer env.cleanup()
@@ -280,8 +281,8 @@ func TestRevokeAccess_ParentCannotRemovePrimary_StaffCan(t *testing.T) {
 func TestRevokeAccess_PayerStaysWithoutFinancialPermission(t *testing.T) {
 	t.Parallel()
 
-	env := setupGuardianInvitationTest(t, func(db *bun.DB, cfg *services.GuardianInvitationTestConfig) {
-		cfg.Audit = testpkg.NewAuditCommand(services.NewTestAuditPersistence(db, nil).GuardianFinancialChange.Create)
+	env := setupGuardianInvitationTest(t, func(db *bun.DB, cfg *api.GuardianInvitationTestConfig) {
+		cfg.Audit = testpkg.NewAuditCommand(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianFinancialChange.Create)
 	})
 	defer env.cleanup()
 
@@ -499,7 +500,7 @@ func TestInviteToStudent_PendingApprovalTokenIsNotDeliverableOrRedeemable(t *tes
 	t.Parallel()
 
 	outbox := testpkg.NewCapturingOutbox()
-	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})
 	defer env.cleanup()
@@ -1304,7 +1305,7 @@ func TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink(t *testing.T) {
 	t.Parallel()
 
 	outbox := testpkg.NewCapturingOutbox()
-	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})
 	defer env.cleanup()

@@ -11,7 +11,7 @@ type schoolSettingsStore struct {
 	schools organizationtenancy.Capability
 }
 
-func newSchoolSettingsStore(schools organizationtenancy.Capability) settingsCompose.SchoolSettingsStore {
+func NewSchoolSettingsStore(schools organizationtenancy.Capability) settingsCompose.SchoolSettingsStore {
 	if schools == nil {
 		return nil
 	}

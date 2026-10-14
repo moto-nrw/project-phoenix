@@ -113,7 +113,7 @@ func TestCheckinRequest_JSONDecoding(t *testing.T) {
 func setupCheckinRoute(t *testing.T, db *testpkg.DB) *presence.Resource {
 	t.Helper()
 
-	_, serviceFactory := testutil.SetupActiveModule(t)
+	_, serviceFactory := setupActiveModule(t)
 
 	return presence.NewResource(serviceFactory.PresenceOperations(), activePeople{source: serviceFactory.AttendancePeople()}, serviceFactory.TeacherGroupIDs, serviceFactory.Schulhof, activeStaffAccess{source: serviceFactory.AttendanceStaff()}, serviceFactory.Settings, common.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(serviceFactory.WithAttendanceStaff), authorizationForTest(), nil)
 }

@@ -25,9 +25,9 @@ import (
 // the owners' capabilities with the queries and error shapes the retained
 // repositories had; they decide nothing.
 
-// offeringChangeInputs are the owners the offering-change review is composed
+// OfferingChangeInputs are the owners the offering-change review is composed
 // over.
-type offeringChangeInputs struct {
+type OfferingChangeInputs struct {
 	CarePlan careplan.Capability
 	// Catalog reads the care offerings; nil reads them from CarePlan.
 	Catalog     carePlanCompose.OfferingChangeCatalog
@@ -47,7 +47,7 @@ type offeringChangeInputs struct {
 	Logger      *slog.Logger
 }
 
-func newOfferingChanges(inputs offeringChangeInputs) (careplan.OfferingChangeCapability, error) {
+func NewOfferingChanges(inputs OfferingChangeInputs) (careplan.OfferingChangeCapability, error) {
 	if inputs.CarePlan == nil || inputs.Enrollment == nil || inputs.Students == nil || inputs.Reviews == nil || inputs.Permissions == nil {
 		return nil, errors.New("offering changes: care plan, enrollment, students, review policy and request permissions are required")
 	}
@@ -143,39 +143,39 @@ func mapOfferingLifecycleError(err error) error {
 	}
 }
 
-// offeringChangeConflictPort presents the review to the cross-kind conflict
+// OfferingChangeConflictPort presents the review to the cross-kind conflict
 // coordinator in the coordinator's own vocabulary.
-type offeringChangeConflictPort struct {
-	changes careplan.OfferingChangeConflicts
+type OfferingChangeConflictPort struct {
+	Changes careplan.OfferingChangeConflicts
 }
 
-var _ carePlanCompose.ParentRequestConflicts = offeringChangeConflictPort{}
+var _ carePlanCompose.ParentRequestConflicts = OfferingChangeConflictPort{}
 
-func (p offeringChangeConflictPort) ConflictCandidate(ctx context.Context, requestID int64) (*carePlanCompose.ConflictCandidate, error) {
-	candidate, err := p.changes.ConflictCandidate(ctx, requestID)
+func (p OfferingChangeConflictPort) ConflictCandidate(ctx context.Context, requestID int64) (*carePlanCompose.ConflictCandidate, error) {
+	candidate, err := p.Changes.ConflictCandidate(ctx, requestID)
 	if err != nil {
 		return nil, err
 	}
 	return &carePlanCompose.ConflictCandidate{StudentID: candidate.StudentID, UpdatedAt: candidate.UpdatedAt}, nil
 }
 
-func (p offeringChangeConflictPort) LockConflictRequest(ctx context.Context, requestID int64) error {
-	return p.changes.LockConflictRequest(ctx, requestID)
+func (p OfferingChangeConflictPort) LockConflictRequest(ctx context.Context, requestID int64) error {
+	return p.Changes.LockConflictRequest(ctx, requestID)
 }
 
-func (p offeringChangeConflictPort) DecideConflictRequest(ctx context.Context, decision carePlanCompose.ConflictDecision) error {
-	return p.changes.DecideConflictRequest(ctx, careplan.OfferingConflictDecision{
+func (p OfferingChangeConflictPort) DecideConflictRequest(ctx context.Context, decision carePlanCompose.ConflictDecision) error {
+	return p.Changes.DecideConflictRequest(ctx, careplan.OfferingConflictDecision{
 		RequestID: decision.RequestID, Approve: decision.Approve, Reason: decision.Reason,
 		ReviewerID: decision.ReviewerID, ActorRole: decision.ActorRole, ExpectedVersion: decision.ExpectedVersion,
 	})
 }
 
-func (p offeringChangeConflictPort) WriteStaffValue(ctx context.Context, write carePlanCompose.StaffValueWrite) error {
+func (p OfferingChangeConflictPort) WriteStaffValue(ctx context.Context, write carePlanCompose.StaffValueWrite) error {
 	effectiveFrom, selections, err := parseStaffOfferingValue(write.Value)
 	if err != nil {
 		return err
 	}
-	return p.changes.WriteStaffValue(ctx, careplan.OfferingStaffValueWrite{
+	return p.Changes.WriteStaffValue(ctx, careplan.OfferingStaffValueWrite{
 		StudentID: write.StudentID, EffectiveFrom: effectiveFrom, Selections: selections, Reason: write.Reason,
 		ReviewerID: write.ReviewerID, ActorRole: write.ActorRole,
 	})

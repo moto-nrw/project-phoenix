@@ -28,12 +28,12 @@ type TimetablePlanning struct {
 	Deviations            timetable.StaffDeviations
 }
 
-// timetableMaterializationInputs compose the recurrence engine. CareBounds
+// TimetableMaterializationInputs compose the recurrence engine. CareBounds
 // is the per-date care filter (#2487); NonWorkingDays skips holidays and
 // closing days (#3594); Broadcaster announces created
 // occurrences to the staffing caches (#1844). The composition root adds its
 // database handle to the dependencies they bind.
-type timetableMaterializationInputs struct {
+type TimetableMaterializationInputs struct {
 	Rows           timetableCompose.TemplateRows
 	CareBounds     timetableCompose.CareBoundReader
 	NonWorkingDays timetable.NonWorkingDayCalendar
@@ -42,7 +42,7 @@ type timetableMaterializationInputs struct {
 	Logger         *slog.Logger
 }
 
-func timetableMaterializationDependencies(in timetableMaterializationInputs) timetableCompose.MaterializationDependencies {
+func TimetableMaterializationDependencies(in TimetableMaterializationInputs) timetableCompose.MaterializationDependencies {
 	return timetableCompose.MaterializationDependencies{
 		GroupRepo:      in.Rows.Groups,
 		ScheduleRepo:   in.Rows.Schedules,
@@ -62,12 +62,12 @@ func timetableMaterializationDependencies(in timetableMaterializationInputs) tim
 	}
 }
 
-// timetableTemplateInputs compose the template writes. Deviations is the
+// TimetableTemplateInputs compose the template writes. Deviations is the
 // instance lifecycle's deviation machinery the split preserves
 // Vertretungsplan overrides with; CareOfferings and ResyncOfferingRoster are
 // Enrollment's. The composition root adds its database handle to the
 // dependencies they bind.
-type timetableTemplateInputs struct {
+type TimetableTemplateInputs struct {
 	Rows                 timetableCompose.TemplateRows
 	PlanningTracks       timetableCompose.PlanningTrackAssignments
 	Materialization      timetable.MaterializationCapability
@@ -80,7 +80,7 @@ type timetableTemplateInputs struct {
 	Today                func() timezone.Date
 }
 
-func timetableTemplateDependencies(in timetableTemplateInputs) (timetableCompose.TemplateAdministrationDependencies, error) {
+func TimetableTemplateDependencies(in TimetableTemplateInputs) (timetableCompose.TemplateAdministrationDependencies, error) {
 	if in.CareOfferings == nil || in.Deviations == nil {
 		return timetableCompose.TemplateAdministrationDependencies{}, errors.New("timetable templates: care offerings and instance lifecycle are required")
 	}
@@ -124,13 +124,13 @@ func timetableCareOfferingChecks(guards careplan.CareOfferingGuards) timetableCo
 	return timetableCompose.CareOfferingChecks{
 		ValidateSeries:         guards.ValidateTemplateSeries,
 		ValidateOfferingSource: guards.ValidateTemplateOfferingSource,
-		IsConflict:             isCareOfferingConfigInvalid,
+		IsConflict:             IsCareOfferingConfigInvalid,
 	}
 }
 
-// isCareOfferingConfigInvalid reports whether err is a care-offering
+// IsCareOfferingConfigInvalid reports whether err is a care-offering
 // compatibility refusal rather than an infrastructure failure.
-func isCareOfferingConfigInvalid(err error) bool {
+func IsCareOfferingConfigInvalid(err error) bool {
 	return errors.Is(err, careplan.ErrCareOfferingConfigInvalid)
 }
 

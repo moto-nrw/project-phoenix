@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	apiTest "github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +22,7 @@ func TestListTemplatesQueryBudget(t *testing.T) {
 
 	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
-	sources, err := apiTest.NewTimetableOfferingSources(t, s.db)
+	sources, err := RootCompositions.OfferingSources(t, s.db)
 	require.NoError(t, err)
 	s.res.OfferingSourceOptions = sources
 	router := templateQueryBudgetRouter(t, s.ctx, s.res)

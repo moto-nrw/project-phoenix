@@ -2,7 +2,11 @@ package api
 
 import (
 	"context"
+	"time"
 
+	"github.com/spf13/viper"
+
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/services"
 )
@@ -17,16 +21,18 @@ var requestTokenReads = services.TokenAdapter{
 	CapabilityFingerprint: sessiontoken.OpaqueCapabilityFingerprint,
 }
 
-// newLegacyTokenAdapter binds the request reads and the session signer the
-// legacy composition consumes over the retained token adapter. The signing
-// primitive stays in the adapter; Identity owns the claim schema and
-// validation.
+// newLegacyTokenAdapter binds the request reads and the session tokens the
+// legacy composition consumes. Identity's composition builds the session
+// codec from the configured secret and token lifetimes; the signing primitive
+// stays in its session token adapter (ADR 0053 point 6).
 func newLegacyTokenAdapter() (services.TokenAdapter, error) {
-	signer, err := newSessionTokenAuth()
-	if err != nil {
-		return services.TokenAdapter{}, err
-	}
-	codec, err := services.NewSessionTokens(signer.JwtAuth, signer.JwtExpiry, signer.JwtRefreshExpiry)
+	return tokenAdapterFor(viper.GetString("auth_jwt_secret"), viper.GetDuration("auth_jwt_expiry"), viper.GetDuration("auth_jwt_refresh_expiry"))
+}
+
+// tokenAdapterFor binds the request reads to the session tokens of the given
+// signing secret and token lifetimes.
+func tokenAdapterFor(secret string, accessExpiry, refreshExpiry time.Duration) (services.TokenAdapter, error) {
+	codec, err := identityaccessCompose.NewConfiguredSessionTokens(secret, accessExpiry, refreshExpiry)
 	if err != nil {
 		return services.TokenAdapter{}, err
 	}

@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -33,7 +33,7 @@ var (
 
 type excusedFixture struct {
 	db       *bun.DB
-	repos    *services.RepositoryTestFactory
+	repos    *api.RepositoryTestFactory
 	chain    testpkg.ParentChain
 	requests careplan.ExcusedAbsenceRequests
 }
@@ -43,15 +43,15 @@ type excusedFixture struct {
 func newExcusedFixture(t *testing.T) *excusedFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	return &excusedFixture{db: db, repos: repos, chain: testpkg.CreateTestParentGuardianChain(t, db), requests: newExcusedRequests(t, repos, repos.CarePlan())}
 }
 
-func newExcusedRequests(t *testing.T, repos *services.RepositoryTestFactory, capability careplan.Capability) careplan.ExcusedAbsenceRequests {
+func newExcusedRequests(t *testing.T, repos *api.RepositoryTestFactory, capability careplan.Capability) careplan.ExcusedAbsenceRequests {
 	t.Helper()
 	requests, err := services.NewExcusedAbsenceRequests(services.ExcusedRequestWiring{
 		CarePlan: capability, Students: repos.Student, Persons: repos.Person,
-		Scope: services.SchoolWideReviewScope, Today: func() careplan.Date { return excusedToday },
+		Scope: api.SchoolWideReviewScope, Today: func() careplan.Date { return excusedToday },
 	})
 	require.NoError(t, err)
 	return requests

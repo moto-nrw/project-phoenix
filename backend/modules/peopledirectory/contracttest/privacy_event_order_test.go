@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -18,7 +18,7 @@ func TestPrivacyEventsTimestampAfterTheSerializedWriteStarts(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := testutil.NewPeopleRepositorySuiteFactory(db)
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	protection := familyProtectionEvent(chain.StudentID, chain.AccountID, chain.TenantID, true)
@@ -43,7 +43,7 @@ func TestFamilyProtectionCurrentUsesAppendOrderNotTransactionTimestamp(t *testin
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := testutil.NewPeopleRepositorySuiteFactory(db)
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	older := familyProtectionEvent(chain.StudentID, chain.AccountID, chain.TenantID, false)
@@ -62,7 +62,7 @@ func TestRequestSharingCurrentUsesAppendOrderNotTransactionTimestamp(t *testing.
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := testutil.NewPeopleRepositorySuiteFactory(db)
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	olderRecipient := testpkg.CreateTestAccount(t, db, "older-share-recipient")

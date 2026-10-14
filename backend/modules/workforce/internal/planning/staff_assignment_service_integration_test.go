@@ -3,6 +3,7 @@ package planning_test
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -52,7 +53,7 @@ func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 	// Another person on the same block — must never leak into Anna's list.
 	testpkg.CreateTestInstanceStaff(t, db, lernzeit.ID, other.ID, testpkg.InstanceStaffOpts{})
 
-	owners := services.NewUnobservedTimetableDependencies(db)
+	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	timetableRepos := services.NewTimetableRepositories(db, owners)
 	service := planning.NewStaffAssignmentService(planning.StaffAssignmentDependencies{
 		InstanceStaffRepo:    timetableRepos.InstanceStaffReads(),

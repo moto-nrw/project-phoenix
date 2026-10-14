@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +27,7 @@ func TestStudentRepository_EndedCareExcludedFromRosterReads(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := testutil.NewPeopleRepositorySuiteFactory(db)
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]

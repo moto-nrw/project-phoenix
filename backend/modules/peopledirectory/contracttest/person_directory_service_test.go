@@ -9,7 +9,8 @@ package contracttest_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -615,7 +616,7 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "PURGEDTAG")
 		// Deleting the student is this test's ARRANGE step, not a teardown:
 		// the point is what the service does when the row is gone.
-		repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+		repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 		require.NoError(t, repos.Student.Delete(ctx, student.ID))
 
 		// ACT
@@ -1325,7 +1326,7 @@ func TestPersonService_UpdateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 	// ARRANGE
 	staffFixture, account := testpkg.CreateTestStaffWithAccount(t, db, "Lehr", "Aendern")
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, testpkg.Tenant(t))
-	staffRecord, err := testutil.NewPeopleRepositorySuiteFactory(db).Staff.FindWithPerson(ctx, staffFixture.ID)
+	staffRecord, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Staff.FindWithPerson(ctx, staffFixture.ID)
 	require.NoError(t, err)
 
 	// ACT

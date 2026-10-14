@@ -26,8 +26,6 @@ import (
 	"net/http"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -36,6 +34,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsoperator "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // setupOperatorSettingsWithSchoolRepoRoute mirrors
@@ -47,7 +46,7 @@ import (
 func setupOperatorSettingsWithSchoolRepoRoute(t *testing.T) *operatorSettingsTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupOperatorSettingsModule(t)
+	db, svc := setupOperatorSettingsModule(t)
 	tc := &operatorSettingsTestContext{db: db}
 	resource := settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{
 		Settings: svc.OperatorSchoolSettings(tc.runValueSetHook),

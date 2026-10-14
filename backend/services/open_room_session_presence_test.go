@@ -36,7 +36,7 @@ func TestFacilitiesGroupSupervisionsKeepFutureEndDatesActive(t *testing.T) {
 	future := "2099-12-31"
 	past := "2000-01-01"
 	groupIDs := []int64{42}
-	query := facilitiesGroupSupervisions(runningSessionQuery{supervisions: func(got context.Context, filter studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error) {
+	query := FacilitiesGroupSupervisions(runningSessionQuery{supervisions: func(got context.Context, filter studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error) {
 		require.Same(t, ctx, got)
 		require.Equal(t, groupIDs, filter.GroupIDs)
 		require.NotNil(t, filter.ActiveOn)
@@ -64,7 +64,7 @@ func TestFacilitiesGroupVisitsKeepOpenAndEndedRows(t *testing.T) {
 	defer cancel()
 	ended := time.Now()
 	for _, queryErr := range []error{nil, errors.New("query failed")} {
-		query := facilitiesGroupVisits(runningSessionQuery{visits: func(got context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error) {
+		query := FacilitiesGroupVisits(runningSessionQuery{visits: func(got context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error) {
 			require.Same(t, ctx, got)
 			require.Equal(t, studentpresence.VisitFilter{ActiveGroupIDs: []int64{42}}, filter)
 			return []studentpresence.Visit{{ID: 1}, {ID: 2, ExitTime: &ended}}, queryErr
@@ -96,7 +96,7 @@ func TestFacilitiesRoomSessionsPreserveFactsAndErrors(t *testing.T) {
 	started := time.Now().Add(-48 * time.Hour)
 	failure := errors.New("presence query failed")
 	for _, queryErr := range []error{nil, failure} {
-		query := facilitiesRoomSessions(runningSessionQuery{query: func(got context.Context, filter studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error) {
+		query := FacilitiesRoomSessions(runningSessionQuery{query: func(got context.Context, filter studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error) {
 			require.Same(t, ctx, got)
 			require.Equal(t, studentpresence.LiveGroupFilter{RoomID: &roomID, OpenOnly: true}, filter)
 			return []studentpresence.LiveGroup{{ID: 11, RoomID: roomID, StartTime: started}}, queryErr
@@ -124,7 +124,7 @@ func TestRunningSessionIDsPreserveSelectionAndErrors(t *testing.T) {
 	ended := time.Now()
 	failure := errors.New("presence query failed")
 	for _, queryErr := range []error{nil, failure} {
-		adapter := openRoomSessionPresence{presence: runningSessionQuery{query: func(got context.Context, filter studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error) {
+		adapter := OpenRoomSessionPresence{Presence: runningSessionQuery{query: func(got context.Context, filter studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error) {
 			require.Same(t, ctx, got)
 			require.Equal(t, studentpresence.LiveGroupFilter{}, filter)
 			return []studentpresence.LiveGroup{{ID: 11}, {ID: 14, EndTime: &ended}, {ID: 12}, {ID: 13}}, queryErr

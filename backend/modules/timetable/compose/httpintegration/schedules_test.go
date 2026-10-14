@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // init seeds JWT viper defaults before any test (and before setupSchedulesRoute
@@ -44,7 +43,7 @@ type schedulesTestContext struct {
 func setupSchedulesRoute(t *testing.T) *schedulesTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupScheduleModule(t)
+	db, svc := setupScheduleModule(t)
 
 	resource := schedulesAPI.NewSchedulesResource(svc.Calendar, svc.Timetable, svc.TimeframeGuard, db)
 

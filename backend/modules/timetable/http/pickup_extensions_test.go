@@ -12,8 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
@@ -52,8 +50,8 @@ func buildPickupExtensionSetup(t *testing.T, db *bun.DB) *pickupExtensionSetup {
 	testpkg.CreateTestInstanceStudent(t, db, freePlay.ID, other.ID, timetable.SlotAttendanceExpected)
 	res := NewResource(Dependencies{
 		PickupExtensions: module,
-		RecurrenceLock:   must(testutil.NewTimetableRecurrenceLock(db)),
-		People:           must(testutil.NewTimetablePeople(db)),
+		RecurrenceLock:   must(RootCompositions.RecurrenceLock(db)),
+		People:           must(RootCompositions.People(db)),
 	})
 	return &pickupExtensionSetup{
 		db: db, ctx: testpkg.Ctx(t), res: res, module: module,

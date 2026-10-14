@@ -30,6 +30,12 @@ type (
 	Persistence = audit.Repositories
 )
 
+// NewFixedRuntime reads and appends on db for the tenant that tenantID
+// resolves, outside any ambient transaction: for read-only roots and the
+// typed root's test graphs. Production append commands use the ambient
+// runtime NewPersistence builds.
+var NewFixedRuntime = audit.NewRuntime
+
 // PersistenceDependencies configure the Audit persistence a composition
 // builds.
 type PersistenceDependencies struct {

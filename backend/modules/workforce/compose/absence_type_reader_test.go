@@ -3,7 +3,6 @@ package compose_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -12,7 +11,7 @@ import (
 
 func TestResolveForAbsenceRejectsDeactivatedArt(t *testing.T) {
 	t.Parallel()
-	_, module := testutil.SetupAbsenceTypeModule(t)
+	_, module := setupAbsenceTypeModule(t)
 	ctx := testpkg.Ctx(t)
 	typ, err := module.Catalog.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Sonderurlaub"})
 	require.NoError(t, err)
@@ -27,7 +26,7 @@ func TestResolveForAbsenceRejectsDeactivatedArt(t *testing.T) {
 
 func TestResolveForAbsenceRejectsUnknownID(t *testing.T) {
 	t.Parallel()
-	db, module := testutil.SetupAbsenceTypeModule(t)
+	db, module := setupAbsenceTypeModule(t)
 	ctx := testpkg.Ctx(t)
 	typ, err := module.Catalog.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Foreign type"})
 	require.NoError(t, err)

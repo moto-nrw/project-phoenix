@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,7 @@ func TestBulkInviteToStudents_InvitesEachGuardianOnce(t *testing.T) {
 	t.Parallel()
 
 	outbox := testpkg.NewCapturingOutbox()
-	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) { cfg.Outbox = outbox })
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) { cfg.Outbox = outbox })
 	defer env.cleanup()
 
 	older := testpkg.CreateTestStudent(t, env.db, "Bulk", "Older", "3a")

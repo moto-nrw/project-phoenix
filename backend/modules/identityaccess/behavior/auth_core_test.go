@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -81,9 +82,9 @@ func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) testAu
 // module's public contract directly.
 func setupAuthFactory(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) *services.Factory {
 	t.Helper()
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	enabled := len(rateLimitEnabled) > 0 && rateLimitEnabled[0]
-	serviceFactory, err := services.NewFactoryForTestsWithConfig(repoFactory, db, slog.Default(), authTestFactoryConfig(enabled))
+	serviceFactory, err := api.NewFactoryForTestsWithConfig(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), authTestFactoryConfig(enabled))
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 	return serviceFactory

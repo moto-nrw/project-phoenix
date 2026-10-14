@@ -14,7 +14,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -86,7 +85,7 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 
 	setup.res = NewResource(Dependencies{
 		TimetableData: testTimetableData(db).TimetableData(),
-		People:        must(testutil.NewTimetablePeople(db)),
+		People:        must(RootCompositions.People(db)),
 		// UserContextService intentionally nil: the admin-perm path
 		// short-circuits CanReadStudent; the non-staff test relies on the
 		// fallthrough filtering every student out.

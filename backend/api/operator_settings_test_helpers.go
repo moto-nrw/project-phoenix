@@ -1,0 +1,95 @@
+package api
+
+import (
+	"log/slog"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
+)
+
+type OperatorSettingsTestModule struct {
+	ActiveTestModule
+	CareLifecycle       careplan.CareLifecycle
+	SettingsSideEffects *settingsCompose.SideEffectRegistry
+	// CareWithdrawals stores the pending withdrawal tasks a booking
+	// authority test starts from.
+	CareWithdrawals userModels.CareWithdrawalCompletionRepository
+	// Schools is the Organisation & Tenancy owner the slug lookup reads.
+	Schools organizationtenancy.Capability
+	db      transactionruntime.Database
+}
+
+func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (OperatorSettingsTestModule, error) {
+	active, err := NewActiveTestModule(db, unit)
+	if err != nil {
+		return OperatorSettingsTestModule{}, err
+	}
+	care, err := NewCareLifecycleTestModule(db, unit)
+	if err != nil {
+		return OperatorSettingsTestModule{}, err
+	}
+	careRepos, err := NewCareLifecycleTestRepositories(db, NewTestAuditStore(db))
+	if err != nil {
+		return OperatorSettingsTestModule{}, err
+	}
+	schools, err := services.NewOrganizationTenancy(db.Pool())
+	if err != nil {
+		return OperatorSettingsTestModule{}, err
+	}
+	registry := settingsCompose.NewSideEffectRegistry()
+	wc := facilitiesCompose.NewWCService(active.Facilities, facilitiesLegacy.ActivityCatalog(active.Activities), slog.Default())
+	facilitiesLegacy.RegisterSettingsSideEffects(registry, active.Schulhof, wc)
+	services.RegisterCareWithdrawalSettingsSideEffects(registry, care.CareLifecycle)
+	return OperatorSettingsTestModule{
+		ActiveTestModule:    active,
+		CareLifecycle:       care.CareLifecycle,
+		SettingsSideEffects: registry,
+		CareWithdrawals:     careRepos.CareWithdrawal,
+		Schools:             schools,
+		db:                  db,
+	}, nil
+}
+
+// OperatorSchoolSettings composes the operator's school settings the way
+// api/base.go does, over this module's services: the presence-mode guard
+// reads the module's Student Presence and the booking authority preview its
+// Care Plan. onValueSet is the write side-effect hook; the broadcast is off.
+func (m OperatorSettingsTestModule) OperatorSchoolSettings(onValueSet settingsCompose.OperatorValueSetHook) settings.OperatorSchoolSettings {
+	return m.OperatorSchoolSettingsWith(OperatorSchoolSettingsTestOptions{OnValueSet: onValueSet})
+}
+
+// OperatorSchoolSettingsTestOptions varies the root's optional dependencies
+// of the operator's school settings.
+type OperatorSchoolSettingsTestOptions struct {
+	OnValueSet settingsCompose.OperatorValueSetHook
+	// Notify receives the broadcast; nil disables it.
+	Notify settingsCompose.SettingsChangedNotifier
+	// WithoutCarePlan composes a deployment without the Care Plan booking
+	// authority.
+	WithoutCarePlan bool
+}
+
+// OperatorSchoolSettingsWith composes the operator's school settings over
+// this module's services with the given optional dependencies.
+func (m OperatorSettingsTestModule) OperatorSchoolSettingsWith(opts OperatorSchoolSettingsTestOptions) settings.OperatorSchoolSettings {
+	deps := settingsCompose.OperatorDependencies{
+		Settings:       m.Settings,
+		DB:             m.db.Pool(),
+		Notify:         opts.Notify,
+		OpenAttendance: services.OpenAttendanceChecker{Service: m.Active},
+		CareLifecycle:  m.CareLifecycle,
+		OnValueSet:     opts.OnValueSet,
+	}
+	if opts.WithoutCarePlan {
+		deps.CareLifecycle = nil
+	}
+	return settingsCompose.NewOperatorSchoolSettings(deps)
+}

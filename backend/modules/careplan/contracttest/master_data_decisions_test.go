@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -33,7 +34,7 @@ import (
 // requests, in the test's own tenant.
 type masterDataFixture struct {
 	db    *bun.DB
-	repos *services.RepositoryTestFactory
+	repos *api.RepositoryTestFactory
 	chain testpkg.ParentChain
 }
 
@@ -41,23 +42,23 @@ func newMasterDataFixture(t *testing.T, db *bun.DB) masterDataFixture {
 	t.Helper()
 	return masterDataFixture{
 		db:    db,
-		repos: services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)),
+		repos: api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))),
 		chain: testpkg.CreateTestParentGuardianChain(t, db),
 	}
 }
 
 // decisions composes the decision with a school-wide review scope unless a
 // test narrows it.
-func (f masterDataFixture) decisions(t *testing.T, configure ...func(*services.MasterDataDecisionTestOptions)) *careplanCompose.MasterDataDecisions {
+func (f masterDataFixture) decisions(t *testing.T, configure ...func(*api.MasterDataDecisionTestOptions)) *careplanCompose.MasterDataDecisions {
 	t.Helper()
-	options := services.MasterDataDecisionTestOptions{
+	options := api.MasterDataDecisionTestOptions{
 		CarePlan: f.repos.CarePlan(), People: services.MustNewPeopleDirectory(f.db),
 		Students: f.repos.Student, Persons: f.repos.Person, Logger: slog.Default(),
 	}
 	for _, apply := range configure {
 		apply(&options)
 	}
-	svc, err := services.NewTestMasterDataDecisions(options)
+	svc, err := api.NewTestMasterDataDecisions(options)
 	require.NoError(t, err)
 	return svc
 }
@@ -130,7 +131,7 @@ func TestMasterDataReview_ScopedToWritableChildren(t *testing.T) {
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
-	denied := f.decisions(t, func(o *services.MasterDataDecisionTestOptions) { o.Scope = noReviewScope })
+	denied := f.decisions(t, func(o *api.MasterDataDecisionTestOptions) { o.Scope = noReviewScope })
 	err := f.inTx(t, func(ctx context.Context) error {
 		items, _, listErr := f.queue(t, noReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
 		require.NoError(t, listErr)
@@ -141,7 +142,7 @@ func TestMasterDataReview_ScopedToWritableChildren(t *testing.T) {
 	assert.ErrorIs(t, err, masterdatarequests.ErrReviewForbidden)
 
 	err = f.inTx(t, func(ctx context.Context) error {
-		items, _, listErr := f.queue(t, services.SchoolWideReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
+		items, _, listErr := f.queue(t, api.SchoolWideReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
 		require.NoError(t, listErr)
 		require.Len(t, items, 1)
 		_, decideErr := f.decisions(t).Decide(ctx, masterdatarequests.DecideInput{RequestID: row.ID, Approve: false, Reason: "closing", ReviewedBy: f.chain.AccountID})
@@ -210,7 +211,7 @@ func (unusedConflictPort) WriteStaffValue(context.Context, careplanCompose.Staff
 func TestParentRequestCoordinator_RollsBackEarlierDatabaseWrite(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	excused, err := services.NewTestExcusedAbsenceRequests(services.ExcusedRequestTestOptions{
+	excused, err := api.NewTestExcusedAbsenceRequests(api.ExcusedRequestTestOptions{
 		CarePlan: f.repos.CarePlan(), Students: f.repos.Student, Persons: f.repos.Person, Logger: slog.Default(),
 	})
 	require.NoError(t, err)
@@ -268,8 +269,8 @@ func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	audit := services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, services.NewStudentAudit(f.db))
-	svc := f.decisions(t, func(o *services.MasterDataDecisionTestOptions) { o.Audit = audit })
+	audit := api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, api.NewStudentAudit(testpkg.NewDatabase(t, f.db)))
+	svc := f.decisions(t, func(o *api.MasterDataDecisionTestOptions) { o.Audit = audit })
 	row := f.insert(t, userModels.DataChangeTargetStudent, "school_class", `"1a"`, `"2b"`)
 
 	_, err := f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
@@ -357,7 +358,7 @@ func TestMasterDataReview_ListPendingEnrichesStudentNames(t *testing.T) {
 	var items []*careplan.MasterDataReviewItem
 	require.NoError(t, f.inTx(t, func(ctx context.Context) error {
 		var err error
-		items, _, err = f.queue(t, services.SchoolWideReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
+		items, _, err = f.queue(t, api.SchoolWideReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
 		return err
 	}))
 	require.Len(t, items, 2)
@@ -374,7 +375,7 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 	svc := f.decisions(t)
 
 	err := f.inTx(t, func(ctx context.Context) error {
-		items, _, listErr := f.queue(t, services.SchoolWideReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
+		items, _, listErr := f.queue(t, api.SchoolWideReviewScope).ListPending(ctx, careplan.RequestQueueFilter{})
 		require.NoError(t, listErr)
 		assert.Empty(t, items)
 		_, decideErr := svc.Decide(ctx, masterdatarequests.DecideInput{RequestID: 0, Approve: true})
@@ -389,9 +390,9 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	trail := services.NewStudentAudit(f.db)
-	audit := services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, trail)
-	svc := f.decisions(t, func(o *services.MasterDataDecisionTestOptions) { o.Audit = audit })
+	trail := api.NewStudentAudit(testpkg.NewDatabase(t, f.db))
+	audit := api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, trail)
+	svc := f.decisions(t, func(o *api.MasterDataDecisionTestOptions) { o.Audit = audit })
 	row := f.insert(t, userModels.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"],"wed":["pickup"]}`)
 
 	_, err := f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: true, ReviewedBy: f.chain.AccountID})
@@ -455,7 +456,7 @@ func TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit(t *testing
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	svc := f.decisions(t, func(o *services.MasterDataDecisionTestOptions) { o.Broadcaster = broadcaster })
+	svc := f.decisions(t, func(o *api.MasterDataDecisionTestOptions) { o.Broadcaster = broadcaster })
 	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
 	require.NoError(t, f.inTx(t, func(ctx context.Context) error {
@@ -529,7 +530,7 @@ func (f masterDataFixture) requestStatusPill(t *testing.T, guardianAccountID int
 		if err != nil || thread == nil {
 			return err
 		}
-		msgs, err := services.NewParentMessageRepository(f.db).ListByThread(ctx, thread.ID, 50)
+		msgs, err := api.NewParentMessageRepository(testpkg.NewDatabase(t, f.db)).ListByThread(ctx, thread.ID, 50)
 		if err != nil {
 			return err
 		}
@@ -548,9 +549,9 @@ func (f masterDataFixture) requestStatusPill(t *testing.T, guardianAccountID int
 func (f masterDataFixture) decisionsWithEmitter(t *testing.T, shares careplanCompose.ShareVisibility) *careplanCompose.MasterDataDecisions {
 	t.Helper()
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	emitter := communicationtest.NewParentEventEmitter(f.db, testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, services.NewParentMessageRepository(f.db),
+	emitter := communicationtest.NewParentEventEmitter(f.db, testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, api.NewParentMessageRepository(testpkg.NewDatabase(t, f.db)),
 		messagingOnSettings{}, broadcaster, slog.Default())
-	return f.decisions(t, func(o *services.MasterDataDecisionTestOptions) {
+	return f.decisions(t, func(o *api.MasterDataDecisionTestOptions) {
 		o.Emitter, o.Broadcaster, o.Shares = emitter, broadcaster, shares
 	})
 }

@@ -38,7 +38,7 @@ func (s *bulkCancelStub) BulkCancelPlanned(_ context.Context, from, to calendar.
 
 func bulkCancelRouter(t *testing.T, stub *bulkCancelStub) chi.Router {
 	t.Helper()
-	_, _ = testutil.SetupTimetableModule(t)
+	_, _ = RootCompositions.Module(t)
 	router := chi.NewRouter()
 	router.Mount("/timetable", NewResource(Dependencies{InstanceService: stub}).Router())
 	return router

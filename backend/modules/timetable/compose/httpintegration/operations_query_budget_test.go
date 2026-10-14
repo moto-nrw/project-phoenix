@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -69,8 +71,8 @@ func TestTimetableOperationsPlannedNowQueryBudget(t *testing.T) {
 // retained repositories; the caller is the given staff member.
 func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testpkg.Staff, now time.Time) timetable.OperationCapability {
 	t.Helper()
-	owners := services.NewUnobservedTimetableDependencies(db)
-	repos := services.NewRepositoryTestFactory(db, owners)
+	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 	staff, err := repos.Staff.FindWithPerson(testpkg.Ctx(t), staffFixture.ID)
 	require.NoError(t, err)
 	timetableRepos := services.NewTimetableRepositories(db, owners)
@@ -80,7 +82,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 	deps := stand.dependencies()
 	deps.Sessions = repos.ActiveGroup
 	deps.Supervisions = repos.GroupSupervisor
-	deps.Visits = services.NewStudentPresenceForTests(db)
+	deps.Visits = api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db))
 	deps.PlanningTracks = nil
 	deps.Now = func() time.Time { return now }
 	rows := compose.OwnerRows{
@@ -90,7 +92,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 		Templates:       timetableRepos.ActivityGroup,
 		Students:        repos.Student,
 		EducationGroups: services.TimetableEducationGroupNames(repos.Group),
-		Rooms:           services.NewTimetableRoomNames(owners.Rooms),
+		Rooms:           api.NewTimetableRoomNames(owners.Rooms),
 	}
 	templates, err := rows.OperationTemplates()
 	require.NoError(t, err)

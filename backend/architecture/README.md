@@ -3333,9 +3333,10 @@ Three constraints shape the rules:
    legacy composition's external tests; Go keeps its internal tests from
    importing the root that imports it.
 3. `rules.stale` keeps only live rules, so the rules cover the selectors that
-   current imports use. The root has no `port` rule, for example. The first
-   import that needs one adds it in a reviewed epoch under the same
-   acceptance function.
+   current imports use. The root had no `port` rule in epoch 41, for
+   example. The first import that needs one adds it in a reviewed epoch
+   under the same acceptance function, as #4005 did for
+   `root-composition.reach.workflow.port`.
 
 Epoch 41 deletes the 301 rules the reaches cover: 62 root rules into the
 covered owner kinds (the 19 rules into `inbound` owners stay), 149 same-owner
@@ -3358,6 +3359,33 @@ The three root rules into implementation roles of other owners
 four tuples, because the scheduler rule covered `jobruntime` and
 `workerlease`. Point 7.3 adds `identity-access`/`adapter` to the shared
 fixture targets (`shared-fixtures.identity-access-adapter`).
+
+#4005 (policy epoch 43 → 44) moves the legacy composition's test hooks out of
+`services`. The hooks live in `api/*_test_helpers.go` and take the
+Transaction Runtime value; Identity's composition builds the session codec
+from the secret and the token lifetimes (`NewConfiguredSessionTokens`), so the
+hooks import no session token adapter. Tests of the owner a hook or an alias
+only passed through to now call or name that owner's composition themselves;
+tests of other owners keep reaching it through the root, because they may not
+import another owner's composition. Hooks and aliases no test used are
+deleted. The two hook files production code used became ordinary production
+files.
+The imports the move needs come from the same acceptance functions:
+`root-test.{inbound,platform,projection,workflow,test-support}.compose` and
+`root-test.legacy-composition.compose` (the external tests of `services`)
+under `reviewedRootTestRule`,
+`own-test.legacy-composition.module-behavior-test.compose` under
+`reviewedOwnTestRule`, `root-composition.reach.internal-test.self.compose`
+and `root-composition.reach.workflow.port` under
+`reviewedRootCompositionRule`, and `owner-compose.projection.adapter` under
+`reviewedOwnerCompositionRule`. `rules.stale` removed 13 rules no import used
+any more, among them `own-test.projection.test-support` with the deleted
+`modules/classday/classdaytest`. An internal test of a package the root
+imports cannot import `api`: it declares the composition it needs as a
+package variable that an external `root_composition_test.go` binds, or
+reaches it through `modules/workforce/workforcetest` when its external test
+may not import its own package. `api/testutil` keeps only owner-agnostic HTTP
+helpers, and `api/testutil -> services` falls (#2748, 41 → 40).
 
 Twelve baseline entries fall: nine of #2750 (`. -> cmd`, `cmd -> api`,
 `cmd -> tenant`, `cmd -> database/migrations` in production and internal test,

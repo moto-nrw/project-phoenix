@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
@@ -47,7 +49,7 @@ func deactivateAccountTenant(t *testing.T, db *bun.DB, accountID, tenantID int64
 func calendarTestConfig(t *testing.T, db *bun.DB) calendarRuntime.CalendarDependencies {
 	t.Helper()
 	repos := calendarTestRepositories(t, db)
-	identity, err := calendarRuntime.NewUserContextTestModule(db, testpkg.TenantRuntime(t, db))
+	identity, err := api.NewUserContextTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	userContext := identity.UserContext.Caller()
 
@@ -3217,9 +3219,9 @@ func portalDate(year int, month time.Month, day int) appointments.Date {
 	return appointments.NewDate(year, month, day)
 }
 
-func calendarTestRepositories(t *testing.T, db *bun.DB) calendarRuntime.CalendarTestRepositories {
+func calendarTestRepositories(t *testing.T, db *bun.DB) api.CalendarTestRepositories {
 	t.Helper()
-	repositories, err := calendarRuntime.NewCalendarTestRepositories(db, calendarRuntime.MustNewMembershipTestRepositories(db))
+	repositories, err := api.NewCalendarTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	return repositories
 }

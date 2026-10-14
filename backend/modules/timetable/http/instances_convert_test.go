@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -315,7 +314,7 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 			InstanceRepo:   repoFactory.ActivityInstance,
 			Lifecycle:      failingInstanceService,
 			Templates:      s.res.Templates,
-			RecurrenceLock: must(testutil.NewTimetableRecurrenceLock(s.db)),
+			RecurrenceLock: must(RootCompositions.RecurrenceLock(s.db)),
 		},
 	)
 	require.NoError(t, err)

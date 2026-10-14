@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -21,7 +23,7 @@ func TestPresenceStudents_UpdateLiveStatusFailsOnUnknownStudent(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	students := services.PresenceStudents(db, repoFactory.Student)
 
 	sick := true
@@ -40,20 +42,20 @@ func TestPresenceStudents_UpdateLiveStatusFailsOnUnknownStudent(t *testing.T) {
 // The locked-row re-authorization is the status-day write's access control, so
 // an adapter built without one must refuse every write rather than wave them
 // through. A caller that genuinely has no identity to check says so with
-// services.AllowAllStatusDayWrites.
+// api.AllowAllStatusDayWrites.
 func TestStatusDayStudents_MissingAuthorizeFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	student := testpkg.CreateTestStudent(t, db, "FailClosed", "Student", "FC1")
 	ctx := testpkg.Ctx(t)
 
-	unguarded := services.StatusDayStudentsFromRepository(repoFactory.Student, nil)
+	unguarded := api.StatusDayStudentsFromRepository(repoFactory.Student, nil)
 	_, err := unguarded.LockForStatusWrite(ctx, student.ID, absencerecords.StudentStatusDaySick)
 	require.Error(t, err, "a status-day adapter without an authorization callback must refuse the write")
 
-	guarded := services.StatusDayStudentsFromRepository(repoFactory.Student, services.AllowAllStatusDayWrites)
+	guarded := api.StatusDayStudentsFromRepository(repoFactory.Student, api.AllowAllStatusDayWrites)
 	record, err := guarded.LockForStatusWrite(ctx, student.ID, absencerecords.StudentStatusDaySick)
 	require.NoError(t, err)
 	assert.Equal(t, student.ID, record.ID)
@@ -65,7 +67,7 @@ func TestPresenceStudents_UpdateLiveStatusPersistsFlags(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	students := services.PresenceStudents(db, repoFactory.Student)
 	student := testpkg.CreateTestStudent(t, db, "Live", "Status", "LS1")
 	ctx := testpkg.Ctx(t)

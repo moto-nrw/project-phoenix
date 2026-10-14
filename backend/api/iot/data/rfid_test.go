@@ -27,7 +27,7 @@ type rfidTestContext struct {
 func setupRFIDModule(t *testing.T) *rfidTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupRFIDModule(t)
+	db, svc := composeRFIDModule(t)
 
 	// Create RFID resource
 	resource := dataAPI.NewRFIDResource(svc.TagAssignments, testRuntime())

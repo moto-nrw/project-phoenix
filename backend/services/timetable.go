@@ -89,10 +89,10 @@ type TimetableRepositories = timetableCompose.Repositories
 // reach the adapters through the directories bound here; the instance and
 // participant adapters compose an unobserved Student Presence owner.
 func NewTimetableRepositories(db *bun.DB, deps TimetableDependencies) TimetableRepositories {
-	return newTimetableRepositories(db, deps, newUnloggedStudentPresence(db))
+	return NewTimetableRepositoriesWithPresence(db, deps, NewUnloggedStudentPresence(db))
 }
 
-func newTimetableRepositories(db *bun.DB, deps TimetableDependencies, presence *studentpresence.Module) timetableCompose.Repositories {
+func NewTimetableRepositoriesWithPresence(db *bun.DB, deps TimetableDependencies, presence *studentpresence.Module) timetableCompose.Repositories {
 	return timetableCompose.NewRepositories(timetableCompose.RepositoryDependencies{
 		DB: db, Timetable: deps.Capability, Presence: presence, PartialAbsences: NewPartialAbsencePreview(db),
 		Calendar: deps.Calendar, Directories: timetableDirectories(deps),

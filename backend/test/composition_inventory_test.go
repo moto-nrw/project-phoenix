@@ -31,7 +31,6 @@ var expectedCompositionRoots = []compositionRoot{
 
 var expectedCompositionSmokeTests = []string{
 	"api/route_table_golden_test.go#TestFullProductionRouterGolden",
-	"api/testutil/helpers_test.go#TestSetupAuthModule",
 	"cmd/root_test.go#TestRootCmd_HasCommands",
 	"internal/architecture/composition_inventory_test.go#TestCompositionLegacyCallerInventory",
 	"services/factory_test.go#TestNewFactory",
@@ -43,7 +42,6 @@ var expectedCompositionSmokeTests = []string{
 
 var compositionTestPackages = []string{
 	"api",
-	"api/testutil",
 	"cmd",
 	"services",
 	"test",
@@ -53,7 +51,6 @@ var compositionTestPackages = []string{
 
 var compositionTestSmokeByPackage = map[string]string{
 	"api":                "api/route_table_golden_test.go#TestFullProductionRouterGolden",
-	"api/testutil":       "api/testutil/helpers_test.go#TestSetupAuthModule",
 	"cmd":                "cmd/root_test.go#TestRootCmd_HasCommands",
 	"services":           "services/factory_test.go#TestNewFactory",
 	"test":               "test/composition_inventory_test.go#TestCompositionInventory",

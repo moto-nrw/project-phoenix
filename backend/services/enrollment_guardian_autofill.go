@@ -12,7 +12,7 @@ import (
 // the People Directory rows. It only translates them into Enrollment's
 // public values.
 type EnrollmentGuardianAutofill struct {
-	loader *peopleCompose.GuardianProfileLoader
+	Loader *peopleCompose.GuardianProfileLoader
 }
 
 // NewEnrollmentGuardianAutofill binds the retained loader; without one the
@@ -21,12 +21,12 @@ func NewEnrollmentGuardianAutofill(loader *peopleCompose.GuardianProfileLoader) 
 	if loader == nil {
 		return nil
 	}
-	return EnrollmentGuardianAutofill{loader: loader}
+	return EnrollmentGuardianAutofill{Loader: loader}
 }
 
 // LoadForTenant loads the profile the account holds in the school.
 func (a EnrollmentGuardianAutofill) LoadForTenant(ctx context.Context, accountID, tenantID int64) (*enrollmentOwner.GuardianAutofill, error) {
-	loaded, err := a.loader.LoadForTenant(ctx, accountID, tenantID)
+	loaded, err := a.Loader.LoadForTenant(ctx, accountID, tenantID)
 	if err != nil || loaded == nil || loaded.Profile == nil {
 		return nil, err
 	}

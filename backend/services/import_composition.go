@@ -19,10 +19,10 @@ import (
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// importWiring is everything the Data Import needs (#2708): the owner
+// ImportWiring is everything the Data Import needs (#2708): the owner
 // capabilities its ports are bound to and the platform collaborators. The production root and
 // the test composition build the same graph from it, so the two cannot drift.
-type importWiring struct {
+type ImportWiring struct {
 	Identity      importIdentity
 	Organizations organizationtenancy.Capability
 	Groups        schoolstructure.GroupListing
@@ -66,11 +66,11 @@ type imports struct {
 	OpeningBalance importService.OpeningBalanceImportFactory
 }
 
-// newImports composes the Data Import over its owner ports. Student, staff
+// NewImports composes the Data Import over its owner ports. Student, staff
 // and class-list rows are committed through the public commands of People
 // Directory, School Membership, Workforce, Care Plan, Student Presence and
 // the Audit platform, including Workforce's opening-balance commands.
-func newImports(wiring importWiring) imports {
+func NewImports(wiring ImportWiring) imports {
 	transactions := dataImportCompose.NewTransactions()
 	wiring.OpeningBalance.Transactions = transactions
 	wiring.OpeningBalance.References = dataImportCompose.NewOpeningReferences(wiring.Membership, wiring.Persons, wiring.Workforce)

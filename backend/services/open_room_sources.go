@@ -7,13 +7,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 )
 
-// openRoomDirectory binds the shared-room projection to the public Facilities
+// OpenRoomDirectory binds the shared-room projection to the public Facilities
 // capability. Facilities owns the release decision.
-type openRoomDirectory struct{ rooms facilities.Query }
+type OpenRoomDirectory struct{ Rooms facilities.Query }
 
-func (d openRoomDirectory) Released(ctx context.Context) ([]supervisiondashboard.ReleasedRoom, error) {
+func (d OpenRoomDirectory) Released(ctx context.Context) ([]supervisiondashboard.ReleasedRoom, error) {
 	released := true
-	rooms, err := d.rooms.ListRooms(ctx, facilities.RoomFilter{IsOpenRoom: &released})
+	rooms, err := d.Rooms.ListRooms(ctx, facilities.RoomFilter{IsOpenRoom: &released})
 	if err != nil {
 		return nil, err
 	}

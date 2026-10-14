@@ -56,7 +56,7 @@ func (s failingDetailActivityService) GetGroupWithDetails(context.Context, int64
 func setupActivitiesRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupActivitiesModule(t)
+	db, svc := setupActivitiesModule(t)
 
 	resource := activitiesAPI.NewResource(
 		svc.Activities,

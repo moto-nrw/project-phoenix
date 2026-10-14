@@ -1,4 +1,4 @@
-package services
+package services_test
 
 import (
 	"context"
@@ -9,6 +9,9 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/services"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -29,10 +32,10 @@ var provisioningTestClientIP = net.IPv4(127, 0, 0, 1)
 
 // buildOperatorProvisioning returns the factory whose OperatorProvisioning
 // field is the production composition over db.
-func buildOperatorProvisioning(t *testing.T, db *bun.DB) *Factory {
+func buildOperatorProvisioning(t *testing.T, db *bun.DB) *services.Factory {
 	t.Helper()
-	repoFactory := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := NewFactoryForTests(repoFactory, db, slog.Default())
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	serviceFactory, err := api.NewFactoryForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 	return serviceFactory
@@ -558,7 +561,7 @@ func TestOperatorProvisioningIntegration_ListOrganizationDevices_RejectsDeletedO
 
 // provisionTestSchool creates an organisation and a school through the
 // capability and removes both afterwards.
-func provisionTestSchool(t *testing.T, db *bun.DB, factory *Factory, operatorID int64, label string) (organizationID, schoolID int64) {
+func provisionTestSchool(t *testing.T, db *bun.DB, factory *services.Factory, operatorID int64, label string) (organizationID, schoolID int64) {
 	t.Helper()
 	service := factory.OperatorProvisioning
 	ctx := provisioningContext(t, db)
@@ -695,7 +698,7 @@ func TestOperatorProvisioningIntegration_CreateSchoolAccount_BuildsIdentityChain
 	dbCtx := testpkg.Ctx(t)
 
 	t.Run("role projection uses public identity capability", func(t *testing.T) {
-		identity := provisioningIdentity{roles: factory.Auth}
+		identity := services.NewProvisioningIdentityForTest(factory.Auth)
 		custom := testpkg.CreateTestRole(t, db, "operator-custom")
 		system := testpkg.CreateTestSystemRole(t, db, "operator-system")
 		roles, err := identity.ListSystemRoles(ctx)

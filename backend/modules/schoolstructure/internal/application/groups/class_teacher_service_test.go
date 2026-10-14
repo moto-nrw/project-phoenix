@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -12,12 +12,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupClassTeacherService(t *testing.T, db *bun.DB) (Service, *testutil.PeopleRepositorySuiteFactory) {
+func setupClassTeacherService(t *testing.T, db *bun.DB) (Service, *api.PeopleRepositorySuiteFactory) {
 	t.Helper()
-	repos := testutil.NewSchoolStructureRepositorySuiteFactory(db)
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	// Same wiring the service factory uses: assignment rewrites must land in
 	// the Stammdaten audit trail.
-	return testutil.NewEducationSuiteService(repos, db), repos
+	return api.NewEducationSuiteService(repos, testpkg.NewDatabase(t, db)), repos
 }
 
 func TestSetStaffSchoolClasses(t *testing.T) {

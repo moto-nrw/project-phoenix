@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
@@ -40,7 +41,7 @@ func newTransitionFixture(t *testing.T, db *bun.DB) *transitionFixture {
 	t.Helper()
 	f := &transitionFixture{db: db, tenantID: testpkg.Tenant(t), now: time.Date(2026, 8, 24, 12, 0, 0, 0, calendar.Berlin)}
 	clock := func() time.Time { return f.now }
-	owners, err := testutil.NewGradeTransitionSuiteOwners(db, clock)
+	owners, err := api.NewGradeTransitionSuiteOwners(testpkg.NewDatabase(t, db), clock)
 	require.NoError(t, err)
 	f.people = owners.People
 	f.membership = owners.Membership

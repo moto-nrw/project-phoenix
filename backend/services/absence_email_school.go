@@ -11,6 +11,6 @@ type absenceEmailSchoolDirectory struct {
 }
 
 func (d absenceEmailSchoolDirectory) FindSchoolSubdomain(ctx context.Context, id int64) (string, bool, error) {
-	school, found, err := findSchool(ctx, d.schools, id)
+	school, found, err := FindSchool(ctx, d.schools, id)
 	return school.Subdomain, found, err
 }

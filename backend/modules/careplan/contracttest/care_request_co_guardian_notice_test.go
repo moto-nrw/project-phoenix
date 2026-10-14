@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/services"
 
@@ -47,7 +48,7 @@ func careCoGuardianPills(
 			if err != nil || thread == nil {
 				return err
 			}
-			msgs, err = services.NewParentMessageRepository(f.db).ListByThread(txCtx, thread.ID, 100)
+			msgs, err = api.NewParentMessageRepository(testpkg.NewDatabase(t, f.db)).ListByThread(txCtx, thread.ID, 100)
 			return err
 		}))
 	return msgs
@@ -102,7 +103,7 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 // (messaging-enabled) emitter and the given explicit share recipients.
 func careServiceWithCoGuardianEmitter(t *testing.T, f *careFixture, sharedWith []int64) carerequests.Service {
 	t.Helper()
-	emitter := f.emitter(t, services.NewParentMessageRepository(f.db), messagingOnSettings{}, testpkg.NewRecordingBroadcaster())
+	emitter := f.emitter(t, api.NewParentMessageRepository(testpkg.NewDatabase(t, f.db)), messagingOnSettings{}, testpkg.NewRecordingBroadcaster())
 	return services.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		f.repos.CarePlan(), f.sf.PeopleDirectory,
 		f.sf.ArrivalSchedule, f.sf.PickupSchedule, newPickupChangePresence(t, f.db), f.autoExcusal,

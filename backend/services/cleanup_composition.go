@@ -93,22 +93,22 @@ func (f *Factory) AuthMaintenanceRuntime() *AuthMaintenance {
 func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.Logger, command AuditCommand) (*AuthMaintenance, error) {
 	repos := NewAuthCleanupRepositories(db)
 	audits := cleanupAuditRepositories(db, command)
-	tokenAuth, err := configuredTokenAuth()
+	tokenAuth, err := ConfiguredTokenAuth()
 	if err != nil {
 		return nil, fmt.Errorf("auth cleanup service: token auth: %w", err)
 	}
-	codec, err := signedIdentityTokensOf(tokenAuth)
+	codec, err := SignedIdentityTokensOf(tokenAuth)
 	if err != nil {
 		return nil, err
 	}
-	identityAccess, err := newIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db}, accountAuthenticationWiring{
-		repos: sessionRepositories{
+	identityAccess, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db}, AccountAuthenticationWiring{
+		Repos: sessionRepositories{
 			schools: schoolDirectory{schools: repos.School}, persons: repos.Person, authEvents: audits.AuthEvent, pushSubscriptions: repos.PushSubscription,
 		},
-		codec: codec, audit: command, logger: logger,
+		Codec: codec, Audit: command, Logger: logger,
 		// The cleanup root only removes spent links and stale windows; it
 		// never issues a link, so it composes the flows without a mailer.
-		resets: &passwordResetWiring{expiry: cleanupResetExpiry},
+		Resets: &PasswordResetWiring{Expiry: cleanupResetExpiry},
 	})
 	if err != nil {
 		return nil, err
@@ -138,7 +138,7 @@ func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools org
 	settings := NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)
 	return presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
-		SchoolPresence:  newStudentPresence(db, logger),
+		SchoolPresence:  NewLoggedStudentPresence(db, logger),
 		GroupRepo:       groups, SupervisorRepo: supervisors,
 		DeviceRepo: NewSessionDeviceDirectory(repos.Device, settings, logger), TimetableBridgeCompleter: repos.TimetableBridge, DB: db, Logger: logger,
 	}, presenceservice.WithPresenceTenantRuntime(runtime), presenceservice.WithPresenceSettings(PresenceSettings(settings)))
@@ -165,14 +165,14 @@ func NewRetentionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 	repos := NewRetentionCleanupRepositories(db, command)
 	_, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
 	return presenceservice.NewPresenceCleanup(
-		newStudentPresence(db, logger), supervisors, NewDeletionAudit(repos.Deletion),
+		NewLoggedStudentPresence(db, logger), supervisors, NewDeletionAudit(repos.Deletion),
 		PresenceSettings(NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)),
 	)
 }
 
 func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command AuditCommand) (TimetableCleanup, error) {
 	audits := cleanupAuditRepositories(db, command)
-	return newTimetableCleanup(timetableRetentionInputs{
+	return NewTimetableCleanup(TimetableRetentionInputs{
 		Owner:      timetableCapability,
 		Deletions:  audits.DataDeletion,
 		Deviations: audits.DeviationEvent,
@@ -235,16 +235,16 @@ type TimeTrackingCleanupResult = workforceCompose.TimeTrackingCleanupResult
 type TimeTrackingCleanupPreview = workforceCompose.TimeTrackingCleanupPreview
 type TimeTrackingCleanupStats = workforceCompose.TimeTrackingCleanupStats
 
-// signedIdentityTokensOf adapts a root's resolved signer to the native claim
+// SignedIdentityTokensOf adapts a root's resolved signer to the native claim
 // codec. The signing primitive stays in the token adapter; Identity owns the
 // claim schema and validation.
-func signedIdentityTokensOf(signer *sessiontoken.TokenAuth) (identityaccessCompose.SignedIdentityTokens, error) {
+func SignedIdentityTokensOf(signer *sessiontoken.TokenAuth) (identityaccessCompose.SignedIdentityTokens, error) {
 	return NewSessionTokens(signer.JwtAuth, signer.JwtExpiry, signer.JwtRefreshExpiry)
 }
 
-// configuredTokenAuth resolves the signer of roots that receive no resolved
+// ConfiguredTokenAuth resolves the signer of roots that receive no resolved
 // configuration: the cleanup CLI and the test compositions.
-func configuredTokenAuth() (*sessiontoken.TokenAuth, error) {
+func ConfiguredTokenAuth() (*sessiontoken.TokenAuth, error) {
 	return sessiontoken.NewTokenAuthWithDurations(
 		viper.GetString("auth_jwt_secret"),
 		viper.GetDuration("auth_jwt_expiry"),

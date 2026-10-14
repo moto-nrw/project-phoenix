@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -33,7 +34,7 @@ func TestCrossTenantStudentWrite_RowsAffectedGuard(t *testing.T) {
 	ctxB := ctxForTenant(tenantB)
 
 	t.Run("student update blocked", func(t *testing.T) {
-		repo := services.NewUnboundStudentRepository(db)
+		repo := api.NewUnboundStudentRepository(testpkg.NewDatabase(t, db))
 		stored, err := repo.FindByID(ctxA, studentA.ID)
 		require.NoError(t, err)
 		err = repo.Update(ctxB, stored)
@@ -44,7 +45,7 @@ func TestCrossTenantStudentWrite_RowsAffectedGuard(t *testing.T) {
 
 	t.Run("student UpdateStatus blocked", func(t *testing.T) {
 		// The lifecycle status is the owner's write (#3349).
-		repo := services.NewUnboundStudentRepository(db)
+		repo := api.NewUnboundStudentRepository(testpkg.NewDatabase(t, db))
 		err := repo.UpdateStatus(ctxB, studentA.ID, userModels.StudentStatusInactive)
 		require.Error(t, err, "cross-tenant UpdateStatus must fail")
 		require.ErrorIs(t, err, userModels.ErrStudentRowMissing,

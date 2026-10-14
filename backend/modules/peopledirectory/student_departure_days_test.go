@@ -4,7 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -53,7 +54,7 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("unified plan derives legacy mirrors", func(t *testing.T) {
@@ -444,7 +445,7 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student
 	ctx := testpkg.Ctx(t)
 
 	require.True(t, companionNoteColumnExists(t, db), "Care Plan companion note column must exist")
@@ -495,7 +496,7 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 
 		// The startup guard is what keeps a server from ever serving requests
 		// against this schema — it must name the missing column.
-		err = testutil.VerifyPeopleRepositorySuiteStudentSchema(context.Background(), db)
+		err = api.VerifyPeopleRepositorySuiteStudentSchema(context.Background(), testpkg.NewDatabase(t, db))
 		require.Error(t, err, "VerifyStudentSchema must reject a schema without departure_companion_note")
 		assert.Contains(t, err.Error(), "departure_companion_note")
 
@@ -525,7 +526,7 @@ func TestStudentRepository_StaleDeparturePlanIsRebased(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student
 	ctx := testpkg.Ctx(t)
 
 	t.Run("untouched stale plan does not revert a committed change", func(t *testing.T) {

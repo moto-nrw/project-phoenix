@@ -41,7 +41,7 @@ func TestMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	stub := &raceLosingConsume{}
 	module := newMFATestModule(t, db, withFailingMFARecords(failingMFARecords{consumeChallenge: stub.consume}))
-	svc, tokenAuth := module.MFA, module.TokenAuth
+	svc, tokenAuth := module.MFA, challengeTokenAuth(t, module)
 	realChallengeRepo := nativeMFARecords(t, db)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-race-loser")

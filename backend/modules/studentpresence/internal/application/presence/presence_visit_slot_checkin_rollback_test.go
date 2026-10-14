@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -65,7 +66,7 @@ func TestVisitCheckInRollsBackAfterEachSlotWriteAndRetries(t *testing.T) {
 			testpkg.OwnTenant(t)
 			db := testpkg.SetupTestDB(t)
 			module := testSchoolPresence(t, db)
-			syncRows := services.NewAttendanceSyncTestRepositories(db, services.NewUnobservedTimetableDependencies(db).Capability)
+			syncRows := api.NewAttendanceSyncTestRepositories(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Capability)
 			instances, assignments := syncRows.Instances, syncRows.Participants
 			injected := errors.New("fail after visit slot write")
 			rows := &failingVisitSlotCheckIn{InstanceStudentRepository: assignments, failAt: tc.failAt, err: injected}
@@ -80,7 +81,7 @@ func TestVisitCheckInRollsBackAfterEachSlotWriteAndRetries(t *testing.T) {
 			if !tc.unplanned {
 				testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
 			}
-			ctx := services.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
+			ctx := api.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
 			ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 			visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: time.Now().Add(-time.Hour)}
 			if tc.failAt == "checkout" {

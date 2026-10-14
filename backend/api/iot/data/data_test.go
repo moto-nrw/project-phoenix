@@ -27,7 +27,7 @@ type testContext struct {
 func setupDataRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupIoTDataModule(t)
+	db, svc := setupIoTDataModule(t)
 
 	// Create data resource
 	resource := dataAPI.NewResource(

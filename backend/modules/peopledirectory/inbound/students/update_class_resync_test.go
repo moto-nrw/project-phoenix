@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -37,7 +37,7 @@ func TestUpdateStudent_ClassChangeResyncsOfferingSourcedTemplates(t *testing.T) 
 	tc := setupStudentsRoute(t, fixedCalendarClock)
 	rec := &recordingOfferingResyncer{}
 	tc.resource.OfferingSourceResyncer = rec
-	recurrenceLock, err := testutil.NewTimetableRecurrenceLock(tc.db)
+	recurrenceLock, err := api.NewTimetableHTTPTestRecurrenceLock(testpkg.NewDatabase(t, tc.db))
 	require.NoError(t, err)
 	tc.resource.LockTemplateRecurrence = recurrenceLock.LockRecurrenceWrites
 

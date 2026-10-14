@@ -1,7 +1,9 @@
-package services
+package services_test
 
 import (
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -11,7 +13,7 @@ import (
 func TestTeachingAssignmentAdaptersPreserveLegacyContracts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repos := NewRepositoryTestFactory(db, NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Assignment", "Contract")
 	classAssignment := testpkg.CreateTestClassTeacher(t, db, staff.ID, " 1A ")

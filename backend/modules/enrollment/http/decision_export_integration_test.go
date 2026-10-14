@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"testing"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -30,11 +30,11 @@ import (
 // data-loading repos from the env plus the supplied audit repo, so a
 // test can swap in a failing stub. Mirrors the export half of
 // setupDecisionTest's config (which omits the audit repo).
-func newExportDecisionService(env *decisionTestEnv, auditRepo testutil.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
-	return newTestDecisionService(testutil.EnrollmentDecisionSources{
+func newExportDecisionService(env *decisionTestEnv, auditRepo api.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
+	return newTestDecisionService(api.EnrollmentDecisionSources{
 		Requests:      env.repos.Enrollment(),
 		Children:      env.repos.Enrollment(),
-		CareOfferings: testutil.NewEnrollmentCareOfferingRecords(env.repos.CarePlan()),
+		CareOfferings: enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
 		Phases:        env.repos.Enrollment(),
 		Schemas:       env.repos.Enrollment(),
 		DataAccessLog: auditRepo,
@@ -65,11 +65,11 @@ func (failingPhaseRepo) Phase(_ context.Context, _ int64) (*capability.Phase, er
 // newExportDecisionServiceFailingSchema mirrors newExportDecisionService
 // but swaps in a schema reader whose Schema always errors, so a test
 // can prove the export fails closed when a pinned schema cannot be loaded.
-func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo testutil.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
-	return newTestDecisionService(testutil.EnrollmentDecisionSources{
+func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo api.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
+	return newTestDecisionService(api.EnrollmentDecisionSources{
 		Requests:      env.repos.Enrollment(),
 		Children:      env.repos.Enrollment(),
-		CareOfferings: testutil.NewEnrollmentCareOfferingRecords(env.repos.CarePlan()),
+		CareOfferings: enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
 		Phases:        env.repos.Enrollment(),
 		Schemas:       failingSchemaRepo{env.repos.Enrollment()},
 		DataAccessLog: auditRepo,
@@ -78,11 +78,11 @@ func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo testu
 	})
 }
 
-func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo testutil.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
-	return newTestDecisionService(testutil.EnrollmentDecisionSources{
+func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo api.EnrollmentFlowDataAccessLogs) enrollmentAPI.DecisionService {
+	return newTestDecisionService(api.EnrollmentDecisionSources{
 		Requests:      env.repos.Enrollment(),
 		Children:      env.repos.Enrollment(),
-		CareOfferings: testutil.NewEnrollmentCareOfferingRecords(env.repos.CarePlan()),
+		CareOfferings: enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
 		Phases:        failingPhaseRepo{env.repos.Enrollment()},
 		Schemas:       env.repos.Enrollment(),
 		DataAccessLog: auditRepo,
@@ -158,7 +158,7 @@ func TestDecisionService_ExportPhase_LoadsDataAndRecordsAudit(t *testing.T) {
 	// the counts that match the disclosed payload.
 	require.Len(t, audit.entries, 1, "ExportPhase must record exactly one audit row")
 	entry := audit.entries[0]
-	assert.Equal(t, testutil.EnrollmentFlowPhaseExportResource, entry.ResourceType)
+	assert.Equal(t, api.EnrollmentFlowPhaseExportResource, entry.ResourceType)
 	assert.Equal(t, actorID, entry.ActorAccountID)
 	md := entry.GetMetadata()
 	assert.Equal(t, env.sourcePhase.ID, md["phase_id"])
@@ -259,7 +259,7 @@ func TestDecisionService_ExportStudent_LoadsDataAndRecordsAudit(t *testing.T) {
 
 	require.Len(t, audit.entries, 1)
 	entry := audit.entries[0]
-	assert.Equal(t, testutil.EnrollmentFlowStudentExportResource, entry.ResourceType)
+	assert.Equal(t, api.EnrollmentFlowStudentExportResource, entry.ResourceType)
 	require.NotNil(t, entry.StudentID)
 	assert.Equal(t, studentID, *entry.StudentID)
 	md := entry.GetMetadata()

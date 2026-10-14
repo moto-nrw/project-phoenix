@@ -6,7 +6,7 @@ import peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirector
 // shape their callers still classify on; the People Directory composition
 // builds it.
 
-func wrapRetainedError(op string, err error) error {
+func WrapRetainedError(op string, err error) error {
 	return peopleCompose.RetainedRecordErrors{}.WrapRecordError(op, err)
 }
 

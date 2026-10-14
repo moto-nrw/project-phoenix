@@ -97,9 +97,9 @@
       "backend/test/fixtures_care_lifecycle.go",
       "backend/test/fixtures_guardians.go",
       "backend/test/people_repository_vocabulary.go",
-      "backend/services/parent_request_review_test_helpers.go",
-      "backend/services/school_structure_suite_query_test_helpers.go",
-      "backend/services/timetable_operation_people_test_helpers.go",
+      "backend/api/parent_request_review_test_helpers.go",
+      "backend/api/school_structure_suite_query_test_helpers.go",
+      "backend/api/timetable_operation_people_test_helpers.go",
       "backend/modules/peopledirectory/student_stranding_batch_test.go",
       "backend/modules/peopledirectory/contracttest/student_cross_tenant_write_test.go"
     ],

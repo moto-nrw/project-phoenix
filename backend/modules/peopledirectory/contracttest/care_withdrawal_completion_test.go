@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -17,7 +17,7 @@ func TestCareWithdrawalCompletionRepository_OnePendingTaskPerChild(t *testing.T)
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).CareWithdrawal
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
 	student := testpkg.CreateTestStudent(t, db, "Mira", "Kurz", "2a")
 	actor := testpkg.CreateTestAccount(t, db, "withdrawal-actor")
 	studentID := student.ID
@@ -53,7 +53,7 @@ func TestCareWithdrawalCompletionRepository_RebookingOnlyObsoletesWithoutGap(t *
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).CareWithdrawal
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
 	student := testpkg.CreateTestStudent(t, db, "Sam", "Kurz", "3a")
 	actor := testpkg.CreateTestAccount(t, db, "rebooking-actor")
 	studentID := student.ID
@@ -85,7 +85,7 @@ func TestCareWithdrawalCompletionRepository_UpsertUsesIncomingBoundary(t *testin
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).CareWithdrawal
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
 	student := testpkg.CreateTestStudent(t, db, "Echte", "Lücke", "3b")
 	studentID := student.ID
 	firstGap := calendar.NewDate(2026, 8, 24).AddDays(-2)
@@ -111,7 +111,7 @@ func TestCareWithdrawalCompletionRepository_UpsertPreservesSchoolConfirmation(t 
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	lifecycle, err := testutil.NewPeopleRepositorySuiteCareLifecycle(db, nil)
+	lifecycle, err := api.NewPeopleRepositorySuiteCareLifecycle(testpkg.NewDatabase(t, db), nil)
 	require.NoError(t, err)
 	repo := lifecycle.CareWithdrawal
 	actor := testpkg.CreateTestAccount(t, db, "withdrawal-confirmer")
@@ -171,7 +171,7 @@ func TestCareWithdrawalCompletionRepository_ParticipationBoundaryUsesPendingComp
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	factory := testutil.NewPeopleRepositorySuiteFactory(db)
+	factory := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	repo := factory.CareWithdrawal
 	// Callers pass the tenant rows they read through FindByIDs (#3221).
 	studentsByID := func(ids ...int64) map[int64]*userModels.Student {
@@ -245,7 +245,7 @@ func TestCareWithdrawalCompletionRepository_WeeklyPlansObsoletePending(t *testin
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).CareWithdrawal
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
 	student := testpkg.CreateTestStudent(t, db, "Mia", "Wochenplan", "2a")
 	actor := testpkg.CreateTestAccount(t, db, "weekly-plan-actor")
 	studentID := student.ID
@@ -278,7 +278,7 @@ func TestCareWithdrawalCompletionRepository_CancelCreatesNewPendingEvent(t *test
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).CareWithdrawal
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).CareWithdrawal
 	student := testpkg.CreateTestStudent(t, db, "Lia", "Storno", "1a")
 	actor := testpkg.CreateTestAccount(t, db, "withdrawal-cancel-actor")
 	studentID := student.ID

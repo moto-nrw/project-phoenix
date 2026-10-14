@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -15,6 +17,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -22,8 +25,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
-
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 )
 
 // Fixtures of the enrollment flow suites (#3565). The suites seed Care
@@ -86,19 +87,19 @@ func (r careOfferingFixtures) CountByPhaseID(ctx context.Context, phaseID int64)
 }
 
 func (r careOfferingFixtures) ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
-	return testutil.NewEnrollmentCareOfferingRecords(r.carePlan).ListByPhase(ctx, phaseID)
+	return enrollmentCompose.NewCareOfferingRecords(r.carePlan).ListByPhase(ctx, phaseID)
 }
 
 func (r careOfferingFixtures) ListByIDs(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error) {
-	return testutil.NewEnrollmentCareOfferingRecords(r.carePlan).ListByIDs(ctx, ids)
+	return enrollmentCompose.NewCareOfferingRecords(r.carePlan).ListByIDs(ctx, ids)
 }
 
 func (r careOfferingFixtures) ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error) {
-	return testutil.NewEnrollmentCareOfferingRecords(r.carePlan).ListByIDsForUpdate(ctx, ids)
+	return enrollmentCompose.NewCareOfferingRecords(r.carePlan).ListByIDsForUpdate(ctx, ids)
 }
 
 func (r careOfferingFixtures) ListActiveByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
-	return testutil.NewEnrollmentCareOfferingRecords(r.carePlan).ListActiveByPhase(ctx, phaseID)
+	return enrollmentCompose.NewCareOfferingRecords(r.carePlan).ListActiveByPhase(ctx, phaseID)
 }
 
 func (r careOfferingFixtures) FindByID(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error) {
@@ -159,8 +160,8 @@ func applyCareOfferingFixture(target *enrollmentModels.CareOffering, value carep
 
 // requestTestBookingCommands records and replaces the intake's bookings
 // through Care Plan's effective-booking owner.
-func requestTestBookingCommands() testutil.EnrollmentCareBookingCommands {
-	return testutil.NewEnrollmentCareBookingCommands(testutil.NewTestOfferingBookings())
+func requestTestBookingCommands() api.EnrollmentCareBookingCommands {
+	return api.NewEnrollmentCareBookingCommands(testutil.NewTestOfferingBookings())
 }
 
 // recordCareBookingsFunc is a booking writer double.
@@ -170,16 +171,16 @@ func (f recordCareBookingsFunc) RecordCareBookings(ctx context.Context, childID 
 	return f(ctx, childID, bookings)
 }
 
-func testRepositories(t *testing.T, db *bun.DB) *services.EnrollmentFlowTestRepositories {
+func testRepositories(t *testing.T, db *bun.DB) *api.EnrollmentFlowTestRepositories {
 	t.Helper()
 	return flowRepositories(t, db)
 }
 
 // flowRepositories composes the repositories the enrollment flow suites run
 // on over the suite's database.
-func flowRepositories(t testing.TB, db *bun.DB) *services.EnrollmentFlowTestRepositories {
+func flowRepositories(t testing.TB, db *bun.DB) *api.EnrollmentFlowTestRepositories {
 	t.Helper()
-	repos, err := services.NewEnrollmentFlowTestRepositories(db)
+	repos, err := api.NewEnrollmentFlowTestRepositories(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return repos
 }
@@ -578,7 +579,7 @@ func setupOfferingChangeFixture(
 
 // testCareOfferingCatalog composes the Care Plan catalog over the test
 // database, as the server binds it.
-func testCareOfferingCatalog(t *testing.T, db *bun.DB, options ...testutil.CareOfferingCatalogOption) careplan.CareOfferingCatalogCapability {
+func testCareOfferingCatalog(t *testing.T, db *bun.DB, options ...api.CareOfferingCatalogOption) careplan.CareOfferingCatalogCapability {
 	t.Helper()
-	return testutil.NewCareOfferingCatalog(t, db, options...).Catalog
+	return newCareOfferingCatalog(t, db, options...).Catalog
 }

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
@@ -48,7 +48,7 @@ func TestResolveTenant_AnalyticsFreigabe_DefaultOff(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveAnalytics(t, resource, slug)
@@ -67,7 +67,7 @@ func TestResolveTenant_AnalyticsFreigabe_OnWithSample(t *testing.T) {
 	require.NoError(t, tenantSettings.SetValue(ctx, settings.KeyAnalyticsFreigabe, true, nil, nil))
 	require.NoError(t, tenantSettings.SetValue(ctx, settings.KeyAnalyticsRecordingSamplePercent, 40, nil, nil))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveAnalytics(t, resource, slug)
@@ -81,10 +81,10 @@ func TestResolveTenant_AnalyticsFreigabe_UnreadableValueFailsClosed(t *testing.T
 
 	db, authRoute := setupAuthDependenciesRoute(t)
 	scope, slug := newTenantResolveScope(t, db)
-	testutil.StoreRawTenantSetting(t, db, scope.TenantID,
+	storeRawTenantSetting(t, db, scope.TenantID,
 		settings.KeyAnalyticsFreigabe, json.RawMessage(`"vielleicht"`))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveAnalytics(t, resource, slug)

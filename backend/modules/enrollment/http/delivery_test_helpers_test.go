@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -17,7 +18,7 @@ type testEnrollmentDelivery struct{ module *delivery.Module }
 
 func newTestEnrollmentDelivery(t *testing.T, db *orm.DB) testEnrollmentDelivery {
 	t.Helper()
-	module, err := testutil.NewEnrollmentFlowDelivery(db)
+	module, err := api.NewEnrollmentFlowDelivery(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return testEnrollmentDelivery{module: module}
 }

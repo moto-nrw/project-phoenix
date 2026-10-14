@@ -20,7 +20,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -387,7 +386,7 @@ func TestTemplateSplitHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) {
 	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	s.res.Templates = splitTemplateAdministration(s, mat, func(context.Context, int64) error {
-		return fmt.Errorf("%w: linked care offering would become invalid", testutil.ErrCareOfferingInvalid)
+		return fmt.Errorf("%w: linked care offering would become invalid", RootCompositions.ErrCareOfferingInvalid)
 	})
 	router := splitRouter(s.ctx, s.res, s.db, []string{permissions.SchedulesManage})
 	created := createSourceTemplate(t, router, s, "Tpl-Split-Rollback-Quelle")
@@ -495,7 +494,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 			return fmt.Errorf("expected provisional group name %q, got %q", updateName, provisionalGroup.Name)
 		}
 		validatorReached = true
-		return fmt.Errorf("%w: linked care offering would become invalid", testutil.ErrCareOfferingInvalid)
+		return fmt.Errorf("%w: linked care offering would become invalid", RootCompositions.ErrCareOfferingInvalid)
 	})
 
 	updateBody := createTemplateBody(s, updateName)

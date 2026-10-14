@@ -7,9 +7,9 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 )
 
-// newStatistics builds the Statistik report over the presence database of
-// deps with the operation logging of newStudentPresence.
-func newStatistics(logger *slog.Logger, deps presenceCompose.StatisticsDependencies) studentpresence.StatisticsReports {
+// NewStatistics builds the Statistik report over the presence database of
+// deps with the operation logging of NewLoggedStudentPresence.
+func NewStatistics(logger *slog.Logger, deps presenceCompose.StatisticsDependencies) studentpresence.StatisticsReports {
 	deps.Observe = studentPresenceObserver(logger)
 	reports, err := presenceCompose.NewStatistics(deps)
 	if err != nil {

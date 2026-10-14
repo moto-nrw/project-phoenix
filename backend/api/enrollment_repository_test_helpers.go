@@ -1,0 +1,40 @@
+package api
+
+import (
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/services"
+)
+
+// EnrollmentTestRepositories is the enrollment suites' repository graph;
+// DataAccessLog is filled by the composition that owns Audit persistence
+// (NewEnrollmentTestRepositories).
+type EnrollmentTestRepositories struct {
+	TimetableTestRepositories
+	School organizationtenancy.Capability
+
+	StudentGuardian     usersModels.StudentGuardianRepository
+	GuardianProfile     usersModels.GuardianProfileRepository
+	GuardianPhoneNumber usersModels.GuardianPhoneNumberRepository
+	Membership          schoolmembership.Capability
+	DataAccessLog       auditModels.DataAccessLogRepository
+}
+
+func NewEnrollmentTestRepositoriesWithMembers(db transactionruntime.Database, members services.MembershipTestRepositories) (EnrollmentTestRepositories, error) {
+	tt, err := NewTimetableTestRepositoriesWithMembers(db, members)
+	if err != nil {
+		return EnrollmentTestRepositories{}, err
+	}
+	organizations, err := services.NewOrganizationTenancy(db.Pool())
+	if err != nil {
+		return EnrollmentTestRepositories{}, err
+	}
+	return EnrollmentTestRepositories{TimetableTestRepositories: tt,
+		School:          organizations,
+		StudentGuardian: members.StudentGuardian, GuardianProfile: members.GuardianProfile, GuardianPhoneNumber: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
+		Membership: members.Membership}, nil
+}

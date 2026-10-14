@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -80,8 +82,8 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	}
 	instance.TenantID = testpkg.Tenant(t)
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
-	owners := services.NewUnobservedTimetableDependencies(db)
-	repoFactory := services.NewRepositoryTestFactory(db, owners)
+	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 	timetableRepos := services.NewTimetableRepositories(db, owners)
 	instanceStudentRepo := timetableRepos.InstanceStudent
 
@@ -253,7 +255,7 @@ func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
 			require.NotNil(t, checkInSnapshot5)
 			testpkg.CreateTestVisit(t, s.db, student.ID, s.activeGroup.ID, entryTime, nil)
 
-			factory, err := services.NewFactoryForTests(services.NewRepositoryTestFactory(s.db, services.NewUnobservedTimetableDependencies(s.db)), s.db, slog.Default())
+			factory, err := api.NewFactoryForTests(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))), testpkg.NewDatabase(t, s.db), slog.Default())
 			require.NoError(t, err)
 			if tt.timeout {
 				device := testpkg.CreateTestDevice(t, s.db, fmt.Sprintf("AS-Bulk-%d", time.Now().UnixNano()))

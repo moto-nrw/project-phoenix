@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -16,7 +15,7 @@ import (
 
 func TestAbsenceTypeReaderUsesNativeOwner(t *testing.T) {
 	t.Parallel()
-	_, module := testutil.SetupAbsenceTypeModule(t)
+	_, module := setupAbsenceTypeModule(t)
 	ctx := testpkg.Ctx(t)
 	typ, err := module.Catalog.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Reader contract", AllowanceEnabled: true})
 	require.NoError(t, err)
@@ -82,7 +81,7 @@ func (c nativeAbsenceTypeReadFailure) ListStaffAbsenceTypes(context.Context) ([]
 func TestAbsenceTypeAdministrationNativeList(t *testing.T) {
 	t.Parallel()
 
-	_, module := testutil.SetupAbsenceTypeModule(t)
+	_, module := setupAbsenceTypeModule(t)
 
 	t.Run("returns native rows without a legacy read", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())

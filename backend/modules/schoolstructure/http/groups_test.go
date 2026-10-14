@@ -54,7 +54,7 @@ type testContext struct {
 func setupGroupsRoute(t *testing.T, publishers ...*testpkg.RecordingBroadcaster) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupGroupsModule(t, publishers...)
+	db, svc := setupGroupsModule(t, publishers...)
 
 	// Groups resource requires multiple services and repositories
 	resource := schoolstructurehttp.NewResource(

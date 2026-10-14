@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -41,7 +42,7 @@ func TestVisitCreationRollsBackAttendanceAndVisitThenRetries(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Create", "Staff")
 	device := testpkg.CreateTestDevice(t, db, "visit-create-rollback")
 	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
-	ctx := services.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
+	ctx := api.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
 	ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 	visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: time.Now()}
 

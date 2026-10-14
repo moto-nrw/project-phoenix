@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -39,7 +39,7 @@ func TestCalendarPeriodUsageRepository_HonorsTenantContextWithoutRepositoryRunti
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	assignments := services.NewUnobservedTimetableDependencies(db).Capability
+	assignments := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Capability
 	tenantID := testpkg.Tenant(t)
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Mandant", testpkg.Date(2030, time.August, 1), testpkg.Date(2031, time.July, 31))
 	repo := compose.NewPlanningCalendarPeriodUsage(phaseCountQueries{counts: map[int64]int{period.ID: 2}}, assignments)

@@ -3,7 +3,7 @@ package studentintegration_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -52,7 +52,7 @@ func TestStudentOwnersWorkWithoutRollbackView(t *testing.T) {
 	directory := buildStudentOwnersModule(t, db)
 	record, err := directory.CreateStudent(ctx, peopledirectory.StudentWrite{Record: peopledirectory.StudentRecord{PersonID: person.ID, SchoolClass: "1a", Status: "active"}})
 	require.NoError(t, err)
-	repo := services.NewUnboundStudentRepository(db)
+	repo := api.NewUnboundStudentRepository(testpkg.NewDatabase(t, db))
 	rows, err := repo.List(ctx, map[string]any{"id": record.ID})
 	require.NoError(t, err)
 	require.Len(t, rows, 1)

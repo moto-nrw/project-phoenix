@@ -94,7 +94,7 @@
       "backend/test/facility_rows.go",
       "backend/test/activity_rows.go",
       "backend/test/schedule_rows.go",
-      "backend/api/testutil/people_repository_suites.go"
+      "backend/api/people_repository_test_helpers.go"
     ],
     "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
     "thresholds": "The suite passes with unchanged assertion strength, and the architecture check reports no new violation and no stale baseline entry.",

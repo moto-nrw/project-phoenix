@@ -6,16 +6,15 @@ import (
 	"log/slog"
 	"testing"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -25,10 +24,10 @@ import (
 // Submit flow, withdraw through the parent-facing Withdraw flow — so the
 // restore undoes exactly the state production produces.
 
-func listRestorationAuditRows(t *testing.T, env *decisionTestEnv, requestID int64) []*testutil.EnrollmentFlowRestorationAudit {
+func listRestorationAuditRows(t *testing.T, env *decisionTestEnv, requestID int64) []*api.EnrollmentFlowRestorationAudit {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	var rows []*testutil.EnrollmentFlowRestorationAudit
+	var rows []*api.EnrollmentFlowRestorationAudit
 	err := env.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`audit.enrollment_restorations AS "enrollment_restoration"`).
@@ -37,7 +36,7 @@ func listRestorationAuditRows(t *testing.T, env *decisionTestEnv, requestID int6
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
-			Model((*testutil.EnrollmentFlowRestorationAudit)(nil)).
+			Model((*api.EnrollmentFlowRestorationAudit)(nil)).
 			ModelTableExpr(`audit.enrollment_restorations AS "enrollment_restoration"`).
 			Where(`"enrollment_restoration".request_id = ?`, requestID).
 			Exec(testpkg.Ctx(t))
@@ -218,10 +217,10 @@ func TestDecisionService_RestoreWithdrawn_PhaseInactive(t *testing.T) {
 func newRestoreDecisionServiceForRequestEnv(t *testing.T, env *requestTestEnv) enrollmentAPI.DecisionService {
 	t.Helper()
 	repoFactory := flowRepositories(t, env.db)
-	return newTestDecisionService(testutil.EnrollmentDecisionSources{
+	return newTestDecisionService(api.EnrollmentDecisionSources{
 		Requests:      repoFactory.Enrollment(),
 		Children:      repoFactory.Enrollment(),
-		CareOfferings: testutil.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
+		CareOfferings: enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
 		Phases:        repoFactory.Enrollment(),
 		Restorations:  repoFactory.EnrollmentRestorationAudit,
 		Logger:        slog.Default(),

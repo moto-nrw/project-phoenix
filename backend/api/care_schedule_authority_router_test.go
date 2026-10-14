@@ -21,7 +21,7 @@ import (
 
 func TestCareScheduleAuthorityHTTPFlow(t *testing.T) {
 	t.Parallel()
-	db, module := testutil.SetupStudentModule(t)
+	db, module := setupStudentModule(t)
 	resource, err := newCareScheduleTestRouter(testpkg.NewDatabase(t, db), module)
 	require.NoError(t, err)
 	router := chi.NewRouter()

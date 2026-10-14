@@ -11,14 +11,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -37,7 +37,7 @@ func isolationTenants(tb testing.TB, db *bun.DB) (tenantA, tenantB int64) {
 
 func testRoomRepository(t *testing.T, db *bun.DB) *facilitiesRepositoryAdapter.Repository {
 	t.Helper()
-	rooms, err := services.NewFacilities(db)
+	rooms, err := api.NewFacilities(NewDatabase(t, db))
 	require.NoError(t, err)
 	repository := facilitiesRepositoryAdapter.New()
 	repository.Bind(rooms)
@@ -63,7 +63,7 @@ func TestTenantIsolation_StudentVisibility(t *testing.T) {
 	sA := CreateTestStudentForTenant(t, db, tenantA, "TenantA", "Student", "1a")
 	sB := CreateTestStudentForTenant(t, db, tenantB, "TenantB", "Student", "1a")
 
-	repo := services.NewUnboundStudentRepository(db)
+	repo := api.NewUnboundStudentRepository(NewDatabase(t, db))
 
 	// --- Tenant A perspective ---
 	ctx42 := ctxForTenant(tenantA)
@@ -109,7 +109,7 @@ func TestTenantIsolation_EducationGroupVisibility(t *testing.T) {
 	gA := CreateTestEducationGroupForTenant(t, db, tenantA, "GroupA")
 	gB := CreateTestEducationGroupForTenant(t, db, tenantB, "GroupB")
 
-	repo := services.NewEducationGroupRepository(db)
+	repo := api.NewEducationGroupRepository(NewDatabase(t, db))
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
@@ -201,7 +201,7 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	tfA := CreateTestTimeframeForTenant(t, db, tenantA, "TimeframeA")
 	tfB := CreateTestTimeframeForTenant(t, db, tenantB, "TimeframeB")
 
-	repos := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db))
+	repos := services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(NewDatabase(t, db)))
 	repo := repos.Timeframe
 
 	// --- Tenant A ---
@@ -250,7 +250,7 @@ func TestTenantIsolation_DeviceVisibility(t *testing.T) {
 
 	// Device reads go through the Device Fleet owner (#2676), which resolves
 	// room names through the Facilities owner.
-	repo, err := services.NewDeviceRepository(db)
+	repo, err := api.NewDeviceRepository(NewDatabase(t, db))
 	require.NoError(t, err)
 
 	// --- Tenant A ---
@@ -357,7 +357,7 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	agA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	agB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	repo := services.NewSessionCleanupRepositories(db, services.NewUnobservedTimetableDependencies(db).Capability).Sessions
+	repo := services.NewSessionCleanupRepositories(db, api.NewUnobservedTimetableDependencies(NewDatabase(t, db)).Capability).Sessions
 	presence := PresenceModule(t, db)
 
 	// --- Tenant A ---
@@ -404,7 +404,7 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 	catA := CreateTestActivityCategoryForTenant(t, db, tenantA, "CatA")
 	catB := CreateTestActivityCategoryForTenant(t, db, tenantB, "CatB")
 
-	repo := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db)).ActivityCategory
+	repo := services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(NewDatabase(t, db))).ActivityCategory
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
@@ -476,7 +476,7 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	})
 
 	t.Run("education group update blocked", func(t *testing.T) {
-		repo := services.NewEducationGroupRepository(db)
+		repo := api.NewEducationGroupRepository(NewDatabase(t, db))
 		stored, err := repo.FindByID(ctxA, groupA.ID)
 		require.NoError(t, err)
 		err = repo.Update(ctxB, stored)

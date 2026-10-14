@@ -8,12 +8,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
-type roomHistoryPresence struct {
-	source studentpresence.RoomHistoryQuery
+type RoomHistoryPresence struct {
+	Source studentpresence.RoomHistoryQuery
 }
 
-func (p roomHistoryPresence) ListRoomSessionHistory(ctx context.Context, roomID int64, start, end time.Time, staffID *int64) ([]facilitiesLegacy.RoomSessionFact, error) {
-	rows, err := p.source.ListRoomSessionHistory(ctx, roomID, start, end, staffID)
+func (p RoomHistoryPresence) ListRoomSessionHistory(ctx context.Context, roomID int64, start, end time.Time, staffID *int64) ([]facilitiesLegacy.RoomSessionFact, error) {
+	rows, err := p.Source.ListRoomSessionHistory(ctx, roomID, start, end, staffID)
 	if err != nil {
 		return nil, err
 	}

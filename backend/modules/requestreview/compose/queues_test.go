@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
@@ -374,12 +373,35 @@ func TestOwnerQueueFailureSurfacesUnchanged(t *testing.T) {
 	require.ErrorIs(t, err, ownerFailure)
 }
 
+// ReviewComposition is what the RLS proof takes from the root's student
+// composition: the People Directory, the settings it reads the booking
+// authority from and Care Plan's excused requests.
+type ReviewComposition struct {
+	PeopleDirectory interface {
+		Students
+		ReviewPeople
+		MasterDataPeople
+		ScheduleReviewPeople
+		OfferingReviewPeople
+	}
+	FamilyProtection requestreview.FamilyProtection
+	Settings         interface {
+		ResolveBool(context.Context, string) (bool, error)
+	}
+	ExcusedRequests careplan.ExcusedAbsenceRequests
+}
+
+// ComposeReviewSources composes the root's student graph over the package's
+// test database. The root imports this package, so these internal tests
+// cannot import it; root_composition_test.go binds it.
+var ComposeReviewSources func(t *testing.T) (*bun.DB, ReviewComposition)
+
 // The two-tenant proof runs the projection over the real retained queues:
 // each school's reviewer lists and counts exactly the requests of that
 // school, across all four request tables, under the least-privilege role.
 func TestRequestReviewEnforcesRLS(t *testing.T) {
 	t.Parallel()
-	db, svc := testutil.SetupStudentModule(t)
+	db, svc := ComposeReviewSources(t)
 	reviewStudents, err := NewStudentDirectory(db, svc.PeopleDirectory, func(DirectoryObservation) {})
 	require.NoError(t, err)
 	masterData, err := NewMasterDataReviews(db, svc.PeopleDirectory,
@@ -416,7 +438,7 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 	query, err := requestreview.NewChecked(requestreview.Dependencies{
 		Queues: requestreview.Queues{DirectCorrections: corrections, MasterData: nativeMasterQueue(masterData),
 			CareSchedule: nativeCareQueue(careReviews, reviewToday), Offering: nativeOfferingQueue(offeringReviews, reviewToday), Excused: nativeExcusedQueue(svc.ExcusedRequests, reviewToday)},
-		Access: queueTestAccess{}, Students: reviewStudents, FamilyProtection: NewFamilyProtection(svc.PeopleDirectory),
+		Access: queueTestAccess{}, Students: reviewStudents, FamilyProtection: svc.FamilyProtection,
 	})
 	require.NoError(t, err)
 

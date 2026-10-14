@@ -21,9 +21,9 @@ import (
 // below binds that service onto the facade with the exact transaction and
 // error semantics the api/guardians handlers used to apply themselves.
 
-// guardianProviderBinder is what the People Directory module exposes for the
+// GuardianProviderBinder is what the People Directory module exposes for the
 // late binding of its guardian provider.
-type guardianProviderBinder interface {
+type GuardianProviderBinder interface {
 	BindGuardianProvider(peopledirectory.GuardianProvider)
 }
 
@@ -31,67 +31,67 @@ type guardianProviderBinder interface {
 // Directory. A capability without the binder cannot serve guardians at all,
 // so the composition refuses to continue silently.
 func (f *Factory) bindGuardianDirectory(persons peopledirectory.Capability, runtime peopleCompose.LegacyRepositoryRuntime) {
-	binder, ok := persons.(guardianProviderBinder)
+	binder, ok := persons.(GuardianProviderBinder)
 	if !ok {
 		panic(fmt.Sprintf("guardian directory: people directory %T cannot bind the guardian provider", persons))
 	}
-	binder.BindGuardianProvider(&guardianDirectoryProvider{guardians: f.Guardian, runtime: runtime})
+	binder.BindGuardianProvider(&GuardianDirectoryProvider{Guardians: f.Guardian, Runtime: runtime})
 }
 
-type guardianDirectoryProvider struct {
-	guardians *peopleCompose.GuardianService
-	runtime   peopleCompose.LegacyRepositoryRuntime
+type GuardianDirectoryProvider struct {
+	Guardians *peopleCompose.GuardianService
+	Runtime   peopleCompose.LegacyRepositoryRuntime
 }
 
 // inTenantTx runs fn in the tenant transaction of the context, joining the
 // request transaction when one is open. Every write of the old handlers ran
 // this way, so a failure rolls the whole request back.
-func (p *guardianDirectoryProvider) inTenantTx(ctx context.Context, fn func(context.Context) error) error {
-	return p.runtime.InTenantTx(ctx, fn)
+func (p *GuardianDirectoryProvider) inTenantTx(ctx context.Context, fn func(context.Context) error) error {
+	return p.Runtime.InTenantTx(ctx, fn)
 }
 
-func (p *guardianDirectoryProvider) FindGuardian(ctx context.Context, id int64) (peopledirectory.Guardian, error) {
-	profile, err := p.guardians.GetGuardianByID(ctx, id)
+func (p *GuardianDirectoryProvider) FindGuardian(ctx context.Context, id int64) (peopledirectory.Guardian, error) {
+	profile, err := p.Guardians.GetGuardianByID(ctx, id)
 	if err != nil {
 		return peopledirectory.Guardian{}, mapGuardianError(err)
 	}
 	return toDirectoryGuardian(profile), nil
 }
 
-func (p *guardianDirectoryProvider) FindGuardianByEmail(ctx context.Context, email string) (peopledirectory.Guardian, error) {
-	profile, err := p.guardians.GuardianProfileRepo.FindByEmail(ctx, email)
+func (p *GuardianDirectoryProvider) FindGuardianByEmail(ctx context.Context, email string) (peopledirectory.Guardian, error) {
+	profile, err := p.Guardians.GuardianProfileRepo.FindByEmail(ctx, email)
 	if err != nil {
 		return peopledirectory.Guardian{}, mapGuardianError(err)
 	}
 	return toDirectoryGuardian(profile), nil
 }
 
-func (p *guardianDirectoryProvider) ListGuardians(ctx context.Context, page, pageSize int) ([]peopledirectory.Guardian, error) {
-	profiles, err := p.guardians.ListGuardiansPage(ctx, page, pageSize)
+func (p *GuardianDirectoryProvider) ListGuardians(ctx context.Context, page, pageSize int) ([]peopledirectory.Guardian, error) {
+	profiles, err := p.Guardians.ListGuardiansPage(ctx, page, pageSize)
 	if err != nil {
 		return nil, mapGuardianError(err)
 	}
 	return toDirectoryGuardians(profiles), nil
 }
 
-func (p *guardianDirectoryProvider) ListGuardiansWithoutAccount(ctx context.Context) ([]peopledirectory.Guardian, error) {
-	profiles, err := p.guardians.GetGuardiansWithoutAccount(ctx)
+func (p *GuardianDirectoryProvider) ListGuardiansWithoutAccount(ctx context.Context) ([]peopledirectory.Guardian, error) {
+	profiles, err := p.Guardians.GetGuardiansWithoutAccount(ctx)
 	if err != nil {
 		return nil, mapGuardianError(err)
 	}
 	return toDirectoryGuardians(profiles), nil
 }
 
-func (p *guardianDirectoryProvider) ListInvitableGuardians(ctx context.Context) ([]peopledirectory.Guardian, error) {
-	profiles, err := p.guardians.GetInvitableGuardians(ctx)
+func (p *GuardianDirectoryProvider) ListInvitableGuardians(ctx context.Context) ([]peopledirectory.Guardian, error) {
+	profiles, err := p.Guardians.GetInvitableGuardians(ctx)
 	if err != nil {
 		return nil, mapGuardianError(err)
 	}
 	return toDirectoryGuardians(profiles), nil
 }
 
-func (p *guardianDirectoryProvider) SearchGuardians(ctx context.Context, text string, limit int) ([]peopledirectory.GuardianMatch, error) {
-	matches, err := p.guardians.SearchGuardiansForPicker(ctx, text, limit)
+func (p *GuardianDirectoryProvider) SearchGuardians(ctx context.Context, text string, limit int) ([]peopledirectory.GuardianMatch, error) {
+	matches, err := p.Guardians.SearchGuardiansForPicker(ctx, text, limit)
 	if err != nil {
 		return nil, mapGuardianError(err)
 	}
@@ -105,32 +105,32 @@ func (p *guardianDirectoryProvider) SearchGuardians(ctx context.Context, text st
 	return result, nil
 }
 
-func (p *guardianDirectoryProvider) GuardianDeleteImpact(ctx context.Context, id int64) (peopledirectory.GuardianDeleteImpact, error) {
-	impact, err := p.guardians.GetGuardianDeleteImpact(ctx, id)
+func (p *GuardianDirectoryProvider) GuardianDeleteImpact(ctx context.Context, id int64) (peopledirectory.GuardianDeleteImpact, error) {
+	impact, err := p.Guardians.GetGuardianDeleteImpact(ctx, id)
 	if err != nil {
 		return peopledirectory.GuardianDeleteImpact{}, mapGuardianError(err)
 	}
 	return peopledirectory.GuardianDeleteImpact{LinkIDs: impact.LinkIDs, StudentNames: impact.StudentNames}, nil
 }
 
-func (p *guardianDirectoryProvider) ListGuardianPhones(ctx context.Context, guardianID int64) ([]peopledirectory.GuardianPhone, error) {
-	phones, err := p.guardians.GetGuardianPhoneNumbers(ctx, guardianID)
+func (p *GuardianDirectoryProvider) ListGuardianPhones(ctx context.Context, guardianID int64) ([]peopledirectory.GuardianPhone, error) {
+	phones, err := p.Guardians.GetGuardianPhoneNumbers(ctx, guardianID)
 	if err != nil {
 		return nil, mapGuardianError(err)
 	}
 	return toDirectoryPhones(phones), nil
 }
 
-func (p *guardianDirectoryProvider) FindGuardianPhone(ctx context.Context, phoneID int64) (peopledirectory.GuardianPhone, error) {
-	phone, err := p.guardians.GetPhoneNumberByID(ctx, phoneID)
+func (p *GuardianDirectoryProvider) FindGuardianPhone(ctx context.Context, phoneID int64) (peopledirectory.GuardianPhone, error) {
+	phone, err := p.Guardians.GetPhoneNumberByID(ctx, phoneID)
 	if err != nil {
 		return peopledirectory.GuardianPhone{}, mapGuardianPhoneError(err)
 	}
 	return toDirectoryPhone(phone), nil
 }
 
-func (p *guardianDirectoryProvider) ListStudentGuardians(ctx context.Context, studentID int64) ([]peopledirectory.GuardianWithLink, error) {
-	rows, err := p.guardians.GetStudentGuardians(ctx, studentID)
+func (p *GuardianDirectoryProvider) ListStudentGuardians(ctx context.Context, studentID int64) ([]peopledirectory.GuardianWithLink, error) {
+	rows, err := p.Guardians.GetStudentGuardians(ctx, studentID)
 	if err != nil {
 		return nil, mapGuardianError(err)
 	}
@@ -145,8 +145,8 @@ func (p *guardianDirectoryProvider) ListStudentGuardians(ctx context.Context, st
 	return result, nil
 }
 
-func (p *guardianDirectoryProvider) ListGuardianStudents(ctx context.Context, guardianID int64) ([]peopledirectory.StudentWithLink, error) {
-	rows, err := p.guardians.GetGuardianStudents(ctx, guardianID)
+func (p *GuardianDirectoryProvider) ListGuardianStudents(ctx context.Context, guardianID int64) ([]peopledirectory.StudentWithLink, error) {
+	rows, err := p.Guardians.GetGuardianStudents(ctx, guardianID)
 	if err != nil {
 		return nil, mapGuardianError(err)
 	}
@@ -160,43 +160,43 @@ func (p *guardianDirectoryProvider) ListGuardianStudents(ctx context.Context, gu
 	return result, nil
 }
 
-func (p *guardianDirectoryProvider) FindGuardianLink(ctx context.Context, linkID int64) (peopledirectory.GuardianLink, error) {
-	link, err := p.guardians.GetStudentGuardianRelationship(ctx, linkID)
+func (p *GuardianDirectoryProvider) FindGuardianLink(ctx context.Context, linkID int64) (peopledirectory.GuardianLink, error) {
+	link, err := p.Guardians.GetStudentGuardianRelationship(ctx, linkID)
 	if err != nil {
 		return peopledirectory.GuardianLink{}, mapGuardianLinkError(err)
 	}
 	return toDirectoryLink(link), nil
 }
 
-func (p *guardianDirectoryProvider) GuardianPaymentMasked(ctx context.Context, guardianID int64, actor peopledirectory.GuardianPaymentActor) (peopledirectory.GuardianPayment, error) {
-	masked, err := p.guardians.GetGuardianPaymentMasked(ctx, guardianID, actor.AccountID, actor.Role)
+func (p *GuardianDirectoryProvider) GuardianPaymentMasked(ctx context.Context, guardianID int64, actor peopledirectory.GuardianPaymentActor) (peopledirectory.GuardianPayment, error) {
+	masked, err := p.Guardians.GetGuardianPaymentMasked(ctx, guardianID, actor.AccountID, actor.Role)
 	if err != nil {
 		return peopledirectory.GuardianPayment{}, mapGuardianPaymentError(err)
 	}
 	return peopledirectory.GuardianPayment{GuardianProfileID: masked.GuardianProfileID, IBAN: masked.IBANMasked, AccountHolder: masked.AccountHolder}, nil
 }
 
-func (p *guardianDirectoryProvider) ListPaymentOverview(ctx context.Context, actor peopledirectory.GuardianPaymentActor) ([]peopledirectory.GuardianPaymentRow, error) {
-	rows, err := p.guardians.ListPaymentOverview(ctx, actor.AccountID, actor.Role)
+func (p *GuardianDirectoryProvider) ListPaymentOverview(ctx context.Context, actor peopledirectory.GuardianPaymentActor) ([]peopledirectory.GuardianPaymentRow, error) {
+	rows, err := p.Guardians.ListPaymentOverview(ctx, actor.AccountID, actor.Role)
 	if err != nil {
 		return nil, mapGuardianPaymentError(err)
 	}
 	return toDirectoryPaymentRows(rows), nil
 }
 
-func (p *guardianDirectoryProvider) ListPaymentExportRows(ctx context.Context, actor peopledirectory.GuardianPaymentActor, format string) ([]peopledirectory.GuardianPaymentRow, error) {
-	rows, err := p.guardians.ListPaymentExportRows(ctx, actor.AccountID, actor.Role, format)
+func (p *GuardianDirectoryProvider) ListPaymentExportRows(ctx context.Context, actor peopledirectory.GuardianPaymentActor, format string) ([]peopledirectory.GuardianPaymentRow, error) {
+	rows, err := p.Guardians.ListPaymentExportRows(ctx, actor.AccountID, actor.Role, format)
 	if err != nil {
 		return nil, mapGuardianPaymentError(err)
 	}
 	return toDirectoryPaymentRows(rows), nil
 }
 
-func (p *guardianDirectoryProvider) CreateGuardian(ctx context.Context, input peopledirectory.GuardianInput) (peopledirectory.Guardian, error) {
+func (p *GuardianDirectoryProvider) CreateGuardian(ctx context.Context, input peopledirectory.GuardianInput) (peopledirectory.Guardian, error) {
 	var profile *userModels.GuardianProfile
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
-		profile, txErr = p.guardians.CreateGuardian(txCtx, toGuardianCreateRequest(input))
+		profile, txErr = p.Guardians.CreateGuardian(txCtx, toGuardianCreateRequest(input))
 		return txErr
 	})
 	if err != nil {
@@ -205,31 +205,31 @@ func (p *guardianDirectoryProvider) CreateGuardian(ctx context.Context, input pe
 	return toDirectoryGuardian(profile), nil
 }
 
-func (p *guardianDirectoryProvider) UpdateGuardian(ctx context.Context, id int64, input peopledirectory.GuardianInput) error {
+func (p *GuardianDirectoryProvider) UpdateGuardian(ctx context.Context, id int64, input peopledirectory.GuardianInput) error {
 	return mapGuardianError(p.inTenantTx(ctx, func(txCtx context.Context) error {
-		return p.guardians.UpdateGuardian(txCtx, id, toGuardianCreateRequest(input))
+		return p.Guardians.UpdateGuardian(txCtx, id, toGuardianCreateRequest(input))
 	}))
 }
 
-func (p *guardianDirectoryProvider) EvaluateGuardianDelete(ctx context.Context, id int64, force, isAdmin bool) (bool, error) {
-	hasLinks, err := p.guardians.EvaluateGuardianDelete(ctx, id, force, isAdmin)
+func (p *GuardianDirectoryProvider) EvaluateGuardianDelete(ctx context.Context, id int64, force, isAdmin bool) (bool, error) {
+	hasLinks, err := p.Guardians.EvaluateGuardianDelete(ctx, id, force, isAdmin)
 	return hasLinks, mapGuardianError(err)
 }
 
-func (p *guardianDirectoryProvider) DeleteGuardian(ctx context.Context, input peopledirectory.GuardianDelete) error {
+func (p *GuardianDirectoryProvider) DeleteGuardian(ctx context.Context, input peopledirectory.GuardianDelete) error {
 	return mapGuardianError(p.inTenantTx(ctx, func(txCtx context.Context) error {
 		if input.WithLinks {
-			return p.guardians.DeleteGuardianWithLinks(txCtx, input.GuardianID, input.ExpectedLinkIDs, input.ActorAccountID)
+			return p.Guardians.DeleteGuardianWithLinks(txCtx, input.GuardianID, input.ExpectedLinkIDs, input.ActorAccountID)
 		}
-		return p.guardians.DeleteGuardian(txCtx, input.GuardianID, input.ActorAccountID)
+		return p.Guardians.DeleteGuardian(txCtx, input.GuardianID, input.ActorAccountID)
 	}))
 }
 
-func (p *guardianDirectoryProvider) AddGuardianPhone(ctx context.Context, guardianID int64, input peopledirectory.GuardianPhoneInput) (peopledirectory.GuardianPhone, error) {
+func (p *GuardianDirectoryProvider) AddGuardianPhone(ctx context.Context, guardianID int64, input peopledirectory.GuardianPhoneInput) (peopledirectory.GuardianPhone, error) {
 	var phone *userModels.GuardianPhoneNumber
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
-		phone, txErr = p.guardians.AddPhoneNumber(txCtx, guardianID, peopleCompose.PhoneNumberCreateRequest{
+		phone, txErr = p.Guardians.AddPhoneNumber(txCtx, guardianID, peopleCompose.PhoneNumberCreateRequest{
 			PhoneNumber: input.PhoneNumber, PhoneType: input.PhoneType, Label: input.Label, IsPrimary: input.IsPrimary,
 		})
 		return txErr
@@ -240,31 +240,31 @@ func (p *guardianDirectoryProvider) AddGuardianPhone(ctx context.Context, guardi
 	return toDirectoryPhone(phone), nil
 }
 
-func (p *guardianDirectoryProvider) UpdateGuardianPhone(ctx context.Context, phoneID int64, input peopledirectory.GuardianPhoneUpdate) error {
+func (p *GuardianDirectoryProvider) UpdateGuardianPhone(ctx context.Context, phoneID int64, input peopledirectory.GuardianPhoneUpdate) error {
 	return mapGuardianPhoneError(p.inTenantTx(ctx, func(txCtx context.Context) error {
-		return p.guardians.UpdatePhoneNumber(txCtx, phoneID, peopleCompose.PhoneNumberUpdateRequest{
+		return p.Guardians.UpdatePhoneNumber(txCtx, phoneID, peopleCompose.PhoneNumberUpdateRequest{
 			PhoneNumber: input.PhoneNumber, PhoneType: input.PhoneType, Label: input.Label, IsPrimary: input.IsPrimary, Priority: input.Priority,
 		})
 	}))
 }
 
-func (p *guardianDirectoryProvider) DeleteGuardianPhone(ctx context.Context, phoneID int64) error {
+func (p *GuardianDirectoryProvider) DeleteGuardianPhone(ctx context.Context, phoneID int64) error {
 	return mapGuardianPhoneError(p.inTenantTx(ctx, func(txCtx context.Context) error {
-		return p.guardians.DeletePhoneNumber(txCtx, phoneID)
+		return p.Guardians.DeletePhoneNumber(txCtx, phoneID)
 	}))
 }
 
-func (p *guardianDirectoryProvider) SetPrimaryGuardianPhone(ctx context.Context, phoneID int64) error {
+func (p *GuardianDirectoryProvider) SetPrimaryGuardianPhone(ctx context.Context, phoneID int64) error {
 	return mapGuardianPhoneError(p.inTenantTx(ctx, func(txCtx context.Context) error {
-		return p.guardians.SetPrimaryPhone(txCtx, phoneID)
+		return p.Guardians.SetPrimaryPhone(txCtx, phoneID)
 	}))
 }
 
-func (p *guardianDirectoryProvider) LinkGuardianToStudent(ctx context.Context, input peopledirectory.LinkGuardian) (peopledirectory.GuardianLink, error) {
+func (p *GuardianDirectoryProvider) LinkGuardianToStudent(ctx context.Context, input peopledirectory.LinkGuardian) (peopledirectory.GuardianLink, error) {
 	var link *userModels.StudentGuardian
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
-		link, txErr = p.guardians.LinkGuardianToStudent(txCtx, peopleCompose.StudentGuardianCreateRequest{
+		link, txErr = p.Guardians.LinkGuardianToStudent(txCtx, peopleCompose.StudentGuardianCreateRequest{
 			StudentID: input.StudentID, GuardianProfileID: input.GuardianProfileID,
 			RelationshipType: input.RelationshipType, GuardianRole: input.GuardianRole,
 			IsPrimary: input.IsPrimary, IsEmergencyContact: input.IsEmergencyContact, CanPickup: input.CanPickup,
@@ -278,22 +278,22 @@ func (p *guardianDirectoryProvider) LinkGuardianToStudent(ctx context.Context, i
 	return toDirectoryLink(link), nil
 }
 
-func (p *guardianDirectoryProvider) ValidateNewGuardians(ctx context.Context, guardians []peopledirectory.NewStudentGuardian) error {
-	return mapGuardianError(p.guardians.ValidateNewGuardians(ctx, toNewStudentGuardians(guardians)))
+func (p *GuardianDirectoryProvider) ValidateNewGuardians(ctx context.Context, guardians []peopledirectory.NewStudentGuardian) error {
+	return mapGuardianError(p.Guardians.ValidateNewGuardians(ctx, toNewStudentGuardians(guardians)))
 }
 
 // AddGuardiansToStudent joins the caller's transaction: the student create
 // flow and the batch endpoint both open theirs first, and a validation
 // failure must roll back everything they wrote.
-func (p *guardianDirectoryProvider) AddGuardiansToStudent(ctx context.Context, studentID int64, guardians []peopledirectory.NewStudentGuardian) error {
+func (p *GuardianDirectoryProvider) AddGuardiansToStudent(ctx context.Context, studentID int64, guardians []peopledirectory.NewStudentGuardian) error {
 	return mapGuardianError(p.inTenantTx(ctx, func(txCtx context.Context) error {
-		return p.guardians.AddGuardiansToStudent(txCtx, studentID, toNewStudentGuardians(guardians))
+		return p.Guardians.AddGuardiansToStudent(txCtx, studentID, toNewStudentGuardians(guardians))
 	}))
 }
 
-func (p *guardianDirectoryProvider) UpdateGuardianLink(ctx context.Context, linkID int64, input peopledirectory.GuardianLinkUpdate) error {
+func (p *GuardianDirectoryProvider) UpdateGuardianLink(ctx context.Context, linkID int64, input peopledirectory.GuardianLinkUpdate) error {
 	return mapGuardianLinkError(p.inTenantTx(ctx, func(txCtx context.Context) error {
-		return p.guardians.UpdateStudentGuardianRelationship(txCtx, linkID, peopleCompose.StudentGuardianUpdateRequest{
+		return p.Guardians.UpdateStudentGuardianRelationship(txCtx, linkID, peopleCompose.StudentGuardianUpdateRequest{
 			RelationshipType: input.RelationshipType, GuardianRole: input.GuardianRole,
 			IsPrimary: input.IsPrimary, IsEmergencyContact: input.IsEmergencyContact, CanPickup: input.CanPickup,
 			PickupNotes: input.PickupNotes, EmergencyPriority: input.EmergencyPriority,
@@ -301,28 +301,28 @@ func (p *guardianDirectoryProvider) UpdateGuardianLink(ctx context.Context, link
 	}))
 }
 
-func (p *guardianDirectoryProvider) RemoveGuardianFromStudent(ctx context.Context, input peopledirectory.RemoveGuardian) error {
+func (p *GuardianDirectoryProvider) RemoveGuardianFromStudent(ctx context.Context, input peopledirectory.RemoveGuardian) error {
 	return mapGuardianError(p.inTenantTx(ctx, func(txCtx context.Context) error {
-		return p.guardians.RemoveGuardianFromStudent(txCtx, input.StudentID, input.GuardianProfileID, input.ActorAccountID, input.MayClearPayer)
+		return p.Guardians.RemoveGuardianFromStudent(txCtx, input.StudentID, input.GuardianProfileID, input.ActorAccountID, input.MayClearPayer)
 	}))
 }
 
-func (p *guardianDirectoryProvider) RevealGuardianPayment(ctx context.Context, guardianID int64, actor peopledirectory.GuardianPaymentActor) (peopledirectory.GuardianPayment, error) {
-	plain, err := p.guardians.RevealGuardianPayment(ctx, guardianID, actor.AccountID, actor.Role)
+func (p *GuardianDirectoryProvider) RevealGuardianPayment(ctx context.Context, guardianID int64, actor peopledirectory.GuardianPaymentActor) (peopledirectory.GuardianPayment, error) {
+	plain, err := p.Guardians.RevealGuardianPayment(ctx, guardianID, actor.AccountID, actor.Role)
 	if err != nil {
 		return peopledirectory.GuardianPayment{}, mapGuardianPaymentError(err)
 	}
 	return peopledirectory.GuardianPayment{GuardianProfileID: plain.GuardianProfileID, IBAN: plain.IBAN, AccountHolder: plain.AccountHolder}, nil
 }
 
-func (p *guardianDirectoryProvider) UpdateGuardianPayment(ctx context.Context, guardianID int64, input peopledirectory.GuardianPaymentInput) error {
-	return mapGuardianPaymentError(p.guardians.UpdateGuardianPayment(ctx, guardianID, peopleCompose.GuardianPaymentInput{
+func (p *GuardianDirectoryProvider) UpdateGuardianPayment(ctx context.Context, guardianID int64, input peopledirectory.GuardianPaymentInput) error {
+	return mapGuardianPaymentError(p.Guardians.UpdateGuardianPayment(ctx, guardianID, peopleCompose.GuardianPaymentInput{
 		IBAN: input.IBAN, AccountHolder: input.AccountHolder,
 	}, input.ActorAccountID, input.Note))
 }
 
-func (p *guardianDirectoryProvider) SetStudentPayer(ctx context.Context, input peopledirectory.StudentPayer) error {
-	return mapGuardianPaymentError(p.guardians.SetStudentPayer(ctx, input.StudentID, input.GuardianProfileID, input.ActorAccountID))
+func (p *GuardianDirectoryProvider) SetStudentPayer(ctx context.Context, input peopledirectory.StudentPayer) error {
+	return mapGuardianPaymentError(p.Guardians.SetStudentPayer(ctx, input.StudentID, input.GuardianProfileID, input.ActorAccountID))
 }
 
 // --- error mapping ---

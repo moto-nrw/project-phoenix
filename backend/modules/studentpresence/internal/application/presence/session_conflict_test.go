@@ -90,6 +90,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -104,8 +105,8 @@ import (
 
 // setupActiveService creates an active service with real database connection
 func setupActiveService(t *testing.T, db *testpkg.DB, clocks ...func() time.Time) activeSvc.Service {
-	repoFactory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
-	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), clocks...) // Pass db as second parameter
+	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	serviceFactory, err := api.NewFactoryForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), clocks...) // Pass db as second parameter
 	require.NoError(t, err, "Failed to create service factory")
 	activeSvc.ConfigureForTest(composedEngine(t, serviceFactory.Active), activeSvc.WithTenantRuntime(testpkg.TenantRuntime(t, db)))
 	return composedEngine(t, serviceFactory.Active)
@@ -509,7 +510,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 			IsSpontaneous:   true,
 		}
 		mirroredInstance.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db)).ActivityInstance.Create(ctx, mirroredInstance))
+		require.NoError(t, services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance.Create(ctx, mirroredInstance))
 
 		// ACT: Force-start the same activity on device 2
 		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device2.ID, []int64{newSupervisor.ID}, &room2.ID)
@@ -533,7 +534,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		assert.Equal(t, session2.ID, transferredVisit.ActiveGroupID, "expected active visit to move to new session")
 		assert.Nil(t, transferredVisit.ExitTime, "expected transferred visit to remain open")
 
-		completedMirror, err := services.NewTimetableRepositories(db, services.NewUnobservedTimetableDependencies(db)).ActivityInstance.FindByID(ctx, mirroredInstance.ID)
+		completedMirror, err := services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance.FindByID(ctx, mirroredInstance.ID)
 		require.NoError(t, err)
 		assert.Equal(t, scheduleModels.InstanceStatusCompleted, completedMirror.Status, "expected old timetable mirror to be completed")
 		assert.NotNil(t, completedMirror.CompletedAt, "expected completed mirror timestamp")
@@ -542,7 +543,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, oldActiveSupervisors, "expected old session to have no active supervisors")
 
-		allOldSupervisors, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).GroupSupervisor.FindByActiveGroupID(ctx, session1.ID, false)
+		allOldSupervisors, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).GroupSupervisor.FindByActiveGroupID(ctx, session1.ID, false)
 		require.NoError(t, err)
 		require.Len(t, allOldSupervisors, 1, "expected old session supervisor history to be preserved")
 		assert.Equal(t, oldSupervisor.ID, allOldSupervisors[0].StaffID)
@@ -596,7 +597,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, oldActiveSupervisors, "expected old session to have no active supervisors")
 
-		allOldSupervisors, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).GroupSupervisor.FindByActiveGroupID(ctx, session1.ID, false)
+		allOldSupervisors, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).GroupSupervisor.FindByActiveGroupID(ctx, session1.ID, false)
 		require.NoError(t, err)
 		require.Len(t, allOldSupervisors, 1, "expected supervisor row to remain on old session")
 		assert.Equal(t, staff.ID, allOldSupervisors[0].StaffID)

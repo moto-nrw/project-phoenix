@@ -50,7 +50,7 @@ staff, err := rs.UsersService.GetStaffByPersonID(ctx, personID)
 
 `backend/test/handler_layer_ratchet_test.go` (`TestHandlerLayerRatchet`) fails any PR that reintroduces one of five patterns, all with empty allowlists:
 
-1. Repo-typed declarations in `api/`
+1. Repo-typed declarations in `api/`, outside the root's test composition hooks (`api/*_test_helpers.go`, #4005), which build the retained repositories for tests and serve no request
 2. `.XxxRepository()` getter calls (backend-wide except `database/` and `test/`)
 3. Query construction (`NewSelect` etc.) in `api/`
 4. `database/repositories` imports in `api/` beyond `base.go` + `testutil/`
@@ -157,7 +157,7 @@ The old per-entity `BeforeAppendModel(query any) error` hooks never ran: bun's h
 gocognit -over 15 backend/api/
 ```
 
-**CI-enforced since 2026-07-12** (issue #575 B0): `TestHandlerComplexityRatchet` (`backend/test/handler_complexity_ratchet_test.go`) fails any function under `api/` scoring over 15 that is not in its shrink-only allowlist (seeded with the 75 offenders existing at ratchet time; keys match `gocognit -over 15 api/` output 1:1). When a refactor lowers a score, ratchet the entry down; never raise one or add one.
+**CI-enforced since 2026-07-12** (issue #575 B0): `TestHandlerComplexityRatchet` (`backend/test/handler_complexity_ratchet_test.go`) fails any function under `api/` scoring over 15 that is not in its shrink-only allowlist; the root's test composition hooks (`api/*_test_helpers.go`, #4005) are no handlers and stay outside the scan (seeded with the 75 offenders existing at ratchet time; keys match `gocognit -over 15 api/` output 1:1). When a refactor lowers a score, ratchet the entry down; never raise one or add one.
 
 Two shapes that keep handlers under the threshold without hiding logic:
 
@@ -325,10 +325,10 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 | Repo mocks for `models/*` interfaces (School, Staff, suggestions) | `test/repo_mocks.go`, `test/suggestions_mocks.go` |
 | Consumer-owned settings ports (`ResolveBool`, `ResolveString`, …) | a package-local func-field `settingsDouble` with only the resolvers the ports need; `services/config/configtest` is gone (#3965) |
 | `identityaccess.AccountMFA` | a package-local func-field double; the behaviour suites keep theirs in `modules/identityaccess/behavior` |
-| Person-directory lookups of the acting account's staff identity | `testutil.StaffAccountPeople` (`services/timetable_operation_people_test_helpers.go`, re-exported by `api/testutil`) |
+| Person-directory lookups of the acting account's staff identity | `api.TimetableTestStaffAccountPeople` (`api/timetable_operation_people_test_helpers.go`) |
 | API request/bootstrap helpers | `api/testutil` (`SetupAPITest`, `ExecuteWithAuth`, `ExecuteWithAuthPermissions`, `MintTestJWT`) |
 
-Placement rules: mocks for `models/*` interfaces go in `test/` (imports models only — safe for internal test packages) unless the architecture policy keeps that model package out of the shared fixtures, as it does `models/users` (#3966): the retained People Directory doubles live in the legacy composition's suite helpers behind `api/testutil`; mocks for a service interface go in a leaf `<domain>test` package next to the interface (usable everywhere EXCEPT that package's own internal tests — import cycle). New shared mocks follow the func-field convention (`XxxFn` fields, nil = zero-value default). Behaviorally divergent doubles (error-injection hooks, deliberate panics, channel-based capture) may stay package-local — divergence is the documented exception, copy-paste is not. Settings doubles are the second exception: each consumer declares its own narrow settings port, so its `settingsDouble` implements exactly that port; a shared double for the settings service's full method set would pull the Settings Platform's schema types into test support (#3965).
+Placement rules: mocks for `models/*` interfaces go in `test/` (imports models only — safe for internal test packages) unless the architecture policy keeps that model package out of the shared fixtures, as it does `models/users` (#3966): the retained People Directory doubles live in the root's test hooks (`api/*_test_helpers.go`, #4005); mocks for a service interface go in a leaf `<domain>test` package next to the interface (usable everywhere EXCEPT that package's own internal tests — import cycle). New shared mocks follow the func-field convention (`XxxFn` fields, nil = zero-value default). Behaviorally divergent doubles (error-injection hooks, deliberate panics, channel-based capture) may stay package-local — divergence is the documented exception, copy-paste is not. Settings doubles are the second exception: each consumer declares its own narrow settings port, so its `settingsDouble` implements exactly that port; a shared double for the settings service's full method set would pull the Settings Platform's schema types into test support (#3965).
 
 ---
 

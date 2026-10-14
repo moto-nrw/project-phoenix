@@ -8,10 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -28,7 +31,7 @@ func (f *overviewFixture) newExportService() timetracking.StaffTimeExportService
 		f.svc,
 		f.newWorkSessionService(),
 		services.TimeExportStaff(f.repos.Staff),
-		services.NewTimeTrackingDataAccessAudit(services.NewTestAuditPersistence(f.db, nil).DataAccessLog),
+		services.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).DataAccessLog),
 		nil,
 		nil,
 		services.RenderTimeTrackingWorkbook,
@@ -39,9 +42,9 @@ func (f *overviewFixture) newWorkSessionService() timetracking.WorkSessionServic
 	// nil settings: the F9 deviation checks are opt-in and irrelevant for
 	// reading export rows.
 	return timetracking.NewWorkSessionService(
-		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, services.NewWorkSessionAudit(services.NewTestAuditPersistence(f.db, nil).WorkSessionEdit),
-		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff, services.MustNewStaffEmployment(f.db)),
-		services.NewWorkSessionSchedules(services.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkSessionTimeModels(services.NewWorkTimeModelRepository(f.workforce)),
+		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, services.NewWorkSessionAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).WorkSessionEdit),
+		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(f.db))),
+		services.NewWorkSessionSchedules(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkSessionTimeModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(f.workforce)),
 		nil,
 		nil,
 		f.db,
@@ -160,8 +163,8 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 		accountStart: timezone.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
 	}
 	monthSvc := timetracking.NewWorkTimeMonthService(
-		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, f.repos.StaffAbsence, services.StaffScheduleAssignments(services.MustNewStaffEmployment(f.db)),
-		services.NewWorkScheduleTargets(services.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkTimeTargetModels(services.NewWorkTimeModelRepository(f.workforce)), services.NewTimeTrackingShifts(f.workforce),
+		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, f.repos.StaffAbsence, services.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, f.db))),
+		services.NewWorkScheduleTargets(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkTimeTargetModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(f.workforce)), services.NewTimeTrackingShifts(f.workforce),
 		settings, nil,
 		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments),
 		timetracking.WithMonthSnapshots(workforceCompose.MonthSnapshotCapability(f.workforce)),
@@ -300,7 +303,7 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	sessionSvc := f.newWorkSessionService()
 	exportSvc := timetracking.NewStaffTimeExportService(
-		f.svc, sessionSvc, services.TimeExportStaff(f.repos.Staff), services.NewTimeTrackingDataAccessAudit(services.NewTestAuditPersistence(f.db, nil).DataAccessLog), nil, nil,
+		f.svc, sessionSvc, services.TimeExportStaff(f.repos.Staff), services.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog), nil, nil,
 		services.RenderTimeTrackingWorkbook,
 	)
 

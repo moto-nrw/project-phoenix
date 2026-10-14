@@ -13,15 +13,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/services"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // --- shared helpers for this file ---
@@ -46,10 +46,10 @@ func newWiredMFAFixture(t *testing.T) *wiredMFAFixture {
 
 	mailer := testpkg.NewCapturingMailer()
 	module := newMFATestModule(t, db,
-		services.WithAuthTestMailer(mailer),
+		api.WithAuthTestMailer(mailer),
 		// No retries: a refused send must fail in milliseconds, not in the
 		// production twenty seconds.
-		services.WithAuthTestMFABackoff(time.Millisecond),
+		api.WithAuthTestMFABackoff(time.Millisecond),
 	)
 
 	return &wiredMFAFixture{

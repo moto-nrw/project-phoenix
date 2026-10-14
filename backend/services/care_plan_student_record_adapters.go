@@ -11,20 +11,20 @@ import (
 // still read through the people model contract. This repository translates
 // that contract onto the owner's Commands and Queries.
 
-type companionRepository struct{ capability careplan.Capability }
+type CompanionRepository struct{ Capability careplan.Capability }
 
-var _ userModels.StudentCompanionRepository = companionRepository{}
+var _ userModels.StudentCompanionRepository = CompanionRepository{}
 
 // NewStudentCompanionRepository serves the companion edge contract over the
 // Care Plan owner capability.
 func NewStudentCompanionRepository(capability careplan.Capability) userModels.StudentCompanionRepository {
-	return companionRepository{capability: capability}
+	return CompanionRepository{Capability: capability}
 }
 
-func (r companionRepository) ListForStudent(ctx context.Context, studentID int64) ([]*userModels.StudentCompanion, error) {
-	values, err := r.capability.ListCompanionEdges(ctx, studentID)
+func (r CompanionRepository) ListForStudent(ctx context.Context, studentID int64) ([]*userModels.StudentCompanion, error) {
+	values, err := r.Capability.ListCompanionEdges(ctx, studentID)
 	if err != nil {
-		return nil, wrapRetainedError("list student companions", err)
+		return nil, WrapRetainedError("list student companions", err)
 	}
 	result := make([]*userModels.StudentCompanion, 0, len(values))
 	for _, value := range values {
@@ -33,10 +33,10 @@ func (r companionRepository) ListForStudent(ctx context.Context, studentID int64
 	return result, nil
 }
 
-func (r companionRepository) ListLinksForStudents(ctx context.Context, studentIDs []int64) (map[int64][]userModels.CompanionLink, error) {
-	values, err := r.capability.ListCompanionLinks(ctx, studentIDs)
+func (r CompanionRepository) ListLinksForStudents(ctx context.Context, studentIDs []int64) (map[int64][]userModels.CompanionLink, error) {
+	values, err := r.Capability.ListCompanionLinks(ctx, studentIDs)
 	if err != nil {
-		return nil, wrapRetainedError("list student companions", err)
+		return nil, WrapRetainedError("list student companions", err)
 	}
 	result := make(map[int64][]userModels.CompanionLink, len(values))
 	for studentID, links := range values {
@@ -49,31 +49,31 @@ func (r companionRepository) ListLinksForStudents(ctx context.Context, studentID
 	return result, nil
 }
 
-func (r companionRepository) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {
+func (r CompanionRepository) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {
 	if _, ok := userModels.CompanionWeekdayKeys[weekday]; !ok {
 		return nil, userModels.ErrCompanionInvalidWeekday
 	}
-	values, err := r.capability.CompanionIDsForWeekday(ctx, studentIDs, weekday)
-	return values, wrapRetainedError("list companions for weekday", err)
+	values, err := r.Capability.CompanionIDsForWeekday(ctx, studentIDs, weekday)
+	return values, WrapRetainedError("list companions for weekday", err)
 }
 
-func (r companionRepository) CompanionCountsExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]int, error) {
-	values, err := r.capability.CompanionCountsExcluding(ctx, studentIDs, excludeID)
-	return values, wrapRetainedError("count student companions", err)
+func (r CompanionRepository) CompanionCountsExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]int, error) {
+	values, err := r.Capability.CompanionCountsExcluding(ctx, studentIDs, excludeID)
+	return values, WrapRetainedError("count student companions", err)
 }
 
-func (r companionRepository) CompanionDaysCoveredExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]map[string]bool, error) {
-	values, err := r.capability.CompanionDaysCoveredExcluding(ctx, studentIDs, excludeID)
-	return values, wrapRetainedError("list student companion days", err)
+func (r CompanionRepository) CompanionDaysCoveredExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]map[string]bool, error) {
+	values, err := r.Capability.CompanionDaysCoveredExcluding(ctx, studentIDs, excludeID)
+	return values, WrapRetainedError("list student companion days", err)
 }
 
-func (r companionRepository) CompanionWeekdays(ctx context.Context, studentID int64) ([]int, error) {
-	values, err := r.capability.CompanionWeekdays(ctx, studentID)
-	return values, wrapRetainedError("check student companion links", err)
+func (r CompanionRepository) CompanionWeekdays(ctx context.Context, studentID int64) ([]int, error) {
+	values, err := r.Capability.CompanionWeekdays(ctx, studentID)
+	return values, WrapRetainedError("check student companion links", err)
 }
 
-func (r companionRepository) DeleteEdges(ctx context.Context, edgeIDs []int64) error {
-	return wrapRetainedError("delete student companion edges", r.capability.DeleteCompanionEdges(ctx, edgeIDs))
+func (r CompanionRepository) DeleteEdges(ctx context.Context, edgeIDs []int64) error {
+	return WrapRetainedError("delete student companion edges", r.Capability.DeleteCompanionEdges(ctx, edgeIDs))
 }
 
 func companionToLegacy(value careplan.CompanionEdge) *userModels.StudentCompanion {

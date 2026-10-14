@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -28,7 +30,7 @@ import (
 type vacationOpeningFixture struct {
 	tenantID  int64
 	db        *testpkg.DB
-	repos     *services.RepositoryTestFactory
+	repos     *api.RepositoryTestFactory
 	workforce workforce.Capability
 	ctx       context.Context
 	staff     int64
@@ -48,8 +50,8 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Urlaub", "Uebernahme")
 	admin := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Urlaub", "Leitung")
-	owners := services.NewUnobservedTimetableDependencies(db)
-	repos := services.NewRepositoryTestFactory(db, owners)
+	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {
@@ -69,7 +71,7 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 		timetracking.WithAbsenceToday(func() timezone.Date { return timezone.NewDate(2026, 8, 24) }),
 		// Wired exactly like services/factory.go does.
 		timetracking.WithVacationOpenings(workforceCompose.NewTimeTrackingTestRows(owners.Workforce).VacationOpenings),
-		timetracking.WithAbsenceDeletionAudit(services.NewTimeTrackingDeletionAudit(services.NewTestAuditPersistence(db, nil).TimeTrackingDeletion)),
+		timetracking.WithAbsenceDeletionAudit(services.NewTimeTrackingDeletionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)),
 	)
 
 	return &vacationOpeningFixture{

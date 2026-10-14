@@ -9,7 +9,7 @@ import (
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-func facilitiesGroupSupervisions(presence interface {
+func FacilitiesGroupSupervisions(presence interface {
 	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
 }) func(context.Context, []int64) ([]facilitiesCompose.OpenGroupSupervisor, error) {
 	return func(ctx context.Context, groupIDs []int64) ([]facilitiesCompose.OpenGroupSupervisor, error) {
@@ -47,7 +47,7 @@ func facilitiesSupervisionEnded(endDate *string, today string) bool {
 	return !day.Before(end)
 }
 
-func facilitiesGroupVisits(presence interface {
+func FacilitiesGroupVisits(presence interface {
 	ListVisits(context.Context, studentpresence.VisitFilter) ([]studentpresence.Visit, error)
 }) func(context.Context, int64) ([]facilitiesCompose.OpenGroupVisit, error) {
 	return func(ctx context.Context, groupID int64) ([]facilitiesCompose.OpenGroupVisit, error) {
@@ -63,7 +63,7 @@ func facilitiesGroupVisits(presence interface {
 	}
 }
 
-func facilitiesRoomSessions(presence interface {
+func FacilitiesRoomSessions(presence interface {
 	QueryLiveGroups(context.Context, studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error)
 }) func(context.Context, int64) ([]facilitiesCompose.OpenGroup, error) {
 	return func(ctx context.Context, roomID int64) ([]facilitiesCompose.OpenGroup, error) {

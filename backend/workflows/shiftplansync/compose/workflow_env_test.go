@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -24,8 +26,8 @@ import (
 // retained timetable planning services serve the Betreuungsplan staffing.
 type planSyncEnv struct {
 	db        *bun.DB
-	repos     services.TimetableTestRepositories
-	timetable services.TimetableTestModule
+	repos     api.TimetableTestRepositories
+	timetable api.TimetableTestModule
 	shifts    workforce.Capability
 	planning  workforce.StaffShiftPlanning
 	lock      func(context.Context, int64) error
@@ -49,13 +51,13 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 	}
 	today := timezone.CalendarDateClock(clocks...)
 
-	repos, err := services.NewTimetableTestRepositories(db, clocks...)
+	repos, err := api.NewTimetableTestRepositories(testpkg.NewDatabase(t, db), clocks...)
 	require.NoError(t, err)
-	timetable, err := services.NewTimetableTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	timetable, err := api.NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	require.NoError(t, err)
 	membership, err := services.NewSchoolMembership(db)
 	require.NoError(t, err)
-	capability, err := services.NewWorkforce(db, membership)
+	capability, err := api.NewWorkforce(testpkg.NewDatabase(t, db), membership)
 	require.NoError(t, err)
 
 	shiftPlanning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
@@ -86,7 +88,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		Workforce:       capability,
 		LockStaffShifts: lock,
 		Deviations:      timetable.TimetableData.Deviations,
-		TimetableData:   services.NewSickCascadeTimetableRows(repos.OwnerRows(), db),
+		TimetableData:   api.NewSickCascadeTimetableRows(repos.OwnerRows(), testpkg.NewDatabase(t, db)),
 		InstanceStaff:   repos.InstanceStaffReads(),
 		Broadcaster:     broadcaster,
 		Logger:          logger,

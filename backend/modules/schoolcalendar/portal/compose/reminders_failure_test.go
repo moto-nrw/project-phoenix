@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
@@ -104,7 +105,7 @@ func (s reminderEffectsSource) ReminderEffects() calendarCompose.ReminderEffects
 func TestCalendarServiceIntegration_ReminderPreparationRollsBackEmailAndPushClaim(t *testing.T) {
 	t.Parallel()
 
-	db, module := testutil.SetupCalendarModule(t)
+	db, module := setupCalendarModule(t)
 	_, organizer := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Rollback")
 	parent := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := calendarContext(t, organizer.ID)
@@ -128,7 +129,7 @@ func TestCalendarServiceIntegration_ReminderPreparationRollsBackEmailAndPushClai
 		pushes++
 		return true, nil
 	}
-	command := testutil.ComposeCalendarReminderCommand(db, reminderEffectsSource{effects})
+	command := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), reminderEffectsSource{effects})
 	startsAt := berlinInstant(t, date, 18, 0)
 	from, to := startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute)
 
@@ -169,7 +170,7 @@ func TestCalendarServiceIntegration_ReminderPreparationRollsBackEmailAndPushClai
 		require.NoError(t, err)
 		effects.Email = nil
 		effects.FilterEmail = nil
-		pushOnly := testutil.ComposeCalendarReminderCommand(db, reminderEffectsSource{effects})
+		pushOnly := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), reminderEffectsSource{effects})
 		queued, err := pushOnly.EnqueueDueAppointmentReminders(ctx, from, to)
 		require.NoError(t, err)
 		assert.Zero(t, queued, "push-only delivery does not enqueue email")
@@ -246,7 +247,7 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 			cfg.Logger = slog.Default()
 			breakStep(&cfg)
 
-			queued, err := testutil.ComposeCalendarReminderCommand(db, calendarRuntime.NewCalendarPortal(cfg)).EnqueueDueAppointmentReminders(ctx, from, to)
+			queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), calendarRuntime.NewCalendarPortal(cfg)).EnqueueDueAppointmentReminders(ctx, from, to)
 			require.ErrorIs(t, err, errReminderStore)
 			assert.Zero(t, queued)
 		})
@@ -263,7 +264,7 @@ func TestCalendarServiceIntegration_ReminderScanRequiresATenant(t *testing.T) {
 	service := setupCalendarServiceWithOutbox(t, db, &recordingOutbox{})
 	now := timezone.Now()
 
-	queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(context.Background(), now, now.Add(time.Hour))
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(context.Background(), now, now.Add(time.Hour))
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "tenant id is required")
 	assert.Zero(t, queued)

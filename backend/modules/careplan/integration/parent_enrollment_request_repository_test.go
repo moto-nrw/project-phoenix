@@ -9,18 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -376,7 +374,7 @@ func TestEnrollmentRequestRepository_ListByAccount_FiltersMaterializedChildWitho
 	profile := testpkg.CreateTestGuardianProfile(t, db, "parentlist-permission")
 	student := testpkg.CreateTestStudent(t, db, "Materialized", "Child", "1a")
 
-	factory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, factory.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	relationship := &usersModels.StudentGuardian{
@@ -416,7 +414,7 @@ func TestEnrollmentRequestRepository_ListByAccount_HidesMixedPermissionMateriali
 	visible := testpkg.CreateTestStudent(t, db, "Visible", "Child", "1a")
 	hidden := testpkg.CreateTestStudent(t, db, "Hidden", "Child", "1b")
 
-	factory := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, factory.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	relationship := &usersModels.StudentGuardian{

@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +28,7 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates guardian profile with valid data", func(t *testing.T) {
@@ -67,7 +68,7 @@ func TestGuardianProfileRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing guardian profile", func(t *testing.T) {
@@ -91,7 +92,7 @@ func TestGuardianProfileRepository_FindByEmail(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds guardian profile by email", func(t *testing.T) {
@@ -123,7 +124,7 @@ func TestGuardianProfileRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates guardian profile", func(t *testing.T) {
@@ -164,7 +165,7 @@ func TestGuardianProfileRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing guardian profile", func(t *testing.T) {
@@ -195,7 +196,7 @@ func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists guardian profiles with pagination", func(t *testing.T) {
@@ -223,7 +224,7 @@ func TestGuardianProfileRepository_FindWithoutAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds guardians without accounts", func(t *testing.T) {
@@ -249,7 +250,7 @@ func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds invitable guardians", func(t *testing.T) {
@@ -303,7 +304,7 @@ func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for non-existent profile", func(t *testing.T) {
@@ -343,7 +344,7 @@ func TestGuardianProfileRepository_FindByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for non-existent account ID", func(t *testing.T) {
@@ -362,7 +363,7 @@ func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	profile := testpkg.CreateTestGuardianProfile(t, db, "profilechildren")
@@ -389,8 +390,8 @@ func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t
 		Permissions:       map[string]interface{}{},
 	}
 	hiddenRel.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, testutil.NewPeopleRepositorySuiteFactory(db).StudentGuardian.Create(ctx, visibleRel))
-	require.NoError(t, testutil.NewPeopleRepositorySuiteFactory(db).StudentGuardian.Create(ctx, hiddenRel))
+	require.NoError(t, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).StudentGuardian.Create(ctx, visibleRel))
+	require.NoError(t, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).StudentGuardian.Create(ctx, hiddenRel))
 
 	loaded, err := repo.LoadProfileWithChildren(ctx, account.ID)
 	require.NoError(t, err)
@@ -425,7 +426,7 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	t.Run("matches a first-name substring case-insensitively and excludes non-matches", func(t *testing.T) {
@@ -511,7 +512,7 @@ func TestGuardianProfileRepository_FindByAccountID_ReturnsLinkedProfile(t *testi
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	profile := testpkg.CreateTestGuardianProfile(t, db, "findbyaccount")
@@ -542,7 +543,7 @@ func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "localeordering")
@@ -591,7 +592,7 @@ func TestGuardianProfileRepository_LockByIDForUpdate(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).GuardianProfile
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile
 
 	t.Run("locks an existing guardian within a tenant transaction", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "lock-existing")

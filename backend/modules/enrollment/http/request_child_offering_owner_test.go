@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"testing"
 
@@ -18,7 +18,7 @@ import (
 func TestOwnerOfferingInsertDefaultsDatesAndRollsBack(t *testing.T) {
 	t.Parallel()
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	module := services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
+	module := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	selection := &owner.RequestChildOffering{RequestChildID: childID, CareOfferingID: offeringID, SelectedDays: []string{"mon"}, ManualSelectedDays: []string{"mon"}}
 	failure := errors.New("injected after selection insert")
 	err := testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
@@ -48,7 +48,7 @@ func TestOwnerOfferingInsertDefaultsDatesAndRollsBack(t *testing.T) {
 func TestOwnerOfferingReplacementRestoresDeletedRowsOnFailure(t *testing.T) {
 	t.Parallel()
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	module := services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
+	module := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	ctx := testpkg.Ctx(t)
 	initial := &owner.RequestChildOffering{RequestChildID: childID, CareOfferingID: offeringID, SelectedDays: []string{"mon"}}
 	require.NoError(t, module.InsertRequestChildOffering(ctx, initial))
@@ -90,7 +90,7 @@ func TestOwnerOfferingReplacementRestoresDeletedRowsOnFailure(t *testing.T) {
 func TestOwnerScheduledOfferingsPreserveHistoryAndRollbackSupersession(t *testing.T) {
 	t.Parallel()
 	db, _, tenantID, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	module := services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
+	module := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	ctx := testpkg.Ctx(t)
 	initial := &owner.RequestChildOffering{RequestChildID: childID, CareOfferingID: offeringID, SelectedDays: []string{"mon"}}
 	require.NoError(t, module.InsertRequestChildOffering(ctx, initial))
@@ -137,7 +137,7 @@ func TestOwnerScheduledOfferingsPreserveHistoryAndRollbackSupersession(t *testin
 func TestOwnerOfferingDateSelectionPreservesUpcomingAndGaps(t *testing.T) {
 	t.Parallel()
 	_, _, _, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	module := services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
+	module := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	ctx := testpkg.Ctx(t)
 	start, end := owner.Date("2026-09-01"), owner.Date("2026-10-01")
 	selection := &owner.RequestChildOffering{RequestChildID: childID, CareOfferingID: offeringID, ValidFrom: &start, ValidUntil: &end}
@@ -164,7 +164,7 @@ func TestOwnerOfferingDateSelectionPreservesUpcomingAndGaps(t *testing.T) {
 func TestOwnerApprovedOfferingSelectionsResolveStudentAndExcludeExpired(t *testing.T) {
 	t.Parallel()
 	db, _, _, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	module := services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
+	module := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	ctx := testpkg.Ctx(t)
 	source, err := module.ChildByID(ctx, childID)
 	require.NoError(t, err)
@@ -201,7 +201,7 @@ func TestOwnerApprovedOfferingSelectionsResolveStudentAndExcludeExpired(t *testi
 func TestOwnerOfferingCapacityCountsIntervalsAndExclusions(t *testing.T) {
 	t.Parallel()
 	_, _, _, childID, offeringID := setupChildOfferingTest(t, testpkg.SetupTestDB(t))
-	module := services.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
+	module := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	ctx := testpkg.Ctx(t)
 	initial := &owner.RequestChildOffering{RequestChildID: childID, CareOfferingID: offeringID}
 	require.NoError(t, module.InsertRequestChildOffering(ctx, initial))

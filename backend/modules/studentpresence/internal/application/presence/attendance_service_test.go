@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -657,8 +658,8 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
 
 		// Create IoT device context using device package constants
-		ctx := services.WithIoTAttendanceRequest(testpkg.Ctx(t))
-		ctx = services.WithAttendanceDevice(ctx, testDevice.ID, testDevice.TenantID)
+		ctx := api.WithIoTAttendanceRequest(testpkg.Ctx(t))
+		ctx = api.WithAttendanceDevice(ctx, testDevice.ID, testDevice.TenantID)
 
 		// ACT: Toggle attendance (check-in)
 		result, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, false)
@@ -675,8 +676,8 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "IoTNoGroup", "Student", "12b")
 
 		// Create IoT device context using device package constants
-		ctx := services.WithIoTAttendanceRequest(testpkg.Ctx(t))
-		ctx = services.WithAttendanceDevice(ctx, testDevice.ID, testDevice.TenantID)
+		ctx := api.WithIoTAttendanceRequest(testpkg.Ctx(t))
+		ctx = api.WithAttendanceDevice(ctx, testDevice.ID, testDevice.TenantID)
 
 		// ACT: Toggle attendance
 		_, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, false)

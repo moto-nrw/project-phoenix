@@ -1,7 +1,10 @@
-package services
+package services_test
 
 import (
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/services"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -13,12 +16,12 @@ func TestNewRepositoryFactory(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	owners := NewUnobservedTimetableDependencies(db)
-	factory := NewRepositoryTestFactory(db, owners)
+	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 	require.NotNil(t, factory)
 	// The retained activities and schedule repositories belong to Timetable
 	// and are built where they are used (#2743).
-	timetable := NewTimetableRepositories(db, owners)
+	timetable := services.NewTimetableRepositories(db, owners)
 
 	// Verify users repositories are initialized
 	t.Run("users repositories", func(t *testing.T) {

@@ -28,7 +28,7 @@ import (
 
 func setupClassDayRoute(t *testing.T) (*testpkg.DB, chi.Router) {
 	t.Helper()
-	db, factory := testutil.SetupClassDayModule(t)
+	db, factory := setupClassDayModule(t)
 	return db, classdayhttp.NewResource(factory.ClassDay, nil).SchoolRouter()
 }
 

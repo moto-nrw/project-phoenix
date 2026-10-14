@@ -9,16 +9,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -34,7 +34,7 @@ type unreadEnv struct {
 	router   http.Handler
 	tenantID int64
 	phaseID  int64
-	repos    services.EnrollmentTestRepositories
+	repos    api.EnrollmentTestRepositories
 	requests enrollmentAPI.RequestService
 }
 
@@ -44,7 +44,7 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := testpkg.Ctx(t)
-	repos, err := services.NewEnrollmentTestRepositories(db, services.NewTestAuditStore(db))
+	repos, err := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), api.NewTestAuditStore(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	settings := stubTakeoverSettings{}
 
@@ -65,14 +65,14 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 	phase.TenantID = tenantID
 	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
 
-	offerings := testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan)
-	requests := enrollmentAPI.NewRequestService(testutil.NewEnrollmentIntake(testutil.EnrollmentIntakeSources{
+	offerings := enrollmentCompose.NewCareOfferingRecords(repos.CarePlan)
+	requests := enrollmentAPI.NewRequestService(api.NewEnrollmentIntake(api.EnrollmentIntakeSources{
 		Requests:         repos.Enrollment(),
 		ParentChanges:    repos.Enrollment(),
 		Children:         repos.Enrollment(),
 		Guardians:        repos.Enrollment(),
 		CareOfferingRepo: offerings,
-		Capacity:         testutil.NewEnrollmentOfferingCapacity(offerings, repos.Enrollment(), settings),
+		Capacity:         api.NewEnrollmentOfferingCapacity(offerings, repos.Enrollment(), settings),
 		Catalog:          repos.Enrollment(),
 		SchoolRepo:       capabilitySchools{schools: repos.School},
 		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
@@ -83,7 +83,7 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 		ParentsURL:       "http://parents.localhost:3000",
 		Logger:           slog.Default(),
 	}))
-	decisions := enrollmentAPI.NewDecisionService(testutil.PublicEnrollmentDecisions(testutil.NewEnrollmentDecisions(testutil.EnrollmentDecisionSources{
+	decisions := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(api.NewEnrollmentDecisions(api.EnrollmentDecisionSources{
 		Requests: repos.Enrollment(), Children: repos.Enrollment(),
 		Guardians: repos.Enrollment(), LateInvites: repos.Enrollment(), CareOfferings: offerings,
 		Phases: repos.Enrollment(), Schemas: repos.Enrollment(), Settings: settings,

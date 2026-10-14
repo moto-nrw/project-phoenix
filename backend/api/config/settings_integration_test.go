@@ -26,7 +26,7 @@ type settingsTestContext struct {
 func setupSettingsModule(t *testing.T) *settingsTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupSettingsModule(t)
+	db, svc := composeSettingsModule(t)
 	runtime := configAPI.NewRuntime(configAPI.RuntimeDependencies{
 		Protected:   testutil.ProtectedTestTenantGroupFunc(db),
 		Permission:  func(configAPI.Access) configAPI.Middleware { return testutil.IdentityMiddleware },

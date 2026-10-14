@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
@@ -29,7 +30,7 @@ func TestMasterDataReview_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	bc := testpkg.NewRecordingBroadcaster()
-	svc := f.decisions(t, func(o *services.MasterDataDecisionTestOptions) { o.Broadcaster = bc })
+	svc := f.decisions(t, func(o *api.MasterDataDecisionTestOptions) { o.Broadcaster = bc })
 
 	approve := func(t *testing.T, row *userModels.StudentDataChangeRequest) {
 		t.Helper()
@@ -95,9 +96,9 @@ func (f masterDataFixture) linkCompanionOnTuesday(t *testing.T) {
 		student.DepartureCompanionNote = &note
 		require.NoError(t, f.repos.Student.Update(ctx, student))
 	}
-	edge, err := services.NewStudentCompanionEdge(f.chain.StudentID, partner.ID, 2)
+	edge, err := api.NewStudentCompanionEdge(f.chain.StudentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, services.ReplaceStudentCompanions(ctx, services.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*userModels.StudentCompanion{edge}))
+	require.NoError(t, api.ReplaceStudentCompanions(ctx, services.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*userModels.StudentCompanion{edge}))
 }
 
 func (f masterDataFixture) personFirstName(t *testing.T) string {
@@ -174,7 +175,7 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
 	svc := f.decisions(t)
-	queue := f.queue(t, services.SchoolWideReviewScope)
+	queue := f.queue(t, api.SchoolWideReviewScope)
 	row := f.insert(t, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
 	require.NoError(t, f.inTx(t, func(ctx context.Context) error {
@@ -216,7 +217,7 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 func TestMasterDataReview_ListHistory(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
-	queue := f.queue(t, services.SchoolWideReviewScope)
+	queue := f.queue(t, api.SchoolWideReviewScope)
 	_, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, f.db, "Rieke", "Reviewer")
 
 	// One row per terminal state, plus a pending row that must never surface.

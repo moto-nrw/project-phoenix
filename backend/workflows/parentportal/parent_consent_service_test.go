@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -32,10 +32,10 @@ func (u consentPhotoUnlinker) ScheduleUnlinkAfterCommit(_ context.Context, store
 	u.unlinker.UnlinkStored(storedURL)
 }
 
-func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *services.RepositoryTestFactory, *consentRecordingUnlinker) {
+func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory, *consentRecordingUnlinker) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	unlinker := &consentRecordingUnlinker{}
 	photos := consentPhotoUnlinker{unlinker: unlinker}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
@@ -45,7 +45,7 @@ func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *service
 		ChildRepo:           repos.ParentChild,
 		StudentRepo:         repos.Student,
 		StudentGuardianRepo: repos.StudentGuardian,
-		StudentConsents:     services.NewStudentConsents(db),
+		StudentConsents:     api.NewStudentConsents(testpkg.NewDatabase(t, db)),
 		StudentPhotos:       func() parentService.StudentPhotoUnlinker { return photos },
 		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		Logger:              slog.Default(),
@@ -109,7 +109,7 @@ func TestWithdrawPhotoConsentRemovesPhotoAndRecordsOneHistoryEntry(t *testing.T)
 	// history receives no duplicate event.
 	_, err = svc.WithdrawPhotoConsent(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
-	rows, err := services.NewTestAuditPersistence(db, nil).StudentConsentChange.ListByStudentID(testpkg.Ctx(t), chain.StudentID)
+	rows, err := api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentConsentChange.ListByStudentID(testpkg.Ctx(t), chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "withdrawn", rows[0].Action)
@@ -148,7 +148,7 @@ func TestGrantPhotoConsentAfterWithdrawalRecordsNewStateWithoutRestoringPhoto(t 
 	// second grant event.
 	_, err = svc.GrantPhotoConsent(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
-	rows, err := services.NewTestAuditPersistence(db, nil).StudentConsentChange.ListByStudentID(testpkg.Ctx(t), chain.StudentID)
+	rows, err := api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentConsentChange.ListByStudentID(testpkg.Ctx(t), chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	assert.Equal(t, "granted", rows[0].Action)
@@ -171,7 +171,7 @@ func TestGrantPhotoConsentRejectsNeverRecordedConsent(t *testing.T) {
 	assert.Nil(t, student.PhotoConsentGivenAt)
 	assert.Nil(t, student.PhotoConsentGivenBy)
 
-	rows, err := services.NewTestAuditPersistence(db, nil).StudentConsentChange.ListByStudentID(testpkg.Ctx(t), chain.StudentID)
+	rows, err := api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentConsentChange.ListByStudentID(testpkg.Ctx(t), chain.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, rows)
 }
@@ -202,7 +202,7 @@ func TestPhotoConsentChangesRejectCareEndedChild(t *testing.T) {
 	require.NotNil(t, updated.PhotoPath)
 	assert.Equal(t, storedURL, *updated.PhotoPath)
 	assert.Empty(t, unlinker.urls)
-	rows, err := services.NewTestAuditPersistence(db, nil).StudentConsentChange.ListByStudentID(testpkg.Ctx(t), chain.StudentID)
+	rows, err := api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentConsentChange.ListByStudentID(testpkg.Ctx(t), chain.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, rows)
 }

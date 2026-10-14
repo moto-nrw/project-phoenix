@@ -1,13 +1,14 @@
-package services
+package services_test
 
 import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // The time-clock adapter serves the kiosk's day view from the retained work
@@ -31,7 +32,7 @@ func TestTimeClockWorkday_OpenNightSessionCountsThroughMidnight(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Night", "Shift")
-	module, err := NewWorkSessionTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewWorkSessionTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	clock := module.TimeTracking.TimeClock
 
@@ -57,7 +58,7 @@ func TestTimeClockWorkday_ExpiredOpenBlockIsClosedAndLeavesLaterDays(t *testing.
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Forgotten", "Checkout")
-	module, err := NewWorkSessionTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewWorkSessionTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	clock := module.TimeTracking.TimeClock
 

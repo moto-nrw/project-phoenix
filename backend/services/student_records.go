@@ -35,7 +35,7 @@ func (p presenceStudents) FindByID(ctx context.Context, id int64) (*studentprese
 	if err != nil {
 		return nil, err
 	}
-	return studentRecord(row), nil
+	return StudentRecord(row), nil
 }
 
 func (p presenceStudents) FindByIDForUpdate(ctx context.Context, id int64) (*studentpresence.StudentRecord, error) {
@@ -43,7 +43,7 @@ func (p presenceStudents) FindByIDForUpdate(ctx context.Context, id int64) (*stu
 	if err != nil {
 		return nil, err
 	}
-	return studentRecord(row), nil
+	return StudentRecord(row), nil
 }
 
 func (p presenceStudents) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*studentpresence.StudentRecord, error) {
@@ -53,7 +53,7 @@ func (p presenceStudents) FindByIDsForUpdate(ctx context.Context, ids []int64) (
 	}
 	records := make(map[int64]*studentpresence.StudentRecord, len(rows))
 	for id, row := range rows {
-		records[id] = studentRecord(row)
+		records[id] = StudentRecord(row)
 	}
 	return records, nil
 }
@@ -98,7 +98,7 @@ func studentLifecycle(status users.StudentStatus) studentpresence.StudentLifecyc
 	}
 }
 
-func studentRecord(row *users.Student) *studentpresence.StudentRecord {
+func StudentRecord(row *users.Student) *studentpresence.StudentRecord {
 	if row == nil {
 		return nil
 	}
@@ -143,7 +143,7 @@ func (p statusDayOverviewPeople) GetStudentsByGroupIDs(ctx context.Context, grou
 		if row == nil {
 			continue
 		}
-		records = append(records, studentRecord(row))
+		records = append(records, StudentRecord(row))
 	}
 	return records, nil
 }

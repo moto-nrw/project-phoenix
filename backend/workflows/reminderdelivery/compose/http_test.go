@@ -106,7 +106,7 @@ func requestWithPrincipal(t *testing.T, claims sessiontoken.AppClaims) *http.Req
 
 func TestCallerQueryRejectsUnlinkedIdentity(t *testing.T) {
 	t.Parallel()
-	db, module := testutil.SetupRemindersModule(t)
+	db, module := setupRemindersModule(t)
 	for _, personLinked := range []bool{false, true} {
 		name := "account without person"
 		if personLinked {

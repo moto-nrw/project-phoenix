@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -255,7 +257,7 @@ func TestWebParticipantLimit_TerminalUnchanged(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	fixture := newLimitFixture(t, db, "limit-terminal", 1, 1, 1)
 	staffCtx := services.WithAttendanceStaff(ctx, fixture.staff, testpkg.Tenant(t))
-	deviceCtx := services.WithAttendanceDevice(staffCtx, fixture.device, testpkg.Tenant(t))
+	deviceCtx := api.WithAttendanceDevice(staffCtx, fixture.device, testpkg.Tenant(t))
 
 	visit := &studentpresence.Visit{StudentID: fixture.inTransit[0], ActiveGroupID: fixture.session.ID, EntryTime: time.Now()}
 	require.NoError(t, service.CreateVisit(deviceCtx, visit))

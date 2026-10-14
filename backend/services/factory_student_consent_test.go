@@ -1,9 +1,12 @@
-package services
+package services_test
 
 import (
 	"log/slog"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/services"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -13,12 +16,12 @@ import (
 func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	carePlan, err := NewUnobservedCarePlan(db, NewUnobservedTimetableDependencies(db))
+	carePlan, err := api.NewUnobservedCarePlan(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	owners, err := newOwnerCapabilitiesForTests(db)
+	owners, err := api.NewOwnerCapabilitiesForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 
-	cfg := FactoryConfig{
+	cfg := services.FactoryConfig{
 		JWTSecret:        "test-secret-must-be-at-least-32-chars-long-for-real",
 		JWTExpiry:        15 * time.Minute,
 		JWTRefreshExpiry: 24 * time.Hour,
@@ -29,24 +32,24 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		TenantDomain:     "localhost",
 		OperatorHostname: "operator.localhost:3000",
 	}
-	tokens, err := testTokensFor(cfg)
+	tokens, err := api.TokenAdapterForTests(cfg)
 	require.NoError(t, err)
 
 	observedAppends := 0
-	factory, err := newFactory(
+	factory, err := services.NewFactoryWithConfig(
 		carePlan,
 		db,
 		slog.Default(),
 		cfg,
-		unboundTenantRuntime(),
-		owners.organizations,
-		owners.persons,
-		owners.groups,
-		owners.rooms,
-		owners.membership,
-		owners.calendar,
-		owners.timetable,
-		owners.appointments,
+		api.UnboundTenantRuntime(),
+		owners.Organizations,
+		owners.Persons,
+		owners.Groups,
+		owners.Rooms,
+		owners.Membership,
+		owners.Calendar,
+		owners.Timetable,
+		owners.Appointments,
 		nil,
 		nil,
 		nil,
@@ -59,17 +62,17 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		func(string, string, string, time.Duration, int, error) {},
 		func(string, time.Duration, int64, int64, time.Duration, string, error) {},
 		func(string, time.Duration, int64, int64, time.Duration, string, error) {},
-		owners.workforce,
-		func(DataImportObservation) {},
+		owners.Workforce,
+		func(services.DataImportObservation) {},
 		nil,
-		FileStorageWiring{},
+		services.FileStorageWiring{},
 		tokens,
 		true,
 	)
 	require.NoError(t, err)
 
 	fixture := testpkg.CreateTestStudent(t, db, "Audit", "Routing", "1a")
-	student, err := NewUnboundStudentRepository(db).FindByID(testpkg.Ctx(t), fixture.ID)
+	student, err := api.NewUnboundStudentRepository(testpkg.NewDatabase(t, db)).FindByID(testpkg.Ctx(t), fixture.ID)
 	require.NoError(t, err)
 	after := *student
 	consentedAt := time.Date(2026, time.September, 2, 8, 30, 0, 0, time.UTC)

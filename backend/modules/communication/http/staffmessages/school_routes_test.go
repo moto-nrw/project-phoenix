@@ -38,7 +38,7 @@ func decodeData[T any](t *testing.T, body []byte) T {
 
 func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 	t.Parallel()
-	db, serviceFactory := testutil.SetupStaffMessagingModule(t)
+	db, serviceFactory := setupStaffMessagingModule(t)
 	staffMessages := staffmessaging.NewResource(serviceFactory.StaffMessaging)
 	schoolRouter := chi.NewRouter()
 	schoolRouter.Mount("/staff-messages", staffMessages.SchoolRouter())
@@ -146,7 +146,7 @@ func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 
 func TestSchoolStaffMessagesDisabledSchool(t *testing.T) {
 	t.Parallel()
-	db, serviceFactory := testutil.SetupStaffMessagingModule(t)
+	db, serviceFactory := setupStaffMessagingModule(t)
 	schoolRouter := chi.NewRouter()
 	schoolRouter.Mount("/staff-messages", staffmessaging.NewResource(serviceFactory.StaffMessaging).SchoolRouter())
 	tenantID, _ := testpkg.CreateTestTenant(t, db)

@@ -6,7 +6,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -84,7 +85,7 @@ func (o *sqlGuardianOwners) SetGuardianStudentPermissions(ctx context.Context, t
 }
 
 func newRelationshipStore(db *bun.DB, owners *sqlGuardianOwners) userModels.StudentGuardianRepository {
-	return testutil.NewPeopleRepositorySuiteRetainedRelationships(db, testutil.PeopleRepositorySuiteWithOwners(owners, owners))
+	return api.NewPeopleRepositorySuiteRetainedRelationships(testpkg.MustDatabase(db), api.PeopleRepositorySuiteWithOwners(owners, owners))
 }
 
 // linkHalves counts the rows of each owner for one pair.
@@ -338,8 +339,8 @@ func TestGuardianRelationshipLinkWithoutRoleNeedsTheDefaultRolePolicy(t *testing
 	relationships, _, _ := linkHalves(t, db, student.ID, guardian.ID)
 	require.Zero(t, relationships)
 
-	bound := testutil.NewPeopleRepositorySuiteRetainedRelationships(db,
-		testutil.PeopleRepositorySuiteWithOwners(owners, owners), testutil.PeopleRepositorySuiteWithDefaultRole())
+	bound := api.NewPeopleRepositorySuiteRetainedRelationships(testpkg.NewDatabase(t, db),
+		api.PeopleRepositorySuiteWithOwners(owners, owners), api.PeopleRepositorySuiteWithDefaultRole())
 	created, err := bound.LinkIfNotExists(ctx, link())
 	require.NoError(t, err)
 	require.True(t, created)

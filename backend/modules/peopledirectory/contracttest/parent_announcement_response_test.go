@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -81,7 +81,7 @@ func TestParentAnnouncementSetResponse_StoresReplacesAndWithdraws(t *testing.T) 
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
 	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
@@ -113,7 +113,7 @@ func TestParentAnnouncementSetResponse_RejectsWithoutPollPermission(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
 	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
@@ -158,7 +158,7 @@ func TestParentAnnouncementSetResponse_RejectsStaleVersionAndForeignOptions(t *t
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
 	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
@@ -190,7 +190,7 @@ func TestParentAnnouncementSetResponse_SingleChoiceRejectsMultipleOptions(t *tes
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 
 	poll, options := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,

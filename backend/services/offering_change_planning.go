@@ -9,19 +9,19 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// manualPlanningReader serves Care Plan's offering-change planning port: the
+// ManualPlanningReader serves Care Plan's offering-change planning port: the
 // manual planning a switch leaves uncovered and the course groups an offering
 // feeds, through Enrollment's manual-planning query and the Timetable
 // owner's course-group read.
-type manualPlanningReader struct {
-	query        *enrollmentCompose.ManualPlanningQuery
-	courseGroups timetable.CourseGroupQuery
+type ManualPlanningReader struct {
+	Query        *enrollmentCompose.ManualPlanningQuery
+	CourseGroups timetable.CourseGroupQuery
 }
 
-var _ carePlanCompose.OfferingChangePlanning = manualPlanningReader{}
+var _ carePlanCompose.OfferingChangePlanning = ManualPlanningReader{}
 
-func (r manualPlanningReader) ListManualPlanningOccurrences(ctx context.Context, studentID int64, from, to string) ([]carePlanCompose.ManualPlanningOccurrence, error) {
-	rows, err := r.query.ListManualPlanningOccurrences(ctx, studentID, from, to)
+func (r ManualPlanningReader) ListManualPlanningOccurrences(ctx context.Context, studentID int64, from, to string) ([]carePlanCompose.ManualPlanningOccurrence, error) {
+	rows, err := r.Query.ListManualPlanningOccurrences(ctx, studentID, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func (r manualPlanningReader) ListManualPlanningOccurrences(ctx context.Context,
 
 // CourseGroupsForOfferings resolves both link shapes through the Timetable
 // owner: the legacy group on the offering and the templates sourcing it.
-func (r manualPlanningReader) CourseGroupsForOfferings(ctx context.Context, offerings []carePlanCompose.CourseOfferingReference, effectiveOn calendar.Date) (map[int64][]carePlanCompose.CourseGroup, error) {
+func (r ManualPlanningReader) CourseGroupsForOfferings(ctx context.Context, offerings []carePlanCompose.CourseOfferingReference, effectiveOn calendar.Date) (map[int64][]carePlanCompose.CourseGroup, error) {
 	legacyToOfferings := make(map[int64][]int64, len(offerings))
 	wantedOfferings := make(map[int64]bool, len(offerings))
 	filter := timetable.CourseGroupFilter{}
@@ -50,7 +50,7 @@ func (r manualPlanningReader) CourseGroupsForOfferings(ctx context.Context, offe
 		}
 	}
 	filter.EffectiveOn = effectiveOn.String()
-	groups, err := r.courseGroups.ListCourseGroups(ctx, filter)
+	groups, err := r.CourseGroups.ListCourseGroups(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -83,8 +83,8 @@ func timetableCourseGroup(group timetable.CourseGroup) carePlanCompose.CourseGro
 	}
 }
 
-func (r manualPlanningReader) LockCourseGroups(ctx context.Context, groupIDs []int64) ([]carePlanCompose.CourseGroup, error) {
-	groups, err := r.query.LockCourseGroups(ctx, groupIDs)
+func (r ManualPlanningReader) LockCourseGroups(ctx context.Context, groupIDs []int64) ([]carePlanCompose.CourseGroup, error) {
+	groups, err := r.Query.LockCourseGroups(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +99,6 @@ func (r manualPlanningReader) LockCourseGroups(ctx context.Context, groupIDs []i
 	return result, nil
 }
 
-func (r manualPlanningReader) CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error) {
-	return r.query.CountActiveCourseEnrollments(ctx, groupIDs, from, until, excludeStudentID)
+func (r ManualPlanningReader) CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error) {
+	return r.Query.CountActiveCourseEnrollments(ctx, groupIDs, from, until, excludeStudentID)
 }

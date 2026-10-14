@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -47,7 +46,7 @@ func setupCareOfferingRepoTest(t *testing.T) (
 	carePlan := carePlanTest.NewCarePlan(t, db)
 	return db, careOfferingRepoUnderTest{
 		careOfferingFixtureRecords: newCareOfferingFixtureRecords(carePlan),
-		CareOfferingRecords:        testutil.NewEnrollmentCareOfferingRecords(carePlan),
+		CareOfferingRecords:        api.NewEnrollmentCareOfferingRecords(carePlan),
 	}, tenantID, phase.ID
 }
 

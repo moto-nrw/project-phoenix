@@ -18,26 +18,26 @@ import (
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// callerSettings resolves the tenant settings the caller context reads: the
+// CallerSettings resolves the tenant settings the caller context reads: the
 // school-wide overview scope and the parent request review scopes.
-type callerSettings interface {
+type CallerSettings interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
-// callerContextWiring names the owners the caller context reads the
+// CallerContextWiring names the owners the caller context reads the
 // caller's chain from. SupervisedActivities reads the planned supervisions
 // of a staff member, which no owner contract serves yet. Settings may be
 // nil: the school-wide live-update scope is then never granted and the
 // parent request review policy reports itself unconfigured.
-type callerContextWiring struct {
+type CallerContextWiring struct {
 	Accounts             identityaccess.AccountProfiles
 	Persons              userModels.PersonRepository
 	Membership           schoolmembership.Capability
 	StaffGroups          schoolstructure.StaffGroupQuery
 	SupervisedActivities func(context.Context, int64) ([]int64, error)
 	Presence             *studentpresence.Module
-	Settings             callerSettings
+	Settings             CallerSettings
 	Logger               *slog.Logger
 	// Tokens reads the verified principal and the request identity memo
 	// (#2099) the request middleware attached.
@@ -47,7 +47,7 @@ type callerContextWiring struct {
 // newCallerContext composes the Identity & Access caller context (#3501)
 // over People Directory, School Membership, School Structure, Timetable and
 // Student Presence.
-func newCallerContext(wiring callerContextWiring) (identityaccess.CallerContext, error) {
+func newCallerContext(wiring CallerContextWiring) (identityaccess.CallerContext, error) {
 	review := &identityCompose.ParentRequestReviewDependencies{
 		Permissions:           ReviewPermissions,
 		GroupLeaderSettingKey: configModels.KeyParentRequestGroupLeaderReviewEnabled,
@@ -75,9 +75,9 @@ func newCallerContext(wiring callerContextWiring) (identityaccess.CallerContext,
 	return identityCompose.NewCallerContext(deps)
 }
 
-// newCallerRows composes the caller context and the rows its retained
+// NewCallerRowsFromWiring composes the caller context and the rows its retained
 // consumers read through it.
-func newCallerRows(wiring callerContextWiring, sources CallerRowSources) (*CallerRows, error) {
+func NewCallerRowsFromWiring(wiring CallerContextWiring, sources CallerRowSources) (*CallerRows, error) {
 	caller, err := newCallerContext(wiring)
 	if err != nil {
 		return nil, fmt.Errorf("compose caller context: %w", err)

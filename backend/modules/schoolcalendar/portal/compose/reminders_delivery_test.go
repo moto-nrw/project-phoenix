@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/email"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -93,7 +94,7 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
 	from, to := startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute)
 
-	queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, from, to)
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, from, to)
 	require.NoError(t, err)
 	assert.Equal(t, 1, queued)
 
@@ -110,7 +111,7 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 	// The replacement claim has to hold, or the same occurrence would be pushed
 	// a second time by any scan that sees this window again — which is exactly
 	// what the scheduler does after a failed tenant pass.
-	_, err = testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, from, to)
+	_, err = api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, from, to)
 	require.NoError(t, err)
 	assert.Len(t, notifier.events, 1, "the re-taken claim must suppress a repeat push")
 }
@@ -146,7 +147,7 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 	require.NoError(t, err)
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
-	queued, err := testutil.ComposeCalendarReminderCommand(db, service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	require.Equal(t, 1, queued)
 

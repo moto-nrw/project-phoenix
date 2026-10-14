@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -46,7 +46,7 @@ func birthdaySettings(enabled, includeStaff bool) *settingsDouble {
 }
 
 func newBirthdayService(db *bun.DB, settings *settingsDouble, now func() time.Time) peopledirectory.Birthdays {
-	return testutil.NewBirthdayCapability(db, settings, now)
+	return api.NewBirthdayCapabilityForTests(testpkg.MustDatabase(db), settings, now)
 }
 
 // setBirthday stamps a birth date on a fixture person. The fixtures create

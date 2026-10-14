@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -18,7 +19,7 @@ import (
 func TestSessionEndPreservesAttendanceAndStaffAcrossTenants(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewActiveTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewActiveTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	type fixture struct{ tenantID, groupID, instanceID int64 }
 	create := func(t *testing.T, label string) fixture {

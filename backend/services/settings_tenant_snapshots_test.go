@@ -1,8 +1,10 @@
-package services
+package services_test
 
 import (
 	"context"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +22,7 @@ func TestSchedulerMinuteSnapshotReadsEverySchoolOnce(t *testing.T) {
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
-	module, err := NewSettingsTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	snapshots, err := module.TenantSnapshots()
 	require.NoError(t, err)

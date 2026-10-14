@@ -14,10 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -156,7 +157,7 @@ func TestMarkUnread_RepeatKeepsSameVisibleState(t *testing.T) {
 	f := newFixture(t, true)
 	_, colleague := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 	threadID := startReadThread(t, f)
-	repos := services.NewRepositoryTestFactory(f.db, services.NewUnobservedTimetableDependencies(f.db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
 	ctx := adminCtx(t, f.staffAccount)
 
 	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
@@ -184,7 +185,7 @@ func TestMarkUnread_RepeatDuringOpenSurvives(t *testing.T) {
 
 	f := newFixture(t, true)
 	threadID := startReadThread(t, f)
-	repos := services.NewRepositoryTestFactory(f.db, services.NewUnobservedTimetableDependencies(f.db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
 	ctx := adminCtx(t, f.staffAccount)
 
 	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
@@ -208,7 +209,7 @@ func TestClearStaffUnreadMark_KeepsNewerMark(t *testing.T) {
 
 	f := newFixture(t, true)
 	threadID := startReadThread(t, f)
-	repos := services.NewRepositoryTestFactory(f.db, services.NewUnobservedTimetableDependencies(f.db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
 	ctx := adminCtx(t, f.staffAccount)
 
 	require.NoError(t, f.svc.MarkUnread(ctx, threadID))
@@ -234,7 +235,7 @@ func TestMarkUnread_KeepsParentReadReceipt(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, true)
-	repos := services.NewRepositoryTestFactory(f.db, services.NewUnobservedTimetableDependencies(f.db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
 	staffCtx := adminCtx(t, f.staffAccount)
 	guardianCtx := adminCtx(t, f.chain.AccountID)
 	started, err := f.svc.StartThread(staffCtx, f.chain.StudentID, f.chain.AccountID, "Hallo")
@@ -249,7 +250,7 @@ func TestMarkUnread_KeepsParentReadReceipt(t *testing.T) {
 
 	receipts := func() (bool, bool) {
 		t.Helper()
-		messages, err := services.NewParentMessageRepository(f.db).ListByThread(guardianCtx, threadID, 0)
+		messages, err := parentStore.NewParentMessageRepository(f.db).ListByThread(guardianCtx, threadID, 0)
 		require.NoError(t, err)
 		messaging.DecorateReadReceipts(guardianCtx, repos.ParentMessageRead, nil, threadID, f.chain.AccountID, messages)
 		var guardianMessage *usersModels.ParentMessage
@@ -319,9 +320,9 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 	threadID := startReadThread(t, f)
 	require.NoError(t, f.svc.MarkUnread(adminCtx(t, f.staffAccount), threadID))
 
-	repos := services.NewRepositoryTestFactory(f.db, services.NewUnobservedTimetableDependencies(f.db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
 	disabled := messaging.NewService(messaging.Config{
-		ThreadRepo: repos.ParentMessageThread, MessageRepo: services.NewParentMessageRepository(f.db), ReadRepo: repos.ParentMessageRead,
+		ThreadRepo: repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(f.db), ReadRepo: repos.ParentMessageRead,
 		Persons:     newPersons(repos, f.db),
 		Settings:    stubSettings{messagingEnabled: false},
 		Broadcaster: f.bc, DB: f.db, Logger: slog.Default(),

@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/workforcetest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,13 +27,13 @@ type shiftTypeRoute struct {
 	router chi.Router
 	token  string
 	ctx    context.Context
-	module services.ShiftTypeTestModule
+	module workforcetest.ShiftTypes
 }
 
 func setupShiftTypeRoute(t *testing.T) *shiftTypeRoute {
 	t.Helper()
-	db, module := testutil.SetupShiftTypeModule(t)
-	resource := NewShiftTypesResource(module.ShiftTypes)
+	db, module := workforcetest.ComposeShiftTypes(t)
+	resource := NewShiftTypesResource(module.Administration)
 
 	claims := testutil.DefaultTestClaims()
 	claims.TenantID = testpkg.Tenant(t)
@@ -50,9 +50,9 @@ func (s *shiftTypeRoute) do(t *testing.T, method, path string, body any) *http.R
 
 func (s *shiftTypeRoute) shiftTypeIDOf(t *testing.T, categoryID int64) *int64 {
 	t.Helper()
-	category, err := s.module.Repositories.Rows.ActivityCategory.FindByID(s.ctx, categoryID)
+	shiftTypeID, err := s.module.CategoryShiftType(s.ctx, categoryID)
 	require.NoError(t, err)
-	return category.ShiftTypeID
+	return shiftTypeID
 }
 
 func decodeShiftTypeID(t *testing.T, response *http.Response) int64 {

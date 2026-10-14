@@ -9,16 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
 	"github.com/uptrace/bun"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -54,7 +54,7 @@ func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID i
 		StatusToken:       fmt.Sprintf("tok-%d", testpkg.UniqueSuffix()),
 	}
 	request.TenantID = tenantID
-	owner := testutil.NewEnrollmentOwner()
+	owner := api.NewEnrollmentBookingFixture()
 	ownerCtx := testpkg.WithTenantRuntime(t, testpkg.Ctx(t), tc.db)
 	require.NoError(t, owner.InsertRequest(ownerCtx, request))
 

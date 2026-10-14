@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -19,7 +19,7 @@ import (
 func TestImportBatches_RollbackResumeAndIdempotentReplay(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	actor := newImporter(t, db)
 	rows := make([]importModels.ClassListEntryImportRow, 205)
@@ -61,7 +61,7 @@ func TestImportBatches_RollbackResumeAndIdempotentReplay(t *testing.T) {
 	removeFailure()
 	// Rebuild the workflow: progress lives in PostgreSQL, not this service's
 	// caches or the lifetime of the process that committed the first batch.
-	resumed, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	resumed, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	result, err = resumed.ClassListImport.ImportBatches(testpkg.Ctx(t), request, audit)
 	require.NoError(t, err)
@@ -89,10 +89,10 @@ func TestImportBatches_ConcurrentIdenticalUploadsCommitOnce(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	actor := newImporter(t, db)
-	modules := make([]services.ImportTestModule, 2)
+	modules := make([]api.ImportTestModule, 2)
 	for i := range modules {
 		var err error
-		modules[i], err = services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+		modules[i], err = api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 		require.NoError(t, err)
 	}
 	rows := make([]importModels.ClassListEntryImportRow, 205)
@@ -111,7 +111,7 @@ func TestImportBatches_ConcurrentIdenticalUploadsCommitOnce(t *testing.T) {
 	}
 	outcomes := make(chan outcome, 2)
 	for _, module := range modules {
-		go func(module services.ImportTestModule) {
+		go func(module api.ImportTestModule) {
 			initial := true
 			runCtx := tenant.WithUnitOfWorkObserver(ctx, func(event tenant.UnitOfWorkEvent) {
 				if initial && event.Kind == tenant.UnitOfWorkTransaction {
@@ -166,7 +166,7 @@ func TestImportBatches_ConcurrentIdenticalUploadsCommitOnce(t *testing.T) {
 func TestImportBatches_PreviewAndStableRejectedRows(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	actor := newImporter(t, db)
 	rows := make([]importModels.ClassListEntryImportRow, 205)
@@ -227,7 +227,7 @@ func TestImportBatches_RetriesWholeTransactionAfterDatabaseConflict(t *testing.T
 	for _, code := range []string{"40P01", "40001"} {
 		t.Run(code, func(t *testing.T) {
 			testpkg.OwnTenant(t)
-			module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+			module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 			require.NoError(t, err)
 			actor := newImporter(t, db)
 			// Sequence increments survive rollback. The second row fails once,

@@ -11,13 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -51,10 +50,10 @@ func newCareLifecycleServiceWithLockAt(
 ) careplan.CareLifecycle {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
-	repos, err := services.NewCareLifecycleTestRepositories(db, nil)
+	repos, err := api.NewCareLifecycleTestRepositories(testpkg.NewDatabase(t, db), nil)
 	require.NoError(t, err)
-	svc, err := repos.NewCareLifecycle(services.CareLifecycleTestConfig{
-		Audit:                 services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, services.NewStudentAudit(db)),
+	svc, err := repos.NewCareLifecycle(api.CareLifecycleTestConfig{
+		Audit:                 api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, api.NewStudentAudit(testpkg.NewDatabase(t, db))),
 		LockCareBookingWrites: lockCareBookingWrites,
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },
 		Today:                 today,
@@ -66,7 +65,7 @@ func newCareLifecycleServiceWithLockAt(
 // carePlanRecords is the Care Plan record capability the suites stage and
 // read exit reasons through.
 func carePlanRecords(db *bun.DB) careplan.Capability {
-	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).CarePlan()
+	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).CarePlan()
 }
 
 // endCare runs the full product path — preview, then confirm the token it
@@ -123,7 +122,7 @@ func TestCareLifecycle_ConfirmAuditsOnlyCareEnd(t *testing.T) {
 		Reason:      careplan.CareExitReasonMovedAway,
 	})
 
-	edits, err := services.NewTestAuditPersistence(db, nil).StudentFieldEdit.GetByStudentID(ctx, student.ID)
+	edits, err := api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentFieldEdit.GetByStudentID(ctx, student.ID)
 	require.NoError(t, err)
 	require.Len(t, edits, 1)
 	assert.Equal(t, auditModels.StudentFieldCareEnd, edits[0].FieldName)
@@ -131,7 +130,7 @@ func TestCareLifecycle_ConfirmAuditsOnlyCareEnd(t *testing.T) {
 
 func loadStudent(t *testing.T, db *bun.DB, ctx context.Context, id int64) *userModels.Student {
 	t.Helper()
-	student, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Student.FindByID(ctx, id)
+	student, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Student.FindByID(ctx, id)
 	require.NoError(t, err)
 	return student
 }
@@ -319,7 +318,7 @@ func TestCareLifecycle_TenantIsolation(t *testing.T) {
 	assert.NotEmpty(t, preview.Students[0].Blocker,
 		"a child of another school is unknown here, not endable")
 
-	stored, err := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).Student.FindByID(
+	stored, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).Student.FindByID(
 		tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), otherTenantID), foreign.ID)
 	require.NoError(t, err)
 	assert.Nil(t, stored.EnrolledUntil)
@@ -667,7 +666,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	today := timezone.NewDate(2030, 8, 26)
 	svc := newCareLifecycleServiceAt(t, db, today)
 	actorID := careActor(t, db)
-	repos := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	timetableRepos := testTimetableRepositories(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Jara", "Ohlsen", "4a")

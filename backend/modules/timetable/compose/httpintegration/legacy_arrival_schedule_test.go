@@ -6,8 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -19,15 +18,15 @@ import (
 )
 
 func newArrivalScheduleRepository(db *bun.DB) arrivalScheduleQueryRepository {
-	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentArrivalSchedule.(arrivalScheduleQueryRepository)
+	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).StudentArrivalSchedule.(arrivalScheduleQueryRepository)
 }
 
 func newArrivalExceptionRepository(db *bun.DB) arrivalExceptionQueryRepository {
-	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentArrivalException.(arrivalExceptionQueryRepository)
+	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).StudentArrivalException.(arrivalExceptionQueryRepository)
 }
 
 func newArrivalNoteRepository(db *bun.DB) arrivalNoteQueryRepository {
-	return services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentArrivalNote.(arrivalNoteQueryRepository)
+	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).StudentArrivalNote.(arrivalNoteQueryRepository)
 }
 
 // =============================================================================

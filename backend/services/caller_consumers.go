@@ -9,13 +9,13 @@ import (
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 )
 
-// groupLiveCaller serves the caller context to the live-group adapters in
+// GroupLiveCaller serves the caller context to the live-group adapters in
 // their own group records.
-type groupLiveCaller struct{ *CallerRows }
+type GroupLiveCaller struct{ *CallerRows }
 
-var _ grouplivelegacy.CallerContext = groupLiveCaller{}
+var _ grouplivelegacy.CallerContext = GroupLiveCaller{}
 
-func (c groupLiveCaller) MyGroupRecords(ctx context.Context) ([]grouplive.GroupRecord, error) {
+func (c GroupLiveCaller) MyGroupRecords(ctx context.Context) ([]grouplive.GroupRecord, error) {
 	groups, err := c.GetMyGroups(ctx)
 	if err != nil {
 		return nil, err
@@ -29,15 +29,15 @@ func (c groupLiveCaller) MyGroupRecords(ctx context.Context) ([]grouplive.GroupR
 	return records, nil
 }
 
-// supervisionCaller serves the caller context to the supervision adapters
+// SupervisionCaller serves the caller context to the supervision adapters
 // in their own group records.
-type supervisionCaller struct{ *CallerRows }
+type SupervisionCaller struct{ *CallerRows }
 
-var _ supervisiondashboardlegacy.CallerContext = supervisionCaller{}
+var _ supervisiondashboardlegacy.CallerContext = SupervisionCaller{}
 
 // CurrentStaffID resolves the caller's staff record; nil, without an error,
 // for a caller who is no staff member.
-func (c supervisionCaller) CurrentStaffID(ctx context.Context) (*int64, error) {
+func (c SupervisionCaller) CurrentStaffID(ctx context.Context) (*int64, error) {
 	staffID, found, err := c.CallerRows.CurrentStaffID(ctx)
 	if err != nil || !found {
 		return nil, err
@@ -47,16 +47,16 @@ func (c supervisionCaller) CurrentStaffID(ctx context.Context) (*int64, error) {
 
 // GetMySupervisedGroups returns the room sessions the caller supervises with
 // their display relations.
-func (c supervisionCaller) GetMySupervisedGroups(ctx context.Context) ([]*studentpresence.SessionDetail, error) {
+func (c SupervisionCaller) GetMySupervisedGroups(ctx context.Context) ([]*studentpresence.SessionDetail, error) {
 	return c.CallerRows.GetMySupervisedGroups(ctx)
 }
 
 // FullStudentAccess reports whether the caller sees unredacted student data.
-func (c supervisionCaller) FullStudentAccess(ctx context.Context) (bool, error) {
+func (c SupervisionCaller) FullStudentAccess(ctx context.Context) (bool, error) {
 	return c.HasFullStudentAccess(ctx), nil
 }
 
-func (c supervisionCaller) MyGroups(ctx context.Context) ([]supervisiondashboardlegacy.CallerGroup, error) {
+func (c SupervisionCaller) MyGroups(ctx context.Context) ([]supervisiondashboardlegacy.CallerGroup, error) {
 	groups, err := c.GetMyGroups(ctx)
 	if err != nil {
 		return nil, err

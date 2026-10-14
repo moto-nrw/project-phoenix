@@ -11,9 +11,9 @@ type CalendarReminderSource interface {
 	ReminderEffects() calendarService.ReminderEffects
 }
 
-// calendarReminderDelivery binds the existing notification adapters of the
+// CalendarReminderDelivery binds the existing notification adapters of the
 // calendar to the reminder workflow's delivery port.
-func calendarReminderDelivery(source CalendarReminderSource) ports.DeliveryDependencies {
+func CalendarReminderDelivery(source CalendarReminderSource) ports.DeliveryDependencies {
 	effects := source.ReminderEffects()
 	return ports.DeliveryDependencies{
 		Appointments: effects.Appointments, Email: effects.Email, Push: effects.Push,

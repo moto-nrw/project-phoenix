@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -41,7 +42,7 @@ func cutoffStub(enabled bool, clock string) parentSettingsStub {
 
 type cutoffServiceDeps struct {
 	db    *bun.DB
-	repos *services.RepositoryTestFactory
+	repos *api.RepositoryTestFactory
 	base  parentportalcompose.Dependencies
 }
 
@@ -346,7 +347,7 @@ func TestPickupChangeCutoffIsTenantScoped(t *testing.T) {
 	t.Parallel()
 
 	d := newCutoffServiceDeps(t)
-	sf, err := services.NewFactoryForTests(d.repos, d.db, slog.Default())
+	sf, err := api.NewFactoryForTests(d.repos, testpkg.NewDatabase(t, d.db), slog.Default())
 	require.NoError(t, err)
 	settings := sf.Settings
 	runtimeCtx := testpkg.WithPackageTenantRuntime(context.Background())

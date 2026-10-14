@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
@@ -47,7 +47,7 @@ func TestResolveTenant_EarlyCheckoutNote_DefaultOnWithFifteenMinutes(t *testing.
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveEarlyCheckoutNote(t, resource, slug)
@@ -65,7 +65,7 @@ func TestResolveTenant_EarlyCheckoutNote_SchoolOverrides(t *testing.T) {
 	require.NoError(t, tenantSettings.SetValue(ctx, settings.KeyEarlyCheckoutNoteEnabled, false, nil, nil))
 	require.NoError(t, tenantSettings.SetValue(ctx, settings.KeyEarlyCheckoutNoteToleranceMinutes, 30, nil, nil))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveEarlyCheckoutNote(t, resource, slug)
@@ -79,10 +79,10 @@ func TestResolveTenant_EarlyCheckoutNote_UnreadableValueFailsClosed(t *testing.T
 
 	db, authRoute := setupAuthDependenciesRoute(t)
 	scope, slug := newTenantResolveScope(t, db)
-	testutil.StoreRawTenantSetting(t, db, scope.TenantID,
+	storeRawTenantSetting(t, db, scope.TenantID,
 		settings.KeyEarlyCheckoutNoteToleranceMinutes, json.RawMessage(`"viel"`))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, testutil.AccountRouteTenantRuntime())
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveEarlyCheckoutNote(t, resource, slug)

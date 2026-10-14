@@ -10,17 +10,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -47,7 +46,7 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
-	repos, repoErr := services.NewEnrollmentTestRepositories(db, services.NewTestAuditStore(db))
+	repos, repoErr := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), api.NewTestAuditStore(testpkg.NewDatabase(t, db)))
 	require.NoError(t, repoErr)
 	settings := stubTakeoverSettings{}
 
@@ -84,12 +83,12 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	phase.TenantID = tenantID
 	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
 
-	requestSvc := enrollmentAPI.NewRequestService(testutil.NewEnrollmentIntake(testutil.EnrollmentIntakeSources{
+	requestSvc := enrollmentAPI.NewRequestService(api.NewEnrollmentIntake(api.EnrollmentIntakeSources{
 		Requests:         repos.Enrollment(),
 		Children:         repos.Enrollment(),
 		Guardians:        repos.Enrollment(),
-		CareOfferingRepo: testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan),
-		Capacity:         testutil.NewEnrollmentOfferingCapacity(testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
+		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
+		Capacity:         api.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
 		Catalog:          repos.Enrollment(),
 		SchoolRepo:       capabilitySchools{schools: repos.School},
 		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
@@ -100,13 +99,13 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		ParentsURL:       "http://parents.localhost:3000",
 		Logger:           slog.Default(),
 	}))
-	changeRequestSvc := enrollmentAPI.NewChangeRequestService(testutil.NewEnrollmentChangeRequests(testutil.EnrollmentChangeRequestSources{
+	changeRequestSvc := enrollmentAPI.NewChangeRequestService(api.NewEnrollmentChangeRequests(api.EnrollmentChangeRequestSources{
 		Requests:            repos.Enrollment(),
 		Children:            repos.Enrollment(),
 		Guardians:           repos.Enrollment(),
 		LateInviteRepo:      repos.Enrollment(),
-		CareOfferingRepo:    testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan),
-		Capacity:            testutil.NewEnrollmentOfferingCapacity(testutil.NewEnrollmentCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
+		CareOfferingRepo:    enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
+		Capacity:            api.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
 		Catalog:             repos.Enrollment(),
 		Notifications:       NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
 		GuardianProfileRepo: repos.GuardianProfile,

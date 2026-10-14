@@ -15,7 +15,7 @@ import (
 
 func TestScanPreservesEveryNamedTableAcrossTenants(t *testing.T) {
 	t.Parallel()
-	db, module := testutil.SetupCheckinModule(t)
+	db, module := setupCheckinModule(t)
 	type fixture struct {
 		tenantID, studentID, sourceVisitID, targetRoomID int64
 		tag                                              string

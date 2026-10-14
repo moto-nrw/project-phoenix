@@ -4,7 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -14,7 +15,7 @@ func TestParentAudienceWithoutStudentCompatibilityView(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	repo := testutil.NewPeopleRepositorySuiteAnnouncements(db, testpkg.NewEnrollmentAudience())
+	repo := api.NewPeopleRepositorySuiteAnnouncements(testpkg.NewDatabase(t, db), testpkg.NewEnrollmentAudience())
 	ctx := tenantCtx(t)
 	poll, _ := pollAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID, userModels.ParentAnnouncementResponseSingleChoice)
 	membershipID := testpkg.SeparateStudentMembership(t, db, chain.StudentID)

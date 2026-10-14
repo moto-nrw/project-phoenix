@@ -1,0 +1,64 @@
+package api
+
+import (
+	"log/slog"
+	"time"
+
+	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
+)
+
+type RoomsTestModule struct {
+	ActiveTestModule
+	ListExport *lists.RendererService
+}
+
+func NewRoomsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (RoomsTestModule, error) {
+	active, err := NewActiveTestModule(db, unit)
+	if err != nil {
+		return RoomsTestModule{}, err
+	}
+	return RoomsTestModule{ActiveTestModule: active, ListExport: lists.NewRendererService()}, nil
+}
+
+// CheckinTestModule composes the device-scan workflow (#2698) over the
+// active test graph, the way the production root does. Daily-checkout gates
+// depend on tenant settings alone, never on the developer's environment.
+// Rosters is the block roster lookup the workflow reads.
+type CheckinTestModule struct {
+	ActiveTestModule
+	DeviceScan devicescanCompose.DeviceScan
+	Rosters    devicescanCompose.Rosters
+}
+
+func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (CheckinTestModule, error) {
+	module, err := NewActiveTestModule(db, unit, clocks...)
+	if err != nil {
+		return CheckinTestModule{}, err
+	}
+	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
+	if err != nil {
+		return CheckinTestModule{}, err
+	}
+	logger := slog.Default()
+	rosters := services.SessionRosters{Sessions: services.NewLoggedStudentPresence(db.Pool(), logger), Roster: NewUnobservedTimetableDependencies(db).Capability}
+	scan := devicescanCompose.New(devicescanCompose.Dependencies{
+		Fleet:      module.IoT.Fleet(),
+		Presence:   services.NewLoggedStudentPresence(db.Pool(), logger),
+		Rooms:      rooms,
+		Active:     module.Active,
+		Users:      module.Users,
+		Activities: module.Activities,
+		Rosters:    rosters,
+		Education:  module.Education,
+		Pickups:    module.PickupSchedule,
+		Settings:   module.Settings,
+		Now:        services.OptionalClock(clocks),
+		Logger:     logger,
+	})
+	return CheckinTestModule{ActiveTestModule: module, DeviceScan: scan, Rosters: rosters}, nil
+}

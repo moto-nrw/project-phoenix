@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -158,7 +156,7 @@ func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 	router := devRouter(s.ctx, s.res, s.db)
 	_, date := futureSubDate(1)
 
-	sessions := testutil.NewPresenceSessionRecords(s.db)
+	sessions := RootCompositions.SessionRecords(s.db)
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	ag := &studentpresence.LiveGroup{
 		StartTime:      now,

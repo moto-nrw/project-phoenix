@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -20,7 +20,7 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentStatusDay
+	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusRepo", "Student", "SR1")
 
@@ -83,7 +83,7 @@ func TestStudentStatusDayRepository_ListOverviewPaginatesPersonOrder(t *testing.
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentStatusDay
+	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	date := timezone.NewDate(2026, 8, 24)
 	last := testpkg.CreateTestStudent(t, db, "Zoe", "Zimmer", "OV1")
@@ -118,7 +118,7 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentStatusDay
+	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusClear", "Student", "SC1")
 
@@ -168,7 +168,7 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentStatusDay
+	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentStatusDay
 	student := testpkg.CreateTestStudent(t, db, "StatusTenant", "Student", "ST1")
 
 	date := timezone.NewDate(2026, 8, 24).AddDays(6)
@@ -195,7 +195,7 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentStatusDay
+	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentStatusDay
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
@@ -278,7 +278,7 @@ func TestStudentStatusDayRepository_UpsertNil(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentStatusDay
+	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentStatusDay
 
 	err := repo.UpsertReported(testpkg.Ctx(t), nil)
 	require.Error(t, err)
@@ -294,7 +294,7 @@ func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentStatusDay
+	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusNote", "Student", "SN1")
 
@@ -353,7 +353,7 @@ func TestStudentStatusDayRepository_DateBoundaryRoundtrip(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).StudentStatusDay
+	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentStatusDay
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Boundary", "Student", "BR1")
 

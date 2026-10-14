@@ -8,13 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/services"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // refusingOperatorMFAMailer refuses every message, the way a dead SMTP hop
@@ -42,8 +41,8 @@ func TestOperatorMFAStartChallengeFailsClosedAndInvalidatesCode(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	mailer := &refusingOperatorMFAMailer{}
 	module := newOperatorMFATestModule(t, db,
-		services.WithAuthTestMailer(mailer),
-		services.WithAuthTestMFABackoff(time.Millisecond))
+		api.WithAuthTestMailer(mailer),
+		api.WithAuthTestMFABackoff(time.Millisecond))
 	operator := testpkg.CreateTestOperator(t, db)
 	deleteOperatorChallenges(t, db, operator.ID)
 

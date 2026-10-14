@@ -24,10 +24,10 @@ type classListEntryAdministrationBinder interface {
 	BindClassListEntryAdministration(schoolmembership.ClassListEntryStudents, schoolmembership.ClassListEntryTrail)
 }
 
-// bindClassListEntryAdministration installs both ports. A capability without
+// BindClassListEntryAdministration installs both ports. A capability without
 // the binder cannot serve the Klassenliste screen at all, so the composition
 // refuses to continue silently.
-func bindClassListEntryAdministration(
+func BindClassListEntryAdministration(
 	membership schoolmembership.Capability,
 	persons peopledirectory.Capability,
 	audit auditModels.Command,

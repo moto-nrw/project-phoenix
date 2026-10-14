@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -25,7 +25,7 @@ func TestSubmit_AdminNotificationReachesSubscribedEnrollmentManagers(t *testing.
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 
-	subscribers, consent, err := testutil.NewEnrollmentAdminSubscribers(env.db)
+	subscribers, consent, err := api.NewEnrollmentAdminSubscribersForTests(testpkg.NewDatabase(t, env.db))
 	require.NoError(t, err)
 	config := env.config
 	config.AdminSubscribers = subscribers

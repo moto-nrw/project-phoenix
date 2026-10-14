@@ -21,13 +21,18 @@ type testContext struct {
 	resource *Resource
 }
 
+// ComposeDeviceFleet composes the Device Fleet owner over the package's test
+// database, as the root binds it. The root imports this package, so these
+// internal tests cannot import it; root_composition_test.go binds it.
+var ComposeDeviceFleet func(t *testing.T) (*bun.DB, devicefleet.Capability)
+
 // setupDevicesModule initializes the devices route.
 func setupDevicesModule(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupDeviceModule(t)
+	db, fleet := ComposeDeviceFleet(t)
 
-	resource := NewResource(devicefleet.NewAdministration(svc.IoT.Fleet()), testRuntime())
+	resource := NewResource(devicefleet.NewAdministration(fleet), testRuntime())
 
 	return &testContext{
 		db:       db,

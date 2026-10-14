@@ -12,9 +12,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// pickupAdjustmentInputs are the owners Care Plan's pickup adjustment
+// PickupAdjustmentInputs are the owners Care Plan's pickup adjustment
 // (#3561) is composed over.
-type pickupAdjustmentInputs struct {
+type PickupAdjustmentInputs struct {
 	CarePlan         careplan.Capability
 	PickupSchedules  careplan.PickupScheduleService
 	ArrivalSchedules careplan.ArrivalScheduleService
@@ -26,7 +26,7 @@ type pickupAdjustmentInputs struct {
 	Today            func() calendar.Date
 }
 
-func newPickupAdjustments(inputs pickupAdjustmentInputs) (careplan.PickupAdjustments, error) {
+func NewPickupAdjustments(inputs PickupAdjustmentInputs) (careplan.PickupAdjustments, error) {
 	return carePlanCompose.NewPickupAdjustments(carePlanCompose.PickupAdjustmentDependencies{
 		PickupSchedules: inputs.PickupSchedules, ArrivalSchedules: inputs.ArrivalSchedules, Records: inputs.CarePlan,
 		Baselines: inputs.Baselines, Offerings: inputs.Offerings,

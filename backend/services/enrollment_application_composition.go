@@ -56,9 +56,9 @@ type enrollmentNotificationSettings struct {
 	}
 }
 
-// newEnrollmentNotifications composes Enrollment's mail branding and decision
+// NewEnrollmentNotifications composes Enrollment's mail branding and decision
 // notifications over the Delivery outbox.
-func newEnrollmentNotifications(modes enrollmentCompose.NotificationModePin, settings interface {
+func NewEnrollmentNotifications(modes enrollmentCompose.NotificationModePin, settings interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }, outbox platformModels.OutboxEnqueuer, schools enrollmentOwner.SchoolDirectory) enrollmentOwner.Notifications {
 	return enrollmentCompose.NewNotifications(enrollmentCompose.NotificationDependencies{

@@ -10,7 +10,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -20,9 +20,9 @@ import (
 // It deliberately avoids repositories.NewFactory: the factory is shrink-only
 // under #2580, so a test that needs three repositories must not add another
 // caller that builds the whole legacy graph.
-func parentRepos(tb testing.TB, db *bun.DB) testutil.PeopleRepositorySuiteParentMessaging {
+func parentRepos(tb testing.TB, db *bun.DB) api.PeopleRepositorySuiteParentMessaging {
 	tb.Helper()
-	repos, err := testutil.NewPeopleRepositorySuiteParentMessaging(db)
+	repos, err := api.NewPeopleRepositorySuiteParentMessaging(testpkg.NewDatabase(tb, db))
 	require.NoError(tb, err)
 	return repos
 }

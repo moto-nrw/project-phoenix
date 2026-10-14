@@ -30,57 +30,57 @@ var mfaEmailBackoff = []time.Duration{
 	15 * time.Second,
 }
 
-// mfaWiring is the retained material the MFA seams bind to. A nil wiring
+// MfaWiring is the retained material the MFA seams bind to. A nil wiring
 // composes the module without MFA, which the cleanup and fixture roots do.
-type mfaWiring struct {
-	// operatorAuditLog is the operator ledger the operator second factor
+type MfaWiring struct {
+	// OperatorAuditLog is the operator ledger the operator second factor
 	// appends to (#3331).
-	operatorAuditLog platformModels.OperatorAuditLogRepository
-	settings         settingsCompose.SettingsService
-	dispatcher       *email.Dispatcher
-	defaultFrom      email.Email
-	frontendURL      string
-	jwtSecret        string
-	logger           *slog.Logger
-	// backoff spaces the send retries; nil uses the production spacing.
-	backoff []time.Duration
-	// decorate wraps the record port before the module is composed, so a
+	OperatorAuditLog platformModels.OperatorAuditLogRepository
+	Settings         settingsCompose.SettingsService
+	Dispatcher       *email.Dispatcher
+	DefaultFrom      email.Email
+	FrontendURL      string
+	JwtSecret        string
+	Logger           *slog.Logger
+	// Backoff spaces the send retries; nil uses the production spacing.
+	Backoff []time.Duration
+	// Decorate wraps the record port before the module is composed, so a
 	// behaviour test can make one statement fail and prove the flow refuses
 	// rather than degrades. Nil in production.
-	decorate func(identityaccessCompose.AccountMFARecords) identityaccessCompose.AccountMFARecords
-	// capability serves the account second factor instead of composing it
+	Decorate func(identityaccessCompose.AccountMFARecords) identityaccessCompose.AccountMFARecords
+	// Capability serves the account second factor instead of composing it
 	// over the records. Nil in production.
-	capability identityaccess.AccountMFA
-	// passkeys carries the relying-party facts; nil leaves the ceremonies
+	Capability identityaccess.AccountMFA
+	// Passkeys carries the relying-party facts; nil leaves the ceremonies
 	// unavailable.
-	passkeys *identityaccessCompose.PasskeyDependencies
+	Passkeys *identityaccessCompose.PasskeyDependencies
 }
 
-func mfaDependencies(wiring *mfaWiring, codec identityaccessCompose.MFAChallengeCodec) *identityaccessCompose.MFADependencies {
-	if wiring == nil || wiring.operatorAuditLog == nil || codec == nil {
+func mfaDependencies(wiring *MfaWiring, codec identityaccessCompose.MFAChallengeCodec) *identityaccessCompose.MFADependencies {
+	if wiring == nil || wiring.OperatorAuditLog == nil || codec == nil {
 		return nil
 	}
-	logger := wiring.logger
+	logger := wiring.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
-	backoff := wiring.backoff
+	backoff := wiring.Backoff
 	if backoff == nil {
 		backoff = mfaEmailBackoff
 	}
 	return &identityaccessCompose.MFADependencies{
-		DecorateRecords: wiring.decorate,
-		Settings:        mfaSettings{settings: wiring.settings},
+		DecorateRecords: wiring.Decorate,
+		Settings:        mfaSettings{settings: wiring.Settings},
 		Codec:           codec,
 		Codes:           shortCodeHasher{},
 		Mail: mfaMailer{
-			dispatcher: wiring.dispatcher, from: wiring.defaultFrom,
-			frontendURL: wiring.frontendURL, logger: logger, backoff: backoff,
+			dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom,
+			frontendURL: wiring.FrontendURL, logger: logger, backoff: backoff,
 		},
-		OperatorAudit: operatorActionLog{ledger: wiring.operatorAuditLog, logger: logger},
-		JWTSecret:     wiring.jwtSecret,
-		Passkeys:      wiring.passkeys,
-		Capability:    wiring.capability,
+		OperatorAudit: operatorActionLog{ledger: wiring.OperatorAuditLog, logger: logger},
+		JWTSecret:     wiring.JwtSecret,
+		Passkeys:      wiring.Passkeys,
+		Capability:    wiring.Capability,
 		Logger:        logger,
 	}
 }

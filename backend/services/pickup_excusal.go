@@ -16,7 +16,7 @@ type pickupExcusalTimetable struct {
 	partialAbsenceBlocks
 }
 
-func newPickupExcusalTimetable(capability timetable.Capability, preview timetableCompose.PartialAbsencePreview) pickupExcusalTimetable {
+func NewPickupExcusalTimetable(capability timetable.Capability, preview timetableCompose.PartialAbsencePreview) pickupExcusalTimetable {
 	return pickupExcusalTimetable{Capability: capability, partialAbsenceBlocks: newPartialAbsenceBlocks(preview)}
 }
 

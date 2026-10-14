@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 43,
+  "policy_epoch": 44,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -476,6 +476,13 @@
       "role": "test-support",
       "internal_test_role": "e2e-test",
       "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/workforce/workforcetest",
+      "owner": "workforce",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     },
     {
       "path": "modules/peopledirectory/userscontract",
@@ -2249,6 +2256,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/timetableblockdisplay/compose",
+      "owner": "timetable-block-display",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/presenceprojection",
       "owner": "presence-legacy-view",
       "role": "postgres",
@@ -2414,6 +2428,13 @@
       "owner": "group-live-view",
       "role": "adapter",
       "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/grouplive/compose",
+      "owner": "group-live-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -2620,13 +2641,6 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "modules/classday/classdaytest",
-      "owner": "class-day-view",
-      "role": "test-support",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/supervisiondashboard",
       "owner": "calendar-view",
       "role": "public",
@@ -2638,6 +2652,13 @@
       "owner": "calendar-view",
       "role": "adapter",
       "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/supervisiondashboard/compose",
+      "owner": "calendar-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -7131,39 +7152,6 @@
       "target_role": "public"
     },
     {
-      "id": "legacy-composition.session-end-compose",
-      "description": "The legacy test module composes the session end workflow for kiosk tests.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "session-end",
-      "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.session-end-public",
-      "description": "The legacy test module exposes the session end command.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "session-end",
-      "target_role": "public"
-    },
-    {
-      "id": "test-support.reminder-public",
-      "description": "Narrow reminder test composition returns the owner command contract.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "test-support",
-      "source_role": "test-support",
-      "target_owner": "reminder-delivery",
-      "target_role": "public"
-    },
-    {
       "id": "test-support.test-support.workforce-public",
       "description": "The shared staff-absence fixtures seed the canonical absence type and status values (#3422).",
       "scopes": [
@@ -9420,28 +9408,6 @@
       "target_role": "compose"
     },
     {
-      "id": "test-support.to.feedback-public",
-      "description": "API test composition shares the real Feedback facade with migrated adapters.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "test-support",
-      "source_role": "test-support",
-      "target_owner": "feedback",
-      "target_role": "public"
-    },
-    {
-      "id": "test-support.to.feedback-compose",
-      "description": "API test composition constructs the real Feedback module.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "test-support",
-      "source_role": "test-support",
-      "target_owner": "feedback",
-      "target_role": "compose"
-    },
-    {
       "id": "test-support.to.timetable-public",
       "description": "Timetable test support returns the real public capability.",
       "scopes": [
@@ -9549,17 +9515,6 @@
       "source_role": "compose",
       "target_owner": "inbound-mealplan",
       "target_role": "http"
-    },
-    {
-      "id": "legacy-composition.to.workforce-postgres",
-      "description": "The legacy repository factory constructs the candidate workforce Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "postgres"
     },
     {
       "id": "workforce.postgres.transaction-domain",
@@ -10535,17 +10490,6 @@
       "target_role": "domain"
     },
     {
-      "id": "facilities.integration-test.legacy-composition",
-      "description": "Facilities HTTP integration tests supply the legacy application graph at the composition boundary.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "facilities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
-    },
-    {
       "id": "facilities.integration-test.document-application",
       "description": "Facilities snapshot tests verify the established export column contract.",
       "scopes": [
@@ -11366,17 +11310,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "delivery-platform",
       "target_role": "domain"
-    },
-    {
-      "id": "delivery-cutover.018",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
     },
     {
       "id": "delivery-cutover.019",
@@ -12400,17 +12333,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "legacy-composition.to.appointments-compose",
-      "description": "Legacy composition constructs Appointments for repository and test graphs.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "appointments",
-      "target_role": "compose"
-    },
-    {
       "id": "legacy-composition.to.appointments-public",
       "description": "Legacy composition shares and adapts the Appointments facade.",
       "scopes": [
@@ -12707,17 +12629,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "slot-list-support.to.legacy-composition",
-      "description": "Slot-list test support narrows the legacy factory to student schedule adapters.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "test-support",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
-    },
-    {
       "id": "care-plan.integration-test.security-application",
       "description": "Care Plan cross-tenant contract tests configure guardian permissions.",
       "scopes": [
@@ -12891,17 +12802,6 @@
       "source_role": "adapter",
       "target_owner": "inbound-substitutions",
       "target_role": "http"
-    },
-    {
-      "id": "workforce.adapter-test.legacy-composition",
-      "description": "Workforce HTTP composition tests build the retained service graph the routes serve.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
     },
     {
       "id": "workforce.adapter-test.substitutions-http",
@@ -18172,17 +18072,6 @@
       "target_role": "public"
     },
     {
-      "id": "legacy-composition.compose.settings-public",
-      "description": "The retained operator settings test module hands out the public Settings Platform operator capability (#2736).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "settings-platform",
-      "target_role": "public"
-    },
-    {
       "id": "legacy-composition.compose.settings-compose",
       "description": "The retained operator settings test module builds the operator capability through the Settings Platform composition, as the serving root does (#2736).",
       "scopes": [
@@ -20351,6 +20240,16 @@
       "target_role": "http"
     },
     {
+      "id": "root-composition.reach.workflow.port",
+      "description": "ADR 0053 point 2: the typed roots import the port role of every workflow owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "workflow",
+      "target_role": "port"
+    },
+    {
       "id": "root-composition.reach.workflow.public",
       "description": "ADR 0053 point 2: the typed roots import the public role of every workflow owner.",
       "scopes": [
@@ -20392,6 +20291,17 @@
       ],
       "source_owner": "root-composition",
       "source_role": "cli",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.reach.internal-test.self.compose",
+      "description": "ADR 0053 point 2: the internal tests of the typed roots import the root's compose role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
       "target_owner": "root-composition",
       "target_role": "compose"
     },
@@ -20558,6 +20468,17 @@
       "source_owner_kind": "projection",
       "source_role": "compose",
       "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.projection.adapter",
+      "description": "ADR 0053 point 3: the composition of a projection owner imports its own adapter role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "compose",
+      "target_role": "adapter",
       "same_owner": true
     },
     {
@@ -20814,17 +20735,6 @@
       "same_owner": true
     },
     {
-      "id": "own-test.projection.test-support",
-      "description": "ADR 0053 point 7.1: the tests of a projection owner import its own test-support role.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner_kind": "projection",
-      "target_role": "test-support",
-      "same_owner": true
-    },
-    {
       "id": "own-test.domain.e2e-test.contract",
       "description": "ADR 0053 point 7.1: the end-to-end suites of a domain owner import its own contract role.",
       "scopes": [
@@ -21057,6 +20967,82 @@
       "source_owner_kind": "domain",
       "target_owner": "root-composition",
       "target_role": "compose"
+    },
+    {
+      "id": "root-test.inbound.compose",
+      "description": "ADR 0053 point 7.2: the tests of an inbound owner build the typed roots.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "inbound",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-test.platform.compose",
+      "description": "ADR 0053 point 7.2: the tests of a platform owner build the typed roots.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-test.projection.compose",
+      "description": "ADR 0053 point 7.2: the tests of a projection owner build the typed roots.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "projection",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-test.workflow.compose",
+      "description": "ADR 0053 point 7.2: the tests of a workflow owner build the typed roots.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-test.test-support.compose",
+      "description": "ADR 0053 point 7.2: the tests of the shared test support build the typed roots.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "test-support",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-test.legacy-composition.compose",
+      "description": "ADR 0053 point 7.2: the external tests of the legacy composition build the typed roots; Go keeps its internal tests out.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "legacy-composition",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "own-test.legacy-composition.module-behavior-test.compose",
+      "description": "ADR 0053 point 7.1: the external tests of the legacy composition import its own compose role.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "module-behavior-test",
+      "target_role": "compose",
+      "same_owner": true
     },
     {
       "id": "shared-fixtures.identity-access-adapter",

@@ -16,16 +16,16 @@ import (
 // repositories filter or attach accounts through the owner's queries, and
 // the retained operator repository contracts are adapters over the module.
 
-// identityAccountDirectory adapts the public account lookup to the parent
+// IdentityAccountDirectory adapts the public account lookup to the parent
 // enrollment repository's directory port.
-type identityAccountDirectory struct {
-	accounts identityaccess.GuardianAccessQuery
+type IdentityAccountDirectory struct {
+	Accounts identityaccess.GuardianAccessQuery
 }
 
 // AccountEmail resolves the address behind an account; an unknown account is
 // an empty address, matching the applications by id only.
-func (d identityAccountDirectory) AccountEmail(ctx context.Context, accountID int64) (string, error) {
-	account, err := d.accounts.FindAccount(ctx, accountID)
+func (d IdentityAccountDirectory) AccountEmail(ctx context.Context, accountID int64) (string, error) {
+	account, err := d.Accounts.FindAccount(ctx, accountID)
 	if errors.Is(err, identityaccess.ErrAccountNotFound) {
 		return "", nil
 	}
@@ -35,10 +35,10 @@ func (d identityAccountDirectory) AccountEmail(ctx context.Context, accountID in
 	return account.Email, nil
 }
 
-// staffMessageIdentity returns the Identity & Access owner queries the staff
+// StaffMessageIdentity returns the Identity & Access owner queries the staff
 // messaging reads filter through, including the role classification
 // (#2721).
-func staffMessageIdentity(accounts identityaccess.StaffAccountQueries) peopleCompose.StaffMessageIdentity {
+func StaffMessageIdentity(accounts identityaccess.StaffAccountQueries) peopleCompose.StaffMessageIdentity {
 	return peopleCompose.StaffMessageIdentity{
 		ActiveSchoolAccounts: accounts.ListActiveAccountIDsForTenant,
 		RoleClasses: func(ctx context.Context, tenantID int64, accountIDs []int64) ([]peopleCompose.StaffMessageRole, error) {

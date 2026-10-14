@@ -28,9 +28,9 @@ var invitationEmailBackoff = []time.Duration{
 	15 * time.Second,
 }
 
-// staffWelcomeDelay keeps the welcome behind the invitation while preserving
+// StaffWelcomeDelay keeps the welcome behind the invitation while preserving
 // that delay in the durable outbox.
-const staffWelcomeDelay = 30 * time.Second
+const StaffWelcomeDelay = 30 * time.Second
 
 // systemRoleTranslations maps English system role names to the German
 // display names the invitation mail shows.
@@ -49,37 +49,37 @@ func translateRoleNameToGerman(roleName string) string {
 	return roleName
 }
 
-// invitationWiring is the configuration the invitation flows are composed
+// InvitationWiring is the configuration the invitation flows are composed
 // with. dispatcher may be nil: the link is then not mailed, as before.
-type invitationWiring struct {
-	dispatcher  *email.Dispatcher
-	defaultFrom email.Email
-	// staffURL and schoolURL are the portal hosts an invitee accepts on.
-	staffURL  string
-	schoolURL string
-	// mailIdentity points a reply at the OGS instead of moto (#1936); nil
+type InvitationWiring struct {
+	Dispatcher  *email.Dispatcher
+	DefaultFrom email.Email
+	// StaffURL and schoolURL are the portal hosts an invitee accepts on.
+	StaffURL  string
+	SchoolURL string
+	// MailIdentity points a reply at the OGS instead of moto (#1936); nil
 	// sends without a Reply-To.
-	mailIdentity email.ReplyToResolver
-	expiry       time.Duration
-	// backoff spaces the send retries; nil uses the production spacing.
-	backoff []time.Duration
-	// settings resolve the tenant settings the welcome mail's help link
+	MailIdentity email.ReplyToResolver
+	Expiry       time.Duration
+	// Backoff spaces the send retries; nil uses the production spacing.
+	Backoff []time.Duration
+	// Settings resolve the tenant settings the welcome mail's help link
 	// carries; nil leaves them out and /help asks.
-	settings tenantSettingsResolver
-	// outbox persists the staff welcome in the invitation transaction.
-	outbox func() platformModels.OutboxEnqueuer
-	// welcomeDelay holds the welcome behind the invitation; zero is immediate.
-	welcomeDelay time.Duration
+	Settings tenantSettingsResolver
+	// Outbox persists the staff welcome in the invitation transaction.
+	Outbox func() platformModels.OutboxEnqueuer
+	// WelcomeDelay holds the welcome behind the invitation; zero is immediate.
+	WelcomeDelay time.Duration
 }
 
-func invitationDependencies(wiring *invitationWiring, owners identityaccessCompose.InvitationOwnerTokens, invitations func() identityaccess.SchoolInvitations, logger *slog.Logger) *identityaccessCompose.SchoolInvitationDependencies {
+func invitationDependencies(wiring *InvitationWiring, owners identityaccessCompose.InvitationOwnerTokens, invitations func() identityaccess.SchoolInvitations, logger *slog.Logger) *identityaccessCompose.SchoolInvitationDependencies {
 	if wiring == nil {
 		return nil
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	backoff := wiring.backoff
+	backoff := wiring.Backoff
 	if backoff == nil {
 		backoff = invitationEmailBackoff
 	}
@@ -87,12 +87,12 @@ func invitationDependencies(wiring *invitationWiring, owners identityaccessCompo
 		Grants: RoleGrantPolicy{},
 		Owners: owners,
 		Delivery: invitationDelivery{
-			dispatcher: wiring.dispatcher, from: wiring.defaultFrom, staffURL: wiring.staffURL, schoolURL: wiring.schoolURL,
-			identity: wiring.mailIdentity, backoff: backoff, invitations: invitations, logger: logger,
-			settings: wiring.settings, outbox: wiring.outbox, welcomeDelay: wiring.welcomeDelay,
+			dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, staffURL: wiring.StaffURL, schoolURL: wiring.SchoolURL,
+			identity: wiring.MailIdentity, backoff: backoff, invitations: invitations, logger: logger,
+			settings: wiring.Settings, outbox: wiring.Outbox, welcomeDelay: wiring.WelcomeDelay,
 		},
 		Passwords: passwordPolicy{},
-		Expiry:    wiring.expiry,
+		Expiry:    wiring.Expiry,
 		Logger:    logger,
 	}
 }

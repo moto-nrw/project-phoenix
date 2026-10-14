@@ -8,11 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
@@ -34,7 +33,7 @@ type rolloverTestEnv struct {
 	// this env over the test tenant.
 	tb             testing.TB
 	db             *bun.DB
-	repos          *services.EnrollmentFlowTestRepositories
+	repos          *api.EnrollmentFlowTestRepositories
 	timetable      timetable.Capability
 	rolloverSvc    enrollmentAPI.RolloverService
 	requestSvc     enrollmentAPI.RequestService
@@ -82,11 +81,11 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	settings.stringValues[configModel.KeyEnrollmentLegalPhotoText] = "Foto Text"
 
 	outbox := &recordingOutbox{}
-	requestSvc := newTestRequestService(testutil.EnrollmentIntakeSources{
+	requestSvc := newTestRequestService(api.EnrollmentIntakeSources{
 		Bookings:         requestTestBookingCommands(),
 		Requests:         repoFactory.Enrollment(),
 		Children:         repoFactory.Enrollment(),
-		CareOfferingRepo: testutil.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
+		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
 		Catalog:          repoFactory.Enrollment(),
 		SchoolRepo:       factorySchools{repos: repoFactory},
 		RateLimitRepo:    repoFactory.Enrollment(),
@@ -97,10 +96,10 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 		Logger:           slog.Default(),
 	})
 
-	offeringCatalog := testCareOfferingCatalog(t, db, testutil.WithCareOfferingSettings(settings))
+	offeringCatalog := testCareOfferingCatalog(t, db, api.WithCareOfferingSettings(settings))
 	var offeringCloner TestRolloverCatalogCloner = offeringCatalog
 
-	rolloverSvc := newTestRolloverService(testutil.EnrollmentRolloverSources{
+	rolloverSvc := newTestRolloverService(api.EnrollmentRolloverSources{
 		Bookings:   requestTestBookingCommands(),
 		Phases:     repoFactory.Enrollment(),
 		Requests:   repoFactory.Enrollment(),
@@ -260,9 +259,9 @@ func validRolloverRequest(env *rolloverTestEnv, mode string, bumpsGrade bool) en
 
 func rolloverServiceWithSettings(
 	env *rolloverTestEnv,
-	settings testutil.EnrollmentIntakeSettings,
+	settings api.EnrollmentIntakeSettings,
 ) enrollmentAPI.RolloverService {
-	return newTestRolloverService(testutil.EnrollmentRolloverSources{
+	return newTestRolloverService(api.EnrollmentRolloverSources{
 		Bookings:   requestTestBookingCommands(),
 		Phases:     env.repos.Enrollment(),
 		Requests:   env.repos.Enrollment(),
@@ -883,7 +882,7 @@ func TestRolloverService_RunDeadlineWorker_AutoApprovePromotesToApproved(t *test
 	// env doesn't wire a decision service (decision needs Person/
 	// Student repos and the full chain).
 	stubDecision := &fakeApproveDecisionService{repo: env.repos.Enrollment()}
-	autoApproveSvc := newTestRolloverService(testutil.EnrollmentRolloverSources{
+	autoApproveSvc := newTestRolloverService(api.EnrollmentRolloverSources{
 		Bookings:   requestTestBookingCommands(),
 		Phases:     env.repos.Enrollment(),
 		Requests:   env.repos.Enrollment(),
@@ -1025,4 +1024,21 @@ func TestRolloverService_RunDeadlineWorker_LeavesAdminReviewAlone(t *testing.T) 
 	)
 	require.NoError(t, err)
 	assert.Len(t, reviewRows, 1, "admin-review rows must survive the deadline worker")
+}
+
+// The typed root's test compositions these suites build over the package's
+// test database (#4005).
+
+func newBookingMaterialization(tb testing.TB, db *bun.DB, options ...api.BookingMaterializationOption) api.BookingMaterializationTestModule {
+	tb.Helper()
+	module, err := api.NewBookingMaterialization(testpkg.NewDatabase(tb, db), testpkg.TenantRuntime(tb, db), options...)
+	require.NoError(tb, err)
+	return module
+}
+
+func newCareOfferingCatalog(tb testing.TB, db *bun.DB, options ...api.CareOfferingCatalogOption) api.CareOfferingCatalogTestModule {
+	tb.Helper()
+	module, err := api.NewCareOfferingCatalog(testpkg.NewDatabase(tb, db), testpkg.TenantRuntime(tb, db), options...)
+	require.NoError(tb, err)
+	return module
 }

@@ -12,8 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -23,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
@@ -47,6 +46,32 @@ func newDisplayTestTenant(t *testing.T, db *bun.DB) int64 {
 	return tenantID
 }
 
+// SettingsRows are the tenant setting rows the settings service persists.
+type SettingsRows struct {
+	Values configModel.SettingValueRepository
+	Audit  configModel.SettingAuditRepository
+}
+
+// DisplayComposition is what the display suites take from the root's graph
+// over the test database: the setting rows, the fleet dependencies with the
+// rooms the fleet reads, the retained rows the dashboard reads, and Care Plan
+// with the approved offerings its pickup schedule projects.
+type DisplayComposition struct {
+	Settings          SettingsRows
+	Fleet             devicefleetCompose.Dependencies
+	Dashboard         devicefleetLegacy.DashboardDependencies
+	CarePlan          careplan.Capability
+	ApprovedOfferings careplan.ApprovedBookingReader
+}
+
+// RootCompositions are the typed root's compositions the internal suites run
+// over. The root imports this package, so these internal tests cannot import
+// it; root_composition_test.go (package httpadapter_test) binds them.
+var RootCompositions struct {
+	SettingsRows func(t *testing.T, db testpkg.Database) SettingsRows
+	Display      func(t *testing.T, db testpkg.Database) DisplayComposition
+}
+
 // enableDisplayFeature turns on the opt-in display.enabled setting (issue
 // #1325 follow-up: the feature defaults off) for a test tenant. These
 // hermetic tests exercise the CRUD/dashboard behavior itself, not the
@@ -54,7 +79,7 @@ func newDisplayTestTenant(t *testing.T, db *bun.DB) int64 {
 // TestDisplayFeatureGate below covers the off-by-default behavior directly.
 func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
 	t.Helper()
-	repos := services.NewSettingsTestRepositories(testpkg.SettingsRuntime(t, db))
+	repos := RootCompositions.SettingsRows(t, testpkg.NewDatabase(t, db))
 	settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -63,37 +88,26 @@ func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
 
 func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http.Handler {
 	t.Helper()
-	repos, err := services.NewDisplayTestRepositories(db, testpkg.SettingsRuntime(t, db))
-	require.NoError(t, err)
-	approvedOfferings, err := testutil.NewApprovedOfferingProjection(db, repos.Enrollment())
-	require.NoError(t, err)
-	rooms, err := services.NewFacilities(db)
-	require.NoError(t, err)
+	display := RootCompositions.Display(t, testpkg.NewDatabase(t, db))
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	settingsService := configSvc.NewSettingsService(display.Settings.Values, display.Settings.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
-	carePlan, err := services.NewCarePlan(db, services.MustNewPeopleDirectory(db), repos.InstanceStudent)
+	pickup, err := careplanCompose.NewPickupSchedules(db, display.CarePlan, newPickupBaselineService(display.CarePlan, display.ApprovedOfferings), nil, nil, nil)
 	require.NoError(t, err)
-	pickup, err := careplanCompose.NewPickupSchedules(db, carePlan, newPickupBaselineService(carePlan, approvedOfferings), nil, nil, nil)
-	require.NoError(t, err)
-	fleet, err := devicefleetCompose.New(devicefleetCompose.Dependencies{
-		DB:       db,
-		Rooms:    rooms,
-		Presence: presence,
-		Dashboard: devicefleetLegacy.NewDashboardSources(devicefleetLegacy.DashboardDependencies{
-			ActiveGroups:   repos.ActiveGroup,
-			Templates:      repos.ActivityGroup,
-			Instances:      repos.ActivityInstance,
-			PickupSchedule: pickup,
-		}),
-		Tenants: devicefleetLegacy.NewTenantFacts(devicefleetLegacy.TenantFactDependencies{
-			Schools:  displaySchools{db: db},
-			Settings: settingsService,
-		}),
-		Now:     firstClock(clocks),
-		Observe: func(devicefleetCompose.Observation) {},
+	dashboard := display.Dashboard
+	dashboard.PickupSchedule = pickup
+	dependencies := display.Fleet
+	dependencies.DB = db
+	dependencies.Presence = presence
+	dependencies.Dashboard = devicefleetLegacy.NewDashboardSources(dashboard)
+	dependencies.Tenants = devicefleetLegacy.NewTenantFacts(devicefleetLegacy.TenantFactDependencies{
+		Schools:  displaySchools{db: db},
+		Settings: settingsService,
 	})
+	dependencies.Now = firstClock(clocks)
+	dependencies.Observe = func(devicefleetCompose.Observation) {}
+	fleet, err := devicefleetCompose.New(dependencies)
 	require.NoError(t, err)
 	return testpkg.TenantRuntimeMiddleware(t, db)(NewResource(fleet, settingsService).Router())
 }
@@ -675,7 +689,7 @@ func TestDisplayFeatureGate(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code, "dashboard must work once the feature is on: %s", rec.Body.String())
 
 		ctx := tenant.WithTenantID(context.Background(), tenantID)
-		repos := services.NewSettingsTestRepositories(testpkg.SettingsRuntime(t, db))
+		repos := RootCompositions.SettingsRows(t, testpkg.NewDatabase(t, db))
 		settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 		require.NoError(t, settingsService.ResetValue(ctx, configModel.KeyDisplayEnabled, nil, nil))
 

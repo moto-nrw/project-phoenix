@@ -14,7 +14,7 @@ func NewCleanupSettingsService(settingsRuntime settingsCompose.TenantSettingsRun
 	return settingsCompose.NewSettingsService(
 		settingsCompose.NewSettingValueRepository(settingsRuntime),
 		settingsCompose.NewSettingAuditRepository(settingsRuntime),
-		newSchoolSettingsStore(schools),
+		NewSchoolSettingsStore(schools),
 		settingsRuntime,
 		logger,
 	)

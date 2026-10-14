@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -22,9 +23,9 @@ import (
 // overviewRepositories composes the retained readers and the Dienstplan row
 // adapter over the same handle, so a query counter attached to db observes
 // every read the projection makes.
-func overviewRepositories(db *bun.DB) (*services.RepositoryTestFactory, services.TimetableRepositories, *workforceCompose.ShiftRows, services.TimetableDependencies) {
-	dependencies := services.NewUnobservedTimetableDependencies(db)
-	return services.NewRepositoryTestFactory(db, dependencies), services.NewTimetableRepositories(db, dependencies), workforceCompose.NewShiftRows(dependencies.Workforce), dependencies
+func overviewRepositories(db *bun.DB) (*api.RepositoryTestFactory, services.TimetableRepositories, *workforceCompose.ShiftRows, services.TimetableDependencies) {
+	dependencies := api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))
+	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), dependencies), services.NewTimetableRepositories(db, dependencies), workforceCompose.NewShiftRows(dependencies.Workforce), dependencies
 }
 
 func integrationClock(t *testing.T, value string) time.Time {
@@ -180,7 +181,7 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 
 	modelStaff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Summary", "ModelFallback")
 	createOverviewShift(t, db, tenantID, modelStaff.ID, monday, "09:00", "10:00", 0)
-	modelRepo := workforceRepositoryAdapter.NewWorkTimeModelRepository(services.NewUnobservedTimetableDependencies(db).Workforce)
+	modelRepo := workforceRepositoryAdapter.NewWorkTimeModelRepository(api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Workforce)
 	workModel := &configModel.WorkTimeModel{
 		Name:               fmt.Sprintf("Summary fallback %d", time.Now().UnixNano()),
 		RotationLength:     1,

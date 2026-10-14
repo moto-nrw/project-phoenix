@@ -23,20 +23,20 @@ func (p calendarCalDAVPolicy) EnabledForTenant(ctx context.Context, tenantID int
 	return p.settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyCalendarCalDAVEnabled)
 }
 
-type schoolCalendarRendererAdapter struct {
-	renderer schoolcalendar.CalendarRenderer
+type SchoolCalendarRendererAdapter struct {
+	Renderer schoolcalendar.CalendarRenderer
 }
 
-func (a schoolCalendarRendererAdapter) RenderCalendar(ctx context.Context, name string, events []calendarService.CalendarEvent) (string, error) {
+func (a SchoolCalendarRendererAdapter) RenderCalendar(ctx context.Context, name string, events []calendarService.CalendarEvent) (string, error) {
 	values := make([]schoolcalendar.CalendarEvent, 0, len(events))
 	for _, event := range events {
 		values = append(values, calendarEventToSchoolCalendar(event))
 	}
-	return a.renderer.RenderCalendar(ctx, name, values)
+	return a.Renderer.RenderCalendar(ctx, name, values)
 }
 
-func (a schoolCalendarRendererAdapter) RenderCalendarObject(ctx context.Context, event calendarService.CalendarEvent) (string, error) {
-	return a.renderer.RenderCalendarObject(ctx, calendarEventToSchoolCalendar(event))
+func (a SchoolCalendarRendererAdapter) RenderCalendarObject(ctx context.Context, event calendarService.CalendarEvent) (string, error) {
+	return a.Renderer.RenderCalendarObject(ctx, calendarEventToSchoolCalendar(event))
 }
 
 func calendarEventToSchoolCalendar(event calendarService.CalendarEvent) schoolcalendar.CalendarEvent {

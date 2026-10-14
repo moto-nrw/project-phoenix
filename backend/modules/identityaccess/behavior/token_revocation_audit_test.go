@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
+
+	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,13 +75,13 @@ func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
 	_, refreshToken, err := workingService.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 
-	signer, err := sessiontoken.NewTokenAuthWithDurations(authTestFactoryConfig(false).JWTSecret, 15*time.Minute, time.Hour)
+	sessionTokens, err := identityCompose.NewConfiguredSessionTokens(authTestFactoryConfig(false).JWTSecret, 15*time.Minute, time.Hour)
 	require.NoError(t, err)
-	service, err := services.IdentityAccessForTests(services.IdentityAccessTestConfig{
-		TokenAuth: signer, TenantRuntime: testpkg.TenantRuntime(t, db),
+	service, err := api.IdentityAccessForTests(api.IdentityAccessTestConfig{
+		SessionTokens: sessionTokens, TenantRuntime: testpkg.TenantRuntime(t, db),
 		Audit: failingAuditCommand{}, FrontendURL: "http://localhost:3000",
 		PasswordResetExpiry: time.Hour,
-	}, db, nil)
+	}, testpkg.NewDatabase(t, db), nil)
 	require.NoError(t, err)
 
 	require.NoError(t, service.LogoutWithAudit(ctx, refreshToken, "192.0.2.10", "logout-test"))
@@ -103,10 +104,10 @@ func TestRevocationAuditFailureRollsBackAndRetryIsIdempotent(t *testing.T) {
 	_, _, err = workingService.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 
-	service, err := services.IdentityAccessForTests(services.IdentityAccessTestConfig{
+	service, err := api.IdentityAccessForTests(api.IdentityAccessTestConfig{
 		TenantRuntime: testpkg.TenantRuntime(t, db), Audit: failingAuditCommand{},
 		FrontendURL: "http://localhost:3000", PasswordResetExpiry: time.Hour,
-	}, db, nil)
+	}, testpkg.NewDatabase(t, db), nil)
 	require.NoError(t, err)
 
 	err = service.RevokeAllTokensWithReason(testpkg.TenantContext(tenantID), account.ID, "password_reset")

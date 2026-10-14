@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -16,7 +16,7 @@ import (
 func TestNativeParentFeedConcurrentCreationKeepsOneWinner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	feeds, err := services.NewIdentityAccessForTests(db)
+	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "parent-feed-race")
 	ctx := testpkg.Ctx(t)
@@ -63,7 +63,7 @@ func TestNativeParentFeedConcurrentCreationKeepsOneWinner(t *testing.T) {
 func TestNativeParentFeedRotationUsesAmbientTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	feeds, err := services.NewIdentityAccessForTests(db)
+	feeds, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "parent-feed-rollback")
 	ctx := testpkg.Ctx(t)

@@ -68,7 +68,7 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 	assert.Equal(t, dayTuesday, activeRows[0].DayOfWeek)
 	assert.Equal(t, 360, activeRows[0].TargetMinutes)
 
-	reloadedStaff, err := newWorkforceTestRepositories(t, ctx.db).Staff.FindByID(testpkg.Ctx(t), staff.ID)
+	reloadedStaff, err := newWorkforceTestRepositories(t, ctx.db).FindStaff(testpkg.Ctx(t), staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, reloadedStaff.WorkTimeModelID)
 	// config.work_time_model_entries has no tenant of its own; it only goes

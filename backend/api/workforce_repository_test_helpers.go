@@ -1,0 +1,64 @@
+package api
+
+import (
+	"time"
+
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/services"
+)
+
+// WorkforceTestRepositories is the Workforce suites' repository graph. The
+// audit repositories are filled by NewWorkforceTestRepositories,
+// the composition that owns Audit persistence (ADR 0049).
+type WorkforceTestRepositories struct {
+	WorkSessionTestRepositories
+	Membership                      schoolmembership.Capability
+	StaffAbsenceType                workforceCapability.Capability
+	StaffAbsenceTypeAllowance       *workforceCompose.StaffAbsenceTypeAllowanceRepository
+	StaffAbsenceTypeAllowanceChange *workforceCompose.StaffAbsenceTypeAllowanceChangeRepository
+	StaffMonthSnapshot              workforceCapability.MonthSnapshots
+	StaffAbsenceAudit               workforceCompose.StaffAbsenceAuditRepository
+	TimeTrackingDeletion            auditModels.TimeTrackingDeletionRepository
+	TimeTrackingAuditLog            auditModels.TimeTrackingAuditLogRepository
+	StaffMasterData                 userModels.StaffMasterDataRepository
+	StaffQualification              userModels.StaffQualificationRepository
+	StaffFinancialData              userModels.StaffFinancialDataRepository
+	PersonnelNumberChange           auditModels.PersonnelNumberChangeCreator
+	StaffMasterDataChange           auditModels.StaffMasterDataChangeCreator
+	DataAccessLog                   auditModels.DataAccessLogRepository
+	DataDeletion                    auditModels.DataDeletionRepository
+}
+
+func NewWorkforceTestRepositoriesWithMembers(db transactionruntime.Database, members services.MembershipTestRepositories, clocks ...func() time.Time) (WorkforceTestRepositories, error) {
+	sessions, err := NewWorkSessionTestRepositoriesWithMembers(db, members, clocks...)
+	if err != nil {
+		return WorkforceTestRepositories{}, err
+	}
+	membership, err := services.NewSchoolMembership(db.Pool())
+	if err != nil {
+		return WorkforceTestRepositories{}, err
+	}
+	var now func() time.Time
+	if len(clocks) > 0 {
+		now = clocks[0]
+	}
+	workTime, err := NewWorkforceWithClock(db, membership, now)
+	if err != nil {
+		return WorkforceTestRepositories{}, err
+	}
+	return WorkforceTestRepositories{WorkSessionTestRepositories: sessions,
+		Membership:                      membership,
+		StaffAbsenceType:                workTime,
+		StaffAbsenceTypeAllowance:       workforceCompose.NewStaffAbsenceTypeAllowanceRepository(db.Pool()),
+		StaffAbsenceTypeAllowanceChange: workforceCompose.NewStaffAbsenceTypeAllowanceChangeRepository(db.Pool()),
+		StaffMonthSnapshot:              workTime,
+		StaffAbsenceAudit:               workforceCompose.NewStaffAbsenceAuditRepository(workTime),
+		StaffMasterData:                 workforceCompose.NewStaffMasterDataRepository(workTime),
+		StaffQualification:              workforceCompose.NewStaffQualificationRepository(workTime),
+		StaffFinancialData:              workforceCompose.NewStaffFinancialDataRepository(workTime)}, nil
+}

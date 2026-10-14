@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -13,7 +14,7 @@ func TestWorkSessionPDFUsesComposedRenderer(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	staff := testpkg.CreateTestStaff(t, db, "PDF", "Export")
-	module, err := services.NewWorkSessionTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := api.NewWorkSessionTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	file, err := module.TimeTracking.WorkSessions.ExportSessions(testpkg.Ctx(t), staff.ID, "2024-01-01", "2024-01-07", "pdf")
 	require.NoError(t, err)

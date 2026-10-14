@@ -15,10 +15,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -364,7 +365,7 @@ func TestMarkAllRead_KeepsTeamMark(t *testing.T) {
 	assert.Equal(t, 1, markAllRead(t, f, adminCtx(t, f.staffAccount)),
 		"the reported count keeps the team mark, so the client can explain it")
 
-	repos := services.NewRepositoryTestFactory(f.db, services.NewUnobservedTimetableDependencies(f.db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
 	thread, err := repos.ParentMessageThread.FindByID(adminCtx(t, f.staffAccount), threadID)
 	require.NoError(t, err)
 	assert.NotNil(t, thread.StaffMarkedUnreadAt, "the team mark stays")
@@ -380,13 +381,13 @@ func TestMarkAllRead_LeavesParentReadReceipt(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, true)
-	repos := services.NewRepositoryTestFactory(f.db, services.NewUnobservedTimetableDependencies(f.db))
+	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
 	threadID, _ := startThreadWithQuestions(t, f, f.chain, "Frage")
 	guardianCtx := adminCtx(t, f.chain.AccountID)
 
 	readByStaff := func() bool {
 		t.Helper()
-		messages, err := services.NewParentMessageRepository(f.db).ListByThread(guardianCtx, threadID, 0)
+		messages, err := parentStore.NewParentMessageRepository(f.db).ListByThread(guardianCtx, threadID, 0)
 		require.NoError(t, err)
 		messaging.DecorateReadReceipts(guardianCtx, repos.ParentMessageRead, nil, threadID, f.chain.AccountID, messages)
 		return messages[len(messages)-1].ReadByStaff

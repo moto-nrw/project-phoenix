@@ -23,13 +23,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/services"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func newOverrideRepoTestFixtures(t *testing.T) (
 	ctx context.Context,
-	repo services.AccountMFARecords,
+	repo identityaccessCompose.AccountMFARecords,
 	accountID, tenantID int64,
 ) {
 	t.Helper()

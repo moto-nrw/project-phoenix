@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -41,7 +42,7 @@ func TestPresenceSupervisionQueryComposesDateAndStaffFilters(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := sessionSupervisors(services.NewRepositoryTestFactory(db, services.NewUnobservedTimetableDependencies(db)).ActiveGroup)
+	repo := sessionSupervisors(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActiveGroup)
 	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	start := timezone.NewDate(2020, 1, 1)

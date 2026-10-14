@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -74,11 +74,11 @@ func newWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 
 func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings parentService.SettingsService) http.Handler {
 	t.Helper()
-	repos, repoErr := testutil.NewParentRouteTestRepositories(db)
+	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:        repos.CareExceptions,
-		People:          testutil.MustNewPeopleDirectory(db),
+		People:          api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChild,
 		StatusDayRepo:   repos.StudentStatusDay,
@@ -223,11 +223,11 @@ func (disabledSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ strin
 
 func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	t.Helper()
-	repos, repoErr := testutil.NewParentRouteTestRepositories(db)
+	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:      repos.CareExceptions,
-		People:        testutil.MustNewPeopleDirectory(db),
+		People:        api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
 		StudentRepo:   repos.Student,
@@ -479,7 +479,7 @@ func isoDay(addDays int) string {
 // child's health information and live absence flags through.
 func careProfiles(t *testing.T, db *bun.DB) careplan.StudentProfileCommands {
 	t.Helper()
-	commands, err := testutil.NewParentPortalCareProfiles(db)
+	commands, err := api.NewParentPortalCareProfiles(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return commands
 }

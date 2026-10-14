@@ -37,9 +37,9 @@ func accountLookup(accounts identityaccess.AccountProfiles) peopleCompose.Accoun
 	}
 }
 
-// applyDefaultGuardianRole gives a link without a role or permissions the
+// ApplyDefaultGuardianRole gives a link without a role or permissions the
 // authorization policy's default preset and the permissions it grants.
-func applyDefaultGuardianRole(relationship *userModels.StudentGuardian) {
+func ApplyDefaultGuardianRole(relationship *userModels.StudentGuardian) {
 	relationshipType, _, primary, emergency, pickup, _ := relationship.GuardianAuthorizationData()
 	role, granted := securityruntime.StudentGuardianRolePreset(
 		securityruntime.DefaultStudentGuardianRole(relationshipType, primary, emergency, pickup))
@@ -58,7 +58,7 @@ func BindStudentRepository(repository peopleCompose.StudentRepositoryDependencie
 	repository.TeacherGroupIDs = teacherGroupIDs(membership)
 	repository.TeacherStaffGroupIDs = teacherStaffGroupIDs(membership)
 	students := peopleCompose.NewStudentRepository(repository)
-	return overlappingRosterGroupNames{StudentRepository: groupStudentRepository{StudentRepository: students, groups: groups}, groups: groups}
+	return OverlappingRosterGroupNames{StudentRepository: groupStudentRepository{StudentRepository: students, groups: groups}, Groups: groups}
 }
 
 // groupAssignmentLister is the School Membership teacher-assignment read the

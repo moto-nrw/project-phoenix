@@ -71,7 +71,7 @@ func (c *operatorSettingsTestContext) runValueSetHook(ctx context.Context, tenan
 func setupOperatorSettingsRoute(t *testing.T) *operatorSettingsTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupOperatorSettingsModule(t)
+	db, svc := setupOperatorSettingsModule(t)
 	tc := &operatorSettingsTestContext{
 		db: db,
 		enableBookingsAuthoritative: func(ctx context.Context) error {

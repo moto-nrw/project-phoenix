@@ -21,7 +21,7 @@ import (
 // deletion.
 func TestSchedulesTimeframeGuardRefusesChangesACareOfferingNeeds(t *testing.T) {
 	t.Parallel()
-	db, services := testutil.SetupScheduleModule(t)
+	db, services := setupScheduleModule(t)
 	timeframe := testpkg.CreateTestTimeframeForTenant(t, db, testpkg.Tenant(t), "guarded")
 
 	var seen []*timetableModule.TimeframeInput

@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -88,8 +90,8 @@ func buildPlanningWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
 // retained staff repository in ctx's tenant.
 func planningDependencies(t *testing.T, ctx context.Context, db *bun.DB, capability workforce.Capability, staffID int64) compose.ShiftPlanningDependencies {
 	t.Helper()
-	owners := services.NewUnobservedTimetableDependencies(db)
-	staff, err := services.NewRepositoryTestFactory(db, owners).Staff.FindWithPerson(ctx, staffID)
+	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
+	staff, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners).Staff.FindWithPerson(ctx, staffID)
 	require.NoError(t, err)
 	return compose.ShiftPlanningDependencies{
 		Workforce: capability, Staff: planningStaffDirectory{staff: staff},

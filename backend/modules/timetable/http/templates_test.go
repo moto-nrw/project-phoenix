@@ -14,7 +14,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -167,7 +166,7 @@ func (m *mockMaterializationService) DetectEditedInWindow(_ context.Context, act
 
 func buildTemplateModule(t *testing.T, mat timetable.MaterializationCapability, clocks ...func() time.Time) *templateSetup {
 	t.Helper()
-	db, serviceFactory := testutil.SetupTimetableModule(t, clocks...)
+	db, serviceFactory := RootCompositions.Module(t, clocks...)
 
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()

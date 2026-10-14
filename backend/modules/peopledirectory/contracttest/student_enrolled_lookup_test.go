@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -35,7 +35,7 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
 	birthday := calendar.NewDate(2018, 5, 20)
 	setPersonBirthday(t, db, student.PersonID, birthday)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student
 	// The lookup names its tenant explicitly and runs outside tenant scope, but
 	// it still opens a transaction — as it does under the runtime middleware
 	// the parent submit path runs in.
@@ -88,7 +88,7 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending(t *testing.T)
 	birthday := calendar.NewDate(2019, 3, 10)
 	setPersonBirthday(t, db, student.PersonID, birthday)
 
-	repo := testutil.NewPeopleRepositorySuiteFactory(db).Student
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student
 	// The lookup names its tenant explicitly and runs outside tenant scope, but
 	// it still opens a transaction — as it does under the runtime middleware
 	// the parent submit path runs in.
