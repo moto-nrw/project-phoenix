@@ -28,7 +28,6 @@ import (
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -94,7 +93,7 @@ type fixture struct {
 
 func newPersons(repos *api.RepositoryTestFactory, db *bun.DB) messaging.PersonLookup {
 	return api.NewTestPersonDirectory(testpkg.MustDatabase(db), api.TestPersonDirectorySources{
-		Persons: repos.Person, Students: repos.Student, AccountExists: services.AccountExists(repos.Profile),
+		Persons: repos.Person, Students: repos.Student, AccountExists: api.AccountExists(repos.Profile),
 	})
 }
 

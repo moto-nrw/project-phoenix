@@ -108,24 +108,6 @@ func (GuardianRolePresets) Preset(role string) (string, []string) {
 	return securityruntime.StudentGuardianRolePreset(role)
 }
 
-// applyGuardianRolePreset sets a relationship's role to the preset and its
-// parent-portal permissions to exactly the ones the preset grants.
-func applyGuardianRolePreset(link *userModels.StudentGuardian, role string) {
-	normalized, granted := securityruntime.StudentGuardianRolePreset(role)
-	permissions := make(map[string]interface{}, len(granted))
-	for _, permission := range granted {
-		permissions[permission] = true
-	}
-	link.SetGuardianAuthorizationData(normalized, permissions)
-}
-
-// isSocialWorkerGuardianRole reports whether the stored relationship role is
-// the school-managed social worker preset.
-func isSocialWorkerGuardianRole(role string) bool {
-	normalized, _ := securityruntime.StudentGuardianRolePreset(role)
-	return normalized == securityruntime.GuardianRoleSocialWorker
-}
-
 // grantedGuardianPermissions lists the parents-portal permission names a
 // student-guardian link grants, in stable order, under the Security
 // Runtime's stored-value rule.

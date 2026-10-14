@@ -12,7 +12,7 @@ type ActivitiesTestModule struct {
 	Activities  timetableCompose.ActivityService
 	Timetable   timetable.Capability
 	Users       *peopleCompose.PersonDirectory
-	UserContext *services.CallerRows
+	UserContext *CallerRows
 }
 
 func NewActivitiesTestModule(db transactionruntime.Database) (ActivitiesTestModule, error) {

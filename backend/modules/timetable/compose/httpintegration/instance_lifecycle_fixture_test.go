@@ -43,7 +43,7 @@ func newInstancePresence(t *testing.T, db *bun.DB) studentpresence.Capability {
 type lifecycleSetup struct {
 	presence compose.LifecyclePresence
 	svc      *compose.InstanceLifecycleService
-	factory  *services.Factory
+	factory  *api.TestFactory
 	repos    *api.RepositoryTestFactory
 	// timetable are the retained Timetable adapters over the same owners.
 	timetable services.TimetableRepositories

@@ -18,7 +18,7 @@ type TimetableScenarioTestModule struct {
 	TimetableTestModule
 	Active           studentpresence.Presence
 	Users            *peopleCompose.PersonDirectory
-	UserContext      *services.CallerRows
+	UserContext      *CallerRows
 	Settings         settingsCompose.SettingsService
 	TimetableCleanup timetable.TimetableCleanup
 	// People serves the People port of the timetable routes from Users, as

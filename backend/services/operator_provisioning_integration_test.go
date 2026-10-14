@@ -32,7 +32,7 @@ var provisioningTestClientIP = net.IPv4(127, 0, 0, 1)
 
 // buildOperatorProvisioning returns the factory whose OperatorProvisioning
 // field is the production composition over db.
-func buildOperatorProvisioning(t *testing.T, db *bun.DB) *services.Factory {
+func buildOperatorProvisioning(t *testing.T, db *bun.DB) *api.TestFactory {
 	t.Helper()
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	serviceFactory, err := api.NewFactoryForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
@@ -561,7 +561,7 @@ func TestOperatorProvisioningIntegration_ListOrganizationDevices_RejectsDeletedO
 
 // provisionTestSchool creates an organisation and a school through the
 // capability and removes both afterwards.
-func provisionTestSchool(t *testing.T, db *bun.DB, factory *services.Factory, operatorID int64, label string) (organizationID, schoolID int64) {
+func provisionTestSchool(t *testing.T, db *bun.DB, factory *api.TestFactory, operatorID int64, label string) (organizationID, schoolID int64) {
 	t.Helper()
 	service := factory.OperatorProvisioning
 	ctx := provisioningContext(t, db)

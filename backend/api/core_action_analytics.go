@@ -36,7 +36,7 @@ func newProductAnalytics(logger *slog.Logger) (analytics.Tracker, error) {
 // "demo" for the public demo, otherwise the tenant domain of this instance.
 // The frontend sends the same value (frontend/src/lib/analytics-deployment.ts).
 func analyticsDeployment(appEnv, tenantDomain string) string {
-	if services.IsDemoEnvironment(appEnv) {
+	if IsDemoEnvironment(appEnv) {
 		return "demo"
 	}
 	return strings.TrimSpace(tenantDomain)

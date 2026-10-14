@@ -564,8 +564,10 @@ because the builders that compose several owners over one database
 decides where that code goes: an owner's composition builds its own owner,
 and the typed roots compose the owners. #4001 grants the standing reaches in
 epoch 41 (see [Standing composition reaches](#standing-composition-reaches-adr-0053)).
-The three keys stay until #4005 to #4013 have moved the code out of
-`services` and #2747 deletes the package.
+The `sessiontoken` key fell with #4006, when the root took over the Identity &
+Access composition. The `bun` and `tenant` keys stay until #4007 to #4013
+have moved the rest of the code out of `services` and #2747 deletes the
+package.
 
 #2734 closed the carrier of `api/enrollment`: its 26 remaining keys, the
 root's `api -> api/enrollment` key (#2750) and three parent-portal keys of
@@ -3396,6 +3398,33 @@ package variable that an external `root_composition_test.go` binds, or
 reaches it through `modules/workforce/workforcetest` when its external test
 may not import its own package. `api/testutil` keeps only owner-agnostic HTTP
 helpers, and `api/testutil -> services` falls (#2748, 41 → 40).
+
+#4006 moves the Identity & Access wiring out of `services` (ADR 0053 points 1,
+4 and 8). The legacy composition still consumes the module, so the root
+composes it over values the Factory hands over: `NewFactoryWithModules` takes
+a `services.IdentityRoot` instead of the token adapter. The Factory calls its
+`Compose` with what it builds itself: the settings, the audit command and
+ledger, the mail transport, the identity chain rows, and the outbox and
+delivery state read at call time. It gets back the module, the caller
+context, the bindings of the owners that may not name the module, and the
+three Identity mail renderers. Every seam that binds Identity to another
+owner lives in `api/identity_*.go`. Those seams declare narrow row ports of
+their own (`api/identity_rows.go`), so no repository type reaches the root
+(Rule 1). The root binds the portal runtimes straight to the portal types,
+so `modules/schoolportal/portaltest`, its two rules and the standing rule
+`own-test.inbound.test-support` are gone. Identity owns the order of the
+guardian welcome mail (`GuardianWelcomeOrder` behind the consumer-owned port
+`compose.PrecedingMails`); the root only reports Delivery's state. The
+cleanup CLI and the dev seeder build their Identity parts through
+`modules/identityaccess/compose` (`NewSessionMaintenance`,
+`NewInvitationMaintenance`, `NewGuardianSeedAccess`, `NewDemoAccessExpiry`).
+The session sweep never signs or verifies a session, so its composition has
+no signer. The Factory loses its ten Identity fields and seven Identity
+methods (composition surface 250 → 240). `services` shrinks from 260 to 232
+production files and from 35,473 to 30,454 LOC, and `services ->
+sessiontoken` falls (#2747, 40 → 39). Declarations whose callers stay in
+`services` moved into those callers' files. `api -> sessiontoken` (#2750)
+stays: the root's middleware and claim reads still use the adapter.
 
 Twelve baseline entries fall: nine of #2750 (`. -> cmd`, `cmd -> api`,
 `cmd -> tenant`, `cmd -> database/migrations` in production and internal test,

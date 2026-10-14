@@ -33,7 +33,7 @@ import (
 
 type scenarioSetup struct {
 	svc           timetable.MaterializationCapability
-	factory       *services.Factory
+	factory       *api.TestFactory
 	db            *bun.DB
 	ctx           context.Context
 	tenantID      int64

@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
@@ -59,6 +60,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	planexportCompose "github.com/moto-nrw/project-phoenix/modules/planexport/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -130,17 +132,9 @@ func expectedMissingSubstitutionIdentity(err error) bool {
 // Factory provides access to all services
 type Factory struct {
 	settingsRuntimeDB *bun.DB
-	// Auth is the composed Identity & Access module: the sessions, the
-	// account lifecycle, the role administration, the invitations and the
-	// operator flows the surfaces consume (#3364).
-	Auth  *identityaccess.Module
-	Audit *auditCompose.Command
-	// MFA and Passkey are the Identity & Access second factor and the
-	// school-portal WebAuthn ceremonies (#3331).
-	MFA           identityaccess.AccountMFA
-	Passkey       identityaccess.AccountPasskeyFlows
-	Active        studentpresence.Presence
-	ActiveCleanup studentpresence.PresenceCleanup
+	Audit             *auditCompose.Command
+	Active            studentpresence.Presence
+	ActiveCleanup     studentpresence.PresenceCleanup
 	// WorkSession is the composed time-tracking side of Workforce (#3413):
 	// the public stamp, session, absence, month, ledger, month-close,
 	// overview, audit-log and export contracts. It replaces the eight
@@ -151,17 +145,15 @@ type Factory struct {
 	Substitution education.SubstitutionModule
 	// GradeTransition is the owner workflow behind the school-year rollover
 	// (#2711): the admin HTTP surface calls exactly its public commands.
-	GradeTransition    *gradetransition.Workflow
-	Facilities         facilitiesCompose.RoomService
-	Schulhof           facilitiesCompose.SchulhofService
-	WC                 facilitiesCompose.WCService
-	Invitation         InvitationCapability
-	GuardianInvitation GuardianInvitationCapability
-	IoT                devicefleetCompose.IoTService
-	StaffClock         *staffclock.Service
-	Settings           settingsCompose.SettingsService
-	TenantSettings     *settingsCompose.TenantOperations
-	PayrollStatus      settingsCompose.PayrollStatusGetter
+	GradeTransition *gradetransition.Workflow
+	Facilities      facilitiesCompose.RoomService
+	Schulhof        facilitiesCompose.SchulhofService
+	WC              facilitiesCompose.WCService
+	IoT             devicefleetCompose.IoTService
+	StaffClock      *staffclock.Service
+	Settings        settingsCompose.SettingsService
+	TenantSettings  *settingsCompose.TenantOperations
+	PayrollStatus   settingsCompose.PayrollStatusGetter
 	// The Dienstplan side of Workforce (#3418): the planning capability the
 	// staff-shift route mounts, the self-service assignments and the week
 	// overview, and the shift-type administration, all public contracts.
@@ -194,7 +186,6 @@ type Factory struct {
 	Guardian                  *peopleCompose.GuardianService
 	PeopleDirectory           peopledirectory.Capability
 	GuardianProfileLoader     *peopleCompose.GuardianProfileLoader
-	UserContext               *CallerRows
 	Database                  transactionruntime.DatabaseStats
 	DatabaseStatsCapabilities func(context.Context) transactionruntime.DatabaseStatsCapabilities
 	Import                    *importService.ImportService[importModels.StudentImportRow]        // Student import service
@@ -219,11 +210,6 @@ type Factory struct {
 	PasswordResetTokenExpiry  time.Duration
 
 	// Platform domain (operator dashboard)
-	// OperatorAuth and OperatorInvitation are the Identity & Access
-	// operator directory, token mint and provisioning flows the operator
-	// dashboard consumes (#3364).
-	OperatorAuth         *identityaccess.Module
-	OperatorInvitation   *identityaccess.Module
 	OperatorProvisioning organizationtenancy.Provisioning
 	Announcement         communication.Capability
 	Schools              organizationtenancy.Capability
@@ -248,8 +234,6 @@ type Factory struct {
 	SupervisionDashboard    supervisiondashboard.Query
 	TimetableData           TimetablePlanning
 	InstanceSeriesConverter timetable.InstanceSeriesConversion
-	OperatorMFA             identityaccess.OperatorMFAFlows
-	OperatorPasskey         identityaccess.OperatorPasskeyFlows
 	UnregisteredTagScans    auditCompose.UnregisteredTagScanService
 
 	// Delivery owns the leased email and push outboxes; EmailOutboxWorker
@@ -409,6 +393,96 @@ type DeviceFleetObserver func(operation string, duration time.Duration, queries,
 // IdentityAccessObserver records one Identity & Access operation. The
 // composition root supplies it so this package keeps no metrics dependency.
 type IdentityAccessObserver func(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error)
+
+// IdentityRoot is Identity & Access as the root composes it (#4006). The
+// root binds every seam of the owner; this graph hands Compose the values it
+// builds itself and consumes what comes back. The request reads come from
+// the root's session token adapter.
+type IdentityRoot struct {
+	Compose     func(IdentityMaterial) (IdentityComposition, error)
+	Permissions func(context.Context) []string
+	ActorScope  func(context.Context) (accountID int64, scope string)
+	AuditActor  func(context.Context) (accountID int64, name string)
+}
+
+// IdentityMaterial is what this graph builds and the root's Identity &
+// Access composition binds: the owners, the identity chain rows, the
+// ledgers, the mail transport and the configuration it validated.
+type IdentityMaterial struct {
+	Config              FactoryConfig
+	Logger              *slog.Logger
+	Observe             IdentityAccessObserver
+	Organizations       organizationtenancy.Capability
+	Persons             peopledirectory.Capability
+	Membership          schoolmembership.Capability
+	Settings            settingsCompose.SettingsService
+	Audit               auditModels.Command
+	AuthEvents          auditModels.AuthEventRepository
+	OperatorAuditLog    platformModels.OperatorAuditLogRepository
+	PushSubscriptions   deliveryModels.PushSubscriptionRepository
+	Dispatcher          *email.Dispatcher
+	DefaultFrom         email.Email
+	MailIdentity        email.ReplyToResolver
+	FrontendURL         string
+	ParentsURL          string
+	SchoolURL           string
+	InvitationExpiry    time.Duration
+	PasswordResetExpiry time.Duration
+	// Outbox and EmailStatus are read at call time: Delivery is composed
+	// after Identity & Access.
+	Outbox      func() platformModels.OutboxResultEnqueuer
+	EmailStatus func(ctx context.Context, tenantID, id int64) (deliveryModule.State, bool, error)
+	// The identity chain rows the account flows read and write.
+	PersonRows       userModels.PersonRepository
+	StaffRows        userModels.StaffRepository
+	TeacherRows      userModels.TeacherRepository
+	StudentRows      userModels.StudentRepository
+	GuardianProfiles userModels.GuardianProfileRepository
+	StudentGuardians userModels.StudentGuardianRepository
+	// GuardianEnrollments are the enrollment requests an accepted guardian
+	// invitation claims.
+	GuardianEnrollments interface {
+		BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error)
+	}
+	// The rows the caller context's retained consumers read.
+	Groups         EducationGroupRepository
+	StaffGroups    schoolstructure.StaffGroupQuery
+	ActivityGroups arrivalTimetable.CallerActivityGroups
+	Sessions       *presenceCompose.SessionRecords
+	Presence       *studentpresence.Module
+}
+
+// IdentityComposition is what this graph consumes of Identity & Access: the
+// module, the caller context with the rows its retained consumers read, and
+// the bindings of the owners that may not name the module.
+type IdentityComposition struct {
+	Access               *identityaccess.Module
+	Caller               CallerRowReads
+	GroupLiveCaller      grouplivelegacy.CallerContext
+	SupervisionCaller    supervisiondashboardlegacy.CallerContext
+	GuardianInvitations  GuardianInvitationReads
+	ParentGuardianAccess parentportal.GuardianAccess
+	// MailRenderers render the Identity & Access mail kinds of the outbox.
+	MailRenderers map[string]emailoutbox.Renderer
+}
+
+// GuardianInvitationReads serves the People Directory guardian list and the
+// parents portal over the guardian invitations.
+type GuardianInvitationReads interface {
+	peopleCompose.GuardianInvitations
+	ListByProfile(ctx context.Context, guardianProfileID int64) ([]parentportal.GuardianInvitationRecord, error)
+}
+
+// CallerRowReads is the caller context with the retained rows its consumers
+// in this graph read.
+type CallerRowReads interface {
+	Caller() identityaccess.CallerContext
+	CareRequestStaff
+	classdayCompose.StaffReader
+	securityruntime.StudentAccessUserContext
+	classdayCompose.CallerReader
+	HasCurrentStaff(context.Context) (bool, error)
+}
 type DurableDeliveryObserver func(transport, template, operation string, duration time.Duration, count int, err error)
 
 // DataImportObserver records one Data Import run (#2708): rows parsed,
@@ -478,11 +552,11 @@ func NewFactoryWithModules(
 	observeDataImport DataImportObserver,
 	productEvents ProductEventTracker,
 	fileStorage FileStorageWiring,
-	tokens TokenAdapter,
+	identity IdentityRoot,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if tokens.Permissions == nil || tokens.Claims == nil || tokens.Memo == nil || tokens.SessionTokens == nil || tokens.NewCapabilityToken == nil || tokens.CapabilityFingerprint == nil {
-		return nil, errors.New("the token adapter's request reads, session tokens and capability tokens are required")
+	if identity.Compose == nil || identity.Permissions == nil || identity.ActorScope == nil || identity.AuditActor == nil {
+		return nil, errors.New("the Identity & Access composition and the request reads are required")
 	}
 	if carePlan == nil || organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || observeCarePlan == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil || observeIdentityAccess == nil || workTime == nil || observeDataImport == nil || fileStorage.Objects == nil || fileStorage.Observe == nil {
 		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, care plan, meal plan, feedback, Audit, Delivery, Identity & Access, Workforce, and Data Import capabilities with their binders and observers are required")
@@ -490,7 +564,7 @@ func NewFactoryWithModules(
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	cfg := CurrentFactoryConfig()
 	cfg.PublicAPIURL = publicAPIURL
-	return NewFactoryWithConfig(carePlan, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, observeDataImport, productEvents, fileStorage, tokens, false, clocks...)
+	return NewFactoryWithConfig(carePlan, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, observeDataImport, productEvents, fileStorage, identity, false, clocks...)
 }
 
 // FileStorageWiring carries what the File Storage module needs from the root
@@ -532,7 +606,7 @@ func NewFactoryWithConfig(
 	observeDataImport DataImportObserver,
 	productEvents ProductEventTracker,
 	fileStorage FileStorageWiring,
-	tokens TokenAdapter,
+	identityRoot IdentityRoot,
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
@@ -561,10 +635,6 @@ func NewFactoryWithConfig(
 	staffRepository, teacherRepository, guestRepository := members.Staff, members.Teacher, members.Guest
 	groupRepository, groupTeacherRepository, classTeacherRepository := members.Group, members.GroupTeacher, members.ClassTeacher
 	groupSubstitutionRepository := NewGroupSubstitutionRepository(groupRepository, membership, workTime)
-	identityChain := LifecycleRepositories{
-		Persons: personRepository, Staff: staffRepository, Teachers: teacherRepository, Students: studentRepository,
-		GuardianProfiles: guardianProfileRepository, StudentGuardians: studentGuardianRepository,
-	}
 	// The repositories the retained services read are built here, over the
 	// owners this graph binds (#2743).
 	enrollmentModule := enrollmentCompose.New()
@@ -606,8 +676,6 @@ func NewFactoryWithConfig(
 
 	// Create scoped loggers for services that need them
 	activeLogger := logger.With("service", "active")
-	usercontextLogger := logger.With("service", "usercontext")
-	authLogger := logger.With("service", "auth")
 	facilitiesLogger := logger.With("service", "facilities")
 	databaseLogger := logger.With("service", "database")
 	platformLogger := logger.With("service", "platform")
@@ -843,16 +911,59 @@ func NewFactoryWithConfig(
 		})
 	}
 
-	// Identity & Access is composed with the auth service below; the person
-	// service reads its role administration at call time (#3314).
-	var identityAccess *identityaccess.Module
-	identityRoles := RoleAdministration{Current: func() *identityaccess.Module { return identityAccess }}
+	// Replies to tenant-bound mail belong to the OGS, not to moto (#1936).
+	// Built once here and shared by every tenant-bound sender.
+	tenantMailIdentity := emailoutbox.NewTenantMailIdentity(SchoolContactDirectory{Schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
+		return settingsService.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
+	}, logger)
+	// Push subscriptions and PWA standalone usage belong to Delivery.
+	pushSubscriptions := deliveryCompose.NewPushSubscriptionRepository(db)
+	staffGroups, err := NewUserContextStaffGroups(groups, membership, workTime)
+	if err != nil {
+		return nil, err
+	}
+	callerActivityGroups := arrivalTimetable.NewCallerActivityGroups(timetableRepos.ActivityGroup)
+	// The delivery module is composed after the identity module, so the
+	// guardian and staff mails read its outbox and its delivery state at
+	// call time.
+	var emailOutboxService *emailoutbox.Service
+	var deliveryForIdentity *deliveryCompose.Runtime
+	// Identity & Access is composed by the root over the values this graph
+	// built (#4006): sessions, the account lifecycle, the second factor, the
+	// operator flows and the caller context.
+	identity, err := identityRoot.Compose(IdentityMaterial{
+		Config: cfg, Logger: logger, Observe: observeIdentityAccess,
+		Organizations: organizations, Persons: persons, Membership: membership,
+		Settings: settingsService, Audit: auditCommand, AuthEvents: audits.AuthEvent,
+		OperatorAuditLog: operatorAuditLog, PushSubscriptions: pushSubscriptions,
+		Dispatcher: dispatcher, DefaultFrom: defaultFrom, MailIdentity: tenantMailIdentity,
+		FrontendURL: frontendURL, ParentsURL: parentsURL, SchoolURL: schoolURL,
+		InvitationExpiry: invitationTokenExpiry, PasswordResetExpiry: passwordResetTokenExpiry,
+		Outbox: func() platformModels.OutboxResultEnqueuer { return OutboxEnqueuer{Outbox: emailOutboxService} },
+		EmailStatus: func(ctx context.Context, tenantID, id int64) (deliveryModule.State, bool, error) {
+			if deliveryForIdentity == nil {
+				return "", false, errors.New("delivery module is not initialized")
+			}
+			return deliveryForIdentity.EmailStatus(ctx, tenantID, id)
+		},
+		PersonRows: personRepository, StaffRows: staffRepository, TeacherRows: teacherRepository, StudentRows: studentRepository,
+		GuardianProfiles: guardianProfileRepository, StudentGuardians: studentGuardianRepository,
+		GuardianEnrollments: parentPortal.ParentEnrollmentRequest,
+		Groups:              groupRepository, StaffGroups: staffGroups, ActivityGroups: callerActivityGroups,
+		Sessions: sessionRecords, Presence: NewLoggedStudentPresence(db, logger),
+	})
+	if err != nil {
+		return nil, err
+	}
+	identityAccess := identity.Access
+	userContextService := identity.Caller
+	callerContext := userContextService.Caller()
 
 	// The staff and teacher lookups and the staff writes are School Membership
 	// and Workforce territory (#3752); the person service takes them through
 	// the StaffDirectory port.
 	staffDirectory := NewStaffDirectory(StaffDirectoryDependencies{
-		Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: personRepository, Staff: staffRepository, Teachers: teacherRepository, LehrkraftRoles: identityRoles,
+		Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: personRepository, Staff: staffRepository, Teachers: teacherRepository, LehrkraftRoles: identityAccess,
 	})
 
 	// Care Plan is composed further down and reads the person directory, so
@@ -865,7 +976,7 @@ func NewFactoryWithConfig(
 		StudentDirectory: peopleCompose.NewStudentDirectory(persons),
 		PersonRepo:       personRepository,
 		RFIDRepo:         peopleIdentity,
-		AccountExists:    AccountExists(peopleIdentity),
+		AccountExists:    identityaccessCompose.AccountExists(peopleIdentity),
 		StudentRepo:      studentRepository,
 		TeacherRepo:      teacherRepository,
 		StaffDirectory:   staffDirectory,
@@ -893,18 +1004,12 @@ func NewFactoryWithConfig(
 		return nil, fmt.Errorf("staff admin: %w", err)
 	}
 
-	// Replies to tenant-bound mail belong to the OGS, not to moto (#1936).
-	// Built once here and shared by every tenant-bound sender.
-	tenantMailIdentity := emailoutbox.NewTenantMailIdentity(SchoolContactDirectory{Schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
-		return settingsService.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
-	}, logger)
-
 	// Initialize guardian service
 	guardianService := peopleCompose.NewGuardianService(peopleCompose.GuardianServiceDependencies{
 		GuardianProfileRepo:     guardianProfileRepository,
 		GuardianPhoneNumberRepo: guardianPhoneRepository,
 		StudentGuardianRepo:     studentGuardianRepository,
-		GuardianInvitations:     NewGuardianInvitationReads(func() identityaccess.GuardianInvitations { return identityAccess }),
+		GuardianInvitations:     identity.GuardianInvitations,
 		StudentRepo:             studentRepository,
 		PersonRepo:              personRepository,
 		GuardianFinancialRepo:   guardianFinancialRepository,
@@ -935,8 +1040,6 @@ func NewFactoryWithConfig(
 		return nil, err
 	}
 	legacyDevices := devicefleetRepositoryAdapter.NewDeviceRepository(legacyDeviceFleet)
-	// Push subscriptions and PWA standalone usage belong to Delivery.
-	pushSubscriptions := deliveryCompose.NewPushSubscriptionRepository(db)
 	// Parent and staff messages belong to Communication; the stores are
 	// built where the message services use them.
 	parentMessages := parentStore.NewParentMessageRepository(db)
@@ -1483,122 +1586,6 @@ func NewFactoryWithConfig(
 		return nil, fmt.Errorf("compose timetable operations: %w", err)
 	}
 
-	tenantDomain := strings.TrimSpace(cfg.TenantDomain)
-	if tenantDomain == "" {
-		return nil, fmt.Errorf("TENANT_DOMAIN is required")
-	}
-
-	// Operator frontend URL for invitation emails. The operator subdomain is separate
-	// from FRONTEND_URL, so we link directly to the operator host to avoid a
-	// cross-origin redirect hop that email content scanners treat as a phishing
-	// signal. Constructed conditionally - only required when actually sending
-	// invitations. InviteOperator and ResendOperatorInvitation guard on empty
-	// operatorFrontendURL.
-	var operatorFrontendURL string
-	if operatorHostname := cfg.OperatorHostname; operatorHostname != "" {
-		protocol := "http"
-		if strings.HasPrefix(frontendURL, "https://") {
-			protocol = "https"
-		}
-		operatorFrontendURL = fmt.Sprintf("%s://%s", protocol, strings.TrimRight(operatorHostname, "/"))
-	}
-	if operatorFrontendURL == "" {
-		return nil, fmt.Errorf("NEXT_PUBLIC_OPERATOR_HOSTNAME is required")
-	}
-
-	sessionCodec := tokens.SessionTokens
-
-	// Identity & Access serves tenant, parent and school login, refresh,
-	// switching, logout, session validation, cleanup and revocation (#3251),
-	// the account lifecycle (#3225), the second factor and both portals'
-	// passkey ceremonies (#3331) and the operator flows (#3252, #3332). The
-	// module reads the tenant runtime back at call time, so SetTenantRuntime
-	// keeps its meaning after composition.
-	operatorDependencies, err := NewOperatorDependencies(OperatorAuthenticationWiring{
-		Repos:         OperatorRepositoriesOf(identityChain, operatorAuditLog),
-		Organizations: organizations,
-		Persons:       persons,
-		Membership:    membership,
-		Logger:        platformLogger,
-	})
-	if err != nil {
-		return nil, err
-	}
-	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
-	// because both serve the same purpose (one-time verification links with the same
-	// delivery constraints and security profile). If the two ever need to diverge,
-	// introduce EMAIL_CHANGE_TOKEN_EXPIRY_MINUTES and fall back to passwordResetTokenExpiry.
-	// The 15-minute floor accounts for email delivery latency + user interaction time.
-	emailChangeExpiry := passwordResetTokenExpiry
-	if emailChangeExpiry < 15*time.Minute {
-		logger.Warn("email change token expiry bumped to minimum 15 minutes",
-			slog.Int("configured_minutes", int(passwordResetTokenExpiry.Minutes())),
-			slog.Int("effective_minutes", 15),
-		)
-		emailChangeExpiry = 15 * time.Minute
-	}
-
-	// The delivery module is composed after the identity module, so the
-	// guardian mail reads its outbox at call time.
-	var emailOutboxService *emailoutbox.Service
-	identityAccess, err = NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db}, AccountAuthenticationWiring{
-		Repos:    SessionRepositoriesOf(identityChain, organizations, audits.AuthEvent, pushSubscriptions),
-		Codec:    sessionCodec,
-		Settings: settingsService,
-		Audit:    auditCommand,
-		Logger:   authLogger,
-		observe:  observeIdentityAccess,
-		Mfa: &MfaWiring{
-			OperatorAuditLog: operatorAuditLog, Settings: settingsService,
-			Dispatcher: dispatcher, DefaultFrom: defaultFrom, FrontendURL: frontendURL,
-			JwtSecret: cfg.JWTSecret, Logger: authLogger,
-			Passkeys: &identityaccessCompose.PasskeyDependencies{
-				RPID: tenantDomain, RPName: "moto",
-				TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
-			},
-		},
-		Operators:          operatorDependencies,
-		DemoAccess:         demoAccessWiringFor(appEnv, dispatcher, defaultFrom, frontendURL, viper.GetInt("demo_max_active_schools"), tokens, authLogger),
-		DemoStandingSchool: standingDemoSchool(viper.GetBool("demo_standing_school")),
-		operatorLinks: &operatorLinkWiring{
-			dispatcher: dispatcher, defaultFrom: defaultFrom,
-			frontendURL: frontendURL, operatorFrontendURL: operatorFrontendURL,
-			invitationExpiry: invitationTokenExpiry, emailChangeExpiry: emailChangeExpiry,
-			logger: platformLogger,
-		},
-		Resets: &PasswordResetWiring{
-			Dispatcher: dispatcher, DefaultFrom: defaultFrom,
-			StaffURL: frontendURL, ParentsURL: parentsURL, SchoolURL: schoolURL,
-			Expiry: passwordResetTokenExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
-		},
-		Invitations: &InvitationWiring{
-			Dispatcher: dispatcher, DefaultFrom: defaultFrom, StaffURL: frontendURL, SchoolURL: schoolURL,
-			MailIdentity: tenantMailIdentity, Expiry: invitationTokenExpiry,
-			Settings:     settingsService,
-			Outbox:       func() platformModels.OutboxEnqueuer { return OutboxEnqueuer{Outbox: emailOutboxService} },
-			WelcomeDelay: StaffWelcomeDelay,
-		},
-		// The lifecycle flows (#3225) read the retained role management back
-		// at call time; it is composed below.
-		Lifecycle: &LifecycleWiring{
-			Settings: settingsService, Audit: auditCommand,
-			Caregivers: CaregiverProfiles{Persons: persons, Membership: membership},
-			GuardianMail: &GuardianInvitationWiring{
-				Settings: settingsService, Schools: organizations,
-				Outbox:      func() platformModels.OutboxResultEnqueuer { return OutboxEnqueuer{Outbox: emailOutboxService} },
-				Enrollments: parentPortal.ParentEnrollmentRequest,
-				// The accept and login links go to the parents portal, never
-				// to the staff frontend.
-				ParentsURL: parentsURL, FallbackExpiry: invitationTokenExpiry,
-				Logger: authLogger.With("flow", "guardian_invitation"),
-			},
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-	invitationService := InvitationCapability(identityAccess)
-
 	// Delivery composition is declared here so legacy email producers and the
 	// guardian invitation service share the same durable capability.
 	// Every outbox kind's renderer is known at startup, so the registry is
@@ -1612,42 +1599,7 @@ func NewFactoryWithConfig(
 		Runtime:     calendarCompose.NewTenantRuntime(db),
 		Guardians:   studentGuardianRepository,
 	}))
-	var deliveryForGuardianWelcome *deliveryCompose.Runtime
-	guardianPredecessorStatus := func(ctx context.Context, outboxID int64) (sent bool, terminal bool, err error) {
-		if deliveryForGuardianWelcome == nil {
-			return false, false, errors.New("delivery module is not initialized")
-		}
-		tenantID, err := tenant.TenantFromContext(ctx)
-		if err != nil {
-			return false, false, fmt.Errorf("guardian welcome predecessor: tenant is required: %w", err)
-		}
-		state, found, err := deliveryForGuardianWelcome.EmailStatus(ctx, tenantID.Int64(), outboxID)
-		if err != nil {
-			return false, false, err
-		}
-		if !found {
-			return false, true, nil
-		}
-		switch state {
-		case deliveryModule.StateSent:
-			return true, false, nil
-		case deliveryModule.StateCancelled, deliveryModule.StateDeadLetter:
-			return false, true, nil
-		default:
-			return false, false, nil
-		}
-	}
 	renderers := map[string]emailoutbox.Renderer{
-		platformModels.EmailKindGuardianInvitation: guardianInvitationRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-		platformModels.EmailKindGuardianWelcome: guardianInvitationRenderer(NewGuardianWelcomeRenderer(GuardianInvitationRendererConfig{
-			DefaultFrom: defaultFrom, PrecedingEmailStatus: guardianPredecessorStatus,
-		})),
-		platformModels.EmailKindStaffWelcome: NewStaffWelcomeRenderer(StaffWelcomeRendererConfig{
-			DefaultFrom: defaultFrom, MailIdentity: tenantMailIdentity, Logger: authLogger,
-			InvitationDeliverySent: identityAccess.SchoolInvitationDeliverySent,
-		}),
 		platformModels.EmailKindParentAnnouncement: emailoutbox.RendererFunc(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
 			DefaultFrom: defaultFrom,
 		})),
@@ -1658,6 +1610,9 @@ func NewFactoryWithConfig(
 		platformModels.EmailKindAppointmentReminder:  appointmentRenderer,
 	}
 	for kind, renderer := range enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(), defaultFrom) {
+		renderers[kind] = renderer
+	}
+	for kind, renderer := range identity.MailRenderers {
 		renderers[kind] = renderer
 	}
 	emailTemplateRegistry := emailoutbox.NewTemplateRegistry(renderers)
@@ -1686,14 +1641,12 @@ func NewFactoryWithConfig(
 	if err != nil {
 		return nil, fmt.Errorf("initialize delivery module: %w", err)
 	}
-	deliveryForGuardianWelcome = deliveryRuntime
+	deliveryForIdentity = deliveryRuntime
 	emailOutboxWorker := deliveryRuntime.Worker
 	emailOutboxService = emailoutbox.NewService(DurableEmailAdapter{Module: deliveryRuntime.Module})
 
-	guardianInvitationService := GuardianInvitationCapability(identityAccess)
-
 	caregiverCapabilityService := peopleCompose.NewCaregiverCapabilityService(peopleCompose.CaregiverCapabilityServiceDependencies{
-		RequestActorScope:      tokens.actorScope,
+		RequestActorScope:      identityRoot.ActorScope,
 		Identity:               caregiverIdentity{identityAccess},
 		Audit:                  newCaregiverCapabilityAudit(audits.AuthEvent),
 		PersonRepo:             personRepository,
@@ -1704,34 +1657,9 @@ func NewFactoryWithConfig(
 		GroupSubstitutionRepo:  groupSubstitutionRepository,
 		GroupSupervisorRepo:    CaregiverSupervisionBlockers{Records: groupSupervisions},
 		ActivitySupervisorRepo: arrivalTimetable.CaregiverPlannedSupervisionBlockers{Supervisors: timetableRepos.ActivitySupervisor},
-		RoleAssignments:        identityRoles,
+		RoleAssignments:        identityAccess,
 	})
 
-	// The Identity & Access caller context (#3501) resolves the caller's
-	// chain through the owners of each link; the rows serve the consumers
-	// that still speak the retained records.
-	staffGroups, err := NewUserContextStaffGroups(groups, membership, workTime)
-	if err != nil {
-		return nil, err
-	}
-	userContextService, err := NewCallerRowsFromWiring(CallerContextWiring{
-		Accounts:             identityAccess,
-		Persons:              personRepository,
-		Membership:           membership,
-		StaffGroups:          staffGroups,
-		SupervisedActivities: arrivalTimetable.NewCallerActivityGroups(timetableRepos.ActivityGroup).SupervisedActivityGroupIDs,
-		Presence:             NewLoggedStudentPresence(db, logger),
-		Settings:             settingsService,
-		Logger:               usercontextLogger,
-		Tokens:               tokens,
-	}, CallerRowSources{
-		Groups: groupRepository, Staff: staffRepository, Teachers: teacherRepository, Students: studentRepository,
-		Activities: arrivalTimetable.NewCallerActivityGroups(timetableRepos.ActivityGroup), Sessions: sessionRecords, Logger: usercontextLogger,
-	})
-	if err != nil {
-		return nil, err
-	}
-	callerContext := userContextService.Caller()
 	// Terminvertretungen move Betreuungsplan staffing across the Workforce and
 	// Timetable line: the shift-plan-sync workflow serves the substitution
 	// module's schedule port (#3418).
@@ -1832,7 +1760,7 @@ func NewFactoryWithConfig(
 		Groups:        groups, Rooms: rooms,
 		Persons: persons, Membership: membership, Workforce: workTime,
 		CarePlan: carePlan, Presence: NewLoggedStudentPresence(db, logger),
-		InvitationService: invitationService,
+		InvitationService: identityAccess,
 		OpeningBalance: importService.OpeningBalanceImportDeps{
 			BalanceAdjustService: timeTracking.OpeningBalances,
 			StaffAbsenceService:  timeTracking.VacationTakeovers,
@@ -1895,7 +1823,7 @@ func NewFactoryWithConfig(
 		enrollmentRecords,
 	))
 
-	studentAuditService := peopleCompose.NewStudentAuditService(tokens.AuditActor, NewStudentAuditFor(persons))
+	studentAuditService := peopleCompose.NewStudentAuditService(identityRoot.AuditActor, NewStudentAuditFor(persons))
 	careLifecycleService, err := careplanCompose.NewCareLifecycle(careplanCompose.CareLifecycleDependencies{
 		DB: db, Records: carePlan,
 		Owners: NewCareLifecycleOwners(CareLifecycleOwnerSources{
@@ -2153,7 +2081,7 @@ func NewFactoryWithConfig(
 		Notifications:        enrollmentNotifications,
 		GuardianProfileRepo:  guardianProfileRepository,
 		GuardianPhoneRepo:    guardianPhoneRepository,
-		GuardianInvitations:  enrollmentGuardianInvitationAvailability{invitations: guardianInvitationService},
+		GuardianInvitations:  enrollmentGuardianInvitationAvailability{invitations: identityAccess},
 		PersonRepo:           personRepository,
 		StudentRepo:          studentRepository,
 		GuardianAuthorizer:   studentGuardianRepository,
@@ -2216,7 +2144,7 @@ func NewFactoryWithConfig(
 		pillEmitter,
 		realtimeHub,
 		requestReviewPolicy,
-		tokens.Permissions,
+		identityRoot.Permissions,
 		parentRequestEvents,
 		logger.With("service", "care-requests"),
 		studentAuditService,
@@ -2233,7 +2161,7 @@ func NewFactoryWithConfig(
 		CarePlan: carePlan, Enrollment: enrollmentRecords, Students: studentRepository,
 		Withdrawals: NewCareWithdrawalCompletionRepository(carePlan), Settings: settingsService,
 		Planning: ManualPlanningReader{Query: enrollmentCompose.NewManualPlanningQuery(db), CourseGroups: timetableCapability},
-		Bookings: careBookings, Reviews: requestReviewPolicy, Permissions: tokens.Permissions, Emitter: pillEmitter,
+		Bookings: careBookings, Reviews: requestReviewPolicy, Permissions: identityRoot.Permissions, Emitter: pillEmitter,
 		Events: parentRequestEvents, Shares: requestShares, Today: today,
 		Logger: logger.With("service", "offering-change-requests"),
 	})
@@ -2312,7 +2240,7 @@ func NewFactoryWithConfig(
 	// and the effect sinks. The sharing port is the lazy requestShares above.
 	excusedRequestService, err := NewExcusedAbsenceRequestService(ExcusedRequestServiceWiring{
 		CarePlan: carePlan, Students: studentRepository, Persons: personRepository,
-		Scope:   ParentRequestReviewScope(requestReviewPolicy, tokens.Permissions),
+		Scope:   ParentRequestReviewScope(requestReviewPolicy, identityRoot.Permissions),
 		Emitter: pillEmitter, Broadcaster: realtimeHub, Events: parentRequestEvents,
 		notifier: absenceNotifier, observe: observeCarePlan,
 		shares: requestShares,
@@ -2444,8 +2372,8 @@ func NewFactoryWithConfig(
 		ExcusedRequests:       excusedRequestService,
 		Emitter:               pillEmitter,
 		AnnouncementRepo:      parentPortal.ParentAnnouncement,
-		GuardianInvites:       NewParentGuardianAccess(guardianInvitationService),
-		GuardianInvitations:   NewGuardianInvitationReads(func() identityaccess.GuardianInvitations { return identityAccess }),
+		GuardianInvites:       identity.ParentGuardianAccess,
+		GuardianInvitations:   identity.GuardianInvitations,
 		StudentGuardianRepo:   studentGuardianRepository,
 		GuardianPhoneRepo:     guardianPhoneRepository,
 		StudentConsents:       studentConsentService,
@@ -2532,7 +2460,7 @@ func NewFactoryWithConfig(
 		organizations:  organizations,
 		adapters:       provisioningAdapters,
 		sessions:       identityAccess,
-		invitations:    invitationService,
+		invitations:    identityAccess,
 		provisioning:   identityAccess,
 		administration: identityAccess,
 		schoolIdentity: identityAccess,
@@ -2658,7 +2586,7 @@ func NewFactoryWithConfig(
 		People:            GroupRosterPeople(usersService),
 		Education:         educationService,
 		Substitutions:     substitutionService,
-		UserContext:       GroupLiveCaller{userContextService},
+		UserContext:       identity.GroupLiveCaller,
 		Active:            activeService,
 		Settings:          settingsService,
 		Pickups:           pickupScheduleService,
@@ -2680,7 +2608,7 @@ func NewFactoryWithConfig(
 		ActiveGroups: OpenRoomSessionPresence{NewLoggedStudentPresence(db, logger), timetableCapability},
 		OpenVisits:   activeService,
 		Rooms:        OpenRoomDirectory{Rooms: rooms},
-		UserContext:  SupervisionCaller{userContextService},
+		UserContext:  identity.SupervisionCaller,
 		Education:    educationService,
 		Schulhof:     schulhofService,
 		Operations:   timetableOperationsService,
@@ -2766,7 +2694,7 @@ func NewFactoryWithConfig(
 	// port; the review scope is the one the Stammdaten queue is listed with.
 	masterDataDecisions, err := NewMasterDataDecisions(MasterDataDecisionWiring{
 		CarePlan: carePlan, Fields: persons, Students: studentRepository, Persons: personRepository,
-		Audit: studentAuditService, Scope: ParentRequestWriteScope(requestReviewPolicy, tokens.Permissions),
+		Audit: studentAuditService, Scope: ParentRequestWriteScope(requestReviewPolicy, identityRoot.Permissions),
 		Emitter: pillEmitter, Broadcaster: realtimeHub, Events: parentRequestEvents, Shares: requestShares,
 		Logger: logger.With("service", "master-data-review"), Today: today,
 	})
@@ -2796,7 +2724,7 @@ func NewFactoryWithConfig(
 	parentRequestCoordinator, err := NewParentRequestCoordinator(ParentRequestCoordinatorWiring{
 		MasterData: masterDataDecisions, Excused: excusedRequestService, Care: careRequestService,
 		Offering: OfferingChangeConflictPort{Changes: offeringChanges}, Events: parentRequestEvents,
-		Permissions: tokens.Permissions,
+		Permissions: identityRoot.Permissions,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose parent request coordinator: %w", err)
@@ -2804,10 +2732,7 @@ func NewFactoryWithConfig(
 
 	factory = &Factory{
 		settingsRuntimeDB:       db,
-		Auth:                    identityAccess,
 		Audit:                   auditCommand,
-		MFA:                     identityAccess,
-		Passkey:                 identityAccess,
 		Active:                  activeService,
 		ActiveCleanup:           activeCleanupService,
 		WorkSession:             timeTracking,
@@ -2849,10 +2774,9 @@ func NewFactoryWithConfig(
 		Guardian:                guardianService,
 		PeopleDirectory:         persons,
 		GuardianProfileLoader:   guardianProfileLoader,
-		UserContext:             userContextService,
 		Database:                databaseService,
 		DatabaseStatsCapabilities: func(ctx context.Context) transactionruntime.DatabaseStatsCapabilities {
-			return securityruntime.DatabaseStatsCapabilities(tokens.Permissions(ctx))
+			return securityruntime.DatabaseStatsCapabilities(identityRoot.Permissions(ctx))
 		},
 		Import:               dataImports.Student,        // Student import service
 		StaffImport:          dataImports.Staff,          // Staff (Mitarbeiter) import service
@@ -2873,20 +2797,12 @@ func NewFactoryWithConfig(
 		NotificationPreferences:  notificationPreferencesService,
 		AbsenceNotifier:          absenceNotifier,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
-		Invitation:               invitationService,
-		GuardianInvitation:       guardianInvitationService,
 		Mailer:                   mailer,
 		DefaultFrom:              defaultFrom,
 		FrontendURL:              frontendURL,
 		InvitationTokenExpiry:    invitationTokenExpiry,
 		PasswordResetTokenExpiry: passwordResetTokenExpiry,
 
-		// The operator dashboard reads the directory and drives the
-		// invitation and e-mail change flows through the same composed
-		// Identity & Access module; the two fields name the two roles the
-		// operator routes depend on (#3364).
-		OperatorAuth:         identityAccess,
-		OperatorInvitation:   identityAccess,
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         communicationCapability,
 		Schools:              organizations,
@@ -2920,8 +2836,6 @@ func NewFactoryWithConfig(
 		SupervisionDashboard:    supervisionDashboardService,
 		TimetableData:           timetablePlanning,
 		InstanceSeriesConverter: instanceSeriesConverter,
-		OperatorMFA:             identityAccess,
-		OperatorPasskey:         identityAccess,
 		UnregisteredTagScans:    unregisteredTagScanService,
 
 		EmailOutboxWorker: emailOutboxWorker,

@@ -26,7 +26,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
-	"github.com/moto-nrw/project-phoenix/modules/schoolportal/portaltest"
 	timetable "github.com/moto-nrw/project-phoenix/modules/timetable/http"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -58,7 +57,7 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 		Now: firstSchoolClock(clocks),
 	})
 	resource := schoolportal.NewResource(
-		portaltest.AuthRuntime(services.SchoolAuth), portaltest.MFARuntime(services.SchoolMFA),
+		services.SchoolAuth, services.SchoolMFA,
 		schoolportal.PasswordResetRuntime{}, classDayResource, timetableResource,
 		emptySchoolMessagingRouter{},
 		nil,

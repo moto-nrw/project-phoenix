@@ -989,13 +989,6 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/schoolportal/portaltest",
-      "owner": "inbound-school",
-      "role": "test-support",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "api/shift-types",
       "owner": "inbound-shift-types",
       "role": "http",
@@ -17897,28 +17890,6 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-school.test-support.legacy-composition",
-      "description": "The school-portal test support (modules/schoolportal/portaltest) maps the portal runtimes the service root composes, so a router suite exercises the production scope binding (#3364).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "test-support",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
-    },
-    {
-      "id": "inbound-school.test-support.portal-http",
-      "description": "The school-portal test support builds the portal runtime types it maps onto (#3364).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "test-support",
-      "target_owner": "inbound-school",
-      "target_role": "http"
-    },
-    {
       "id": "care-schedule-cutover.timetable-activities.compose.student-presence.public",
       "description": "Replace the retired room-capacity sentinel alias with its public owner (#3351, ADR 0030).",
       "scopes": [
@@ -20720,17 +20691,6 @@
         "external_test"
       ],
       "source_owner_kind": "domain",
-      "target_role": "test-support",
-      "same_owner": true
-    },
-    {
-      "id": "own-test.inbound.test-support",
-      "description": "ADR 0053 point 7.1: the tests of an inbound owner import its own test-support role.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner_kind": "inbound",
       "target_role": "test-support",
       "same_owner": true
     },

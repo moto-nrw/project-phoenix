@@ -15,7 +15,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +22,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupCaregiverFactory(t *testing.T) (*bun.DB, *services.Factory) {
+func setupCaregiverFactory(t *testing.T) (*bun.DB, *api.TestFactory) {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
@@ -32,7 +31,7 @@ func setupCaregiverFactory(t *testing.T) (*bun.DB, *services.Factory) {
 	return db, factory
 }
 
-func setupServiceFactory(t *testing.T, db *bun.DB) *services.Factory {
+func setupServiceFactory(t *testing.T, db *bun.DB) *api.TestFactory {
 	t.Helper()
 
 	factory, err := api.NewFactoryForTests(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))), testpkg.NewDatabase(t, db), slog.Default())

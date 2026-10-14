@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -68,13 +69,13 @@ func TestOperatorAccountListingCaregiverEnrichment(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Ada", "Listing")
 	query, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
-	persons, err := services.NewPeopleDirectory(db)
+	persons, err := api.NewPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	membership, err := services.NewSchoolMembership(db)
+	membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	schools, err := services.NewOrganizationTenancy(db)
+	schools, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	directory := services.NewOperatorAccountDirectory(query, persons, membership, schools)
+	directory := api.NewOperatorAccountDirectory(query, persons, membership, schools)
 	ctx := testpkg.Ctx(t)
 	rows, err := directory.ListAccountsByTenantID(ctx, testpkg.Tenant(t))
 	require.NoError(t, err)

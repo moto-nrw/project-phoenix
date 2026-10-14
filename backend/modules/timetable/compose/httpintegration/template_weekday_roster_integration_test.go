@@ -35,7 +35,7 @@ type weekdayRosterScenario struct {
 	db          *bun.DB
 	ctx         context.Context
 	tenantID    int64
-	factory     *services.Factory
+	factory     *api.TestFactory
 	materialize timetable.MaterializationCapability
 
 	roomID     int64
