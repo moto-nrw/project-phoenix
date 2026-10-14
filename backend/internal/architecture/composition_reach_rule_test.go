@@ -112,13 +112,13 @@ func TestReviewedOwnTestRuleShape(t *testing.T) {
 	for _, kind := range []string{"domain", "platform", "workflow", "projection", "inbound", "migration", "test-support"} {
 		for _, role := range []string{"public", "contract", "compose", "port", "adapter", "test-support"} {
 			rule := Rule{SourceOwnerKind: kind, SameOwner: true, TargetRole: role, Scopes: reachTestScopes}
-			if !reviewedOwnTestRule(rule, reachOwners) {
+			if !reviewedOwnTestRule(rule) {
 				t.Errorf("rejected the tests of a %s owner importing its own %s role", kind, role)
 			}
 		}
 		for _, role := range []string{"public", "contract", "compose", "port", "adapter"} {
 			rule := Rule{SourceOwnerKind: kind, SourceRole: "test-support", SameOwner: true, TargetRole: role, Scopes: []string{"production"}}
-			if !reviewedOwnTestRule(rule, reachOwners) {
+			if !reviewedOwnTestRule(rule) {
 				t.Errorf("rejected the test support of a %s owner importing its own %s role", kind, role)
 			}
 		}
@@ -131,11 +131,8 @@ func TestReviewedOwnTestRuleShape(t *testing.T) {
 		{"a source role", Rule{SourceOwnerKind: "domain", SourceRole: "module-behavior-test", SameOwner: true, TargetRole: "public", Scopes: []string{"external_test"}}, true},
 		{"a named owner", Rule{SourceOwner: "workforce", SourceRole: "e2e-test", SameOwner: true, TargetRole: "adapter", Scopes: reachTestScopes}, true},
 		{"its own owner named on both sides", Rule{SourceOwner: "workforce", SourceRole: "e2e-test", TargetOwner: "workforce", TargetRole: "public", Scopes: reachTestScopes}, true},
-		{"no source selector", Rule{SameOwner: true, TargetRole: "public", Scopes: reachTestScopes}, false},
-		{"the composition kind", Rule{SourceOwnerKind: "composition", SameOwner: true, TargetRole: "compose", Scopes: reachTestScopes}, false},
-		{"the root", Rule{SourceOwner: "root-composition", SameOwner: true, TargetRole: "compose", Scopes: reachTestScopes}, false},
-		{"the legacy composition", Rule{SourceOwner: "legacy-composition", SameOwner: true, TargetRole: "compose", Scopes: reachTestScopes}, false},
-		{"an unknown owner", Rule{SourceOwner: "nobody", SameOwner: true, TargetRole: "public", Scopes: reachTestScopes}, false},
+		{"every owner", Rule{SameOwner: true, TargetRole: "public", Scopes: reachTestScopes}, true},
+		{"the legacy composition", Rule{SourceOwner: "legacy-composition", SameOwner: true, TargetRole: "compose", Scopes: reachTestScopes}, true},
 		{"another owner", Rule{SourceOwner: "workforce", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: reachTestScopes}, false},
 		{"an owner kind as target", Rule{SourceOwnerKind: "domain", TargetOwnerKind: "domain", TargetRole: "public", Scopes: reachTestScopes}, false},
 		{"an application role", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetRole: "application", Scopes: reachTestScopes}, false},
@@ -151,7 +148,7 @@ func TestReviewedOwnTestRuleShape(t *testing.T) {
 		{"an external class", Rule{SourceOwnerKind: "domain", TargetClass: "orm-sql", Scopes: reachTestScopes}, false},
 		{"no scope", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetRole: "public"}, false},
 	} {
-		if got := reviewedOwnTestRule(scenario.rule, reachOwners); got != scenario.want {
+		if got := reviewedOwnTestRule(scenario.rule); got != scenario.want {
 			t.Errorf("%s: reviewedOwnTestRule = %v, want %v", scenario.name, got, scenario.want)
 		}
 	}
@@ -167,10 +164,8 @@ func TestReviewedRootTestRuleShape(t *testing.T) {
 		{"the tests of a domain owner", Rule{SourceOwnerKind: "domain", TargetOwner: "root-composition", TargetRole: "compose", Scopes: reachTestScopes}, true},
 		{"the shared fixtures", Rule{SourceOwnerKind: "test-support", TargetOwner: "root-composition", TargetRole: "compose", Scopes: reachTestScopes}, true},
 		{"one suite", Rule{SourceOwner: "workforce", SourceRole: "e2e-test", TargetOwner: "root-composition", TargetRole: "compose", Scopes: []string{"external_test"}}, true},
-		{"no source selector", Rule{TargetOwner: "root-composition", TargetRole: "compose", Scopes: reachTestScopes}, false},
-		{"the composition kind", Rule{SourceOwnerKind: "composition", TargetOwner: "root-composition", TargetRole: "compose", Scopes: reachTestScopes}, false},
-		{"the legacy composition", Rule{SourceOwner: "legacy-composition", TargetOwner: "root-composition", TargetRole: "compose", Scopes: reachTestScopes}, false},
-		{"the root's own tests", Rule{SourceOwner: "root-composition", TargetOwner: "root-composition", TargetRole: "compose", Scopes: reachTestScopes}, false},
+		{"every test package", Rule{TargetOwner: "root-composition", TargetRole: "compose", Scopes: reachTestScopes}, true},
+		{"the legacy composition's external tests", Rule{SourceOwner: "legacy-composition", SourceRole: "module-behavior-test", TargetOwner: "root-composition", TargetRole: "compose", Scopes: []string{"external_test"}}, true},
 		{"production", Rule{SourceOwnerKind: "domain", TargetOwner: "root-composition", TargetRole: "compose", Scopes: []string{"production"}}, false},
 		{"every scope", Rule{SourceOwnerKind: "domain", TargetOwner: "root-composition", TargetRole: "compose", Scopes: everyScope}, false},
 		{"the commands root", Rule{SourceOwnerKind: "domain", TargetOwner: "root-composition", TargetRole: "cli", Scopes: reachTestScopes}, false},
@@ -180,7 +175,7 @@ func TestReviewedRootTestRuleShape(t *testing.T) {
 		{"an external class", Rule{SourceOwnerKind: "domain", TargetClass: "http-router", Scopes: reachTestScopes}, false},
 		{"no scope", Rule{SourceOwnerKind: "domain", TargetOwner: "root-composition", TargetRole: "compose"}, false},
 	} {
-		if got := reviewedRootTestRule(scenario.rule, reachOwners); got != scenario.want {
+		if got := reviewedRootTestRule(scenario.rule); got != scenario.want {
 			t.Errorf("%s: reviewedRootTestRule = %v, want %v", scenario.name, got, scenario.want)
 		}
 	}
@@ -247,10 +242,10 @@ func TestCompositionReachEpochGrantsNothingElse(t *testing.T) {
 		{ID: "compose.legacy-composition", Description: "test", Scopes: []string{"production"}, SourceOwner: "legacy-composition", SourceRole: "compose", SameOwner: true, TargetRole: "domain"},
 		{ID: "compose.own-owner-in-tests", Description: "test", Scopes: []string{"internal_test"}, SourceOwner: "workforce", SourceRole: "compose", SameOwner: true, TargetRole: "postgres"},
 		{ID: "own-test.application", Description: "test", Scopes: []string{"external_test"}, SourceOwnerKind: "domain", SourceRole: "e2e-test", SameOwner: true, TargetRole: "application"},
-		{ID: "own-test.legacy-composition", Description: "test", Scopes: []string{"internal_test"}, SourceOwner: "legacy-composition", SourceRole: "module-internal-test", SameOwner: true, TargetRole: "compose"},
+		{ID: "own-test.http", Description: "test", Scopes: []string{"internal_test"}, SourceOwnerKind: "domain", SourceRole: "module-internal-test", SameOwner: true, TargetRole: "http"},
 		{ID: "own-test.foreign-adapter", Description: "test", Scopes: []string{"external_test"}, SourceOwner: "care-plan", SourceRole: "e2e-test", TargetOwner: "workforce", TargetRole: "adapter"},
 		{ID: "root-test.production", Description: "test", Scopes: []string{"production"}, SourceOwnerKind: "domain", SourceRole: "test-support", TargetOwner: "root-composition", TargetRole: "compose"},
-		{ID: "root-test.legacy-composition", Description: "test", Scopes: []string{"external_test"}, SourceOwner: "legacy-composition", SourceRole: "module-behavior-test", TargetOwner: "root-composition", TargetRole: "compose"},
+		{ID: "root-test.cli", Description: "test", Scopes: []string{"external_test"}, SourceOwnerKind: "domain", SourceRole: "module-behavior-test", TargetOwner: "root-composition", TargetRole: "cli"},
 	} {
 		widened := *candidate
 		widened.Rules = append(slices.Clone(candidate.Rules), extra)

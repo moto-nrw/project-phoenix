@@ -3287,11 +3287,14 @@ Three constraints shape the rules:
    own owner's `public` and `contract`. The rules into `public` and
    `contract` therefore name a source role, both for the root's test scopes
    and for an owner's own tests; the rules into the other roles do not.
-2. Points 3, 7.1 and 7.2 select no `composition`-kind source. The roots
-   reach their own packages through point 2, and the legacy composition
-   gains no reach (ADR 0053 point 1). Their rules name a source owner kind,
-   and the acceptance functions reject a rule whose source selector includes
-   a composition.
+2. The rules of points 3, 7.1 and 7.2 name a non-composition source owner
+   kind, so they cannot overlap the root's rules: the roots reach their own
+   packages through point 2. `reviewedOwnerCompositionRule` also rejects a
+   composition-kind source, because the legacy composition gains no
+   production reach (ADR 0053 point 1). The test reaches follow ADR 0053
+   point 7 to the letter and accept every test package, including the
+   legacy composition's external tests; Go keeps its internal tests from
+   importing the root that imports it.
 3. `rules.stale` keeps only live rules, so the rules cover the selectors that
    current imports use. The root has no `port` rule, for example. The first
    import that needs one adds it in a reviewed epoch under the same
