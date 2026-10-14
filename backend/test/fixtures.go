@@ -18,7 +18,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/userpass/userpasstest"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 
@@ -3061,7 +3060,7 @@ func CreateTestEnrollmentRequestAwaitingGuardian(tb testing.TB, db *bun.DB, phas
 		GuardianEmail:     guardianEmail,
 		ConsentFlags:      []byte("{}"),
 		CustomData:        []byte("{}"),
-		SubmissionSource:  enrollment.RequestSourcePublic,
+		SubmissionSource:  enrollmentOwner.RequestSourcePublic,
 		SourceMetadata:    []byte("{}"),
 		StatusToken:       statusToken,
 		SubmittedAt:       time.Now(),
@@ -3094,13 +3093,13 @@ func createTestEnrollmentPhase(tb testing.TB, db *bun.DB, periodID *int64, today
 
 // CreateTestCareOffering creates a minimal active care offering in the given
 // phase (fixed Mo-Fr).
-func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name string) *enrollment.CareOffering {
+func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name string) *CareOffering {
 	tb.Helper()
 	ctx := TenantContext(fixtureTenantID(tb))
-	offering := &enrollment.CareOffering{
+	offering := &CareOffering{
 		PhaseID:            phaseID,
 		Name:               fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix()),
-		DaysOfWeekMode:     enrollment.DaysOfWeekModeFixed,
+		DaysOfWeekMode:     enrollmentOwner.DaysOfWeekModeFixed,
 		AvailableDays:      []string{"mon", "tue", "wed", "thu", "fri"},
 		AutoAddGradeLevels: []int{},
 		IsActive:           true,
