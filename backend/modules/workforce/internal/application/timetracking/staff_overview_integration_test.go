@@ -6,21 +6,19 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type recordingAbsenceRepository struct {
-	timerecords.StaffAbsenceRepository
+	timetracking.StaffAbsenceRepository
 	requestedDate timezone.Date
 }
 
@@ -127,7 +125,7 @@ func (f *overviewFixture) addSchedule(t *testing.T, staffID int64, targetMinutes
 	}
 }
 
-func (f *overviewFixture) addSession(t *testing.T, staffID int64, date timezone.Date, duration time.Duration) *timerecords.WorkSession {
+func (f *overviewFixture) addSession(t *testing.T, staffID int64, date timezone.Date, duration time.Duration) *timetracking.WorkSession {
 	t.Helper()
 	checkIn := time.Date(date.Year(), date.Month(), date.Day(), 8, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(duration)
@@ -139,7 +137,7 @@ func (f *overviewFixture) addSession(t *testing.T, staffID int64, date timezone.
 		checkOut = latest
 		checkIn = checkOut.Add(-duration)
 	}
-	session := &timerecords.WorkSession{
+	session := &timetracking.WorkSession{
 		StaffID:     staffID,
 		Date:        date,
 		Status:      workforce.WorkSessionStatusPresent,
@@ -184,7 +182,7 @@ func (f *overviewFixture) addShift(t *testing.T, staffID int64, date timezone.Da
 
 func (f *overviewFixture) addAbsence(t *testing.T, staffID int64, absenceType, status string, start, end timezone.Date) {
 	t.Helper()
-	absence := &timerecords.StaffAbsence{
+	absence := &timetracking.StaffAbsence{
 		StaffID:     staffID,
 		AbsenceType: absenceType,
 		Status:      status,
@@ -222,7 +220,7 @@ func TestTimeTrackingOverview_MatchesMonthSummary(t *testing.T) {
 	if monthOfDate(yesterday) == monthOfDate(f.today) {
 		f.addAbsence(t, f.staff[1], workforce.AbsenceTypeSick, workforce.AbsenceStatusReported, yesterday, yesterday)
 	}
-	adjustment := &timerecords.StaffBalanceAdjustment{
+	adjustment := &timetracking.StaffBalanceAdjustment{
 		StaffID:       f.staff[2],
 		Type:          workforce.BalanceAdjustmentTypePayout,
 		MinutesDelta:  -30,
@@ -307,7 +305,7 @@ func TestTimeTrackingOverview_VacationMatchesQuotaEndpoint(t *testing.T) {
 
 	absenceSvc := timetracking.NewStaffAbsenceService(
 		f.repos.StaffAbsence, workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).VacationQuotas,
-		workforceLegacy.NewStaffAbsenceAuditRepository(f.workforce), wtmIntSettings{}, f.monthSvc,
+		workforceCompose.NewStaffAbsenceAuditRepository(f.workforce), wtmIntSettings{}, f.monthSvc,
 	)
 
 	overview, err := f.svc.GetTimeTrackingOverview(f.ctx, timetracking.OverviewFilters{})
@@ -467,7 +465,7 @@ func TestDashboardSummary_WeekExcludesAdjustmentsOutsideRange(t *testing.T) {
 	require.True(t, effectiveDate.Before(weekStart) || effectiveDate.After(f.today),
 		"fixture adjustment must lie outside the requested week")
 
-	adjustment := &timerecords.StaffBalanceAdjustment{
+	adjustment := &timetracking.StaffBalanceAdjustment{
 		StaffID:       f.staff[0],
 		Type:          workforce.BalanceAdjustmentTypePayout,
 		MinutesDelta:  -60,

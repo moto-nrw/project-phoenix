@@ -1,9 +1,10 @@
-// Package legacy keeps the retained staff absence and group substitution
-// repository contracts (adapters/timerecords, the group substitution rows) alive on top of the
+// Package legacy keeps the retained group substitution repository contract
+// and the personnel record contracts of the suites alive on top of the
 // Workforce capability while their consumers migrate (#2688). It performs no
 // persistence of its own: every adapter maps the legacy models onto the public
 // capability types and preserves the error shapes those callers still classify
 // on. The composition root constructs the adapters; nothing else imports them.
+// The staff absence adapters moved into modules/workforce/compose (#3996).
 package legacy
 
 import (

@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
 // Period values for the dashboard summary (#1417).
@@ -147,11 +146,11 @@ type StaffOverviewService interface {
 
 type staffOverviewService struct {
 	staffRepo      OverviewStaffQuery
-	sessionRepo    timerecords.WorkSessionRepository
-	breakRepo      timerecords.WorkSessionBreakRepository
-	absenceRepo    timerecords.StaffAbsenceRepository
+	sessionRepo    WorkSessionRepository
+	breakRepo      WorkSessionBreakRepository
+	absenceRepo    StaffAbsenceRepository
 	adjustmentRepo StaffBalanceAdjustmentRepository
-	quotaRepo      timerecords.StaffVacationQuotaRepository
+	quotaRepo      StaffVacationQuotaRepository
 	snapshotRepo   MonthSnapshots
 	scheduleRepo   OverviewWorkSchedules
 	workModelRepo  OverviewWorkTimeModels
@@ -161,7 +160,7 @@ type staffOverviewService struct {
 	overrideReader TargetOverrideReader
 	// openingRepo carries the vacation takeover rows (#2132); supplied by
 	// WithOverviewVacationOpenings, nil in bare unit fixtures.
-	openingRepo timerecords.StaffVacationOpeningRepository
+	openingRepo StaffVacationOpeningRepository
 	logger      *slog.Logger
 
 	// todayFunc is a test hook; production uses timezone.TodayDate.
@@ -170,11 +169,11 @@ type staffOverviewService struct {
 
 func NewStaffOverviewService(
 	staffRepo OverviewStaffQuery,
-	sessionRepo timerecords.WorkSessionRepository,
-	breakRepo timerecords.WorkSessionBreakRepository,
-	absenceRepo timerecords.StaffAbsenceRepository,
+	sessionRepo WorkSessionRepository,
+	breakRepo WorkSessionBreakRepository,
+	absenceRepo StaffAbsenceRepository,
 	adjustmentRepo StaffBalanceAdjustmentRepository,
-	quotaRepo timerecords.StaffVacationQuotaRepository,
+	quotaRepo StaffVacationQuotaRepository,
 	snapshotRepo MonthSnapshots,
 	scheduleRepo OverviewWorkSchedules,
 	workModelRepo OverviewWorkTimeModels,

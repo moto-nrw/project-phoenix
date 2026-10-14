@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 )
 
@@ -169,7 +168,7 @@ func timeTrackingRows(capability workforce.Capability) timetracking.Rows {
 type TimeTrackingCleanupDependencies struct {
 	Workforce workforce.Capability
 	// Absences serves the staff absence rows with their retained relations.
-	Absences timerecords.StaffAbsenceRepository
+	Absences StaffAbsenceRepository
 	// Audit records the deletion evidence; nil runs without it.
 	Audit    DeletionAudit
 	Settings TimeTrackingCleanupSettings

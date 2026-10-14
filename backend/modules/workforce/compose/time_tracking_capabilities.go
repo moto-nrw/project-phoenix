@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -214,7 +213,7 @@ func BalanceAdjustmentCapability(ledger timetracking.StaffBalanceAdjustmentServi
 	return balanceAdjustmentCapability{ledger: ledger}
 }
 
-func publicBalanceAdjustment(entity *timerecords.StaffBalanceAdjustment) *workforce.StaffBalanceAdjustment {
+func publicBalanceAdjustment(entity *timetracking.StaffBalanceAdjustment) *workforce.StaffBalanceAdjustment {
 	if entity == nil {
 		return nil
 	}
@@ -225,7 +224,7 @@ func publicBalanceAdjustment(entity *timerecords.StaffBalanceAdjustment) *workfo
 	}
 }
 
-func (c balanceAdjustmentCapability) adjustment(entity *timerecords.StaffBalanceAdjustment, err error) (*workforce.StaffBalanceAdjustment, error) {
+func (c balanceAdjustmentCapability) adjustment(entity *timetracking.StaffBalanceAdjustment, err error) (*workforce.StaffBalanceAdjustment, error) {
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}

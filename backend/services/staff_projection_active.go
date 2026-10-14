@@ -9,8 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
-	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // staffGroupSupervisorRepository attaches the supervising staff member to
@@ -29,14 +28,14 @@ func sessionStaff(member schoolmembership.Staff) *presenceCompose.SessionStaff {
 // absence decorators below read and write, for the suites that test them.
 // They go when the decorators move into the root (#4008, #4007).
 type (
-	StaffAbsenceRow      = timerecords.StaffAbsence
-	AbsenceRequestFilter = timerecords.AbsenceRequestFilter
+	StaffAbsenceRow      = workforceCompose.StaffAbsence
+	AbsenceRequestFilter = workforceCompose.AbsenceRequestFilter
 )
 
 // absenceRequestRowsQuery is the staff-ID-shaped listing the concrete
 // repository exposes; subjectStaffIDs nil means "no subject filter".
 type absenceRequestRowsQuery interface {
-	ListRequestRows(ctx context.Context, filter timerecords.AbsenceRequestFilter, subjectStaffIDs []int64) ([]*timerecords.AbsenceRequestRow, error)
+	ListRequestRows(ctx context.Context, filter workforceCompose.AbsenceRequestFilter, subjectStaffIDs []int64) ([]*workforceCompose.AbsenceRequestRow, error)
 }
 
 // staffAbsenceRepository translates between the person-shaped absence
@@ -46,7 +45,7 @@ type absenceRequestRowsQuery interface {
 // included so a request stays readable after its subject is offboarded —
 // the replaced joins were LEFT joins without a deleted filter.
 type staffAbsenceRepository struct {
-	timerecords.StaffAbsenceRepository
+	workforceCompose.StaffAbsenceRepository
 	rows       absenceRequestRowsQuery
 	membership staffLookup
 }
@@ -55,19 +54,19 @@ type staffAbsenceRepository struct {
 // the request rows translated between staff and person IDs through School
 // Membership and the subject and decider names resolved through the People
 // Directory (#2667, #2690).
-func NewStaffAbsenceRepository(workTime workforce.Capability, membership schoolmembership.Query, persons peopledirectory.Query) timerecords.StaffAbsenceRepository {
+func NewStaffAbsenceRepository(workTime workforce.Capability, membership schoolmembership.Query, persons peopledirectory.Query) workforceCompose.StaffAbsenceRepository {
 	return personStaffAbsenceRepository{
-		StaffAbsenceRepository: newStaffAbsenceRepository(workforceLegacy.NewStaffAbsenceRepository(workTime), membership),
+		StaffAbsenceRepository: newStaffAbsenceRepository(workforceCompose.NewStaffAbsenceRepository(workTime), membership),
 		persons:                persons,
 	}
 }
 
-func newStaffAbsenceRepository(inner timerecords.StaffAbsenceRepository, membership staffLookup) timerecords.StaffAbsenceRepository {
+func newStaffAbsenceRepository(inner workforceCompose.StaffAbsenceRepository, membership staffLookup) workforceCompose.StaffAbsenceRepository {
 	rows, _ := inner.(absenceRequestRowsQuery)
 	return staffAbsenceRepository{StaffAbsenceRepository: inner, rows: rows, membership: membership}
 }
 
-func (r staffAbsenceRepository) ListRequests(ctx context.Context, filter timerecords.AbsenceRequestFilter) ([]*timerecords.AbsenceRequestRow, error) {
+func (r staffAbsenceRepository) ListRequests(ctx context.Context, filter workforceCompose.AbsenceRequestFilter) ([]*workforceCompose.AbsenceRequestRow, error) {
 	if r.rows == nil {
 		return nil, fmt.Errorf("staff absence repository does not list request rows")
 	}
@@ -76,7 +75,7 @@ func (r staffAbsenceRepository) ListRequests(ctx context.Context, filter timerec
 		// An explicitly empty person set matches nobody; never fall through
 		// to the unfiltered listing.
 		if len(filter.SubjectPersonIDs) == 0 {
-			return []*timerecords.AbsenceRequestRow{}, nil
+			return []*workforceCompose.AbsenceRequestRow{}, nil
 		}
 		members, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{
 			PersonIDs: filter.SubjectPersonIDs, IncludeDeleted: true,
@@ -85,7 +84,7 @@ func (r staffAbsenceRepository) ListRequests(ctx context.Context, filter timerec
 			return nil, fmt.Errorf("load staff for absence subjects: %w", err)
 		}
 		if len(members) == 0 {
-			return []*timerecords.AbsenceRequestRow{}, nil
+			return []*workforceCompose.AbsenceRequestRow{}, nil
 		}
 		subjectStaffIDs = make([]int64, 0, len(members))
 		for _, member := range members {

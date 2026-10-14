@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
 // --- work sessions ----------------------------------------------------------
@@ -32,7 +31,7 @@ func WorkSessionCapability(sessions timetracking.WorkSessionService, staff Staff
 	return workSessionCapability{sessions: sessions, staff: staff}
 }
 
-func publicWorkSession(entity *timerecords.WorkSession) *workforce.WorkSession {
+func publicWorkSession(entity *timetracking.WorkSession) *workforce.WorkSession {
 	if entity == nil {
 		return nil
 	}
@@ -44,7 +43,7 @@ func publicWorkSession(entity *timerecords.WorkSession) *workforce.WorkSession {
 	}
 }
 
-func publicWorkSessionBreak(entity *timerecords.WorkSessionBreak) *workforce.WorkSessionBreak {
+func publicWorkSessionBreak(entity *timetracking.WorkSessionBreak) *workforce.WorkSessionBreak {
 	if entity == nil {
 		return nil
 	}
@@ -54,7 +53,7 @@ func publicWorkSessionBreak(entity *timerecords.WorkSessionBreak) *workforce.Wor
 	}
 }
 
-func publicWorkSessionBreaks(entities []*timerecords.WorkSessionBreak) []*workforce.WorkSessionBreak {
+func publicWorkSessionBreaks(entities []*timetracking.WorkSessionBreak) []*workforce.WorkSessionBreak {
 	if entities == nil {
 		return nil
 	}
