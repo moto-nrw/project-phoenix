@@ -55,7 +55,10 @@ jobs:
           TZ: Europe/Berlin
         ports:
           - 5432:5432
+        # Package database drops force checkpoints. These disposable databases
+        # need no disk persistence; tmpfs avoids the measured fsync bottleneck.
         options: >-
+          --tmpfs /var/lib/postgresql/data:rw,size=4g
           --health-cmd "pg_isready -U postgres"
           --health-interval 2s
           --health-timeout 5s
@@ -216,9 +219,14 @@ jobs:
 
   test-frontend:
     if: ${{ inputs.run-frontend }}
-    # Vitest uses half the CPUs, at most four workers (frontend/vitest.config.ts):
-    # four vCPUs ran the suite with two workers, eight run it with four.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # The existing Vitest projects are independent, but groupOrder runs Node
+    # before DOM in one process. Split them without raising worker counts or
+    # disabling isolation. Only Node needs the browser layout checks.
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [node, dom]
+    runs-on: ${{ matrix.project == 'node' && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     permissions:
       contents: read
 
@@ -244,7 +252,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Check frontend route invariants
-        if: ${{ inputs.changed-scope }}
+        if: ${{ inputs.changed-scope && matrix.project == 'node' }}
         working-directory: frontend
         run: >-
           pnpm vitest run
@@ -254,6 +262,7 @@ jobs:
       # Layout needs a real browser; jsdom/happy-dom compute no boxes (#3328).
       # The binary is cached per lockfile, OS libs install every run.
       - name: Cache Playwright browsers
+        if: ${{ matrix.project == 'node' }}
         id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -261,6 +270,7 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
 
       - name: Install Playwright Chromium
+        if: ${{ matrix.project == 'node' }}
         working-directory: frontend
         run: |
           if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
@@ -270,18 +280,26 @@ jobs:
           fi
 
       - name: Run browser layout tests
+        if: ${{ matrix.project == 'node' }}
         working-directory: frontend
         run: pnpm run test:layout
 
-      - name: Run changed frontend tests
-        if: ${{ inputs.changed-scope && ! inputs.full-frontend-suite && inputs.base_ref != '' }}
+      - name: Run frontend tests
         working-directory: frontend
-        run: pnpm vitest run --changed "origin/${{ inputs.base_ref }}"
-
-      - name: Run full frontend tests
-        if: ${{ ! inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '' }}
-        working-directory: frontend
-        run: pnpm run test:run
+        env:
+          PROJECT: ${{ matrix.project }}
+          CHANGED_SCOPE: ${{ inputs.changed-scope }}
+          FULL_SUITE: ${{ inputs.full-frontend-suite }}
+          BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          test_args=(--project app-dom)
+          if [ "$PROJECT" = node ]; then
+            test_args=(--project api-node --project logic-node)
+          fi
+          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
+            test_args+=(--changed "origin/$BASE_REF")
+          fi
+          pnpm vitest run "${test_args[@]}"
 
   # The seeder is the widest end-to-end path in this repo: roughly a hundred
   # real API calls across auth, enrollment, parent portal, time tracking and
@@ -290,8 +308,15 @@ jobs:
   # the parent pickup-change endpoint did exactly that in July 2026 and only
   # surfaced a month later, when a developer seeded by hand.
   seed-smoke:
-    name: Seed & simulate smoke
+    name: Seed & simulate smoke (${{ matrix.scenario }})
     if: ${{ inputs.run-seed-smoke }}
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [profiles, isolation]
+    # Each scenario owns its database and operator MFA mailbox. The isolation
+    # scenario still seeds both schools sequentially into the SAME database;
+    # profiles retains the complete seed-coverage ratchet after all demo flows.
     # Database reads repeatedly stalled on the cached runner, including while
     # Postgres reported an active query with no lock wait (run 38232330367).
     # Use a fresh hosted VM without changing smoke coverage or read timeouts.
@@ -472,6 +497,7 @@ jobs:
           exit 1
 
       - name: Seed all five profiles and verify enrollment, withdrawal, web and NFC flows
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
           "${RUNNER_TEMP}/phoenix" seed \
@@ -484,16 +510,19 @@ jobs:
             --admin-email vollbetrieb-admin@example.test
 
       - name: Simulate a full care day
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
           "${RUNNER_TEMP}/phoenix" simulate full-day --profile vollbetrieb
 
       - name: Verify manual attendance profile
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
           "${RUNNER_TEMP}/phoenix" simulate status --profile manuell
 
       - name: Read enrollment demo profiles
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
           "${RUNNER_TEMP}/phoenix" simulate status --profile anmeldung-wochenplan
@@ -503,6 +532,7 @@ jobs:
       # database that already holds others. The duration is what a visitor
       # waits for, so it is printed per school.
       - name: Seed two demo schools into the same database and simulate their day
+        if: ${{ matrix.scenario == 'isolation' }}
         working-directory: backend
         run: |
           for slug in demo-smoke-eins demo-smoke-zwei; do
@@ -525,11 +555,11 @@ jobs:
           done
 
       - name: Provision and restart the standing demo school
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          # The preceding scenarios consumed the operator's three MFA codes
-          # per 15-minute window. Reset only consumed challenge fixtures in
-          # this disposable CI database; keep production limits unchanged.
+          # Reset only consumed challenge fixtures in this disposable CI
+          # database; keep production limits unchanged.
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
           # The standing school is the fallback of #3463 and keeps its coverage.
@@ -541,6 +571,7 @@ jobs:
       # three workers and tick them once. A school that did not become ready
       # fails the job. The durations are what a visitor waits for.
       - name: Seed queued demo schools with the demo process
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
@@ -573,6 +604,7 @@ jobs:
           test "${parents}" = 3
 
       - name: Check seed coverage ratchet
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: go test ./seed/api/ -run TestSeedCoverageRatchet -v
 
