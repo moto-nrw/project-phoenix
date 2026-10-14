@@ -420,8 +420,8 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("session refresh unavailable")))
 		return
 	}
-	ctx := rotation.WithRecoveryProof(r.Context(), r.Header.Get(rotation.RecoveryProofHeader))
-	accessToken, newRefreshToken, err := rs.Sessions.RefreshTokenWithAudit(ctx, refreshToken, ipAddress, userAgent)
+	recoveryProof := r.Header.Get(rotation.RecoveryProofHeader)
+	accessToken, newRefreshToken, err := rs.Sessions.RefreshTokenWithAudit(r.Context(), refreshToken, recoveryProof, ipAddress, userAgent)
 	if err != nil {
 		var authErr *identityaccess.AuthenticationError
 		if errors.As(err, &authErr) {

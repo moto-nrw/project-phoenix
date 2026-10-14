@@ -1244,15 +1244,18 @@ their fourteen cross-owner implementation edges are gone. The tenant runtime
 edge `tenant` went next: the suites open their tenant, admin and current-tenant
 transactions and name the savepoint failure through the tenant runtime helpers
 of `test`, which the `shared-fixtures.tenant-runtime-public` rule already lets
-reach `tenant`. The three edges the legacy factory still forces on an
-`e2e-test` root — the module's own public contract, its token adapter
-`modules/identityaccess/legacy/jwt` and the refresh rotation application
-`auth/rotation` — are exact `legacy.jsonl` debt under #3446. No rule lets
-`test` or a composition owner reach them either, so they go only with a
-decision on the suites' role or when the suites drive the module without the
-legacy factory. The school-portal router
-suites bind their runtimes through `modules/schoolportal/portaltest`
-(`inbound-school`/`test-support`), the owner's own test support, instead of
+reach `tenant`. ADR 0053 point 7 settled the suites' role: they are
+Identity's own suites, and #4001 lets them import the module's public contract
+and its token adapter `modules/identityaccess/legacy/jwt`. The refresh
+rotation application `auth/rotation` stays forbidden to them. The recovery
+proof is therefore an input of the public refresh capability
+(`AccountAuthentication.RefreshTokenWithAudit`): the compose engine binds it
+for the rotation policy, the account refresh route passes its header on, and
+the suites pass the proof as an argument and pin the five-minute grace and the
+sha256 family fingerprint by value. No `legacy.jsonl` entry names #3446.
+The school-portal router suites bind their runtimes through
+`modules/schoolportal/portaltest` (`inbound-school`/`test-support`), the
+owner's own test support, instead of
 naming the legacy composition from the suite; its three rules are anchored to
 that new point for the same reason.
 

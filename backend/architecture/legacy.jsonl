@@ -1,4 +1,3 @@
-{"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/modules/identityaccess/behavior","target":"github.com/moto-nrw/project-phoenix/auth/rotation","issue":"https://github.com/moto-nrw/project-phoenix/issues/3446"}
 {"scope":"internal_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api","target":"github.com/moto-nrw/project-phoenix/middleware","issue":"https://github.com/moto-nrw/project-phoenix/issues/2750"}
 {"scope":"internal_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api","target":"github.com/moto-nrw/project-phoenix/models/config","issue":"https://github.com/moto-nrw/project-phoenix/issues/2750"}
 {"scope":"internal_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api","target":"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt","issue":"https://github.com/moto-nrw/project-phoenix/issues/2750"}
