@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +32,7 @@ type moveSetup struct {
 	db       *bun.DB
 	ctx      context.Context
 	tenantID int64
-	factory  *services.Factory
+	factory  *api.TestFactory
 	roomID   int64
 	staffID  int64 // assigned to source in makeMoveSetup
 	otherID  int64 // free second staff member

@@ -5,14 +5,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 type ActivitiesTestModule struct {
 	Activities  timetableCompose.ActivityService
 	Timetable   timetable.Capability
 	Users       *peopleCompose.PersonDirectory
-	UserContext *services.CallerRows
+	UserContext *CallerRows
 }
 
 func NewActivitiesTestModule(db transactionruntime.Database) (ActivitiesTestModule, error) {

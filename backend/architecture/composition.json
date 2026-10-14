@@ -56,7 +56,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        245
+        247
       ],
       "tables": []
     },
@@ -16372,62 +16372,47 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 162,
+          "line": 164,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 374,
+          "line": 381,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 473,
+          "line": 483,
           "declaration": "withRootWiring"
         },
         {
           "file": "api/base.go",
-          "line": 732,
+          "line": 747,
           "declaration": "type serveGraph"
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 44,
-          "declaration": "NewFactoryForTests"
+          "line": 48,
+          "declaration": "type TestFactory"
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 61,
-          "declaration": "NewFactoryForTestsWithConfig"
-        },
-        {
-          "file": "api/factory_test_helpers.go",
-          "line": 162,
+          "line": 191,
           "declaration": "OwnerCapabilities.factory"
         },
         {
           "file": "api/guardian_directory_composition.go",
-          "line": 134,
+          "line": 143,
           "declaration": "NewGuardianDirectoryRuntime"
         },
         {
           "file": "api/guardian_directory_composition.go",
-          "line": 158,
-          "declaration": "guardianInvitationFlows"
-        },
-        {
-          "file": "api/guardian_directory_composition.go",
-          "line": 206,
+          "line": 215,
           "declaration": "pendingGuardianInvitations"
         },
         {
           "file": "api/guardian_directory_composition.go",
-          "line": 225,
-          "declaration": "guardianApprovalFlows"
-        },
-        {
-          "file": "api/guardian_directory_composition.go",
-          "line": 265,
+          "line": 274,
           "declaration": "guardianPaymentExport"
         },
         {
@@ -16437,7 +16422,7 @@
         },
         {
           "file": "api/people_directory_roots.go",
-          "line": 200,
+          "line": 201,
           "declaration": "NewStaffMembershipRuntime"
         },
         {
@@ -16447,42 +16432,42 @@
         },
         {
           "file": "api/staff_composition.go",
-          "line": 113,
+          "line": 115,
           "declaration": "newStaffComposition"
         },
         {
           "file": "api/staff_composition.go",
-          "line": 129,
+          "line": 131,
           "declaration": "newExportTransferModule"
         },
         {
           "file": "api/staff_membership_composition.go",
-          "line": 161,
+          "line": 162,
           "declaration": "bindStaffMembershipRuntime"
         },
         {
           "file": "api/staff_membership_composition.go",
-          "line": 216,
+          "line": 213,
           "declaration": "newStaffOffboardingWorkflow"
         },
         {
           "file": "api/staff_membership_composition.go",
-          "line": 231,
+          "line": 228,
           "declaration": "staffDirectoryPersons"
         },
         {
           "file": "api/staff_membership_composition.go",
-          "line": 271,
+          "line": 268,
           "declaration": "membershipTeacherGroups"
         },
         {
           "file": "api/staff_membership_composition.go",
-          "line": 286,
+          "line": 283,
           "declaration": "membershipRoleRows"
         },
         {
           "file": "api/staff_membership_composition.go",
-          "line": 324,
+          "line": 321,
           "declaration": "staffDirectoryWrites"
         },
         {

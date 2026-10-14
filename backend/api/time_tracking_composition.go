@@ -76,7 +76,7 @@ func (p exportTransferPort) Transfer(ctx context.Context, request timeTrackingHT
 
 // newTimeTrackingResource composes the MA-facing /api/time-tracking surface.
 func newTimeTrackingResource(svc *services.Factory, calendar schoolcalendar.Calendar, db transactionruntime.Database) *timeTrackingHTTP.Resource {
-	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession)
+	capabilities := NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession)
 	return timeTrackingHTTP.NewResource(timeTrackingHTTP.Dependencies{
 		WorkSessions:     capabilities.WorkSessions,
 		StaffAbsences:    capabilities.StaffAbsences,
@@ -85,7 +85,7 @@ func newTimeTrackingResource(svc *services.Factory, calendar schoolcalendar.Cale
 		StaffShifts:      svc.StaffShifts,
 		Assignments:      svc.StaffAssignments,
 		Calendar:         services.PlanningCalendarCapability(calendar),
-		AccountStartDate: services.TimeTrackingAccountStartDate(svc.Settings),
+		AccountStartDate: timeTrackingAccountStartDate(svc.Settings),
 		Identity:         timeTrackingIdentity,
 		DB:               db.Pool(),
 	})
@@ -95,7 +95,7 @@ func newTimeTrackingResource(svc *services.Factory, calendar schoolcalendar.Cale
 // adapted capabilities; schedules is the Workforce query the schedule views
 // read from and the Sonderarbeitszeiten are written through; notifyChanged
 // invalidates the time-account views after such a write.
-func newStaffAdminResource(capabilities services.WorkforceAdminCapabilities, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer *exportTransferModule.Module, db transactionruntime.Database, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
+func newStaffAdminResource(capabilities WorkforceAdminCapabilities, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer *exportTransferModule.Module, db transactionruntime.Database, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
 	cleanup, err := workforceCompose.NewDocumentCleanup(db.Pool(), nil)
 	if err != nil {
 		panic(err)

@@ -155,24 +155,21 @@ type StaffMembershipRuntime struct {
 }
 
 // bindStaffMembershipRuntime composes the closures over the legacy service
-// graph. offboarding carries the database and the employment owner the caller
+// graph and the Identity & Access module the root composed (#4006).
+// offboarding carries the database and the employment owner the caller
 // composed; the access, the cleanup, the broadcaster, the logger and the
 // authorization of the offboarding workflow are bound here.
-func bindStaffMembershipRuntime(f *services.Factory, offboarding offboardingcompose.Dependencies, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
+func bindStaffMembershipRuntime(f *services.Factory, offboarding offboardingcompose.Dependencies, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
 	if hooks.ResolveEditorStaffID == nil || hooks.QueueOffboardedDocumentCleanup == nil {
 		panic("staff membership runtime: offboarding hooks are required")
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	if f.Auth == nil {
-		panic("staff membership runtime: identity offboarding capability is required")
+	if identity == nil {
+		panic("staff membership runtime: identity offboarding and role administration are required")
 	}
-	roles := f.AccountAuthentication()
-	if roles == nil {
-		panic("staff membership runtime: identity role administration is required")
-	}
-	workflow := newStaffOffboardingWorkflow(f, offboarding, logger, hooks)
+	workflow := newStaffOffboardingWorkflow(f, identity, offboarding, logger, hooks)
 	person, persons := staffDirectoryPersons(f)
 	activeCaregivers, staffByRoles := membershipRoleRows(f)
 	createStaff, updateStaff := staffDirectoryWrites(f)
@@ -183,13 +180,13 @@ func bindStaffMembershipRuntime(f *services.Factory, offboarding offboardingcomp
 		WorkStatusMap:   f.WorkSession.StaffDay.GetTodayPresenceMap,
 		AbsenceMap:      f.WorkSession.StaffDay.GetTodayAbsenceMap,
 		AbsenceLabelMap: f.WorkSession.StaffDay.GetTodayAbsenceLabelMap,
-		AccountRoles:    roles.GetAccountRoleNames,
-		AccountEmails:   roles.GetAccountEmails,
-		AccountAvatars:  roles.GetAccountAvatars,
-		AccountHasRole:  accountHoldsRole(roles),
+		AccountRoles:    identity.GetAccountRoleNames,
+		AccountEmails:   identity.GetAccountEmails,
+		AccountAvatars:  identity.GetAccountAvatars,
+		AccountHasRole:  accountHoldsRole(identity),
 
 		GrantDefaultPermissions: func(ctx context.Context, accountID int64, isTeacher bool) {
-			roles.GrantStaffDefaultPermission(ctx, accountID, isTeacher, defaultStaffAccountPermission)
+			identity.GrantStaffDefaultPermission(ctx, accountID, isTeacher, defaultStaffAccountPermission)
 		},
 
 		TeacherGroups:    membershipTeacherGroups(f),
@@ -213,8 +210,8 @@ func bindStaffMembershipRuntime(f *services.Factory, offboarding offboardingcomp
 // newStaffOffboardingWorkflow composes the offboarding workflow with the
 // Identity & Access step, the document cleanup, the realtime hub, the logger
 // and the editor authorization.
-func newStaffOffboardingWorkflow(f *services.Factory, offboarding offboardingcompose.Dependencies, logger *slog.Logger, hooks StaffMembershipHooks) *staffoffboarding.Workflow {
-	offboarding.Access, offboarding.Cleanup = StaffOffboardingAccess(f.Auth), hooks.QueueOffboardedDocumentCleanup
+func newStaffOffboardingWorkflow(f *services.Factory, identity *identityaccess.Module, offboarding offboardingcompose.Dependencies, logger *slog.Logger, hooks StaffMembershipHooks) *staffoffboarding.Workflow {
+	offboarding.Access, offboarding.Cleanup = StaffOffboardingAccess(identity), hooks.QueueOffboardedDocumentCleanup
 	offboarding.Broadcaster, offboarding.Logger = f.RealtimeHub, logger
 	offboarding.Authorize = func(ctx context.Context) (staffoffboarding.Actor, error) {
 		name, _ := ctx.Value(staffOffboardingActorNameKey{}).(string)

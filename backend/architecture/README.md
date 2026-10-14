@@ -564,8 +564,16 @@ because the builders that compose several owners over one database
 decides where that code goes: an owner's composition builds its own owner,
 and the typed roots compose the owners. #4001 grants the standing reaches in
 epoch 41 (see [Standing composition reaches](#standing-composition-reaches-adr-0053)).
-The three keys stay until #4005 to #4013 have moved the code out of
-`services` and #2747 deletes the package.
+The `sessiontoken` key fell with #4006, when the root took over the Identity &
+Access composition. The `bun` and `tenant` keys stay until #4007 to #4013
+have moved the rest of the code out of `services` and #2747 deletes the
+package.
+
+#4008 moved the Workforce wiring:
+`services` keeps 225 of its 260 production files (32,949 of 35,482 LOC; the
+merge-base measures 35,473, the base fix of #4049 adds nine), and
+the Factory takes the Workforce bindings from the root as one value,
+`WorkforceWiring` (see [Workforce wiring out of services](#workforce-wiring-out-of-services-4008)).
 
 #4007 moved the People Directory, School Membership and School Structure
 wiring out of `services` without a key or a policy rule. Single-owner code went
@@ -1386,7 +1394,9 @@ not import the application. The two staff absence decorators of the root stay
 in `services`, because they need School Membership and People Directory; they
 name the contract through `modules/workforce/compose` aliases, and the Student
 Presence suites that test them name the rows through `services` aliases until
-#4008 and #4007 move the decorators into the root. The Student Presence
+#4008 and #4007 move the decorators into the root. #4008 did: the decorators
+live in `api/workforce_staff_absences.go`, and the suites name the rows
+through aliases in `api/workforce_test_helpers.go`. The Student Presence
 auto-check-in port returns the public `workforce.WorkSession`, which
 `compose.TimeTracking.AutoCheckIn` maps to and passes the time clock's error
 through unchanged. The package entry, the nine rules naming #3996 and
@@ -3411,6 +3421,86 @@ package variable that an external `root_composition_test.go` binds, or
 reaches it through `modules/workforce/workforcetest` when its external test
 may not import its own package. `api/testutil` keeps only owner-agnostic HTTP
 helpers, and `api/testutil -> services` falls (#2748, 41 → 40).
+
+#4006 moves the Identity & Access wiring out of `services` (ADR 0053 points 1,
+4 and 8). The legacy composition still consumes the module, so the root
+composes it over values the Factory hands over: `NewFactoryWithModules` takes
+a `services.IdentityRoot` instead of the token adapter. The Factory calls its
+`Compose` with what it builds itself: the settings, the audit command and
+ledger, the mail transport, the identity chain rows, and the outbox and
+delivery state read at call time. It gets back the module, the caller
+context, the bindings of the owners that may not name the module, and the
+three Identity mail renderers. Every seam that binds Identity to another
+owner lives in `api/identity_*.go`. Those seams declare narrow row ports of
+their own (`api/identity_rows.go`), so no repository type reaches the root
+(Rule 1). The root binds the portal runtimes straight to the portal types,
+so `modules/schoolportal/portaltest`, its two rules and the standing rule
+`own-test.inbound.test-support` are gone. Identity owns the order of the
+guardian welcome mail (`GuardianWelcomeOrder` behind the consumer-owned port
+`compose.PrecedingMails`); the root only reports Delivery's state. The
+cleanup CLI and the dev seeder build their Identity parts through
+`modules/identityaccess/compose` (`NewSessionMaintenance`,
+`NewInvitationMaintenance`, `NewGuardianSeedAccess`, `NewDemoAccessExpiry`).
+The session sweep never signs or verifies a session, so its composition has
+no signer. The Factory loses its ten Identity fields and seven Identity
+methods (composition surface 250 → 240). `services` shrinks from 260 to 232
+production files and from 35,473 to 30,454 LOC, and `services ->
+sessiontoken` falls (#2747, 40 → 39). Declarations whose callers stay in
+`services` moved into those callers' files. `api -> sessiontoken` (#2750)
+stays: the root's middleware and claim reads still use the adapter.
+
+### Workforce wiring out of services (#4008)
+
+The 34 Workforce files of #4008 left `services`, and so did
+`rfid_card_lookup.go`, which only the staff clock used. Each part went where
+ADR 0053 point 8 puts it:
+
+- **Workforce's composition** builds what binds Workforce to Workforce: the
+  planned shifts over the public shift query, the schedule assignment over the
+  employment profile, the schedule and work-time-template adapters over the
+  rows of `repositoryadapter`, and today's work presence
+  (`time_tracking_planned_shifts.go`, `time_tracking_staff_schedule.go`,
+  `time_tracking_work_schedules.go`, `work_presence.go`).
+- **The root** (`api`) holds the cross-owner glue: the staff absence
+  decorators over School Membership and the People Directory, the time-tracking
+  ports over the staff rows, the Audit trails, the settings, Delivery and
+  Document Rendering, the personnel-record administration, the staff clock
+  over Identity & Access and the People Directory, the admin capability
+  bundle, the substitution capability, the Timetable shift rows, the plan
+  export's staff names, and Workforce's School Membership callbacks. The
+  time-tracking ports take the Transaction Runtime value instead of
+  `*bun.DB`. The cleanup command composes Workforce through
+  `api.NewUnobservedWorkforce` and hands it to
+  `services.NewTimeTrackingCleanupService`.
+- **The Factory** takes `services.WorkforceWiring` as one new constructor
+  parameter, alongside `IdentityRoot` (#4006). It carries the values the root
+  builds (the staff absences, the shift rows, the plan export's staff names)
+  and two bindings the Factory calls with what only it builds (the retained
+  staff and person rows, the Audit persistence, the settings, the broadcaster
+  and the tenant mail). The root builds the staff clock where it mounts the
+  IoT routes, so the Factory field `StaffClock` is gone and the composition
+  surface goes from 250 to 249. The rule
+  `legacy-composition.to.staff-clock-compose` became stale and is deleted.
+- **Callers in `services`** keep the helpers no other code uses, because a
+  function leaves `services` only when no `services` code calls it. The
+  supervision resolver moved into `education_group_repository.go`, the group
+  substitutions into `membership_repositories.go`, `MembershipStaffEmployment`
+  into `school_membership.go` (#4007), the session staff mapping into
+  `presence_session_records.go` (#4010), and the caregiver chains into
+  `person_projection_auth.go` (combined with #4006). They leave with those
+  builders.
+  Until #4007 moves them, three small lookups exist twice: `api` has
+  `staffMembersByID`, `absencePersonsByID` and `positiveUniqueIDs` next to
+  `services`' `staffByID`, `personsByID` and `uniqueIDs`. #4007 deletes the
+  `services` copies.
+
+Delivery's composition exposes `QueueStaffTimeTrackingChanged`, and the Audit
+vocabulary exposes `TimeTrackingAuditLogEntry`, because the root may not import
+an owner's application or domain role. The root's adapters declare the narrow
+ports they call instead of naming whole repositories, which the
+`TestHandlerLayerRatchet` R1 gate requires of non-hook files in `api`, and the
+two moved functions above the complexity limit are split into helpers. No key
+is added or removed (40 → 40), and the policy goes from 1,437 to 1,436 rules.
 
 Twelve baseline entries fall: nine of #2750 (`. -> cmd`, `cmd -> api`,
 `cmd -> tenant`, `cmd -> database/migrations` in production and internal test,

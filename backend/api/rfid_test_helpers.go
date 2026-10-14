@@ -2,9 +2,9 @@ package api
 
 import (
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 type RFIDTestModule struct {
@@ -29,7 +29,7 @@ func NewRFIDTestModule(db transactionruntime.Database) (RFIDTestModule, error) {
 		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
 		PersonRepo:       r.Membership.Person, TeacherRepo: r.Membership.Teacher,
 		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: r.Membership.Person, Staff: r.Membership.Staff, Teachers: r.Membership.Teacher, MayManageStaff: StaffAdministrationPermitted}),
-		AccountExists:  services.AccountExists(accounts), StudentRepo: r.Student, RFIDRepo: r.RFID,
+		AccountExists:  identityaccessCompose.AccountExists(accounts), StudentRepo: r.Student, RFIDRepo: r.RFID,
 	})
 	return RFIDTestModule{Users: people, FeedbackStudents: devicescanCompose.NewFeedbackStudents(people), TagAssignments: devicescanCompose.NewTagAssignments(people, nil)}, nil
 }

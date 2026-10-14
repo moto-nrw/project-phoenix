@@ -12,10 +12,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+
 	"github.com/spf13/cobra"
 
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -107,14 +109,14 @@ func seedParentAccounts(ctx context.Context, db transactionruntime.Database, cou
 		count = 5
 	}
 
-	passwordHash, err := services.HashPassword(password)
+	passwordHash, err := securityruntime.HashPassword(password)
 	if err != nil {
 		return fmt.Errorf("hash password: %w", err)
 	}
 
 	repos := guardianSeedRepositories{GuardianProfile: api.NewGuardianProfileRepository(db), StudentGuardian: api.NewStudentGuardianRepository(db)}
 
-	seedAccount, err := services.NewGuardianSeedAccess(db.Pool())
+	seedAccount, err := identityaccessCompose.NewGuardianSeedAccess(db.Pool())
 	if err != nil {
 		return fmt.Errorf("compose guardian access: %w", err)
 	}

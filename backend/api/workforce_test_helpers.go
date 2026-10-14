@@ -5,10 +5,11 @@ import (
 	"log/slog"
 	"time"
 
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -52,15 +53,14 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	identityRoles := services.RoleAdministration{Current: func() *identityaccess.Module { return identityAccess }}
 	settingsService := settings.Settings
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
 	usersService := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
 		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
 		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
-		PersonRepo:       repos.Person, RFIDRepo: NewPeopleIdentityAccess(db, nil), AccountExists: services.AccountExists(identityAccess), StudentRepo: repos.Student,
+		PersonRepo:       repos.Person, RFIDRepo: NewPeopleIdentityAccess(db, nil), AccountExists: identityaccessCompose.AccountExists(identityAccess), StudentRepo: repos.Student,
 		TeacherRepo:    repos.Teacher,
-		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher, LehrkraftRoles: identityRoles, MayManageStaff: StaffAdministrationPermitted}),
+		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher, LehrkraftRoles: identityAccess, MayManageStaff: StaffAdministrationPermitted}),
 	})
 	staffAdmin, err := NewStaffAdmin(StaffAdminDependencies{
 		DB: db, Staff: repos.Staff, Persons: repos.Person, Membership: repos.Membership,
@@ -78,12 +78,12 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	today := timezone.CalendarDateClock(services.OptionalClock(clocks))
 	var shiftPlanSyncer shiftplansync.SickCascade
 	timeTracking, err := newTimeTrackingTestModule(db, repos.WorkSessionTestRepositories, timeTrackingTestGraph{
-		Audits: services.TimeTrackingAudits{
+		Audits: timeTrackingAudits{
 			WorkSessionEdit: repos.WorkSessionEdit, TimeTrackingDeletion: repos.TimeTrackingDeletion,
 			DataAccessLog: repos.DataAccessLog, TimeTrackingAuditLog: repos.TimeTrackingAuditLog,
 		},
 		Settings: settingsService, People: usersService, Holidays: nonWorkingDayService,
-		Events:        services.TimeTrackingEvents(realtimeHub),
+		Events:        timeTrackingEvents(realtimeHub),
 		ShiftPlanSync: shiftplansyncCompose.DeferredSickCascade(func() shiftplansync.SickCascade { return shiftPlanSyncer }),
 		Logger:        logger, Today: today,
 	})
@@ -143,12 +143,21 @@ type StaffAdminDependencies struct {
 	Now             func() time.Time
 }
 
-// NewStaffAdmin is ComposeStaffAdmin over one flat dependency set.
+// NewStaffAdmin composes the personnel-record administration over one flat
+// dependency set.
 func NewStaffAdmin(deps StaffAdminDependencies) (*workforce.StaffAdmin, error) {
-	return services.ComposeStaffAdmin(workforceCompose.StaffAdminDependencies{
+	return composeStaffAdmin(workforceCompose.StaffAdminDependencies{
 		DB: deps.DB.Pool(), Observe: deps.Observe, Logger: deps.Logger, Now: deps.Now,
-	}, services.StaffAdminOwners{
+	}, staffAdminOwners{
 		Staff: deps.Staff, Persons: deps.Persons, Membership: deps.Membership,
 		MasterDataAudit: deps.MasterDataAudit, PersonnelNumber: deps.PersonnelNumber, DataAccessLog: deps.DataAccessLog,
 	})
 }
+
+// StaffAbsenceRow and AbsenceRequestFilter name the Workforce rows the staff
+// absence decorators read and write, for the suites outside this package
+// whose test roles may not name the Workforce composition.
+type (
+	StaffAbsenceRow      = workforceCompose.StaffAbsence
+	AbsenceRequestFilter = workforceCompose.AbsenceRequestFilter
+)

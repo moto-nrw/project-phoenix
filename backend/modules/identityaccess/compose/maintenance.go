@@ -1,0 +1,158 @@
+package compose
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
+)
+
+// The Identity & Access compositions of the command roots: the cleanup CLI's
+// maintenance and the dev seeder's guardian access (#4006). None of them
+// signs or verifies a session.
+
+// NewInvitationMaintenance composes the school invitation maintenance the
+// cleanup CLI runs. The invitation flows themselves stay unavailable: the CLI
+// only deletes expired links (#2722).
+func NewInvitationMaintenance(db *bun.DB) (identityaccess.SchoolInvitations, error) {
+	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}})
+	if err != nil {
+		return nil, fmt.Errorf("invitation maintenance: %w", err)
+	}
+	return module, nil
+}
+
+// NewGuardianSeedAccess binds the dev seeder's guardian access command
+// without composing sessions or token signers. The caller supplies its
+// transaction and tenant through the context.
+func NewGuardianSeedAccess(db *bun.DB) (func(ctx context.Context, email, passwordHash string) (int64, bool, error), error) {
+	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}})
+	if err != nil {
+		return nil, err
+	}
+	return module.SeedGuardianAccount, nil
+}
+
+// AccountExists answers the People Directory's account-reference check. Only
+// a missing account is absence; any other lookup failure is returned rather
+// than read as absence.
+func AccountExists(profiles identityaccess.AccountProfiles) func(context.Context, int64) (bool, error) {
+	return func(ctx context.Context, accountID int64) (bool, error) {
+		_, err := profiles.FindAccountMetadata(ctx, accountID)
+		if errors.Is(err, identityaccess.ErrAccountNotFound) {
+			return false, nil
+		}
+		return err == nil, err
+	}
+}
+
+// SessionMaintenanceDependencies are the seams the expired session sweep
+// and its revocation follow-ups need: the schools and persons a wipe names
+// in its audit evidence, the audit ledger and the push subscriptions a
+// revocation orphans. The sweep never signs or verifies a session, so it
+// takes no signing secret.
+type SessionMaintenanceDependencies struct {
+	DB      *bun.DB
+	Runtime tenant.UnitOfWork
+	Schools SchoolDirectory
+	Persons PersonDirectory
+	Audit   AuthAudit
+	Push    PushSubscriptionCleanup
+	// ResetExpiry configures the reset flows; the sweep only deletes spent
+	// links and stale rate-limit windows and never issues one.
+	ResetExpiry time.Duration
+	Logger      *slog.Logger
+}
+
+// SessionMaintenance is what the cleanup CLI and the Worker run: the expired
+// session sweep with its revocation follow-ups (#3251) and the password
+// reset maintenance (#3332).
+type SessionMaintenance struct {
+	identityaccess.AccountSessionMaintenance
+	identityaccess.PasswordResets
+}
+
+// NewSessionMaintenance composes the maintenance without a session signer:
+// every flow that would sign, verify or check a password reports itself
+// unavailable.
+func NewSessionMaintenance(deps SessionMaintenanceDependencies) (*SessionMaintenance, error) {
+	if deps.Schools == nil || deps.Persons == nil || deps.Audit == nil || deps.Push == nil {
+		return nil, errors.New("identity access compose: the session maintenance needs the schools, persons, audit and push seams")
+	}
+	module, err := New(Dependencies{
+		DB: deps.DB, Observe: func(Observation) {},
+		Sessions: &SessionDependencies{
+			Schools: deps.Schools, Persons: deps.Persons, Passwords: unusablePasswords{},
+			Codec: unsignedSessions{}, MFALock: unlockedMFAPolicy{}, Audit: deps.Audit, Push: deps.Push,
+			Logger: deps.Logger,
+		},
+		Resets: &PasswordResetDependencies{
+			Delivery: unsentPasswordResets{}, Passwords: unusablePasswords{}, Expiry: deps.ResetExpiry, Logger: deps.Logger,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := module.SetTenantRuntime(deps.Runtime); err != nil {
+		return nil, err
+	}
+	return &SessionMaintenance{AccountSessionMaintenance: module, PasswordResets: module}, nil
+}
+
+// errMaintenanceOnly is what a flow the maintenance composition does not
+// serve reports.
+var errMaintenanceOnly = errors.New("identity access compose: the maintenance composition neither signs sessions nor checks passwords")
+
+type unsignedSessions struct{}
+
+func (unsignedSessions) IssueTokenPair(identityaccess.SessionClaims, identityaccess.RefreshClaims) (string, string, error) {
+	return "", "", errMaintenanceOnly
+}
+
+func (unsignedSessions) IssueMFAEnrollmentToken(int64, int64, string, time.Duration) (string, error) {
+	return "", errMaintenanceOnly
+}
+
+func (unsignedSessions) ParseAccessToken(string) (identityaccess.SessionClaims, error) {
+	return identityaccess.SessionClaims{}, errMaintenanceOnly
+}
+
+func (unsignedSessions) ParseRefreshToken(string) (identityaccess.RefreshClaims, error) {
+	return identityaccess.RefreshClaims{}, errMaintenanceOnly
+}
+
+func (unsignedSessions) RefreshExpiry() time.Duration { return 0 }
+
+func (unsignedSessions) IssueAccessToken(identityaccess.SessionClaims) (string, error) {
+	return "", errMaintenanceOnly
+}
+
+func (unsignedSessions) ParseAccessTokenAllowExpired(string) (identityaccess.SessionClaims, error) {
+	return identityaccess.SessionClaims{}, errMaintenanceOnly
+}
+
+func (unsignedSessions) AccessExpiry() time.Duration { return 0 }
+
+type unusablePasswords struct{}
+
+func (unusablePasswords) VerifyPassword(string, string) (bool, error) {
+	return false, errMaintenanceOnly
+}
+
+func (unusablePasswords) ValidatePasswordStrength(string) error { return errMaintenanceOnly }
+
+func (unusablePasswords) HashPassword(string) (string, error) { return "", errMaintenanceOnly }
+
+type unlockedMFAPolicy struct{}
+
+func (unlockedMFAPolicy) LockMFAPolicySharedForTenant(context.Context, int64) error { return nil }
+
+type unsentPasswordResets struct{}
+
+func (unsentPasswordResets) DispatchPasswordReset(context.Context, identityaccess.PasswordResetLink, string, identityaccess.PasswordResetScope, time.Duration) {
+}

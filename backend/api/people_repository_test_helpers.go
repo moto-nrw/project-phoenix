@@ -164,7 +164,7 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps servic
 		ActiveGroup:              sessions,
 		GroupSupervisor:          NewGroupSupervisionRecords(sessions, deps.Groups),
 		CrossTenant:              NewCrossTenantQuery(presence, deps.Students, deps.Groups),
-		StaffAbsence:             services.NewStaffAbsenceRepository(deps.Workforce, deps.Membership, deps.Students),
+		StaffAbsence:             NewStaffAbsenceRepository(deps.Workforce, deps.Membership, deps.Students),
 		SessionStartLock:         presence,
 		carePlan:                 carePlan,
 		enrollment:               enrollment,

@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/config/settingstest"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +15,7 @@ func TestScheduleTargetsKeepVersionBoundariesAndHistorySeparate(t *testing.T) {
 	t.Parallel()
 	first := timezone.NewDate(2026, 3, 23)
 	boundary := first.AddDays(7)
-	reader := services.NewWorkScheduleTargets(settingstest.Schedules(
+	reader := workforceCompose.NewWorkScheduleTargets(settingstest.Schedules(
 		settingstest.ScheduleRow{StaffID: 7, ValidFrom: first, ValidUntil: boundary, RotationLength: 1, DayOfWeek: 0, TargetMinutes: 360},
 		settingstest.ScheduleRow{StaffID: 7, ValidFrom: boundary, RotationLength: 1, DayOfWeek: 0, TargetMinutes: 420},
 	))
@@ -39,7 +40,7 @@ func TestScheduleTargetsKeepVersionBoundariesAndHistorySeparate(t *testing.T) {
 	minutes, matched := batch[7].DailyTarget(nil, boundary)
 	require.Equal(t, 420, minutes)
 	require.True(t, matched)
-	emptyReader := services.NewWorkScheduleTargets(settingstest.Schedules())
+	emptyReader := workforceCompose.NewWorkScheduleTargets(settingstest.Schedules())
 	empty, err := emptyReader.TargetsForStaff(ctx, 7, first, boundary)
 	require.NoError(t, err)
 	require.False(t, empty.HasEntries)

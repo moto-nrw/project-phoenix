@@ -29,8 +29,8 @@ type AuthTestModule struct {
 	Auth                  *identityaccess.Module
 	AccountAuthentication *identityaccess.Module
 	DemoAccess            *identityaccess.DemoAccess
-	Invitation            services.InvitationCapability
-	GuardianInvitation    services.GuardianInvitationCapability
+	Invitation            InvitationCapability
+	GuardianInvitation    GuardianInvitationCapability
 	Schools               organizationtenancy.Capability
 	Settings              settingsCompose.SettingsService
 	// MFA, Passkeys, OperatorMFA and OperatorPasskeys are the Identity &
@@ -57,7 +57,7 @@ type AuthTestSessionSigning struct {
 
 type InvitationTestModule struct {
 	Persistence *InvitationPersistence
-	Invitation  services.InvitationCapability
+	Invitation  InvitationCapability
 	// Auth is the composed Identity & Access module, for the invitation
 	// HTTP tests that mount the whole auth router and therefore need the
 	// account-lifecycle capability its unrelated routes bind (#3364).
@@ -236,9 +236,9 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	identity := deliveryCompose.NewTenantMailIdentity(SchoolContactDirectory{Schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
 		return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, logger)
-	sessionRepos := services.SessionRepositoriesOf(r, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
+	sessionRepos := SessionRepositoriesOf(r, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
 	if settingsOverrides.staffCreateErr != nil {
-		sessionRepos.Lifecycle.Staff = failingStaffDirectory{StaffRepository: r.Staff, err: settingsOverrides.staffCreateErr}
+		sessionRepos.Lifecycle.Staff = failingStaffDirectory{staffRows: r.Staff, err: settingsOverrides.staffCreateErr}
 	}
 	// The operator flows are composed here too: the operator second factor
 	// and both portals' passkey ceremonies (#3331) mint their sessions
@@ -248,8 +248,8 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	operators, err := services.NewOperatorDependencies(services.OperatorAuthenticationWiring{
-		Repos:         services.OperatorRepositoriesOf(r, operatorAuditLog),
+	operators, err := NewOperatorDependencies(OperatorAuthenticationWiring{
+		Repos:         OperatorRepositoriesOf(r, operatorAuditLog),
 		Organizations: owners.Organizations,
 		Persons:       owners.Persons,
 		Membership:    owners.Membership,
@@ -258,27 +258,27 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	identityAccess, err := services.NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool()}, services.AccountAuthenticationWiring{
+	identityAccess, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool()}, AccountAuthenticationWiring{
 		Repos: sessionRepos, Codec: codec, Settings: settings.Settings, Audit: command, Logger: logger,
 		Operators: operators,
-		DemoAccess: &services.DemoAccessWiring{
+		DemoAccess: &DemoAccessWiring{
 			Dispatcher: dispatcher, DefaultFrom: defaultFrom, FrontendURL: frontendURL,
 			Logger: logger, Backoff: settingsOverrides.resetBackoff, MaxActiveSchools: settingsOverrides.demoMaxActiveSchools,
 			OperatorWithoutSecondFactor: settingsOverrides.demoOperatorWithoutSecondFactor,
 			NewToken:                    requestTokenReads.NewCapabilityToken, Fingerprint: requestTokenReads.CapabilityFingerprint,
 		},
 		DemoStandingSchool: settingsOverrides.standingDemo,
-		Mfa: &services.MfaWiring{
+		Mfa: &MfaWiring{
 			OperatorAuditLog: operatorAuditLog, Settings: settings.Settings,
 			Dispatcher: dispatcher, DefaultFrom: defaultFrom, FrontendURL: frontendURL,
 			JwtSecret: mfaTestSecret(), Logger: logger, Backoff: settingsOverrides.mfaBackoff,
 			Decorate: settingsOverrides.mfaRecords, Capability: settingsOverrides.mfaCapability,
 			Passkeys: &authTestRelyingParty,
 		},
-		Lifecycle: &services.LifecycleWiring{
+		Lifecycle: &LifecycleWiring{
 			Settings: settings.Settings, Audit: command,
-			Caregivers: services.CaregiverProfiles{Persons: owners.Persons, Membership: owners.Membership},
-			GuardianMail: &services.GuardianInvitationWiring{
+			Caregivers: CaregiverProfiles{Persons: owners.Persons, Membership: owners.Membership},
+			GuardianMail: &GuardianInvitationWiring{
 				Settings: settings.Settings, Schools: organizations,
 				Outbox: func() platformModels.OutboxResultEnqueuer {
 					return services.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox}
@@ -287,20 +287,20 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 				FallbackExpiry: time.Duration(inviteHours) * time.Hour, Logger: logger,
 			},
 		},
-		Resets: &services.PasswordResetWiring{
+		Resets: &PasswordResetWiring{
 			Dispatcher: dispatcher, DefaultFrom: defaultFrom,
 			StaffURL: frontendURL, ParentsURL: parentsURL, SchoolURL: schoolURL,
 			Expiry: time.Duration(resetMinutes) * time.Minute, RateLimitEnabled: settingsOverrides.rateLimitEnabled,
 			Backoff: settingsOverrides.resetBackoff,
 		},
-		Invitations: &services.InvitationWiring{
+		Invitations: &InvitationWiring{
 			Dispatcher: dispatcher, DefaultFrom: defaultFrom, StaffURL: frontendURL, SchoolURL: schoolURL,
 			MailIdentity: identity, Expiry: time.Duration(inviteHours) * time.Hour,
 			Backoff: settingsOverrides.resetBackoff, Settings: settings.Settings,
 			Outbox: func() platformModels.OutboxEnqueuer {
 				return services.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox}
 			},
-			WelcomeDelay: services.StaffWelcomeDelay,
+			WelcomeDelay: StaffWelcomeDelay,
 		},
 	})
 	if err != nil {
@@ -309,12 +309,12 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err := identityAccess.SetTenantRuntime(unit); err != nil {
 		return AuthTestModule{}, err
 	}
-	invitation := services.InvitationCapability(identityAccess)
+	invitation := InvitationCapability(identityAccess)
 	deliveryModule, err = NewDeliveryTestModule(db, unit)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	guardian := services.GuardianInvitationCapability(identityAccess)
+	guardian := GuardianInvitationCapability(identityAccess)
 	return AuthTestModule{
 		Auth: identityAccess, AccountAuthentication: identityAccess,
 		DemoAccess: identityAccess.DemoAccess(),
@@ -356,16 +356,16 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, db transactionruntime.
 		return nil, err
 	}
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()})
-	module, err := services.NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool()}, services.AccountAuthenticationWiring{
-		Repos: services.SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool())), Codec: codec, Settings: cfg.Settings,
+	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool()}, AccountAuthenticationWiring{
+		Repos: SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool())), Codec: codec, Settings: cfg.Settings,
 		Audit: cfg.Audit, Logger: logger,
-		Mfa: &services.MfaWiring{
+		Mfa: &MfaWiring{
 			OperatorAuditLog: services.NewOperatorAuditLogFromEntries(audits.OperatorAuditLog), Settings: cfg.Settings,
 			Dispatcher: cfg.Dispatcher, DefaultFrom: cfg.DefaultFrom, FrontendURL: cfg.FrontendURL,
 			JwtSecret: mfaTestSecret(), Logger: logger,
 		},
-		Lifecycle: &services.LifecycleWiring{Settings: cfg.Settings, Audit: cfg.Audit, Caregivers: caregivers},
-		Resets: &services.PasswordResetWiring{
+		Lifecycle: &LifecycleWiring{Settings: cfg.Settings, Audit: cfg.Audit, Caregivers: caregivers},
+		Resets: &PasswordResetWiring{
 			Dispatcher: cfg.Dispatcher, DefaultFrom: cfg.DefaultFrom,
 			StaffURL: cfg.FrontendURL, ParentsURL: cfg.ParentsURL, SchoolURL: cfg.SchoolURL,
 			Expiry: cfg.PasswordResetExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
@@ -401,7 +401,7 @@ type IdentityAccessTestConfig struct {
 // failingStaffDirectory fails every staff insert; every other operation is
 // the real repository.
 type failingStaffDirectory struct {
-	userModels.StaffRepository
+	staffRows
 	err error
 }
 
@@ -414,6 +414,17 @@ func mfaTestSecret() string { return services.CurrentFactoryConfig().JWTSecret }
 
 // TokenAdapterForTests binds the root's request reads to the session tokens of the
 // signer cfg names.
-func TokenAdapterForTests(cfg services.FactoryConfig) (services.TokenAdapter, error) {
+func TokenAdapterForTests(cfg services.FactoryConfig) (TokenAdapter, error) {
 	return tokenAdapterFor(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
+}
+
+// IdentityRootForTests is the root's Identity & Access composition a test
+// hands the legacy composition, signing with the secret cfg names (#4006).
+func IdentityRootForTests(db transactionruntime.Database, cfg services.FactoryConfig) (services.IdentityRoot, error) {
+	tokens, err := TokenAdapterForTests(cfg)
+	if err != nil {
+		return services.IdentityRoot{}, err
+	}
+	wiring, _ := newIdentityRoot(db, tokens)
+	return wiring, nil
 }

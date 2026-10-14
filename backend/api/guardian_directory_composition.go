@@ -128,15 +128,24 @@ type GuardianDirectoryRuntime struct {
 // exportConfidentialityNote is stamped on every page of the exported list.
 const exportConfidentialityNote = "Vertraulich. Enthält Bankverbindungen. Bitte nicht per E-Mail weitergeben."
 
-// NewGuardianDirectoryRuntime composes the closures over the legacy service graph;
+// GuardianDirectoryInvitations is the Identity & Access half the guardian
+// routes drive: the invitation lifecycle and the relative access flows.
+type GuardianDirectoryInvitations interface {
+	identityaccess.GuardianInvitations
+	identityaccess.GuardianRelativeAccess
+}
+
+// NewGuardianDirectoryRuntime composes the closures over the legacy service
+// graph and the Identity & Access the root composed (#4006): invitations
+// serves the invitation writes, verifiedStaff tells a verified staff caller.
 // runtime is the People Directory's tenant runtime the invitation writes run
 // in.
-func NewGuardianDirectoryRuntime(f *services.Factory, runtime peopleCompose.LegacyRepositoryRuntime) GuardianDirectoryRuntime {
-	sendInvitation, inviteGuardian, bulkInvite := guardianInvitationFlows(f, runtime)
-	listApprovals, approve, reject := guardianApprovalFlows(f, runtime)
+func NewGuardianDirectoryRuntime(f *services.Factory, invitations GuardianDirectoryInvitations, verifiedStaff func(context.Context) (bool, error), runtime peopleCompose.LegacyRepositoryRuntime) GuardianDirectoryRuntime {
+	sendInvitation, inviteGuardian, bulkInvite := guardianInvitationFlows(invitations, runtime)
+	listApprovals, approve, reject := guardianApprovalFlows(invitations, runtime)
 	return GuardianDirectoryRuntime{
 		IsVerifiedStaff: func(ctx context.Context) bool {
-			staff, err := f.UserContext.HasCurrentStaff(ctx)
+			staff, err := verifiedStaff(ctx)
 			return err == nil && staff
 		},
 		MarkRollback:               runtime.MarkRollback,
@@ -145,7 +154,7 @@ func NewGuardianDirectoryRuntime(f *services.Factory, runtime peopleCompose.Lega
 		InviteGuardianToStudent:    inviteGuardian,
 		BulkInviteGuardians:        bulkInvite,
 		ListPendingApprovals:       listApprovals,
-		PendingInvitationStudentID: f.GuardianInvitation.PendingInvitationStudentID,
+		PendingInvitationStudentID: invitations.PendingInvitationStudentID,
 		ApproveInvitation:          approve,
 		RejectInvitation:           reject,
 		RenderPaymentExport:        guardianPaymentExport(f),
@@ -155,7 +164,7 @@ func NewGuardianDirectoryRuntime(f *services.Factory, runtime peopleCompose.Lega
 // guardianInvitationFlows are the staff-initiated invitations: one guardian,
 // a further guardian of a child, and the bulk run (#3378). A failed invite
 // rolls the request's transaction back.
-func guardianInvitationFlows(f *services.Factory, runtime peopleCompose.LegacyRepositoryRuntime) (
+func guardianInvitationFlows(invitations GuardianDirectoryInvitations, runtime peopleCompose.LegacyRepositoryRuntime) (
 	func(ctx context.Context, guardianID, actorAccountID int64) (GuardianInvitationSummary, error),
 	func(context.Context, GuardianInviteInput) (GuardianInviteResult, error),
 	func(context.Context, GuardianBulkInviteRequest) (*GuardianBulkInviteResult, error),
@@ -163,7 +172,7 @@ func guardianInvitationFlows(f *services.Factory, runtime peopleCompose.LegacyRe
 	send := func(ctx context.Context, guardianID, actorAccountID int64) (GuardianInvitationSummary, error) {
 		var summary GuardianInvitationSummary
 		err := runtime.InTenantTx(ctx, func(txCtx context.Context) error {
-			invitation, err := f.GuardianInvitation.CreateGuardianInvitation(txCtx, identityaccess.GuardianInvitationRequest{
+			invitation, err := invitations.CreateGuardianInvitation(txCtx, identityaccess.GuardianInvitationRequest{
 				GuardianProfileID: guardianID, CreatedBy: actorAccountID,
 			})
 			if err != nil {
@@ -178,7 +187,7 @@ func guardianInvitationFlows(f *services.Factory, runtime peopleCompose.LegacyRe
 		return summary, err
 	}
 	invite := func(ctx context.Context, input GuardianInviteInput) (GuardianInviteResult, error) {
-		result, err := f.GuardianInvitation.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
+		result, err := invitations.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 			StudentID: input.StudentID, Email: input.Email, FirstName: input.FirstName, LastName: input.LastName,
 			RelationshipType: input.RelationshipType, CreatedBy: input.ActorAccountID,
 			RequireApproval: false, ConfirmRoleUpgrade: input.ConfirmRoleUpgrade,
@@ -193,7 +202,7 @@ func guardianInvitationFlows(f *services.Factory, runtime peopleCompose.LegacyRe
 		}, nil
 	}
 	bulk := func(ctx context.Context, req GuardianBulkInviteRequest) (*GuardianBulkInviteResult, error) {
-		result, err := f.GuardianInvitation.BulkInviteToStudents(ctx, req)
+		result, err := invitations.BulkInviteToStudents(ctx, req)
 		if err != nil {
 			runtime.MarkRollback(ctx)
 		}
@@ -222,13 +231,13 @@ func pendingGuardianInvitations(f *services.Factory) func(context.Context) ([]Pe
 
 // guardianApprovalFlows list, approve and reject the parent-initiated
 // requests; a failed decision rolls the request's transaction back.
-func guardianApprovalFlows(f *services.Factory, runtime peopleCompose.LegacyRepositoryRuntime) (
+func guardianApprovalFlows(invitations GuardianDirectoryInvitations, runtime peopleCompose.LegacyRepositoryRuntime) (
 	func(context.Context) ([]GuardianPendingApproval, error),
 	func(ctx context.Context, invitationID, actorAccountID int64) error,
 	func(ctx context.Context, invitationID, actorAccountID int64) error,
 ) {
 	list := func(ctx context.Context) ([]GuardianPendingApproval, error) {
-		views, err := f.GuardianInvitation.ListPendingApprovalsDetailed(ctx)
+		views, err := invitations.ListPendingApprovalsDetailed(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -244,14 +253,14 @@ func guardianApprovalFlows(f *services.Factory, runtime peopleCompose.LegacyRepo
 		return result, nil
 	}
 	approve := func(ctx context.Context, invitationID, actorAccountID int64) error {
-		if err := f.GuardianInvitation.ApproveInvitation(ctx, invitationID, actorAccountID); err != nil {
+		if err := invitations.ApproveInvitation(ctx, invitationID, actorAccountID); err != nil {
 			runtime.MarkRollback(ctx)
 			return err
 		}
 		return nil
 	}
 	reject := func(ctx context.Context, invitationID, actorAccountID int64) error {
-		if err := f.GuardianInvitation.RejectInvitation(ctx, invitationID, actorAccountID); err != nil {
+		if err := invitations.RejectInvitation(ctx, invitationID, actorAccountID); err != nil {
 			runtime.MarkRollback(ctx)
 			return err
 		}

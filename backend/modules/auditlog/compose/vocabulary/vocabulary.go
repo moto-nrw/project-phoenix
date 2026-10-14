@@ -50,6 +50,7 @@ type (
 	SubstitutionChange                     = upstream.SubstitutionChange
 	SubstitutionChangeCreator              = upstream.SubstitutionChangeCreator
 	TimeTrackingAuditLogCursor             = upstream.TimeTrackingAuditLogCursor
+	TimeTrackingAuditLogEntry              = upstream.TimeTrackingAuditLogEntry
 	TimeTrackingAuditLogFilter             = upstream.TimeTrackingAuditLogFilter
 	TimeTrackingAuditLogRepository         = upstream.TimeTrackingAuditLogRepository
 	TimeTrackingDeletion                   = upstream.TimeTrackingDeletion

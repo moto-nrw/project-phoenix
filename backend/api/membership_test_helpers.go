@@ -64,16 +64,16 @@ func MustNewMembershipTestRepositories(db transactionruntime.Database) Membershi
 
 // authTestIdentityChain is the identity chain rows (persons, staff, teachers,
 // students, guardian profiles and relationships) the auth test graphs bind.
-func authTestIdentityChain(db transactionruntime.Database) (services.LifecycleRepositories, error) {
+func authTestIdentityChain(db transactionruntime.Database) (LifecycleRepositories, error) {
 	members, err := NewMembershipTestRepositories(db)
 	if err != nil {
-		return services.LifecycleRepositories{}, err
+		return LifecycleRepositories{}, err
 	}
 	return identityChainOf(db, members), nil
 }
 
-func identityChainOf(db transactionruntime.Database, members MembershipTestRepositories) services.LifecycleRepositories {
-	return services.LifecycleRepositories{
+func identityChainOf(db transactionruntime.Database, members MembershipTestRepositories) LifecycleRepositories {
+	return LifecycleRepositories{
 		Persons: members.Person, Staff: members.Staff, Teachers: members.Teacher, Students: NewUnboundStudentRepository(db),
 		GuardianProfiles: members.GuardianProfile, StudentGuardians: members.StudentGuardian,
 	}
@@ -97,9 +97,9 @@ func NewWorkforce(db transactionruntime.Database, membership schoolmembership.Ca
 // work-session window and the calendar day; nil means the wall clock.
 func NewWorkforceWithClock(db transactionruntime.Database, membership schoolmembership.Capability, now func() time.Time) (workforce.Capability, error) {
 	return workforceCompose.New(workforceCompose.Dependencies{
-		LockStaffAssignment: services.WorkforceStaffAssignmentLock(membership),
+		LockStaffAssignment: workforceStaffAssignmentLock(membership),
 		DB:                  db.Pool(),
-		LiveStaffIDs:        services.WorkforceLiveStaffIDs(membership),
+		LiveStaffIDs:        workforceLiveStaffIDs(membership),
 		Observe:             func(workforceCompose.Observation) {},
 		Now:                 now,
 	})

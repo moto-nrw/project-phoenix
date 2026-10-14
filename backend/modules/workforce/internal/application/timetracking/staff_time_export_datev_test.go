@@ -60,11 +60,11 @@ func (f *overviewFixture) newDatevExportService(values settingstest.Values) time
 	return timetracking.NewStaffTimeExportService(
 		f.svc,
 		f.newWorkSessionService(),
-		services.TimeExportStaff(f.repos.Staff),
+		api.TimeExportStaff(f.repos.Staff),
 		services.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).DataAccessLog),
-		services.PayrollExportSettings{Source: payrollStatus},
+		api.PayrollExportSettings{Source: payrollStatus},
 		nil,
-		services.RenderTimeTrackingWorkbook,
+		api.RenderTimeTrackingWorkbook,
 	)
 }
 
@@ -308,7 +308,7 @@ func TestDatevExport_RequiresSingleMonth(t *testing.T) {
 func TestDatevReport_RejectsNonDatevFormats(t *testing.T) {
 	t.Parallel()
 
-	svc := timetracking.NewStaffTimeExportService(nil, nil, nil, nil, nil, nil, services.RenderTimeTrackingWorkbook)
+	svc := timetracking.NewStaffTimeExportService(nil, nil, nil, nil, nil, nil, api.RenderTimeTrackingWorkbook)
 
 	for _, format := range []string{"", timetracking.ExportFormatCSV, timetracking.ExportFormatXLSX} {
 		_, err := svc.DatevReport(context.Background(), timetracking.TimeExportRequest{
@@ -328,9 +328,9 @@ func TestDatevExport_NoFileWithoutAudit(t *testing.T) {
 	actorID := f.newActorAccount(t)
 	payrollStatus := configSvc.NewPayrollStatusService(settingstest.New(datevFullConfig()), f.countPersonnelNumbers)
 	svc := timetracking.NewStaffTimeExportService(
-		f.svc, f.newWorkSessionService(), services.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{},
-		services.PayrollExportSettings{Source: payrollStatus}, nil,
-		services.RenderTimeTrackingWorkbook,
+		f.svc, f.newWorkSessionService(), api.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{},
+		api.PayrollExportSettings{Source: payrollStatus}, nil,
+		api.RenderTimeTrackingWorkbook,
 	)
 
 	file, err := svc.Export(f.ctx, datevRequest(timetracking.ExportFormatDatevLodas), actorID, "admin")

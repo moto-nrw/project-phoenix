@@ -222,7 +222,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		return ActiveTestModule{}, err
 	}
 	dashboard, err := supervisiondashboardCompose.New(supervisiondashboardCompose.Sources{Active: presence, ActiveGroups: services.OpenRoomSessionPresence{Presence: services.NewLoggedStudentPresence(db.Pool(), logger), Activities: timetableOwner},
-		OpenVisits: presence, Rooms: services.OpenRoomDirectory{Rooms: rooms}, UserContext: services.SupervisionCaller{CallerRows: groups.UserContext}, Education: groups.Education,
+		OpenVisits: presence, Rooms: services.OpenRoomDirectory{Rooms: rooms}, UserContext: SupervisionCaller{CallerRows: groups.UserContext}, Education: groups.Education,
 		Schulhof: yard, Operations: operations, Settings: settings.Settings, Pickups: pickups, Arrivals: arrivals, Now: services.OptionalClock(clocks)})
 	if err != nil {
 		return ActiveTestModule{}, fmt.Errorf("compose supervision dashboard projection: %w", err)

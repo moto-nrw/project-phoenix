@@ -8,12 +8,11 @@ import (
 
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
-// requestTokenReads binds the legacy composition's request reads to the
-// retained token adapter the request middleware fills (#2747).
-var requestTokenReads = services.TokenAdapter{
+// requestTokenReads binds the root's request reads to Identity's session
+// token adapter the request middleware fills (#2747, #4006).
+var requestTokenReads = TokenAdapter{
 	Permissions:           sessiontoken.PermissionsFromCtx,
 	Claims:                requestClaims,
 	Memo:                  requestIdentityMemo,
@@ -22,19 +21,20 @@ var requestTokenReads = services.TokenAdapter{
 }
 
 // newLegacyTokenAdapter binds the request reads and the session tokens the
-// legacy composition consumes. Identity's composition builds the session
+// root's Identity & Access composition consumes. Identity's composition
+// builds the session
 // codec from the configured secret and token lifetimes; the signing primitive
 // stays in its session token adapter (ADR 0053 point 6).
-func newLegacyTokenAdapter() (services.TokenAdapter, error) {
+func newLegacyTokenAdapter() (TokenAdapter, error) {
 	return tokenAdapterFor(viper.GetString("auth_jwt_secret"), viper.GetDuration("auth_jwt_expiry"), viper.GetDuration("auth_jwt_refresh_expiry"))
 }
 
 // tokenAdapterFor binds the request reads to the session tokens of the given
 // signing secret and token lifetimes.
-func tokenAdapterFor(secret string, accessExpiry, refreshExpiry time.Duration) (services.TokenAdapter, error) {
+func tokenAdapterFor(secret string, accessExpiry, refreshExpiry time.Duration) (TokenAdapter, error) {
 	codec, err := identityaccessCompose.NewConfiguredSessionTokens(secret, accessExpiry, refreshExpiry)
 	if err != nil {
-		return services.TokenAdapter{}, err
+		return TokenAdapter{}, err
 	}
 	tokens := requestTokenReads
 	tokens.SessionTokens = codec
@@ -45,12 +45,12 @@ func tokenAdapterFor(secret string, accessExpiry, refreshExpiry time.Duration) (
 var CallerFromClaims = requestTokenReads.Caller
 
 // requestClaims reads the verified claims the authenticator attached.
-func requestClaims(ctx context.Context) (services.RequestClaims, bool) {
+func requestClaims(ctx context.Context) (RequestClaims, bool) {
 	claims, ok := ctx.Value(sessiontoken.CtxClaims).(sessiontoken.AppClaims)
 	if !ok {
-		return services.RequestClaims{}, false
+		return RequestClaims{}, false
 	}
-	return services.RequestClaims{
+	return RequestClaims{
 		AccountID: int64(claims.ID), TenantID: claims.TenantID, Scope: claims.Scope,
 		SchoolScope: claims.IsSchoolScope(), Admin: claims.IsAdmin,
 		FirstName: claims.FirstName, LastName: claims.LastName, Username: claims.Username,
@@ -59,7 +59,7 @@ func requestClaims(ctx context.Context) (services.RequestClaims, bool) {
 
 // requestIdentityMemo resolves the request identity memo the request
 // middleware attached (#2099).
-func requestIdentityMemo(ctx context.Context) services.RequestMemo {
+func requestIdentityMemo(ctx context.Context) RequestMemo {
 	if cache := sessiontoken.RequestIdentityCacheFrom(ctx); cache != nil {
 		return cache
 	}

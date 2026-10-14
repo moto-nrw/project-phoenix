@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -10,7 +11,6 @@ import (
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 
-	"errors"
 	"fmt"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -48,32 +48,6 @@ func NewOrganizationTenancy(db *bun.DB) (organizationtenancy.Capability, error) 
 // record operator actions.
 func NewOperatorAuditLog(db *bun.DB) platform.OperatorAuditLogRepository {
 	return NewOperatorAuditLogFromEntries(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).OperatorAuditLog)
-}
-
-// DemoAccessExpiry is the Identity & Access capability the demo process runs
-// (#3470): it deletes demo accesses 14 days after their last use and names
-// the demo schools that no access enters any more.
-type DemoAccessExpiry interface {
-	ExpireDemoAccesses(ctx context.Context) (deleted int, orphanedSchoolSlugs []string, err error)
-}
-
-// NewDemoAccessExpiry composes the expiry on the demo process's own
-// connection; now is the clock it reads.
-func NewDemoAccessExpiry(db bun.IDB, now func() time.Time) (DemoAccessExpiry, error) {
-	return identityaccessCompose.NewDemoAccessExpiry(db, now)
-}
-
-// NewGuardianSeedAccess binds the dev CLI's guardian access command without
-// composing sessions, token signers, or the serving service factory. The
-// caller supplies its transaction and tenant through the context.
-func NewGuardianSeedAccess(db *bun.DB) (func(context.Context, string, string) (int64, bool, error), error) {
-	access, err := identityaccessCompose.New(identityaccessCompose.Dependencies{
-		DB: db, Observe: func(identityaccessCompose.Observation) {},
-	})
-	if err != nil {
-		return nil, err
-	}
-	return access.SeedGuardianAccount, nil
 }
 
 // NewParentPortalRepositories builds the retained guardian-portal and
@@ -147,5 +121,52 @@ func accountLookup(accounts identityaccess.AccountProfiles) peopleCompose.Accoun
 		}
 		result := userModels.PersonAccount(account)
 		return &result, nil
+	}
+}
+
+// Identity & Access owns auth.accounts, platform.operators and the operator
+// refresh sessions. The legacy repositories that used to join or select
+// those tables declare the narrow fact they need and the factory binds it
+// at construction to the owner (#2720): the parent dashboard reads the
+// account's address through the public capability, the People Directory
+// repositories filter or attach accounts through the owner's queries, and
+// the retained operator repository contracts are adapters over the module.
+
+// IdentityAccountDirectory adapts the public account lookup to the parent
+// enrollment repository's directory port.
+type IdentityAccountDirectory struct {
+	Accounts identityaccess.GuardianAccessQuery
+}
+
+// AccountEmail resolves the address behind an account; an unknown account is
+// an empty address, matching the applications by id only.
+func (d IdentityAccountDirectory) AccountEmail(ctx context.Context, accountID int64) (string, error) {
+	account, err := d.Accounts.FindAccount(ctx, accountID)
+	if errors.Is(err, identityaccess.ErrAccountNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return account.Email, nil
+}
+
+// StaffMessageIdentity returns the Identity & Access owner queries the staff
+// messaging reads filter through, including the role classification
+// (#2721).
+func StaffMessageIdentity(accounts identityaccess.StaffAccountQueries) peopleCompose.StaffMessageIdentity {
+	return peopleCompose.StaffMessageIdentity{
+		ActiveSchoolAccounts: accounts.ListActiveAccountIDsForTenant,
+		RoleClasses: func(ctx context.Context, tenantID int64, accountIDs []int64) ([]peopleCompose.StaffMessageRole, error) {
+			rows, err := accounts.ClassifySchoolRoles(ctx, tenantID, accountIDs)
+			if err != nil {
+				return nil, err
+			}
+			result := make([]peopleCompose.StaffMessageRole, 0, len(rows))
+			for _, row := range rows {
+				result = append(result, peopleCompose.StaffMessageRole{AccountID: row.AccountID, IsAdmin: row.IsAdmin, IsLehrkraft: row.IsLehrkraft})
+			}
+			return result, nil
+		},
 	}
 }

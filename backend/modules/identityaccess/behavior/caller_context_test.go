@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -26,7 +25,7 @@ import (
 const nonexistentCallerRowID int64 = 999999999
 
 // setupCallerRows composes the caller context over db.
-func setupCallerRows(t *testing.T, db *bun.DB) *services.CallerRows {
+func setupCallerRows(t *testing.T, db *bun.DB) *api.CallerRows {
 	t.Helper()
 	module, err := api.NewUserContextTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -20,8 +21,8 @@ type SchoolTestModule struct {
 	MFA  identityaccess.AccountMFA
 	// SchoolAuth and SchoolMFA are the portal runtimes the composition root
 	// binds, so a router test drives the same scope binding production has.
-	SchoolAuth services.SchoolPortalAuthRuntime
-	SchoolMFA  services.SchoolPortalMFARuntime
+	SchoolAuth schoolportal.AuthRuntime
+	SchoolMFA  schoolportal.MFARuntime
 	// TimetableSupervisionSheets serves the per-child sheet of the
 	// supervision surface from the enrollment report, as the root binds it.
 	TimetableSupervisionSheets services.TimetableSupervisionSheets
@@ -43,8 +44,8 @@ func NewSchoolTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	return SchoolTestModule{
 		ClassDayTestModule: classday, DeliveryTestModule: delivery,
 		Auth: auth.Auth, MFA: auth.MFA,
-		SchoolAuth:                 services.SchoolPortalAuthenticationOver(auth.Auth),
-		SchoolMFA:                  services.SchoolPortalMFAOver(auth.MFA),
+		SchoolAuth:                 SchoolPortalAuth(auth.Auth),
+		SchoolMFA:                  SchoolPortalMFA(auth.MFA),
 		TimetableSupervisionSheets: services.NewTimetableSupervisionSheets(classday.ClassDay),
 	}, nil
 }

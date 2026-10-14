@@ -11,6 +11,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -192,7 +194,7 @@ func newCleanupAuditCommand() (services.AuditCommand, error) {
 }
 
 func buildAuthCleanupService(ctx *cleanupContext) authCleanupService {
-	service, err := services.NewAuthCleanupService(ctx.DB.Pool(), ctx.DB.UnitOfWork(), slog.Default().With("service", "auth-cleanup-cli"), ctx.Audit)
+	service, err := api.NewAuthCleanupService(ctx.DB, slog.Default().With("service", "auth-cleanup-cli"), ctx.Audit)
 	if err != nil {
 		slog.Default().Error("auth cleanup service composition failed", "error", err)
 		return nil
@@ -217,7 +219,7 @@ func newCleanupContextWithInvitationCleanup() (*cleanupContext, error) {
 }
 
 func buildInvitationCleanupService(ctx *cleanupContext) invitationCleanupService {
-	service, err := services.NewInvitationCleanupService(ctx.DB.Pool(), slog.Default().With("service", "invitation-cleanup-cli"))
+	service, err := identityaccessCompose.NewInvitationMaintenance(ctx.DB.Pool())
 	if err != nil {
 		// buildCleanupDependency reports the nil as the missing capability,
 		// the same way a builder that cannot compose its service does.
@@ -323,7 +325,11 @@ func newCleanupContextWithTimeTrackingCleanup() (*cleanupContext, error) {
 }
 
 func buildTimeTrackingCleanupService(ctx *cleanupContext) services.TimeTrackingCleanupService {
-	return services.NewTimeTrackingCleanupService(ctx.DB.Pool(), ctx.DB.UnitOfWork(), ctx.Schools, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
+	workTime, err := api.NewUnobservedWorkforce(ctx.DB)
+	if err != nil {
+		panic(fmt.Sprintf("time tracking cleanup: compose workforce: %v", err))
+	}
+	return services.NewTimeTrackingCleanupService(ctx.DB.Pool(), ctx.DB.UnitOfWork(), ctx.Schools, workTime, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
 }
 
 // Close releases database resources.

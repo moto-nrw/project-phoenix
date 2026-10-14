@@ -583,18 +583,18 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	})
 
 	// Before offboarding the re-invite is blocked (current production behavior).
-	_, err := invSvc.CreateSchoolInvitation(sc.ctx, services.SchoolInvitationRequest{
+	_, err := invSvc.CreateSchoolInvitation(sc.ctx, api.SchoolInvitationRequest{
 		Email:     emailAddr,
 		RoleID:    role.ID,
 		TenantID:  testpkg.Tenant(t),
 		CreatedBy: account.ID,
 	})
 	require.Error(t, err, "re-invite must be blocked while the mapping is active")
-	require.ErrorIs(t, err, services.ErrAccountAlreadyHasTenantAccess)
+	require.ErrorIs(t, err, api.ErrAccountAlreadyHasTenantAccess)
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
-	invitation, err := invSvc.CreateSchoolInvitation(sc.ctx, services.SchoolInvitationRequest{
+	invitation, err := invSvc.CreateSchoolInvitation(sc.ctx, api.SchoolInvitationRequest{
 		Email:     emailAddr,
 		RoleID:    role.ID,
 		TenantID:  testpkg.Tenant(t),
@@ -602,7 +602,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	})
 	require.NoError(t, err, "re-invite must succeed after offboarding")
 
-	reactivated, err := invSvc.AcceptSchoolInvitation(context.Background(), invitation.Token, services.InvitationRegistration{
+	reactivated, err := invSvc.AcceptSchoolInvitation(context.Background(), invitation.Token, api.InvitationRegistration{
 		FirstName:       "Re",
 		LastName:        "Invited",
 		Password:        newCredential,
@@ -955,7 +955,7 @@ func TestOffboardStaff_PreservesGuardianAccess(t *testing.T) {
 	// parents portal remains the entry point.
 	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
 	require.Error(t, err, "staff login must be refused for the guardian-only account")
-	assert.ErrorIs(t, err, services.ErrParentMustUseParentPortal)
+	assert.ErrorIs(t, err, api.ErrParentMustUseParentPortal)
 }
 
 // TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments: same-day

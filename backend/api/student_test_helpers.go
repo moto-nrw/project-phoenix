@@ -385,7 +385,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		People:            GroupRosterPeople(usersService),
 		Education:         educationService,
 		Substitutions:     substitutionService,
-		UserContext:       services.GroupLiveCaller{CallerRows: userContextService},
+		UserContext:       GroupLiveCaller{CallerRows: userContextService},
 		Active:            activeService,
 		Settings:          settingsService,
 		Pickups:           pickupScheduleService,

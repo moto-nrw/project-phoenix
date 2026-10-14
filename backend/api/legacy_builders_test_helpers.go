@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
@@ -69,18 +70,34 @@ var (
 	NewEnrollmentIntake           = services.NewEnrollmentIntake
 	NewEnrollmentOfferingCapacity = services.NewEnrollmentOfferingCapacity
 	NewEnrollmentRollovers        = services.NewEnrollmentRollovers
-	// IsDemoEnvironment reports whether the app environment is the demo.
-	IsDemoEnvironment = services.IsDemoEnvironment
 	// NewRoomSnapshotPeople reads the room snapshot's students through the
 	// People Directory.
 	NewRoomSnapshotPeople = peopleCompose.NewRoomSnapshotPeople
-	// NewWorkforceAdminCapabilities adapts the retained workforce services to
-	// the public Workforce contracts, as the root does.
-	NewWorkforceAdminCapabilities = services.NewWorkforceAdminCapabilities
+	// AccountExists is the People Directory's account-reference check over
+	// Identity & Access, as the root binds it.
+	AccountExists = identityaccessCompose.AccountExists
+)
+
+// The legacy composition's values the Identity & Access behaviour suites
+// name build through the typed root (#4006).
+type (
+	FactoryConfig             = services.FactoryConfig
+	ParentRequestReviewPolicy = services.ParentRequestReviewPolicy
+)
+
+var (
+	// NewParentRequestReviewPolicy and ReviewPermissions are the parent
+	// request review decision the caller context serves.
+	NewParentRequestReviewPolicy = services.NewParentRequestReviewPolicy
+	ReviewPermissions            = services.ReviewPermissions
+	// NewOperatorAccountDirectory is the operator account listing over
+	// Identity & Access, the People Directory, School Membership and the
+	// schools.
+	NewOperatorAccountDirectory = services.NewOperatorAccountDirectory
 )
 
 // AccountRoleGrantPolicy returns Security Runtime's role grant decision the
 // root binds to the account routes.
-func AccountRoleGrantPolicy() services.RoleGrantPolicy {
-	return services.RoleGrantPolicy{}
+func AccountRoleGrantPolicy() RoleGrantPolicy {
+	return RoleGrantPolicy{}
 }

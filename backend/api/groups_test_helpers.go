@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -22,7 +24,7 @@ type GroupsTestModule struct {
 	Active      studentpresence.Presence
 	Users       *peopleCompose.PersonDirectory
 	People      peopleCompose.GroupRoutePeople
-	UserContext *services.CallerRows
+	UserContext *CallerRows
 }
 
 // TeacherGroupIDs exposes the same assignment projection as attendance composition.
@@ -51,7 +53,7 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	persons := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
 		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
 		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
-		PersonRepo:       tt.Person, StudentRepo: tt.Student, TeacherRepo: tt.Teacher, AccountExists: services.AccountExists(r.Profile),
+		PersonRepo:       tt.Person, StudentRepo: tt.Student, TeacherRepo: tt.Teacher, AccountExists: identityaccessCompose.AccountExists(r.Profile),
 		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: tt.Person, Staff: tt.Staff, Teachers: tt.Teacher, MayManageStaff: StaffAdministrationPermitted}),
 	})
 	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())

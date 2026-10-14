@@ -195,10 +195,11 @@ func PresenceStudents(db transactionruntime.Database, source presenceStudentSour
 }
 
 // NewStaffMembershipRuntime composes the staff membership closures over the
-// legacy service graph, with the offboarding workflow over db and an
-// unobserved Workforce employment owner (#4007).
-func NewStaffMembershipRuntime(f *services.Factory, db transactionruntime.Database, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
+// legacy service graph and the root's Identity & Access module, with the
+// offboarding workflow over db and an unobserved Workforce employment owner
+// (#4007).
+func NewStaffMembershipRuntime(f *services.Factory, db transactionruntime.Database, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
 	return bindStaffMembershipRuntime(f, offboardingcompose.Dependencies{
 		DB: db.Pool(), Employment: services.MembershipStaffEmployment(workforceCompose.MustNewStaffEmployment(db.Pool())),
-	}, logger, hooks)
+	}, identity, logger, hooks)
 }

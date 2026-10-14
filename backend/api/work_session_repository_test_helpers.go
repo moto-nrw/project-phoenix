@@ -43,7 +43,7 @@ func NewWorkSessionTestRepositoriesWithMembers(db transactionruntime.Database, m
 	}
 	return WorkSessionTestRepositories{TimetableTestRepositories: tt,
 		Workforce:         workTime,
-		StaffAbsence:      services.NewStaffAbsenceRepository(workTime, membership, people),
+		StaffAbsence:      NewStaffAbsenceRepository(workTime, membership, people),
 		StaffWorkSchedule: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(workTime),
 		WorkTimeModel:     workforceRepositoryAdapter.NewWorkTimeModelRepository(workTime)}, nil
 }

@@ -63,7 +63,7 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
 		StaffNames: services.NewAttendanceStaffNames(repos.Staff, api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
-			RFIDCards: repos.RFIDCard, AccountExists: services.AccountExists(repos.Profile),
+			RFIDCards: repos.RFIDCard, AccountExists: api.AccountExists(repos.Profile),
 		})),
 		DB:     db,
 		Logger: slog.Default(),
@@ -170,7 +170,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	t.Run("the child is gone from the group roster reads", func(t *testing.T) {
 		personSvc := api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
-			RFIDCards: repos.RFIDCard, AccountExists: services.AccountExists(repos.Profile),
+			RFIDCards: repos.RFIDCard, AccountExists: api.AccountExists(repos.Profile),
 		}).WithCareParticipation(func(
 			ctx context.Context, studentIDs []int64, on, today timezone.Date,
 		) (map[int64]bool, error) {

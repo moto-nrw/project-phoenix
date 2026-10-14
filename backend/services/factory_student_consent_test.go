@@ -32,7 +32,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		TenantDomain:     "localhost",
 		OperatorHostname: "operator.localhost:3000",
 	}
-	tokens, err := api.TokenAdapterForTests(cfg)
+	identity, err := api.IdentityRootForTests(testpkg.NewDatabase(t, db), cfg)
 	require.NoError(t, err)
 
 	people, err := owners.PeopleWiring(testpkg.NewDatabase(t, db), carePlan, slog.Default())
@@ -66,10 +66,11 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		func(string, time.Duration, int64, int64, time.Duration, string, error) {},
 		func(string, time.Duration, int64, int64, time.Duration, string, error) {},
 		owners.Workforce,
+		owners.WorkforceWiring(testpkg.NewDatabase(t, db)),
 		func(services.DataImportObservation) {},
 		nil,
 		services.FileStorageWiring{},
-		tokens,
+		identity,
 		people,
 		true,
 	)
