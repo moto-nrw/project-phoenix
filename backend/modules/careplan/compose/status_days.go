@@ -19,6 +19,7 @@ type StatusDayStore interface {
 	ClearStudentStatusDays(context.Context, int64, string, []careplan.Date, time.Time, string) (RequestStoreStats, error)
 	ClearStudentStatusDayByID(context.Context, int64, time.Time, string) (RequestStoreStats, error)
 	ArchiveStudentStatusFlags(context.Context, careplan.StatusFlagArchive) (int64, RequestStoreStats, error)
+	DeleteStudentStatusDaysBefore(context.Context, careplan.Date) (int64, RequestStoreStats, error)
 }
 
 func (e *exceptionQueries) FindStudentStatusDay(ctx context.Context, id int64, activeOnly bool) (careplan.StudentStatusDay, error) {
@@ -88,5 +89,12 @@ func (e engine) ClearStudentStatusDayByID(ctx context.Context, id int64, cleared
 func (e engine) ArchiveStudentStatusFlags(ctx context.Context, value careplan.StatusFlagArchive) (int64, error) {
 	return requestCommandValue(e, ctx, "archive_student_status_flags", func(txCtx context.Context) (int64, RequestStoreStats, error) {
 		return e.statusDays.ArchiveStudentStatusFlags(txCtx, value)
+	})
+}
+
+func (e engine) DeleteStudentStatusDaysBefore(ctx context.Context, cutoff careplan.Date) (int, error) {
+	return requestCommandValue(e, ctx, "delete_expired_student_status_days", func(txCtx context.Context) (int, RequestStoreStats, error) {
+		deleted, stats, err := e.statusDays.DeleteStudentStatusDaysBefore(txCtx, cutoff)
+		return int(deleted), stats, err
 	})
 }

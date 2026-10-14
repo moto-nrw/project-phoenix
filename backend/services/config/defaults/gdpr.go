@@ -185,6 +185,26 @@ func init() {
 		},
 	})
 
+	// Sick, excused and class-trip days (#3958). Sickness is health data
+	// (Art. 9 DSGVO); no statute sets a period for OGS attendance, so a year
+	// covers the school year plus its follow-up questions. The frame of
+	// 30 days to 3 years is ADR 0048's.
+	config.Register(config.Definition{
+		Key:             config.KeyGDPRStatusDayRetentionDays,
+		Label:           "Krank- und Entschuldigt-Tage aufbewahren (Tage)",
+		Description:     "So lange speichert moto, an welchen Tagen ein Kind krank, entschuldigt oder auf Klassenfahrt war. Danach löscht moto diese Tage.",
+		Type:            config.FieldNumber,
+		Default:         365,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
+		Tab:             "gdpr",
+		Category:        "schülerdaten",
+		SortOrder:       31,
+		Validation:      config.Range(30, 1095),
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
+	})
+
 	minPWAUsageRetentionDays := float64(30)
 	maxPWAUsageRetentionDays := float64(365)
 	config.Register(config.Definition{

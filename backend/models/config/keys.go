@@ -61,6 +61,10 @@ const (
 	// (users.staff_messages, issue #2598). Staff messages are employee personal
 	// data, so the window exists from day one rather than being retrofitted.
 	KeyGDPRStaffMessageRetentionDays = "gdpr.staff_message_retention_days"
+	// Retention window (days) for the sick, excused and class-trip days of a
+	// child (active.student_status_days, #3958): health data, counted from
+	// the reported day.
+	KeyGDPRStatusDayRetentionDays = "gdpr.status_day_retention_days"
 )
 
 // Attendance log / Raumverlauf (student attendance history) settings.

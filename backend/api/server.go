@@ -221,7 +221,9 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	}
 	retention, err := newWorkerRetention(retentionOwners{
 		deletionLog:          graph.services.Audit,
+		settings:             graph.services.Settings,
 		unregisteredTagScans: graph.services.UnregisteredTagScans,
+		statusDays:           reads.statusDayRetention,
 	}, logger.With("service", "scheduler"))
 	if err != nil {
 		return nil, err

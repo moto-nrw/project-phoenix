@@ -26,11 +26,13 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 	admin := testpkg.SetupTestDB(t)
 	serve := testpkg.SetupServeTestDB(t)
 	t.Cleanup(func() { require.NoError(t, serve.Close()) })
-	owners, err := testutil.NewRetentionTestOwners(admin)
+	owners, err := testutil.NewRetentionTestOwners(admin, testpkg.TenantRuntime(t, admin))
 	require.NoError(t, err)
 	retention, err := newWorkerRetention(retentionOwners{
 		deletionLog:          owners.Audit,
+		settings:             owners.Settings,
 		unregisteredTagScans: owners.UnregisteredTagScans,
+		statusDays:           owners.StatusDays,
 	}, nil)
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
@@ -88,4 +90,66 @@ func TestNightlyRetentionDeletesUnregisteredTagScansAfterNinetyDays(t *testing.T
 	assert.True(t, suite.exists(t, "audit.unregistered_tag_scans", otherExpired), "the run of one school never touches another")
 	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, retentionUnregisteredTagScans))
 	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionUnregisteredTagScans))
+}
+
+// insertStatusDay stores a status day daysAgo Berlin calendar days back.
+func (s retentionSuite) insertStatusDay(t *testing.T, tenantID, studentID int64, status string, daysAgo int) int64 {
+	t.Helper()
+	return s.insertID(t, `INSERT INTO active.student_status_days (tenant_id, student_id, date, status, reported_at)
+		VALUES (?, ?, (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date - ?, ?, CURRENT_TIMESTAMP - make_interval(days => ?))
+		RETURNING id`, tenantID, studentID, daysAgo, status, daysAgo)
+}
+
+func (s retentionSuite) count(t *testing.T, query string, args ...any) int {
+	t.Helper()
+	var n int
+	require.NoError(t, s.admin.NewRaw(query, args...).Scan(context.Background(), &n))
+	return n
+}
+
+func TestNightlyRetentionDeletesStatusDaysAfterTheirWindow(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	otherSchool, _ := testpkg.CreateTestTenant(t, suite.admin)
+	child := testpkg.CreateTestStudent(t, suite.admin, "Frist", "Kind", "2a")
+	otherChild := testpkg.CreateTestStudentForTenant(t, suite.admin, otherSchool, "Andere", "Schule", "2a")
+
+	expiredSick := suite.insertStatusDay(t, school, child.ID, "sick", 366)
+	expiredTrip := suite.insertStatusDay(t, school, child.ID, "class_trip", 400)
+	keptExcused := suite.insertStatusDay(t, school, child.ID, "excused", 364)
+	keptOnCutoff := suite.insertStatusDay(t, school, child.ID, "sick", 365)
+	otherExpired := suite.insertStatusDay(t, otherSchool, otherChild.ID, "sick", 400)
+	mealHistory := suite.count(t, `SELECT COUNT(*) FROM schedule.meal_sickness_status_history WHERE tenant_id = ?`, school)
+
+	suite.run(t, school)
+
+	assert.False(t, suite.exists(t, "active.student_status_days", expiredSick), "a sick day older than 365 days is deleted")
+	assert.False(t, suite.exists(t, "active.student_status_days", expiredTrip), "every status of the day kind is deleted")
+	assert.True(t, suite.exists(t, "active.student_status_days", keptExcused), "a younger day stays")
+	assert.True(t, suite.exists(t, "active.student_status_days", keptOnCutoff), "the day exactly 365 days back is still inside the window")
+	assert.True(t, suite.exists(t, "active.student_status_days", otherExpired), "the run of one school never touches another")
+	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, retentionStatusDays))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionStatusDays))
+	assert.Equal(t, mealHistory,
+		suite.count(t, `SELECT COUNT(*) FROM schedule.meal_sickness_status_history WHERE tenant_id = ?`, school),
+		"the purge must not copy the deleted sick day into the meal sickness history")
+}
+
+func TestNightlyRetentionFollowsTheSchoolsRecordedStatusDayWindow(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	child := testpkg.CreateTestStudent(t, suite.admin, "Lange", "Frist", "3b")
+	_, err := suite.admin.ExecContext(context.Background(), `INSERT INTO config.setting_values (tenant_id, setting_key, value)
+		VALUES (?, 'gdpr.status_day_retention_days', '730'::jsonb)`, school)
+	require.NoError(t, err)
+
+	kept := suite.insertStatusDay(t, school, child.ID, "sick", 400)
+	expired := suite.insertStatusDay(t, school, child.ID, "sick", 731)
+
+	suite.run(t, school)
+
+	assert.True(t, suite.exists(t, "active.student_status_days", kept), "a longer contractual window keeps the day")
+	assert.False(t, suite.exists(t, "active.student_status_days", expired))
 }

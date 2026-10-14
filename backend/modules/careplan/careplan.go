@@ -233,6 +233,7 @@ type engine interface {
 	WeekdayPickupNotesCommand
 	DepartureExceptions
 	CareDayLocker
+	StudentStatusDayRetention
 }
 
 // CareDayLocker exposes the Care Plan owner's canonical lock order to other

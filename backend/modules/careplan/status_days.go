@@ -130,3 +130,17 @@ func (m *Module) ClearStudentStatusDayByID(ctx context.Context, id int64, cleare
 func (m *Module) ArchiveStudentStatusFlags(ctx context.Context, value StatusFlagArchive) (int64, error) {
 	return m.engine.ArchiveStudentStatusFlags(ctx, value)
 }
+
+// StudentStatusDayRetention deletes a school's status days once their
+// retention window has passed (#3958). Sick, excused and class-trip days are
+// one data kind: the nightly cleanup deletes every day dated before cutoff.
+type StudentStatusDayRetention interface {
+	DeleteStudentStatusDaysBefore(context.Context, Date) (int, error)
+}
+
+func (m *Module) DeleteStudentStatusDaysBefore(ctx context.Context, cutoff Date) (int, error) {
+	if cutoff == "" {
+		return 0, errors.New("care plan: a cutoff is required to delete status days")
+	}
+	return m.engine.DeleteStudentStatusDaysBefore(ctx, cutoff)
+}

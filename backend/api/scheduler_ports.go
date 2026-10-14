@@ -153,6 +153,9 @@ type workerReads struct {
 	// studentStatusDays archives the status flags over it.
 	carePlan          carePlanModule.Query
 	studentStatusDays scheduler.StudentStatusFlagArchiver
+	// statusDayRetention deletes the expired status days in the nightly
+	// cleanup (#3958).
+	statusDayRetention carePlanModule.StudentStatusDayRetention
 }
 
 func newWorkerReads(modules moduleServices) workerReads {
@@ -163,9 +166,18 @@ func newWorkerReads(modules moduleServices) workerReads {
 		students:      modules.students,
 		staff:         modules.staff,
 		// A nil owner leaves the interface nil, so the Worker runs no audit.
-		carePlan:          carePlanQuery(modules.carePlan),
-		studentStatusDays: modules.studentStatusDays,
+		carePlan:           carePlanQuery(modules.carePlan),
+		studentStatusDays:  modules.studentStatusDays,
+		statusDayRetention: statusDayRetention(modules.carePlan),
 	}
+}
+
+// statusDayRetention keeps a missing Care Plan owner a nil interface.
+func statusDayRetention(module *carePlanModule.Module) carePlanModule.StudentStatusDayRetention {
+	if module == nil {
+		return nil
+	}
+	return module
 }
 
 // carePlanQuery keeps a missing Care Plan owner a nil interface.

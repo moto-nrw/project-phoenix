@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 
+	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/cleanupruns"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // workerRetention is the retention capability of the nightly cleanup (#3950):
@@ -21,7 +24,18 @@ type workerRetention struct {
 // the Audit Platform records for its step in audit.data_deletions.
 const (
 	retentionUnregisteredTagScans = "unregistered_tag_scan_retention"
+	retentionStatusDays           = "status_day_retention"
 )
+
+// Retention windows the moto team records per school (ADR 0048). The Settings
+// Platform owns the keys; newWorkerRetention refuses a key it does not define.
+const (
+	settingStatusDayRetentionDays = "gdpr.status_day_retention_days"
+)
+
+var retentionSettingKeys = []string{
+	settingStatusDayRetentionDays,
+}
 
 // retentionOwners are the owner capabilities whose data the nightly cleanup
 // deletes, and the deletion log. Each owner resolves its own window.
@@ -29,14 +43,22 @@ type retentionOwners struct {
 	deletionLog interface {
 		LogRetention(ctx context.Context, kind string, deleted, retentionDays int) error
 	}
+	// settings resolves the retention windows of the school in context.
+	settings interface {
+		ResolveInt(ctx context.Context, key string) (int, error)
+	}
 	unregisteredTagScans interface {
 		DeleteExpired(ctx context.Context) (deleted, retentionDays int, err error)
 	}
+	statusDays carePlanModule.StudentStatusDayRetention
 }
 
 func newWorkerRetention(owners retentionOwners, logger *slog.Logger) (workerRetention, error) {
-	if owners.deletionLog == nil {
-		return workerRetention{}, fmt.Errorf("compose worker retention: deletion log is required")
+	if owners.deletionLog == nil || owners.settings == nil {
+		return workerRetention{}, fmt.Errorf("compose worker retention: deletion log and settings are required")
+	}
+	if err := settingsCompose.VerifyPreloadKeys(retentionSettingKeys); err != nil {
+		return workerRetention{}, fmt.Errorf("compose worker retention: %w", err)
 	}
 	deletions := owners.deletionLog
 	run, err := scheduler.NewRetentionRun(retentionSteps(owners), func(ctx context.Context, kind string, outcome scheduler.RetentionOutcome) error {
@@ -62,5 +84,41 @@ func retentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 			},
 		})
 	}
+	if owners.statusDays != nil {
+		statusDays := owners.statusDays
+		steps = append(steps, scheduler.RetentionStep{
+			Kind: retentionStatusDays,
+			Run: func(ctx context.Context) (scheduler.RetentionOutcome, error) {
+				days, err := retentionDays(ctx, owners.settings, settingStatusDayRetentionDays)
+				if err != nil {
+					return scheduler.RetentionOutcome{}, err
+				}
+				deleted, err := statusDays.DeleteStudentStatusDaysBefore(ctx, carePlanModule.Date(retentionCutoff(days)))
+				return scheduler.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
+			},
+		})
+	}
 	return steps
+}
+
+// retentionDays resolves a school's retention window. It never guesses: an
+// unreadable or non-positive window fails the step, so nothing is deleted
+// on a wrong period and the run is caught up once the setting is fixed.
+func retentionDays(ctx context.Context, settings interface {
+	ResolveInt(ctx context.Context, key string) (int, error)
+}, key string) (int, error) {
+	days, err := settings.ResolveInt(ctx, key)
+	if err != nil {
+		return 0, fmt.Errorf("resolve %s: %w", key, err)
+	}
+	if days <= 0 {
+		return 0, fmt.Errorf("resolve %s: retention window must be positive, got %d", key, days)
+	}
+	return days, nil
+}
+
+// retentionCutoff is the first Berlin calendar day a window of days keeps:
+// data dated before it is past its retention.
+func retentionCutoff(days int) calendar.Date {
+	return calendar.TodayDate().AddDays(-days)
 }
