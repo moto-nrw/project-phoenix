@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -69,7 +69,7 @@ func TestParentRequestReviewScopeCoversEveryWriteQueue(t *testing.T) {
 	perms := []string{"users:read", "users:update"}
 	leaderClaims := testutil.TeacherTestClaims(int(leaderAccount.ID))
 	memberClaims := testutil.TeacherTestClaims(int(memberAccount.ID))
-	openRequests := func(actor jwt.AppClaims) int {
+	openRequests := func(actor sessiontoken.AppClaims) int {
 		t.Helper()
 		list := authExec(t, tc, testutil.NewRequest("GET",
 			"/change-requests?view=open&search=Zteamfreigabe&types=master_data,care_schedule,offering", nil), actor, perms)
@@ -87,7 +87,7 @@ func TestParentRequestReviewScopeCoversEveryWriteQueue(t *testing.T) {
 		require.Equal(t, len(listed.Data.Items), counted.Data.PendingCount, "badge and list share one scope")
 		return len(listed.Data.Items)
 	}
-	reviewAccess := func(actor jwt.AppClaims) string {
+	reviewAccess := func(actor sessiontoken.AppClaims) string {
 		t.Helper()
 		rr := authExec(t, tc, testutil.NewRequest("GET", "/change-requests/access", nil), actor, perms)
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -99,7 +99,7 @@ func TestParentRequestReviewScopeCoversEveryWriteQueue(t *testing.T) {
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 		return body.Data.ReviewAccess
 	}
-	reject := func(actor jwt.AppClaims, path string) int {
+	reject := func(actor sessiontoken.AppClaims, path string) int {
 		t.Helper()
 		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "POST", path,
 			map[string]any{"approve": false, "reason": "Bitte im Büro klären"}), actor, perms)

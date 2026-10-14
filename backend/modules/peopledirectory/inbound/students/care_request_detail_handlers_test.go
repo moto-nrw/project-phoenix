@@ -23,7 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -60,7 +60,7 @@ func careRequestTodayClock() time.Time {
 	return timezone.NewDate(2026, 9, 9).BerlinMidnight().Add(12 * time.Hour)
 }
 
-func getCareRequestDetail(t *testing.T, tc *testContext, requestID int64, claims jwt.AppClaims, perms []string) (int, careRequestDetailBody) {
+func getCareRequestDetail(t *testing.T, tc *testContext, requestID int64, claims sessiontoken.AppClaims, perms []string) (int, careRequestDetailBody) {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("/care-schedule-change-requests/%d", requestID), nil)
 	require.NoError(t, err)

@@ -13,7 +13,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // AnnouncementsResource handles operator announcements endpoints
@@ -139,7 +139,7 @@ func (rs *AnnouncementsResource) GetAnnouncement(w http.ResponseWriter, r *http.
 
 // CreateAnnouncement handles creating a new announcement
 func (rs *AnnouncementsResource) CreateAnnouncement(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
 	req := &CreateAnnouncementRequest{}
@@ -199,7 +199,7 @@ func (rs *AnnouncementsResource) CreateAnnouncement(w http.ResponseWriter, r *ht
 
 // UpdateAnnouncement handles updating an announcement
 func (rs *AnnouncementsResource) UpdateAnnouncement(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
 	id, ok := common.ParseInt64IDWithError(w, r, "id", "invalid announcement ID")

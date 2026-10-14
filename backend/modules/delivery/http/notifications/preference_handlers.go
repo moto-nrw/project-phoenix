@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // notificationTypePattern bounds the path segment before it reaches the
@@ -39,7 +39,7 @@ func (rs *Resource) listPreferences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	accountID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	overview, err := rs.PreferenceService.GetForAccount(r.Context(), accountID, requestPortal(r))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -69,7 +69,7 @@ func (rs *Resource) setPreference(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	accountID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	err := rs.PreferenceService.SetForPortalAccount(r.Context(), accountID, requestPortal(r), notificationType, *req.Enabled)
 	switch {
 	case errors.Is(err, notificationsService.ErrUnknownNotificationType):
@@ -91,7 +91,7 @@ func (rs *Resource) deleteAllPreferences(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	accountID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	if err := rs.PreferenceService.DisableAllForPortalAccount(r.Context(), accountID, requestPortal(r)); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

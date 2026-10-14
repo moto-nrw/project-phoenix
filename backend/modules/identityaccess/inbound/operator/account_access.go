@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Operator endpoints for managing which schools an existing account may
@@ -202,7 +202,7 @@ func parseAccountTenantParams(w http.ResponseWriter, r *http.Request) (int64, in
 }
 
 func operatorIDFromContext(r *http.Request) int64 {
-	return int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	return int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 }
 
 // clientIP renders the request address for the operator audit ledger; an

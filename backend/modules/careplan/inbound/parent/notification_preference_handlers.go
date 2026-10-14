@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 var parentNotificationTypePattern = regexp.MustCompile(`^[a-z0-9_]{1,64}$`)
@@ -28,7 +28,7 @@ func (rs *Resource) listNotificationPreferences(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	accountID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	overview, err := rs.PreferenceService.GetForParent(r.Context(), accountID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -62,7 +62,7 @@ func (rs *Resource) setNotificationPreference(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	accountID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	err := rs.PreferenceService.SetForParent(r.Context(), accountID, notificationType, *req.Enabled)
 	switch {
 	case errors.Is(err, notificationsService.ErrUnknownNotificationType):
@@ -83,7 +83,7 @@ func (rs *Resource) deleteAllNotificationPreferences(w http.ResponseWriter, r *h
 		return
 	}
 
-	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	accountID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	if err := rs.PreferenceService.DisableAllForParent(r.Context(), accountID); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

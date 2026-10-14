@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -17,7 +17,7 @@ import (
 
 // getPermissionsFromRequest extracts permissions from request context.
 func getPermissionsFromRequest(r *http.Request) []string {
-	return jwt.PermissionsFromCtx(r.Context())
+	return sessiontoken.PermissionsFromCtx(r.Context())
 }
 
 // CallerContext is the slice of the Identity & Access caller context the
@@ -67,7 +67,7 @@ func (rs *Resource) canManageStudentStatus(ctx context.Context, userPermissions 
 		(!securityruntime.HasPermission(permissions.UsersAbsence, userPermissions) || !securityruntime.HasPermission(permissions.UsersRead, userPermissions)) {
 		return false, errors.New("absence write permission required")
 	}
-	claims := jwt.ClaimsFromCtx(ctx)
+	claims := sessiontoken.ClaimsFromCtx(ctx)
 	if (claims.Scope != "" && claims.Scope != "tenant" && claims.Scope != "org") ||
 		claims.ID <= 0 || claims.TenantID <= 0 || claims.TenantID != tenant.FromContext(ctx) ||
 		student.TenantID != claims.TenantID {
@@ -91,12 +91,12 @@ func (rs *Resource) canManageStudentStatus(ctx context.Context, userPermissions 
 // Krankmeldung / Entschuldigung / Klassenfahrt actions independently of the
 // Stammdaten edit affordances (has_write_access).
 func (rs *Resource) checkStudentAbsenceWriteAccess(r *http.Request, student *Student) bool {
-	ok, _ := rs.canManageStudentAbsence(r.Context(), jwt.PermissionsFromCtx(r.Context()), student)
+	ok, _ := rs.canManageStudentAbsence(r.Context(), sessiontoken.PermissionsFromCtx(r.Context()), student)
 	return ok
 }
 
 func (rs *Resource) checkStudentSickExcusedWriteAccess(r *http.Request, student *Student) bool {
-	ok, _ := rs.canManageStudentStatus(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, absencerecords.StudentStatusDaySick)
+	ok, _ := rs.canManageStudentStatus(r.Context(), sessiontoken.PermissionsFromCtx(r.Context()), student, absencerecords.StudentStatusDaySick)
 	return ok
 }
 
@@ -110,7 +110,7 @@ func (rs *Resource) checkStudentSickExcusedWriteAccess(r *http.Request, student 
 // edit affordances that can only 403 (e.g. a custom role holding just
 // users:read + users:absence).
 func (rs *Resource) checkStudentFullAccess(r *http.Request, student *Student) bool {
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	userPermissions := sessiontoken.PermissionsFromCtx(r.Context())
 	if !securityruntime.HasAdminWildcard(userPermissions) &&
 		!securityruntime.HasPermission(permissions.UsersUpdate, userPermissions) {
 		return false
@@ -134,7 +134,7 @@ func (rs *Resource) checkStudentFullAccess(r *http.Request, student *Student) bo
 func (rs *Resource) checkStudentReadAccess(r *http.Request, student *Student) bool {
 	return securityruntime.CanReadStudent(
 		r.Context(),
-		jwt.PermissionsFromCtx(r.Context()),
+		sessiontoken.PermissionsFromCtx(r.Context()),
 		student,
 		rs.UserContextService,
 	)
@@ -167,13 +167,13 @@ func (rs *Resource) buildSupervisorContacts(ctx context.Context, groupID int64) 
 // staff lookup needs a tenant transaction in ctx (#3830).
 func (rs *Resource) canModifyStudentPhoto(ctx context.Context) bool {
 	ok, _ := securityruntime.CanUpdateStudent(
-		ctx, jwt.PermissionsFromCtx(ctx), photoAuthorizationStudent{}, rs.UserContextService)
+		ctx, sessiontoken.PermissionsFromCtx(ctx), photoAuthorizationStudent{}, rs.UserContextService)
 	return ok
 }
 
 func (rs *Resource) canReadStudentPhoto(ctx context.Context) bool {
 	return securityruntime.CanReadStudent(
-		ctx, jwt.PermissionsFromCtx(ctx), photoAuthorizationStudent{}, rs.UserContextService)
+		ctx, sessiontoken.PermissionsFromCtx(ctx), photoAuthorizationStudent{}, rs.UserContextService)
 }
 
 // photoAuthorizationStudent satisfies the marker the child-data gates take.

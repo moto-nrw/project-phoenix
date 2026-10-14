@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
@@ -341,7 +341,7 @@ func (rs *Resource) attendanceHistoryLogger() *slog.Logger {
 // attendanceHistoryScopeAllows returns true if the requesting caller may view
 // this student's attendance history: admin or verified staff (#2329).
 func (rs *Resource) attendanceHistoryScopeAllows(r *http.Request, student *Student) bool {
-	return securityruntime.CanReadStudent(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
+	return securityruntime.CanReadStudent(r.Context(), sessiontoken.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
 }
 
 // parseAttendanceHistoryRange reads start/end query params and falls back to
@@ -723,7 +723,7 @@ func (rs *Resource) writeAttendanceHistoryAudit(r *http.Request, studentID int64
 		return errors.New("audit log repository not configured")
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	actorAccountID := int64(claims.ID)
 	actorRole := strings.Join(claims.Roles, ",")
 	if actorRole == "" {

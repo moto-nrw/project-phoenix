@@ -27,7 +27,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -172,7 +172,7 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := rs.Deviations.ApplyDeviations(ctx, id, req.toServiceInput(jwt.ActorAccountIDFromCtx(ctx)))
+	result, err := rs.Deviations.ApplyDeviations(ctx, id, req.toServiceInput(sessiontoken.ActorAccountIDFromCtx(ctx)))
 	if err != nil {
 		renderDeviationError(w, r, err)
 		return

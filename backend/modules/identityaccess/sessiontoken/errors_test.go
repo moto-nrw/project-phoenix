@@ -1,4 +1,4 @@
-package jwt
+package sessiontoken
 
 import (
 	"errors"

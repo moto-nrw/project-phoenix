@@ -11,7 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -23,7 +23,7 @@ import (
 // drives — a Lehrkraft runs her Lernzeit exactly the way a Betreuungskraft
 // runs hers. What differs is the mantle, and it differs in four ways:
 //
-//  1. jwt.SchoolMiddleware (via ProtectedSchoolRoutes) admits only school-scope
+//  1. sessiontoken.SchoolMiddleware (via ProtectedSchoolRoutes) admits only school-scope
 //     tokens, so a tenant token cannot reach these routes and a school token
 //     still reaches nothing under /api (TestSchoolScopeRejectedOnAllAPIRoutes).
 //  2. permissions.SupervisionOwn instead of SchedulesRead: the permission says
@@ -123,7 +123,7 @@ func (rs *Resource) schoolStudentSheet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	sheet, err := rs.SupervisionSheets.SupervisionStudentSheet(
 		r.Context(), studentID, rs.todayDate(), boundary, accountID, strings.Join(claims.Roles, ","),
 	)

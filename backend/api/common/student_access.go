@@ -9,7 +9,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -56,6 +56,6 @@ func DetermineStudentAccess(r *http.Request, source StudentAccessSource) *Studen
 // staff lookup: admin status comes from the JWT permissions, and the staff
 // record is looked up only for non-admin callers.
 func DetermineStudentAccessWithStaffLookup(r *http.Request, lookup func(context.Context) (bool, error)) *StudentAccessContext {
-	admin, staff := securityruntime.StudentDataAccess(r.Context(), jwt.PermissionsFromCtx(r.Context()), lookup)
+	admin, staff := securityruntime.StudentDataAccess(r.Context(), sessiontoken.PermissionsFromCtx(r.Context()), lookup)
 	return &StudentAccessContext{IsAdmin: admin, IsStaff: staff}
 }

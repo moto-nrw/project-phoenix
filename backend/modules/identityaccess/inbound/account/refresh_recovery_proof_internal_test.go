@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,7 +43,7 @@ func TestRefreshToken_PassesRecoveryProofHeaderToSessions(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
 	req.Header.Set(recoveryProofHeader, "independent-recovery-secret")
-	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxRefreshToken, "presented-refresh-token"))
+	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxRefreshToken, "presented-refresh-token"))
 	rr := httptest.NewRecorder()
 
 	rs.refreshToken(rr, req)

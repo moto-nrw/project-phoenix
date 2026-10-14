@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	jwtpkg "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 )
@@ -21,8 +21,8 @@ const (
 
 // schoolMiddlewareRequest builds a request whose context carries the
 // given claims, mirroring what the Authenticator middleware would set.
-func schoolMiddlewareRequest(claims jwtpkg.AppClaims) *http.Request {
-	ctx := context.WithValue(context.Background(), jwtpkg.CtxClaims, claims)
+func schoolMiddlewareRequest(claims sessiontoken.AppClaims) *http.Request {
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 	return httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 }
 
@@ -47,7 +47,7 @@ func TestSchoolMiddleware_AcceptsSchoolScope(t *testing.T) {
 	}))
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, schoolMiddlewareRequest(jwtpkg.AppClaims{
+	handler.ServeHTTP(rec, schoolMiddlewareRequest(sessiontoken.AppClaims{
 		ID:       42,
 		Sub:      "lehrkraft@example.test",
 		Scope:    tenant.ScopeSchool,
@@ -90,13 +90,13 @@ func TestSchoolMiddleware_RejectsOtherScopes(t *testing.T) {
 
 	cases := []struct {
 		name   string
-		claims jwtpkg.AppClaims
+		claims sessiontoken.AppClaims
 	}{
-		{"tenant scope", jwtpkg.AppClaims{ID: 42, Sub: "staff@example.test", TenantID: 100, Scope: tenant.ScopeTenant}},
-		{"org scope", jwtpkg.AppClaims{ID: 42, Sub: "orgadmin@example.test", OrgID: 7, Scope: tenant.ScopeOrg}},
-		{"platform scope", jwtpkg.AppClaims{ID: 42, Sub: "operator@example.test", Scope: tenant.ScopePlatform}},
-		{"parent scope", jwtpkg.AppClaims{ID: 42, Sub: "parent@example.test", Scope: tenant.ScopeParent}},
-		{"unknown scope", jwtpkg.AppClaims{ID: 42, Sub: "future@example.test", TenantID: 100, Scope: "future-scope-not-yet-defined"}},
+		{"tenant scope", sessiontoken.AppClaims{ID: 42, Sub: "staff@example.test", TenantID: 100, Scope: tenant.ScopeTenant}},
+		{"org scope", sessiontoken.AppClaims{ID: 42, Sub: "orgadmin@example.test", OrgID: 7, Scope: tenant.ScopeOrg}},
+		{"platform scope", sessiontoken.AppClaims{ID: 42, Sub: "operator@example.test", Scope: tenant.ScopePlatform}},
+		{"parent scope", sessiontoken.AppClaims{ID: 42, Sub: "parent@example.test", Scope: tenant.ScopeParent}},
+		{"unknown scope", sessiontoken.AppClaims{ID: 42, Sub: "future@example.test", TenantID: 100, Scope: "future-scope-not-yet-defined"}},
 	}
 
 	for _, tc := range cases {
@@ -126,7 +126,7 @@ func TestSchoolMiddleware_ZeroTenantID_Unauthorized(t *testing.T) {
 	}))
 
 	rec := httptest.NewRecorder()
-	req := schoolMiddlewareRequest(jwtpkg.AppClaims{
+	req := schoolMiddlewareRequest(sessiontoken.AppClaims{
 		ID:    42,
 		Sub:   "lehrkraft@example.test",
 		Scope: tenant.ScopeSchool,
@@ -150,7 +150,7 @@ func TestSchoolMiddleware_ZeroID_Unauthorized(t *testing.T) {
 	}))
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, schoolMiddlewareRequest(jwtpkg.AppClaims{
+	handler.ServeHTTP(rec, schoolMiddlewareRequest(sessiontoken.AppClaims{
 		ID:       0,
 		Scope:    tenant.ScopeSchool, // even with valid scope, ID=0 rejects
 		TenantID: 100,
@@ -172,7 +172,7 @@ func TestTenantMiddleware_RejectsSchoolScope(t *testing.T) {
 	}))
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, schoolMiddlewareRequest(jwtpkg.AppClaims{
+	handler.ServeHTTP(rec, schoolMiddlewareRequest(sessiontoken.AppClaims{
 		ID:       42,
 		Sub:      "lehrkraft@example.test",
 		Scope:    tenant.ScopeSchool,

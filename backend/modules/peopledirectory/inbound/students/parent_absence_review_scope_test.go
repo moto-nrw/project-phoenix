@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -43,7 +43,7 @@ func TestParentAbsenceReviewScopeKeepsReadsAndDecisionsConsistent(t *testing.T) 
 		t.Helper()
 		require.NoError(t, tc.settings().SetValue(testpkg.Ctx(t), settings.KeyParentAbsenceReviewScope, scope, nil, nil))
 	}
-	checkReads := func(actor jwt.AppClaims, allowed bool) {
+	checkReads := func(actor sessiontoken.AppClaims, allowed bool) {
 		t.Helper()
 		list := authExec(t, tc, testutil.NewRequest("GET", "/change-requests?types=excused&view=open", nil), actor, perms)
 		require.Equal(t, http.StatusOK, list.Code, list.Body.String())
@@ -83,7 +83,7 @@ func TestParentAbsenceReviewScopeKeepsReadsAndDecisionsConsistent(t *testing.T) 
 			require.NotContains(t, list.Body.String(), note)
 		}
 	}
-	decide := func(actor jwt.AppClaims, want int) {
+	decide := func(actor sessiontoken.AppClaims, want int) {
 		t.Helper()
 		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/excused-absence-requests/%d/decide", requestID),
 			map[string]any{"approve": false, "reason": "Termin entfällt"}), actor, perms)

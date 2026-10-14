@@ -20,7 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	educationService "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
@@ -107,8 +107,8 @@ func (a access) Caller(ctx context.Context) (supervisiondashboard.Caller, error)
 	if err != nil {
 		return supervisiondashboard.Caller{}, fmt.Errorf("resolve operational overview scope: %w", err)
 	}
-	claims := jwt.ClaimsFromCtx(ctx)
-	userPermissions := jwt.PermissionsFromCtx(ctx)
+	claims := sessiontoken.ClaimsFromCtx(ctx)
+	userPermissions := sessiontoken.PermissionsFromCtx(ctx)
 	return supervisiondashboard.Caller{
 		AccountID:           int64(claims.ID),
 		TokenAdmin:          claims.IsAdmin,

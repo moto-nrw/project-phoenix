@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -65,7 +65,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if student.CareEndedOn(rs.todayDate()) &&
-		!securityruntime.HasPermission(permissions.UsersDelete, jwt.PermissionsFromCtx(r.Context())) {
+		!securityruntime.HasPermission(permissions.UsersDelete, sessiontoken.PermissionsFromCtx(r.Context())) {
 		renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 		return
 	}

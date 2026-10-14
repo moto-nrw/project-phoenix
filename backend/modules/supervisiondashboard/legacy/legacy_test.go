@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	educationModels "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
@@ -186,8 +186,8 @@ func TestCallerResolvesOverviewAndPermissions(t *testing.T) {
 	}}
 	a := access{settings: settings}
 
-	ctx := context.WithValue(adminContext(), jwt.CtxClaims, jwt.AppClaims{ID: 99, IsAdmin: true})
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{permissions.SchedulesRead})
+	ctx := context.WithValue(adminContext(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 99, IsAdmin: true})
+	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{permissions.SchedulesRead})
 	caller, err := a.Caller(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, supervisiondashboard.Caller{
@@ -205,7 +205,7 @@ func TestCallerResolvesOverviewAndPermissions(t *testing.T) {
 	_, err = a.Caller(ctx)
 	require.ErrorContains(t, err, "operational overview scope")
 
-	plain := context.WithValue(context.Background(), jwt.CtxPermissions, []string{permissions.UsersRead})
+	plain := context.WithValue(context.Background(), sessiontoken.CtxPermissions, []string{permissions.UsersRead})
 	settings.ResolveStringFn = func(context.Context, string) (string, error) { return configModel.OverviewScopeOwn, nil }
 	caller, err = a.Caller(plain)
 	require.NoError(t, err)

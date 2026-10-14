@@ -11,7 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -138,7 +138,7 @@ func TestGuardianComposition_RemovePayerNeedsFinancialPermission(t *testing.T) {
 	ctx.link(studentID, otherID, "custom")
 	ctx.requirePayerSet(t, studentID, &payerID)
 
-	unlink := func(claims jwt.AppClaims, guardianID int64) (int, string) {
+	unlink := func(claims sessiontoken.AppClaims, guardianID int64) (int, string) {
 		rr := ctx.do(t, claims, http.MethodDelete, fmt.Sprintf("/students/%d/guardians/%d", studentID, guardianID), nil)
 		return rr.Code, rr.Body.String()
 	}

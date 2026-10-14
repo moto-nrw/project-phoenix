@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
@@ -133,7 +133,7 @@ func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to timezo
 		return errors.New("audit log repository not configured")
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	actorRole := strings.Join(claims.Roles, ",")
 	if actorRole == "" {
 		actorRole = "unknown"

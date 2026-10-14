@@ -10,7 +10,7 @@ import (
 	"github.com/uptrace/bun"
 
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -45,11 +45,11 @@ func TestCrossTenantIsolation(t *testing.T) {
 
 	ctxA := func(accountID int64) context.Context {
 		ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), schoolA)
-		return context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
+		return context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(accountID)})
 	}
 	ctxB := func(accountID int64) context.Context {
 		ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), schoolB)
-		return context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
+		return context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(accountID)})
 	}
 
 	// A conversation inside school A.
@@ -111,7 +111,7 @@ func createStaffConversation(t *testing.T, db *bun.DB, svc *staffmessaging.Servi
 	t.Helper()
 	runtimeCtx := testpkg.WithTenantRuntime(t, context.Background(), db)
 	err := tenant.WithTenantTx(runtimeCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		senderCtx := context.WithValue(txCtx, jwt.CtxClaims, jwt.AppClaims{ID: int(senderID)})
+		senderCtx := context.WithValue(txCtx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(senderID)})
 		thread, err := svc.OpenThread(senderCtx, readerID)
 		if err != nil {
 			return err
@@ -119,7 +119,7 @@ func createStaffConversation(t *testing.T, db *bun.DB, svc *staffmessaging.Servi
 		if _, err = svc.PostMessage(senderCtx, thread.ThreadID, "Interne Nachricht"); err != nil {
 			return err
 		}
-		readerCtx := context.WithValue(txCtx, jwt.CtxClaims, jwt.AppClaims{ID: int(readerID)})
+		readerCtx := context.WithValue(txCtx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(readerID)})
 		_, err = svc.GetThread(readerCtx, thread.ThreadID)
 		return err
 	})

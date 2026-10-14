@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -64,7 +64,7 @@ func newTestRequest(tenantID int64) *http.Request {
 	if tenantID > 0 {
 		ctx = tenant.WithTenantID(ctx, tenantID)
 	}
-	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 73})
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 73})
 	return httptest.NewRequest(http.MethodPost, "/test", nil).WithContext(ctx)
 }
 
@@ -227,7 +227,7 @@ func TestSubscribePushClassifiesServiceErrors(t *testing.T) {
 				strings.NewReader(`{"endpoint":"https://fcm.googleapis.com/fcm/send/device","keys":{"p256dh":"key","auth":"auth"}}`),
 			)
 			req.Header.Set("Content-Type", "application/json")
-			req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 42}))
+			req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 42}))
 			rec := httptest.NewRecorder()
 
 			rs.subscribePush(rec, req)
@@ -254,7 +254,7 @@ func TestUnsubscribePushHidesServiceErrors(t *testing.T) {
 		"/push/subscriptions?endpoint=https%3A%2F%2Ffcm.googleapis.com%2Ffcm%2Fsend%2Fdevice",
 		nil,
 	)
-	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 42}))
+	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 42}))
 	rec := httptest.NewRecorder()
 
 	rs.unsubscribePush(rec, req)
@@ -274,7 +274,7 @@ func TestUnsubscribePushUsesSchoolPortalSubscription(t *testing.T) {
 		"/push/subscriptions?endpoint=https%3A%2F%2Ffcm.googleapis.com%2Ffcm%2Fsend%2Fdevice",
 		nil,
 	)
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 42})
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 42})
 	ctx = context.WithValue(ctx, portalCtxKey{}, notificationsService.PortalSchool)
 	req = req.WithContext(ctx)
 	rec := httptest.NewRecorder()

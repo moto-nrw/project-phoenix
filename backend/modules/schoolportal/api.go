@@ -5,7 +5,7 @@
 // (e.g. /school/auth/login, /school/class-day). They share two properties:
 //
 //  1. Authenticated routes require a school-scope JWT (scope="school")
-//     enforced by jwt.SchoolMiddleware. Tenant, org, platform, and parent
+//     enforced by sessiontoken.SchoolMiddleware. Tenant, org, platform, and parent
 //     tokens are hard-rejected with 401 — the symmetric guard to the tenant
 //     middleware's ScopeSchool rejection.
 //  2. School tokens are tenant-bound (unlike parent tokens): the login pins
@@ -27,7 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	classdayAPI "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
 )
 
@@ -117,7 +117,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 		// never reaches a fully authenticated handler; the handlers pin
 		// the school enrollment scope on top.
 		r.Group(func(r chi.Router) {
-			r.Use(jwt.MFAEnrollmentAuthenticator)
+			r.Use(sessiontoken.MFAEnrollmentAuthenticator)
 			r.Route("/mfa/enroll", func(r chi.Router) {
 				r.Post("/start", rs.mfaEnrollStart)
 				r.Post("/confirm", rs.mfaEnrollConfirm)
@@ -126,7 +126,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 
 		// Protected school-scope routes.
 		r.Group(func(r chi.Router) {
-			r.Use(jwt.Authenticator)
+			r.Use(sessiontoken.Authenticator)
 			r.Use(common.ReadOnlyPreviewMiddleware)
 			r.Use(common.SchoolScopeMiddleware)
 			r.Use(common.SecurityPrincipalMiddleware)

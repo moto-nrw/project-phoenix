@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -192,7 +192,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 			if *runtimeCheckpointEnrollmentParents {
 				parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 				parentAccountID = parentChain.AccountID
-				parentClaims := jwt.AppClaims{ID: int(parentAccountID), Sub: parentChain.Email, Scope: "parent", Roles: []string{"guardian"}}
+				parentClaims := sessiontoken.AppClaims{ID: int(parentAccountID), Sub: parentChain.Email, Scope: "parent", Roles: []string{"guardian"}}
 				parentToken = testutil.MintTestJWT(t, parentClaims)
 				require.NoError(t, db.NewRaw("SELECT subdomain FROM platform.schools WHERE id = ?", testpkg.Tenant(t)).Scan(context.Background(), &parentSubdomain))
 				workloadVersion = "enrollment-2694-writes-v8"
@@ -253,7 +253,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		// never queue an invitation for it.
 		parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 		parentAccountID = parentChain.AccountID
-		parentToken = testutil.MintTestJWT(t, jwt.AppClaims{ID: int(parentAccountID), Sub: parentChain.Email, Scope: "parent", Roles: []string{"guardian"}})
+		parentToken = testutil.MintTestJWT(t, sessiontoken.AppClaims{ID: int(parentAccountID), Sub: parentChain.Email, Scope: "parent", Roles: []string{"guardian"}})
 		acceptance = newAcceptanceWorkload(t, production.Handler(), token, parentToken, parentAccountID, phase.ID, schoolSlug, schoolSubdomain)
 		workloadVersion = acceptanceWorkloadVersion
 		scenarios = acceptance.scenarios()
