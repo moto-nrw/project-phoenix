@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // msgReadOnlyPreview is shown verbatim when a write slips past the disabled
@@ -68,12 +68,12 @@ var readOnlyGETDenylist = []string{
 // with one, only safe methods (GET/HEAD/OPTIONS, minus the denylisted
 // state-changing GETs) and the allowlisted
 // read-only POST routes go through. Mounted group-wide right after
-// jwt.Authenticator: it reads only the parsed claims, does no DB work, and
+// sessiontoken.Authenticator: it reads only the parsed claims, does no DB work, and
 // rejecting here means no tenant transaction is ever opened for a blocked
 // write.
 func ReadOnlyPreviewMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims := jwt.ClaimsFromCtx(r.Context())
+		claims := sessiontoken.ClaimsFromCtx(r.Context())
 		if !claims.IsReadOnlyPreview() || isReadOnlySafeRequest(r) {
 			next.ServeHTTP(w, r)
 			return

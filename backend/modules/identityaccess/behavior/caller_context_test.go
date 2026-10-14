@@ -11,7 +11,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -39,8 +39,8 @@ func callerCtx(tb testing.TB, accountID int64) context.Context {
 }
 
 func callerTenantCtx(accountID, tenantID int64, roles ...string) context.Context {
-	claims := jwt.AppClaims{ID: int(accountID), TenantID: tenantID, Roles: roles}
-	return context.WithValue(testpkg.TenantContext(tenantID), jwt.CtxClaims, claims)
+	claims := sessiontoken.AppClaims{ID: int(accountID), TenantID: tenantID, Roles: roles}
+	return context.WithValue(testpkg.TenantContext(tenantID), sessiontoken.CtxClaims, claims)
 }
 
 // ============================================================================

@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // pushSubscriptionRequest mirrors the browser's PushSubscription JSON.
@@ -48,7 +48,7 @@ func (rs *Resource) subscribePush(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	input := notificationsService.PushSubscriptionInput{
 		Endpoint:      req.Endpoint,
 		P256dh:        req.Keys.P256dh,
@@ -85,7 +85,7 @@ func (rs *Resource) unsubscribePush(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("endpoint query parameter is required")))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	var err error
 	if requestPortal(r) == notificationsService.PortalSchool {
 		err = rs.PushService.UnsubscribeSchool(r.Context(), int64(claims.ID), endpoint)

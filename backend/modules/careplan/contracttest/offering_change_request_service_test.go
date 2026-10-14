@@ -25,7 +25,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -37,7 +37,7 @@ import (
 // offeringChangeAdminContext makes the staff-side service calls explicit about
 // their authority. TenantContext alone deliberately carries no JWT permissions.
 func offeringChangeAdminContext(t *testing.T) context.Context {
-	return context.WithValue(testpkg.Ctx(t), jwt.CtxPermissions, []string{"admin:*"})
+	return context.WithValue(testpkg.Ctx(t), sessiontoken.CtxPermissions, []string{"admin:*"})
 }
 
 func newOfferingChangeServiceForTest(

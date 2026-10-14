@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -128,7 +128,7 @@ func (rs *Resource) wakeChildGuardians(tenantID, studentID int64) {
 // the hook fires.
 func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest, companionsChanged bool, reportedStatus string, reportDate timezone.Date) error {
 	statusChanged := req.Sick != nil || req.Excused != nil
-	actorAccountID := int64(jwt.ClaimsFromCtx(ctx).ID)
+	actorAccountID := int64(sessiontoken.ClaimsFromCtx(ctx).ID)
 	if reportedStatus != "" {
 		if err := rs.notifyAbsenceReported(ctx, tenantID, []int64{studentID}, reportedStatus, []timezone.Date{reportDate}, false, actorAccountID); err != nil {
 			return err

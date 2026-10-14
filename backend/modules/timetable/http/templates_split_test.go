@@ -22,7 +22,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -63,7 +63,7 @@ func splitRouter(parentCtx context.Context, res *Resource, db *bun.DB, perms []s
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)
-			ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
+			ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, perms)
 			principal, err := permissions.NewPrincipal(permissions.PrincipalInput{AccountID: 1, TenantID: tenantID, Permissions: perms})
 			if err != nil {
 				panic(err)

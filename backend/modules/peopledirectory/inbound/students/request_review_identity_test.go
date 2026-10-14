@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	reviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +26,7 @@ func TestRequestReviewIdentityPreservesEffectivePermissions(t *testing.T) {
 		{"malformed wildcard", []string{"*"}, reviewidentity.Principal{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.WithValue(context.Background(), jwt.CtxPermissions, tc.grants)
+			ctx := context.WithValue(context.Background(), sessiontoken.CtxPermissions, tc.grants)
 			require.Equal(t, tc.want, RequestReviewPrincipal(ctx))
 			access, err := reviewcompose.NewAccess(RequestReviewPrincipal, nil)
 			require.NoError(t, err)
@@ -42,19 +42,19 @@ func TestRequestReviewIdentityPreservesEffectivePermissions(t *testing.T) {
 
 func TestCorrectionAccessDoesNotTreatAdminClaimAsWildcard(t *testing.T) {
 	t.Parallel()
-	ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{IsAdmin: true})
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, sessiontoken.AppClaims{IsAdmin: true})
 	require.True(t, RequestReviewPrincipal(ctx).Admin)
 	require.False(t, RequestReviewCorrectionAccess(ctx, nil))
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"users:update"})
+	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{"users:update"})
 	require.False(t, RequestReviewCorrectionAccess(ctx, nil))
 	require.True(t, RequestReviewCorrectionAccess(ctx, func(context.Context) (bool, error) { return true, nil }))
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"admin:*"})
+	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{"admin:*"})
 	require.True(t, RequestReviewCorrectionAccess(ctx, nil))
 }
 
 func TestRequestReviewAccessPreservesAbsenceOnlyCapability(t *testing.T) {
 	t.Parallel()
-	ctx := context.WithValue(context.Background(), jwt.CtxPermissions, []string{"users:read", "users:absence"})
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxPermissions, []string{"users:read", "users:absence"})
 	for _, level := range []string{"team", "group_leader", "none", "admin"} {
 		access, err := reviewcompose.NewAccess(RequestReviewPrincipal, func(received context.Context) (string, error) {
 			require.Equal(t, ctx, received)

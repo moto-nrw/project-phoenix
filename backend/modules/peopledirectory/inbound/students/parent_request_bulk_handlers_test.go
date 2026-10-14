@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -31,8 +31,8 @@ func TestBulkApproveParentRequestsForwardsCompleteSelection(t *testing.T) {
 	svc := &bulkServiceStub{}
 	rs := &Resource{ResourceConfig: ResourceConfig{ParentRequestBulkService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/students/change-requests/bulk-approve", strings.NewReader(`{"requests":[{"kind":"master_data","id":"12","expected_version":"v1"},{"kind":"excused","id":"13","expected_version":"v2"}],"reason":"Geprüft"}`))
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 55})
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"users:update"})
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55})
+	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{"users:update"})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
@@ -51,8 +51,8 @@ func TestBulkApproveParentRequestsReturnsConflictAndMarksRollback(t *testing.T) 
 	t.Parallel()
 	svc := &bulkServiceStub{err: parentrequests.ErrStale}
 	rs := &Resource{ResourceConfig: ResourceConfig{ParentRequestBulkService: svc}}
-	ctx := tenant.WithRollbackMarker(context.WithValue(t.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 55}))
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"users:update"})
+	ctx := tenant.WithRollbackMarker(context.WithValue(t.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55}))
+	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{"users:update"})
 	req := httptest.NewRequest(http.MethodPost, "/students/change-requests/bulk-approve", strings.NewReader(`{"requests":[{"kind":"master_data","id":"12","expected_version":"v1"},{"kind":"excused","id":"13","expected_version":"v2"}],"reason":"Geprüft"}`)).WithContext(ctx)
 	w := httptest.NewRecorder()
 

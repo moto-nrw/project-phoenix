@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -36,7 +36,7 @@ func newOperatorMFATestModule(t *testing.T, db *bun.DB, options ...services.Auth
 // successful mailer, so StartOperatorMFAChallenge exercises the
 // delivered-code path. The signer it returns is the one the module mints and
 // parses the operator challenge JWTs with.
-func newTestOperatorMFAService(t *testing.T, options ...services.AuthTestOption) (identityaccess.OperatorMFAFlows, *authjwt.TokenAuth, *bun.DB) {
+func newTestOperatorMFAService(t *testing.T, options ...services.AuthTestOption) (identityaccess.OperatorMFAFlows, *sessiontoken.TokenAuth, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module := newOperatorMFATestModule(t, db, withDeliveringMailer(options)...)

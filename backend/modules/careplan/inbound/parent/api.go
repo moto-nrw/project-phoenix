@@ -5,7 +5,7 @@
 // two properties:
 //
 //  1. Authenticated routes require a parent-scope JWT (scope="parent")
-//     enforced by jwt.ParentMiddleware. Tenant + operator tokens are
+//     enforced by sessiontoken.ParentMiddleware. Tenant + operator tokens are
 //     hard-rejected with 401 — this is the symmetric guard to the
 //     tenant middleware's ScopeParent rejection.
 //  2. Public routes (just /auth/login for now) issue parent-scope
@@ -25,7 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	pwaService "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -123,9 +123,9 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	})
 
 	// Authenticated parent routes — all require scope=parent.
-	// jwt.ParentMiddleware rejects tenant + operator tokens.
+	// sessiontoken.ParentMiddleware rejects tenant + operator tokens.
 	r.Group(func(r chi.Router) {
-		r.Use(jwt.Authenticator)
+		r.Use(sessiontoken.Authenticator)
 		r.Use(common.ReadOnlyPreviewMiddleware)
 		r.Use(common.ParentScopeMiddleware)
 		r.Use(common.SecurityPrincipalMiddleware)

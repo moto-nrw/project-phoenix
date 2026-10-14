@@ -14,7 +14,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/services"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -172,7 +172,7 @@ func TestSickRequest_ApproveWritesSickStatusAndLiveFlag(t *testing.T) {
 // adminCtx returns a context carrying wildcard-admin permissions so the staff
 // decide gate authorizes without a wired userContext.
 func adminCtx() context.Context {
-	return context.WithValue(testpkg.WithPackageTenantRuntime(context.Background()), jwt.CtxPermissions, []string{"admin:*"})
+	return context.WithValue(testpkg.WithPackageTenantRuntime(context.Background()), sessiontoken.CtxPermissions, []string{"admin:*"})
 }
 
 // TestSubmitExcused_ApprovalOn_CreatesPendingRequest verifies that with the

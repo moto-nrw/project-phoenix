@@ -19,7 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -112,7 +112,7 @@ func (rs *Resource) getMyClasses(w http.ResponseWriter, r *http.Request) {
 // Query: class (optional when exactly the first assignment should be shown),
 // date (YYYY-MM-DD, default today).
 func (rs *Resource) getClassDay(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("invalid token")))
 		return

@@ -24,7 +24,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -122,8 +122,8 @@ func adminCtx(tb testing.TB, accountID int64) context.Context {
 
 func claimsCtx(tb testing.TB, accountID int64, perms []string) context.Context {
 	ctx := testpkg.Ctx(tb)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(accountID)})
+	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, perms)
 	return ctx
 }
 

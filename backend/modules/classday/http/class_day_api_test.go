@@ -21,7 +21,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -45,7 +45,7 @@ func TestClassDayAPI(t *testing.T) {
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
 	})
 
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
+	claims := sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
 
 	// Wrong permission → 403 before any data access.
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -86,7 +86,7 @@ func TestClassDayAPINoAssignments(t *testing.T) {
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, db, "ClassDay", fmt.Sprintf("Empty-%d", time.Now().UnixNano()))
 
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
+	claims := sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
 
 	// Without any assignment the classes list is empty and the day view is
 	// refused — there is nothing the caller may see.

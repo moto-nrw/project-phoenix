@@ -12,7 +12,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,10 +39,10 @@ type sessionEvents struct {
 // request comes from a client IP, directly and forwarded, so the tests can
 // prove it stays out. The Sentry client records instead of sending and keeps
 // the SDK defaults the serve command uses (sendDefaultPii off).
-func serveSentrySession(t *testing.T, session *jwt.AppClaims, handler http.HandlerFunc) sessionEvents {
+func serveSentrySession(t *testing.T, session *sessiontoken.AppClaims, handler http.HandlerFunc) sessionEvents {
 	t.Helper()
 
-	tokenAuth, err := jwt.NewTokenAuthWithDurations("sentry-session-test-secret-32-chars", 15*time.Minute, time.Hour)
+	tokenAuth, err := sessiontoken.NewTokenAuthWithDurations("sentry-session-test-secret-32-chars", 15*time.Minute, time.Hour)
 	require.NoError(t, err)
 
 	transport := make(sessionRecordingTransport, 8)
@@ -90,8 +90,8 @@ func panicking(http.ResponseWriter, *http.Request) { panic("nil student record")
 
 // staffSession is an OGS staff session with every personal field a token
 // can carry, so the tests can prove none of it leaves for Sentry.
-func staffSession() *jwt.AppClaims {
-	return &jwt.AppClaims{
+func staffSession() *sessiontoken.AppClaims {
+	return &sessiontoken.AppClaims{
 		ID:        7,
 		Sub:       "erika.mustermann@ogs-wissingen.de",
 		Username:  "erika.mustermann@ogs-wissingen.de",
@@ -149,23 +149,23 @@ func TestServerErrorEventOmitsSchoolWithoutSingleSchoolSession(t *testing.T) {
 
 	cases := []struct {
 		name    string
-		session jwt.AppClaims
+		session sessiontoken.AppClaims
 		portal  string
 		role    string
 	}{
 		{
 			name:    "operator",
-			session: jwt.AppClaims{ID: 3, Sub: "3", Roles: []string{"operator"}, Scope: "platform"},
+			session: sessiontoken.AppClaims{ID: 3, Sub: "3", Roles: []string{"operator"}, Scope: "platform"},
 			portal:  "operator", role: "operator",
 		},
 		{
 			name:    "operator with a tenant claim",
-			session: jwt.AppClaims{ID: 3, Sub: "3", Roles: []string{"operator"}, Scope: "platform", TenantID: 12},
+			session: sessiontoken.AppClaims{ID: 3, Sub: "3", Roles: []string{"operator"}, Scope: "platform", TenantID: 12},
 			portal:  "operator", role: "operator",
 		},
 		{
 			name:    "parent across schools",
-			session: jwt.AppClaims{ID: 21, Sub: "21", Roles: []string{"guardian"}, Scope: "parent"},
+			session: sessiontoken.AppClaims{ID: 21, Sub: "21", Roles: []string{"guardian"}, Scope: "parent"},
 			portal:  "parent", role: "guardian",
 		},
 	}
@@ -194,34 +194,34 @@ func TestSentrySessionRoleFollowsTheTokenScope(t *testing.T) {
 
 	cases := []struct {
 		name     string
-		session  jwt.AppClaims
+		session  sessiontoken.AppClaims
 		portal   string
 		role     string
 		schoolID string
 	}{
 		{
 			name:    "OGS admin",
-			session: jwt.AppClaims{ID: 7, Sub: "7", Roles: []string{"Leitung"}, Scope: "tenant", TenantID: 12, IsAdmin: true},
+			session: sessiontoken.AppClaims{ID: 7, Sub: "7", Roles: []string{"Leitung"}, Scope: "tenant", TenantID: 12, IsAdmin: true},
 			portal:  "tenant", role: "admin", schoolID: "12",
 		},
 		{
 			name:    "staff preview is an admin at work",
-			session: jwt.AppClaims{ID: 8, Sub: "8", Roles: []string{"Betreuung"}, TenantID: 12, ReadOnly: true, ActingAdminID: 7},
+			session: sessiontoken.AppClaims{ID: 8, Sub: "8", Roles: []string{"Betreuung"}, TenantID: 12, ReadOnly: true, ActingAdminID: 7},
 			portal:  "tenant", role: "admin", schoolID: "12",
 		},
 		{
 			name:    "carrier in one school",
-			session: jwt.AppClaims{ID: 9, Sub: "9", Roles: []string{"Träger"}, Scope: "org", OrgID: 4, TenantID: 12},
+			session: sessiontoken.AppClaims{ID: 9, Sub: "9", Roles: []string{"Träger"}, Scope: "org", OrgID: 4, TenantID: 12},
 			portal:  "tenant", role: "carrier", schoolID: "12",
 		},
 		{
 			name:    "carrier without a school",
-			session: jwt.AppClaims{ID: 9, Sub: "9", Roles: []string{"Träger"}, Scope: "org", OrgID: 4},
+			session: sessiontoken.AppClaims{ID: 9, Sub: "9", Roles: []string{"Träger"}, Scope: "org", OrgID: 4},
 			portal:  "tenant", role: "carrier",
 		},
 		{
 			name:    "Lehrkraft",
-			session: jwt.AppClaims{ID: 5, Sub: "5", Roles: []string{"Lehrkraft"}, Scope: "school", TenantID: 12},
+			session: sessiontoken.AppClaims{ID: 5, Sub: "5", Roles: []string{"Lehrkraft"}, Scope: "school", TenantID: 12},
 			portal:  "school", role: "lehrkraft", schoolID: "12",
 		},
 	}

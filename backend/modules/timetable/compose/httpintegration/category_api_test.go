@@ -15,13 +15,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // categoryManagerClaims are the claims of an OGS-Leitung: the dedicated
 // category permission and nothing else that could mask a missing gate.
-func categoryManagerClaims() jwt.AppClaims {
+func categoryManagerClaims() sessiontoken.AppClaims {
 	claims := testutil.DefaultTestClaims()
 	claims.IsAdmin = false
 	claims.Roles = []string{"user"}
@@ -31,7 +31,7 @@ func categoryManagerClaims() jwt.AppClaims {
 
 // caregiverClaims mirror a Betreuer: every activities:* permission the `user`
 // role actually holds, but not the category one.
-func caregiverClaims() jwt.AppClaims {
+func caregiverClaims() sessiontoken.AppClaims {
 	claims := testutil.DefaultTestClaims()
 	claims.IsAdmin = false
 	claims.Roles = []string{"user"}

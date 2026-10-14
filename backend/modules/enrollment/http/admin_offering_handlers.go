@@ -14,7 +14,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -100,7 +100,7 @@ func (rs *Resource) applyAdminOfferingUpdate(
 	if err != nil {
 		return nil, err
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	var updated *RequestChild
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		child, updateErr := rs.DecisionService.UpdateChildOfferings(ctx, UpdateChildOfferingsInput{

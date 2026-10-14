@@ -11,7 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -45,7 +45,7 @@ func (rs *Resource) bulkApproveParentRequests(w http.ResponseWriter, r *http.Req
 			Kind: item.Kind, ID: id, ExpectedVersion: item.ExpectedVersion,
 		})
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	err := rs.ParentRequestBulkService.BulkApprove(r.Context(), parentrequests.BulkApproveInput{
 		Requests: refs, Reason: strings.TrimSpace(body.Reason), ReviewerID: int64(claims.ID),
 		ReasonRequired: rs.staffReasonRequired(r),

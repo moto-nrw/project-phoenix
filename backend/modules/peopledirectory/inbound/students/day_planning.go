@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
@@ -443,7 +443,7 @@ func (rs *Resource) filterTimetableIDsByCareDay(
 // decide exactly these requests in a school without fixed groups (#2232).
 func (rs *Resource) loadPendingExcusedForDayPlanning(ctx context.Context, date timezone.Date) (map[int64]*excusedrequests.Request, error) {
 	if rs.ExcusedRequestService == nil ||
-		!securityruntime.CanReviewExcusedAbsenceRequests(jwt.PermissionsFromCtx(ctx)) {
+		!securityruntime.CanReviewExcusedAbsenceRequests(sessiontoken.PermissionsFromCtx(ctx)) {
 		return map[int64]*excusedrequests.Request{}, nil
 	}
 	return rs.ExcusedRequestService.PendingByStudentForDate(ctx, excusedrequests.Date(date))

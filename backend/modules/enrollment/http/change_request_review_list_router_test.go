@@ -22,7 +22,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -164,7 +164,7 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		childIDs:  []int64{submitted.Children[0].ID, submitted.Children[1].ID},
 		accountID: accountID,
 	}
-	claims := jwt.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:          int(accountID),
 		Sub:         "review-list@example.com",
 		Username:    "reviewer",
@@ -452,7 +452,7 @@ func TestChangeRequestReviewCount_CountsOpenBeyondOnePage(t *testing.T) {
 	assert.Equal(t, 3, out.Data.PendingCount)
 
 	// Auch der Zähler hält seine Berechtigungsgrenze.
-	withoutPermission := testutil.MintTestJWT(t, jwt.AppClaims{
+	withoutPermission := testutil.MintTestJWT(t, sessiontoken.AppClaims{
 		ID:          int(env.accountID),
 		Sub:         "review-list@example.com",
 		Username:    "reviewer",
@@ -483,7 +483,7 @@ func TestChangeRequestReviewList_RefusesBadQueryAndMissingPermission(t *testing.
 	}
 
 	// The queue keeps its own permission boundary: config:manage, nothing else.
-	withoutPermission := testutil.MintTestJWT(t, jwt.AppClaims{
+	withoutPermission := testutil.MintTestJWT(t, sessiontoken.AppClaims{
 		ID:          int(env.accountID),
 		Sub:         "review-list@example.com",
 		Username:    "reviewer",

@@ -23,7 +23,7 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -80,7 +80,7 @@ func (rs *Resource) applyBulkSubstitution(w http.ResponseWriter, r *http.Request
 		SubstituteStaffID: req.SubstituteStaffID,
 		Dates:             dates,
 		Reason:            req.Reason,
-		ActorAccountID:    jwt.ActorAccountIDFromCtx(ctx),
+		ActorAccountID:    sessiontoken.ActorAccountIDFromCtx(ctx),
 	})
 	if err != nil {
 		renderDeviationError(w, r, err)

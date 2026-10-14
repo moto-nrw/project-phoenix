@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -13,21 +13,21 @@ import (
 type Middleware = func(http.Handler) http.Handler
 
 // The scope gates of the token adapter, bound to the tenant runtime. Each
-// accepts exactly one portal's tokens and must follow jwt.Authenticator.
+// accepts exactly one portal's tokens and must follow sessiontoken.Authenticator.
 
 // TenantScopeMiddleware rejects parent and school tokens and binds the tenant.
 func TenantScopeMiddleware(next http.Handler) http.Handler {
-	return jwt.TenantMiddleware(tenant.ClaimScope{})(next)
+	return sessiontoken.TenantMiddleware(tenant.ClaimScope{})(next)
 }
 
 // ParentScopeMiddleware accepts parents-portal tokens only and binds no tenant.
 func ParentScopeMiddleware(next http.Handler) http.Handler {
-	return jwt.ParentMiddleware(tenant.ClaimScope{})(next)
+	return sessiontoken.ParentMiddleware(tenant.ClaimScope{})(next)
 }
 
 // SchoolScopeMiddleware accepts school-portal tokens only and binds their school.
 func SchoolScopeMiddleware(next http.Handler) http.Handler {
-	return jwt.SchoolMiddleware(tenant.ClaimScope{})(next)
+	return sessiontoken.SchoolMiddleware(tenant.ClaimScope{})(next)
 }
 
 // ProtectedTenantRoutes registers the tenant security chain and supplies the
@@ -35,7 +35,7 @@ func SchoolScopeMiddleware(next http.Handler) http.Handler {
 func ProtectedTenantRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware)) {
 
 	r.Group(func(gr chi.Router) {
-		gr.Use(jwt.Authenticator)
+		gr.Use(sessiontoken.Authenticator)
 		// Write block for admin staff-view preview tokens (#2893). Directly
 		// after the Authenticator: it only reads the parsed claims and must
 		// reject before any transaction middleware can run.
@@ -63,7 +63,7 @@ func ProtectedTenantRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware
 func ProtectedParentGroup(r chi.Router, fn func(r chi.Router)) {
 
 	r.Group(func(gr chi.Router) {
-		gr.Use(jwt.Authenticator)
+		gr.Use(sessiontoken.Authenticator)
 		gr.Use(ParentScopeMiddleware)
 		fn(gr)
 	})
@@ -75,7 +75,7 @@ func ProtectedParentGroup(r chi.Router, fn func(r chi.Router)) {
 func ProtectedSchoolRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware)) {
 
 	r.Group(func(gr chi.Router) {
-		gr.Use(jwt.Authenticator)
+		gr.Use(sessiontoken.Authenticator)
 		// Preview tokens are never school-scope, so SchoolMiddleware already
 		// rejects them — this is defense-in-depth mirroring the tenant group.
 		gr.Use(ReadOnlyPreviewMiddleware)

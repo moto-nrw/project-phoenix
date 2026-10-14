@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
@@ -210,7 +210,7 @@ func (rs *Resource) parseAndGetGroup(w http.ResponseWriter, r *http.Request) (*e
 // userHasGroupAccess checks if the current user has access to the specified group.
 // Returns true if user is admin or supervises the group.
 func (rs *Resource) userHasGroupAccess(r *http.Request, groupID int64) bool {
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	userPermissions := sessiontoken.PermissionsFromCtx(r.Context())
 	if securityruntime.HasAdminWildcard(userPermissions) {
 		return true
 	}

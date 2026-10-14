@@ -75,7 +75,7 @@ import (
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	meAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
 	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
@@ -719,7 +719,7 @@ type routeInputs struct {
 	modules        moduleServices
 	db             transactionruntime.Database
 	logger         *slog.Logger
-	sessionAuth    *projectJWT.TokenAuth
+	sessionAuth    *sessiontoken.TokenAuth
 	frontendURL    string
 	errorReportDSN string
 	metricsToken   string
@@ -989,7 +989,7 @@ func mountRouteGroups(root, tenant chi.Router, in routeInputs, limiters authRate
 func mountRequestFeed(root, tenant chi.Router, in routeInputs) error {
 	requestFeed, err := requestFeedCompose.New(requestFeedCompose.Dependencies{
 		DB: in.db.Pool(), FrontendURL: in.frontendURL, Now: time.Now,
-		NewToken: projectJWT.NewOpaqueCapabilityToken, HashToken: projectJWT.OpaqueCapabilityFingerprint,
+		NewToken: sessiontoken.NewOpaqueCapabilityToken, HashToken: sessiontoken.OpaqueCapabilityFingerprint,
 	})
 	if err != nil {
 		return err
@@ -998,8 +998,8 @@ func mountRequestFeed(root, tenant chi.Router, in routeInputs) error {
 		Protected: func(router chi.Router, register func(chi.Router, requestFeedHTTP.Middleware)) {
 			apiCommon.ProtectedTenantRoutes(router, register)
 		},
-		CurrentTenantID:  func(r *http.Request) int64 { return projectJWT.ClaimsFromCtx(r.Context()).TenantID },
-		CurrentAccountID: func(r *http.Request) int64 { return int64(projectJWT.ClaimsFromCtx(r.Context()).ID) },
+		CurrentTenantID:  func(r *http.Request) int64 { return sessiontoken.ClaimsFromCtx(r.Context()).TenantID },
+		CurrentAccountID: func(r *http.Request) int64 { return int64(sessiontoken.ClaimsFromCtx(r.Context()).ID) },
 		Logger:           in.logger.With("handler", "request-feed"),
 	})
 	root.Mount("/public/request-feed", resource.PublicRouter())
@@ -1204,7 +1204,7 @@ func demoLoopbackExempt() bool {
 }
 
 // setupRateLimiting configures rate limiting middleware if enabled
-func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger, tokenAuth *projectJWT.TokenAuth, exemptLoopback bool) {
+func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger, tokenAuth *sessiontoken.TokenAuth, exemptLoopback bool) {
 	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
 		return
 	}
@@ -1253,7 +1253,7 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 //     the limiter falls back to the trusted client IP. Unverified bearer
 //     values must never produce token-derived buckets: an attacker could
 //     mint arbitrary values and sidestep IP limiting entirely.
-func identityRateLimitKey(tokenAuth *projectJWT.TokenAuth) func(*http.Request) string {
+func identityRateLimitKey(tokenAuth *sessiontoken.TokenAuth) func(*http.Request) string {
 	return func(r *http.Request) string {
 		tokenString := extractBearerToken(r.Header.Get("Authorization"))
 		if tokenString == "" || tokenAuth == nil || tokenAuth.JwtAuth == nil {
@@ -1318,13 +1318,13 @@ func requestReviewDependencies(modules moduleServices, db transactionruntime.Dat
 	// The staff projection lists exactly what the decisions accept: one
 	// Identity & Access review policy serves both (#3804).
 	reviewScope := func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
-		schoolWide, groupIDs, err := svc.RequestReviewPolicy.Scope(ctx, projectJWT.PermissionsFromCtx(ctx))
+		schoolWide, groupIDs, err := svc.RequestReviewPolicy.Scope(ctx, sessiontoken.PermissionsFromCtx(ctx))
 		return carePlanCompose.ReviewScope{SchoolWide: schoolWide, GroupIDs: groupIDs}, err
 	}
 	// Report the union of ordinary and absence-review rights, as the
 	// navigation capability does. Each native queue keeps its own scope.
 	reviewAccess, err := requestreviewcompose.NewAccess(studentsAPI.RequestReviewPrincipal, func(ctx context.Context) (string, error) {
-		return svc.RequestReviewPolicy.AccessLevel(ctx, projectJWT.PermissionsFromCtx(ctx))
+		return svc.RequestReviewPolicy.AccessLevel(ctx, sessiontoken.PermissionsFromCtx(ctx))
 	})
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review access: %w", err)
@@ -1582,7 +1582,7 @@ func mountStaffRoutes(tenant chi.Router, in routeInputs) (scheduler.StaffDocumen
 	staffShifts := workforceShiftPlanning.NewStaffShiftsResource(workforceShiftPlanning.StaffShiftsDependencies{
 		Planning:       svc.StaffShifts,
 		ResolveStaffID: currentStaffID(in.modules),
-		ActorAccountID: projectJWT.ActorAccountIDFromCtx,
+		ActorAccountID: sessiontoken.ActorAccountIDFromCtx,
 	})
 	absenceTypes := workforceInbound.NewAbsenceTypesResource(workforceCompose.NewAbsenceTypeAdministration(workforce, in.logger.With("service", "active")), currentStaffID(in.modules))
 	tenant.Mount("/staff", staff.Router())
@@ -1865,7 +1865,7 @@ func newOperatorResource(in routeInputs) (*operatorAPI.Resource, error) {
 			RenderError:    apiCommon.RenderError,
 			Respond:        apiCommon.Respond,
 			OperatorID: func(ctx context.Context) int64 {
-				return int64(projectJWT.ClaimsFromCtx(ctx).ID)
+				return int64(sessiontoken.ClaimsFromCtx(ctx).ID)
 			},
 		},
 	})
@@ -1934,7 +1934,7 @@ func newPlatformRuntime() platformAPI.Runtime {
 		// unchanged.
 		Protected: func(router chi.Router, register func(chi.Router)) {
 			router.Group(func(r chi.Router) {
-				r.Use(projectJWT.Authenticator)
+				r.Use(sessiontoken.Authenticator)
 				r.Use(apiCommon.ReadOnlyPreviewMiddleware)
 				r.Use(apiCommon.TenantScopeMiddleware)
 				r.Use(apiCommon.SecurityPrincipalMiddleware)
@@ -1942,7 +1942,7 @@ func newPlatformRuntime() platformAPI.Runtime {
 			})
 		},
 		Viewer: func(r *http.Request) platformAPI.Viewer {
-			claims := projectJWT.ClaimsFromCtx(r.Context())
+			claims := sessiontoken.ClaimsFromCtx(r.Context())
 			return platformAPI.Viewer{AccountID: int64(claims.ID), Roles: claims.Roles, TenantID: claims.TenantID, OrgID: claims.OrgID}
 		},
 		IDParam: apiCommon.ParseInt64IDWithError,
@@ -2179,8 +2179,8 @@ func newMealPlanExportRenderer() services.SimpleListRenderer {
 }
 
 // newSessionTokenAuth resolves the signing configuration once for the API root.
-func newSessionTokenAuth() (*projectJWT.TokenAuth, error) {
-	tokenAuth, err := projectJWT.NewTokenAuthWithDurations(
+func newSessionTokenAuth() (*sessiontoken.TokenAuth, error) {
+	tokenAuth, err := sessiontoken.NewTokenAuthWithDurations(
 		viper.GetString("auth_jwt_secret"),
 		viper.GetDuration("auth_jwt_expiry"),
 		viper.GetDuration("auth_jwt_refresh_expiry"),

@@ -25,7 +25,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -46,8 +46,8 @@ func setupStatisticsRoute(t *testing.T, statisticsClocks ...func() time.Time) *t
 	}
 }
 
-func claimsFor(tb testing.TB, accountID int64) jwt.AppClaims {
-	return jwt.AppClaims{
+func claimsFor(tb testing.TB, accountID int64) sessiontoken.AppClaims {
+	return sessiontoken.AppClaims{
 		ID:        int(accountID),
 		Sub:       "statistik@example.com",
 		Username:  "statistik",
@@ -60,7 +60,7 @@ func claimsFor(tb testing.TB, accountID int64) jwt.AppClaims {
 
 var reportPermissions = []string{permissions.ConfigRead, permissions.UsersRead}
 
-func authExec(t *testing.T, tc *testContext, req *http.Request, claims jwt.AppClaims, perms []string) *httptest.ResponseRecorder {
+func authExec(t *testing.T, tc *testContext, req *http.Request, claims sessiontoken.AppClaims, perms []string) *httptest.ResponseRecorder {
 	t.Helper()
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))

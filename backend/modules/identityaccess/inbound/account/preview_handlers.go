@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // StaffPreviewStartRequest selects the staff account to preview (#2893).
@@ -67,7 +67,7 @@ func (rs *Resource) startStaffPreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	session, err := rs.AuthService.StartStaffPreview(
 		r.Context(), int64(claims.ID), claims.TenantID, req.AccountID,
 		req.PreviousToken, getClientIP(r), r.Header.Get(headerUserAgent),
@@ -112,7 +112,7 @@ func (rs *Resource) endStaffPreview(w http.ResponseWriter, r *http.Request) {
 // listStaffPreviewCandidates handles GET /auth/staff-preview/candidates
 // (admin only, tenant transaction).
 func (rs *Resource) listStaffPreviewCandidates(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	candidates, err := rs.AuthService.ListStaffPreviewCandidates(r.Context(), claims.TenantID, int64(claims.ID))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))

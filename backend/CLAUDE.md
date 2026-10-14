@@ -91,7 +91,7 @@ Registry, permissions, and workflows: `.claude/rules/settings-system.md`.
 
 ## Request-Scoped Identity Memoization (#2099)
 
-The identity chain (Account → Person → Staff → Teacher → `MyGroupIDs`/`SubstitutedGroupIDs`/`MySchoolClasses`) of the Identity & Access caller context (`identityaccess.CallerContext`, #3501) is memoized per request, mirroring the #2065 settings cache: `RequestIdentityCacheMiddleware` (mounted router-wide in `api/base.go` and group-wide in `ProtectedTenantGroup`) attaches an empty `jwt.RequestIdentityCache` (`modules/identityaccess/legacy/jwt`), which the root binds as the caller context's memo slot; the caller context consults it keyed by `(tenant_id, account_id)`. Only successes and clean not-found outcomes are memoized — never lookup errors or partial group sets. Self-writes (`UpdateProfile`, `UpdateAvatar`) drop the caller's entry before their trailing re-read; writes to *other* accounts' chains (group transfer, admin substitutions, offboarding) are deliberately exempt. Without the cache in context (scheduler, CLI, device auth, plain tests) behavior is unchanged. Full contract: doc comment on `callerEntry` in `modules/identityaccess/internal/application/caller_memo.go`.
+The identity chain (Account → Person → Staff → Teacher → `MyGroupIDs`/`SubstitutedGroupIDs`/`MySchoolClasses`) of the Identity & Access caller context (`identityaccess.CallerContext`, #3501) is memoized per request, mirroring the #2065 settings cache: `RequestIdentityCacheMiddleware` (mounted router-wide in `api/base.go` and group-wide in `ProtectedTenantGroup`) attaches an empty `sessiontoken.RequestIdentityCache` (`modules/identityaccess/sessiontoken`), which the root binds as the caller context's memo slot; the caller context consults it keyed by `(tenant_id, account_id)`. Only successes and clean not-found outcomes are memoized — never lookup errors or partial group sets. Self-writes (`UpdateProfile`, `UpdateAvatar`) drop the caller's entry before their trailing re-read; writes to *other* accounts' chains (group transfer, admin substitutions, offboarding) are deliberately exempt. Without the cache in context (scheduler, CLI, device auth, plain tests) behavior is unchanged. Full contract: doc comment on `callerEntry` in `modules/identityaccess/internal/application/caller_memo.go`.
 
 ## Domain Knowledge
 
@@ -171,7 +171,7 @@ s.logger.Info("visit recorded", "student_id", sid, "group_id", gid)  // snake_ca
 - Loggers flow through the legacy composition: `services.NewFactoryWithModules(..., db, logger, ...)`; services scope with `logger.With("service", "active")`
 - Structs that tests construct bare use the nil-safe pattern: `getLogger()` returning `slog.Default()` when nil
 - **GDPR: student names never at Info level** — IDs only; names at Debug
-- Known exceptions (intentional `log.Printf`): `modules/identityaccess/legacy/jwt/tokenauth.go` startup logging; `cmd/` and `simulator/` route through slog default at WARN
+- Known exceptions (intentional `log.Printf`): `modules/identityaccess/sessiontoken/tokenauth.go` startup logging; `cmd/` and `simulator/` route through slog default at WARN
 
 ## Real-time updates
 

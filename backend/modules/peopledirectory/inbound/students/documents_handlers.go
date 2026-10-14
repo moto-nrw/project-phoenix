@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	apiDocuments "github.com/moto-nrw/project-phoenix/modules/filestorage/documents"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -49,7 +49,7 @@ func (rs *Resource) studentDocumentCoordinator() (*apiDocuments.Coordinator, err
 // audit rows, display name for the change history, roles for the access log,
 // permissions for the per-category checks.
 func studentDocumentActor(r *http.Request) (careplan.StudentDocumentActor, error) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		return careplan.StudentDocumentActor{}, errors.New("invalid token: no account id")
 	}
@@ -59,7 +59,7 @@ func studentDocumentActor(r *http.Request) (careplan.StudentDocumentActor, error
 		// reads correctly after a rename or an account deletion.
 		Name:        strings.TrimSpace(strings.TrimSpace(claims.FirstName) + " " + strings.TrimSpace(claims.LastName)),
 		Role:        strings.Join(claims.Roles, ","),
-		Permissions: jwt.PermissionsFromCtx(r.Context()),
+		Permissions: sessiontoken.PermissionsFromCtx(r.Context()),
 	}, nil
 }
 

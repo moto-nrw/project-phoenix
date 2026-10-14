@@ -3,18 +3,18 @@ package api
 import (
 	"context"
 
-	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // requestTokenReads binds the legacy composition's request reads to the
 // retained token adapter the request middleware fills (#2747).
 var requestTokenReads = services.TokenAdapter{
-	Permissions:           projectJWT.PermissionsFromCtx,
+	Permissions:           sessiontoken.PermissionsFromCtx,
 	Claims:                requestClaims,
 	Memo:                  requestIdentityMemo,
-	NewCapabilityToken:    projectJWT.NewOpaqueCapabilityToken,
-	CapabilityFingerprint: projectJWT.OpaqueCapabilityFingerprint,
+	NewCapabilityToken:    sessiontoken.NewOpaqueCapabilityToken,
+	CapabilityFingerprint: sessiontoken.OpaqueCapabilityFingerprint,
 }
 
 // newLegacyTokenAdapter binds the request reads and the session signer the
@@ -40,7 +40,7 @@ var CallerFromClaims = requestTokenReads.Caller
 
 // requestClaims reads the verified claims the authenticator attached.
 func requestClaims(ctx context.Context) (services.RequestClaims, bool) {
-	claims, ok := ctx.Value(projectJWT.CtxClaims).(projectJWT.AppClaims)
+	claims, ok := ctx.Value(sessiontoken.CtxClaims).(sessiontoken.AppClaims)
 	if !ok {
 		return services.RequestClaims{}, false
 	}
@@ -54,7 +54,7 @@ func requestClaims(ctx context.Context) (services.RequestClaims, bool) {
 // requestIdentityMemo resolves the request identity memo the request
 // middleware attached (#2099).
 func requestIdentityMemo(ctx context.Context) services.RequestMemo {
-	if cache := projectJWT.RequestIdentityCacheFrom(ctx); cache != nil {
+	if cache := sessiontoken.RequestIdentityCacheFrom(ctx); cache != nil {
 		return cache
 	}
 	return nil

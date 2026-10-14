@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
@@ -125,7 +125,7 @@ func (rs *Resource) logFailure(msg string, err error) {
 }
 
 func actorFromRequest(r *http.Request) studentpresence.StatisticsActor {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	return studentpresence.StatisticsActor{
 		AccountID: int64(claims.ID),
 		Role:      strings.Join(claims.Roles, ","),

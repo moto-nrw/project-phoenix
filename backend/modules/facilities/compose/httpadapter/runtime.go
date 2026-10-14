@@ -14,7 +14,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	roomsHTTP "github.com/moto-nrw/project-phoenix/modules/facilities/http/rooms"
-	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
@@ -160,7 +160,7 @@ type CallerStaff interface {
 
 func historyAllowed(users CallerStaff) func(context.Context) (bool, error) {
 	return func(ctx context.Context) (bool, error) {
-		if apiCommon.HasAdminWildcard(projectJWT.PermissionsFromCtx(ctx)) {
+		if apiCommon.HasAdminWildcard(sessiontoken.PermissionsFromCtx(ctx)) {
 			return true, nil
 		}
 		_, found, err := users.CurrentStaffIDOfPerson(ctx)
