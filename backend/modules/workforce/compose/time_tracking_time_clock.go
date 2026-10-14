@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -30,7 +29,7 @@ func TimeClockCapability(sessions timetracking.WorkSessionService) workforce.Tim
 
 func (c timeClock) CheckIn(ctx context.Context, stamp workforce.CheckInStamp) (workforce.WorkSession, error) {
 	var (
-		session *timerecords.WorkSession
+		session *timetracking.WorkSession
 		err     error
 	)
 	if stamp.Day == "" {
@@ -137,8 +136,8 @@ func (c timeClock) Workday(ctx context.Context, staffID int64, day string, now t
 		return result, nil
 	}
 	dayStart := date.BerlinMidnight()
-	sessions := make([]*timerecords.WorkSession, 0, len(history.Sessions))
-	breaksBySession := make(map[int64][]*timerecords.WorkSessionBreak, len(history.Sessions))
+	sessions := make([]*timetracking.WorkSession, 0, len(history.Sessions))
+	breaksBySession := make(map[int64][]*timetracking.WorkSessionBreak, len(history.Sessions))
 	for _, daySession := range history.Sessions {
 		if daySession == nil || daySession.WorkSession == nil {
 			continue
@@ -163,7 +162,7 @@ func (c timeClock) Workday(ctx context.Context, staffID int64, day string, now t
 // workdaySession is the block as the day sees it: an open block past its live
 // limit counts as closed at that limit and not at all once the limit lies
 // before the day begins.
-func workdaySession(session *timerecords.WorkSession, dayStart, now time.Time) (*timerecords.WorkSession, bool) {
+func workdaySession(session *timetracking.WorkSession, dayStart, now time.Time) (*timetracking.WorkSession, bool) {
 	expired, stale := timetracking.ExpireStaleOpenBlock(session, now)
 	if !stale {
 		return session, true
@@ -171,7 +170,7 @@ func workdaySession(session *timerecords.WorkSession, dayStart, now time.Time) (
 	return expired, expired.CheckOutTime.After(dayStart)
 }
 
-func workdayBreaks(values []*timerecords.WorkSessionBreak) []workforce.WorkSessionBreak {
+func workdayBreaks(values []*timetracking.WorkSessionBreak) []workforce.WorkSessionBreak {
 	breaks := make([]workforce.WorkSessionBreak, 0, len(values))
 	for _, workBreak := range values {
 		if workBreak != nil {
@@ -255,7 +254,7 @@ func MapTimeTrackingError(err error) error {
 	}
 }
 
-func workSessionToCapability(session *timerecords.WorkSession) workforce.WorkSession {
+func workSessionToCapability(session *timetracking.WorkSession) workforce.WorkSession {
 	if session == nil {
 		return workforce.WorkSession{}
 	}
@@ -268,7 +267,7 @@ func workSessionToCapability(session *timerecords.WorkSession) workforce.WorkSes
 	}
 }
 
-func workSessionBreakToCapability(workBreak *timerecords.WorkSessionBreak) workforce.WorkSessionBreak {
+func workSessionBreakToCapability(workBreak *timetracking.WorkSessionBreak) workforce.WorkSessionBreak {
 	if workBreak == nil {
 		return workforce.WorkSessionBreak{}
 	}

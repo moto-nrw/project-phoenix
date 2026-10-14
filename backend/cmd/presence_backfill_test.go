@@ -19,9 +19,9 @@ func TestPresenceBackfillCommandRejectsUnsafeArgumentsBeforeOpeningDB(t *testing
 		{"restart", "--all-tenants"}, {"--tenant-id=1", "--batch-size=0"},
 		{"--tenant-id=1", "--max-batches=-1"}, {"unknown", "--tenant-id=1"},
 	} {
-		cmd := newPresenceBackfillCommand(migrateRoot{openDatabase: func() (*testpkg.DB, error) {
+		cmd := newPresenceBackfillCommand(migrateRoot{openDatabase: func() (testpkg.Database, error) {
 			t.Fatal("invalid input opened a database")
-			return nil, nil
+			return testpkg.Database{}, nil
 		}})
 		cmd.SetArgs(args)
 		cmd.SetOut(&bytes.Buffer{})
@@ -55,8 +55,8 @@ func TestPresenceBackfillCommandRunsAllTenantsAndStatusDoesNotWrite(t *testing.T
 	testpkg.EnsureTestTenant(t, db, b)
 	execute := func(args ...string) string {
 		t.Helper()
-		cmd := newPresenceBackfillCommand(migrateRoot{openDatabase: func() (*testpkg.DB, error) {
-			return testpkg.SetupClosableTestDB(t), nil
+		cmd := newPresenceBackfillCommand(migrateRoot{openDatabase: func() (testpkg.Database, error) {
+			return testpkg.NewDatabase(t, testpkg.SetupClosableTestDB(t)), nil
 		}})
 		var output bytes.Buffer
 		cmd.SetArgs(args)

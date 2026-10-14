@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // visitorProjection composes open visits and home-school identity through
@@ -96,11 +96,11 @@ func attachSupervisionPersons(ctx context.Context, query peopledirectory.Query, 
 }
 
 type personStaffAbsenceRepository struct {
-	timerecords.StaffAbsenceRepository
+	workforceCompose.StaffAbsenceRepository
 	persons peopledirectory.Query
 }
 
-func (r personStaffAbsenceRepository) ListRequests(ctx context.Context, filter timerecords.AbsenceRequestFilter) ([]*timerecords.AbsenceRequestRow, error) {
+func (r personStaffAbsenceRepository) ListRequests(ctx context.Context, filter workforceCompose.AbsenceRequestFilter) ([]*workforceCompose.AbsenceRequestRow, error) {
 	if search := strings.TrimSpace(filter.Search); search != "" && filter.SubjectPersonIDs == nil {
 		matches, err := r.persons.SearchPersons(ctx, peopledirectory.PersonFilter{FullNameContains: search})
 		if err != nil {

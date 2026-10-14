@@ -1,4 +1,4 @@
-package timerecords
+package timetracking
 
 import (
 	"strings"

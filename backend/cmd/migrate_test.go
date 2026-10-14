@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/migrations"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,7 @@ func TestMigrateRootMapsCommandsToStableOperations(t *testing.T) {
 	t.Parallel()
 
 	root := defaultMigrateRoot
-	expected := map[string]migrationOperation{
+	expected := map[string]migrations.Operation{
 		"migrate":   migrations.Migrate,
 		"reset":     migrations.Reset,
 		"status":    migrations.MigrateStatus,
@@ -68,6 +69,16 @@ func TestMigrateRootFailsFastWithoutDatabaseDependency(t *testing.T) {
 	err := (migrateRoot{}).run(t.Context(), nil)
 
 	require.ErrorContains(t, err, "database opener is required")
+}
+
+func TestMigrateRootRejectsAMissingCommandBeforeOpeningTheDatabase(t *testing.T) {
+	t.Parallel()
+	root := migrateRoot{openDatabase: func() (testpkg.Database, error) {
+		t.Fatal("a missing migration command opened the database")
+		return testpkg.Database{}, nil
+	}}
+
+	require.EqualError(t, root.runCommand(t.Context(), "migrate"), "migration operation is required")
 }
 
 func TestMigrateResetCmd_Metadata(t *testing.T) {

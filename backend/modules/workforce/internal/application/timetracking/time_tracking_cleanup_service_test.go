@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -242,7 +241,7 @@ func insertSession(t *testing.T, db *testpkg.DB, staffID int64, createdAt time.T
 func insertSessionWithBusinessDate(t *testing.T, db *testpkg.DB, staffID int64, createdAt, businessDate time.Time) int64 {
 	t.Helper()
 	checkOut := createdAt.Add(8 * time.Hour)
-	s := &timerecords.WorkSession{
+	s := &timetracking.WorkSession{
 		StaffID:      staffID,
 		Date:         timezone.DateFromTime(businessDate),
 		Status:       workforce.WorkSessionStatusPresent,
@@ -276,7 +275,7 @@ func insertSessionWithBusinessDate(t *testing.T, db *testpkg.DB, staffID int64, 
 func insertBreak(t *testing.T, db *testpkg.DB, sessionID int64, createdAt time.Time) int64 {
 	t.Helper()
 	end := createdAt.Add(30 * time.Minute)
-	b := &timerecords.WorkSessionBreak{
+	b := &timetracking.WorkSessionBreak{
 		SessionID:       sessionID,
 		StartedAt:       createdAt,
 		EndedAt:         &end,
@@ -316,7 +315,7 @@ func insertAbsence(t *testing.T, db *testpkg.DB, staffID int64, createdAt time.T
 
 func insertAbsenceWithBusinessDates(t *testing.T, db *testpkg.DB, staffID int64, createdAt, dateStart, dateEnd time.Time) int64 {
 	t.Helper()
-	a := &timerecords.StaffAbsence{
+	a := &timetracking.StaffAbsence{
 		StaffID:     staffID,
 		AbsenceType: workforce.AbsenceTypeSick,
 		DateStart:   timezone.DateFromTime(dateStart),

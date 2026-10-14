@@ -13,7 +13,7 @@ import (
 // aggregate: remove an entry when its field goes, never add one. Route
 // resources are mounted where they are built.
 var serveGraphFields = map[string]struct{}{
-	"router": {}, "db": {}, "services": {}, "tenantRuntime": {},
+	"router": {}, "db": {}, "services": {},
 	"metrics": {}, "tracer": {}, "metricsBearerToken": {}, "feedback": {}, "documents": {},
 }
 

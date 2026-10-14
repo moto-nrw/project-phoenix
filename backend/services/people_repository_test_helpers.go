@@ -22,7 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // The compositions the retained People Directory repository suites
@@ -81,7 +81,7 @@ type PeopleRepositorySuiteFactory struct {
 	ActiveGroup              studentpresence.SessionRecords
 	GroupSupervisor          studentpresence.SupervisionRecords
 	CrossTenant              CrossTenantQuery
-	StaffAbsence             timerecords.StaffAbsenceRepository
+	StaffAbsence             workforceCompose.StaffAbsenceRepository
 	SessionStartLock         interface {
 		LockSessionStart(context.Context, int64) error
 	}
