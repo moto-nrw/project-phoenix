@@ -25,6 +25,14 @@ func sessionStaff(member schoolmembership.Staff) *presenceCompose.SessionStaff {
 	}
 }
 
+// StaffAbsenceRow and AbsenceRequestFilter name the Workforce rows the staff
+// absence decorators below read and write, for the suites that test them.
+// They go when the decorators move into the root (#4008, #4007).
+type (
+	StaffAbsenceRow      = timerecords.StaffAbsence
+	AbsenceRequestFilter = timerecords.AbsenceRequestFilter
+)
+
 // absenceRequestRowsQuery is the staff-ID-shaped listing the concrete
 // repository exposes; subjectStaffIDs nil means "no subject filter".
 type absenceRequestRowsQuery interface {

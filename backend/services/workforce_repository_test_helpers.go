@@ -20,8 +20,8 @@ type WorkforceTestRepositories struct {
 	WorkSessionTestRepositories
 	Membership                      schoolmembership.Capability
 	StaffAbsenceType                workforceCapability.Capability
-	StaffAbsenceTypeAllowance       timerecords.StaffAbsenceTypeAllowanceRepository
-	StaffAbsenceTypeAllowanceChange timerecords.StaffAbsenceTypeAllowanceChangeRepository
+	StaffAbsenceTypeAllowance       *workforce.StaffAbsenceTypeAllowanceRepository
+	StaffAbsenceTypeAllowanceChange *workforce.StaffAbsenceTypeAllowanceChangeRepository
 	StaffMonthSnapshot              workforceCapability.MonthSnapshots
 	StaffAbsenceAudit               timerecords.StaffAbsenceAuditRepository
 	TimeTrackingDeletion            auditModels.TimeTrackingDeletionRepository

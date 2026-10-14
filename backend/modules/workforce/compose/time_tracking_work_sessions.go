@@ -144,6 +144,28 @@ func publicExportFile(value *timetracking.ExportFile) *workforce.ExportFile {
 	return &workforce.ExportFile{Data: value.Data, Filename: value.Filename, ContentType: value.ContentType}
 }
 
+type autoCheckIn struct {
+	sessions timetracking.WorkSessionService
+}
+
+// AutoCheckInCapability serves Student Presence's auto-check-in from the work
+// session service. The error passes unchanged: Presence recognises the
+// planned-start refusal by its shape.
+func AutoCheckInCapability(sessions timetracking.WorkSessionService) AutoCheckIn {
+	if sessions == nil {
+		panic("auto check-in capability: work session service is required")
+	}
+	return autoCheckIn{sessions: sessions}
+}
+
+func (a autoCheckIn) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*workforce.WorkSession, error) {
+	session, err := a.sessions.EnsureCheckedIn(ctx, staffID, source)
+	if err != nil {
+		return nil, err
+	}
+	return publicWorkSession(session), nil
+}
+
 func (c workSessionCapability) CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*workforce.WorkSession, error) {
 	session, err := c.sessions.CheckIn(ctx, staffID, status, source, reason)
 	if err != nil {

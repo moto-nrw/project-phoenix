@@ -6652,18 +6652,6 @@
       "target_role": "compose"
     },
     {
-      "id": "student-presence.adapter-test.workforce-time-records",
-      "description": "The retained Presence in-package tests fake the time-clock port, which returns the retained work-session row (#3422).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "adapter-test",
-      "target_owner": "workforce",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3996"
-    },
-    {
       "id": "emergency-snapshot.adapter-test.presence-compose",
       "description": "Emergency snapshot adapter tests construct the Student Presence facade for migrated visit and attendance records (#2704).",
       "scopes": [
@@ -6892,18 +6880,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "student-presence",
       "target_role": "compose"
-    },
-    {
-      "id": "people-directory.contracttest.workforce.adapter",
-      "description": "The staff offboarding suite of the People Directory contract suite seeds the retained staff-absence rows (#3422, moved from services/users with #3755).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "e2e-test",
-      "target_owner": "workforce",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3996"
     },
     {
       "id": "people-directory.contracttest.workforce.public",
@@ -10593,18 +10569,6 @@
       "source_role": "postgres",
       "target_owner": "transaction-runtime",
       "target_role": "domain"
-    },
-    {
-      "id": "workforce.postgres.time-records",
-      "description": "The retained allowance read-back repository in database/repositories/workforce reads the retained allowance rows back and implements their contracts from modules/workforce/adapters/timerecords (#3422). It falls with the RLS isolation helper.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "postgres",
-      "target_owner": "workforce",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3996"
     },
     {
       "id": "workforce.postgres.transaction-postgres",
@@ -20661,18 +20625,6 @@
       "target_role": "domain"
     },
     {
-      "id": "student-presence.e2e-test.workforce-time-records",
-      "description": "The retained Presence behaviour tests seed and read the retained work-session and staff-absence rows (#3422).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "e2e-test",
-      "target_owner": "workforce",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3996"
-    },
-    {
       "id": "student-presence.e2e-test.workforce-public",
       "description": "The retained Presence behaviour tests name the canonical work-session and absence values they assert on (#3422).",
       "scopes": [
@@ -21762,18 +21714,6 @@
       "source_role": "application",
       "target_owner": "workforce",
       "target_role": "public"
-    },
-    {
-      "id": "student-presence.application.workforce-time-records",
-      "description": "The presence application's time-clock port returns the Workforce work-session row (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "application",
-      "target_owner": "workforce",
-      "target_role": "adapter",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3996"
     },
     {
       "id": "student-presence.application.tenant-runtime-public",

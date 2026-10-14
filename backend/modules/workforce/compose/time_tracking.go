@@ -73,7 +73,7 @@ type (
 // AutoCheckIn opens today's block when a staff member's first NFC scan or
 // web stamp of the day arrives without one; Student Presence calls it.
 type AutoCheckIn interface {
-	EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*timerecords.WorkSession, error)
+	EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*workforce.WorkSession, error)
 }
 
 // TimeTrackingJobs are the sweeps the scheduler runs per tenant: closing the
@@ -138,7 +138,7 @@ func NewTimeTracking(capability workforce.Capability, ports TimeTrackingPorts, s
 		TimeExport:         StaffTimeExportCapability(services.Export),
 		VacationTakeovers:  VacationTakeoverCapability(services.Absences),
 		OpeningBalances:    OpeningBalanceBookingCapability(services.Ledger),
-		AutoCheckIn:        services.Sessions,
+		AutoCheckIn:        AutoCheckInCapability(services.Sessions),
 		Jobs:               services.Sessions,
 		StaffDay:           staffDay{WorkSessionService: services.Sessions, StaffAbsenceService: services.Absences},
 	}, nil
