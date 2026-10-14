@@ -67,10 +67,9 @@ jobs:
         with:
           # PR test selection needs origin/<base_ref>. Keeping one checkout
           # shape for both event types avoids an untested expression branch.
-          # Selection reads only file names, so history comes without file
-          # contents; Git fetches a missing blob on demand.
+          # No blobless clone here: internal/architecture tests fetch history
+          # from this checkout, and a partial clone cannot serve those objects.
           fetch-depth: 0
-          filter: blob:none
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
