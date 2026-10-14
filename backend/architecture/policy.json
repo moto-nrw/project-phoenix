@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 40,
+  "policy_epoch": 41,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -5369,17 +5369,6 @@
       "target_role": "compose"
     },
     {
-      "id": "care-plan.contracttest.care-plan.test-support",
-      "description": "The test-only native Care Plan contract suite uses owner fixtures and canonical calendar values (#3351).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "e2e-test",
-      "target_owner": "care-plan",
-      "target_role": "test-support"
-    },
-    {
       "id": "shared-kernel.contract",
       "description": "Every role may import the shared kernel's contract: the canonical calendar Date, WallClock, TenantID and CorrelationID every owner exchanges (ADR 0040, #3447, #3448).",
       "scopes": [
@@ -5452,17 +5441,6 @@
         "production"
       ],
       "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "contract"
-    },
-    {
-      "id": "care-schedule-cutover.care-plan.compose.care-plan.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
       "source_role": "compose",
       "target_owner": "care-plan",
       "target_role": "contract"
@@ -5578,17 +5556,6 @@
       "target_role": "contract"
     },
     {
-      "id": "care-plan.contracttest.care-plan.contract",
-      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "e2e-test",
-      "target_owner": "care-plan",
-      "target_role": "contract"
-    },
-    {
       "id": "care-plan.contracttest.people-directory.domain",
       "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
       "scopes": [
@@ -5631,17 +5598,6 @@
       "source_role": "e2e-test",
       "target_owner": "timetable-activities",
       "target_role": "domain"
-    },
-    {
-      "id": "care-plan.contracttest.care-plan.public",
-      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "e2e-test",
-      "target_owner": "care-plan",
-      "target_role": "public"
     },
     {
       "id": "care-plan.contracttest.timetable-activities.compose",
@@ -5741,17 +5697,6 @@
       "source_role": "e2e-test",
       "target_owner": "delivery-platform",
       "target_role": "public"
-    },
-    {
-      "id": "care-plan.contracttest.care-plan.compose",
-      "description": "The test-only Care Plan contract suite verifies native schedules and request workflows against their retained cross-module consumers (#3351); existing packages gain no runtime or test imports.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "e2e-test",
-      "target_owner": "care-plan",
-      "target_role": "compose"
     },
     {
       "id": "care-plan.contracttest.timetable-activities.public",
@@ -5862,17 +5807,6 @@
       "source_role": "e2e-test",
       "target_owner": "legacy-shared",
       "target_role": "domain"
-    },
-    {
-      "id": "workforce.contracttest.workforce.public",
-      "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "e2e-test",
-      "target_owner": "workforce",
-      "target_role": "public"
     },
     {
       "id": "workforce.domain.vacation-opening-contract",
@@ -6029,17 +5963,6 @@
       "target_role": "adapter"
     },
     {
-      "id": "inbound-import.e2e-test.inbound-import.compose",
-      "description": "Exercise composed import routes and verify native owner records (#2744).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-import",
-      "source_role": "e2e-test",
-      "target_owner": "inbound-import",
-      "target_role": "compose"
-    },
-    {
       "id": "inbound-import.e2e-test.inbound-import.http",
       "description": "Exercise composed import routes and verify native owner records (#2744).",
       "scopes": [
@@ -6160,40 +6083,6 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-import.compose.inbound-import.http",
-      "description": "Bind native import actors and the established HTTP runtime outside handlers (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-import",
-      "source_role": "compose",
-      "target_owner": "inbound-import",
-      "target_role": "http"
-    },
-    {
-      "id": "data-import.compose.production.data-import.public",
-      "description": "Bind import reference lookups to native tenant-scoped owner queries (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "data-import",
-      "source_role": "compose",
-      "target_owner": "data-import",
-      "target_role": "public"
-    },
-    {
-      "id": "data-import.compose.retained-application",
-      "description": "The Data Import composition names its retained import services for the legacy composition (#2747).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "data-import",
-      "source_role": "compose",
-      "target_owner": "data-import",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
-    },
-    {
       "id": "data-import.compose.production.school-structure.public",
       "description": "Bind import reference lookups to native tenant-scoped owner queries (#2744).",
       "scopes": [
@@ -6223,17 +6112,6 @@
       ],
       "source_owner": "legacy-composition",
       "source_role": "compose",
-      "target_owner": "data-import",
-      "target_role": "compose"
-    },
-    {
-      "id": "data-import.workflow-decision-test.internal_test.data-import.compose",
-      "description": "Bind import reference lookups to native tenant-scoped owner queries (#2744).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "data-import",
-      "source_role": "workflow-decision-test",
       "target_owner": "data-import",
       "target_role": "compose"
     },
@@ -6269,28 +6147,6 @@
       "target_role": "public"
     },
     {
-      "id": "data-import.workflow-decision-test.internal_test.data-import.adapter",
-      "description": "Decode import files through the Data Import file adapter (#2744).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "data-import",
-      "source_role": "workflow-decision-test",
-      "target_owner": "data-import",
-      "target_role": "adapter"
-    },
-    {
-      "id": "root-composition.compose.production.data-import.adapter",
-      "description": "Decode import files through the Data Import file adapter (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "data-import",
-      "target_role": "adapter"
-    },
-    {
       "id": "data-import.application.public",
       "description": "Import processing consumes its public row and result contract (#2744).",
       "scopes": [
@@ -6298,28 +6154,6 @@
       ],
       "source_owner": "data-import",
       "source_role": "application",
-      "target_owner": "data-import",
-      "target_role": "public"
-    },
-    {
-      "id": "data-import.decision-test.public",
-      "description": "Import decision tests exercise the public row and result contract (#2744).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "data-import",
-      "source_role": "workflow-decision-test",
-      "target_owner": "data-import",
-      "target_role": "public"
-    },
-    {
-      "id": "data-import.integration-test.public",
-      "description": "Import integration tests exercise the public row and result contract (#2744).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "data-import",
-      "source_role": "workflow-integration-test",
       "target_owner": "data-import",
       "target_role": "public"
     },
@@ -6412,17 +6246,6 @@
       "target_role": "contract"
     },
     {
-      "id": "request-review-view.integration.own-public",
-      "description": "Exercise native history adapters through request-review's public contract (#3179).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "workflow-integration-test",
-      "target_owner": "request-review-view",
-      "target_role": "public"
-    },
-    {
       "id": "request-review-view.compose.audit-corrections.public",
       "description": "Render the native Audit correction history without retained audit models (#3179).",
       "scopes": [
@@ -6445,52 +6268,6 @@
       "target_role": "compose"
     },
     {
-      "id": "audit-platform.native-corrections.compose.public",
-      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "audit-platform",
-      "source_role": "compose",
-      "target_owner": "audit-platform",
-      "target_role": "public"
-    },
-    {
-      "id": "audit-platform.compose.retained-application",
-      "description": "The Audit Platform composition names its retained append command, consent recorder and tag-scan log for the legacy composition (#2747).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "audit-platform",
-      "source_role": "compose",
-      "target_owner": "audit-platform",
-      "target_role": "application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
-    },
-    {
-      "id": "audit-platform.compose.vocabulary-domain",
-      "description": "The Audit Platform composition re-exports the audit records and repositories the legacy composition still binds (#2747).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "audit-platform",
-      "source_role": "compose",
-      "target_owner": "audit-platform",
-      "target_role": "domain",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
-    },
-    {
-      "id": "audit-platform.native-corrections.compose.postgres",
-      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "audit-platform",
-      "source_role": "compose",
-      "target_owner": "audit-platform",
-      "target_role": "postgres"
-    },
-    {
       "id": "audit-platform.native-corrections.compose.tenant",
       "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
       "scopes": [
@@ -6509,17 +6286,6 @@
       ],
       "source_owner": "audit-platform",
       "source_role": "postgres",
-      "target_owner": "audit-platform",
-      "target_role": "public"
-    },
-    {
-      "id": "audit-platform.native-corrections.integration.public",
-      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "audit-platform",
-      "source_role": "workflow-integration-test",
       "target_owner": "audit-platform",
       "target_role": "public"
     },
@@ -6590,67 +6356,12 @@
       "target_role": "compose"
     },
     {
-      "id": "root-composition.internal-test.student-presence-public",
-      "description": "CLI cleanup contract tests verify the public presence DTOs and commands.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "module-internal-test",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
-      "id": "root-composition.internal-test.student-presence-compose",
-      "description": "CLI cleanup fixtures construct the tenant-scoped presence provider.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "module-internal-test",
-      "target_owner": "student-presence",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.compose.student-presence-public",
-      "description": "The API composition root supplies the owner query facade to migrated active handlers.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
-      "id": "root-composition.compose.student-presence-compose",
-      "description": "The API composition root constructs the owner provider without adding a broad factory dependency.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "compose"
-    },
-    {
       "id": "inbound-iot-checkin.adapter-test.student-presence-compose",
       "description": "Kiosk checkout contract tests verify attendance and visit state through the production presence facade.",
       "scopes": [
         "external_test"
       ],
       "source_owner": "inbound-iot-checkin",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "compose"
-    },
-    {
-      "id": "student-presence.adapter-test.student-presence-compose",
-      "description": "Presence HTTP contract tests use the production presence facade.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "student-presence",
       "source_role": "adapter-test",
       "target_owner": "student-presence",
       "target_role": "compose"
@@ -6766,50 +6477,6 @@
       "target_role": "public"
     },
     {
-      "id": "student-presence.compose.presence-cutover.student-presence.public",
-      "description": "Construct and connect the Student Presence owner capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
-      "id": "student-presence.compose.presence-cutover.student-presence.application",
-      "description": "Construct and connect the Student Presence owner capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "application"
-    },
-    {
-      "id": "student-presence.compose.presence-cutover.student-presence.port",
-      "description": "Construct and connect the Student Presence owner capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "port"
-    },
-    {
-      "id": "student-presence.compose.presence-cutover.student-presence.postgres",
-      "description": "Construct and connect the Student Presence owner capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "postgres"
-    },
-    {
       "id": "student-presence.compose.presence-cutover.tenant-runtime.public",
       "description": "Construct and connect the Student Presence owner capability.",
       "scopes": [
@@ -6875,17 +6542,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "student-presence.integration-test.student-presence.compose",
-      "description": "Presence tests use production composition and hermetic tenant fixtures.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "workflow-integration-test",
-      "target_owner": "student-presence",
-      "target_role": "compose"
-    },
-    {
       "id": "people-directory.contracttest.workforce.public",
       "description": "The staff suites of the People Directory contract suite name the canonical absence values they seed (#3422, moved from services/users with #3755).",
       "scopes": [
@@ -6930,39 +6586,6 @@
       "target_role": "public"
     },
     {
-      "id": "enrollment.test-support.public",
-      "description": "Enrollment test support exposes the owner facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "test-support",
-      "target_owner": "enrollment",
-      "target_role": "public"
-    },
-    {
-      "id": "enrollment.test-support.compose",
-      "description": "Enrollment test support constructs the owner with production composition.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "test-support",
-      "target_owner": "enrollment",
-      "target_role": "compose"
-    },
-    {
-      "id": "enrollment.behavior-test.test-support",
-      "description": "Enrollment behavior tests construct the public facade through owner test support.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "module-behavior-test",
-      "target_owner": "enrollment",
-      "target_role": "test-support"
-    },
-    {
       "id": "care-plan.integration-test.enrollment-compose",
       "description": "Parent enrollment compatibility tests exercise the Enrollment write owner.",
       "scopes": [
@@ -6983,28 +6606,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "enrollment",
       "target_role": "postgres"
-    },
-    {
-      "id": "enrollment.integration-test.enrollment.public",
-      "description": "Enrollment integration tests exercise the facade with real tenant transactions.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "workflow-integration-test",
-      "target_owner": "enrollment",
-      "target_role": "public"
-    },
-    {
-      "id": "enrollment.integration-test.enrollment.compose",
-      "description": "Enrollment integration tests exercise the facade with real tenant transactions.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "workflow-integration-test",
-      "target_owner": "enrollment",
-      "target_role": "compose"
     },
     {
       "id": "enrollment.integration-test.tenant-runtime.public",
@@ -7148,28 +6749,6 @@
       "source_role": "compose",
       "target_owner": "enrollment",
       "target_role": "compose"
-    },
-    {
-      "id": "enrollment.compose.to.enrollment.public",
-      "description": "enrollment compose uses the Enrollment cutover's enrollment public boundary.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "compose",
-      "target_owner": "enrollment",
-      "target_role": "public"
-    },
-    {
-      "id": "enrollment.compose.to.enrollment.postgres",
-      "description": "enrollment compose uses the Enrollment cutover's enrollment postgres boundary.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "compose",
-      "target_owner": "enrollment",
-      "target_role": "postgres"
     },
     {
       "id": "enrollment.compose.to.tenant-runtime.public",
@@ -7358,50 +6937,6 @@
       "target_role": "public"
     },
     {
-      "id": "session-end.decision-test.public",
-      "description": "Session end decision tests assert the public result and errors.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "session-end",
-      "source_role": "workflow-decision-test",
-      "target_owner": "session-end",
-      "target_role": "public"
-    },
-    {
-      "id": "session-end.compose.public",
-      "description": "Session end composition returns the owner command facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "session-end",
-      "source_role": "compose",
-      "target_owner": "session-end",
-      "target_role": "public"
-    },
-    {
-      "id": "session-end.compose.application",
-      "description": "Session end composition constructs its single command provider.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "session-end",
-      "source_role": "compose",
-      "target_owner": "session-end",
-      "target_role": "application"
-    },
-    {
-      "id": "session-end.compose.port",
-      "description": "Session end composition accepts consumer-owned owner inputs.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "session-end",
-      "source_role": "compose",
-      "target_owner": "session-end",
-      "target_role": "port"
-    },
-    {
       "id": "session-end.compose.tenant-runtime",
       "description": "Session end composition binds the joining tenant UnitOfWork and after-commit runtime.",
       "scopes": [
@@ -7422,17 +6957,6 @@
       "source_role": "compose",
       "target_owner": "delivery-platform",
       "target_role": "public"
-    },
-    {
-      "id": "session-end.adapter-test.compose",
-      "description": "Session end integration tests bind the production composition.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "session-end",
-      "source_role": "adapter-test",
-      "target_owner": "session-end",
-      "target_role": "compose"
     },
     {
       "id": "session-end.adapter-test.student-presence-compose",
@@ -7475,28 +6999,6 @@
       ],
       "source_owner": "inbound-iot-sessions",
       "source_role": "http",
-      "target_owner": "session-end",
-      "target_role": "public"
-    },
-    {
-      "id": "root-composition.to.session-end-compose",
-      "description": "The API root binds the session end workflow over the owner facades it holds.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "session-end",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.session-end-public",
-      "description": "The API root passes the session end command to the IoT resource.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
       "target_owner": "session-end",
       "target_role": "public"
     },
@@ -7600,50 +7102,6 @@
       "target_role": "public"
     },
     {
-      "id": "open-room-move.decision-test.public",
-      "description": "Open-room move decision tests assert the public result and errors.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "open-room-move",
-      "source_role": "workflow-decision-test",
-      "target_owner": "open-room-move",
-      "target_role": "public"
-    },
-    {
-      "id": "open-room-move.compose.public",
-      "description": "Open-room move composition returns the workflow command facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "open-room-move",
-      "source_role": "compose",
-      "target_owner": "open-room-move",
-      "target_role": "public"
-    },
-    {
-      "id": "open-room-move.compose.application",
-      "description": "Open-room move composition constructs its single command provider.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "open-room-move",
-      "source_role": "compose",
-      "target_owner": "open-room-move",
-      "target_role": "application"
-    },
-    {
-      "id": "open-room-move.compose.port",
-      "description": "Open-room move composition accepts consumer-owned owner inputs.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "open-room-move",
-      "source_role": "compose",
-      "target_owner": "open-room-move",
-      "target_role": "port"
-    },
-    {
       "id": "open-room-move.compose.tenant-runtime",
       "description": "Open-room move composition binds the joining tenant UnitOfWork and its transaction lock.",
       "scopes": [
@@ -7653,17 +7111,6 @@
       "source_role": "compose",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "open-room-move.adapter-test.compose",
-      "description": "Open-room move integration tests bind the production composition.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "open-room-move",
-      "source_role": "adapter-test",
-      "target_owner": "open-room-move",
-      "target_role": "compose"
     },
     {
       "id": "open-room-move.adapter-test.facilities-compose",
@@ -7684,28 +7131,6 @@
       ],
       "source_owner": "student-presence",
       "source_role": "http",
-      "target_owner": "open-room-move",
-      "target_role": "public"
-    },
-    {
-      "id": "root-composition.to.open-room-move-compose",
-      "description": "The API root composes the open-room move workflow.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "open-room-move",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.open-room-move-public",
-      "description": "The API root passes the open-room move command to the active resource.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
       "target_owner": "open-room-move",
       "target_role": "public"
     },
@@ -7798,39 +7223,6 @@
       "target_role": "public"
     },
     {
-      "id": "reminder-delivery.compose.public",
-      "description": "Reminder composition returns the owner query facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_owner": "reminder-delivery",
-      "target_role": "public"
-    },
-    {
-      "id": "reminder-delivery.compose.application",
-      "description": "Reminder composition constructs its single query provider.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_owner": "reminder-delivery",
-      "target_role": "application"
-    },
-    {
-      "id": "reminder-delivery.compose.port",
-      "description": "Reminder composition accepts consumer-owned query inputs.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_owner": "reminder-delivery",
-      "target_role": "port"
-    },
-    {
       "id": "legacy-composition.reminder-compose",
       "description": "Existing composition constructs the reminder owner facade.",
       "scopes": [
@@ -7862,17 +7254,6 @@
       "source_role": "compose",
       "target_owner": "reminder-delivery",
       "target_role": "port"
-    },
-    {
-      "id": "reminder-delivery.adapter-test.compose",
-      "description": "Reminder HTTP contract tests bind the production runtime.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "adapter-test",
-      "target_owner": "reminder-delivery",
-      "target_role": "compose"
     },
     {
       "id": "reminder-delivery.compose.http",
@@ -7928,17 +7309,6 @@
       "target_class": "http-router"
     },
     {
-      "id": "root-composition.reminder-compose",
-      "description": "The API root binds the Reminder Delivery runtime.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "reminder-delivery",
-      "target_role": "compose"
-    },
-    {
       "id": "reminder-delivery.adapter-test.http",
       "description": "Reminder contract tests exercise the production HTTP adapter.",
       "scopes": [
@@ -7968,17 +7338,6 @@
       ],
       "source_owner": "reminder-delivery",
       "source_role": "application",
-      "target_owner": "reminder-delivery",
-      "target_role": "public"
-    },
-    {
-      "id": "reminder-delivery.decision-test.public",
-      "description": "Reminder decision tests exercise the public query contract.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "workflow-decision-test",
       "target_owner": "reminder-delivery",
       "target_role": "public"
     },
@@ -8225,17 +7584,6 @@
       "target_role": "application"
     },
     {
-      "id": "data-import.integration-test.data-import.port",
-      "description": "Data import integration tests decorate the owner ports to observe rollback (#2708).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "data-import",
-      "source_role": "workflow-integration-test",
-      "target_owner": "data-import",
-      "target_role": "port"
-    },
-    {
       "id": "data-import.integration-test.tenant-runtime",
       "description": "Data import integration tests run batches in real tenant transactions (#2708).",
       "scopes": [
@@ -8314,14 +7662,15 @@
     },
     {
       "id": "e2e-test.compose",
-      "description": "Designated E2E roots may import composition packages.",
+      "description": "Designated E2E roots may import the legacy composition until #2747 deletes it; the typed roots are reached through root-test.* and the root reach (ADR 0053 point 7.2).",
       "scopes": [
         "internal_test",
         "external_test"
       ],
       "source_role": "e2e-test",
-      "target_owner_kind": "composition",
-      "target_role": "compose"
+      "target_owner": "legacy-composition",
+      "target_role": "compose",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
     },
     {
       "id": "e2e-test.test-support",
@@ -8436,18 +7785,6 @@
       "source_role": "workflow-integration-test",
       "target_owner_kind": "workflow",
       "target_role": "public"
-    },
-    {
-      "id": "dev-tools.adapter-test.demo-profile-contract",
-      "description": "Demo seed and simulation adapter tests may use the demo profile contract.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "dev-tools",
-      "source_role": "adapter-test",
-      "target_owner": "dev-tools",
-      "target_role": "contract"
     },
     {
       "id": "dev-tools.cli.demo-profile-contract",
@@ -8903,18 +8240,6 @@
       "target_role": "http"
     },
     {
-      "id": "root-composition.to.student-presence-http",
-      "description": "The root API composition mounts the presence route adapter (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2750"
-    },
-    {
       "id": "student-presence.adapter-test.inbound-common",
       "description": "Presence HTTP tests assert the shared response rendering of api/common that the adapter binds, as the other owners' adapter tests do (#3447).",
       "scopes": [
@@ -9081,17 +8406,6 @@
       "target_role": "contract"
     },
     {
-      "id": "root-composition.to.enrollment-http",
-      "description": "The root API composition mounts the enrollment routes of the Enrollment owner and binds the parents portal's form flow to them (#2734).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "enrollment",
-      "target_role": "http"
-    },
-    {
       "id": "enrollment.http-integration-test.subject",
       "description": "The enrollment route suites drive the routes they test (#2734).",
       "scopes": [
@@ -9101,17 +8415,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "enrollment",
       "target_role": "http"
-    },
-    {
-      "id": "enrollment.http-integration-test.test-support",
-      "description": "The enrollment route suites compose the owner's phases, form schemas, decisions and notifications through its test support (#2734).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "workflow-integration-test",
-      "target_owner": "enrollment",
-      "target_role": "test-support"
     },
     {
       "id": "enrollment.http-integration-test.identity-adapter",
@@ -9587,17 +8890,6 @@
       "target_role": "contract"
     },
     {
-      "id": "root-composition.compose.document-rendering-lists",
-      "description": "The production root binds the students routes to the list renderer of the Document Rendering list contract (#3356).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "document-rendering",
-      "target_role": "contract"
-    },
-    {
       "id": "document-rendering.contract.list-renderer",
       "description": "The list contract names the list renderer's document types and hands out the renderer (#3356).",
       "scopes": [
@@ -9818,39 +9110,6 @@
       "target_role": "adapter"
     },
     {
-      "id": "root-composition.to.timetable-http",
-      "description": "The root API composition mounts the timetable routes of the Timetable owner (#2732).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "timetable-activities",
-      "target_role": "http"
-    },
-    {
-      "id": "root-composition.to.school-structure-http",
-      "description": "The root API composition mounts the group routes of the School Structure owner (#2742).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "http"
-    },
-    {
-      "id": "root-composition.to.grade-transition-http",
-      "description": "The root API composition mounts the grade transition routes of the workflow (#2742).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "grade-transition",
-      "target_role": "http"
-    },
-    {
       "id": "test-support.to.timetable-http",
       "description": "The timetable end-to-end fixture constructs the timetable routes it drives (#2732).",
       "scopes": [
@@ -9884,16 +9143,6 @@
       "target_role": "public"
     },
     {
-      "id": "internal-test.same-owner.adapter",
-      "description": "Internal tests may import their owner's adapter packages.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_role": "module-internal-test",
-      "same_owner": true,
-      "target_role": "adapter"
-    },
-    {
       "id": "internal-test.same-owner.application",
       "description": "Internal tests may import their owner's application packages.",
       "scopes": [
@@ -9902,26 +9151,6 @@
       "source_role": "module-internal-test",
       "same_owner": true,
       "target_role": "application"
-    },
-    {
-      "id": "internal-test.same-owner.compose",
-      "description": "Internal tests may import their owner's compose packages.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_role": "module-internal-test",
-      "same_owner": true,
-      "target_role": "compose"
-    },
-    {
-      "id": "internal-test.same-owner.contract",
-      "description": "Module-internal tests may import their owner contract packages.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_role": "module-internal-test",
-      "same_owner": true,
-      "target_role": "contract"
     },
     {
       "id": "internal-test.same-owner.domain",
@@ -9934,16 +9163,6 @@
       "target_role": "domain"
     },
     {
-      "id": "internal-test.same-owner.port",
-      "description": "Internal tests may import their owner's port packages.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_role": "module-internal-test",
-      "same_owner": true,
-      "target_role": "port"
-    },
-    {
       "id": "internal-test.same-owner.postgres",
       "description": "Internal tests may import their owner's postgres packages.",
       "scopes": [
@@ -9954,16 +9173,6 @@
       "target_role": "postgres"
     },
     {
-      "id": "internal-test.same-owner.public",
-      "description": "Module-internal tests may import their owner public packages.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_role": "module-internal-test",
-      "same_owner": true,
-      "target_role": "public"
-    },
-    {
       "id": "internal-test.test-support",
       "description": "internal-test code may import neutral test support.",
       "scopes": [
@@ -9972,26 +9181,6 @@
       "source_role": "module-internal-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "module-behavior-test.contract",
-      "description": "Module behavior tests use only their owner contract.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_role": "module-behavior-test",
-      "same_owner": true,
-      "target_role": "contract"
-    },
-    {
-      "id": "module-behavior-test.public",
-      "description": "Module behavior tests use only their owner public interface.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_role": "module-behavior-test",
-      "same_owner": true,
-      "target_role": "public"
     },
     {
       "id": "module-behavior-test.test-support",
@@ -10092,17 +9281,6 @@
       "target_role": "public"
     },
     {
-      "id": "staff-clock.compose.application",
-      "description": "The Staff Clock composition names the workflow service and its ports for the compositions that bind it (#2747).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-clock",
-      "source_role": "compose",
-      "target_owner": "staff-clock",
-      "target_role": "application"
-    },
-    {
       "id": "legacy-composition.to.staff-clock-compose",
       "description": "The legacy composition binds the Staff Clock workflow to the identity, work-session and card owners through its composition (#2747).",
       "scopes": [
@@ -10137,17 +9315,6 @@
       "same_owner": true
     },
     {
-      "id": "feedback.compose.application",
-      "description": "Feedback composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "feedback",
-      "source_role": "compose",
-      "target_owner": "feedback",
-      "target_role": "application"
-    },
-    {
       "id": "feedback.domain.calendar-date",
       "description": "Feedback domain values use the repository calendar-date type required for PostgreSQL DATE columns.",
       "scopes": [
@@ -10159,17 +9326,6 @@
       "target_role": "domain"
     },
     {
-      "id": "feedback.compose.domain",
-      "description": "Feedback composition maps its internal domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "feedback",
-      "source_role": "compose",
-      "target_owner": "feedback",
-      "target_role": "domain"
-    },
-    {
       "id": "feedback.compose.orm-sql",
       "description": "Feedback composition supplies the concrete Bun database dependency.",
       "scopes": [
@@ -10178,39 +9334,6 @@
       "source_owner": "feedback",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "feedback.compose.port",
-      "description": "Feedback composition exposes observations from its consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "feedback",
-      "source_role": "compose",
-      "target_owner": "feedback",
-      "target_role": "port"
-    },
-    {
-      "id": "feedback.compose.postgres",
-      "description": "Feedback composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "feedback",
-      "source_role": "compose",
-      "target_owner": "feedback",
-      "target_role": "postgres"
-    },
-    {
-      "id": "feedback.compose.public",
-      "description": "Feedback composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "feedback",
-      "source_role": "compose",
-      "target_owner": "feedback",
-      "target_role": "public"
     },
     {
       "id": "feedback.compose.tenant-runtime",
@@ -10345,17 +9468,6 @@
       "target_role": "compose"
     },
     {
-      "id": "root-composition.to.feedback-compose",
-      "description": "The production root constructs the Feedback module once.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "feedback",
-      "target_role": "compose"
-    },
-    {
       "id": "root-composition.to.feedback-http",
       "description": "The production root constructs the Feedback HTTP adapter.",
       "scopes": [
@@ -10365,28 +9477,6 @@
       "source_role": "compose",
       "target_owner": "inbound-feedback",
       "target_role": "http"
-    },
-    {
-      "id": "root-composition.to.feedback-public",
-      "description": "The production root shares the one Feedback facade with its consumers.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "feedback",
-      "target_role": "public"
-    },
-    {
-      "id": "meal-plan.compose.application",
-      "description": "Meal Plan composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "meal-plan",
-      "source_role": "compose",
-      "target_owner": "meal-plan",
-      "target_role": "application"
     },
     {
       "id": "meal-plan.domain.calendar-date",
@@ -10400,17 +9490,6 @@
       "target_role": "domain"
     },
     {
-      "id": "meal-plan.compose.domain",
-      "description": "Meal Plan composition maps its internal domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "meal-plan",
-      "source_role": "compose",
-      "target_owner": "meal-plan",
-      "target_role": "domain"
-    },
-    {
       "id": "meal-plan.compose.orm-sql",
       "description": "Meal Plan composition supplies the concrete Bun database dependency.",
       "scopes": [
@@ -10419,39 +9498,6 @@
       "source_owner": "meal-plan",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "meal-plan.compose.port",
-      "description": "Meal Plan composition exposes observations from its consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "meal-plan",
-      "source_role": "compose",
-      "target_owner": "meal-plan",
-      "target_role": "port"
-    },
-    {
-      "id": "meal-plan.compose.postgres",
-      "description": "Meal Plan composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "meal-plan",
-      "source_role": "compose",
-      "target_owner": "meal-plan",
-      "target_role": "postgres"
-    },
-    {
-      "id": "meal-plan.compose.public",
-      "description": "Meal Plan composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "meal-plan",
-      "source_role": "compose",
-      "target_owner": "meal-plan",
-      "target_role": "public"
     },
     {
       "id": "meal-plan.compose.tenant-runtime",
@@ -10498,39 +9544,6 @@
       "target_role": "public"
     },
     {
-      "id": "root-composition.to.export-transfer-compose",
-      "description": "The production root constructs the Export Transfer module once (#3050). It is composed next to the staff surface rather than with the other modules because it reads tenant settings, which exist only once the service factory is built.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "export-transfer",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.export-transfer-contract",
-      "description": "The production root passes the Export Transfer capability to the workforce HTTP resource.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "export-transfer",
-      "target_role": "contract"
-    },
-    {
-      "id": "root-composition.to.meal-plan-compose",
-      "description": "The production root constructs the Meal Plan module once.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "meal-plan",
-      "target_role": "compose"
-    },
-    {
       "id": "root-composition.to.meal-plan-http",
       "description": "The production root constructs the Meal Plan HTTP adapter.",
       "scopes": [
@@ -10540,17 +9553,6 @@
       "source_role": "compose",
       "target_owner": "inbound-mealplan",
       "target_role": "http"
-    },
-    {
-      "id": "root-composition.to.meal-plan-public",
-      "description": "The production root shares the one Meal Plan facade with its consumers.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "meal-plan",
-      "target_role": "public"
     },
     {
       "id": "legacy-composition.to.workforce-postgres",
@@ -10597,28 +9599,6 @@
       "same_owner": true
     },
     {
-      "id": "organization-tenancy.compose.application",
-      "description": "Organization and Tenancy composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
-      "target_role": "application"
-    },
-    {
-      "id": "organization-tenancy.compose.domain",
-      "description": "Organization and Tenancy composition maps its internal domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
-      "target_role": "domain"
-    },
-    {
       "id": "organization-tenancy.compose.orm-sql",
       "description": "Organization and Tenancy composition supplies the concrete Bun database dependency.",
       "scopes": [
@@ -10627,28 +9607,6 @@
       "source_owner": "organization-tenancy",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "organization-tenancy.compose.port",
-      "description": "Organization and Tenancy composition exposes observations from its consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
-      "target_role": "port"
-    },
-    {
-      "id": "organization-tenancy.compose.postgres",
-      "description": "Organization and Tenancy composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
-      "target_role": "postgres"
     },
     {
       "id": "organization-tenancy.adapter.security-runtime-domain",
@@ -10660,17 +9618,6 @@
       "source_role": "adapter",
       "target_owner": "security-runtime",
       "target_role": "domain"
-    },
-    {
-      "id": "organization-tenancy.compose.adapter",
-      "description": "Organization and Tenancy composition constructs its provisioning secrets adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
-      "target_role": "adapter"
     },
     {
       "id": "operator-dashboard-view.domain",
@@ -10717,17 +9664,6 @@
       "target_role": "domain"
     },
     {
-      "id": "organization-tenancy.compose.public",
-      "description": "Organization and Tenancy composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
-      "target_role": "public"
-    },
-    {
       "id": "organization-tenancy.compose.tenant-runtime",
       "description": "Organization and Tenancy composition binds the shared tenant transaction runtime.",
       "scopes": [
@@ -10750,17 +9686,6 @@
       "target_role": "public"
     },
     {
-      "id": "organization-tenancy.integration-test.public",
-      "description": "Organization and Tenancy integration tests exercise the public facade.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "workflow-integration-test",
-      "target_owner": "organization-tenancy",
-      "target_role": "public"
-    },
-    {
       "id": "organization-tenancy.integration-test.support",
       "description": "Organization and Tenancy integration tests use hermetic database support.",
       "scopes": [
@@ -10770,28 +9695,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "root-composition.to.organization-tenancy-compose",
-      "description": "The production root constructs the Organization and Tenancy module once.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.organization-tenancy-public",
-      "description": "The production root records stable Organization and Tenancy capability outcomes.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
-      "target_role": "public"
     },
     {
       "id": "legacy-composition.to.organization-tenancy-compose",
@@ -10838,28 +9741,6 @@
       "same_owner": true
     },
     {
-      "id": "school-structure.compose.application",
-      "description": "School Structure composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "application"
-    },
-    {
-      "id": "school-structure.compose.domain",
-      "description": "School Structure composition maps its internal domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "domain"
-    },
-    {
       "id": "school-structure.compose.orm-sql",
       "description": "School Structure composition supplies the concrete Bun database dependency.",
       "scopes": [
@@ -10868,39 +9749,6 @@
       "source_owner": "school-structure",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "school-structure.compose.port",
-      "description": "School Structure composition exposes observations from its consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "port"
-    },
-    {
-      "id": "school-structure.compose.postgres",
-      "description": "School Structure composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "postgres"
-    },
-    {
-      "id": "school-structure.compose.public",
-      "description": "School Structure composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "public"
     },
     {
       "id": "school-structure.compose.tenant-runtime",
@@ -10912,17 +9760,6 @@
       "source_role": "compose",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "school-structure.compose.staff-groups-adapter",
-      "description": "School Structure composition binds the staff-keyed group reads (#3499).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "adapter"
     },
     {
       "id": "school-structure.staff-groups.public",
@@ -10958,17 +9795,6 @@
       "target_role": "public"
     },
     {
-      "id": "school-structure.integration-test.public",
-      "description": "School Structure integration tests exercise the public facade.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "workflow-integration-test",
-      "target_owner": "school-structure",
-      "target_role": "public"
-    },
-    {
       "id": "school-structure.integration-test.support",
       "description": "School Structure integration tests use hermetic database support.",
       "scopes": [
@@ -10978,17 +9804,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "school-structure.adapter-test.compose",
-      "description": "Staff-keyed group read tests build the reads through School Structure composition (#3499).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "adapter-test",
-      "target_owner": "school-structure",
-      "target_role": "compose"
     },
     {
       "id": "school-structure.adapter-test.membership-compose",
@@ -11011,28 +9826,6 @@
       "source_role": "adapter-test",
       "target_owner": "workforce",
       "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.school-structure-compose",
-      "description": "The production root constructs the School Structure module once.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.school-structure-public",
-      "description": "The production root records stable School Structure capability outcomes.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "public"
     },
     {
       "id": "legacy-composition.to.school-structure-compose",
@@ -11068,28 +9861,6 @@
       "same_owner": true
     },
     {
-      "id": "timetable-activities.compose.application",
-      "description": "Timetable & Activities composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_owner": "timetable-activities",
-      "target_role": "application"
-    },
-    {
-      "id": "timetable-activities.compose.domain",
-      "description": "Timetable & Activities composition maps owner domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_owner": "timetable-activities",
-      "target_role": "domain"
-    },
-    {
       "id": "timetable-activities.compose.orm-sql",
       "description": "Timetable & Activities composition supplies the Bun database dependency.",
       "scopes": [
@@ -11098,39 +9869,6 @@
       "source_owner": "timetable-activities",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "timetable-activities.compose.port",
-      "description": "Timetable & Activities composition exposes observations from its consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_owner": "timetable-activities",
-      "target_role": "port"
-    },
-    {
-      "id": "timetable-activities.compose.postgres",
-      "description": "Timetable & Activities composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_owner": "timetable-activities",
-      "target_role": "postgres"
-    },
-    {
-      "id": "timetable-activities.compose.public",
-      "description": "Timetable & Activities composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_owner": "timetable-activities",
-      "target_role": "public"
     },
     {
       "id": "timetable-activities.compose.tenant-runtime",
@@ -11253,17 +9991,6 @@
       "target_role": "public"
     },
     {
-      "id": "timetable-activities.integration-test.public",
-      "description": "Timetable & Activities integration tests exercise the public facade.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "timetable-activities",
-      "target_role": "public"
-    },
-    {
       "id": "timetable-activities.integration-test.support",
       "description": "Timetable & Activities integration tests use hermetic database support.",
       "scopes": [
@@ -11339,39 +10066,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "timetable-activities",
       "target_role": "application"
-    },
-    {
-      "id": "timetable-activities.http-integration-test.compose",
-      "description": "Timetable HTTP integration tests exercise composition adapters.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "timetable-activities",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.timetable-activities-compose",
-      "description": "The production root constructs the Timetable & Activities module once.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "timetable-activities",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.timetable-activities-public",
-      "description": "The production root records stable Timetable & Activities outcomes and shares the facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "timetable-activities",
-      "target_role": "public"
     },
     {
       "id": "legacy-composition.to.timetable-activities-compose",
@@ -11550,28 +10244,6 @@
       "same_owner": true
     },
     {
-      "id": "facilities.compose.application",
-      "description": "Facilities composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "facilities",
-      "target_role": "application"
-    },
-    {
-      "id": "facilities.compose.domain",
-      "description": "Facilities composition maps its internal domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "facilities",
-      "target_role": "domain"
-    },
-    {
       "id": "facilities.compose.orm-sql",
       "description": "Facilities composition supplies the concrete Bun database dependency.",
       "scopes": [
@@ -11580,39 +10252,6 @@
       "source_owner": "facilities",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "facilities.compose.port",
-      "description": "Facilities composition exposes observations from its consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "facilities",
-      "target_role": "port"
-    },
-    {
-      "id": "facilities.compose.postgres",
-      "description": "Facilities composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "facilities",
-      "target_role": "postgres"
-    },
-    {
-      "id": "facilities.compose.public",
-      "description": "Facilities composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "facilities",
-      "target_role": "public"
     },
     {
       "id": "facilities.compose.tenant-runtime",
@@ -11801,17 +10440,6 @@
       "target_role": "public"
     },
     {
-      "id": "facilities.integration-test.public",
-      "description": "Facilities integration tests exercise the public facade.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "facilities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "facilities",
-      "target_role": "public"
-    },
-    {
       "id": "facilities.integration-test.support",
       "description": "Facilities integration tests use hermetic database support.",
       "scopes": [
@@ -11911,17 +10539,6 @@
       "target_role": "domain"
     },
     {
-      "id": "facilities.integration-test.compose",
-      "description": "Facilities HTTP integration tests construct the real owner provider.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "facilities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "facilities",
-      "target_role": "compose"
-    },
-    {
       "id": "facilities.integration-test.legacy-composition",
       "description": "Facilities HTTP integration tests supply the legacy application graph at the composition boundary.",
       "scopes": [
@@ -11942,28 +10559,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "document-rendering",
       "target_role": "application"
-    },
-    {
-      "id": "root-composition.to.facilities-compose",
-      "description": "The production root constructs the Facilities module once.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "facilities",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.facilities-public",
-      "description": "The production root records stable Facilities capability outcomes.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "facilities",
-      "target_role": "public"
     },
     {
       "id": "legacy-composition.to.facilities-compose",
@@ -11997,61 +10592,6 @@
       "source_role": "port",
       "target_role": "domain",
       "same_owner": true
-    },
-    {
-      "id": "workforce.compose.application",
-      "description": "Workforce composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "application"
-    },
-    {
-      "id": "workforce.compose.domain",
-      "description": "Workforce composition maps its internal domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "domain"
-    },
-    {
-      "id": "workforce.compose.port",
-      "description": "Workforce composition exposes observations from its consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "port"
-    },
-    {
-      "id": "workforce.compose.postgres",
-      "description": "Workforce composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "postgres"
-    },
-    {
-      "id": "workforce.compose.public",
-      "description": "Workforce composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "public"
     },
     {
       "id": "workforce.compose.orm-sql",
@@ -12140,28 +10680,6 @@
       "target_role": "http"
     },
     {
-      "id": "workforce.integration-test.public",
-      "description": "Workforce integration tests exercise the public facade.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "workflow-integration-test",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
-      "id": "workforce.integration-test.compose",
-      "description": "Workforce integration tests construct the real owner provider and its compatibility adapters.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "workflow-integration-test",
-      "target_owner": "workforce",
-      "target_role": "compose"
-    },
-    {
       "id": "workforce.integration-test.support",
       "description": "Workforce integration tests use hermetic database support.",
       "scopes": [
@@ -12206,28 +10724,6 @@
       "target_role": "domain"
     },
     {
-      "id": "root-composition.to.workforce-compose",
-      "description": "The production root constructs the Workforce module once.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.workforce-public",
-      "description": "The production root records stable Workforce capability outcomes and shares the one facade with its consumers.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
       "id": "legacy-composition.to.workforce-compose",
       "description": "Legacy composition constructs the default Workforce capability and its repository adapters.",
       "scopes": [
@@ -12248,16 +10744,6 @@
       "source_role": "compose",
       "target_owner": "workforce",
       "target_role": "public"
-    },
-    {
-      "id": "workflow-decision-test.port",
-      "description": "Workflow decision tests use their own consumer-owned ports.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_role": "workflow-decision-test",
-      "same_owner": true,
-      "target_role": "port"
     },
     {
       "id": "workflow-decision-test.test-support",
@@ -12303,28 +10789,6 @@
       "same_owner": true
     },
     {
-      "id": "delivery.compose.application",
-      "description": "Delivery composition constructs its application services.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "compose",
-      "target_owner": "delivery-platform",
-      "target_role": "application"
-    },
-    {
-      "id": "delivery.compose.domain",
-      "description": "Delivery composition maps internal domain values to its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "compose",
-      "target_owner": "delivery-platform",
-      "target_role": "domain"
-    },
-    {
       "id": "delivery.compose.orm-sql",
       "description": "Delivery composition supplies the concrete Bun database dependency.",
       "scopes": [
@@ -12333,28 +10797,6 @@
       "source_owner": "delivery-platform",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "delivery.compose.postgres",
-      "description": "Delivery composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "compose",
-      "target_owner": "delivery-platform",
-      "target_role": "postgres"
-    },
-    {
-      "id": "delivery.compose.contract",
-      "description": "Delivery composition returns its contract facade and worker.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "compose",
-      "target_owner": "delivery-platform",
-      "target_role": "contract"
     },
     {
       "id": "delivery.compose.tenant-runtime",
@@ -12489,28 +10931,6 @@
       "target_role": "domain"
     },
     {
-      "id": "people-directory.compose.application",
-      "description": "People Directory composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
-      "id": "people-directory.compose.domain",
-      "description": "People Directory composition maps its internal domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "domain"
-    },
-    {
       "id": "people-directory.compose.orm-sql",
       "description": "People Directory composition supplies the concrete Bun database dependency.",
       "scopes": [
@@ -12519,39 +10939,6 @@
       "source_owner": "people-directory",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "people-directory.compose.port",
-      "description": "People Directory composition exposes observations from its consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "port"
-    },
-    {
-      "id": "people-directory.compose.postgres",
-      "description": "People Directory composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "postgres"
-    },
-    {
-      "id": "people-directory.compose.public",
-      "description": "People Directory composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "public"
     },
     {
       "id": "people-directory.compose.tenant-runtime",
@@ -12576,17 +10963,6 @@
       "target_role": "public"
     },
     {
-      "id": "people-directory.integration-test.public",
-      "description": "People Directory integration tests exercise the public facade.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "workflow-integration-test",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
       "id": "people-directory.integration-test.support",
       "description": "People Directory integration tests use hermetic database support.",
       "scopes": [
@@ -12607,28 +10983,6 @@
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "root-composition.to.people-directory-compose",
-      "description": "The production root constructs the People Directory module once.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.people-directory-public",
-      "description": "The production root records stable People Directory capability outcomes and shares the facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "public"
     },
     {
       "id": "root-composition.to.people-directory-http",
@@ -12791,28 +11145,6 @@
       "target_class": "crypto"
     },
     {
-      "id": "export-transfer.e2e-test.test-support",
-      "description": "The transport's end-to-end tests drive the shared in-process counterpart.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "export-transfer",
-      "source_role": "e2e-test",
-      "target_owner": "export-transfer",
-      "target_role": "test-support"
-    },
-    {
-      "id": "export-transfer.internal-test.test-support",
-      "description": "The capability's integration test drives the same in-process counterpart as the transport's own tests, so both sides prove behaviour against one server.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "export-transfer",
-      "source_role": "module-internal-test",
-      "target_owner": "export-transfer",
-      "target_role": "test-support"
-    },
-    {
       "id": "export-transfer.internal-test.tenant-runtime",
       "description": "The capability's integration test opens the tenant transaction that TenantTxMiddleware provides in production, so the journal entry is written where it would really be written.",
       "scopes": [
@@ -12845,61 +11177,6 @@
       "target_role": "domain"
     },
     {
-      "id": "export-transfer.compose.domain",
-      "description": "Export Transfer composition builds domain values from the tenant settings and translates results to the public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "export-transfer",
-      "source_role": "compose",
-      "target_owner": "export-transfer",
-      "target_role": "domain"
-    },
-    {
-      "id": "export-transfer.compose.contract",
-      "description": "Export Transfer composition returns the public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "export-transfer",
-      "source_role": "compose",
-      "target_owner": "export-transfer",
-      "target_role": "contract"
-    },
-    {
-      "id": "export-transfer.compose.application",
-      "description": "Export Transfer composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "export-transfer",
-      "source_role": "compose",
-      "target_owner": "export-transfer",
-      "target_role": "application"
-    },
-    {
-      "id": "export-transfer.compose.postgres",
-      "description": "Export Transfer composition constructs its journal adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "export-transfer",
-      "source_role": "compose",
-      "target_owner": "export-transfer",
-      "target_role": "postgres"
-    },
-    {
-      "id": "export-transfer.compose.adapter",
-      "description": "Export Transfer composition constructs its SFTP transport and binds it to the port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "export-transfer",
-      "source_role": "compose",
-      "target_owner": "export-transfer",
-      "target_role": "adapter"
-    },
-    {
       "id": "export-transfer.compose.tenant-runtime",
       "description": "Export Transfer composition writes its journal on the caller's tenant transaction.",
       "scopes": [
@@ -12919,17 +11196,6 @@
       "source_owner": "export-transfer",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "export-transfer.e2e-test.adapter",
-      "description": "The SFTP export transfer's end-to-end test (#3050) drives the adapter through its public API from an external test package.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "export-transfer",
-      "source_role": "e2e-test",
-      "target_owner": "export-transfer",
-      "target_role": "adapter"
     },
     {
       "id": "inbound-notifications.delivery-application",
@@ -13104,17 +11370,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "delivery-platform",
       "target_role": "domain"
-    },
-    {
-      "id": "delivery-cutover.015",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "workflow-integration-test",
-      "target_owner": "delivery-platform",
-      "target_role": "public"
     },
     {
       "id": "delivery-cutover.018",
@@ -13371,17 +11626,6 @@
       "target_role": "public"
     },
     {
-      "id": "delivery-cutover.compose-adapter",
-      "description": "Delivery composition constructs its provider adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "compose",
-      "target_owner": "delivery-platform",
-      "target_role": "adapter"
-    },
-    {
       "id": "delivery-cutover.adapter-contract",
       "description": "Delivery provider adapters implement the public provider contract.",
       "scopes": [
@@ -13391,17 +11635,6 @@
       "source_role": "adapter",
       "target_owner": "delivery-platform",
       "target_role": "contract"
-    },
-    {
-      "id": "delivery-cutover.compose-public",
-      "description": "Delivery composition wires the realtime public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "compose",
-      "target_owner": "delivery-platform",
-      "target_role": "public"
     },
     {
       "id": "delivery-platform.application.care-plan-absence-records",
@@ -13448,28 +11681,6 @@
       "target_role": "domain"
     },
     {
-      "id": "school-membership.compose.application",
-      "description": "School Membership composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-membership",
-      "source_role": "compose",
-      "target_owner": "school-membership",
-      "target_role": "application"
-    },
-    {
-      "id": "school-membership.compose.domain",
-      "description": "School Membership composition maps its internal domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-membership",
-      "source_role": "compose",
-      "target_owner": "school-membership",
-      "target_role": "domain"
-    },
-    {
       "id": "school-membership.compose.orm-sql",
       "description": "School Membership composition supplies the concrete Bun database dependency.",
       "scopes": [
@@ -13478,39 +11689,6 @@
       "source_owner": "school-membership",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "school-membership.compose.port",
-      "description": "School Membership composition exposes observations from its consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-membership",
-      "source_role": "compose",
-      "target_owner": "school-membership",
-      "target_role": "port"
-    },
-    {
-      "id": "school-membership.compose.postgres",
-      "description": "School Membership composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-membership",
-      "source_role": "compose",
-      "target_owner": "school-membership",
-      "target_role": "postgres"
-    },
-    {
-      "id": "school-membership.compose.public",
-      "description": "School Membership composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-membership",
-      "source_role": "compose",
-      "target_owner": "school-membership",
-      "target_role": "public"
     },
     {
       "id": "school-membership.compose.tenant-runtime",
@@ -13532,17 +11710,6 @@
       "source_owner": "school-membership",
       "source_role": "workflow-integration-test",
       "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "school-membership.integration-test.public",
-      "description": "School Membership integration tests exercise the public facade.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "school-membership",
-      "source_role": "workflow-integration-test",
-      "target_owner": "school-membership",
       "target_role": "public"
     },
     {
@@ -13577,28 +11744,6 @@
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "root-composition.to.school-membership-compose",
-      "description": "The production root constructs the School Membership module once.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "school-membership",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.school-membership-public",
-      "description": "The production root records stable School Membership capability outcomes and shares the facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "school-membership",
-      "target_role": "public"
     },
     {
       "id": "root-composition.to.school-membership-http",
@@ -13687,17 +11832,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "people-directory",
       "target_role": "domain"
-    },
-    {
-      "id": "communication.parent-compatibility.behavior-test-application",
-      "description": "The external compatibility test exercises the internal parent-announcement implementation until #2675.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_owner": "communication",
-      "target_role": "adapter"
     },
     {
       "id": "communication.parent-compatibility.behavior-test-delivery-application",
@@ -13876,17 +12010,6 @@
       "target_role": "application"
     },
     {
-      "id": "communication.parent-compatibility.compose-adapter",
-      "description": "Communication composition hides the retained parent-announcement implementation behind the public facade until #2675.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "target_owner": "communication",
-      "target_role": "adapter"
-    },
-    {
       "id": "communication.parent-http.common",
       "description": "The parent-announcement HTTP adapter uses shared tenant middleware and response rendering.",
       "scopes": [
@@ -13953,17 +12076,6 @@
       "target_role": "domain"
     },
     {
-      "id": "communication.compose.application",
-      "description": "Communication composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "target_owner": "communication",
-      "target_role": "application"
-    },
-    {
       "id": "communication.compose.audience",
       "description": "Communication composition constructs the tenant-safe staff announcement audience projection.",
       "scopes": [
@@ -13973,17 +12085,6 @@
       "source_role": "compose",
       "target_owner": "staff-announcement-audience",
       "target_role": "postgres"
-    },
-    {
-      "id": "communication.compose.domain",
-      "description": "Communication composition maps its internal domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "target_owner": "communication",
-      "target_role": "domain"
     },
     {
       "id": "communication.compose.organization-tenancy",
@@ -14005,39 +12106,6 @@
       "source_owner": "communication",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "communication.compose.port",
-      "description": "Communication composition exposes observations from its consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "target_owner": "communication",
-      "target_role": "port"
-    },
-    {
-      "id": "communication.compose.postgres",
-      "description": "Communication composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "target_owner": "communication",
-      "target_role": "postgres"
-    },
-    {
-      "id": "communication.compose.public",
-      "description": "Communication composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "target_owner": "communication",
-      "target_role": "public"
     },
     {
       "id": "communication.compose.tenant-runtime",
@@ -14080,28 +12148,6 @@
       ],
       "source_owner": "inbound-platform",
       "source_role": "http",
-      "target_owner": "communication",
-      "target_role": "public"
-    },
-    {
-      "id": "root-composition.to.communication-compose",
-      "description": "The production root constructs the Communication module once.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "communication",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.communication-public",
-      "description": "The production root records Communication outcomes and shares its facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
       "target_owner": "communication",
       "target_role": "public"
     },
@@ -14205,17 +12251,6 @@
       "target_role": "postgres"
     },
     {
-      "id": "communication.test-support.compose",
-      "description": "Communication test support constructs the real parent-event emitter and conversation core through the owner composition.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "test-support",
-      "target_owner": "communication",
-      "target_role": "compose"
-    },
-    {
       "id": "communication.test-support.application",
       "description": "Communication test support returns the consumer-facing emitter shell.",
       "scopes": [
@@ -14269,17 +12304,6 @@
       "source_role": "adapter-test",
       "target_owner": "communication",
       "target_role": "test-support"
-    },
-    {
-      "id": "communication.integration-test.public",
-      "description": "Communication integration tests exercise the public facade.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_owner": "communication",
-      "target_role": "public"
     },
     {
       "id": "communication.integration-test.organization-compose",
@@ -14337,39 +12361,6 @@
       "target_role": "domain"
     },
     {
-      "id": "communication.integration-test.parent-compatibility-adapter",
-      "description": "Communication facade tests verify the retained parent-announcement adapter stays hidden until #2675.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_owner": "communication",
-      "target_role": "adapter"
-    },
-    {
-      "id": "appointments.compose.application",
-      "description": "Appointments composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "appointments",
-      "source_role": "compose",
-      "target_owner": "appointments",
-      "target_role": "application"
-    },
-    {
-      "id": "appointments.compose.domain",
-      "description": "Appointments composition maps its internal domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "appointments",
-      "source_role": "compose",
-      "target_owner": "appointments",
-      "target_role": "domain"
-    },
-    {
       "id": "appointments.compose.orm-sql",
       "description": "Appointments composition supplies the concrete Bun database dependency.",
       "scopes": [
@@ -14378,39 +12369,6 @@
       "source_owner": "appointments",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "appointments.compose.port",
-      "description": "Appointments composition exposes observations from its consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "appointments",
-      "source_role": "compose",
-      "target_owner": "appointments",
-      "target_role": "port"
-    },
-    {
-      "id": "appointments.compose.postgres",
-      "description": "Appointments composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "appointments",
-      "source_role": "compose",
-      "target_owner": "appointments",
-      "target_role": "postgres"
-    },
-    {
-      "id": "appointments.compose.public",
-      "description": "Appointments composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "appointments",
-      "source_role": "compose",
-      "target_owner": "appointments",
-      "target_role": "public"
     },
     {
       "id": "appointments.compose.tenant-runtime",
@@ -14435,17 +12393,6 @@
       "target_role": "public"
     },
     {
-      "id": "appointments.integration-test.public",
-      "description": "Appointments integration tests exercise the public facade.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "appointments",
-      "source_role": "workflow-integration-test",
-      "target_owner": "appointments",
-      "target_role": "public"
-    },
-    {
       "id": "appointments.integration-test.support",
       "description": "Appointments integration tests use hermetic database support.",
       "scopes": [
@@ -14455,28 +12402,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "root-composition.to.appointments-compose",
-      "description": "The production root constructs the Appointments module once.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "appointments",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.appointments-public",
-      "description": "The production root records stable Appointments outcomes and shares the facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "appointments",
-      "target_role": "public"
     },
     {
       "id": "legacy-composition.to.appointments-compose",
@@ -14534,28 +12459,6 @@
       "same_owner": true
     },
     {
-      "id": "school-calendar.compose.application",
-      "description": "School Calendar composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "compose",
-      "target_owner": "school-calendar",
-      "target_role": "application"
-    },
-    {
-      "id": "school-calendar.compose.domain",
-      "description": "School Calendar composition maps its internal domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "compose",
-      "target_owner": "school-calendar",
-      "target_role": "domain"
-    },
-    {
       "id": "school-calendar.compose.orm-sql",
       "description": "School Calendar composition supplies the concrete Bun database dependency.",
       "scopes": [
@@ -14564,39 +12467,6 @@
       "source_owner": "school-calendar",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "school-calendar.compose.port",
-      "description": "School Calendar composition exposes observations from its consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "compose",
-      "target_owner": "school-calendar",
-      "target_role": "port"
-    },
-    {
-      "id": "school-calendar.compose.postgres",
-      "description": "School Calendar composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "compose",
-      "target_owner": "school-calendar",
-      "target_role": "postgres"
-    },
-    {
-      "id": "school-calendar.compose.public",
-      "description": "School Calendar composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "compose",
-      "target_owner": "school-calendar",
-      "target_role": "public"
     },
     {
       "id": "school-calendar.compose.tenant-runtime",
@@ -14621,17 +12491,6 @@
       "target_role": "public"
     },
     {
-      "id": "school-calendar.integration-test.public",
-      "description": "School Calendar integration tests exercise the public facade.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "workflow-integration-test",
-      "target_owner": "school-calendar",
-      "target_role": "public"
-    },
-    {
       "id": "school-calendar.integration-test.support",
       "description": "School Calendar integration tests use hermetic database support.",
       "scopes": [
@@ -14641,28 +12500,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "root-composition.to.school-calendar-compose",
-      "description": "The production root constructs the School Calendar module once.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "school-calendar",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.school-calendar-public",
-      "description": "The production root records stable School Calendar capability outcomes and shares the facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "school-calendar",
-      "target_role": "public"
     },
     {
       "id": "legacy-composition.to.school-calendar-compose",
@@ -14698,50 +12535,6 @@
       "same_owner": true
     },
     {
-      "id": "enrollment.compose.application",
-      "description": "Enrollment composition constructs its application services.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "compose",
-      "target_owner": "enrollment",
-      "target_role": "application"
-    },
-    {
-      "id": "enrollment.compose.adapter",
-      "description": "Enrollment composition binds its captcha provider adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "compose",
-      "target_owner": "enrollment",
-      "target_role": "adapter"
-    },
-    {
-      "id": "care-plan.compose.application",
-      "description": "Care Plan composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "application"
-    },
-    {
-      "id": "care-plan.compose.domain",
-      "description": "Care Plan composition maps its internal domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "domain"
-    },
-    {
       "id": "care-plan.compose.orm-sql",
       "description": "Care Plan composition supplies the concrete Bun database dependency.",
       "scopes": [
@@ -14750,28 +12543,6 @@
       "source_owner": "care-plan",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "care-plan.compose.port",
-      "description": "Care Plan composition exposes observations from its consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "port"
-    },
-    {
-      "id": "care-plan.compose.postgres",
-      "description": "Care Plan composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "postgres"
     },
     {
       "id": "care-plan.compose.parent-request-feed-view",
@@ -14785,17 +12556,6 @@
       "target_role": "postgres"
     },
     {
-      "id": "care-plan.compose.public",
-      "description": "Care Plan composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
       "id": "care-plan.compose.tenant-runtime",
       "description": "Care Plan composition resolves transactions and advisory locks through the tenant runtime.",
       "scopes": [
@@ -14804,17 +12564,6 @@
       "source_owner": "care-plan",
       "source_role": "compose",
       "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "care-plan.integration-test.public",
-      "description": "Care Plan integration tests exercise the public facade.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "workflow-integration-test",
-      "target_owner": "care-plan",
       "target_role": "public"
     },
     {
@@ -14838,39 +12587,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "root-composition.to.care-plan-compose",
-      "description": "The production root constructs the Care Plan module once.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.care-plan-public",
-      "description": "The production root records stable Care Plan outcomes and shares the facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "root-composition.to.request-feed-http",
-      "description": "The production root mounts the parent-request RSS HTTP adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "http"
     },
     {
       "id": "legacy-composition.to.care-plan-compose",
@@ -14960,28 +12676,6 @@
       "source_role": "application",
       "target_owner": "care-plan",
       "target_role": "public"
-    },
-    {
-      "id": "care-plan.testsupport.public",
-      "description": "Care Plan test support exposes the owner facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "test-support",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "care-plan.testsupport.compose",
-      "description": "Care Plan test support constructs the owner module.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "test-support",
-      "target_owner": "care-plan",
-      "target_role": "compose"
     },
     {
       "id": "care-plan.testsupport.people-public",
@@ -15693,28 +13387,6 @@
       "target_role": "application"
     },
     {
-      "id": "parent-portal.compose.flows",
-      "description": "Wire the guardian portal workflow (#3420): bind the child and messaging flows.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "compose",
-      "same_owner": true,
-      "target_role": "application"
-    },
-    {
-      "id": "parent-portal.compose.port",
-      "description": "Wire the guardian portal workflow (#3420): build the composed portal.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "compose",
-      "same_owner": true,
-      "target_role": "port"
-    },
-    {
       "id": "parent-portal.compose.care-plan.compose",
       "description": "Wire the guardian portal workflow (#3420): construct Care Plan's guardian absence and pickup exception commands over its capability.",
       "scopes": [
@@ -15889,28 +13561,6 @@
       "source_role": "compose",
       "target_owner": "communication",
       "target_role": "application"
-    },
-    {
-      "id": "parent-portal.decision-test.subject",
-      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "workflow-decision-test",
-      "same_owner": true,
-      "target_role": "port"
-    },
-    {
-      "id": "parent-portal.decision-test.compose",
-      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "workflow-decision-test",
-      "same_owner": true,
-      "target_role": "compose"
     },
     {
       "id": "parent-portal.decision-test.orm-sql",
@@ -16274,28 +13924,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "root-composition.to.workforce-http",
-      "description": "The production root constructs the Workforce HTTP composition for the staff-shift and shift-type routes.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "http"
-    },
-    {
-      "id": "root-composition.to.workforce-adapter",
-      "description": "The production root constructs the Workforce HTTP composition for the absence-type and substitution routes.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "adapter"
-    },
-    {
       "id": "legacy-composition.to.workforce-adapter",
       "description": "Legacy composition constructs the Workforce compatibility adapters for the retained absence and substitution repository contracts.",
       "scopes": [
@@ -16316,61 +13944,6 @@
       "source_role": "port",
       "target_role": "domain",
       "same_owner": true
-    },
-    {
-      "id": "device-fleet.compose.public",
-      "description": "Device Fleet composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "compose",
-      "target_owner": "device-fleet",
-      "target_role": "public"
-    },
-    {
-      "id": "device-fleet.compose.application",
-      "description": "Device Fleet composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "compose",
-      "target_owner": "device-fleet",
-      "target_role": "application"
-    },
-    {
-      "id": "device-fleet.compose.domain",
-      "description": "Device Fleet composition maps its internal domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "compose",
-      "target_owner": "device-fleet",
-      "target_role": "domain"
-    },
-    {
-      "id": "device-fleet.compose.port",
-      "description": "Device Fleet composition exposes observations from its consumer-owned ports.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "compose",
-      "target_owner": "device-fleet",
-      "target_role": "port"
-    },
-    {
-      "id": "device-fleet.compose.postgres",
-      "description": "Device Fleet composition constructs its Postgres adapters.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "compose",
-      "target_owner": "device-fleet",
-      "target_role": "postgres"
     },
     {
       "id": "device-fleet.compose.orm-sql",
@@ -16468,18 +14041,6 @@
       "source_owner": "device-fleet",
       "source_role": "compose",
       "target_class": "http-router"
-    },
-    {
-      "id": "device-fleet.integration-test.compose",
-      "description": "Device Fleet integration tests construct the real owner provider.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "device-fleet",
-      "target_role": "compose"
     },
     {
       "id": "device-fleet.integration-test.legacy-composition",
@@ -16690,17 +14251,6 @@
       "target_role": "public"
     },
     {
-      "id": "device-fleet.compose.self",
-      "description": "Device Fleet compatibility composition reuses its own composition types.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "compose",
-      "target_owner": "device-fleet",
-      "target_role": "compose"
-    },
-    {
       "id": "device-fleet.compatibility-application.public",
       "description": "The retained IoT service delegates every device operation to the public owner capability.",
       "scopes": [
@@ -16710,17 +14260,6 @@
       "source_role": "application",
       "target_owner": "device-fleet",
       "target_role": "public"
-    },
-    {
-      "id": "root-composition.to.device-fleet-compose",
-      "description": "The serving root constructs the Device Fleet display adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "device-fleet",
-      "target_role": "compose"
     },
     {
       "id": "legacy-composition.to.device-fleet-public",
@@ -16821,29 +14360,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "device-fleet.device-auth-test.device-fleet-adapter",
-      "description": "Device authentication tests read the principals the adapter binds to the request.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "adapter-test",
-      "target_owner": "device-fleet",
-      "target_role": "adapter"
-    },
-    {
-      "id": "root-composition.to.device-fleet-device-auth",
-      "description": "The production root composes the device authenticators once and mounts them on the IoT and student RFID routes.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "device-fleet",
-      "target_role": "http"
-    },
-    {
       "id": "test-support.to.device-fleet-device-auth",
       "description": "API test composition constructs the real device authenticators for device-authenticated handler tests.",
       "scopes": [
@@ -16855,28 +14371,6 @@
       "target_role": "http"
     },
     {
-      "id": "delivery-platform.test-support.adapter",
-      "description": "The mail test doubles in email/emailtest capture and stub the transport contract of the email package (#3944).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "test-support",
-      "target_owner": "delivery-platform",
-      "target_role": "adapter"
-    },
-    {
-      "id": "delivery-platform.test-support.public",
-      "description": "The recording broadcaster in realtime/realtimetest implements realtime.Broadcaster and asserts on its events (#3944).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "delivery-platform",
-      "source_role": "test-support",
-      "target_owner": "delivery-platform",
-      "target_role": "public"
-    },
-    {
       "id": "security-runtime.test-support.domain",
       "description": "auth/userpass/userpasstest sets and uses the cheap Argon2id profile of the hashing package (#3944).",
       "scopes": [
@@ -16886,17 +14380,6 @@
       "source_role": "test-support",
       "target_owner": "security-runtime",
       "target_role": "domain"
-    },
-    {
-      "id": "device-fleet.test-support.adapter",
-      "description": "auth/device/devicetest binds the principals the device authentication middleware binds (#3944).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "test-support",
-      "target_owner": "device-fleet",
-      "target_role": "adapter"
     },
     {
       "id": "test-support.to.delivery-platform-support",
@@ -17083,39 +14566,6 @@
       "source_owner": "class-day-view",
       "source_role": "application",
       "target_class": "crypto"
-    },
-    {
-      "id": "class-day-view.compose.public",
-      "description": "The class-day composition returns the projection's own contract (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "compose",
-      "target_owner": "class-day-view",
-      "target_role": "public"
-    },
-    {
-      "id": "class-day-view.compose.application",
-      "description": "The class-day composition constructs the projection's application (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "compose",
-      "target_owner": "class-day-view",
-      "target_role": "application"
-    },
-    {
-      "id": "class-day-view.compose.port",
-      "description": "The class-day composition binds the projection's consumer-owned ports (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "compose",
-      "target_owner": "class-day-view",
-      "target_role": "port"
     },
     {
       "id": "class-day-view.compose.security-application",
@@ -17404,39 +14854,6 @@
       "target_role": "public"
     },
     {
-      "id": "class-day-view.integration-test.compose",
-      "description": "Class-day integration tests compose the projection the way the service factory does (#2701).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "workflow-integration-test",
-      "target_owner": "class-day-view",
-      "target_role": "compose"
-    },
-    {
-      "id": "class-day-view.integration-test.port",
-      "description": "Class-day integration tests verify the rule bindings against the port facts (#2701).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "workflow-integration-test",
-      "target_owner": "class-day-view",
-      "target_role": "port"
-    },
-    {
-      "id": "class-day-view.integration-test.class-day-support",
-      "description": "Class-day integration tests compose the retained schedule adapters through local test support (#2701).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "class-day-view",
-      "source_role": "workflow-integration-test",
-      "target_owner": "class-day-view",
-      "target_role": "test-support"
-    },
-    {
       "id": "class-day-view.integration-test.care-plan-support",
       "description": "Class-day integration tests compose Care Plan through its test support (#2701).",
       "scopes": [
@@ -17624,17 +15041,6 @@
       "target_role": "port"
     },
     {
-      "id": "process-device-scan.decision-test.public",
-      "description": "Device scan decision tests drive the workflow through the public contract values (#2698).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "process-device-scan",
-      "source_role": "workflow-decision-test",
-      "target_owner": "process-device-scan",
-      "target_role": "public"
-    },
-    {
       "id": "process-device-scan.decision-test.device-fleet",
       "description": "Device scan decision tests fake the public Device Fleet capability (#2698).",
       "scopes": [
@@ -17644,50 +15050,6 @@
       "source_role": "workflow-decision-test",
       "target_owner": "device-fleet",
       "target_role": "public"
-    },
-    {
-      "id": "process-device-scan.integration-test.compose",
-      "description": "Device scan integration tests compose the workflow over the real retained services (#2698).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "process-device-scan",
-      "source_role": "workflow-integration-test",
-      "target_owner": "process-device-scan",
-      "target_role": "compose"
-    },
-    {
-      "id": "process-device-scan.compose.public",
-      "description": "The device-scan composition returns the workflow's own contract (#2698).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "process-device-scan",
-      "source_role": "compose",
-      "target_owner": "process-device-scan",
-      "target_role": "public"
-    },
-    {
-      "id": "process-device-scan.compose.application",
-      "description": "The device-scan composition constructs the workflow (#2698).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "process-device-scan",
-      "source_role": "compose",
-      "target_owner": "process-device-scan",
-      "target_role": "application"
-    },
-    {
-      "id": "process-device-scan.compose.port",
-      "description": "The device-scan composition binds the workflow's consumer-owned ports (#2698).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "process-device-scan",
-      "source_role": "compose",
-      "target_owner": "process-device-scan",
-      "target_role": "port"
     },
     {
       "id": "process-device-scan.compose.student-presence-public",
@@ -17797,17 +15159,6 @@
       "source_owner": "process-device-scan",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "root-composition.to.process-device-scan-compose",
-      "description": "The production root composes the device-scan workflow once for the kiosk routes (#2698).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "process-device-scan",
-      "target_role": "compose"
     },
     {
       "id": "legacy-composition.compose.to.process-device-scan.compose",
@@ -18217,28 +15568,6 @@
       "same_owner": true
     },
     {
-      "id": "identity-access.compose.application",
-      "description": "Identity & Access composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "application"
-    },
-    {
-      "id": "identity-access.compose.domain",
-      "description": "Identity & Access composition maps its internal domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "domain"
-    },
-    {
       "id": "identity-access.compose.orm-sql",
       "description": "Identity & Access composition supplies the concrete Bun database dependency.",
       "scopes": [
@@ -18247,39 +15576,6 @@
       "source_owner": "identity-access",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "identity-access.compose.port",
-      "description": "Identity & Access composition exposes observations from its consumer-owned port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "port"
-    },
-    {
-      "id": "identity-access.compose.postgres",
-      "description": "Identity & Access composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "postgres"
-    },
-    {
-      "id": "identity-access.compose.public",
-      "description": "Identity & Access composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "public"
     },
     {
       "id": "identity-access.compose.tenant-runtime",
@@ -18291,28 +15587,6 @@
       "source_role": "compose",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "identity-access.integration-test.public",
-      "description": "Identity & Access integration tests exercise the public guardian-access facade.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "public"
-    },
-    {
-      "id": "identity-access.integration-test.compose",
-      "description": "Identity & Access integration tests compose the owner with production composition.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "compose"
     },
     {
       "id": "identity-access.integration-test.support",
@@ -18403,34 +15677,12 @@
       "target_role": "contract"
     },
     {
-      "id": "calendar-portal.production.root-composition.compose.school-calendar.contract",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "school-calendar",
-      "target_role": "contract"
-    },
-    {
       "id": "calendar-portal.production.legacy-composition.compose.school-calendar.contract",
       "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
       "scopes": [
         "production"
       ],
       "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "school-calendar",
-      "target_role": "contract"
-    },
-    {
-      "id": "calendar-portal.production.school-calendar.compose.school-calendar.contract",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-calendar",
       "source_role": "compose",
       "target_owner": "school-calendar",
       "target_role": "contract"
@@ -18489,17 +15741,6 @@
       "source_role": "contract",
       "target_owner": "appointments",
       "target_role": "public"
-    },
-    {
-      "id": "calendar-portal.production.school-calendar.compose.school-calendar.adapter",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "compose",
-      "target_owner": "school-calendar",
-      "target_role": "adapter"
     },
     {
       "id": "calendar-portal.production.school-calendar.adapter.crypto",
@@ -18641,39 +15882,6 @@
       "source_role": "e2e-test",
       "target_owner": "delivery-platform",
       "target_role": "application"
-    },
-    {
-      "id": "calendar-portal.external_test.school-calendar.e2e-test.school-calendar.public",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "e2e-test",
-      "target_owner": "school-calendar",
-      "target_role": "public"
-    },
-    {
-      "id": "calendar-portal.external_test.school-calendar.e2e-test.school-calendar.contract",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "e2e-test",
-      "target_owner": "school-calendar",
-      "target_role": "contract"
-    },
-    {
-      "id": "calendar-portal.external_test.school-calendar.e2e-test.school-calendar.compose",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "e2e-test",
-      "target_owner": "school-calendar",
-      "target_role": "compose"
     },
     {
       "id": "staff-offboarding.to.people-directory",
@@ -18860,17 +16068,6 @@
       "source_owner": "staff-offboarding",
       "source_role": "compose",
       "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "staff-offboarding.compose.offboarding.staff-offboarding.public",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "staff-offboarding",
       "target_role": "public"
     },
     {
@@ -19170,17 +16367,6 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-iot.compose.inbound-iot.http",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "inbound-iot",
-      "target_role": "http"
-    },
-    {
       "id": "inbound-iot.compose.inbound-iot-checkin.http",
       "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
       "scopes": [
@@ -19399,17 +16585,6 @@
       "target_role": "application"
     },
     {
-      "id": "document-rendering.compose.public",
-      "description": "The plan export composition returns the public plan export capability (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "compose",
-      "target_owner": "document-rendering",
-      "target_role": "public"
-    },
-    {
       "id": "document-rendering.compose.timetable-activities-public",
       "description": "The plan export composition reads blocks, their staff, Angebote and Planungsspuren through the public Timetable & Activities capability (#2706).",
       "scopes": [
@@ -19608,17 +16783,6 @@
       "target_role": "contract"
     },
     {
-      "id": "root-composition.compose.production.settings-platform.review-contract",
-      "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "settings-platform",
-      "target_role": "contract"
-    },
-    {
       "id": "settings-platform.domain.production.settings-platform.review-contract",
       "description": "Bind native request-review identity and tenant-setting contracts without retained model dependencies (#3179).",
       "scopes": [
@@ -19663,17 +16827,6 @@
       "target_role": "compose"
     },
     {
-      "id": "request-review-view.compose.request-review-view.public",
-      "description": "Request review binds native owner capabilities through typed composition (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "request-review-view",
-      "target_role": "public"
-    },
-    {
       "id": "request-review-view.compose.orm",
       "description": "Native School Structure composition receives the ambient database; the projection performs no SQL (#3179).",
       "scopes": [
@@ -19704,17 +16857,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "root-composition.compose.native-request-review-compose",
-      "description": "Request review binds native owner capabilities through typed composition (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "request-review-view",
-      "target_role": "compose"
     },
     {
       "id": "data-import.compose.security-decisions",
@@ -19750,17 +16892,6 @@
       "target_role": "public"
     },
     {
-      "id": "data-import.integration-test.data-import.compose",
-      "description": "Integration tests exercise the canonical import contracts and their composition (#2744).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "data-import",
-      "source_role": "workflow-integration-test",
-      "target_owner": "data-import",
-      "target_role": "compose"
-    },
-    {
       "id": "file-storage.port-domain",
       "description": "File Storage ports express persistence operations using their own domain values.",
       "scopes": [
@@ -19770,61 +16901,6 @@
       "source_role": "port",
       "target_role": "domain",
       "same_owner": true
-    },
-    {
-      "id": "file-storage.compose.application",
-      "description": "File Storage composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "file-storage",
-      "source_role": "compose",
-      "target_owner": "file-storage",
-      "target_role": "application"
-    },
-    {
-      "id": "file-storage.compose.domain",
-      "description": "File Storage composition maps its internal domain values.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "file-storage",
-      "source_role": "compose",
-      "target_owner": "file-storage",
-      "target_role": "domain"
-    },
-    {
-      "id": "file-storage.compose.port",
-      "description": "File Storage composition binds its consumer-owned ports.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "file-storage",
-      "source_role": "compose",
-      "target_owner": "file-storage",
-      "target_role": "port"
-    },
-    {
-      "id": "file-storage.compose.postgres",
-      "description": "File Storage composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "file-storage",
-      "source_role": "compose",
-      "target_owner": "file-storage",
-      "target_role": "postgres"
-    },
-    {
-      "id": "file-storage.compose.public",
-      "description": "File Storage composition returns its public facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "file-storage",
-      "source_role": "compose",
-      "target_owner": "file-storage",
-      "target_role": "public"
     },
     {
       "id": "file-storage.compose.orm-sql",
@@ -19947,28 +17023,6 @@
       "target_role": "http"
     },
     {
-      "id": "root-composition.to.file-storage-compose",
-      "description": "The production root supplies the uploads backend and the metrics sink to the File Storage composition (#2707).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "file-storage",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.file-storage-public",
-      "description": "The production root records stable File Storage capability outcomes (#2707).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "file-storage",
-      "target_role": "public"
-    },
-    {
       "id": "legacy-composition.to.file-storage-compose",
       "description": "The legacy service factory composes the File Storage module where the announcement ports exist (#2707).",
       "scopes": [
@@ -20010,17 +17064,6 @@
       "source_owner": "student-deletion",
       "source_role": "public",
       "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "student-deletion.compose.deletion.student-deletion.public",
-      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-deletion",
-      "source_role": "compose",
-      "target_owner": "student-deletion",
       "target_role": "public"
     },
     {
@@ -20329,17 +17372,6 @@
       "target_class": "crypto"
     },
     {
-      "id": "grade-transition.compose.transition.grade-transition.public",
-      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "grade-transition",
-      "source_role": "compose",
-      "target_owner": "grade-transition",
-      "target_role": "public"
-    },
-    {
       "id": "grade-transition.compose.transition.security-runtime.contract",
       "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
       "scopes": [
@@ -20590,28 +17622,6 @@
       "source_role": "e2e-test",
       "target_owner": "transaction-runtime",
       "target_role": "domain"
-    },
-    {
-      "id": "student-presence.e2e-test.student-presence-public",
-      "description": "The Student Presence behaviour suites seed visits and attendance through the owner's public contract (#3422).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "e2e-test",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
-      "id": "student-presence.e2e-test.student-presence-compose",
-      "description": "The Student Presence behaviour suites compose the owner's production facade (#3422).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "e2e-test",
-      "target_owner": "student-presence",
-      "target_role": "compose"
     },
     {
       "id": "student-presence.e2e-test.audit-platform-domain",
@@ -20913,17 +17923,6 @@
       "target_role": "adapter"
     },
     {
-      "id": "root-composition.to.identity-access-http",
-      "description": "The serving root binds the operator identity routes to the composed Identity & Access module (#3252).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
       "id": "inbound-operator.http.identity-access-http",
       "description": "The operator router mounts the Identity & Access operator routes behind its middleware chain (#3252).",
       "scopes": [
@@ -21013,17 +18012,6 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-school.adapter-test.portal-test-support",
-      "description": "The school-portal router suites bind their runtimes through the portal test support (#3364).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-school",
-      "target_role": "test-support"
-    },
-    {
       "id": "care-schedule-cutover.timetable-activities.compose.student-presence.public",
       "description": "Replace the retired room-capacity sentinel alias with its public owner (#3351, ADR 0030).",
       "scopes": [
@@ -21044,17 +18032,6 @@
       "source_role": "e2e-test",
       "target_owner": "people-directory",
       "target_role": "public"
-    },
-    {
-      "id": "timetable-activities.adapter-test.compose",
-      "description": "Database-free timetable route tests compose the owner's planner reads and operational day over fakes (#2732).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "adapter-test",
-      "target_owner": "timetable-activities",
-      "target_role": "compose"
     },
     {
       "id": "settings-platform.http.care-plan-public",
@@ -21120,50 +18097,6 @@
       "source_owner": "settings-platform",
       "source_role": "public",
       "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "settings-platform.compose.application",
-      "description": "Settings Platform composition constructs the operator settings orchestration of its application layer (#2736).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "compose",
-      "target_owner": "settings-platform",
-      "target_role": "application"
-    },
-    {
-      "id": "settings-platform.compose.domain",
-      "description": "Settings Platform composition maps its calendar date values (#2736).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "compose",
-      "target_owner": "settings-platform",
-      "target_role": "domain"
-    },
-    {
-      "id": "settings-platform.compose.postgres",
-      "description": "Settings composition constructs its Postgres adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "compose",
-      "target_owner": "settings-platform",
-      "target_role": "postgres"
-    },
-    {
-      "id": "settings-platform.compose.public",
-      "description": "Settings Platform composition returns its public operator settings capability (#2736).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "settings-platform",
-      "source_role": "compose",
-      "target_owner": "settings-platform",
       "target_role": "public"
     },
     {
@@ -21243,17 +18176,6 @@
       "target_role": "public"
     },
     {
-      "id": "root-composition.to.settings-platform-compose",
-      "description": "The serving root constructs the operator school settings of Settings Platform (#2736).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "settings-platform",
-      "target_role": "compose"
-    },
-    {
       "id": "legacy-composition.compose.settings-public",
       "description": "The retained operator settings test module hands out the public Settings Platform operator capability (#2736).",
       "scopes": [
@@ -21329,28 +18251,6 @@
       "source_role": "e2e-test",
       "target_owner": "student-presence",
       "target_role": "public"
-    },
-    {
-      "id": "people-directory.contracttest.people-directory.public",
-      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "e2e-test",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "people-directory.contracttest.people-directory.compose",
-      "description": "The People Directory contract suite holds the behaviour suites of the deleted services/users and keeps the fixture reach they had there (#3755); no runtime package gains an import.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "e2e-test",
-      "target_owner": "people-directory",
-      "target_role": "compose"
     },
     {
       "id": "people-directory.contracttest.people-directory.domain",
@@ -21584,17 +18484,6 @@
       "target_role": "public"
     },
     {
-      "id": "root-composition.cli.student-presence-public",
-      "description": "cmd cleanup renders the public retention cleanup and session maintenance reports (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "cli",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
       "id": "facilities.compose.student-presence-public",
       "description": "modules/facilities/compose/httpadapter lists open visits and transit students through the public presence facades (#3422).",
       "scopes": [
@@ -21714,28 +18603,6 @@
       "source_role": "compose",
       "target_owner": "student-presence",
       "target_role": "public"
-    },
-    {
-      "id": "student-presence.e2e-test.student-presence-port",
-      "description": "The moved session and supervision repository tests build the session rows and drive the repositories the module's ports declare (#3422).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "e2e-test",
-      "target_owner": "student-presence",
-      "target_role": "port"
-    },
-    {
-      "id": "student-presence.adapter-test.student-presence-port",
-      "description": "The presence application's in-package tests build the session rows and repository doubles the module's ports declare (#3422). Replaces the removed rule to the dissolved legacy row package.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "port"
     },
     {
       "id": "student-presence.test-support.calendar-date",
@@ -21912,17 +18779,6 @@
       "source_role": "postgres",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "root-composition.compose.scheduler-runtime-postgres",
-      "description": "The Serve root binds the Worker lease store to the scheduler's lease port (#2726).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "scheduler-runtime",
-      "target_role": "postgres"
     },
     {
       "id": "timetable-planning-cutover.test-support.e2e-test.timetable-activities.public",
@@ -22290,39 +19146,6 @@
       "target_class": "test"
     },
     {
-      "id": "shift-plan-sync.compose.public",
-      "description": "Shift-plan-sync composition returns the workflow contracts.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "shift-plan-sync",
-      "source_role": "compose",
-      "target_owner": "shift-plan-sync",
-      "target_role": "public"
-    },
-    {
-      "id": "shift-plan-sync.compose.application",
-      "description": "Shift-plan-sync composition constructs its application.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "shift-plan-sync",
-      "source_role": "compose",
-      "target_owner": "shift-plan-sync",
-      "target_role": "application"
-    },
-    {
-      "id": "shift-plan-sync.compose.port",
-      "description": "Shift-plan-sync composition binds its ports.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "shift-plan-sync",
-      "source_role": "compose",
-      "target_owner": "shift-plan-sync",
-      "target_role": "port"
-    },
-    {
       "id": "shift-plan-sync.compose.legacy-shared-domain",
       "description": "Shift-plan-sync composition takes the calendar-day clock (#3418).",
       "scopes": [
@@ -22445,17 +19268,6 @@
       "target_role": "compose"
     },
     {
-      "id": "shift-plan-sync.adapter-test.compose",
-      "description": "The shift-plan-sync behaviour suites compose the workflow they drive.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "shift-plan-sync",
-      "source_role": "adapter-test",
-      "target_owner": "shift-plan-sync",
-      "target_role": "compose"
-    },
-    {
       "id": "workforce.behaviour-test.subject",
       "description": "The Workforce planning behaviour suites drive the planning package they moved with (#3418).",
       "scopes": [
@@ -22465,17 +19277,6 @@
       "source_role": "module-behavior-test",
       "same_owner": true,
       "target_role": "application"
-    },
-    {
-      "id": "workforce.behaviour-test.compose",
-      "description": "The Workforce planning behaviour suites compose the planning side they drive (#3418).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "module-behavior-test",
-      "target_owner": "workforce",
-      "target_role": "compose"
     },
     {
       "id": "workforce.behaviour-test.legacy-composition",
@@ -22981,17 +19782,6 @@
       "target_role": "domain"
     },
     {
-      "id": "root-composition.to.people-directory-student-routes",
-      "description": "The root API composition mounts the student routes of the People Directory owner (#2731).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "http"
-    },
-    {
       "id": "people-directory.http.contract",
       "description": "The student routes speak the People Directory departure contract: the plan types, the companion links and their refusals (#2731).",
       "scopes": [
@@ -23036,17 +19826,6 @@
       "target_role": "public"
     },
     {
-      "id": "school-setup.compose.application",
-      "description": "The wizard composition constructs its application service.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-setup",
-      "source_role": "compose",
-      "target_owner": "school-setup",
-      "target_role": "application"
-    },
-    {
       "id": "school-setup.compose.settings-platform-postgres",
       "description": "The wizard composition constructs its store, which lives with the Settings Platform tables it writes (#2832).",
       "scopes": [
@@ -23056,17 +19835,6 @@
       "source_role": "compose",
       "target_owner": "settings-platform",
       "target_role": "postgres"
-    },
-    {
-      "id": "school-setup.compose.public",
-      "description": "The wizard composition returns its public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-setup",
-      "source_role": "compose",
-      "target_owner": "school-setup",
-      "target_role": "public"
     },
     {
       "id": "school-setup.compose.settings-platform-application",
@@ -23112,39 +19880,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "root-composition.to.school-setup-compose",
-      "description": "The serving root constructs the onboarding wizard once (#2832).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "school-setup",
-      "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.school-setup-http",
-      "description": "The serving root mounts the wizard routes with the tenant HTTP mechanics (#2832).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "school-setup",
-      "target_role": "http"
-    },
-    {
-      "id": "root-composition.to.school-setup-public",
-      "description": "The serving root renders the wizard conflicts with the codes of its public contract.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "school-setup",
-      "target_role": "public"
-    },
-    {
       "id": "settings-platform.postgres.school-setup-public",
       "description": "The wizard store implements the storage port of the onboarding wizard (#2832, ADR 0043).",
       "scopes": [
@@ -23165,28 +19900,6 @@
       "source_role": "http",
       "target_owner": "school-setup",
       "target_role": "public"
-    },
-    {
-      "id": "school-setup.compose.postgres",
-      "description": "The wizard composition constructs its tenant-safe progress projection behind the port of its public contract (ADR 0043).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-setup",
-      "source_role": "compose",
-      "target_owner": "school-setup",
-      "target_role": "postgres"
-    },
-    {
-      "id": "school-setup.integration-test.compose",
-      "description": "The wizard integration tests build the real composition and drive its routes against Postgres (#2832).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "school-setup",
-      "source_role": "workflow-integration-test",
-      "target_owner": "school-setup",
-      "target_role": "compose"
     },
     {
       "id": "school-setup.integration-test.http",
@@ -23332,17 +20045,6 @@
       "target_role": "contract"
     },
     {
-      "id": "school-structure.compose.school-structure-contract",
-      "description": "The module composition translates public catalog values (#3555).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-structure",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "contract"
-    },
-    {
       "id": "inbound-common.http.identity-access-adapter",
       "description": "The standing shared HTTP runtime consumes the permanent session adapter and request identity memo (ADR 0031) (ADR 0046, #2738, #3898).",
       "scopes": [
@@ -23443,17 +20145,6 @@
       "target_role": "postgres"
     },
     {
-      "id": "transaction-runtime.compose.postgres",
-      "description": "The tenant runtime bootstrap binds the PostgreSQL unit of work, retry classification, lock-wait hook and pools of its adapter (#3970).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "transaction-runtime",
-      "source_role": "compose",
-      "target_owner": "transaction-runtime",
-      "target_role": "postgres"
-    },
-    {
       "id": "transaction-runtime.compose.tenant-runtime",
       "description": "The tenant runtime bootstrap returns the shared unit of work and reports pool and lock waits to its observer (#3970).",
       "scopes": [
@@ -23486,37 +20177,879 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "transaction-runtime.integration-test.compose",
-      "description": "The bootstrap suite runs both composed runtimes against the test database (#3970).",
+      "id": "root-composition.reach.domain.compose",
+      "description": "ADR 0053 point 2: the typed roots import the compose role of every domain owner.",
       "scopes": [
+        "production",
+        "internal_test",
         "external_test"
       ],
-      "source_owner": "transaction-runtime",
-      "source_role": "workflow-integration-test",
-      "target_owner": "transaction-runtime",
+      "source_owner": "root-composition",
+      "target_owner_kind": "domain",
       "target_role": "compose"
     },
     {
-      "id": "root-composition.to.transaction-runtime-compose",
-      "description": "The serving root builds the tenant runtime, its demo variant and the serve pool through the Transaction Runtime bootstrap (#3970).",
+      "id": "root-composition.reach.domain.contract",
+      "description": "ADR 0053 point 2: the typed roots import the contract role of every domain owner.",
       "scopes": [
         "production"
       ],
       "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "transaction-runtime",
+      "target_owner_kind": "domain",
+      "target_role": "contract"
+    },
+    {
+      "id": "root-composition.reach.domain.http",
+      "description": "ADR 0053 point 2: the typed roots import the http role of every domain owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "domain",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.reach.domain.public",
+      "description": "ADR 0053 point 2: the typed roots import the public role of every domain owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "domain",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.internal-test.domain.public",
+      "description": "ADR 0053 point 2: the internal tests of the typed roots import the public role of every domain owner.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner_kind": "domain",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.platform.compose",
+      "description": "ADR 0053 point 2: the typed roots import the compose role of every platform owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "platform",
       "target_role": "compose"
     },
     {
-      "id": "root-composition.cli.transaction-runtime-compose",
-      "description": "The CLI commands build the tenant runtime and open their pool through the Transaction Runtime bootstrap (#3970).",
+      "id": "root-composition.reach.platform.contract",
+      "description": "ADR 0053 point 2: the typed roots import the contract role of every platform owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "root-composition.reach.internal-test.platform.contract",
+      "description": "ADR 0053 point 2: the internal tests of the typed roots import the contract role of every platform owner.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner_kind": "platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "root-composition.reach.platform.public",
+      "description": "ADR 0053 point 2: the typed roots import the public role of every platform owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "platform",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.internal-test.platform.public",
+      "description": "ADR 0053 point 2: the internal tests of the typed roots import the public role of every platform owner.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner_kind": "platform",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.projection.compose",
+      "description": "ADR 0053 point 2: the typed roots import the compose role of every projection owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "projection",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.reach.projection.http",
+      "description": "ADR 0053 point 2: the typed roots import the http role of every projection owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "projection",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.reach.projection.public",
+      "description": "ADR 0053 point 2: the typed roots import the public role of every projection owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "projection",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.workflow.compose",
+      "description": "ADR 0053 point 2: the typed roots import the compose role of every workflow owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "workflow",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.reach.workflow.http",
+      "description": "ADR 0053 point 2: the typed roots import the http role of every workflow owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "workflow",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.reach.workflow.public",
+      "description": "ADR 0053 point 2: the typed roots import the public role of every workflow owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "workflow",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.migrations",
+      "description": "ADR 0053 point 2: the commands root runs the migrations.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner": "migrations",
+      "target_role": "migration"
+    },
+    {
+      "id": "root-composition.reach.self.cli",
+      "description": "ADR 0053 point 2: the typed roots import their own command package.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner": "root-composition",
+      "target_role": "cli"
+    },
+    {
+      "id": "root-composition.reach.cli.self-compose",
+      "description": "ADR 0053 point 2: the commands root imports the server root it starts. The compose role reaches the root's compose packages through owner-compose.compose.",
       "scopes": [
         "production"
       ],
       "source_owner": "root-composition",
       "source_role": "cli",
-      "target_owner": "transaction-runtime",
+      "target_owner": "root-composition",
       "target_role": "compose"
+    },
+    {
+      "id": "owner-compose.domain.adapter",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own adapter role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.domain.application",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own application role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.domain.compose",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own compose role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "compose",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.domain.contract",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own contract role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.domain.domain",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own domain role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.domain.port",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own port role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.domain.postgres",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own postgres role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "postgres",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.domain.public",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own public role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "compose",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.adapter",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own adapter role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.application",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own application role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.contract",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own contract role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.domain",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own domain role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.postgres",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own postgres role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "postgres",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.public",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own public role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.projection.application",
+      "description": "ADR 0053 point 3: the composition of a projection owner imports its own application role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "compose",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.projection.port",
+      "description": "ADR 0053 point 3: the composition of a projection owner imports its own port role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "compose",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.projection.postgres",
+      "description": "ADR 0053 point 3: the composition of a projection owner imports its own postgres role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "compose",
+      "target_role": "postgres",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.projection.public",
+      "description": "ADR 0053 point 3: the composition of a projection owner imports its own public role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "compose",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.workflow.application",
+      "description": "ADR 0053 point 3: the composition of a workflow owner imports its own application role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "compose",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.workflow.port",
+      "description": "ADR 0053 point 3: the composition of a workflow owner imports its own port role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "compose",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.workflow.public",
+      "description": "ADR 0053 point 3: the composition of a workflow owner imports its own public role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "compose",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.inbound.http",
+      "description": "ADR 0053 point 3: the composition of an inbound owner imports its own http role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "inbound",
+      "source_role": "compose",
+      "target_role": "http",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.adapter",
+      "description": "ADR 0053 point 7.1: the tests of a domain owner import its own adapter role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.adapter",
+      "description": "ADR 0053 point 7.1: the tests of a platform owner import its own adapter role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.workflow.adapter",
+      "description": "ADR 0053 point 7.1: the tests of a workflow owner import its own adapter role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.compose",
+      "description": "ADR 0053 point 7.1: the tests of a domain owner import its own compose role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "target_role": "compose",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.inbound.compose",
+      "description": "ADR 0053 point 7.1: the tests of an inbound owner import its own compose role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "inbound",
+      "target_role": "compose",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.compose",
+      "description": "ADR 0053 point 7.1: the tests of a platform owner import its own compose role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
+      "target_role": "compose",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.projection.compose",
+      "description": "ADR 0053 point 7.1: the tests of a projection owner import its own compose role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "projection",
+      "target_role": "compose",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.workflow.compose",
+      "description": "ADR 0053 point 7.1: the tests of a workflow owner import its own compose role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "target_role": "compose",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.inbound.contract",
+      "description": "ADR 0053 point 7.1: the tests of an inbound owner import its own contract role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "inbound",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.port",
+      "description": "ADR 0053 point 7.1: the tests of a domain owner import its own port role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.projection.port",
+      "description": "ADR 0053 point 7.1: the tests of a projection owner import its own port role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "projection",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.workflow.port",
+      "description": "ADR 0053 point 7.1: the tests of a workflow owner import its own port role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.test-support",
+      "description": "ADR 0053 point 7.1: the tests of a domain owner import its own test-support role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "target_role": "test-support",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.inbound.test-support",
+      "description": "ADR 0053 point 7.1: the tests of an inbound owner import its own test-support role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "inbound",
+      "target_role": "test-support",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.test-support",
+      "description": "ADR 0053 point 7.1: the tests of a platform owner import its own test-support role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
+      "target_role": "test-support",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.projection.test-support",
+      "description": "ADR 0053 point 7.1: the tests of a projection owner import its own test-support role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "projection",
+      "target_role": "test-support",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.e2e-test.contract",
+      "description": "ADR 0053 point 7.1: the end-to-end suites of a domain owner import its own contract role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "e2e-test",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.module-behavior-test.contract",
+      "description": "ADR 0053 point 7.1: the module behaviour suites of a domain owner import its own contract role.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "module-behavior-test",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.module-internal-test.contract",
+      "description": "ADR 0053 point 7.1: the internal module tests of a domain owner import its own contract role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "module-internal-test",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.e2e-test.public",
+      "description": "ADR 0053 point 7.1: the end-to-end suites of a domain owner import its own public role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "e2e-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.module-behavior-test.public",
+      "description": "ADR 0053 point 7.1: the module behaviour suites of a domain owner import its own public role.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "module-behavior-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.module-internal-test.public",
+      "description": "ADR 0053 point 7.1: the internal module tests of a domain owner import its own public role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "module-internal-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.domain.workflow-integration-test.public",
+      "description": "ADR 0053 point 7.1: the integration suites of a domain owner import its own public role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "workflow-integration-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.module-behavior-test.contract",
+      "description": "ADR 0053 point 7.1: the module behaviour suites of a platform owner import its own contract role.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "module-behavior-test",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.module-internal-test.contract",
+      "description": "ADR 0053 point 7.1: the internal module tests of a platform owner import its own contract role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "module-internal-test",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.module-behavior-test.public",
+      "description": "ADR 0053 point 7.1: the module behaviour suites of a platform owner import its own public role.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "module-behavior-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.workflow-integration-test.public",
+      "description": "ADR 0053 point 7.1: the integration suites of a platform owner import its own public role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "workflow-integration-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.projection.module-internal-test.public",
+      "description": "ADR 0053 point 7.1: the internal module tests of a projection owner import its own public role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "module-internal-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.projection.workflow-integration-test.public",
+      "description": "ADR 0053 point 7.1: the integration suites of a projection owner import its own public role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "workflow-integration-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.workflow.workflow-decision-test.public",
+      "description": "ADR 0053 point 7.1: the decision suites of a workflow owner import its own public role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "workflow-decision-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.workflow.workflow-integration-test.public",
+      "description": "ADR 0053 point 7.1: the integration suites of a workflow owner import its own public role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "workflow-integration-test",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test-support.domain.adapter",
+      "description": "ADR 0053 point 7.1: the test support of a domain owner imports its own adapter role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "test-support",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "own-test-support.domain.compose",
+      "description": "ADR 0053 point 7.1: the test support of a domain owner imports its own compose role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "test-support",
+      "target_role": "compose",
+      "same_owner": true
+    },
+    {
+      "id": "own-test-support.domain.public",
+      "description": "ADR 0053 point 7.1: the test support of a domain owner imports its own public role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "test-support",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "own-test-support.platform.adapter",
+      "description": "ADR 0053 point 7.1: the test support of a platform owner imports its own adapter role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "test-support",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "own-test-support.platform.public",
+      "description": "ADR 0053 point 7.1: the test support of a platform owner imports its own public role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "test-support",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "root-test.domain.compose",
+      "description": "ADR 0053 point 7.2: the tests of a domain owner build the typed roots.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "domain",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "shared-fixtures.identity-access-adapter",
+      "description": "ADR 0053 point 7.3: the shared fixtures mint session tokens through Identity's session token adapter, the HTTP session runtime (ADR 0031, ADR 0046).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
     }
   ],
   "relocations": [

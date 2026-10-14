@@ -75,6 +75,12 @@ func (m *voDeletionRepoMock) Create(ctx context.Context, event *TimeTrackingDele
 	return nil
 }
 
+// voToday is the day these tests run on. The takeover is bound to the
+// Stichtag's year and the Stichtag to the day before today, so a live clock
+// broke every request on 1 January; the Stichtag cases also need June 8 to be
+// a Monday, which holds in 2026 (#4027). The database suite pins the same day.
+const voToday = Date("2026-08-24")
+
 // voService builds a bare service with the takeover repositories wired.
 func voService(openingRepo *voOpeningRepoMock) (*staffAbsenceService, *absStaffAbsenceRepoMock, *voDeletionRepoMock) {
 	absenceRepo := &absStaffAbsenceRepoMock{}
@@ -84,13 +90,14 @@ func voService(openingRepo *voOpeningRepoMock) (*staffAbsenceService, *absStaffA
 		quotaRepo:    &absVacationQuotaRepoMock{},
 		openingRepo:  openingRepo,
 		deletionRepo: deletionRepo,
+		todayFunc:    func() Date { return voToday },
 	}
 	return svc, absenceRepo, deletionRepo
 }
 
 func voRequest() SetVacationOpeningRequest {
 	return SetVacationOpeningRequest{
-		EffectiveDate: TodayDate().AddDays(-1),
+		EffectiveDate: voToday.AddDays(-1),
 		RemainingDays: 17.5,
 		Note:          "Übernahme aus Altsystem",
 	}
@@ -130,12 +137,12 @@ func TestValidateSetVacationOpening(t *testing.T) {
 		},
 		{
 			name:    "Stichtag today",
-			mutate:  func(r *SetVacationOpeningRequest) { r.EffectiveDate = TodayDate() },
+			mutate:  func(r *SetVacationOpeningRequest) { r.EffectiveDate = voToday },
 			wantMsg: "must be before today",
 		},
 		{
 			name:    "Stichtag in the future",
-			mutate:  func(r *SetVacationOpeningRequest) { r.EffectiveDate = TodayDate().AddDays(1) },
+			mutate:  func(r *SetVacationOpeningRequest) { r.EffectiveDate = voToday.AddDays(1) },
 			wantMsg: "must be before today",
 		},
 		{
@@ -143,7 +150,7 @@ func TestValidateSetVacationOpening(t *testing.T) {
 			// the same bound the bulk import applies (#2132 review).
 			name: "Stichtag in a closed vacation year",
 			mutate: func(r *SetVacationOpeningRequest) {
-				r.EffectiveDate = NewDate(TodayDate().Year()-1, time.June, 1)
+				r.EffectiveDate = NewDate(voToday.Year()-1, time.June, 1)
 			},
 			wantMsg: "must be in the current vacation year",
 		},
@@ -163,7 +170,7 @@ func TestValidateSetVacationOpening(t *testing.T) {
 				actualDecided = 0
 			}
 
-			err := validateSetVacationOpening(actualStaff, actualDecided, req, TodayDate())
+			err := validateSetVacationOpening(actualStaff, actualDecided, req, voToday)
 
 			if tc.wantMsg == "" {
 				require.NoError(t, err)
@@ -183,7 +190,7 @@ func TestSetVacationOpening_CurrentYearGuardAlsoAppliesPerStaff(t *testing.T) {
 
 	svc, _, _ := voService(&voOpeningRepoMock{})
 	req := voRequest()
-	req.EffectiveDate = NewDate(TodayDate().Year()-1, time.June, 1)
+	req.EffectiveDate = NewDate(voToday.Year()-1, time.June, 1)
 
 	_, err := svc.SetVacationOpening(context.Background(), 41, 42, req)
 
@@ -209,7 +216,7 @@ func TestSetVacationOpening_WithoutRepositoryFailsLoudly(t *testing.T) {
 func TestSetVacationOpening_RejectsSecondTakeoverForTheSameYear(t *testing.T) {
 	t.Parallel()
 
-	existing := &StaffVacationOpening{EffectiveDate: TodayDate().AddDays(-30)}
+	existing := &StaffVacationOpening{EffectiveDate: voToday.AddDays(-30)}
 	svc, _, _ := voService(&voOpeningRepoMock{
 		getByStaffAndYearFunc: func(context.Context, int64, int) (*StaffVacationOpening, error) {
 			return existing, nil
@@ -313,8 +320,8 @@ func TestDeleteVacationOpening_WritesTombstoneBeforeDeleting(t *testing.T) {
 
 	opening := &StaffVacationOpening{
 		StaffID:         41,
-		Year:            TodayDate().Year(),
-		EffectiveDate:   TodayDate().AddDays(-10),
+		Year:            voToday.Year(),
+		EffectiveDate:   voToday.AddDays(-10),
 		TakenBeforeDays: 5,
 		Note:            "Übernahme aus Altsystem",
 	}
@@ -346,7 +353,7 @@ func TestDeleteVacationOpening_Rejects(t *testing.T) {
 	t.Parallel()
 
 	boom := errors.New("db down")
-	year := TodayDate().Year()
+	year := voToday.Year()
 
 	t.Run("without repository", func(t *testing.T) {
 		svc := &staffAbsenceService{absenceRepo: &absStaffAbsenceRepoMock{}}
@@ -473,7 +480,7 @@ func TestGetVacationOpening(t *testing.T) {
 func TestRejectVacationBeforeOpening(t *testing.T) {
 	t.Parallel()
 
-	year := TodayDate().Year()
+	year := voToday.Year()
 	cutoff := NewDate(year, time.June, 8) // Monday
 
 	t.Run("ignores non-vacation absences", func(t *testing.T) {
@@ -559,7 +566,7 @@ func TestRejectVacationBeforeOpening(t *testing.T) {
 func TestRejectVacationAbsencesBefore(t *testing.T) {
 	t.Parallel()
 
-	year := TodayDate().Year()
+	year := voToday.Year()
 	cutoff := NewDate(year, time.June, 8) // Monday
 	friday := cutoff.AddDays(-3)
 
@@ -637,7 +644,7 @@ func TestRejectVacationAbsencesBefore_PropagatesLookupFailures(t *testing.T) {
 		return nil, errors.New("db down")
 	}
 
-	err := svc.ValidateVacationOpeningAbsencesBefore(context.Background(), 41, TodayDate())
+	err := svc.ValidateVacationOpeningAbsencesBefore(context.Background(), 41, voToday)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to check absences for vacation opening")

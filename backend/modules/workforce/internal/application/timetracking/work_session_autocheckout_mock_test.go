@@ -154,23 +154,27 @@ func TestAutoCheckout_SkipsCheckInAfterShiftEnd(t *testing.T) {
 func TestAutoCheckout_SkipsReopenedAfterShiftEndFromLockedRow(t *testing.T) {
 	t.Parallel()
 
-	yesterday := TodayDate().AddDays(-1)
+	// The day the clocks go back has 25 hours, so midnight plus 16h20m is
+	// 15:20 there, before the 16:00 shift end. The times come from the shift's
+	// wall clock and the service runs on a fixed clock the day after (#4027).
+	day := NewDate(2026, time.October, 25)
 	staffID := int64(7)
+	shift := shiftFor(staffID, day, 8, 16)
 	listedSession := &WorkSession{
 		StaffID:     staffID,
-		Date:        yesterday,
-		CheckInTime: yesterday.BerlinMidnight().Add(8 * time.Hour),
+		Date:        day,
+		CheckInTime: shift.StartInstant(),
 	}
 	listedSession.ID = 42
-	reopenedAt := yesterday.BerlinMidnight().Add(16*time.Hour + 20*time.Minute)
+	reopenedAt := shift.EndInstant().Add(20 * time.Minute)
 	lockedSession := *listedSession
 	lockedSession.ReopenedAt = &reopenedAt
-	shift := shiftFor(staffID, yesterday, 8, 16)
 
 	service, sessionRepo, _, auditRepo, _ := autoCheckoutFixture(
 		[]*WorkSession{listedSession},
 		[]*TimeTrackingShift{shift},
 	)
+	service.nowFunc = func() time.Time { return day.AddDays(1).BerlinMidnight().Add(12 * time.Hour) }
 	sessionRepo.lockOpenByIDFunc = func(_ context.Context, _ int64) (*WorkSession, error) {
 		return &lockedSession, nil
 	}

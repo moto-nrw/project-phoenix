@@ -725,6 +725,11 @@ func absSetupService() (*staffAbsenceService, *absStaffAbsenceRepoMock, *absWork
 	return svc, absRepo, workRepo
 }
 
+// compTimeToday is the day the comp-time tests run on. Without a configured
+// account start the Stundenkonto begins on 1 January of today's year, so the
+// 2026 comp-time dates fell before it once the live clock reached 2027 (#4027).
+const compTimeToday = Date("2026-08-24")
+
 func TestValidateVacationOpeningAbsencesBefore_DoesNotLockPreview(t *testing.T) {
 	t.Parallel()
 
@@ -823,6 +828,7 @@ func TestAbsCompTimeRequiresManagerControl(t *testing.T) {
 
 	t.Run("own create rejected", func(t *testing.T) {
 		svc, absRepo, _ := absSetupService()
+		svc.todayFunc = func() Date { return compTimeToday }
 		absRepo.createFunc = func(context.Context, *StaffAbsence) error {
 			t.Fatal("self-service comp time must not be persisted")
 			return nil
@@ -836,6 +842,7 @@ func TestAbsCompTimeRequiresManagerControl(t *testing.T) {
 
 	t.Run("manager create allowed", func(t *testing.T) {
 		svc, absRepo, _ := absSetupService()
+		svc.todayFunc = func() Date { return compTimeToday }
 		absRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, Date, Date) ([]*StaffAbsence, error) {
 			return nil, nil
 		}
@@ -857,6 +864,7 @@ func TestAbsCompTimeRequiresManagerControl(t *testing.T) {
 
 	t.Run("own update of manager-created comp time rejected", func(t *testing.T) {
 		svc, absRepo, _ := absSetupService()
+		svc.todayFunc = func() Date { return compTimeToday }
 		absRepo.findByIDFunc = func(context.Context, any) (*StaffAbsence, error) {
 			return &StaffAbsence{
 				StaffID:     staffID,
@@ -877,6 +885,7 @@ func TestAbsCompTimeRequiresManagerControl(t *testing.T) {
 
 	t.Run("own conversion into comp time rejected", func(t *testing.T) {
 		svc, absRepo, _ := absSetupService()
+		svc.todayFunc = func() Date { return compTimeToday }
 		absRepo.findByIDFunc = func(context.Context, any) (*StaffAbsence, error) {
 			return &StaffAbsence{
 				StaffID:     staffID,
@@ -893,6 +902,7 @@ func TestAbsCompTimeRequiresManagerControl(t *testing.T) {
 
 	t.Run("own delete rejected and manager delete allowed", func(t *testing.T) {
 		svc, absRepo, _ := absSetupService()
+		svc.todayFunc = func() Date { return compTimeToday }
 		absence := &StaffAbsence{
 			StaffID:     staffID,
 			AbsenceType: AbsenceTypeCompTime,
@@ -2206,6 +2216,7 @@ func TestAbsCreateAbsenceFor_RejectsMultiDayHalfDayCompTime(t *testing.T) {
 	t.Parallel()
 
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	svc.todayFunc = func() Date { return compTimeToday }
 	createCalled := false
 	absRepo.createFunc = func(_ context.Context, _ *StaffAbsence) error {
 		createCalled = true
@@ -2684,6 +2695,7 @@ func TestAbsCreateAbsenceFor_RejectsMixedDurationCompTimeMerge(t *testing.T) {
 	t.Parallel()
 
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	svc.todayFunc = func() Date { return compTimeToday }
 	halfDayExisting := &StaffAbsence{
 		StaffID:     100,
 		AbsenceType: AbsenceTypeCompTime,
@@ -2716,6 +2728,7 @@ func TestAbsCreateAbsenceFor_RejectsHalfDayExtensionOfFullDayCompTime(t *testing
 	t.Parallel()
 
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	svc.todayFunc = func() Date { return compTimeToday }
 	fullDayExisting := &StaffAbsence{
 		StaffID:     100,
 		AbsenceType: AbsenceTypeCompTime,

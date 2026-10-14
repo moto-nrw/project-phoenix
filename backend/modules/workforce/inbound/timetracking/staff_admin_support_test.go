@@ -121,6 +121,20 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	}
 }
 
+// accountStartSetting is models/config.KeyTimeTrackingAccountStartDate,
+// spelled out so these route tests keep their imports;
+// services/config/defaults pins the same key.
+const accountStartSetting = "operations.time_tracking_account_start_date"
+
+// setAccountStart pins the test school's Stundenkonto start (YYYY-MM-DD).
+// Without it the account begins on 1 January of the live year, so every
+// booking dated in an earlier year is refused once the clock passes New Year
+// (#4027).
+func setAccountStart(t *testing.T, tc *testContext, start string) {
+	t.Helper()
+	testpkg.SetTestTenantSetting(t, tc.db, testpkg.Tenant(t), accountStartSetting, `"`+start+`"`)
+}
+
 // authToken mints a bearer token from default admin claims narrowed to the
 // given permissions. Requests flow through Router() and the middleware chain
 // reads permissions from the signed token.

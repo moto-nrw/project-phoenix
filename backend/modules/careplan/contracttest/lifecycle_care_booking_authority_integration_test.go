@@ -86,7 +86,7 @@ func createCareBooking(
 func createCareBookingOffering(
 	t *testing.T, db *bun.DB, scope testpkg.TenantScope, studentID int64, key string,
 	validFrom, validUntil *timezone.Date,
-) *enrollmentModels.CareOffering {
+) *testpkg.CareOffering {
 	t.Helper()
 	// Keep the phase around the scenario's booking, not the day CI runs.
 	start := timezone.NewDate(2026, 8, 1)
@@ -110,9 +110,9 @@ func createCareBookingOffering(
 	phase.TenantID = scope.TenantID
 	err := enrollmentFixture.New().InsertPhase(testpkg.WithTenantRuntime(t, scope.Context(), db), phase)
 	require.NoError(t, err)
-	offering := &enrollmentModels.CareOffering{
+	offering := &testpkg.CareOffering{
 		PhaseID: phase.ID, Name: fmt.Sprintf("Betreuung-%d-%s", studentID, key),
-		DaysOfWeekMode:     enrollmentModels.DaysOfWeekModeFixed,
+		DaysOfWeekMode:     enrollmentFixture.DaysOfWeekModeFixed,
 		AvailableDays:      []string{"mon", "tue", "wed", "thu", "fri"},
 		AutoAddGradeLevels: []int{}, IsActive: true, CountsAsCare: true,
 	}

@@ -36,12 +36,12 @@ type AbsenceTypeTestModule struct {
 	UserContext    *CallerRows
 }
 
-func NewAbsenceTypeTestModule(db *bun.DB) (AbsenceTypeTestModule, error) {
+func NewAbsenceTypeTestModule(db *bun.DB, clocks ...func() time.Time) (AbsenceTypeTestModule, error) {
 	identity, _, err := newStaffIdentityForTests(db)
 	if err != nil {
 		return AbsenceTypeTestModule{}, err
 	}
-	catalog := NewAbsenceTypeTestCapability(db)
+	catalog := NewAbsenceTypeTestCapability(db, clocks...)
 	return AbsenceTypeTestModule{
 		Catalog: catalog, Administration: workforceCompose.NewAbsenceTypeAdministration(catalog, slog.Default()), UserContext: identity,
 	}, nil

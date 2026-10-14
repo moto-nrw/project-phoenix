@@ -77,6 +77,11 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 
 	today := testpkg.TodayDate()
 	resetDate := today.AddDays(-1)
+	// The earliest booking below is the accrual the day before resetDate. The
+	// account starts on the first of that month, so on 1 or 2 January it still
+	// covers the previous year's last days (#4027).
+	accrualDate := resetDate.AddDays(-1)
+	setAccountStart(t, tc, testpkg.Date(accrualDate.Year(), accrualDate.Month(), 1).String())
 	adjustmentsPath := fmt.Sprintf("/staff/%d/time-tracking/adjustments", subject.ID)
 	resetPath := fmt.Sprintf("/staff/%d/time-tracking/reset", subject.ID)
 	// Anchor summary and list windows to resetDate, not today: on the 1st of a
@@ -163,8 +168,7 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 	// issue permits paying out plus-hours; an empty account is not a valid
 	// payout fixture.
 	// Adjustments are effective at the start of their date, so fund the
-	// payout with work completed on the preceding day.
-	accrualDate := resetDate.AddDays(-1)
+	// payout with work completed on the preceding day (accrualDate).
 	accrualCheckIn := time.Date(accrualDate.Year(), accrualDate.Month(), accrualDate.Day(), 8, 0, 0, 0, time.UTC)
 	insertWorkSession(t, tc, subject.ID, accrualDate.String(), accrualCheckIn, accrualCheckIn.Add(4*time.Hour))
 

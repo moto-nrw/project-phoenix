@@ -1,18 +1,22 @@
 package services
 
 import (
+	"time"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/uptrace/bun"
 )
 
-func NewAbsenceTypeTestCapability(db *bun.DB) workforce.Capability {
+// NewAbsenceTypeTestCapability builds the Workforce capability for the
+// absence-type routes; an optional clock pins its calendar day.
+func NewAbsenceTypeTestCapability(db *bun.DB, clocks ...func() time.Time) workforce.Capability {
 	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		panic(err)
 	}
-	workTime, err := NewWorkforce(db, membership)
+	workTime, err := NewWorkforceWithClock(db, membership, optionalClock(clocks))
 	if err != nil {
 		panic(err)
 	}

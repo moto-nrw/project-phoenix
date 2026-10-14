@@ -1,6 +1,13 @@
 # Lefthook - Git hooks manager
 # https://github.com/evilmartians/lefthook
 
+# Every worktree shares the hooks in the main .git directory. Without this,
+# lefthook bakes the binary path of whichever worktree last synced the hooks
+# into them, and the hooks break once that worktree is removed. devbox run
+# resolves the lefthook pinned in the checkout that runs the hook, and sets up
+# Devbox there first if the checkout has none yet.
+lefthook: devbox run -q -- lefthook
+
 # Pre-commit: Quick checks on staged files
 pre-commit:
   parallel: true
