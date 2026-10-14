@@ -152,25 +152,22 @@ type StaffMembershipRuntime struct {
 	Offboard    func(context.Context, int64, string) error
 }
 
-// bindStaffMembershipRuntime composes the closures over the service factory.
-// offboarding carries the database and the employment owner the caller
+// bindStaffMembershipRuntime composes the closures over the service factory
+// and the Identity & Access module the root composed (#4006). offboarding
+// carries the database and the employment owner the caller
 // composed; the access, the cleanup, the broadcaster, the logger and the
 // authorization of the offboarding workflow are bound here.
-func (f *Factory) bindStaffMembershipRuntime(offboarding offboardingcompose.Dependencies, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
+func (f *Factory) bindStaffMembershipRuntime(offboarding offboardingcompose.Dependencies, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
 	if hooks.ResolveEditorStaffID == nil || hooks.QueueOffboardedDocumentCleanup == nil {
 		panic("staff membership runtime: offboarding hooks are required")
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	if f.Auth == nil {
-		panic("staff membership runtime: identity offboarding capability is required")
+	if identity == nil {
+		panic("staff membership runtime: identity offboarding and role administration are required")
 	}
-	access := StaffOffboardingAccess(f.Auth)
-	roles := f.AccountAuthentication()
-	if roles == nil {
-		panic("staff membership runtime: identity role administration is required")
-	}
+	access := StaffOffboardingAccess(identity)
 	offboarding.Access, offboarding.Cleanup = access, hooks.QueueOffboardedDocumentCleanup
 	offboarding.Broadcaster, offboarding.Logger = f.RealtimeHub, logger
 	offboarding.Authorize = func(ctx context.Context) (staffoffboarding.Actor, error) {
@@ -205,11 +202,11 @@ func (f *Factory) bindStaffMembershipRuntime(offboarding offboardingcompose.Depe
 		WorkStatusMap:   f.WorkSession.StaffDay.GetTodayPresenceMap,
 		AbsenceMap:      f.WorkSession.StaffDay.GetTodayAbsenceMap,
 		AbsenceLabelMap: f.WorkSession.StaffDay.GetTodayAbsenceLabelMap,
-		AccountRoles:    roles.GetAccountRoleNames,
-		AccountEmails:   roles.GetAccountEmails,
-		AccountAvatars:  roles.GetAccountAvatars,
+		AccountRoles:    identity.GetAccountRoleNames,
+		AccountEmails:   identity.GetAccountEmails,
+		AccountAvatars:  identity.GetAccountAvatars,
 		AccountHasRole: func(ctx context.Context, accountID int64, roleName string) bool {
-			held, err := roles.GetAccountRoles(ctx, accountID)
+			held, err := identity.GetAccountRoles(ctx, accountID)
 			if err != nil {
 				return false
 			}
@@ -222,7 +219,7 @@ func (f *Factory) bindStaffMembershipRuntime(offboarding offboardingcompose.Depe
 		},
 
 		GrantDefaultPermissions: func(ctx context.Context, accountID int64, isTeacher bool) {
-			roles.GrantStaffDefaultPermission(ctx, accountID, isTeacher, defaultStaffAccountPermission)
+			identity.GrantStaffDefaultPermission(ctx, accountID, isTeacher, defaultStaffAccountPermission)
 		},
 
 		TeacherGroups: func(ctx context.Context, teacherID int64) ([]StaffGroup, error) {

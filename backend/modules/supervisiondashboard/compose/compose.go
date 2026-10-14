@@ -8,6 +8,10 @@ import supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/s
 // Sources are the owner capabilities the dashboard reads.
 type Sources = supervisiondashboardlegacy.Sources
 
+// CallerGroup is one of the caller's educational groups, as the root serves
+// the dashboard's caller port (#4006).
+type CallerGroup = supervisiondashboardlegacy.CallerGroup
+
 var (
 	// New builds the supervision dashboard over its sources.
 	New = supervisiondashboardlegacy.New

@@ -10,7 +10,7 @@ import (
 )
 
 type UserContextTestModule struct {
-	UserContext *services.CallerRows
+	UserContext *CallerRows
 }
 
 func NewUserContextTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (UserContextTestModule, error) {
@@ -27,7 +27,7 @@ func NewUserContextTestModule(db transactionruntime.Database, unit tenant.UnitOf
 
 // newCallerRowsForTests composes the caller context over the same owners as
 // production. settings may be nil.
-func newCallerRowsForTests(db transactionruntime.Database, settings services.CallerSettings) (*services.CallerRows, error) {
+func newCallerRowsForTests(db transactionruntime.Database, settings CallerSettings) (*CallerRows, error) {
 	r, err := NewUserContextTestRepositories(db, MustNewMembershipTestRepositories(db))
 	if err != nil {
 		return nil, err
@@ -37,13 +37,13 @@ func newCallerRowsForTests(db transactionruntime.Database, settings services.Cal
 		return nil, err
 	}
 	tt := r.Timetable
-	return services.NewCallerRowsFromWiring(services.CallerContextWiring{
+	return NewCallerRowsFromWiring(CallerContextWiring{
 		Accounts: r.Profile, Persons: tt.Person, Membership: membership, StaffGroups: r.StaffGroups,
 		SupervisedActivities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup).SupervisedActivityGroupIDs,
 		Presence:             services.NewLoggedStudentPresence(db.Pool(), slog.Default()),
 		Settings:             settings,
 		Tokens:               requestTokenReads,
-	}, services.CallerRowSources{
+	}, CallerRowSources{
 		Groups: tt.Group, Staff: tt.Staff, Teachers: tt.Teacher, Students: tt.Student,
 		Activities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup), Sessions: tt.ActiveGroup,
 	})

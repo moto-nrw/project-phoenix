@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +29,7 @@ const (
 )
 
 type invitationEnv struct {
-	service services.InvitationCapability
+	service api.InvitationCapability
 	repos   *api.InvitationPersistence
 	db      *bun.DB
 }

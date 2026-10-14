@@ -10,9 +10,6 @@ import (
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
@@ -22,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
 
@@ -64,75 +60,6 @@ func NewCleanupAuditCommand(logger *slog.Logger) (AuditCommand, error) {
 // AuditCommand exposes Audit's single command type to CLI composition without
 // making the CLI import the Audit domain package directly.
 type AuditCommand = auditModels.Command
-
-// AuthMaintenance is the identity maintenance the cleanup CLI and the
-// scheduler run: the expired session sweep and the revocation follow-ups
-// (#3251) and the password reset maintenance (#3332), both called on the
-// Identity & Access module directly (#3364).
-type AuthMaintenance struct {
-	identityaccess.AccountSessionMaintenance
-	identityaccess.PasswordResets
-}
-
-// AuthMaintenanceRuntime is the maintenance the worker root schedules. It
-// pairs the retained session sweep with the module's reset maintenance, so
-// the worker keeps one identity dependency.
-func (f *Factory) AuthMaintenanceRuntime() *AuthMaintenance {
-	if f.Auth == nil {
-		return nil
-	}
-	resets := f.AccountAuthentication()
-	if resets == nil {
-		return nil
-	}
-	return &AuthMaintenance{AccountSessionMaintenance: resets, PasswordResets: resets}
-}
-
-// NewAuthCleanupService composes the token and rate-limit maintenance the
-// cleanup CLI runs. The expired session sweep and the revocation follow-ups
-// are Identity & Access flows (#3251); the module is composed with the
-// cleanup repositories and a signer the sweep never uses.
-func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.Logger, command AuditCommand) (*AuthMaintenance, error) {
-	repos := NewAuthCleanupRepositories(db)
-	audits := cleanupAuditRepositories(db, command)
-	tokenAuth, err := ConfiguredTokenAuth()
-	if err != nil {
-		return nil, fmt.Errorf("auth cleanup service: token auth: %w", err)
-	}
-	codec, err := SignedIdentityTokensOf(tokenAuth)
-	if err != nil {
-		return nil, err
-	}
-	identityAccess, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db}, AccountAuthenticationWiring{
-		Repos: sessionRepositories{
-			schools: schoolDirectory{schools: repos.School}, persons: repos.Person, authEvents: audits.AuthEvent, pushSubscriptions: repos.PushSubscription,
-		},
-		Codec: codec, Audit: command, Logger: logger,
-		// The cleanup root only removes spent links and stale windows; it
-		// never issues a link, so it composes the flows without a mailer.
-		Resets: &PasswordResetWiring{Expiry: cleanupResetExpiry},
-	})
-	if err != nil {
-		return nil, err
-	}
-	if err := identityAccess.SetTenantRuntime(runtime); err != nil {
-		return nil, err
-	}
-	return &AuthMaintenance{AccountSessionMaintenance: identityAccess, PasswordResets: identityAccess}, nil
-}
-
-// NewInvitationCleanupService composes the invitation maintenance the
-// cleanup CLI runs. The invitation flows themselves stay unavailable: the
-// CLI only deletes expired links (#2722).
-func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) (identityaccess.SchoolInvitations, error) {
-	module, err := identityaccessCompose.New(identityaccessCompose.Dependencies{
-		DB: db, Observe: func(identityaccessCompose.Observation) {},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("invitation cleanup service: %w", err)
-	}
-	return module, nil
-}
 
 func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) studentpresence.Presence {
 	repos := NewSessionCleanupRepositories(db, timetableCapability)
@@ -238,20 +165,3 @@ type TimeTrackingCleanupService = workforceCompose.TimeTrackingCleanupService
 type TimeTrackingCleanupResult = workforceCompose.TimeTrackingCleanupResult
 type TimeTrackingCleanupPreview = workforceCompose.TimeTrackingCleanupPreview
 type TimeTrackingCleanupStats = workforceCompose.TimeTrackingCleanupStats
-
-// SignedIdentityTokensOf adapts a root's resolved signer to the native claim
-// codec. The signing primitive stays in the token adapter; Identity owns the
-// claim schema and validation.
-func SignedIdentityTokensOf(signer *sessiontoken.TokenAuth) (identityaccessCompose.SignedIdentityTokens, error) {
-	return NewSessionTokens(signer.JwtAuth, signer.JwtExpiry, signer.JwtRefreshExpiry)
-}
-
-// ConfiguredTokenAuth resolves the signer of roots that receive no resolved
-// configuration: the cleanup CLI and the test compositions.
-func ConfiguredTokenAuth() (*sessiontoken.TokenAuth, error) {
-	return sessiontoken.NewTokenAuthWithDurations(
-		viper.GetString("auth_jwt_secret"),
-		viper.GetDuration("auth_jwt_expiry"),
-		viper.GetDuration("auth_jwt_refresh_expiry"),
-	)
-}

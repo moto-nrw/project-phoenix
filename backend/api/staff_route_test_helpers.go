@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-func newStaffIdentityForTests(db transactionruntime.Database) (*services.CallerRows, services.MembershipTestRepositories, error) {
+func newStaffIdentityForTests(db transactionruntime.Database) (*CallerRows, services.MembershipTestRepositories, error) {
 	members, err := NewMembershipTestRepositories(db)
 	if err != nil {
 		return nil, members, err
@@ -34,7 +34,7 @@ type AbsenceTypeTestModule struct {
 	// Administration is the Abwesenheitsarten administration over Catalog,
 	// composed the way the root composes it.
 	Administration workforce.AbsenceTypeAdministration
-	UserContext    *services.CallerRows
+	UserContext    *CallerRows
 }
 
 func NewAbsenceTypeTestModule(db transactionruntime.Database, clocks ...func() time.Time) (AbsenceTypeTestModule, error) {
@@ -50,7 +50,7 @@ func NewAbsenceTypeTestModule(db transactionruntime.Database, clocks ...func() t
 
 type BirthdayTestModule struct {
 	Birthdays   peopledirectory.Birthdays
-	UserContext *services.CallerRows
+	UserContext *CallerRows
 	Settings    settingsCompose.SettingsService
 	ListExport  *lists.RendererService
 }

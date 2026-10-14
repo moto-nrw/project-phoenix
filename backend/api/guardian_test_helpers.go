@@ -47,7 +47,7 @@ func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	}
 	guardian := peopleCompose.NewGuardianService(peopleCompose.GuardianServiceDependencies{
 		GuardianProfileRepo: r.GuardianProfile, GuardianPhoneNumberRepo: g.Phone, StudentGuardianRepo: r.StudentGuardian,
-		GuardianInvitations: services.NewGuardianInvitationReads(func() identityaccess.GuardianInvitations { return auth.AccountAuthentication }),
+		GuardianInvitations: NewGuardianInvitationReads(func() identityaccess.GuardianInvitations { return auth.AccountAuthentication }),
 		StudentRepo:         NewUnboundStudentRepository(db), PersonRepo: r.Person,
 		GuardianFinancialRepo:  g.Financial,
 		GuardianFinancialAudit: services.NewGuardianFinancialAudit(g.FinancialAudit), DataAccessLog: services.NewGuardianDataAccessLog(g.AccessLog),
@@ -56,6 +56,6 @@ func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	people.(services.GuardianProviderBinder).BindGuardianProvider(&services.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool())})
 	// The compatibility carrier only maps the existing four capabilities to
 	// the production runtime closures. It constructs no additional services.
-	carrier := &services.Factory{Guardian: guardian, GuardianInvitation: auth.GuardianInvitation, UserContext: identity, ListExport: lists.NewRendererService()}
-	return GuardianTestModule{PeopleDirectory: people, PhotoRuntime: photoRuntime, runtime: carrier.NewGuardianDirectoryRuntime(peopleCompose.NewLegacyRepositoryRuntime(db.Pool()))}, nil
+	carrier := &services.Factory{Guardian: guardian, ListExport: lists.NewRendererService()}
+	return GuardianTestModule{PeopleDirectory: people, PhotoRuntime: photoRuntime, runtime: carrier.NewGuardianDirectoryRuntime(auth.GuardianInvitation, identity.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()))}, nil
 }

@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/simulate"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/cobra"
@@ -255,7 +254,7 @@ func provisionDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, a
 	if err := checkDemoProvisioning(email, password, pin); err != nil {
 		return nil, err
 	}
-	staffPassword, err := seedapi.GenerateSeedPassword(services.SecureRandomSource())
+	staffPassword, err := seedapi.GenerateSeedPassword(backendapi.SecureRandomSource())
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +290,7 @@ func provisionDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, a
 		stateSaved = true
 		return nil
 	}
-	result, err := seedapi.NewSeeder(adapter, services.SecureRandomSource(), false, options).Seed(ctx, email, password, pin)
+	result, err := seedapi.NewSeeder(adapter, backendapi.SecureRandomSource(), false, options).Seed(ctx, email, password, pin)
 	if err != nil {
 		return nil, err
 	}

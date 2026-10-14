@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +26,7 @@ const strongTestPassword = "GuardianTest!2026"
 type guardianTestEnv struct {
 	db      *bun.DB
 	repos   *api.RepositoryTestFactory
-	service services.GuardianInvitationCapability
+	service api.GuardianInvitationCapability
 	cleanup func()
 }
 
@@ -354,7 +353,7 @@ func TestGuardianInvitationBelongsToItsSchoolOnly(t *testing.T) {
 	assert.Equal(t, *profile.Email, preview.Email)
 	assert.Equal(t, profile.FirstName, preview.FirstName)
 	assert.Equal(t, profile.LastName, preview.LastName)
-	organizations, err := services.NewOrganizationTenancy(env.db)
+	organizations, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, env.db))
 	require.NoError(t, err)
 	school, err := organizations.FindSchool(testpkg.Ctx(t), testpkg.Tenant(t))
 	require.NoError(t, err)
@@ -667,7 +666,7 @@ func (s *stubEnrollmentBackfiller) BackfillGuardianAccountID(_ context.Context, 
 // setupGuardianInviteWithBackfiller wires the service exactly as
 // setupGuardianInvitationTest but plugs in a custom enrollment claim so the
 // accept flow's backfill call can be observed.
-func setupGuardianInviteWithBackfiller(t *testing.T, backfiller services.GuardianEnrollmentClaims) *guardianTestEnv {
+func setupGuardianInviteWithBackfiller(t *testing.T, backfiller api.GuardianEnrollmentClaims) *guardianTestEnv {
 	t.Helper()
 	return setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) {
 		cfg.Enrollments = backfiller

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -28,7 +27,7 @@ import (
 
 type wiredMFAFixture struct {
 	svc      identityaccess.AccountMFA
-	repos    services.MembershipTestRepositories
+	repos    api.MembershipTestRepositories
 	db       *bun.DB
 	tenantID int64
 	mailer   *testpkg.CapturingMailer

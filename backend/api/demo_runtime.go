@@ -4,13 +4,15 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationcompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 type DemoSchoolRecord struct {
@@ -29,7 +31,7 @@ type DemoVisit struct {
 type DemoRuntime struct {
 	schools      *organizationtenancy.DemoSchools
 	queue        *organizationtenancy.DemoSchoolQueue
-	expiry       services.DemoAccessExpiry
+	expiry       *identityaccess.DemoAccessExpiry
 	presence     *studentpresence.Module
 	transactions apiCommon.TenantRuntime
 }
@@ -42,7 +44,7 @@ func NewDemoRuntime(db transactionruntime.Database, now func() time.Time) (*Demo
 	if err != nil {
 		return nil, err
 	}
-	expiry, err := services.NewDemoAccessExpiry(db.Pool(), now)
+	expiry, err := identityaccessCompose.NewDemoAccessExpiry(db.Pool(), now)
 	if err != nil {
 		return nil, err
 	}
