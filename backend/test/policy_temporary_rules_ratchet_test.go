@@ -95,7 +95,10 @@ import (
 // application, lowering the wider total to 60. #3753 moved the person and
 // student services out of services/users and retired the eight grants that
 // reached them there, three of them compatibility permissions, lowering the
-// wider total to 52.
+// wider total to 52. #4001 (ADR 0053) granted the typed roots their standing
+// reach into the http role of every domain owner, so the root's grant to the
+// presence route adapter became a target permission and was deleted, lowering
+// the totals to 3 and 51.
 //
 // Three shrink-only measurements, all read-only on policy.json:
 //
@@ -145,12 +148,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 4
+	policyTempRulesTotal = 3
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 52
+	policyTempRulesCompatTotal = 51
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -217,7 +220,8 @@ var policyTempRulesFamilies = map[string]int{
 	// #3207, #3214, #3217, #3218, #3219, #3220, #3224, #3229 — all closed.
 	// #3422 removed 2 that went stale with legacy/services/active.
 	// #3552 removed 1 that the template composition move emptied.
-	"root-composition": 3,
+	// #4001 removed 1 that the standing root reach of ADR 0053 covers.
+	"root-composition": 2,
 
 	// #3214, #3218, #3220 — closed.
 	// #3422 removed 3 that went stale with legacy/services/active.

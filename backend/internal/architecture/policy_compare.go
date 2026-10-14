@@ -420,13 +420,15 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 	roles := sortedAllowedRoles()
 	baseEvaluator := policyWithOwners(base, owners)
 	candidateEvaluator := policyWithOwners(candidate, owners)
+	candidateOwners := ownersByID(candidate)
 	var problems []string
 	for _, rule := range candidate.Rules {
 		if candidateRuleCoveredDirectly(rule, base.Rules) {
 			continue
 		}
 		if candidate.PolicyEpoch > base.PolicyEpoch &&
-			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) || reviewedSharedKernelRule(rule) || reviewedCommonHTTPRule(rule) || reviewedParentHTTPRule(rule)) {
+			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) || reviewedSharedKernelRule(rule) || reviewedCommonHTTPRule(rule) || reviewedParentHTTPRule(rule) ||
+				reviewedCompositionReachRule(rule, candidateOwners)) {
 			continue
 		}
 		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
@@ -479,9 +481,12 @@ const sharedFixtureOwner = "test-support"
 // runtime rows are created under, the calendar-date type DATE columns are
 // mandated to use, and the permission constants tokens carry. ADR 0047
 // (#3944) adds the security and settings contracts the guardian presets,
-// student access decisions and settings double are served through. No
-// implementation role of another owner is among them; the Transaction Runtime
-// bootstrap of sharedFixtureBootstrapTargets is the one composition point.
+// student access decisions and settings double are served through. ADR 0053
+// point 7.3 (#4001) adds Identity's session token adapter: it is the HTTP
+// session runtime (ADR 0031, ADR 0046), reached for the same reason as the
+// tenant runtime. No other implementation role of another owner is among
+// them; the Transaction Runtime bootstrap of sharedFixtureBootstrapTargets is
+// the one composition point.
 var sharedFixtureTargets = map[[2]string]bool{
 	{sharedFixtureOwner, "test-support"}: true,
 	{"tenant-runtime", "public"}:         true,
@@ -489,6 +494,7 @@ var sharedFixtureTargets = map[[2]string]bool{
 	{"security-runtime", "contract"}:     true,
 	{"security-runtime", "public"}:       true,
 	{"settings-platform", "public"}:      true,
+	{"identity-access", "adapter"}:       true,
 }
 
 // sharedFixtureBootstrapTargets are the composition points the fixture package
@@ -811,7 +817,8 @@ func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, base
 				!firstPartyAllowedByReviewedFixtureRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedSharedKernelRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedCommonHTTPRule(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedParentHTTPRule(base, candidate, scope, source, target) {
+				!firstPartyAllowedByReviewedParentHTTPRule(base, candidate, scope, source, target) &&
+				!firstPartyAllowedByReviewedCompositionReach(base, candidate, scope, source, target) {
 				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())
 			}
 		}
