@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -496,7 +497,7 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 
 		// The startup guard is what keeps a server from ever serving requests
 		// against this schema — it must name the missing column.
-		err = api.VerifyPeopleRepositorySuiteStudentSchema(context.Background(), testpkg.NewDatabase(t, db))
+		err = peopleCompose.VerifyRetainedStudentSchema(context.Background(), db)
 		require.Error(t, err, "VerifyStudentSchema must reject a schema without departure_companion_note")
 		assert.Contains(t, err.Error(), "departure_companion_note")
 

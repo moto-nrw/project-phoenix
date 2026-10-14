@@ -1,7 +1,6 @@
 package api
 
 import (
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -22,13 +21,6 @@ func NewCalendarReminderCommand(db transactionruntime.Database, source services.
 // compositions that reach Facilities through the legacy composition.
 func NewFacilities(db transactionruntime.Database) (facilitiesModule.Capability, error) {
 	return facilitiesCompose.NewUnobserved(db.Pool())
-}
-
-// NewManualPlanningQuery forwards to Enrollment's manual-planning query for
-// the Care Plan contract suites, which may not import Enrollment's
-// composition; the legacy composition calls the owner directly.
-func NewManualPlanningQuery(db transactionruntime.Database) *enrollmentCompose.ManualPlanningQuery {
-	return enrollmentCompose.NewManualPlanningQuery(db.Pool())
 }
 
 // NewSickCascadeTimetableRows binds the sick cascade's Betreuungsplan rows to

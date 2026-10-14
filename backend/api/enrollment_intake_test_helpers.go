@@ -23,15 +23,3 @@ type EnrollmentCareBookingCommands interface {
 func NewEnrollmentCareBookingCommands(owner careplan.OfferingBookingCommands) EnrollmentCareBookingCommands {
 	return services.EnrollmentCareBookingAdapter{Owner: owner}
 }
-
-// NewEnrollmentCareOfferingRecords reads Care Plan's offerings in enrollment
-// rows.
-func NewEnrollmentCareOfferingRecords(carePlan enrollmentCompose.CarePlanOfferings) *enrollmentCompose.CareOfferingRecords {
-	return enrollmentCompose.NewCareOfferingRecords(carePlan)
-}
-
-// PublicEnrollmentDecisions hands the decision flow out with the public
-// refusal values, as the root hands it to the routes.
-func PublicEnrollmentDecisions(decisions *enrollmentCompose.Decisions) enrollmentOwner.Decisions {
-	return enrollmentCompose.PublicDecisions(decisions)
-}

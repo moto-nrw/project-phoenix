@@ -1474,7 +1474,7 @@ func TestManualPlanningReaderRejectsInvalidCalendarWindows(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	student := testpkg.CreateTestStudent(t, db, "Planning", "Validation", "2a")
-	reader := api.NewManualPlanningQuery(testpkg.Database{})
+	reader := enrollmentTest.NewManualPlanningQuery(testpkg.Database{}.Pool())
 	for _, tc := range []struct {
 		name, from, to string
 	}{
@@ -1496,7 +1496,7 @@ func TestManualPlanningReaderRejectsInvalidCalendarWindows(t *testing.T) {
 }
 
 func (r manualPlanningFixture) ListManualPlanningOccurrences(ctx context.Context, studentID int64, from, to string) ([]careplanCompose.ManualPlanningOccurrence, error) {
-	rows, err := api.NewManualPlanningQuery(testpkg.MustDatabase(r.db)).ListManualPlanningOccurrences(ctx, studentID, from, to)
+	rows, err := enrollmentTest.NewManualPlanningQuery(r.db).ListManualPlanningOccurrences(ctx, studentID, from, to)
 	if err != nil {
 		return nil, err
 	}

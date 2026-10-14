@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/stretchr/testify/require"
@@ -19,5 +19,5 @@ func TestVerifyStudentSchema_FullyMigrated(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	require.NoError(t, api.VerifyPeopleRepositorySuiteStudentSchema(context.Background(), testpkg.NewDatabase(t, db)))
+	require.NoError(t, peopleCompose.VerifyRetainedStudentSchema(context.Background(), db))
 }

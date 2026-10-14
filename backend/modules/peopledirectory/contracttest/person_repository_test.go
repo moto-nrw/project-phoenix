@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -668,7 +669,7 @@ func TestPersonRepository_FindWithAccountRequiresAccountLookup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	person, _ := testpkg.CreateTestPersonWithAccount(t, db, "NoLookup", "Test")
 
-	_, err := api.NewPeopleRepositorySuiteRetainedPersons(testpkg.NewDatabase(t, db)).FindWithAccount(testpkg.Ctx(t), person.ID)
+	_, err := peopleCompose.NewRetainedPersonRepository(db).FindWithAccount(testpkg.Ctx(t), person.ID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account lookup is required")
 }

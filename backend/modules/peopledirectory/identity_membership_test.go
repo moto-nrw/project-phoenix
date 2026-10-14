@@ -123,7 +123,7 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	perm := testpkg.GuardianPermissionPortalAccess
 
-	unbound := api.NewPeopleRepositorySuiteRetainedRelationships(testpkg.NewDatabase(t, db))
+	unbound := peopleCompose.NewRetainedGuardianRelationshipRepository(db)
 	_, err := unbound.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID, perm)
 	require.Error(t, err)
 	_, err = unbound.FilterAccountsWithStudentAccess(ctx, []int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID, perm)
@@ -131,10 +131,10 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	_, err = unbound.GuardianEmailHasStudentPermission(ctx, chain.Email, chain.StudentID, chain.TenantID, perm)
 	require.Error(t, err)
 
-	_, err = api.NewPeopleRepositorySuiteRetainedRecipients(testpkg.NewDatabase(t, db), nil).ListGuardiansForStudent(ctx, chain.StudentID)
+	_, err = peopleCompose.NewRetainedMessageableGuardianRepository(db, nil).ListGuardiansForStudent(ctx, chain.StudentID)
 	require.Error(t, err)
 	lookupFailure := errors.New("school membership lookup failed")
-	failingRelationships := api.NewPeopleRepositorySuiteRetainedRelationships(testpkg.NewDatabase(t, db), api.PeopleRepositorySuiteWithMemberships(
+	failingRelationships := peopleCompose.NewRetainedGuardianRelationshipRepository(db, api.PeopleRepositorySuiteWithMemberships(
 		func(_ context.Context, accountIDs, schoolIDs []int64) (map[int64][]int64, error) {
 			require.Equal(t, []int64{chain.AccountID}, accountIDs)
 			require.Equal(t, []int64{chain.TenantID}, schoolIDs)
@@ -149,17 +149,16 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	permitted, err := failingRelationships.FilterAccountsWithStudentAccess(ctx, []int64{chain.AccountID}, []int64{chain.StudentID}, chain.TenantID, perm)
 	require.ErrorIs(t, err, lookupFailure)
 	require.Nil(t, permitted)
-	failingRecipients := api.NewPeopleRepositorySuiteRetainedRecipients(testpkg.NewDatabase(t, db),
-		func(_ context.Context, accountIDs, schoolIDs []int64) (map[int64][]int64, error) {
-			require.Equal(t, []int64{chain.AccountID}, accountIDs)
-			require.Equal(t, []int64{chain.TenantID}, schoolIDs)
-			return nil, lookupFailure
-		})
+	failingRecipients := peopleCompose.NewRetainedMessageableGuardianRepository(db, func(_ context.Context, accountIDs, schoolIDs []int64) (map[int64][]int64, error) {
+		require.Equal(t, []int64{chain.AccountID}, accountIDs)
+		require.Equal(t, []int64{chain.TenantID}, schoolIDs)
+		return nil, lookupFailure
+	})
 	listed, err := failingRecipients.ListGuardiansForStudent(ctx, chain.StudentID)
 	require.ErrorIs(t, err, lookupFailure)
 	require.Nil(t, listed, "failed membership reads must not return relationship candidates")
 
-	unboundProfiles := api.NewPeopleRepositorySuiteRetainedGuardianProfiles(testpkg.NewDatabase(t, db))
+	unboundProfiles := peopleCompose.NewRetainedGuardianProfileRepository(db)
 	emptyActiveProfiles, err := unboundProfiles.FindActivePortalProfilesByIDs(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, emptyActiveProfiles)
@@ -170,7 +169,7 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	_, err = unboundProfiles.FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
 	require.ErrorContains(t, err, "portal membership query is required")
 	projectionFailure := errors.New("portal membership lookup failed")
-	failingProfiles := api.NewPeopleRepositorySuiteRetainedGuardianProfiles(testpkg.NewDatabase(t, db), api.PeopleRepositorySuiteWithPortalMemberships(
+	failingProfiles := peopleCompose.NewRetainedGuardianProfileRepository(db, api.PeopleRepositorySuiteWithPortalMemberships(
 		func(_ context.Context, accountIDs []int64) (map[int64][]int64, error) {
 			require.Equal(t, []int64{chain.AccountID}, accountIDs)
 			return nil, projectionFailure
@@ -180,7 +179,7 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	require.Nil(t, profiles, "failed account reachability must not return candidates")
 
 	staffAccounts := func(context.Context) ([]int64, error) { return []int64{chain.AccountID}, nil }
-	reads := api.NewPeopleRepositorySuiteRetainedColleagues(testpkg.NewDatabase(t, db), staffAccounts, peopleCompose.RetainedStaffMessageIdentity{})
+	reads := peopleCompose.NewRetainedMessageableStaffRepository(db, staffAccounts, peopleCompose.RetainedStaffMessageIdentity{})
 	_, err = reads.ListMessageableStaff(ctx, chain.AccountID)
 	require.ErrorContains(t, err, "active school account lookup is required")
 	_, err = reads.IsMessageableStaff(ctx, chain.AccountID)
@@ -188,7 +187,7 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	_, err = reads.StaffRoleKinds(ctx, []int64{chain.AccountID})
 	require.ErrorContains(t, err, "role class query is required")
 
-	failingStaff := api.NewPeopleRepositorySuiteRetainedColleagues(testpkg.NewDatabase(t, db), staffAccounts, peopleCompose.RetainedStaffMessageIdentity{
+	failingStaff := peopleCompose.NewRetainedMessageableStaffRepository(db, staffAccounts, peopleCompose.RetainedStaffMessageIdentity{
 		ActiveSchoolAccounts: func(_ context.Context, schoolID int64, accountIDs []int64) ([]int64, error) {
 			require.Equal(t, chain.TenantID, schoolID)
 			require.Equal(t, []int64{chain.AccountID}, accountIDs)
@@ -214,7 +213,7 @@ func TestIdentityMembership_RoleClassFailureIsNotSwallowed(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "role-class-failure")
 	ownerFailure := errors.New("identity access unavailable")
 
-	reads := api.NewPeopleRepositorySuiteRetainedColleagues(testpkg.NewDatabase(t, db), nil, peopleCompose.RetainedStaffMessageIdentity{
+	reads := peopleCompose.NewRetainedMessageableStaffRepository(db, nil, peopleCompose.RetainedStaffMessageIdentity{
 		RoleClasses: func(context.Context, int64, []int64) ([]peopleCompose.RetainedSchoolRoleClass, error) {
 			return nil, ownerFailure
 		},

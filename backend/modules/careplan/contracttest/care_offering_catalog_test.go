@@ -223,7 +223,7 @@ func TestCareOfferingCatalog_ListActiveByPhase_FiltersInactive(t *testing.T) {
 	_, err = svc.Create(ctx, inactive)
 	require.NoError(t, err)
 
-	records := api.NewEnrollmentCareOfferingRecords(testRepositories(t, db).CarePlan())
+	records := enrollmentTest.NewCareOfferingRecords(testRepositories(t, db).CarePlan())
 	publicList, err := records.ListActiveByPhase(ctx, phase.ID)
 	require.NoError(t, err)
 	require.Len(t, publicList, 1, "ListActiveByPhase must drop is_active=false rows")

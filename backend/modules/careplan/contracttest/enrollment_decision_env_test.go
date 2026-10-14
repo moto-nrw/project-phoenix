@@ -201,7 +201,7 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings api.EnrollmentDecisio
 	settings.stringValues[enrollmentKeys.LegalPhotoText] = "Foto Text"
 
 	schools := newFactorySchools(t, db)
-	offerings := api.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan())
+	offerings := enrollmentTest.NewCareOfferingRecords(repoFactory.CarePlan())
 	intake := api.NewEnrollmentIntake(api.EnrollmentIntakeSources{
 		Bookings:         api.NewEnrollmentCareBookingCommands(carePlanTest.NewOfferingBookings()),
 		Requests:         repoFactory.Enrollment(),
@@ -253,7 +253,7 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings api.EnrollmentDecisio
 		sourcePhase:     sourcePhase,
 		creatorID:       account.ID,
 		decisions:       decisions,
-		decision:        api.PublicEnrollmentDecisions(decisions),
+		decision:        enrollmentTest.NewPublicDecisions(decisions),
 		bookings:        bookings,
 	}
 	return env, func() { cleanupEnrollmentTestEnv(db, testpkg.Tenant(t), sourcePhase.ID, account.ID) }
@@ -319,7 +319,7 @@ func newDecisionServiceForTestWithCareWithdrawal(
 		})
 	}
 	bookings := composeBookings(env.tb, env.db, env.offeringCatalog, settings, lockTemplateRecurrence, careWithdrawal)
-	return api.PublicEnrollmentDecisions(composeDecisions(env.tb, env.db, env.repos, bookings, settings, lockTemplateRecurrence, careWithdrawal))
+	return enrollmentTest.NewPublicDecisions(composeDecisions(env.tb, env.db, env.repos, bookings, settings, lockTemplateRecurrence, careWithdrawal))
 }
 
 // newBookingsForTest composes Care Plan's booking materialization (#3560)
@@ -390,7 +390,7 @@ func composeDecisions(
 		Children:               repoFactory.Enrollment(),
 		Guardians:              repoFactory.Enrollment(),
 		LateInvites:            repoFactory.Enrollment(),
-		CareOfferings:          api.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
+		CareOfferings:          enrollmentTest.NewCareOfferingRecords(repoFactory.CarePlan()),
 		Phases:                 repoFactory.Enrollment(),
 		Schemas:                repoFactory.Enrollment(),
 		OfferingAdjustments:    audits.EnrollmentOfferingAdjustment,
@@ -459,7 +459,7 @@ func changeRequestApplierForTest(t *testing.T, env *decisionTestEnv) enrollmentT
 func newChangeRequestServiceWithDecisionForTest(t *testing.T, env *decisionTestEnv) enrollmentTest.ChangeRequests {
 	t.Helper()
 	schools := newFactorySchools(t, env.db)
-	offerings := api.NewEnrollmentCareOfferingRecords(env.repos.CarePlan())
+	offerings := enrollmentTest.NewCareOfferingRecords(env.repos.CarePlan())
 	return api.NewEnrollmentChangeRequests(api.EnrollmentChangeRequestSources{
 		Bookings:            api.NewEnrollmentCareBookingCommands(carePlanTest.NewOfferingBookings()),
 		Requests:            env.repos.Enrollment(),
