@@ -64,10 +64,11 @@ jobs:
       base-ref: ${{ github.base_ref }}
       # The script suites, the env sync and the error-code registry check only
       # files their own filter lists. Docs-only pull requests skip all three.
-      run-ci-scripts: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.ci == 'true' }}
+      run-ci-scripts: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.ci == 'true' || steps.filter.outputs.hooks == 'true' }}
       run-env-check: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.env == 'true' }}
       run-error-codes: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.error-codes == 'true' }}
       ci-files-changed: ${{ steps.filter.outputs.ci == 'true' }}
+      hook-files-changed: ${{ steps.filter.outputs.hooks == 'true' }}
     steps:
       # Pull requests need no checkout: paths-filter reads their changed files
       # through the GitHub API. Pushes compare against the previous commit.
@@ -135,7 +136,6 @@ jobs:
               - 'docs/runtime-checkpoints/**'
               - 'docs/operations/**'
               - 'scripts/check-migration-evidence*'
-              - 'lefthook.yml'
             backend-lint-full:
               - 'backend/go.mod'
               - 'backend/go.sum'
@@ -173,9 +173,12 @@ jobs:
               - 'frontend/vitest.config.ts'
               - 'frontend/src/test/setup.ts'
               - 'scripts/test-changed.sh'
-            ci:
+            # Local Git hooks only. CI never runs them; the script suites and
+            # the toolchain ratchet are the only checks that read these files.
+            hooks:
               - 'lefthook.yml'
               - 'scripts/pre-push*'
+            ci:
               - 'scripts/check-quality.sh'
               - 'scripts/check-backend-quality.sh'
               - 'scripts/check-frontend-quality.sh'
@@ -235,6 +238,22 @@ jobs:
       - name: Verify complete release restore with PostgreSQL
         if: needs.detect-changes.outputs.ci-files-changed == 'true'
         run: node --test scripts/release-backup.integration.test.mjs
+
+      # TestToolchainPinsRatchet reads lefthook.yml and scripts/pre-push.sh.
+      # Changed-test selection adds ./test only for backend changes, so a
+      # hooks-only change runs the ratchets here instead of the full suite.
+      - name: Setup Go with cache
+        if: needs.detect-changes.outputs.hook-files-changed == 'true'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Verify source ratchets
+        if: needs.detect-changes.outputs.hook-files-changed == 'true'
+        working-directory: backend
+        run: go test -count=1 -run Ratchet ./test
 
   lint:
     permissions:
