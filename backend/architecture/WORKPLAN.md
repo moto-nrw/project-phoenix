@@ -3,10 +3,10 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 14.10.2026 · Ratchet 42 · Composition 252 · Policy-Epoche 43 · 3 Regeln mit
+Stand 14.10.2026 · Ratchet 41 · Composition 252 · Policy-Epoche 43 · 3 Regeln mit
 `convert it to exact debt` · 3.050 LOC unter `modules/*/legacy`
 
-Summenprobe: 1 + 0 + 0 + 0 + 1 + 0 + 0 + 0 + 40 = 42 = `wc -l backend/architecture/legacy.jsonl`.
+Summenprobe: 1 + 0 + 0 + 0 + 0 + 0 + 0 + 0 + 40 = 41 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
 ## Entscheidungen
@@ -59,9 +59,9 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 - [x] [#3356](https://github.com/moto-nrw/project-phoenix/issues/3356) Settings-, Listenexport-, Messaging-, IoT-, Aktivitäts- und Schulstruktur-Kanten — `api/students` liest Settings, weckt Sorgeberechtigte, liest Gruppen und Anmeldungen und stößt den Regeltermin-Resync über eigene Ports an (`TenantSettings`, `GuardianWake`, `SchoolGroups`, `ActiveEnrollments`, `OfferingSourceResyncer`), die Root bindet die Owner; die vier Exporte füllen den neuen Document-Rendering-Vertrag `modules/documentrendering/lists` (drei Regeln am neuen Contract-Punkt); Audit-Vokabular und Sweep-Batchgröße (`careplan.StudentDocumentSweepBatchSize`) ohne `models/*`; 19 Keys weniger (463 → 444), Composition 604 → 604
 - [x] [#2731](https://github.com/moto-nrw/project-phoenix/issues/2731) Carrier geschlossen — `api/students` Datei für Datei nach `modules/peopledirectory/inbound/students` (`people-directory`/`http`), Owner `inbound-students` gelöscht; Schülerzeilen über die People-Directory-Capability, Personen-Schreibpfade über den Port `PersonRecords` (`services.NewStudentRoutePersons`); alle 37 Keys plus `api -> api/students` (#2750) und `api/enrollment -> api/students` (#2734) weg, dazu drei `api/common`-Keys (#2738) mit dem umgezogenen Listen-Snapshot (444 → 402), Composition 604 → 603; die File-Storage-Ausnahme bleibt, jetzt unter #2706
 
-## Identity · 1 Key
+## Identity · 0 Keys
 
-- [ ] [#3446](https://github.com/moto-nrw/project-phoenix/issues/3446) Fremde Implementierungs-Imports aus den Identity-Behavior-Suiten entfernen — 1 (`tenant` über die Tenant-Runtime-Helfer von `test` entfernt, 86 → 85; offen: `modules/identityaccess`, `legacy/jwt` und `auth/rotation` — eine `e2e-test`-Wurzel darf keines davon importieren, auch nicht über `test` oder eine Composition; Abbau braucht eine Architekturentscheidung zur Rolle der Suite oder Suiten ohne Legacy-Factory) Entschieden in ADR 0053: [#4001](https://github.com/moto-nrw/project-phoenix/issues/4001) entfernt die beiden Eigen-Imports (`modules/identityaccess`, `legacy/jwt`), hier bleibt `auth/rotation` in drei Dateien. #4001: beide Eigen-Imports weg (Punkt 7.1), 3 → 1.
+- [x] [#3446](https://github.com/moto-nrw/project-phoenix/issues/3446) Fremde Implementierungs-Imports aus den Identity-Behavior-Suiten entfernen — 0 (`tenant` über die Tenant-Runtime-Helfer von `test` entfernt, 86 → 85; #4001: beide Eigen-Imports weg (ADR 0053, Punkt 7.1), 3 → 1; `auth/rotation` weg: der Recovery-Proof ist Eingabe von `AccountAuthentication.RefreshTokenWithAudit`, `modules/identityaccess/compose` bindet ihn für die Rotation-Policy, die Account-Refresh-Route reicht den Header durch, die Suiten prüfen Grace und Family-Fingerprint per Wert, 46 → 45; keine Regel, Composition 252 → 252)
 
 - [x] [#3487](https://github.com/moto-nrw/project-phoenix/issues/3487) `modules/identityaccess/legacy/jwt` → `modules/identityaccess/sessiontoken` — Relocation (Policy-Epoche 41 → 42, ADR 0054), Paketname `sessiontoken`, Owner und Rollen unverändert; 0 Keys weniger (46 → 46): die drei verbleibenden Keys tragen den neuen Pfad und behalten ihre Carrier (`api` in Produktion und internem Test #2750, `services` #2747); die inaktive Deklaration `auth/jwt -> legacy/jwt` von #3226 entfernt; `modules/identityaccess/legacy` gelöscht, Legacy-Budget 4.408 → 3.050 LOC
 - [x] [#3230](https://github.com/moto-nrw/project-phoenix/issues/3230) `api/auth` → `modules/identityaccess/inbound/auth` — Relocation (Epoche 19), 3 Keys weniger (684 → 681), 26 bleiben unter dem neuen Pfad bei #2736
