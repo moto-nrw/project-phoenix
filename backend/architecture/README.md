@@ -3344,7 +3344,7 @@ Twelve baseline entries fall: nine of #2750 (`. -> cmd`, `cmd -> api`,
 `api -> realtime` and `api -> tenant`), two of #3446 (`behavior ->
 modules/identityaccess` and `behavior -> legacy/jwt`) and one of #2748
 (`test -> legacy/jwt`). With the four #4003 entries the baseline goes from
-60 to 52. The policy goes from 1,663 to 1,438 rules, and the composition
+55 to 47. The policy goes from 1,663 to 1,438 rules, and the composition
 surface stays at 252. `cycles --graph target` is unchanged at 58 owners, 335
 edges and one component of 32 members: the target projection omits
 composition owners and self-edges, so the reaches add no edge to it.
