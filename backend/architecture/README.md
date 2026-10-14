@@ -3344,7 +3344,7 @@ Twelve baseline entries fall: nine of #2750 (`. -> cmd`, `cmd -> api`,
 `api -> realtime` and `api -> tenant`), two of #3446 (`behavior ->
 modules/identityaccess` and `behavior -> legacy/jwt`) and one of #2748
 (`test -> legacy/jwt`). With the four #4003 entries the baseline goes from
-55 to 47. The policy goes from 1,663 to 1,438 rules, and the composition
+54 to 46. The policy goes from 1,663 to 1,438 rules, and the composition
 surface stays at 252. `cycles --graph target` is unchanged at 58 owners, 335
 edges and one component of 32 members: the target projection omits
 composition owners and self-edges, so the reaches add no edge to it.
@@ -3606,6 +3606,16 @@ People Directory suites already compose through. Both `test -> models/users`
 keys fall without a new key (111 -> 109), and the rule
 `people-directory.behavior-test.enrollment-support` is deleted with its last
 importer.
+[#4014](https://github.com/moto-nrw/project-phoenix/issues/4014) needed no
+rule either: the fixtures map their `enrollment.care_offerings` row
+(`CareOffering` in `test/care_offering_rows.go`) and take the phase, request,
+child and care-offering values from `modules/enrollment/enrollmenttest` under
+the existing `test-support.to.enrollment-support` rule. The care-offering
+values `fixed` and `parent_choice` have no public owner constant,
+so Enrollment test support names the stored column values. The Timetable
+template suites insert their source offerings through the fixtures, and the
+then unused `Factory.EnrollmentCareOfferingRows` is deleted. `test ->
+models/enrollment` falls without a new key (60 -> 59).
 [ADR 0053](../../docs/adr/0053-owners-compose-themselves-and-the-roots-compose-the-owners.md)
 point 7.3 (#4001) adds `identity-access/adapter` to the standing targets in
 the same shape: the session token adapter is the HTTP session runtime (ADR

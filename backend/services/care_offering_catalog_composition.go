@@ -401,12 +401,6 @@ func (careOfferingSourceRules) IsRejection(err error) bool {
 	return errors.Is(err, timetable.ErrOfferingSourceInvalid)
 }
 
-// EnrollmentCareOfferingRows serves the Care Plan catalog to the enrollment
-// routes in the enrollment rows they still render.
-func (f *Factory) EnrollmentCareOfferingRows() *enrollmentCompose.CareOfferingRows {
-	return enrollmentCompose.NewCareOfferingRows(f.EnrollmentCareOffering)
-}
-
 // NewEnrollmentCareOfferingValues serves the Care Plan catalog to the
 // enrollment routes in Enrollment's public offering values (#2734).
 func NewEnrollmentCareOfferingValues(catalog enrollmentCompose.CareOfferingCatalogAdministration) *enrollmentCompose.CareOfferingValues {
