@@ -356,17 +356,20 @@ func TestCheckCareScheduleCutoverRejectsIncompleteRetirement(t *testing.T) {
 			p.Rules[0].TargetRole = "compose"
 			writeFile(t, filepath.Join(repo, "api/students/value.go"), "package students\nimport capability \"github.com/moto-nrw/project-phoenix/modules/careplan/compose\"\nvar Value = capability.Value\n")
 		}, "architecture policy loosening"},
-		{"native composition private access", func(t *testing.T, repo string, p *Policy) {
-			p.Rules = append(p.Rules, Rule{ID: "care-plan.compose.private", Description: "Private implementation access is not a contract cutover.", Scopes: []string{"production"}, SourceOwner: "care-plan", SourceRole: "compose", TargetOwner: "care-plan", TargetRole: "application"})
-			writeFile(t, filepath.Join(repo, "modules/careplan/compose/value.go"), "package capability\nimport impl \"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application\"\nconst Value = impl.Value\n")
+		// The owner's composition reaches its own roles, and its tests and test
+		// support its own contracts, under the standing reaches of ADR 0053.
+		// The cutover must still not open the application implementation.
+		{"native port private access", func(t *testing.T, repo string, p *Policy) {
+			p.Rules = append(p.Rules, Rule{ID: "care-plan.port.private", Description: "Private implementation access is not a contract cutover.", Scopes: []string{"production"}, SourceOwner: "care-plan", SourceRole: "port", TargetOwner: "care-plan", TargetRole: "application"})
+			writeFile(t, filepath.Join(repo, "modules/careplan/internal/ports/value.go"), "package capability\nimport impl \"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application\"\nconst Value = impl.Value\n")
 		}, "architecture policy loosening"},
-		{"native contract borrowed test scope", func(t *testing.T, repo string, p *Policy) {
-			p.Rules = append(p.Rules, Rule{ID: "care-plan.tests.contract", Description: "Production composition does not authorize a new test permission.", Scopes: []string{"external_test"}, SourceOwner: "care-plan", SourceRole: "module-behavior-test", TargetOwner: "care-plan", TargetRole: "contract"})
-			writeFile(t, filepath.Join(repo, "modules/careplan/value_test.go"), "package capability_test\nimport contract \"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests\"\nvar Value = contract.Value\n")
+		{"native implementation borrowed test scope", func(t *testing.T, repo string, p *Policy) {
+			p.Rules = append(p.Rules, Rule{ID: "care-plan.tests.application", Description: "Production composition does not authorize a new test permission.", Scopes: []string{"external_test"}, SourceOwner: "care-plan", SourceRole: "module-behavior-test", TargetOwner: "care-plan", TargetRole: "application"})
+			writeFile(t, filepath.Join(repo, "modules/careplan/value_test.go"), "package capability_test\nimport impl \"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application\"\nvar Value = impl.Value\n")
 		}, "architecture policy loosening"},
-		{"native test support contract", func(t *testing.T, repo string, p *Policy) {
-			p.Rules = append(p.Rules, Rule{ID: "care-plan.testsupport.contract", Description: "Fixture placement cannot widen production-scope support permissions.", Scopes: []string{"production"}, SourceOwner: "care-plan", SourceRole: "test-support", TargetOwner: "care-plan", TargetRole: "contract"})
-			writeFile(t, filepath.Join(repo, "modules/careplan/careplantest/value.go"), "package capability\nimport contract \"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests\"\nconst Value = contract.Value\n")
+		{"native test support implementation", func(t *testing.T, repo string, p *Policy) {
+			p.Rules = append(p.Rules, Rule{ID: "care-plan.testsupport.application", Description: "Fixture placement cannot widen production-scope support permissions.", Scopes: []string{"production"}, SourceOwner: "care-plan", SourceRole: "test-support", TargetOwner: "care-plan", TargetRole: "application"})
+			writeFile(t, filepath.Join(repo, "modules/careplan/careplantest/value.go"), "package capability\nimport impl \"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application\"\nconst Value = impl.Value\n")
 		}, "architecture policy loosening"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

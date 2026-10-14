@@ -559,6 +559,12 @@ built values from the root. The `bun`, `tenant` and `legacy/jwt` keys remain,
 because the builders that compose several owners over one database
 (`services/*_roots.go`, `command_roots.go`, `cleanup_composition.go`,
 `factory.go`) and the test hooks still need them. The Factory still exists.
+[ADR 0053](../../docs/adr/0053-owners-compose-themselves-and-the-roots-compose-the-owners.md)
+decides where that code goes: an owner's composition builds its own owner,
+and the typed roots compose the owners. #4001 grants the standing reaches in
+epoch 41 (see [Standing composition reaches](#standing-composition-reaches-adr-0053)).
+The three keys stay until #4005 to #4013 have moved the code out of
+`services` and #2747 deletes the package.
 
 #2734 closed the carrier of `api/enrollment`: its 26 remaining keys, the
 root's `api -> api/enrollment` key (#2750) and three parent-portal keys of
@@ -1451,7 +1457,8 @@ rules (#3447): `api/common` is the shared HTTP runtime the other owners' HTTP
 adapters and adapter tests bind as well, and it has no replacement. The
 `root-composition.to.student-presence-http` mount stays a compatibility
 permission; convert it to exact debt with the rule above once the package
-exists at a base SHA. The calendar-date edges are gone: the adapter and its
+exists at a base SHA. #4001 deleted it: the standing root reach of ADR 0053
+(`root-composition.reach.domain.http`) is the target permission for it. The calendar-date edges are gone: the adapter and its
 tests name `sharedkernel/calendar` directly under the shared-kernel rule
 ([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md)).
 The settings test edge is gone too: the tests name the setting keys through
@@ -3251,6 +3258,77 @@ inventory are `contract-common-http-2738.json` and
 `callers/common-http-2738.json` (regenerate with
 `scripts/run-go-toolchain.sh go run scripts/backend-common-http-callers/main.go`).
 
+### Standing composition reaches (ADR 0053)
+
+[ADR 0053](../../docs/adr/0053-owners-compose-themselves-and-the-roots-compose-the-owners.md)
+(#4001, policy epoch 40 → 41) replaces per-pair rules with four standing
+reaches. Each reach is a finite selector set with its own acceptance function
+in `internal/architecture/composition_reach_rule.go`. The comparison accepts a
+rule only in an increased epoch and only when everything the rule allows lies
+inside one reach: a subset test over source owner or kind, source role, target
+owner or kind, target role, `same_owner` and scopes. The first-party import
+check accepts the imports such a rule implies. None of the rules carries an
+`issue`; they are the target.
+
+| Reach | Acceptance function | Selectors | Rules in epoch 41 |
+|---|---|---|---|
+| The typed roots (point 2) | `reviewedRootCompositionRule` | `root-composition`, any role and scope, to the `compose`, `public`, `contract`, `port` and `http` roles of every `domain`, `platform`, `workflow` and `projection` owner, to `migrations`/`migration`, and to the root's own packages | 19 `root-composition.reach.*` |
+| An owner's composition (point 3) | `reviewedOwnerCompositionRule` | role `compose`, production, every role of its own owner | 9 `owner-compose.*` |
+| A test of one owner (point 7.1) | `reviewedOwnTestRule` | the test scopes of an owner to its own `public`, `contract`, `compose`, `port`, `adapter` and `test-support`; its `test-support` role in production to the same roles except `test-support` | 31 `own-test.*`, 5 `own-test-support.*` |
+| A test of several owners (point 7.2) | `reviewedRootTestRule` | the test scopes of every owner to `root-composition`/`compose` | 1 `root-test.domain.compose` |
+
+Three constraints shape the rules:
+
+1. The loader rejects statically overlapping rules. The generic rules
+   `adapter-test.{domain,platform,projection,workflow}.public`,
+   `adapter-test.{domain,platform}.contract` and the `external-test.*` rules
+   of the `workflow-integration-test` role already grant those roles their
+   own owner's `public` and `contract`. The rules into `public` and
+   `contract` therefore name a source role, both for the root's test scopes
+   and for an owner's own tests; the rules into the other roles do not.
+2. Points 7.1 and 7.2 select no `composition`-kind source. The root's own
+   tests reach the root through point 2, and the legacy composition gains no
+   test reach. Their rules name a source owner kind, and the acceptance
+   functions reject a rule whose source selector includes a composition.
+3. `rules.stale` keeps only live rules, so the rules cover the selectors that
+   current imports use. The root has no `port` rule, for example. The first
+   import that needs one adds it in a reviewed epoch under the same
+   acceptance function.
+
+Epoch 41 deletes the 303 rules the reaches cover: 62 root rules into the
+covered owner kinds (the 19 rules into `inbound` owners stay), 150 same-owner
+composition rules, and 91 same-owner test and test-support rules, among them
+the generic `internal-test.same-owner.{public,contract,compose,port,adapter}`,
+`module-behavior-test.{public,contract}` and `workflow-decision-test.port`. Six
+of them carried an issue: `root-composition.to.student-presence-http` (#2750),
+`audit-platform.compose.retained-application`,
+`audit-platform.compose.vocabulary-domain` and
+`data-import.compose.retained-application` (#2747), and
+`workforce.compose.time-records` and `workforce.behaviour-test.time-records`
+(#3996). Their edges are target edges now; #3996 keeps seven rules.
+`e2e-test.compose` narrows to `legacy-composition` and carries #2747 until
+`services` is deleted.
+
+The three root rules into implementation roles of other owners
+(`root-composition.to.workforce-adapter`,
+`root-composition.compose.production.data-import.adapter`,
+`root-composition.compose.scheduler-runtime-postgres`) became exact debt under
+[#4003](https://github.com/moto-nrw/project-phoenix/issues/4003). They yield
+four tuples, because the scheduler rule covered `jobruntime` and
+`workerlease`. Point 7.3 adds `identity-access`/`adapter` to the shared
+fixture targets (`shared-fixtures.identity-access-adapter`).
+
+Twelve baseline entries fall: nine of #2750 (`. -> cmd`, `cmd -> api`,
+`cmd -> tenant`, `cmd -> database/migrations` in production and internal test,
+`api -> observability`, and the internal-test `api -> auth/authorize/permissions`,
+`api -> realtime` and `api -> tenant`), two of #3446 (`behavior ->
+modules/identityaccess` and `behavior -> legacy/jwt`) and one of #2748
+(`test -> legacy/jwt`). With the four #4003 entries the baseline goes from
+60 to 52. The policy goes from 1,673 to 1,433 rules, and the composition
+surface stays at 252. `cycles --graph target` is unchanged at 58 owners, 335
+edges and one component of 32 members: the target projection omits
+composition owners and self-edges, so the reaches add no edge to it.
+
 ## Changing the policy
 
 1. Add or move the exact package classification and data-object owner.
@@ -3379,6 +3457,12 @@ reaches every other HTTP point holds. Epoch 39 registers them as
 `inbound-parent.adapter-test.identity-adapter`. Other owners, roles, targets,
 external classes and scopes stay forbidden.
 
+The standing composition and test reaches of
+[ADR 0053](../../docs/adr/0053-owners-compose-themselves-and-the-roots-compose-the-owners.md)
+(#4001) are the widest such path: a reviewed epoch may add any rule that lies
+inside one of the four reaches, and nothing else. See
+[Standing composition reaches](#standing-composition-reaches-adr-0053).
+
 The repository Factory contraction has a two-permission path
 ([ADR 0049](../../docs/adr/0049-owner-compositions-construct-audit-and-settings-persistence.md),
 #2743). In a reviewed epoch whose base classifies `database/repositories`
@@ -3502,6 +3586,12 @@ People Directory suites already compose through. Both `test -> models/users`
 keys fall without a new key (111 -> 109), and the rule
 `people-directory.behavior-test.enrollment-support` is deleted with its last
 importer.
+[ADR 0053](../../docs/adr/0053-owners-compose-themselves-and-the-roots-compose-the-owners.md)
+point 7.3 (#4001) adds `identity-access/adapter` to the standing targets in
+the same shape: the session token adapter is the HTTP session runtime (ADR
+0031, ADR 0046), and the fixtures reach it for the same reason they reach the
+tenant runtime. Epoch 41 registers `shared-fixtures.identity-access-adapter`,
+and `test -> modules/identityaccess/legacy/jwt` falls (#2748).
 
 A reviewed epoch may also add the one owner-agnostic shared-kernel rule
 ([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),
