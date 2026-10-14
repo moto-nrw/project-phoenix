@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -15,6 +16,31 @@ import (
 // staff row comes from the People Directory repository, the account, role
 // and permission half from Identity & Access, the employment-only writes from
 // Workforce.
+
+// MembershipTestRepositories are the People Directory and School Membership
+// repositories the retained graphs read through. services composes them where
+// it composes the owners; the test graphs build them through
+// api.NewMembershipTestRepositories (#2743, #4005).
+type MembershipTestRepositories struct {
+	// People is the People Directory owner the student rows translate to.
+	People          peopledirectory.Capability
+	Person          userModels.PersonRepository
+	Student         userModels.StudentRepository
+	GuardianProfile userModels.GuardianProfileRepository
+	StudentGuardian userModels.StudentGuardianRepository
+	Staff           userModels.StaffRepository
+	Teacher         userModels.TeacherRepository
+	Guest           userModels.GuestRepository
+	Group           EducationGroupRepository
+	GroupTeacher    GroupTeacherRepository
+	ClassTeacher    ClassTeacherRepository
+	// GroupSubstitution is the Workforce group substitution contract over the
+	// group store and School Membership.
+	GroupSubstitution GroupSubstitutionRepository
+	// Membership is the owner capability itself; the class-list entries
+	// (#2382) are read and written through it.
+	Membership schoolmembership.Capability
+}
 
 // bindMembershipRepositories binds the staff, teacher and guest adapters over
 // membership, with the group store and the teaching assignments they resolve
