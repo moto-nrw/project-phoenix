@@ -8,11 +8,11 @@ import (
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/uptrace/bun"
 )
 
 // The time-tracking and staff administration resources live in the Workforce
@@ -75,7 +75,7 @@ func (p exportTransferPort) Transfer(ctx context.Context, request timeTrackingHT
 }
 
 // newTimeTrackingResource composes the MA-facing /api/time-tracking surface.
-func newTimeTrackingResource(svc *services.Factory, calendar schoolcalendar.Calendar, db *bun.DB) *timeTrackingHTTP.Resource {
+func newTimeTrackingResource(svc *services.Factory, calendar schoolcalendar.Calendar, db transactionruntime.Database) *timeTrackingHTTP.Resource {
 	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession)
 	return timeTrackingHTTP.NewResource(timeTrackingHTTP.Dependencies{
 		WorkSessions:     capabilities.WorkSessions,
@@ -87,7 +87,7 @@ func newTimeTrackingResource(svc *services.Factory, calendar schoolcalendar.Cale
 		Calendar:         services.PlanningCalendarCapability(calendar),
 		AccountStartDate: services.TimeTrackingAccountStartDate(svc.Settings),
 		Identity:         timeTrackingIdentity,
-		DB:               db,
+		DB:               db.Pool(),
 	})
 }
 
@@ -95,8 +95,8 @@ func newTimeTrackingResource(svc *services.Factory, calendar schoolcalendar.Cale
 // adapted capabilities; schedules is the Workforce query the schedule views
 // read from and the Sonderarbeitszeiten are written through; notifyChanged
 // invalidates the time-account views after such a write.
-func newStaffAdminResource(capabilities services.WorkforceAdminCapabilities, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer *exportTransferModule.Module, db *bun.DB, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
-	cleanup, err := workforceCompose.NewDocumentCleanup(db, nil)
+func newStaffAdminResource(capabilities services.WorkforceAdminCapabilities, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer *exportTransferModule.Module, db transactionruntime.Database, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
+	cleanup, err := workforceCompose.NewDocumentCleanup(db.Pool(), nil)
 	if err != nil {
 		panic(err)
 	}

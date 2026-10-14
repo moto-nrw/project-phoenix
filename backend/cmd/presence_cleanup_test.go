@@ -24,9 +24,9 @@ func TestPresenceCleanupRollsBackFailedSchoolAndContinues(t *testing.T) {
 	schools, err := testutil.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	cc := &cleanupContext{
-		TenantRuntime: testpkg.TenantRuntime(t, db),
-		Schools:       schools,
-		Output:        io.Discard,
+		DB:      testpkg.NewDatabase(t, db),
+		Schools: schools,
+		Output:  io.Discard,
 	}
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)

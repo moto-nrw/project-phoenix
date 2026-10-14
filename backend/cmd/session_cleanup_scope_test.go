@@ -33,8 +33,8 @@ func (s *scopedSessionCleanup) EndDailySessions(ctx context.Context) (*studentpr
 func TestSessionCleanupExecutesForEachSchool(t *testing.T) {
 	t.Parallel()
 	cc := setupTestCleanupContextWithServices(t)
-	first, _ := testpkg.CreateTestTenant(t, cc.DB)
-	second, _ := testpkg.CreateTestTenant(t, cc.DB)
+	first, _ := testpkg.CreateTestTenant(t, cc.DB.Pool())
+	second, _ := testpkg.CreateTestTenant(t, cc.DB.Pool())
 	service := &scopedSessionCleanup{t: t, abandoned: map[int64]bool{}, daily: map[int64]bool{}}
 	cc.SessionCleanupService = service
 	cc.Output = io.Discard

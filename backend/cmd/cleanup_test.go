@@ -52,12 +52,11 @@ func setupTestCleanupContext(t *testing.T) *cleanupContext {
 	schools, err := testutil.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	ctx := &cleanupContext{
-		Schools:       schools,
-		TenantRuntime: testpkg.TenantRuntime(t, db),
-		DB:            db,
-		Audit:         testutil.NewTestAuditStore(db),
-		Output:        io.Discard,
-		Logger:        log.New(io.Discard, "", 0),
+		Schools: schools,
+		DB:      testpkg.NewDatabase(t, db),
+		Audit:   testutil.NewTestAuditStore(db),
+		Output:  io.Discard,
+		Logger:  log.New(io.Discard, "", 0),
 	}
 	ctx.CleanupService = buildRetentionCleanupService(ctx)
 	return ctx
@@ -98,13 +97,12 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 		DB:                       db,
 		Logger:                   slog.Default(),
 	}, presenceservice.WithPresenceSettings(detailedPresenceSettings{}))
-	cleanupSvc := buildRetentionCleanupService(&cleanupContext{DB: db, Audit: testutil.NewTestAuditStore(db)})
+	cleanupSvc := buildRetentionCleanupService(&cleanupContext{DB: testpkg.NewDatabase(t, db), Audit: testutil.NewTestAuditStore(db)})
 	schools, err := testutil.NewOrganizationTenancy(db)
 	require.NoError(t, err)
 	return &cleanupContext{
 		Schools:               schools,
-		TenantRuntime:         testpkg.TenantRuntime(t, db),
-		DB:                    db,
+		DB:                    testpkg.NewDatabase(t, db),
 		SessionCleanupService: sessionService,
 		CleanupService:        cleanupSvc,
 		Output:                io.Discard,

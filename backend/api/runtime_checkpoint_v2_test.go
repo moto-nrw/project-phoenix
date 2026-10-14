@@ -624,10 +624,10 @@ func (w *targetRiskWorkload) measureContention(t *testing.T, production *Runtime
 	// bun never removes a query hook, so the scoped counters are created once
 	// and reused by every contention run instead of piling up per run.
 	for len(w.slotCounters) < concurrency {
-		w.slotCounters = append(w.slotCounters, testpkg.CaptureQueriesForContext(t, api.db))
+		w.slotCounters = append(w.slotCounters, testpkg.CaptureQueriesForContext(t, api.db.Pool()))
 	}
 	counters := w.slotCounters[:concurrency]
-	run := checkpointConcurrentRun{Name: "contention.student-graph", Concurrency: concurrency, PoolMaxOpen: api.db.Stats().MaxOpenConnections, WarmupRounds: 5, MeasuredRounds: 30, Operations: operations}
+	run := checkpointConcurrentRun{Name: "contention.student-graph", Concurrency: concurrency, PoolMaxOpen: api.db.Pool().Stats().MaxOpenConnections, WarmupRounds: 5, MeasuredRounds: 30, Operations: operations}
 	deadlocks := func() int64 {
 		var count int64
 		require.NoError(t, w.db.NewRaw("SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()").Scan(context.Background(), &count))
@@ -693,12 +693,12 @@ func (w *targetRiskWorkload) measureContention(t *testing.T, production *Runtime
 			metricRound.Before = checkpointMetrics(t)
 			deadlocksBefore = deadlocks()
 		}
-		before := api.db.Stats()
+		before := api.db.Pool().Stats()
 		roundStarted := time.Now()
 		close(start)
 		wg.Wait()
 		wall := time.Since(roundStarted)
-		after := api.db.Stats()
+		after := api.db.Pool().Stats()
 		if measured {
 			metricRound.After = checkpointMetrics(t)
 			run.MetricRounds = append(run.MetricRounds, metricRound)

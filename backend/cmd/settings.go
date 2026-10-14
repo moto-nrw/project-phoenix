@@ -62,7 +62,7 @@ func newSettingsCommandContext() (*settingsCommandContext, error) {
 	return &settingsCommandContext{
 		cleanupContext: base,
 		schools:        base.Schools,
-		values:         services.NewSettingsCommandRepository(base.DB),
+		values:         services.NewSettingsCommandRepository(base.DB.Pool()),
 	}, nil
 }
 
@@ -76,7 +76,7 @@ func runSettingsOverrides(_ *cobra.Command, _ []string) error {
 }
 
 func runSettingsOverridesWithContext(commandContext *settingsCommandContext) error {
-	ctx := tenant.WithUnitOfWork(context.Background(), commandContext.TenantRuntime)
+	ctx := tenant.WithUnitOfWork(context.Background(), commandContext.DB.UnitOfWork())
 	schools, err := commandContext.schools.ListSchools(ctx)
 	if err != nil {
 		return fmt.Errorf("list schools: %w", err)
