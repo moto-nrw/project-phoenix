@@ -18,6 +18,8 @@ through `devbox run` when the current process has not loaded the project environ
 | Task | Command |
 |---|---|
 | Start infra + backend + frontend | `scripts/dev-native.sh up` |
+| Start infra + backend only | `scripts/dev-native.sh up backend` |
+| Start infra + frontend only | `scripts/dev-native.sh up frontend` |
 | After go.mod changes | restart `scripts/dev-native.sh up` (air reloads plain Go edits) |
 | Migrate | `scripts/dev-native.sh backend go run . migrate` |
 | Reset local DB | `scripts/dev-native.sh backend go run . migrate reset` (seed credentials: `docs/getting-started.md`) |
@@ -44,6 +46,8 @@ are rewritten to localhost with the published ports. Nothing else changes, so
 | Task | Command |
 |---|---|
 | Start infra + backend + frontend (foreground) | `scripts/dev-native.sh up` |
+| Start infra + backend only (foreground) | `scripts/dev-native.sh up backend` |
+| Start infra + frontend only (foreground) | `scripts/dev-native.sh up frontend` |
 | Stop native processes (infra keeps running) | `scripts/dev-native.sh down` |
 | Status | `scripts/dev-native.sh status` |
 | Backend CLI with the native env | `scripts/dev-native.sh backend go run . migrate` |
@@ -52,7 +56,12 @@ are rewritten to localhost with the published ports. Nothing else changes, so
 
 Logs land in `tmp/dev-native/backend.log` and `tmp/dev-native/frontend.log`.
 `up` stops the `server` and `frontend` containers first and refuses to start
-when a published port is taken. After `go.mod` changes restart `up`; plain Go
+when a selected app's published port is taken. Each `up` replaces both
+previously managed native app processes, then starts only the selected apps.
+All modes keep Postgres and Mailpit; frontend-only mode skips Go and migrations
+and expects a separately running backend for API calls. Backend children default
+to `GOFLAGS=-p=4` and `GOMAXPROCS=4`, preserving explicit caller values.
+After `go.mod` changes restart `up`; plain Go
 edits reload through air. Worktrees created with `wt` carry their own ports in
 the copied `.env`, so several native loops run side by side; on 16 GB
 machines run one at a time ([low-memory machines](../development-environment.md#low-memory-machines)).

@@ -75,10 +75,94 @@ explicitly; a terminal's direnv activation does not configure another process.
 
 ## Low-memory machines
 
-On a 16 GB laptop RAM runs out before the CPU does. Next dev holds 2.5-4.6 GB,
-a heavy Go test link about 1.1 GB, gopls about 1 GB and tsserver about 2 GB.
-The full backend suite (`scripts/test-backend.sh`) peaks near 10 GB of
-process memory even with the parallelism a 16 GB machine gets.
+A 16 GB laptop has little headroom for several dev processes. Earlier
+measurements put Next dev at 2.5-4.6 GB, a heavy Go test link at about
+1.1 GB, gopls at about 1 GB and tsserver at about 2 GB. The reference Go
+suite below used four package workers and peaked near 10 GB; it predates
+the current two-worker budget and later architecture-test changes.
+
+### Use the smallest feedback loop
+
+1. Start only the app you need: `scripts/dev-native.sh up backend` or
+   `scripts/dev-native.sh up frontend`. Bare `up` still starts both. Each
+   `up` replaces the previously managed app processes. Shared Postgres and
+   Mailpit stay running; frontend-only startup skips Go builds and migrations.
+   API calls from the frontend still need a running backend.
+2. During a fix, run a named test/package or
+   `scripts/test-changed.sh --fast origin/development`. The fast mode omits
+   transitive importers and repository-wide ratchets. Run without `--fast`
+   before pushing; it is not a replacement for the full gate.
+3. Run only one full backend suite or whole-repository analysis at a time
+   across your worktrees. Each command has its own budget, not a shared
+   machine-wide limit. Extra language-server sessions also keep their own
+   copies of the project graph in RAM.
+
+### Go CPU and package budgets
+
+Devbox, `scripts/run-go-toolchain.sh`, the native backend launcher and the
+pre-push runner default to `GOFLAGS=-p=4` and `GOMAXPROCS=4`. The pinned
+runner also supplies these values outside a Devbox shell and passes them
+to nested commands. Explicit caller values remain intact.
+
+The two controls cover different work: [`-p`](https://pkg.go.dev/cmd/go#hdr-Compile_packages_and_dependencies)
+limits concurrent package commands, while
+[`GOMAXPROCS`](https://pkg.go.dev/runtime#GOMAXPROCS) limits Go CPU execution
+within each process. `deadcode` uses the latter for type checking and SSA
+construction, so `-p` alone does not bound its analysis load. Neither is a
+hard CPU limit on an entire process tree.
+
+Full and changed backend tests share `scripts/go-package-workers.sh`:
+half the available CPUs, one worker per 8 GiB RAM, at most two on macOS
+or four on Linux, and at least one. A 16 GiB machine therefore gets at
+most two package workers. `-parallel 8` stays fixed for the test-result
+cache and database-pool sizing. Full-suite callers can still override
+the package budget with an explicit `-p` argument.
+
+To reduce analysis load further for a local run, use, for example,
+`GOMAXPROCS=2 scripts/run-go-toolchain.sh scripts/check-deadcode.sh`.
+Lower concurrency can make an isolated command slower while leaving more
+CPU available for the editor and hot reload. It does not remove the
+memory needed to hold the analysis graph.
+
+#### Measured analysis tradeoff
+
+On 2026-10-14, backend commit `af3bfe5f97`, a 64 GiB / 16-core Mac ran
+three production `go tool deadcode ./...` passes per setting, sequentially
+in alternating order with `GOFLAGS=-p=4`. Other work remained active;
+these are medians, not an idle-machine benchmark.
+
+| Setting | Wall time | CPU time | Sampled peak process-tree CPU | Sampled peak process-tree RSS |
+| --- | --- | --- | --- | --- |
+| `GOMAXPROCS=16` | 5.25 s | 21.73 s | 1004% | 3690 MiB |
+| `GOMAXPROCS=4` | 6.81 s | 16.28 s | 385% | 3786 MiB |
+
+All six passes produced identical findings. Four threads reduced sampled
+peak CPU by about 62% and CPU time by about 25%, at the cost of about
+30% more wall time. RSS did not improve in this run. CPU/RSS were sampled
+every 250 ms, so short spikes can be missed. This does not measure the full
+test suite, hot-reload latency under load or a real 16 GiB machine.
+
+The remaining structural cost is repeated whole-program graph loading:
+the deadcode gate loads the backend with and without tests, and pure
+source ratchets in `backend/test` still link the shared fixture graph.
+Separating those scanners into a small package could shorten that loop,
+but must preserve every gate. Do not remove one deadcode mode or skip
+ratchets to make timings smaller.
+
+### Fresh Postgres volumes
+
+The dev template gives Postgres a 60-second healthcheck start period and
+checks TCP readiness. Previously two failed one-second checks could abort
+`docker compose up --wait` during `initdb`; this occurred in the native
+startup check on this machine. The image's temporary initialization server accepts
+only Unix sockets, so socket readiness is not enough for the app.
+See the [Postgres image entrypoint](https://github.com/docker-library/postgres/blob/master/docker-entrypoint.sh)
+and [Docker healthcheck semantics](https://docs.docker.com/reference/dockerfile/#healthcheck).
+A successful check still marks the service ready before the start period
+ends. Existing local `docker-compose.yml` copies need the same healthcheck
+update; changing the template does not rewrite them.
+A fresh-volume check after the change reached TCP-ready health in 7.0 seconds
+on the same Mac. The disposable check removed only its own volume afterwards.
 
 ### Measure your machine
 
@@ -181,6 +265,8 @@ change the `typescript-language-server` binary arguments in your local
    `docker-compose.yml` is a local copy: refresh it once with
    `cp docker-compose.example.yml docker-compose.yml` in the main checkout
    (new `wt` worktrees copy it from there).
+   For backend-only work, use `scripts/dev-native.sh up backend` to avoid
+   keeping Next dev in memory.
 2. macOS: use [OrbStack](https://orbstack.dev) or Colima instead of Docker
    Desktop. Docker Desktop reserves its VM memory up front (1.5-3 GB idle);
    OrbStack returns unused memory to macOS. With Docker Desktop, set
