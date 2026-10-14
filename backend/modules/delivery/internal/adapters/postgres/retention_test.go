@@ -22,9 +22,12 @@ func TestRetentionKeepsTheWelcomeKeyWithoutItsContent(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	store, ctx := testStore(t, db)
 	key := "guardian_welcome:42"
+	relatedType := "guardian_profile"
+	relatedID := int64(42)
 	welcome := func() domain.Intent {
 		return domain.Intent{
 			TenantID: testpkg.Tenant(t), Transport: domain.TransportEmail, Template: "guardian_welcome", IdempotencyKey: &key,
+			RelatedEntityType: &relatedType, RelatedEntityID: &relatedID,
 			Recipient: json.RawMessage(`{"address":"guardian@example.com"}`), Payload: json.RawMessage(`{"name":"Ada"}`),
 			Status: "pending", NextRetryAt: time.Now().Add(-time.Minute),
 		}
@@ -60,4 +63,15 @@ func TestRetentionKeepsTheWelcomeKeyWithoutItsContent(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM platform.email_outbox WHERE tenant_id = ? AND idempotency_key = ?`,
 		testpkg.Tenant(t), key).Scan(context.Background(), &rows))
 	assert.Equal(t, 1, rows)
+
+	var retainedType *string
+	var retainedID *int64
+	var recipient, payload string
+	require.NoError(t, db.NewRaw(`SELECT related_entity_type, related_entity_id, recipient::text, payload::text
+		FROM platform.email_outbox WHERE tenant_id = ? AND idempotency_key = ?`, testpkg.Tenant(t), key).
+		Scan(context.Background(), &retainedType, &retainedID, &recipient, &payload))
+	assert.Nil(t, retainedType, "the retained key keeps no guardian profile type")
+	assert.Nil(t, retainedID, "the retained key keeps no guardian profile ID")
+	assert.Equal(t, "{}", recipient)
+	assert.Equal(t, "{}", payload)
 }

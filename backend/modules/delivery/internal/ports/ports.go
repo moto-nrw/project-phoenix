@@ -54,7 +54,7 @@ type RetentionStore interface {
 	// DeleteExpiredEmailIntents removes the expired mails except the
 	// key-only templates.
 	DeleteExpiredEmailIntents(ctx context.Context, tenantID int64, before time.Time, keyOnlyTemplates []string) (int, error)
-	// ClearExpiredKeyOnlyEmailIntents empties recipient, content and
+	// ClearExpiredKeyOnlyEmailIntents empties relation, recipient, content and
 	// provider answer of the expired key-only mails not cleared yet.
 	ClearExpiredKeyOnlyEmailIntents(ctx context.Context, tenantID int64, before time.Time, keyOnlyTemplates []string) (int, error)
 	DeleteExpiredPushIntents(ctx context.Context, tenantID int64, before time.Time) (int, error)

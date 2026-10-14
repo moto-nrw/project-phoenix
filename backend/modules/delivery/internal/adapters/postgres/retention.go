@@ -29,10 +29,13 @@ const (
 		WHERE tenant_id = ?0 AND ` + intentEndedBefore + `
 			AND kind NOT IN (?2)`
 	clearExpiredKeyOnlyEmailIntentsSQL = `UPDATE platform.email_outbox
-		SET recipient = '{}'::jsonb, payload = '{}'::jsonb, provider_result = NULL, last_error = NULL
+		SET related_entity_type = NULL, related_entity_id = NULL,
+			recipient = '{}'::jsonb, payload = '{}'::jsonb, provider_result = NULL, last_error = NULL
 		WHERE tenant_id = ?0 AND ` + intentEndedBefore + `
 			AND kind IN (?2)
-			AND (recipient <> '{}'::jsonb OR payload <> '{}'::jsonb OR provider_result IS NOT NULL OR last_error IS NOT NULL)`
+			AND (related_entity_type IS NOT NULL OR related_entity_id IS NOT NULL
+				OR recipient <> '{}'::jsonb OR payload <> '{}'::jsonb
+				OR provider_result IS NOT NULL OR last_error IS NOT NULL)`
 	deleteExpiredPushIntentsSQL = `DELETE FROM platform.push_outbox
 		WHERE tenant_id = ?0 AND ` + intentEndedBefore + ``
 )

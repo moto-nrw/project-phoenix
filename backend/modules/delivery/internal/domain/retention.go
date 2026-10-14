@@ -10,8 +10,8 @@ const RetentionWindow = 30 * 24 * time.Hour
 
 // KeyOnlyTemplates are the mail templates whose idempotency key must outlive
 // the window: the guardian welcome goes out once per school however often a
-// guardian is linked later (#3534). Retention clears their recipient,
-// content and provider answer and keeps only the key.
+// guardian is linked later (#3534). Retention clears their related entity,
+// recipient, content and provider answer and keeps only the key.
 var KeyOnlyTemplates = []string{"guardian_welcome"}
 
 // RetentionResult counts the rows one school's retention removed or cleared.
