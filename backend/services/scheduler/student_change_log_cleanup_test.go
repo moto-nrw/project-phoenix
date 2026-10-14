@@ -18,10 +18,7 @@ import (
 func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.T) {
 	t.Parallel()
 
-	scheduleNow := time.Now()
-	if scheduleNow.Second() >= 58 {
-		t.Skip("skipping to avoid minute-boundary race on timeMatchesNow")
-	}
+	scheduleNow := berlin(14, 2, 0)
 
 	deleteErr := errors.New("delete failed")
 	var results []string
@@ -29,6 +26,7 @@ func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.
 		studentChangeLogCleanup: func(context.Context) (StudentChangeLogCleanupResult, error) {
 			return StudentChangeLogCleanupResult{}, deleteErr
 		},
+		cleanupClock: func() time.Time { return scheduleNow },
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
@@ -57,10 +55,7 @@ func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.
 func TestStudentChangeLogCleanup_CommitsAndMarksTheDay(t *testing.T) {
 	t.Parallel()
 
-	scheduleNow := time.Now()
-	if scheduleNow.Second() >= 58 {
-		t.Skip("skipping to avoid minute-boundary race on timeMatchesNow")
-	}
+	scheduleNow := berlin(14, 2, 0)
 
 	calls := 0
 	s := unitScheduler(&Scheduler{
@@ -68,6 +63,7 @@ func TestStudentChangeLogCleanup_CommitsAndMarksTheDay(t *testing.T) {
 			calls++
 			return StudentChangeLogCleanupResult{EditsDeleted: 2, StudentsAffected: 1, RetentionDays: 90}, nil
 		},
+		cleanupClock: func() time.Time { return scheduleNow },
 		settings: &fakeSettingsResolver{
 			boolValues:   map[string]bool{settingDataCleanupEnabled: true},
 			stringValues: map[string]string{settingDataCleanupTime: scheduleNow.Format("15:04")},
@@ -78,5 +74,5 @@ func TestStudentChangeLogCleanup_CommitsAndMarksTheDay(t *testing.T) {
 	s.checkAndRunStudentChangeLogCleanup(context.Background(), &ScheduledTask{Name: "student-change-log-cleanup"})
 
 	assert.Equal(t, 1, calls)
-	assert.True(t, wasRunToday(&s.lastStudentChangeLogCleanup, schedulerUnitTenantID))
+	assert.True(t, wasRunAt(&s.lastStudentChangeLogCleanup, schedulerUnitTenantID, scheduleNow))
 }

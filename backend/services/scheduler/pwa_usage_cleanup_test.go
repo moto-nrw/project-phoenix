@@ -38,10 +38,7 @@ func (r *pwaUsageDeletes) DeleteLastSeenBefore(_ context.Context, tenantID int64
 func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 	t.Parallel()
 
-	scheduleNow := time.Now()
-	if scheduleNow.Second() >= 58 {
-		t.Skip("skipping to avoid minute-boundary race on timeMatchesNow")
-	}
+	scheduleNow := berlin(14, 2, 0)
 
 	deletes := &pwaUsageDeletes{}
 	cleanup := pwaSvc.NewUsageService(
@@ -61,6 +58,7 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 	)
 	s := unitScheduler(&Scheduler{
 		pwaUsageCleanup: cleanup,
+		cleanupClock:    func() time.Time { return scheduleNow },
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
@@ -81,5 +79,5 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 	require.Equal(t, []int64{schedulerUnitTenantID}, deletes.tenants, "one sweep for the school in its transaction")
 	assert.WithinDuration(t, time.Now().AddDate(0, 0, -90), deletes.cutoffs[0], time.Minute,
 		"rows older than the 90-day retention fall to the sweep")
-	assert.True(t, wasRunToday(&s.lastPWAUsageCleanup, schedulerUnitTenantID), "the committed sweep marks the day")
+	assert.True(t, wasRunAt(&s.lastPWAUsageCleanup, schedulerUnitTenantID, scheduleNow), "the committed sweep marks the day")
 }
