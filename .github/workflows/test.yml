@@ -38,9 +38,15 @@ env:
 jobs:
   test-backend:
     if: ${{ inputs.run-backend }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Affected PRs keep one runner. Full suites isolate architecture (1)
+        # and migrations (2), then balance application packages across 0/3.
+        shard: ${{ fromJSON(inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' && '[0]' || '[0,1,2,3]') }}
     # Change-scoped runs cover only affected packages; full suites need eight
     # vCPUs even when triggered by a pull request.
-    runs-on: ${{ inputs.changed-scope && !inputs.full-backend-suite && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     permissions:
       contents: read
       checks: write
@@ -55,7 +61,10 @@ jobs:
           TZ: Europe/Berlin
         ports:
           - 5432:5432
+        # Package database drops force checkpoints. These disposable databases
+        # need no disk persistence; tmpfs avoids the measured fsync bottleneck.
         options: >-
+          --tmpfs /var/lib/postgresql/data:rw,size=4g
           --health-cmd "pg_isready -U postgres"
           --health-interval 2s
           --health-timeout 5s
@@ -65,11 +74,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # PR test selection needs origin/<base_ref>. Keeping one checkout
-          # shape for both event types avoids an untested expression branch.
-          # No blobless clone here: internal/architecture tests fetch history
-          # from this checkout, and a partial clone cannot serve those objects.
-          fetch-depth: 0
+          # Fetch only the checked-out revision here. The next step expands
+          # its history and comparison refs without downloading every branch
+          # and tag. Architecture and affected PRs still need historical blobs.
+          fetch-depth: 1
+          filter: ${{ matrix.shard != 1 && (!inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '') && 'blob:none' || '' }}
+
+      - name: Fetch backend comparison history
+        env:
+          BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          refs=("$(git rev-parse HEAD)" "+refs/heads/development:refs/remotes/origin/development")
+          if [ -n "$BASE_REF" ] && [ "$BASE_REF" != development ]; then
+            refs+=("+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF")
+          fi
+          # Full ancestry keeps merge-base and the immutable architecture
+          # evidence anchor intact. Unrelated refs and tags are not test inputs.
+          git fetch --no-tags --unshallow origin "${refs[@]}"
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -84,6 +105,7 @@ jobs:
           scripts/test-changed_test.sh
 
       - name: Restore migrated DB snapshot
+        if: ${{ matrix.shard != 1 }}
         id: db-snapshot
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -94,7 +116,7 @@ jobs:
           key: db-snapshot-pg17-${{ hashFiles('backend/database/migrations/*.go', 'backend/cmd/migrate.go') }}
 
       - name: Restore database from snapshot
-        if: steps.db-snapshot.outputs.cache-hit == 'true'
+        if: matrix.shard != 1 && steps.db-snapshot.outputs.cache-hit == 'true'
         env:
           PG_CONTAINER: ${{ job.services.postgres.id }}
           PHOENIX_AUTH_PASSWORD: phoenix_auth_test
@@ -122,7 +144,7 @@ jobs:
             < backend/.db-snapshot/dump.sql
 
       - name: Run database migrations
-        if: steps.db-snapshot.outputs.cache-hit != 'true'
+        if: matrix.shard != 1 && steps.db-snapshot.outputs.cache-hit != 'true'
         working-directory: backend
         env:
           DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
@@ -135,7 +157,7 @@ jobs:
         run: go run main.go migrate
 
       - name: Dump migrated database for snapshot cache
-        if: steps.db-snapshot.outputs.cache-hit != 'true'
+        if: matrix.shard != 1 && steps.db-snapshot.outputs.cache-hit != 'true'
         env:
           PG_CONTAINER: ${{ job.services.postgres.id }}
         run: |
@@ -148,6 +170,7 @@ jobs:
             > backend/.db-snapshot/dump.sql
 
       - name: Bootstrap test database template
+        if: ${{ matrix.shard != 1 }}
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
@@ -176,6 +199,7 @@ jobs:
           BASE_REF: ${{ inputs.base_ref }}
           FULL_SUITE: ${{ inputs.full-backend-suite }}
           CHANGED_SCOPE: ${{ inputs.changed-scope }}
+          SHARD_INDEX: ${{ matrix.shard }}
         run: |
           packages=(./...)
           if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
@@ -189,10 +213,31 @@ jobs:
               exit 0
             fi
             echo "Running ${#packages[@]} changed/affected Go packages"
+          else
+            # Assign every package exactly once. The architecture suite runs
+            # without competing application builds or DB setup. Capture
+            # discovery failures before entering the pipe.
+            all_packages=$(go list ./...)
+            packages=()
+            while IFS= read -r package; do
+              [ -n "$package" ] && packages+=("$package")
+            done < <(printf '%s\n' "$all_packages" | awk -v shard="$SHARD_INDEX" '
+              {
+                if ($0 ~ /\/internal\/architecture(\/|$)/) target = 1
+                else if ($0 ~ /\/database\/migrations(\/|$)/) target = 2
+                else target = (application++ % 2) * 3
+                if (target == shard) print
+              }
+            ')
+            if [ "${#packages[@]}" -eq 0 ]; then
+              echo "Full-suite shard has no Go packages" >&2
+              exit 1
+            fi
+            echo "Running ${#packages[@]} Go packages in full-suite shard $SHARD_INDEX"
           fi
 
           test_args=(-parallel 8)
-          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ]; then
+          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
             test_args+=(-p 4)
           else
             # The full suite compiles every package; six package binaries in
@@ -210,15 +255,22 @@ jobs:
         if: ${{ always() && hashFiles('backend/junit.xml') != '' }}
         with:
           report_paths: backend/junit.xml
-          check_name: Backend Test Results
+          check_name: Backend Test Results (${{ matrix.shard }})
           include_passed: false
           detailed_summary: true
 
   test-frontend:
     if: ${{ inputs.run-frontend }}
-    # Vitest uses half the CPUs, at most four workers (frontend/vitest.config.ts):
-    # four vCPUs ran the suite with two workers, eight run it with four.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # The existing Vitest projects are independent, but groupOrder runs Node
+    # before DOM in one process. Split them without raising worker counts or
+    # disabling isolation. Only Node needs the browser layout checks.
+    strategy:
+      fail-fast: false
+      matrix:
+        # Changed-only PRs keep one DOM job. Full suites split its files with
+        # Vitest's built-in sharding, retaining four workers per DOM runner.
+        project: ${{ fromJSON((!inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '') && '["node","dom-1","dom-2"]' || '["node","dom"]') }}
+    runs-on: ${{ matrix.project == 'node' && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     permissions:
       contents: read
 
@@ -244,16 +296,17 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Check frontend route invariants
-        if: ${{ inputs.changed-scope }}
+        if: ${{ inputs.changed-scope && matrix.project == 'node' }}
         working-directory: frontend
         run: >-
-          pnpm vitest run
+          pnpm vitest run --disableConsoleIntercept
           src/lib/app-route-invariants.test.ts
           src/lib/analytics-routes.test.ts
 
       # Layout needs a real browser; jsdom/happy-dom compute no boxes (#3328).
       # The binary is cached per lockfile, OS libs install every run.
       - name: Cache Playwright browsers
+        if: ${{ matrix.project == 'node' }}
         id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -261,6 +314,7 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
 
       - name: Install Playwright Chromium
+        if: ${{ matrix.project == 'node' }}
         working-directory: frontend
         run: |
           if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
@@ -270,18 +324,31 @@ jobs:
           fi
 
       - name: Run browser layout tests
+        if: ${{ matrix.project == 'node' }}
         working-directory: frontend
         run: pnpm run test:layout
 
-      - name: Run changed frontend tests
-        if: ${{ inputs.changed-scope && ! inputs.full-frontend-suite && inputs.base_ref != '' }}
+      - name: Run frontend tests
         working-directory: frontend
-        run: pnpm vitest run --changed "origin/${{ inputs.base_ref }}"
-
-      - name: Run full frontend tests
-        if: ${{ ! inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '' }}
-        working-directory: frontend
-        run: pnpm run test:run
+        env:
+          PROJECT: ${{ matrix.project }}
+          CHANGED_SCOPE: ${{ inputs.changed-scope }}
+          FULL_SUITE: ${{ inputs.full-frontend-suite }}
+          BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          test_args=(--project app-dom)
+          if [ "$PROJECT" = node ]; then
+            test_args=(--project api-node --project logic-node)
+          fi
+          case "$PROJECT" in
+            dom-1|dom-2) test_args+=(--shard "${PROJECT#dom-}/2") ;;
+          esac
+          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
+            test_args+=(--changed "origin/$BASE_REF")
+          fi
+          # Native stdout/stderr avoids Vitest's console-RPC teardown race.
+          # Unhandled application errors still fail the run.
+          pnpm vitest run --disableConsoleIntercept "${test_args[@]}"
 
   # The seeder is the widest end-to-end path in this repo: roughly a hundred
   # real API calls across auth, enrollment, parent portal, time tracking and
@@ -290,8 +357,16 @@ jobs:
   # the parent pickup-change endpoint did exactly that in July 2026 and only
   # surfaced a month later, when a developer seeded by hand.
   seed-smoke:
-    name: Seed & simulate smoke
+    name: Seed & simulate smoke (${{ matrix.scenario }})
     if: ${{ inputs.run-seed-smoke }}
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [profiles, isolation, queue]
+    # Each scenario owns its database and operator MFA mailbox. The isolation
+    # scenario still seeds both schools sequentially into the SAME database;
+    # profiles retains the complete coverage ratchet after the standing demo;
+    # queue separately verifies all three prospect schools and parent access.
     # Database reads repeatedly stalled on the cached runner, including while
     # Postgres reported an active query with no lock wait (run 38232330367).
     # Use a fresh hosted VM without changing smoke coverage or read timeouts.
@@ -472,6 +547,7 @@ jobs:
           exit 1
 
       - name: Seed all five profiles and verify enrollment, withdrawal, web and NFC flows
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
           "${RUNNER_TEMP}/phoenix" seed \
@@ -484,16 +560,19 @@ jobs:
             --admin-email vollbetrieb-admin@example.test
 
       - name: Simulate a full care day
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
           "${RUNNER_TEMP}/phoenix" simulate full-day --profile vollbetrieb
 
       - name: Verify manual attendance profile
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
           "${RUNNER_TEMP}/phoenix" simulate status --profile manuell
 
       - name: Read enrollment demo profiles
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
           "${RUNNER_TEMP}/phoenix" simulate status --profile anmeldung-wochenplan
@@ -503,6 +582,7 @@ jobs:
       # database that already holds others. The duration is what a visitor
       # waits for, so it is printed per school.
       - name: Seed two demo schools into the same database and simulate their day
+        if: ${{ matrix.scenario == 'isolation' }}
         working-directory: backend
         run: |
           for slug in demo-smoke-eins demo-smoke-zwei; do
@@ -525,11 +605,11 @@ jobs:
           done
 
       - name: Provision and restart the standing demo school
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          # The preceding scenarios consumed the operator's three MFA codes
-          # per 15-minute window. Reset only consumed challenge fixtures in
-          # this disposable CI database; keep production limits unchanged.
+          # Reset only consumed challenge fixtures in this disposable CI
+          # database; keep production limits unchanged.
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
           # The standing school is the fallback of #3463 and keeps its coverage.
@@ -541,6 +621,7 @@ jobs:
       # three workers and tick them once. A school that did not become ready
       # fails the job. The durations are what a visitor waits for.
       - name: Seed queued demo schools with the demo process
+        if: ${{ matrix.scenario == 'queue' }}
         working-directory: backend
         run: |
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
@@ -573,6 +654,7 @@ jobs:
           test "${parents}" = 3
 
       - name: Check seed coverage ratchet
+        if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: go test ./seed/api/ -run TestSeedCoverageRatchet -v
 

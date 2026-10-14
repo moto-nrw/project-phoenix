@@ -262,29 +262,39 @@ jobs:
               - '.github/workflows/lint.yml'
 
   ci-scripts:
-    name: CI and release script suites
+    name: CI and release script suites (${{ matrix.suite }})
     needs: detect-changes
     if: needs.detect-changes.outputs.run-ci-scripts == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        # These suites have separate fixtures and no ordering dependency.
+        # Keep the existing path selection without buying unused runners.
+        suite: >-
+          ${{ fromJSON(
+            needs.detect-changes.outputs.tooling-changed == 'true' && needs.detect-changes.outputs.toolchain-changed == 'true' && '["unit","restore","ratchets"]'
+            || needs.detect-changes.outputs.tooling-changed == 'true' && '["unit","restore"]'
+            || needs.detect-changes.outputs.toolchain-changed == 'true' && '["unit","ratchets"]'
+            || '["unit"]'
+          ) }}
     permissions:
       contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
       - name: Verify pre-push failure and selection behavior
+        if: matrix.suite == 'unit'
         run: node --test scripts/pre-push.test.mjs scripts/dev-native.test.mjs scripts/check-release-architecture.test.mjs scripts/check-migration-evidence.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/posthog-dashboards.test.mjs
 
       - name: Verify complete release restore with PostgreSQL
-        if: needs.detect-changes.outputs.tooling-changed == 'true'
+        if: matrix.suite == 'restore'
         run: node --test scripts/release-backup.integration.test.mjs
 
       # TestToolchainPinsRatchet reads the files of the toolchain filter.
       # Changed-test selection adds ./test only for backend changes, so such a
       # change runs the ratchets here instead of the full backend suite.
       - name: Setup Go with cache
-        if: needs.detect-changes.outputs.toolchain-changed == 'true'
+        if: matrix.suite == 'ratchets'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
@@ -292,14 +302,14 @@ jobs:
           cache-dependency-path: backend/go.sum
 
       - name: Verify source ratchets
-        if: needs.detect-changes.outputs.toolchain-changed == 'true'
+        if: matrix.suite == 'ratchets'
         working-directory: backend
         run: go test -count=1 -run Ratchet ./test
 
       # The selector suite also pins contracts in main.yml and lint.yml. A
       # lint.yml-only change does not start test-backend, which runs it too.
       - name: Verify workflow selection contracts
-        if: needs.detect-changes.outputs.toolchain-changed == 'true'
+        if: matrix.suite == 'ratchets'
         run: scripts/backend-affected-packages_test.sh
 
   lint:
@@ -333,10 +343,21 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Keeps the full clone: the composition ratchet reads base-revision
-          # sources through git cat-file, which a blobless clone would fetch
-          # one object at a time.
-          fetch-depth: 0
+          # Ratchets need historical source blobs, not unrelated refs/tags.
+          fetch-depth: 1
+      - name: Fetch architecture comparison history
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+        run: |
+          refs=("$(git rev-parse HEAD)" "+refs/heads/development:refs/remotes/origin/development")
+          if [ -n "$BASE_REF" ] && [ "$BASE_REF" != development ]; then
+            refs+=("+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF")
+          fi
+          if [ -n "$BASE_SHA" ] && [[ ! "$BASE_SHA" =~ ^0+$ ]]; then
+            refs+=("$BASE_SHA")
+          fi
+          git fetch --no-tags --unshallow origin "${refs[@]}"
       - name: Setup Go with cache
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
