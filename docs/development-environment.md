@@ -3,8 +3,10 @@
 ## Start a checkout or worktree
 
 1. Run `devbox run bootstrap` from the repository root. It installs the frozen
-   frontend dependencies, generates Next route types without runtime secrets,
-   and installs the browser used by the pinned browser-automation CLI.
+   frontend dependencies and generates Next route types without runtime secrets.
+   The browser-automation CLI finds an installed Google Chrome by itself; on a
+   machine without one, run `agent-browser install` once (it installs per user
+   in `~/.agent-browser`, not per checkout).
 2. Run `devbox run doctor`. It checks resolved tool paths, Go module agreement,
    frontend dependencies, generated types and Docker. It never prints env files.
 3. Run `devbox run check-lsp` after updating language servers or editor settings.
