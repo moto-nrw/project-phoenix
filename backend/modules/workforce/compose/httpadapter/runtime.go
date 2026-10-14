@@ -1,7 +1,8 @@
 // Package httpadapter supplies the HTTP-platform behavior the
 // /api/work-time-models adapter must not own: authentication, tenant
 // transaction scoping, the shared response envelope, and the post-commit
-// time-tracking notification.
+// time-tracking notification. It also builds the absence-type and
+// substitution routes for the root.
 package httpadapter
 
 import (

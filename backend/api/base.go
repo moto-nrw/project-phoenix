@@ -15,7 +15,6 @@ import (
 	groupsHTTP "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -52,6 +51,7 @@ import (
 	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
 	messagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentmessages"
 	staffMessagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
+	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
 	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
 	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
@@ -106,8 +106,7 @@ import (
 	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	worktimemodelsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
-	workforceInbound "github.com/moto-nrw/project-phoenix/modules/workforce/inbound"
+	workforceHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
 	workforceShiftPlanning "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -1584,13 +1583,13 @@ func mountStaffRoutes(tenant chi.Router, in routeInputs) (scheduler.StaffDocumen
 		ResolveStaffID: currentStaffID(in.modules),
 		ActorAccountID: sessiontoken.ActorAccountIDFromCtx,
 	})
-	absenceTypes := workforceInbound.NewAbsenceTypesResource(workforceCompose.NewAbsenceTypeAdministration(workforce, in.logger.With("service", "active")), currentStaffID(in.modules))
+	absenceTypes := workforceHTTPAdapter.AbsenceTypesRoutes(workforceCompose.NewAbsenceTypeAdministration(workforce, in.logger.With("service", "active")), currentStaffID(in.modules))
 	tenant.Mount("/staff", staff.Router())
-	tenant.Mount("/work-time-models", worktimemodelsHTTPAdapter.NewResource(workforce, services.StaffTimeTrackingNotifier(svc.RealtimeHub)).Router())
+	tenant.Mount("/work-time-models", workforceHTTPAdapter.NewResource(workforce, services.StaffTimeTrackingNotifier(svc.RealtimeHub)).Router())
 	tenant.Mount("/staff-shifts", staffShifts.Router())
 	tenant.Mount("/shift-types", workforceShiftPlanning.NewShiftTypesResource(svc.ShiftTypes).Router())
-	tenant.Mount("/absence-types", absenceTypes.Router())
-	tenant.Mount("/substitutions", workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(svc.Substitution)).Router())
+	tenant.Mount("/absence-types", absenceTypes)
+	tenant.Mount("/substitutions", workforceHTTPAdapter.SubstitutionsRoutes(services.SubstitutionCapability(svc.Substitution)))
 	tenant.Mount("/time-tracking", newTimeTrackingResource(svc, in.modules.calendar, in.db).Router())
 	return staffAdmin, nil
 }
@@ -1703,7 +1702,7 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	// CSV/Excel import endpoints.
 	tenant.Mount("/import", importAPI.NewResource(importAPI.Dependencies{
 		Students: svc.Import, Staff: svc.StaffImport, ClassList: svc.ClassListImport,
-		Files: fileformat.Decoder{}, Runtime: importCompose.HTTPRuntime(pool, svc.PeopleDirectory, modules.membership, svc.OpeningBalanceImport),
+		Files: dataImportCompose.NewFileDecoder(), Runtime: importCompose.HTTPRuntime(pool, svc.PeopleDirectory, modules.membership, svc.OpeningBalanceImport),
 	}).Router())
 	tenant.Mount("/admin/grade-transitions", gradeTransitionHTTP.NewGradeTransitionResource(svc.GradeTransition).Router())
 }

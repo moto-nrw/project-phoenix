@@ -1,8 +1,6 @@
 package api
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -10,7 +8,7 @@ import (
 	"time"
 
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/workerlease"
+	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 )
@@ -29,7 +27,7 @@ const (
 // Every process gets a holder ID of its own, so a restarted process never
 // resumes the term of its predecessor.
 func newWorkerLease(runtime apiCommon.TenantRuntime) (scheduler.WorkerLease, error) {
-	store, err := workerlease.NewStore(runtime)
+	store, err := schedulerRuntimeCompose.NewWorkerLeaseStore(runtime)
 	if err != nil {
 		return scheduler.WorkerLease{}, err
 	}
@@ -38,7 +36,7 @@ func newWorkerLease(runtime apiCommon.TenantRuntime) (scheduler.WorkerLease, err
 		return scheduler.WorkerLease{}, err
 	}
 	return scheduler.WorkerLease{
-		Store:       workerLeaseStore{store: store},
+		Store:       store,
 		Name:        workerLeaseName,
 		Holder:      holder,
 		TTL:         workerLeaseTTL,
@@ -70,37 +68,4 @@ func workerHolderID() (string, error) {
 	}
 	started := strconv.FormatInt(time.Now().UnixNano(), 36)
 	return fmt.Sprintf("%s/%d/%s-%d", host, os.Getpid(), started, workerHolders.Add(1)), nil
-}
-
-// workerLeaseStore adapts the lease persistence to the scheduler's port.
-type workerLeaseStore struct{ store *workerlease.Store }
-
-func (s workerLeaseStore) Acquire(ctx context.Context, name, holder string, ttl time.Duration) (scheduler.LeaseTerm, bool, error) {
-	term, acquired, err := s.store.Acquire(ctx, name, holder, ttl)
-	return schedulerLeaseTerm(term), acquired, err
-}
-
-func (s workerLeaseStore) Renew(ctx context.Context, term scheduler.LeaseTerm, ttl time.Duration) (scheduler.LeaseTerm, bool, error) {
-	renewed, ok, err := s.store.Renew(ctx, persistedLeaseTerm(term), ttl)
-	return schedulerLeaseTerm(renewed), ok, err
-}
-
-func (s workerLeaseStore) Release(ctx context.Context, term scheduler.LeaseTerm) error {
-	return s.store.Release(ctx, persistedLeaseTerm(term))
-}
-
-func (s workerLeaseStore) Assert(ctx context.Context, term scheduler.LeaseTerm, margin time.Duration) error {
-	err := s.store.Assert(ctx, persistedLeaseTerm(term), margin)
-	if errors.Is(err, workerlease.ErrNotHeld) {
-		return fmt.Errorf("%w: %w", scheduler.ErrLeaseNotHeld, err)
-	}
-	return err
-}
-
-func schedulerLeaseTerm(term workerlease.Term) scheduler.LeaseTerm {
-	return scheduler.LeaseTerm{Name: term.Name, Holder: term.Holder, Token: term.Token, Until: term.Until}
-}
-
-func persistedLeaseTerm(term scheduler.LeaseTerm) workerlease.Term {
-	return workerlease.Term{Name: term.Name, Holder: term.Holder, Token: term.Token, Until: term.Until}
 }
