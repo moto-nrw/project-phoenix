@@ -93,9 +93,9 @@ func NewWorkforce(db transactionruntime.Database, membership schoolmembership.Ca
 // work-session window and the calendar day; nil means the wall clock.
 func NewWorkforceWithClock(db transactionruntime.Database, membership schoolmembership.Capability, now func() time.Time) (workforce.Capability, error) {
 	return workforceCompose.New(workforceCompose.Dependencies{
-		LockStaffAssignment: services.WorkforceStaffAssignmentLock(membership),
+		LockStaffAssignment: workforceStaffAssignmentLock(membership),
 		DB:                  db.Pool(),
-		LiveStaffIDs:        services.WorkforceLiveStaffIDs(membership),
+		LiveStaffIDs:        workforceLiveStaffIDs(membership),
 		Observe:             func(workforceCompose.Observation) {},
 		Now:                 now,
 	})

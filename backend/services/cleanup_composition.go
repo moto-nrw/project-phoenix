@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -181,10 +183,12 @@ func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 	})
 }
 
-func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) workforceCompose.TimeTrackingCleanupService {
-	repos := NewTimeTrackingCleanupRepositories(db)
+// NewTimeTrackingCleanupService builds the time-tracking retention over the
+// Workforce owner the command root composed; the deletion ledger comes from
+// the Audit composition.
+func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, workTime workforce.Capability, logger *slog.Logger, command AuditCommand) workforceCompose.TimeTrackingCleanupService {
 	service, err := workforceCompose.NewTimeTrackingCleanup(workforceCompose.TimeTrackingCleanupDependencies{
-		Workforce: repos.Workforce, Absences: repos.Absence, Audit: NewTimeTrackingRetentionAudit(cleanupAuditRepositories(db, command).DataDeletion),
+		Workforce: workTime, Absences: workforceCompose.NewStaffAbsenceRepository(workTime), Audit: NewTimeTrackingRetentionAudit(cleanupAuditRepositories(db, command).DataDeletion),
 		Settings: PresenceSettings(NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)), Logger: logger,
 	})
 	if err != nil {

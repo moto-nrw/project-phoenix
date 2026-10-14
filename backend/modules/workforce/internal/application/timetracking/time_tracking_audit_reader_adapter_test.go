@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,7 +32,7 @@ func TestTimeTrackingAuditReaderPreservesQueryAndPartialRows(t *testing.T) {
 	row := &audit.TimeTrackingAuditLogEntry{OccurredAt: now, Source: "session_edit", EntryID: 7, ActorIsSystem: true, Reason: "reason", Detail: []byte(`{"fields":[]}`)}
 	row.StaffID, row.ActorStaffID = &row.EntryID, &row.EntryID
 	for _, day := range []*timezone.Date{nil, &zero, &date} {
-		reader := services.NewTimeTrackingAuditReader(auditFeedRecords{read: func(gotCtx context.Context, filter audit.TimeTrackingAuditLogFilter) ([]*audit.TimeTrackingAuditLogEntry, error) {
+		reader := api.NewTimeTrackingAuditReader(auditFeedRecords{read: func(gotCtx context.Context, filter audit.TimeTrackingAuditLogFilter) ([]*audit.TimeTrackingAuditLogEntry, error) {
 			require.Equal(t, ctx, gotCtx)
 			if day == nil {
 				require.Nil(t, filter.From)

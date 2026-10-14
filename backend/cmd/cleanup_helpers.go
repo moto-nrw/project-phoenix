@@ -323,7 +323,11 @@ func newCleanupContextWithTimeTrackingCleanup() (*cleanupContext, error) {
 }
 
 func buildTimeTrackingCleanupService(ctx *cleanupContext) services.TimeTrackingCleanupService {
-	return services.NewTimeTrackingCleanupService(ctx.DB.Pool(), ctx.DB.UnitOfWork(), ctx.Schools, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
+	workTime, err := api.NewUnobservedWorkforce(ctx.DB)
+	if err != nil {
+		panic(fmt.Sprintf("time tracking cleanup: compose workforce: %v", err))
+	}
+	return services.NewTimeTrackingCleanupService(ctx.DB.Pool(), ctx.DB.UnitOfWork(), ctx.Schools, workTime, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
 }
 
 // Close releases database resources.

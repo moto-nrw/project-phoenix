@@ -29,10 +29,3 @@ func parseCapabilityRange(from, to string) (timezone.Date, timezone.Date, error)
 	}
 	return fromDate, toDate, nil
 }
-
-func publicOptionalDate(value *timezone.Date) string {
-	if value == nil {
-		return ""
-	}
-	return value.String()
-}
