@@ -200,13 +200,25 @@ jobs:
             fi
             echo "Running ${#packages[@]} changed/affected Go packages"
           else
-            # Assign every package exactly once. Capture go list before the
-            # pipe so a discovery failure cannot turn into an empty green run.
+            # Assign every package exactly once. Keep the measured long-running
+            # architecture and migration suites apart, and start architecture
+            # first. Capture discovery failures before entering the pipe.
             all_packages=$(go list ./...)
             packages=()
             while IFS= read -r package; do
               [ -n "$package" ] && packages+=("$package")
-            done < <(printf '%s\n' "$all_packages" | awk -v shard="$SHARD_INDEX" '(NR - 1) % 2 == shard')
+            done < <(printf '%s\n' "$all_packages" | awk -v shard="$SHARD_INDEX" '
+              {
+                target = (NR - 1) % 2
+                if ($0 ~ /\/internal\/architecture$/) {
+                  if (shard == 1) print
+                  next
+                }
+                if ($0 ~ /\/database\/migrations$/) target = 0
+                if (target == shard) remaining = remaining $0 ORS
+              }
+              END { printf "%s", remaining }
+            ')
             if [ "${#packages[@]}" -eq 0 ]; then
               echo "Full-suite shard has no Go packages" >&2
               exit 1
