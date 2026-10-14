@@ -24,8 +24,9 @@ env:
   GOTOOLCHAIN: local
 
 # Runners: standard GitHub runners are free for this public repository and run
-# every job here except frontend-build. The lint jobs run beside the test
-# suites, which set a pull request's wall-clock time. frontend-build stays on
+# every job here except frontend-build and full backend lint. Full lint took
+# 4:07 on a hosted runner after the test suites were split; affected-package
+# PR lint stays on the free runner. frontend-build stays on
 # Blacksmith: on a frontend-only pull request it runs about as long as
 # test-frontend, and its per-commit Next.js cache would churn the 10 GB GitHub
 # cache.
@@ -70,7 +71,7 @@ jobs:
 
   backend-lint:
     if: ${{ inputs.run-backend }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.full-backend && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     permissions:
       contents: read
     steps:

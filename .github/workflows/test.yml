@@ -43,10 +43,10 @@ jobs:
       matrix:
         # Affected-package PRs keep one runner. Full suites split every package
         # across two isolated databases, including packages without tests.
-        shard: ${{ fromJSON(inputs.changed-scope && !inputs.full-backend-suite && '[0]' || '[0,1]') }}
+        shard: ${{ fromJSON(inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' && '[0]' || '[0,1]') }}
     # Change-scoped runs cover only affected packages; full suites need eight
     # vCPUs even when triggered by a pull request.
-    runs-on: ${{ inputs.changed-scope && !inputs.full-backend-suite && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    runs-on: ${{ inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     permissions:
       contents: read
       checks: write
@@ -215,7 +215,7 @@ jobs:
           fi
 
           test_args=(-parallel 8)
-          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ]; then
+          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
             test_args+=(-p 4)
           else
             # The full suite compiles every package; six package binaries in
