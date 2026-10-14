@@ -109,14 +109,18 @@ test('hook stdin validates the whole branch even if only the docs tip is pushed'
   assert.equal(result.status, 9, result.stdout + result.stderr);
 });
 
-test('runner-only changes run regression checks without selecting either stack', t => {
-  const f = fixture(t);
-  f.commit('lefthook.yml', 'changed hook configuration\n');
-  const result = f.check();
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /backend=false frontend=false/);
-  assert.match(result.stdout, /\[hook-tests\]/);
-  assert.doesNotMatch(result.stdout, /\[backend-quality\]|\[frontend-quality\]/);
+test('runner-only changes run regression checks without selecting either stack', async t => {
+  for (const path of ['lefthook.yml', 'scripts/dev-native.sh', 'scripts/go-package-workers.sh', 'scripts/total-memory-gb.sh']) {
+    await t.test(path, t => {
+      const f = fixture(t);
+      f.commit(path, 'changed runner configuration\n');
+      const result = f.check();
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+      assert.match(result.stdout, /backend=false frontend=false/);
+      assert.match(result.stdout, /\[hook-tests\]/);
+      assert.doesNotMatch(result.stdout, /\[backend-quality\]|\[frontend-quality\]/);
+    });
+  }
 });
 
 test('missing pinned frontend package manager fails closed', t => {
@@ -194,6 +198,75 @@ test('native-shell Go calls inherit the Devbox CGO default but permit an explici
     const result = f.run('bash', ['scripts/run-go-toolchain.sh', 'inspect-cgo'], { env: config });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout.trim(), expected);
+  }
+});
+
+function goBudgetFixture(t) {
+  const f = fixture(t);
+  copyFileSync(join(source, 'run-go-toolchain.sh'), join(f.root, 'scripts/run-go-toolchain.sh'));
+  const inspect = 'printf "GOFLAGS=%s\\nGOMAXPROCS=%s\\n" "${GOFLAGS-}" "${GOMAXPROCS-}"\n';
+  f.write('.devbox/nix/profile/default/bin/go', `#!/bin/bash
+if [[ "$*" == 'env GOVERSION' ]]; then echo go1.27.0; exit 0; fi
+${inspect}`);
+  f.write('.devbox/nix/profile/default/bin/inspect-budget', `#!/bin/bash\n${inspect}go inspect-budget\n`);
+  f.write('scripts/delegate.sh', '#!/bin/bash\nexec go inspect-budget\n');
+  delete f.env.GOFLAGS;
+  delete f.env.GOMAXPROCS;
+  return {
+    ...f,
+    inspect: (command, overrides = {}) => f.run('bash', ['scripts/run-go-toolchain.sh', command], {
+      env: { ...f.env, ...overrides },
+    }),
+  };
+}
+
+test('the pinned runner bounds Go processes outside a Devbox shell', t => {
+  const f = goBudgetFixture(t);
+  const result = f.inspect('go');
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, 'GOFLAGS=-p=4\nGOMAXPROCS=4\n');
+});
+
+test('pinned tools and delegated scripts inherit the same budget in nested Go calls', t => {
+  const f = goBudgetFixture(t);
+  for (const [command, copies] of [['inspect-budget', 2], ['scripts/delegate.sh', 1]]) {
+    const result = f.inspect(command);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, 'GOFLAGS=-p=4\nGOMAXPROCS=4\n'.repeat(copies));
+  }
+});
+
+test('caller resource settings remain explicit, including an empty GOFLAGS', t => {
+  const f = goBudgetFixture(t);
+  for (const GOFLAGS of ['-p=1 -tags=fixture', '']) {
+    const result = f.inspect('inspect-budget', { GOFLAGS, GOMAXPROCS: '1' });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, `GOFLAGS=${GOFLAGS}\nGOMAXPROCS=1\n`.repeat(2));
+  }
+});
+
+test('pre-push exports Go budgets before computing cache inputs and preserves overrides', t => {
+  const f = fixture(t);
+  delete f.env.GOFLAGS;
+  delete f.env.GOMAXPROCS;
+  f.write('.devbox/nix/profile/default/bin/go', `#!/bin/bash
+if [[ "$*" == *-json* ]]; then
+  printf '%s|%s\\n' "\${GOFLAGS-}" "\${GOMAXPROCS-}" >> .devbox-budgets
+  echo '{"GOVERSION":"go1.27.0","GOWORK":"off"}'
+else
+  echo go1.27.0
+fi
+`);
+  f.write('.gitignore', '.devbox/\nbackend/.devbox-budgets\n');
+  f.commit('backend/example.go', 'package example\n');
+  for (const [overrides, expected] of [[{}, '-p=4|4'], [{ GOFLAGS: '-p=1', GOMAXPROCS: '1' }, '-p=1|1']]) {
+    const budgetFile = join(f.root, 'backend/.devbox-budgets');
+    rmSync(budgetFile, { force: true });
+    const result = f.check(overrides);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const budgets = readFileSync(budgetFile, 'utf8').trim().split('\n');
+    assert.ok(budgets.length > 0);
+    assert.ok(budgets.every(budget => budget === expected), JSON.stringify(budgets));
   }
 });
 

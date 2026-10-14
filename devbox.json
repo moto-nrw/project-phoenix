@@ -43,6 +43,7 @@
   "env": {
     "CGO_ENABLED": "0",
     "GOFLAGS": "-p=4",
+    "GOMAXPROCS": "4",
     "GOTOOLCHAIN": "local"
   },
   "shell": {
