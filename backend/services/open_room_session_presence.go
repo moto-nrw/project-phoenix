@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type openRoomActivityQuery interface {
@@ -77,4 +78,20 @@ func (s OpenRoomSessionPresence) FindOpenSessionsInRooms(ctx context.Context, id
 		result = append(result, session)
 	}
 	return result, nil
+}
+
+func activeStaffGroupIDs(ctx context.Context, presence interface {
+	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
+}, staffID int64) ([]int64, error) {
+	day := timezone.TodayDate().String()
+	rows, err := presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &day})
+	if err != nil {
+		return nil, &studentpresence.OperationError{Op: "GetStaffActiveSupervisions", Err: studentpresence.ErrDatabaseOperation}
+	}
+	// ActiveOn is the owner's rule: started on or before the day, not ended by it.
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.GroupID)
+	}
+	return ids, nil
 }

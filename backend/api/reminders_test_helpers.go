@@ -20,7 +20,7 @@ import (
 type RemindersTestModule struct {
 	Reminders   reminder.Query
 	Settings    settingsCompose.SettingsService
-	UserContext *services.CallerRows
+	UserContext *CallerRows
 }
 
 func NewRemindersTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (RemindersTestModule, error) {

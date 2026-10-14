@@ -16372,37 +16372,32 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 162,
+          "line": 164,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 393,
+          "line": 400,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 443,
+          "line": 452,
           "declaration": "withRootWiring"
         },
         {
           "file": "api/base.go",
-          "line": 702,
+          "line": 716,
           "declaration": "type serveGraph"
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 42,
-          "declaration": "NewFactoryForTests"
+          "line": 47,
+          "declaration": "type TestFactory"
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 55,
-          "declaration": "NewFactoryForTestsWithConfig"
-        },
-        {
-          "file": "api/factory_test_helpers.go",
-          "line": 143,
+          "line": 175,
           "declaration": "OwnerCapabilities.factory"
         },
         {
@@ -16417,12 +16412,12 @@
         },
         {
           "file": "api/staff_composition.go",
-          "line": 113,
+          "line": 115,
           "declaration": "newStaffComposition"
         },
         {
           "file": "api/staff_composition.go",
-          "line": 129,
+          "line": 131,
           "declaration": "newExportTransferModule"
         },
         {

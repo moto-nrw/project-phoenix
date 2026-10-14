@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -78,15 +80,42 @@ var (
 	NewEnrollmentIntake           = services.NewEnrollmentIntake
 	NewEnrollmentOfferingCapacity = services.NewEnrollmentOfferingCapacity
 	NewEnrollmentRollovers        = services.NewEnrollmentRollovers
-	// IsDemoEnvironment reports whether the app environment is the demo.
-	IsDemoEnvironment = services.IsDemoEnvironment
 	// NewRoomSnapshotPeople reads the room snapshot's students through the
 	// People Directory.
 	NewRoomSnapshotPeople = services.NewRoomSnapshotPeople
+	// AccountExists is the People Directory's account-reference check over
+	// Identity & Access, as the root binds it.
+	AccountExists = identityaccessCompose.AccountExists
 )
+
+// The legacy composition's values the Identity & Access behaviour suites
+// name build through the typed root (#4006).
+type (
+	FactoryConfig              = services.FactoryConfig
+	MembershipTestRepositories = services.MembershipTestRepositories
+	ParentRequestReviewPolicy  = services.ParentRequestReviewPolicy
+)
+
+var (
+	// NewParentRequestReviewPolicy and ReviewPermissions are the parent
+	// request review decision the caller context serves.
+	NewParentRequestReviewPolicy = services.NewParentRequestReviewPolicy
+	ReviewPermissions            = services.ReviewPermissions
+	// NewOperatorAccountDirectory is the operator account listing over
+	// Identity & Access, the People Directory, School Membership and the
+	// schools.
+	NewOperatorAccountDirectory = services.NewOperatorAccountDirectory
+	// ClassifyGuardianInvitationFailure classifies the guardian routes'
+	// invitation refusals.
+	ClassifyGuardianInvitationFailure = services.ClassifyGuardianInvitationFailure
+)
+
+// GuardianFailureConflict is the conflict a guardian invitation refusal is
+// classified as.
+const GuardianFailureConflict = services.GuardianFailureConflict
 
 // AccountRoleGrantPolicy returns Security Runtime's role grant decision the
 // root binds to the account routes.
-func AccountRoleGrantPolicy() services.RoleGrantPolicy {
-	return services.RoleGrantPolicy{}
+func AccountRoleGrantPolicy() RoleGrantPolicy {
+	return RoleGrantPolicy{}
 }

@@ -5,11 +5,12 @@ import (
 	"net"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // scopeRecordingMFA records the challenge scope every school-portal call
@@ -48,7 +49,7 @@ func TestSchoolPortalMFAOverAppliesTheSchoolScope(t *testing.T) {
 	t.Parallel()
 
 	capability := &scopeRecordingMFA{}
-	runtime := services.SchoolPortalMFAOver(capability)
+	runtime := api.SchoolPortalMFA(capability)
 	ctx := context.Background()
 	ip := net.ParseIP("203.0.113.7")
 
@@ -75,5 +76,5 @@ func TestSchoolPortalMFAOverAppliesTheSchoolScope(t *testing.T) {
 func TestSchoolPortalMFAOverWithoutCapability(t *testing.T) {
 	t.Parallel()
 
-	assert.Nil(t, services.SchoolPortalMFAOver(nil).VerifyChallenge)
+	assert.Nil(t, api.SchoolPortalMFA(nil).VerifyChallenge)
 }

@@ -60,16 +60,16 @@ func MustNewMembershipTestRepositories(db transactionruntime.Database) services.
 
 // authTestIdentityChain is the identity chain rows (persons, staff, teachers,
 // students, guardian profiles and relationships) the auth test graphs bind.
-func authTestIdentityChain(db transactionruntime.Database) (services.LifecycleRepositories, error) {
+func authTestIdentityChain(db transactionruntime.Database) (LifecycleRepositories, error) {
 	members, err := NewMembershipTestRepositories(db)
 	if err != nil {
-		return services.LifecycleRepositories{}, err
+		return LifecycleRepositories{}, err
 	}
 	return identityChainOf(db, members), nil
 }
 
-func identityChainOf(db transactionruntime.Database, members services.MembershipTestRepositories) services.LifecycleRepositories {
-	return services.LifecycleRepositories{
+func identityChainOf(db transactionruntime.Database, members services.MembershipTestRepositories) LifecycleRepositories {
+	return LifecycleRepositories{
 		Persons: members.Person, Staff: members.Staff, Teachers: members.Teacher, Students: NewUnboundStudentRepository(db),
 		GuardianProfiles: members.GuardianProfile, StudentGuardians: members.StudentGuardian,
 	}

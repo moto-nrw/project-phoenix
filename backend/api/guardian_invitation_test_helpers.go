@@ -22,7 +22,7 @@ import (
 type GuardianInvitationTestConfig struct {
 	Audit       auditModels.Command
 	Outbox      platformModels.OutboxResultEnqueuer
-	Enrollments services.GuardianEnrollmentClaims
+	Enrollments GuardianEnrollmentClaims
 	Expiry      time.Duration
 	Logger      *slog.Logger
 }
@@ -53,35 +53,32 @@ func lifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	}
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()})
 	audits = audits.WithRoutedWrites(audit)
-	signer, err := services.ConfiguredTokenAuth()
+	tokens, err := newLegacyTokenAdapter()
 	if err != nil {
 		return nil, err
 	}
 	expiry := cfg.Expiry
 	if expiry <= 0 {
-		expiry = services.GuardianTokenExpiryFallback
+		expiry = GuardianTokenExpiryFallback
 	}
 	outbox := cfg.Outbox
 	if outbox == nil {
 		outbox = discardingOutbox{}
 	}
-	claims := services.GuardianEnrollmentClaims(unclaimedEnrollments{})
+	claims := GuardianEnrollmentClaims(unclaimedEnrollments{})
 	if cfg.Enrollments != nil {
 		claims = cfg.Enrollments
 	}
-	codec, err := services.SignedIdentityTokensOf(signer)
-	if err != nil {
-		return nil, err
-	}
+	codec := tokens.SessionTokens
 	caregivers, err := caregiverProfilesForTests(db)
 	if err != nil {
 		return nil, err
 	}
-	identityAccess, err := services.NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool()}, services.AccountAuthenticationWiring{
-		Repos: services.SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool())), Codec: codec, Audit: audit, Logger: logger,
-		Lifecycle: &services.LifecycleWiring{
+	identityAccess, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db.Pool()}, AccountAuthenticationWiring{
+		Repos: SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool())), Codec: codec, Audit: audit, Logger: logger,
+		Lifecycle: &LifecycleWiring{
 			Audit: audit, Caregivers: caregivers,
-			GuardianMail: &services.GuardianInvitationWiring{
+			GuardianMail: &GuardianInvitationWiring{
 				Schools:     organizations,
 				Outbox:      func() platformModels.OutboxResultEnqueuer { return outbox },
 				Enrollments: claims,
@@ -130,7 +127,7 @@ func NewSchoolIdentityForTests(db transactionruntime.Database, unit tenant.UnitO
 // invitation service over the owner module, the way the factory does it: the
 // invitation flows, the related-accounts flows and the mail all run against
 // the test database and the outbox the config names.
-func NewGuardianInvitationServiceForTests(db transactionruntime.Database, unit tenant.UnitOfWork, cfg GuardianInvitationTestConfig) (services.GuardianInvitationCapability, error) {
+func NewGuardianInvitationServiceForTests(db transactionruntime.Database, unit tenant.UnitOfWork, cfg GuardianInvitationTestConfig) (GuardianInvitationCapability, error) {
 	module, err := lifecycleTestModule(db, unit, cfg)
 	if err != nil {
 		return nil, err

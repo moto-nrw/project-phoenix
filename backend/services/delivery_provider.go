@@ -169,14 +169,6 @@ func (a DurableEmailAdapter) EnqueueEmail(ctx context.Context, input emailoutbox
 	return emailoutbox.DurableEmailResult{ID: stored.ID, Duplicate: stored.Duplicate}, nil
 }
 
-// guardianInvitationRenderer binds the Identity & Access invitation renderer,
-// which reads the queued payload only, to the Delivery renderer registry.
-func guardianInvitationRenderer(render func(context.Context, map[string]any) (*email.Message, error)) emailoutbox.RendererFunc {
-	return func(ctx context.Context, intent *emailoutbox.Intent) (*email.Message, error) {
-		return render(ctx, intent.Payload)
-	}
-}
-
 // OutboxEnqueuer serves the retained OutboxEnqueuer contract of the auth and
 // enrollment producers over the Delivery enqueue facade.
 type OutboxEnqueuer struct{ Outbox *emailoutbox.Service }

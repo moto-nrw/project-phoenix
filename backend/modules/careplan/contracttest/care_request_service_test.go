@@ -46,7 +46,7 @@ import (
 type careFixture struct {
 	db           *bun.DB
 	svc          carerequests.Service
-	sf           *services.Factory
+	sf           *api.TestFactory
 	repos        *api.RepositoryTestFactory
 	timetable    services.TimetableRepositories
 	chain        testpkg.ParentChain
@@ -60,7 +60,7 @@ func newCareScheduleRequestService(
 	people services.RequestPeople,
 	arrival careplan.ArrivalScheduleService,
 	pickup careplan.PickupScheduleService,
-	factory *services.Factory,
+	factory *api.TestFactory,
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,

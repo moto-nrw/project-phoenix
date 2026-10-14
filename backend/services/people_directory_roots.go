@@ -221,10 +221,10 @@ func PresenceStudents(db *bun.DB, source presenceStudentSource) presenceservice.
 }
 
 // NewStaffMembershipRuntime composes the staff membership closures over the
-// service factory, with the offboarding workflow over db and an unobserved
-// Workforce employment owner.
-func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
+// service factory and the root's Identity & Access module, with the
+// offboarding workflow over db and an unobserved Workforce employment owner.
+func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
 	return f.bindStaffMembershipRuntime(offboardingcompose.Dependencies{
 		DB: db, Employment: MembershipStaffEmployment(workforceCompose.MustNewStaffEmployment(db)),
-	}, logger, hooks)
+	}, identity, logger, hooks)
 }

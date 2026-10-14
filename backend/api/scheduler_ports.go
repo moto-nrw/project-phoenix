@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -146,6 +147,10 @@ type workerReads struct {
 	// statusDayRetention deletes the expired status days in the nightly
 	// cleanup (#3958).
 	statusDayRetention carePlanModule.StudentStatusDayRetention
+	// identity is the Identity & Access module the root composed (#4006):
+	// the session, invitation and operator link maintenance and the reminder
+	// recipients' accounts.
+	identity *identityaccess.Module
 }
 
 func newWorkerReads(modules moduleServices) workerReads {
@@ -159,6 +164,7 @@ func newWorkerReads(modules moduleServices) workerReads {
 		carePlan:           carePlanQuery(modules.carePlan),
 		studentStatusDays:  modules.studentStatusDays,
 		statusDayRetention: statusDayRetention(modules.carePlan),
+		identity:           modules.identity,
 	}
 }
 

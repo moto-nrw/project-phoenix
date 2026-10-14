@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
@@ -110,7 +112,7 @@ func toStaffHTTPRoleRows(rows []services.StaffRoleRow) []staffHTTP.StaffWithRole
 // newStaffComposition builds both halves of the /api/staff surface: the
 // workforce admin resource of the Workforce module and the School Membership
 // adapter bound over it.
-func newStaffComposition(module schoolMembershipModule.Capability, workforce workforceModule.Capability, svc *services.Factory, db transactionruntime.Database, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
+func newStaffComposition(module schoolMembershipModule.Capability, workforce workforceModule.Capability, svc *services.Factory, identity *identityaccess.Module, db transactionruntime.Database, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
 	exportTransfer, err := newExportTransferModule(svc, db, logger)
 	if err != nil {
 		return nil, nil, err
@@ -118,7 +120,7 @@ func newStaffComposition(module schoolMembershipModule.Capability, workforce wor
 	capabilities := NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession)
 	staffAdmin := newStaffAdminResource(capabilities, workforce, staffTimeTrackingNotifier(svc.RealtimeHub), exportTransfer, db, logger)
 	return newStaffResource(module, svc.PeopleDirectory, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
-		return svc.NewStaffMembershipRuntime(db.Pool(), logger, hooks)
+		return svc.NewStaffMembershipRuntime(db.Pool(), identity, logger, hooks)
 	}, staffAdmin, logger), staffAdmin, nil
 }
 

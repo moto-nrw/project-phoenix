@@ -1,6 +1,7 @@
 package compose
 
 import (
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
@@ -19,6 +20,17 @@ type (
 	PushSubscriptionService       = notifications.PushSubscriptionService
 	VAPIDConfig                   = notifications.VAPIDConfig
 	RealtimePublisher             = realtimeevents.Publisher
+	// The mail renderers of Identity & Access, which the root binds to
+	// Delivery (#4006).
+	MailIntent       = emailoutbox.Intent
+	MailRenderer     = emailoutbox.Renderer
+	MailRendererFunc = emailoutbox.RendererFunc
+)
+
+// The portals a push subscription is bound to.
+const (
+	PushPortalParent = deliveryModels.PushPortalParent
+	PushPortalSchool = deliveryModels.PushPortalSchool
 )
 
 var (
@@ -31,4 +43,8 @@ var (
 	NewDurableWebPushChannel   = notifications.NewDurableWebPushChannel
 	NewPushSubscriptionService = notifications.NewPushSubscriptionService
 	NewPreferenceService       = notifications.NewPreferenceService
+	// ErrRenderCancelled and ErrRenderDeferred are the answers of a renderer
+	// whose mail must not go out, or not yet.
+	ErrRenderCancelled = emailoutbox.ErrRenderCancelled
+	ErrRenderDeferred  = emailoutbox.ErrRenderDeferred
 )

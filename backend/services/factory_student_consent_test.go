@@ -32,7 +32,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		TenantDomain:     "localhost",
 		OperatorHostname: "operator.localhost:3000",
 	}
-	tokens, err := api.TokenAdapterForTests(cfg)
+	identity, err := api.IdentityRootForTests(testpkg.NewDatabase(t, db), cfg)
 	require.NoError(t, err)
 
 	observedAppends := 0
@@ -67,7 +67,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		func(services.DataImportObservation) {},
 		nil,
 		services.FileStorageWiring{},
-		tokens,
+		identity,
 		true,
 	)
 	require.NoError(t, err)

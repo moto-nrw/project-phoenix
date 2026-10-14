@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +23,7 @@ import (
 const operatorTestPassword = "SecurePass123!" //nolint:gosec // pragma: allowlist secret
 
 // buildServiceFactory composes the service root the way the server does.
-func buildServiceFactory(t *testing.T, db *bun.DB) *services.Factory {
+func buildServiceFactory(t *testing.T, db *bun.DB) *api.TestFactory {
 	t.Helper()
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	serviceFactory, err := api.NewFactoryForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())

@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/analytics"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
@@ -240,7 +242,7 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	deps.TenantRuntime = runtime
 	deps.Settings = settings
 	deps.Lease = lease
-	addWorkerServiceDependencies(&deps, graph)
+	addWorkerServiceDependencies(&deps, graph, reads)
 	if err := addWorkerRepositoryDependencies(&deps, graph, reads); err != nil {
 		return nil, err
 	}
@@ -271,14 +273,15 @@ func fileStoreCleaner(graph *serveGraph) scheduler.FileStoreCleaner {
 	return graph.services.FileStore
 }
 
-func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, graph *serveGraph) {
+func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, graph *serveGraph, reads workerReads) {
 	services := graph.services
 	deps.Active = services.Active
 	deps.ActiveCleanup = services.ActiveCleanup
-	deps.AuthCleanup = services.AuthMaintenanceRuntime()
-	deps.InvitationCleanup = services.Invitation
-	deps.EmailChangeCleanup = services.OperatorAuth
-	deps.OperatorInvitationCleanup = services.OperatorInvitation
+	identity := reads.identity
+	deps.AuthCleanup = &identityaccessCompose.SessionMaintenance{AccountSessionMaintenance: identity, PasswordResets: identity}
+	deps.InvitationCleanup = identity
+	deps.EmailChangeCleanup = identity
+	deps.OperatorInvitationCleanup = identity
 	deps.WorkSessionCleanup = services.WorkSession.Jobs
 	deps.BreakAutoEnder = services.WorkSession.Jobs
 	deps.AutoCheckouter = services.WorkSession.Jobs
@@ -338,7 +341,7 @@ func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, graph *
 		Notifier:     graph.services.Notifications,
 		Preferences:  graph.services.NotificationPreferences,
 		Staff:        reads.staff,
-		Accounts:     graph.services.Auth,
+		Accounts:     reads.identity,
 		WorkSessions: reads.workSessions,
 	}
 	return nil

@@ -133,7 +133,7 @@ func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *tes
 		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
 		StaffNames: services.NewAttendanceStaffNames(repos.Staff, api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
-			RFIDCards: repos.RFIDCard, AccountExists: services.AccountExists(repos.Profile),
+			RFIDCards: repos.RFIDCard, AccountExists: api.AccountExists(repos.Profile),
 		})),
 		DB:          db,
 		Broadcaster: broadcaster,

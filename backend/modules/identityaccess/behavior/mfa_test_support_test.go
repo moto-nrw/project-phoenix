@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -33,7 +32,7 @@ func newMFATestModule(t *testing.T, db *bun.DB, options ...api.AuthTestOption) a
 
 // newTestMFAService wires a test-DB-backed second factor with a successful
 // mailer, so StartMFAChallenge exercises the delivered-code path.
-func newTestMFAService(t *testing.T, options ...api.AuthTestOption) (identityaccess.AccountMFA, services.MembershipTestRepositories, *bun.DB) {
+func newTestMFAService(t *testing.T, options ...api.AuthTestOption) (identityaccess.AccountMFA, api.MembershipTestRepositories, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	module := newMFATestModule(t, db, withDeliveringMailer(options)...)
@@ -68,7 +67,7 @@ func challengeTokenAuth(t *testing.T, module api.AuthTestModule) *sessiontoken.T
 // signer it mints challenge tokens with and an account to gate.
 type mfaTestScenario struct {
 	MFA       identityaccess.AccountMFA
-	Repos     services.MembershipTestRepositories
+	Repos     api.MembershipTestRepositories
 	TokenAuth *sessiontoken.TokenAuth
 	DB        *bun.DB
 	AccountID int64
