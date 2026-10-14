@@ -16,9 +16,9 @@ import (
 // returned unchanged so callers can match them.
 type unregisteredTagScanRepository struct{ scans devicefleet.Capability }
 
-// newUnregisteredTagScanRepository binds the retained repository contract to
+// NewUnregisteredTagScanRepository binds the retained repository contract to
 // the owner capability.
-func newUnregisteredTagScanRepository(scans devicefleet.Capability) auditModels.UnregisteredTagScanRepository {
+func NewUnregisteredTagScanRepository(scans devicefleet.Capability) auditModels.UnregisteredTagScanRepository {
 	if scans == nil {
 		panic("services: device fleet is required for unregistered tag scans")
 	}

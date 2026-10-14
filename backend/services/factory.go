@@ -1811,7 +1811,7 @@ func NewFactoryWithConfig(
 		today,
 	)
 	unregisteredTagScanService, err := auditCompose.NewUnregisteredTagScanService(
-		newUnregisteredTagScanRepository(legacyDeviceFleet),
+		NewUnregisteredTagScanRepository(legacyDeviceFleet),
 		auditCompose.UnregisteredTagScanRuntime{TenantID: tenant.FromContext},
 	)
 	if err != nil {

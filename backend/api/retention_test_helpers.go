@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"errors"
@@ -8,8 +8,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // RetentionTestOwners are the retained owners the Worker's nightly retention
@@ -27,7 +28,7 @@ type RetentionTestOwners struct {
 
 // NewRetentionTestOwners composes the retention owners over db; unit is the
 // tenant runtime the settings resolve in.
-func NewRetentionTestOwners(db *bun.DB, unit tenant.UnitOfWork) (RetentionTestOwners, error) {
+func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWork) (RetentionTestOwners, error) {
 	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return RetentionTestOwners{}, err
@@ -41,7 +42,7 @@ func NewRetentionTestOwners(db *bun.DB, unit tenant.UnitOfWork) (RetentionTestOw
 		return RetentionTestOwners{}, err
 	}
 	scans, err := auditCompose.NewUnregisteredTagScanService(
-		newUnregisteredTagScanRepository(fleet),
+		services.NewUnregisteredTagScanRepository(fleet),
 		auditCompose.UnregisteredTagScanRuntime{TenantID: tenant.FromContext},
 	)
 	if err != nil {
@@ -57,6 +58,6 @@ func NewRetentionTestOwners(db *bun.DB, unit tenant.UnitOfWork) (RetentionTestOw
 	}
 	return RetentionTestOwners{
 		Audit: command, Settings: settings.Settings, UnregisteredTagScans: scans, StatusDays: statusDays,
-		ParentMessages: communicationCompose.NewParentMessageRetention(db, settings.Settings),
+		ParentMessages: communicationCompose.NewParentMessageRetention(db.Pool(), settings.Settings),
 	}, nil
 }
