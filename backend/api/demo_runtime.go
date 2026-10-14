@@ -11,7 +11,6 @@ import (
 	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/uptrace/bun"
 )
 
 type DemoSchoolRecord struct {
@@ -35,30 +34,27 @@ type DemoRuntime struct {
 	transactions apiCommon.TenantRuntime
 }
 
-// NewDemoRuntime composes the sidecar on its privileged connection; now is
-// the clock the expiry of demo accesses reads (#3470).
-func NewDemoRuntime(db *bun.DB, now func() time.Time) (*DemoRuntime, error) {
-	schools, err := organizationcompose.NewDemoSchools(db)
+// NewDemoRuntime composes the sidecar on its privileged connection, the
+// standing demo's database with its own unit of work; now is the clock the
+// expiry of demo accesses reads (#3470).
+func NewDemoRuntime(db transactionruntime.Database, now func() time.Time) (*DemoRuntime, error) {
+	schools, err := organizationcompose.NewDemoSchools(db.Pool())
 	if err != nil {
 		return nil, err
 	}
-	expiry, err := services.NewDemoAccessExpiry(db, now)
+	expiry, err := services.NewDemoAccessExpiry(db.Pool(), now)
 	if err != nil {
 		return nil, err
 	}
-	presence, err := presencecompose.New(presencecompose.Dependencies{DB: db, Observe: func(presencecompose.Observation) {}})
+	presence, err := presencecompose.New(presencecompose.Dependencies{DB: db.Pool(), Observe: func(presencecompose.Observation) {}})
 	if err != nil {
 		return nil, err
 	}
-	transactions, err := transactionruntime.NewDemoTenantRuntime(db)
+	queue, err := organizationcompose.NewDemoSchoolQueue(db.Pool())
 	if err != nil {
 		return nil, err
 	}
-	queue, err := organizationcompose.NewDemoSchoolQueue(db)
-	if err != nil {
-		return nil, err
-	}
-	return &DemoRuntime{schools: schools, queue: queue, expiry: expiry, presence: presence, transactions: transactions}, nil
+	return &DemoRuntime{schools: schools, queue: queue, expiry: expiry, presence: presence, transactions: db.UnitOfWork()}, nil
 }
 
 // ExpireDemoAccesses deletes the demo accesses 14 days past their last use

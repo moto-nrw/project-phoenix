@@ -8,22 +8,22 @@ import (
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/uptrace/bun"
 )
 
 // These test-support builders share the root's adapter wiring without invoking
 // its production bootstrap. Each accepts only the module under test.
-func newStaffTestResource(module schoolmembership.Capability, svc services.StaffTestModule, db *bun.DB, logger *slog.Logger) *staffHTTP.Resource {
+func newStaffTestResource(module schoolmembership.Capability, svc services.StaffTestModule, db transactionruntime.Database, logger *slog.Logger) *staffHTTP.Resource {
 	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffAdmin, svc.TimeTracking)
 	admin := newStaffAdminResource(capabilities, nil, nil, nil, db, logger)
 	return newStaffResource(module, svc.PeopleDirectory, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
-		return svc.NewStaffMembershipRuntime(db, logger, hooks)
+		return svc.NewStaffMembershipRuntime(db.Pool(), logger, hooks)
 	}, admin, logger)
 }
 
-func newCareScheduleTestRouter(db *bun.DB, module services.StudentTestModule) (chi.Router, error) {
-	parent, err := services.NewParentCareScheduleTestService(db, module)
+func newCareScheduleTestRouter(db transactionruntime.Database, module services.StudentTestModule) (chi.Router, error) {
+	parent, err := services.NewParentCareScheduleTestService(db.Pool(), module)
 	if err != nil {
 		return nil, err
 	}
@@ -41,8 +41,8 @@ func newStudentPhotoTestBootstrap() services.StudentPhotoBootstrap {
 	return services.StudentPhotoBootstrap{Unlinker: studentsAPI.NewPhotoUnlinker(slog.Default(), "public"), ActingAccount: actingAccountID}
 }
 
-func newDatabaseStatsTestRouter(db *bun.DB) (chi.Router, error) {
-	read, err := services.NewDatabaseStatsTestReader(db)
+func newDatabaseStatsTestRouter(db transactionruntime.Database) (chi.Router, error) {
+	read, err := services.NewDatabaseStatsTestReader(db.Pool())
 	if err != nil {
 		return nil, err
 	}

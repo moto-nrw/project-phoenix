@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/migrations"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/spf13/cobra"
-	"github.com/uptrace/bun"
 )
 
 const (
@@ -23,22 +22,22 @@ const (
 // storage backfills of the architecture migration (#2580) can be driven from
 // the CLI and tested without a real connection.
 type backfillRoot struct {
-	// openDatabase returns the pool and a release function; tests hand in
-	// the package pool with a no-op release instead of closing it.
-	openDatabase func() (*bun.DB, func(), error)
+	// openDatabase returns the database and a release function; tests hand
+	// in the package pool with a no-op release instead of closing it.
+	openDatabase func() (transactionruntime.Database, func(), error)
 }
 
 var defaultBackfillRoot = backfillRoot{
-	openDatabase: func() (*bun.DB, func(), error) {
-		db, err := transactionruntime.OpenPool()
+	openDatabase: func() (transactionruntime.Database, func(), error) {
+		db, err := transactionruntime.OpenDatabase()
 		if err != nil {
-			return nil, nil, err
+			return transactionruntime.Database{}, nil, err
 		}
 		return db, func() { _ = db.Close() }, nil
 	},
 }
 
-func (root backfillRoot) run(ctx context.Context, operation func(context.Context, *bun.DB) error) error {
+func (root backfillRoot) run(ctx context.Context, operation func(context.Context, transactionruntime.Database) error) error {
 	if root.openDatabase == nil {
 		return fmt.Errorf("database opener is required")
 	}
@@ -46,7 +45,7 @@ func (root backfillRoot) run(ctx context.Context, operation func(context.Context
 	if err != nil {
 		return fmt.Errorf(errInitDB, err)
 	}
-	if db == nil {
+	if db.Pool() == nil {
 		return fmt.Errorf("database opener returned nil")
 	}
 	if release != nil {
@@ -56,9 +55,9 @@ func (root backfillRoot) run(ctx context.Context, operation func(context.Context
 }
 
 func (root backfillRoot) staffOwnerRun(cmd *cobra.Command, opts migrations.StaffOwnerBackfillOptions) error {
-	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
+	return root.run(cmd.Context(), func(ctx context.Context, db transactionruntime.Database) error {
 		opts.Logger = slog.Default().With("backfill", migrations.StaffOwnerBackfillName)
-		report, err := migrations.RunStaffOwnerBackfill(ctx, db, opts)
+		report, err := migrations.RunStaffOwnerBackfill(ctx, db.Pool(), opts)
 		if report != nil {
 			err = errors.Join(err, writeStaffOwnerReport(cmd.OutOrStdout(), report))
 		}
@@ -67,8 +66,8 @@ func (root backfillRoot) staffOwnerRun(cmd *cobra.Command, opts migrations.Staff
 }
 
 func (root backfillRoot) staffOwnerStatus(cmd *cobra.Command) error {
-	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
-		report, err := migrations.StaffOwnerBackfillStatus(ctx, db)
+	return root.run(cmd.Context(), func(ctx context.Context, db transactionruntime.Database) error {
+		report, err := migrations.StaffOwnerBackfillStatus(ctx, db.Pool())
 		if err != nil {
 			return err
 		}
@@ -77,8 +76,8 @@ func (root backfillRoot) staffOwnerStatus(cmd *cobra.Command) error {
 }
 
 func (root backfillRoot) staffOwnerReset(cmd *cobra.Command) error {
-	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
-		if err := migrations.ResetStaffOwnerBackfill(ctx, db); err != nil {
+	return root.run(cmd.Context(), func(ctx context.Context, db transactionruntime.Database) error {
+		if err := migrations.ResetStaffOwnerBackfill(ctx, db.Pool()); err != nil {
 			return err
 		}
 		_, err := fmt.Fprintln(cmd.OutOrStdout(), "staff owner backfill reset: target rows and checkpoints discarded; users.staff untouched")
@@ -126,9 +125,9 @@ func writeGuardianOwnerReport(output io.Writer, report *migrations.GuardianOwner
 }
 
 func (root backfillRoot) guardianOwnerRun(cmd *cobra.Command, opts migrations.GuardianOwnerBackfillOptions) error {
-	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
+	return root.run(cmd.Context(), func(ctx context.Context, db transactionruntime.Database) error {
 		opts.Logger = slog.Default().With("backfill", migrations.GuardianOwnerBackfillName)
-		report, err := migrations.RunGuardianOwnerBackfill(ctx, db, opts)
+		report, err := migrations.RunGuardianOwnerBackfill(ctx, db.Pool(), opts)
 		if report != nil {
 			err = errors.Join(err, writeGuardianOwnerReport(cmd.OutOrStdout(), report))
 		}
@@ -137,8 +136,8 @@ func (root backfillRoot) guardianOwnerRun(cmd *cobra.Command, opts migrations.Gu
 }
 
 func (root backfillRoot) guardianOwnerStatus(cmd *cobra.Command) error {
-	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
-		report, err := migrations.GuardianOwnerBackfillStatus(ctx, db)
+	return root.run(cmd.Context(), func(ctx context.Context, db transactionruntime.Database) error {
+		report, err := migrations.GuardianOwnerBackfillStatus(ctx, db.Pool())
 		if err != nil {
 			return err
 		}
@@ -147,8 +146,8 @@ func (root backfillRoot) guardianOwnerStatus(cmd *cobra.Command) error {
 }
 
 func (root backfillRoot) guardianOwnerReset(cmd *cobra.Command) error {
-	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
-		if err := migrations.ResetGuardianOwnerBackfill(ctx, db); err != nil {
+	return root.run(cmd.Context(), func(ctx context.Context, db transactionruntime.Database) error {
+		if err := migrations.ResetGuardianOwnerBackfill(ctx, db.Pool()); err != nil {
 			return err
 		}
 		_, err := fmt.Fprintln(cmd.OutOrStdout(), "guardian owner backfill reset: target rows and checkpoints discarded; users.students_guardians untouched")
@@ -157,9 +156,9 @@ func (root backfillRoot) guardianOwnerReset(cmd *cobra.Command) error {
 }
 
 func (root backfillRoot) studentOwnerRun(cmd *cobra.Command, opts migrations.StudentOwnerBackfillOptions) error {
-	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
+	return root.run(cmd.Context(), func(ctx context.Context, db transactionruntime.Database) error {
 		opts.Logger = slog.Default().With("backfill", migrations.StudentOwnerBackfillName)
-		report, err := migrations.RunStudentOwnerBackfill(ctx, db, opts)
+		report, err := migrations.RunStudentOwnerBackfill(ctx, db.Pool(), opts)
 		if report != nil {
 			err = errors.Join(err, writeStudentOwnerReport(cmd.OutOrStdout(), report))
 		}
@@ -168,8 +167,8 @@ func (root backfillRoot) studentOwnerRun(cmd *cobra.Command, opts migrations.Stu
 }
 
 func (root backfillRoot) studentOwnerStatus(cmd *cobra.Command) error {
-	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
-		report, err := migrations.StudentOwnerBackfillStatus(ctx, db)
+	return root.run(cmd.Context(), func(ctx context.Context, db transactionruntime.Database) error {
+		report, err := migrations.StudentOwnerBackfillStatus(ctx, db.Pool())
 		if err != nil {
 			return err
 		}
@@ -178,8 +177,8 @@ func (root backfillRoot) studentOwnerStatus(cmd *cobra.Command) error {
 }
 
 func (root backfillRoot) studentOwnerReset(cmd *cobra.Command) error {
-	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
-		if err := migrations.ResetStudentOwnerBackfill(ctx, db); err != nil {
+	return root.run(cmd.Context(), func(ctx context.Context, db transactionruntime.Database) error {
+		if err := migrations.ResetStudentOwnerBackfill(ctx, db.Pool()); err != nil {
 			return err
 		}
 		_, err := fmt.Fprintln(cmd.OutOrStdout(), "student owner backfill reset: target rows and checkpoints discarded; users.students untouched")

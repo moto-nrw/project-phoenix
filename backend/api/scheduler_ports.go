@@ -84,7 +84,7 @@ func (p schedulerSettingsPort) BindSettingsSnapshot(ctx context.Context, snapsho
 // composition builds over the graph's People Directory and Care Plan
 // (ADR 0049). A construction failure fails the Worker's composition.
 func schedulerBookingConsistency(graph *serveGraph, reads workerReads) (scheduler.BookingConsistencyAudit, error) {
-	bookings, err := services.NewBookingConsistencyAudit(graph.db, graph.services.PeopleDirectory, reads.carePlan)
+	bookings, err := services.NewBookingConsistencyAudit(graph.db.Pool(), graph.services.PeopleDirectory, reads.carePlan)
 	if err != nil {
 		return nil, fmt.Errorf("compose worker booking consistency audit: %w", err)
 	}

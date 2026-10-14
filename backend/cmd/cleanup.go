@@ -911,7 +911,7 @@ func forEachActiveTenant(
 	operation string,
 	fn func(context.Context, int64) error,
 ) error {
-	ctx = tenant.WithUnitOfWork(ctx, cc.TenantRuntime)
+	ctx = tenant.WithUnitOfWork(ctx, cc.DB.UnitOfWork())
 	tenantIDs, err := listActiveTenantIDsForCLI(ctx, cc)
 	if err != nil {
 		return err
@@ -1012,7 +1012,7 @@ func runCleanupTimeTrackingStats(cmd *cobra.Command, _ []string) error {
 
 // listActiveTenantIDsForCLI returns the IDs of all active, non-deleted tenants.
 func listActiveTenantIDsForCLI(ctx context.Context, cc *cleanupContext) ([]int64, error) {
-	ctx = tenant.WithUnitOfWork(ctx, cc.TenantRuntime)
+	ctx = tenant.WithUnitOfWork(ctx, cc.DB.UnitOfWork())
 	schools, err := cc.Schools.ListActiveSchools(ctx)
 	if err != nil {
 		return nil, err

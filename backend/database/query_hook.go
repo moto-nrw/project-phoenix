@@ -22,6 +22,12 @@ func NewQueryHook(logger *slog.Logger) *QueryHook {
 	return &QueryHook{logger: logger}
 }
 
+// AttachQueryHook adds hook to db itself, so it reaches every component that
+// already holds the pool.
+func AttachQueryHook(db *bun.DB, hook bun.QueryHook) {
+	db.AddQueryHook(hook) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
+}
+
 func (h *QueryHook) BeforeQuery(ctx context.Context, _ *bun.QueryEvent) context.Context {
 	return ctx
 }
