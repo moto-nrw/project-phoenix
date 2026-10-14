@@ -1,4 +1,4 @@
-package jwt
+package sessiontoken
 
 // Tests for the MFAEnrollmentAuthenticator middleware. These are the
 // "Tests: Enrollment-Token darf keine geschützten Routen aufrufen"

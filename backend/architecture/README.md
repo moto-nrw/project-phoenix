@@ -555,7 +555,8 @@ existing points are granted by `serviceFactoryCutoverPermission`. 23 of the
 26 #2747 keys fell (109 -> 86), and the composition surface dropped from 260
 to 259. The production adapters no longer hold a database handle, tenant
 transaction or JWT read: those live in the owner compositions or arrive as
-built values from the root. The `bun`, `tenant` and `legacy/jwt` keys remain,
+built values from the root. The `bun`, `tenant` and `sessiontoken`
+(`legacy/jwt` before #3487) keys remain,
 because the builders that compose several owners over one database
 (`services/*_roots.go`, `command_roots.go`, `cleanup_composition.go`,
 `factory.go`) and the test hooks still need them. The Factory still exists.
@@ -1022,6 +1023,21 @@ ratchets, so the rate-limiter, MFA and passkey setters gave way to
 were split into named steps. Routes, methods, status codes, error bodies and
 middleware chains are unchanged; the middleware golden only renames
 `requirePlatformScope`'s package.
+
+#3487 moves the session token adapter `modules/identityaccess/legacy/jwt` to
+`modules/identityaccess/sessiontoken` the same way (policy epoch 41 to 42,
+[ADR 0054](../../docs/adr/0054-the-session-token-adapter-leaves-legacy-now.md)),
+with the package clause `sessiontoken`. It keeps the `identity-access` owner,
+the `adapter` role and both test roles, and the 27 Go files keep their names.
+The three remaining baseline keys are renamed and keep their issues: `api` in
+production and internal test (#2750) and `services` (#2747). No key falls, no
+rule is added. The 254 importing files (150 production files in 35 packages)
+change only the import path and the qualifier. The inactive declaration
+`auth/jwt -> modules/identityaccess/legacy/jwt` of #3226 is removed, because
+its target is no longer classified and every `to` must be. With it
+`modules/identityaccess/legacy` is gone, and so is its legacy LOC budget entry
+(1,358 LOC, total 4,408 to 3,050). The middleware golden only renames the
+authenticator and scope middleware package.
 
 The Workforce compatibility adapter (`modules/workforce/legacy`) and the
 Workforce HTTP composition (`modules/workforce/inbound`) are classified as
@@ -2181,7 +2197,7 @@ serves them `database/repositories.CallerRows`, which resolves the reach
 through the caller context and loads only the retained rows a consumer still
 renders. The `inbound-usercontext` owner and its four `student-presence`
 rules are gone. The request identity memo slot lives in the session adapter
-(`legacy/jwt`), the one Identity & Access package `api/common` and the
+(`sessiontoken`), the one Identity & Access package `api/common` and the
 legacy composition already reach, so `api/common` keeps attaching it
 router-wide and group-wide as before and the root binds it as the caller
 context's memo; the memo's contents stay in the application.

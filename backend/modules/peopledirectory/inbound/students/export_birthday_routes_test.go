@@ -20,7 +20,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -32,8 +32,8 @@ func birthdayExportRequest(t *testing.T, body string) *http.Request {
 	return req
 }
 
-func birthdayExportClaims(tb testing.TB, accountID int64) jwt.AppClaims {
-	return jwt.AppClaims{
+func birthdayExportClaims(tb testing.TB, accountID int64) sessiontoken.AppClaims {
+	return sessiontoken.AppClaims{
 		ID:        int(accountID),
 		Sub:       "birthday-export@example.com",
 		Username:  "birthday-export",

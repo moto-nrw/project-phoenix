@@ -20,7 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -37,7 +37,7 @@ func TestSchoolNotificationPreferences(t *testing.T) {
 	_, teacherAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Pref", fmt.Sprintf("Lehrkraft-%d", time.Now().UnixNano()))
 	testpkg.EnsureAccountTenant(t, db, teacherAccount.ID, tenantID)
 	testpkg.AssignLehrkraftSystemRole(t, db, teacherAccount.ID, tenantID)
-	claims := jwt.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID: int(teacherAccount.ID), Sub: teacherAccount.Email,
 		Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeSchool,
 	}
@@ -87,7 +87,7 @@ func TestSchoolNotificationPreferences(t *testing.T) {
 
 	// Scope isolation, symmetric to every other school surface.
 	req = httptest.NewRequest(http.MethodGet, "/notifications/preferences/", nil)
-	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, jwt.AppClaims{
+	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, sessiontoken.AppClaims{
 		ID: int(teacherAccount.ID), Sub: teacherAccount.Email, TenantID: tenantID, Scope: tenant.ScopeTenant,
 	})
 	require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
@@ -101,7 +101,7 @@ func TestSchoolPushSubscriptionIsRecordedAsSchoolDevice(t *testing.T) {
 	_, teacherAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Push", fmt.Sprintf("Lehrkraft-%d", time.Now().UnixNano()))
 	testpkg.EnsureAccountTenant(t, db, teacherAccount.ID, tenantID)
 	testpkg.AssignLehrkraftSystemRole(t, db, teacherAccount.ID, tenantID)
-	claims := jwt.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID: int(teacherAccount.ID), Sub: teacherAccount.Email,
 		Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeSchool,
 	}

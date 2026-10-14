@@ -21,7 +21,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/uptrace/bun"
 )
@@ -115,7 +115,7 @@ func NewService(cfg Config) *Service {
 
 // actor returns the authenticated account id for the request.
 func (s *Service) actor(ctx context.Context) (int64, error) {
-	if id := jwt.ActorAccountIDFromCtx(ctx); id != nil && *id != 0 {
+	if id := sessiontoken.ActorAccountIDFromCtx(ctx); id != nil && *id != 0 {
 		return *id, nil
 	}
 	return 0, ErrNoActor

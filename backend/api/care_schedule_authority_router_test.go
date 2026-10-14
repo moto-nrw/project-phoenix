@@ -12,7 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -65,7 +65,7 @@ func careScheduleParentToken(t *testing.T, chain testpkg.ParentChain) string {
 	t.Helper()
 	// Parent-scope principals are not tenant-bound; the security principal
 	// seam rejects a parent token that carries a tenant (#2645).
-	return testutil.MintTestJWT(t, jwt.AppClaims{
+	return testutil.MintTestJWT(t, sessiontoken.AppClaims{
 		ID: int(chain.AccountID), Sub: chain.Email, Roles: []string{"guardian"},
 		Scope: tenant.ScopeParent,
 	})

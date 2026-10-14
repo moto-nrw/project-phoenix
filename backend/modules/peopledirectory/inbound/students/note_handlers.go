@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -212,7 +212,7 @@ func (rs *Resource) currentNoteDeleteAuthorization(
 	if err != nil {
 		return peopleModule.StudentNoteDeleteAuthorization{}, err
 	}
-	if cache := jwt.RequestIdentityCacheFrom(ctx); cache != nil {
+	if cache := sessiontoken.RequestIdentityCacheFrom(ctx); cache != nil {
 		cache.Evict(tenant.FromContext(ctx), accountID)
 	}
 	reader, err := rs.noteReader(ctx)
@@ -224,7 +224,7 @@ func (rs *Resource) currentNoteDeleteAuthorization(
 		return peopleModule.StudentNoteDeleteAuthorization{}, err
 	}
 	audience := securityruntime.ResolveStudentNoteAudience(
-		jwt.PermissionsFromCtx(ctx), reader, child)
+		sessiontoken.PermissionsFromCtx(ctx), reader, child)
 	return peopleModule.StudentNoteDeleteAuthorization{
 		Admin:                 audience.Admin,
 		LedActivityGroupIDs:   audience.LedActivityGroupIDs,
@@ -266,7 +266,7 @@ func (rs *Resource) resolveNoteReader(
 		return nil, securityruntime.StudentNoteChild{}, securityruntime.StudentNoteAudience{}, false
 	}
 	return student, child, securityruntime.ResolveStudentNoteAudience(
-		jwt.PermissionsFromCtx(r.Context()), reader, child), true
+		sessiontoken.PermissionsFromCtx(r.Context()), reader, child), true
 }
 
 // noteReader gathers the caller's assignments for the audience policy, which
@@ -403,7 +403,7 @@ func parseOptionalID(value *string, field string) (*int64, error) {
 }
 
 func callerAccountID(r *http.Request) int64 {
-	return int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	return int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 }
 
 // toModuleAudience turns the policy's facts into the owner's filter. The

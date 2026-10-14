@@ -14,7 +14,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -102,7 +102,7 @@ func TestIdentityRequestCacheDedupesChain(t *testing.T) {
 
 	counter := newIdentityQueryCounter(t, db)
 
-	ctx := jwt.WithRequestIdentityCache(callerCtx(t, account.ID))
+	ctx := sessiontoken.WithRequestIdentityCache(callerCtx(t, account.ID))
 	resolveFullChain(t, ctx, rows)
 
 	// Each stage must be loaded exactly once per request. MyGroupIDs and
@@ -154,7 +154,7 @@ func TestNonTeacherStaffNotFoundIsMemoized(t *testing.T) {
 
 	counter := newIdentityQueryCounter(t, db)
 
-	ctx := jwt.WithRequestIdentityCache(callerCtx(t, account.ID))
+	ctx := sessiontoken.WithRequestIdentityCache(callerCtx(t, account.ID))
 
 	_, err := rows.GetMyGroups(ctx)
 	require.NoError(t, err)
@@ -180,7 +180,7 @@ func TestUpdateCurrentProfileEvictsIdentity(t *testing.T) {
 	email := fmt.Sprintf("identity-evict-%d@test.moto-nrw.de", time.Now().UnixNano())
 	account := testpkg.CreateTestAccount(t, db, email)
 
-	ctx := jwt.WithRequestIdentityCache(callerCtx(t, account.ID))
+	ctx := sessiontoken.WithRequestIdentityCache(callerCtx(t, account.ID))
 
 	// Prime the memoized "not linked" person stage.
 	_, err := caller.Person(ctx)
@@ -208,7 +208,7 @@ func TestUpdateAvatarEvictsIdentity(t *testing.T) {
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "IdentityAvatar", "Test")
 
-	ctx := jwt.WithRequestIdentityCache(callerCtx(t, account.ID))
+	ctx := sessiontoken.WithRequestIdentityCache(callerCtx(t, account.ID))
 
 	// Prime the memoized account stage.
 	_, err := caller.Account(ctx)

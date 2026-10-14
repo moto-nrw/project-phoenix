@@ -3,15 +3,15 @@ package test
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/spf13/viper"
 )
 
 // ConfiguredTokenAuth resolves the signer from the seeded test configuration,
 // as the API root does from the process configuration, so tokens minted by
 // the test helpers and the mounted verifier always share one secret.
-func ConfiguredTokenAuth() (*jwt.TokenAuth, error) {
-	return jwt.NewTokenAuthWithDurations(
+func ConfiguredTokenAuth() (*sessiontoken.TokenAuth, error) {
+	return sessiontoken.NewTokenAuthWithDurations(
 		viper.GetString("auth_jwt_secret"),
 		viper.GetDuration("auth_jwt_expiry"),
 		viper.GetDuration("auth_jwt_refresh_expiry"),

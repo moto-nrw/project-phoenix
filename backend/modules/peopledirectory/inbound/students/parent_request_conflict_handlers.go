@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -60,7 +60,7 @@ func (rs *Resource) resolveRequestConflict(w http.ResponseWriter, r *http.Reques
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	input.ReviewerID = int64(claims.ID)
 	input.ActorRole = strings.Join(claims.Roles, ",")
 	if err := rs.ParentRequestConflictService.ResolveConflict(r.Context(), input); err != nil {

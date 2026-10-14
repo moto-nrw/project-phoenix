@@ -1,4 +1,4 @@
-package jwt
+package sessiontoken
 
 // MFA enrollment scope values mirror the challenge scopes — same conventions,
 // different stage in the flow. An enrollment token is issued when MFA is

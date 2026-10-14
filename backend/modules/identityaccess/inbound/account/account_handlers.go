@@ -10,13 +10,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // getAccount returns the current user's account details
 func (rs *Resource) getAccount(w http.ResponseWriter, r *http.Request) {
 	// Get user ID and permissions from JWT claims
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 
 	account, err := rs.Sessions.FindOwnAccount(r.Context(), int64(claims.ID))
 	if err != nil {

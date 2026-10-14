@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 )
 
@@ -28,7 +28,7 @@ var errNotStaff = errors.New("user is not a staff member")
 func (rs *Resource) getStaffIDAndManagePermission(r *http.Request) (int64, bool, error) {
 	// Check if user has admin-level permission that bypasses ownership checks
 	// Note: "activities:manage" does NOT bypass ownership - only true admin permissions do
-	hasAdminPermission := authorize.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context()))
+	hasAdminPermission := authorize.HasAdminWildcard(sessiontoken.PermissionsFromCtx(r.Context()))
 
 	// Get current staff
 	staffID, found, err := rs.UserContextService.CurrentStaffID(r.Context())

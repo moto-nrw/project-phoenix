@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 type AuthorizationEvent struct {
@@ -34,7 +34,7 @@ func AuthorizationObserverMiddleware(observer AuthorizationObserver) Middleware 
 func SecurityPrincipalMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		started := time.Now()
-		claims := jwt.ClaimsFromCtx(r.Context())
+		claims := sessiontoken.ClaimsFromCtx(r.Context())
 		principal, err := permissions.NewPrincipal(permissions.PrincipalInput{
 			AccountID:      int64(claims.ID),
 			TenantID:       claims.TenantID,

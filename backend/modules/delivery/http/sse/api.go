@@ -10,7 +10,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -22,8 +22,8 @@ func (rs *Resource) Router() chi.Router {
 
 	// SSE endpoint requires authentication
 	r.Group(func(r chi.Router) {
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware(tenant.ClaimScope{}))
+		r.Use(sessiontoken.Authenticator)
+		r.Use(sessiontoken.TenantMiddleware(tenant.ClaimScope{}))
 		r.Get("/events", rs.eventsHandler)
 	})
 
@@ -50,8 +50,8 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Step 2: Extract tenant ID from JWT context (set by TenantMiddleware)
 	conn.tenantID = tenant.FromContext(ctx)
-	claims := jwt.ClaimsFromCtx(ctx)
-	conn.isAdmin = claims.IsAdmin || authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
+	claims := sessiontoken.ClaimsFromCtx(ctx)
+	conn.isAdmin = claims.IsAdmin || authorize.HasAdminWildcard(sessiontoken.PermissionsFromCtx(ctx))
 	// The login account, needed to address this person individually. Already in
 	// the claims, so no extra lookup.
 	conn.accountID = int64(claims.ID)
@@ -81,7 +81,7 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 // resolveSSESubscription resolves the client's topic subscription inside a
 // tenant transaction. Resolution requires it because RLS on users.persons and
 // users.staff needs app.current_tenant_id to be set — the SSE router uses
-// jwt.TenantMiddleware (context only), not the DB-level TenantTxMiddleware.
+// sessiontoken.TenantMiddleware (context only), not the DB-level TenantTxMiddleware.
 func (rs *Resource) resolveSSESubscription(ctx context.Context, tenantID int64) (*sseTopics, int64, error) {
 	var staffID int64
 	topics := &sseTopics{}

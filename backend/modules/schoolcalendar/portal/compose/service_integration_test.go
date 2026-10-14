@@ -20,7 +20,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	calendarRuntime "github.com/moto-nrw/project-phoenix/services"
@@ -147,7 +147,7 @@ func (r *recordingOutbox) CancelPendingByRelatedEntity(context.Context, string, 
 
 func calendarContext(tb testing.TB, accountID int64) context.Context {
 	tb.Helper()
-	return context.WithValue(testpkg.Ctx(tb), jwt.CtxClaims, jwt.AppClaims{
+	return context.WithValue(testpkg.Ctx(tb), sessiontoken.CtxClaims, sessiontoken.AppClaims{
 		ID:       int(accountID),
 		TenantID: testpkg.Tenant(tb),
 	})

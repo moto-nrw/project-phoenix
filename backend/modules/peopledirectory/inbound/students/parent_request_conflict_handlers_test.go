@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,10 +36,10 @@ func (s *conflictServiceStub) ResolveConflict(_ context.Context, input parentreq
 
 func resolveConflictRequest(t *testing.T, body string) (*httptest.ResponseRecorder, *http.Request) {
 	t.Helper()
-	ctx := tenant.WithRollbackMarker(context.WithValue(t.Context(), jwt.CtxClaims, jwt.AppClaims{
+	ctx := tenant.WithRollbackMarker(context.WithValue(t.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{
 		ID: 55, Roles: []string{"ogs_admin"},
 	}))
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"users:update"})
+	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{"users:update"})
 	req := httptest.NewRequest(
 		http.MethodPost, "/students/change-requests/conflicts/resolve", strings.NewReader(body),
 	).WithContext(ctx)

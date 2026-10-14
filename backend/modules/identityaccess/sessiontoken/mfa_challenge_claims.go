@@ -1,4 +1,4 @@
-package jwt
+package sessiontoken
 
 // MFA challenge scope values — distinguish tenant accounts from platform
 // operators and school-portal (Lehrkraft) logins. The school scope (#2207)

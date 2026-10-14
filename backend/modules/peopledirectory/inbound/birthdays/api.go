@@ -21,7 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -206,7 +206,7 @@ func (rs *Resource) updateOptOut(w http.ResponseWriter, r *http.Request) {
 // callerAccountID resolves the acting account from the JWT. A request without
 // one cannot be answered — the opt-out has no meaning without an owner.
 func (rs *Resource) callerAccountID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	accountID := jwt.ActorAccountIDFromCtx(r.Context())
+	accountID := sessiontoken.ActorAccountIDFromCtx(r.Context())
 	if accountID == nil {
 		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("no account in token")))
 		return 0, false

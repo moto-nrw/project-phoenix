@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 
 	"github.com/go-chi/render"
 )
@@ -38,12 +38,12 @@ func (rs *Resource) validateSession(w http.ResponseWriter, r *http.Request) {
 
 // sessionClaimsResponse renders the validated claims in the access-token
 // claim shape the frontend hand-off consumes.
-func sessionClaimsResponse(claims identityaccess.SessionClaims) *jwt.AppClaims {
-	return &jwt.AppClaims{
+func sessionClaimsResponse(claims identityaccess.SessionClaims) *sessiontoken.AppClaims {
+	return &sessiontoken.AppClaims{
 		ID: int(claims.AccountID), Sub: claims.Email, Username: claims.Username, FirstName: claims.FirstName, LastName: claims.LastName,
 		Roles: claims.Roles, Permissions: claims.Permissions, IsAdmin: claims.IsAdmin, Scope: claims.Scope,
 		TenantID: claims.TenantID, OrgID: claims.OrgID, FamilyID: claims.FamilyID,
 		ReadOnly: claims.ReadOnly, ActingAdminID: claims.ActingAdminID, PreviewID: claims.PreviewID,
-		CommonClaims: jwt.CommonClaims{ExpiresAt: claims.ExpiresAt, IssuedAt: claims.IssuedAt},
+		CommonClaims: sessiontoken.CommonClaims{ExpiresAt: claims.ExpiresAt, IssuedAt: claims.IssuedAt},
 	}
 }

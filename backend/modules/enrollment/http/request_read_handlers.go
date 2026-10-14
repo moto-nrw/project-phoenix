@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // The read state of the enrollment queue is per account (#3778): each
@@ -19,7 +19,7 @@ func (rs *Resource) unreadAdminRequestCount(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
 		return
 	}
-	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	accountID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	var unread int
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		count, countErr := rs.DecisionService.CountUnreadRequests(ctx, accountID)
@@ -56,7 +56,7 @@ func (rs *Resource) writeReadState(w http.ResponseWriter, r *http.Request, write
 	if !ok {
 		return
 	}
-	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	accountID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	if err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		return write(ctx, accountID, id)
 	}); err != nil {
@@ -72,7 +72,7 @@ func (rs *Resource) markAllAdminRequestsRead(w http.ResponseWriter, r *http.Requ
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
 		return
 	}
-	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	accountID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	if err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		return rs.DecisionService.MarkAllRequestsRead(ctx, accountID)
 	}); err != nil {

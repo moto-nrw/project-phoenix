@@ -13,7 +13,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // CompanionResponse is one child this child walks home with, plus the weekdays
@@ -585,7 +585,7 @@ func (rs *Resource) reconcileCompanions(ctx context.Context, student *Student, r
 		AccompaniedDays:      accompaniedDays,
 		ExtendCompanionPlans: req.ExtendCompanionPlans,
 		AuthorizedExtensions: authorizedExtensions,
-		ActorAccountID:       int64(jwt.ClaimsFromCtx(ctx).ID),
+		ActorAccountID:       int64(sessiontoken.ClaimsFromCtx(ctx).ID),
 	})
 	if err != nil {
 		return nil, err

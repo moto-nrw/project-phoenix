@@ -75,9 +75,9 @@ func checkRouteTableGolden(t *testing.T, apiInstance *serveGraph) {
 	// mount their own verifier, so only this walk of the production router
 	// notices a missing root mount. Regenerating the golden cannot hide it.
 	for _, chain := range middlewareRoutes {
-		authenticator := strings.Index(chain, "legacy/jwt.Authenticat")
+		authenticator := strings.Index(chain, "sessiontoken.Authenticat")
 		if authenticator < 0 {
-			authenticator = strings.Index(chain, "legacy/jwt.MFAEnrollmentAuthenticat")
+			authenticator = strings.Index(chain, "sessiontoken.MFAEnrollmentAuthenticat")
 		}
 		if authenticator < 0 {
 			continue
@@ -131,7 +131,7 @@ func checkRouteTableGolden(t *testing.T, apiInstance *serveGraph) {
 	// policy) needs nothing.
 	t.Run("every authenticated write route carries the read-only preview guard", func(t *testing.T) {
 		const (
-			authenticator = "modules/identityaccess/legacy/jwt.Authenticator"
+			authenticator = "modules/identityaccess/sessiontoken.Authenticator"
 			readOnlyGuard = "api/common.ReadOnlyPreviewMiddleware"
 		)
 		safeMethods := map[string]bool{
@@ -165,7 +165,7 @@ func checkRouteTableGolden(t *testing.T, apiInstance *serveGraph) {
 		sort.Strings(unguarded)
 
 		require.Emptyf(t, unguarded,
-			"these routes authenticate a JWT without api/common.ReadOnlyPreviewMiddleware — a read-only staff-preview token could write through them. Add the middleware right after jwt.Authenticator in the group that mounts them:\n%s",
+			"these routes authenticate a JWT without api/common.ReadOnlyPreviewMiddleware — a read-only staff-preview token could write through them. Add the middleware right after sessiontoken.Authenticator in the group that mounts them:\n%s",
 			strings.Join(unguarded, "\n"))
 	})
 }

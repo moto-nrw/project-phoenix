@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -72,7 +72,7 @@ func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
 	_, refreshToken, err := workingService.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 
-	signer, err := authjwt.NewTokenAuthWithDurations(authTestFactoryConfig(false).JWTSecret, 15*time.Minute, time.Hour)
+	signer, err := sessiontoken.NewTokenAuthWithDurations(authTestFactoryConfig(false).JWTSecret, 15*time.Minute, time.Hour)
 	require.NoError(t, err)
 	service, err := services.IdentityAccessForTests(services.IdentityAccessTestConfig{
 		TokenAuth: signer, TenantRuntime: testpkg.TenantRuntime(t, db),

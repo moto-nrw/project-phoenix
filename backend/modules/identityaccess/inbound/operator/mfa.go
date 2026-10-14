@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // errOperatorMFAServiceUnavailable mirrors the tenant-side guard. Operator
@@ -25,13 +25,13 @@ var errOperatorMFAServiceUnavailable = errors.New("operator mfa service is not c
 type MFAResource struct {
 	authService OperatorAccess
 	mfaService  OperatorMFA
-	tokenAuth   *jwt.TokenAuth
+	tokenAuth   *sessiontoken.TokenAuth
 }
 
 // NewMFAResource wires the dependencies. mfaService may be nil — handlers
 // will return 503 in that case so deployments that haven't enabled MFA yet
 // still answer cleanly.
-func NewMFAResource(authSvc OperatorAccess, mfaSvc OperatorMFA, tokenAuth *jwt.TokenAuth) *MFAResource {
+func NewMFAResource(authSvc OperatorAccess, mfaSvc OperatorMFA, tokenAuth *sessiontoken.TokenAuth) *MFAResource {
 	return &MFAResource{
 		authService: authSvc,
 		mfaService:  mfaSvc,
@@ -141,8 +141,8 @@ func (rs *MFAResource) EnrollStart(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
-	if !ok || claims.AccountID == 0 || claims.Scope != jwt.MFAEnrollmentScopePlatform {
+	claims, ok := sessiontoken.EnrollmentClaimsFromCtx(r.Context())
+	if !ok || claims.AccountID == 0 || claims.Scope != sessiontoken.MFAEnrollmentScopePlatform {
 		common.RenderError(w, r, common.OperatorUnauthorized())
 		return
 	}
@@ -168,8 +168,8 @@ func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
-	if !ok || claims.AccountID == 0 || claims.Scope != jwt.MFAEnrollmentScopePlatform {
+	claims, ok := sessiontoken.EnrollmentClaimsFromCtx(r.Context())
+	if !ok || claims.AccountID == 0 || claims.Scope != sessiontoken.MFAEnrollmentScopePlatform {
 		common.RenderError(w, r, common.OperatorUnauthorized())
 		return
 	}
@@ -207,7 +207,7 @@ func (rs *MFAResource) ListTrustedDevices(w http.ResponseWriter, r *http.Request
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		common.RenderError(w, r, common.OperatorUnauthorized())
 		return
@@ -237,7 +237,7 @@ func (rs *MFAResource) RevokeTrustedDevice(w http.ResponseWriter, r *http.Reques
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		common.RenderError(w, r, common.OperatorUnauthorized())
 		return

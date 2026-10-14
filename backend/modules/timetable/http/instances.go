@@ -21,7 +21,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -163,7 +163,7 @@ func (rs *Resource) completeInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	ctx := timetable.WithLifecycleActor(r.Context(), int64(claims.ID))
 	// Planner complete has no live visit roster. An empty body (the historic
 	// e2e contract) is accepted; confirmation stays on the operations path.
@@ -193,7 +193,7 @@ func (rs *Resource) reopenInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance service not wired")))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	result, err := rs.InstanceService.Reopen(r.Context(), id, int64(claims.ID), common.HasEffectiveAdminScope(r.Context()))
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
@@ -235,7 +235,7 @@ func (rs *Resource) cancelInstance(w http.ResponseWriter, r *http.Request) {
 	result, err := rs.InstanceService.CancelWithNotice(r.Context(), timetable.CancelInstanceInput{
 		InstanceID:     id,
 		Reason:         reason,
-		ActorAccountID: jwt.ActorAccountIDFromCtx(r.Context()),
+		ActorAccountID: sessiontoken.ActorAccountIDFromCtx(r.Context()),
 		GuardianNotice: notice.toServiceInput(),
 	})
 	if err != nil {
@@ -334,7 +334,7 @@ func (rs *Resource) resolveStartedByStaffID(ctx context.Context) int64 {
 	if rs.People == nil {
 		return 0
 	}
-	claims, ok := ctx.Value(jwt.CtxClaims).(jwt.AppClaims)
+	claims, ok := ctx.Value(sessiontoken.CtxClaims).(sessiontoken.AppClaims)
 	if !ok {
 		return 0
 	}

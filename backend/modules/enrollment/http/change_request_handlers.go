@@ -14,7 +14,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -210,7 +210,7 @@ func (rs *Resource) askChangeRequestQuestion(w http.ResponseWriter, r *http.Requ
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	var agg *ChangeRequestAggregate
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		row, askErr := rs.ChangeRequestService.AskQuestion(ctx, id, ChangeRequestMessageInput{
@@ -245,7 +245,7 @@ func (rs *Resource) reviewChangeRequest(w http.ResponseWriter, r *http.Request, 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	input := ReviewChangeRequestInput{
 		Note:           body.Note,
 		ActorAccountID: int64(claims.ID),

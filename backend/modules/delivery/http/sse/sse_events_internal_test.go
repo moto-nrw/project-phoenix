@@ -20,7 +20,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -146,7 +146,7 @@ func TestSSEEvents_AdminClaims(t *testing.T) {
 	defer cancel()
 
 	claims := testutil.AdminTestClaims(int(account.ID))
-	claimsCtx := context.WithValue(baseCtx, jwt.CtxClaims, claims)
+	claimsCtx := context.WithValue(baseCtx, sessiontoken.CtxClaims, claims)
 	claimsCtx = withValidSSEToken(t, claimsCtx)
 
 	req := testutil.NewRequest("GET", "/events", nil)
@@ -173,7 +173,7 @@ func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
 	defer cancel()
 
 	claims := testutil.DefaultTestClaims()
-	claimsCtx := context.WithValue(baseCtx, jwt.CtxClaims, claims)
+	claimsCtx := context.WithValue(baseCtx, sessiontoken.CtxClaims, claims)
 	claimsCtx = withValidSSEToken(t, claimsCtx)
 
 	req := testutil.NewRequest("GET", "/events", nil)
@@ -209,7 +209,7 @@ func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 
 	// Add claims to the timeout context
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	claimsCtx := context.WithValue(baseCtx, jwt.CtxClaims, claims)
+	claimsCtx := context.WithValue(baseCtx, sessiontoken.CtxClaims, claims)
 	claimsCtx = withValidSSEToken(t, claimsCtx)
 
 	req := testutil.NewRequest("GET", "/events", nil)
@@ -240,7 +240,7 @@ func TestSSEEvents_ResponseHeaders(t *testing.T) {
 	defer cancel()
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	claimsCtx := context.WithValue(baseCtx, jwt.CtxClaims, claims)
+	claimsCtx := context.WithValue(baseCtx, sessiontoken.CtxClaims, claims)
 	claimsCtx = withValidSSEToken(t, claimsCtx)
 
 	req := testutil.NewRequest("GET", "/events", nil)

@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/offeringrequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 )
 
@@ -54,8 +54,8 @@ func TestDecideOfferingChangeRequest_UsesReviewerRolesForAudit(t *testing.T) {
 	svc := &fakeOfferingChangeRequestService{}
 	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide", strings.NewReader(`{"approve":true,"effective_from":"2026-09-01"}`))
-	claims := jwt.AppClaims{ID: 55, Roles: []string{"group_supervisor", "staff"}}
-	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+	claims := sessiontoken.AppClaims{ID: 55, Roles: []string{"group_supervisor", "staff"}}
+	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, claims))
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("requestId", "100")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
@@ -196,8 +196,8 @@ func TestDecideOfferingChangeRequest_PassesTheConfirmedDate(t *testing.T) {
 	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
 		strings.NewReader(`{"approve":true,"effective_from":"2026-09-01"}`))
-	claims := jwt.AppClaims{ID: 55, Roles: []string{"staff"}}
-	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+	claims := sessiontoken.AppClaims{ID: 55, Roles: []string{"staff"}}
+	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, claims))
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("requestId", "100")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
@@ -217,7 +217,7 @@ func TestDecideOfferingChangeRequest_PassesCompleteWithdrawalConfirmation(t *tes
 	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
 		strings.NewReader(`{"approve":true,"effective_from":"2026-09-01","complete_withdrawal_confirmed":true}`))
-	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 55, Roles: []string{"staff"}}))
+	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55, Roles: []string{"staff"}}))
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("requestId", "100")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
@@ -248,8 +248,8 @@ func TestDecideOfferingChangeRequest_RefusesApprovalWithoutADate(t *testing.T) {
 	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
 		strings.NewReader(`{"approve":true}`))
-	claims := jwt.AppClaims{ID: 55, Roles: []string{"staff"}}
-	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+	claims := sessiontoken.AppClaims{ID: 55, Roles: []string{"staff"}}
+	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, claims))
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("requestId", "100")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
@@ -269,8 +269,8 @@ func TestDecideOfferingChangeRequest_RejectionNeedsNoDate(t *testing.T) {
 	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
 		strings.NewReader(`{"approve":false,"reason":"Kein Platz"}`))
-	claims := jwt.AppClaims{ID: 55, Roles: []string{"staff"}}
-	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+	claims := sessiontoken.AppClaims{ID: 55, Roles: []string{"staff"}}
+	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, claims))
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("requestId", "100")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
