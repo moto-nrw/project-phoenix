@@ -10,14 +10,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 
-type reminderStudentReader struct {
-	source interface {
+type ReminderStudentReader struct {
+	Source interface {
 		FindReadScopeByIDs(context.Context, []int64) (map[int64]*users.Student, error)
 	}
 }
 
-func (r reminderStudentReader) FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*ports.Student, error) {
-	values, err := r.source.FindReadScopeByIDs(ctx, ids)
+func (r ReminderStudentReader) FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*ports.Student, error) {
+	values, err := r.Source.FindReadScopeByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -30,14 +30,14 @@ func (r reminderStudentReader) FindReadScopeByIDs(ctx context.Context, ids []int
 	return result, nil
 }
 
-type reminderPersonReader struct {
-	source interface {
+type ReminderPersonReader struct {
+	Source interface {
 		FindByIDs(context.Context, []int64) (map[int64]*users.Person, error)
 	}
 }
 
-func (r reminderPersonReader) FindByIDs(ctx context.Context, ids []int64) (map[int64]*ports.Person, error) {
-	values, err := r.source.FindByIDs(ctx, ids)
+func (r ReminderPersonReader) FindByIDs(ctx context.Context, ids []int64) (map[int64]*ports.Person, error) {
+	values, err := r.Source.FindByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -50,18 +50,18 @@ func (r reminderPersonReader) FindByIDs(ctx context.Context, ids []int64) (map[i
 	return result, nil
 }
 
-type reminderSupervisionReader struct {
-	presence interface {
+type ReminderSupervisionReader struct {
+	Presence interface {
 		QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
 	}
-	source interface {
+	Source interface {
 		GetActiveGroupsByIDs(context.Context, []int64) (map[int64]*studentpresence.SessionDetail, error)
 	}
 }
 
-func (r reminderSupervisionReader) GetStaffActiveSupervisions(ctx context.Context, id int64) ([]*ports.GroupSupervisor, error) {
+func (r ReminderSupervisionReader) GetStaffActiveSupervisions(ctx context.Context, id int64) ([]*ports.GroupSupervisor, error) {
 	day := timezone.TodayDate().String()
-	values, err := r.presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &id, ActiveOn: &day})
+	values, err := r.Presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &id, ActiveOn: &day})
 	if err != nil {
 		return nil, &studentpresence.OperationError{Op: "GetStaffActiveSupervisions", Err: studentpresence.ErrDatabaseOperation}
 	}
@@ -89,8 +89,8 @@ func (r reminderSupervisionReader) GetStaffActiveSupervisions(ctx context.Contex
 	return result, nil
 }
 
-func (r reminderSupervisionReader) GetActiveGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*ports.Group, error) {
-	values, err := r.source.GetActiveGroupsByIDs(ctx, ids)
+func (r ReminderSupervisionReader) GetActiveGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*ports.Group, error) {
+	values, err := r.Source.GetActiveGroupsByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -103,14 +103,14 @@ func (r reminderSupervisionReader) GetActiveGroupsByIDs(ctx context.Context, ids
 	return result, nil
 }
 
-type reminderBulkSupervisionReader struct {
-	source interface {
+type ReminderBulkSupervisionReader struct {
+	Source interface {
 		ListActiveSupervisedRooms(context.Context) ([]studentpresence.StaffRoomSupervision, error)
 	}
 }
 
-func (r reminderBulkSupervisionReader) ListActiveSupervisedRooms(ctx context.Context) ([]ports.StaffRoomSupervision, error) {
-	values, err := r.source.ListActiveSupervisedRooms(ctx)
+func (r ReminderBulkSupervisionReader) ListActiveSupervisedRooms(ctx context.Context) ([]ports.StaffRoomSupervision, error) {
+	values, err := r.Source.ListActiveSupervisedRooms(ctx)
 	if err != nil {
 		return nil, err
 	}

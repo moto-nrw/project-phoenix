@@ -8,13 +8,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
-type studentDisplayProjection struct {
-	students peopledirectory.Query
-	groups   schoolstructure.Query
+type StudentDisplayProjection struct {
+	Students peopledirectory.Query
+	Groups   schoolstructure.Query
 }
 
-func (q studentDisplayProjection) ListStudentDisplayFacts(ctx context.Context, ids []int64) ([]presenceservice.StudentDisplayFacts, error) {
-	students, err := q.students.ListStudentsByID(ctx, ids)
+func (q StudentDisplayProjection) ListStudentDisplayFacts(ctx context.Context, ids []int64) ([]presenceservice.StudentDisplayFacts, error) {
+	students, err := q.Students.ListStudentsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +26,7 @@ func (q studentDisplayProjection) ListStudentDisplayFacts(ctx context.Context, i
 			groupIDs = append(groupIDs, *student.GroupID)
 		}
 	}
-	persons, err := q.students.ListPersonsByID(ctx, personIDs)
+	persons, err := q.Students.ListPersonsByID(ctx, personIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func (q studentDisplayProjection) ListStudentDisplayFacts(ctx context.Context, i
 	for _, person := range persons {
 		personsByID[person.ID] = person
 	}
-	groups, err := q.groups.ListGroupsByID(ctx, groupIDs)
+	groups, err := q.Groups.ListGroupsByID(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}

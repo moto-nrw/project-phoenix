@@ -7,7 +7,7 @@ import (
 )
 
 // NewParentMessageRepository hands suites that may not import the
-// Communication store the parent message repository newFactory builds.
+// Communication store the parent message repository NewFactoryWithConfig builds.
 func NewParentMessageRepository(db *bun.DB) userModels.ParentMessageRepository {
 	return parentStore.NewParentMessageRepository(db)
 }

@@ -23,6 +23,6 @@ func (q activeSchoolQuery) ListSchoolsByID(ctx context.Context, ids []int64) ([]
 	return result, nil
 }
 
-func newActiveSchoolQuery(schools organizationtenancy.Query) presenceservice.SchoolQuery {
+func NewActiveSchoolQuery(schools organizationtenancy.Query) presenceservice.SchoolQuery {
 	return activeSchoolQuery{schools: schools}
 }

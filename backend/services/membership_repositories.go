@@ -20,14 +20,14 @@ import (
 // membership, with the group store and the teaching assignments they resolve
 // through. members.People, Person, Student and the guardian fields stay
 // unset; the caller composes them.
-func bindMembershipRepositories(persons userModels.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, group *educationGroupRepository, employment workforce.StaffEmployments) MembershipTestRepositories {
-	groupTeachers := newGroupTeacherRepository(membership, group)
-	deps := newStaffMembershipDeps(persons, identity, employment)
-	deps.groupTeachers = func() GroupTeacherRepository { return groupTeachers }
+func bindMembershipRepositories(persons userModels.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, group *EducationGroupStore, employment workforce.StaffEmployments) MembershipTestRepositories {
+	groupTeachers := NewGroupTeacherRepository(membership, group)
+	deps := NewStaffMembershipDeps(persons, identity, employment)
+	deps.GroupTeachers = func() GroupTeacherRepository { return groupTeachers }
 	return MembershipTestRepositories{
 		Person:       persons,
-		Staff:        staffMembershipRepository{membership: membership, deps: deps},
-		Teacher:      teacherMembershipRepository{membership: membership, deps: deps},
+		Staff:        StaffMembershipRepository{Membership: membership, Deps: deps},
+		Teacher:      TeacherMembershipRepository{Membership: membership, Deps: deps},
 		Guest:        guestMembershipRepository{membership: membership},
 		Group:        group,
 		GroupTeacher: groupTeachers,
@@ -36,10 +36,10 @@ func bindMembershipRepositories(persons userModels.PersonRepository, identity st
 	}
 }
 
-// newGroupSubstitutionRepository serves the retained group substitution
+// NewGroupSubstitutionRepository serves the retained group substitution
 // contract over Workforce (#2688): the rows are Workforce's, the groups
 // resolve through the group store and the staff through School Membership.
-func newGroupSubstitutionRepository(groups EducationGroupRepository, membership staffLookup, workTime workforce.Capability) GroupSubstitutionRepository {
+func NewGroupSubstitutionRepository(groups EducationGroupRepository, membership staffLookup, workTime workforce.Capability) GroupSubstitutionRepository {
 	return newGroupSubstitutions(
 		workforceLegacy.NewGroupSubstitutionRepository(workTime, func(ctx context.Context, ids []int64) (map[int64]string, error) {
 			return NewGroupNames(groups).GroupNamesByID(ctx, ids)

@@ -80,7 +80,7 @@ func legacyScheduleError(op string, err error) error {
 	if errors.Is(err, careplan.ErrStudentScheduleNotFound) {
 		return retainedNotFound(op)
 	}
-	return wrapRetainedError(op, err)
+	return WrapRetainedError(op, err)
 }
 
 // noRowsError is the bare not-found sentinel pair without an operation.

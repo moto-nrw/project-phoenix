@@ -95,9 +95,9 @@ func (a TokenAdapter) Caller(ctx context.Context) identityaccess.Caller {
 	}
 }
 
-// auditActor returns the acting account of the request and the name the
+// AuditActor returns the acting account of the request and the name the
 // audit records it under.
-func (a TokenAdapter) auditActor(ctx context.Context) (int64, string) {
+func (a TokenAdapter) AuditActor(ctx context.Context) (int64, string) {
 	claims := a.claims(ctx)
 	name := strings.TrimSpace(claims.FirstName + " " + claims.LastName)
 	if name == "" {

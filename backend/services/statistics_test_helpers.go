@@ -46,18 +46,18 @@ func NewStatisticsTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func(
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	students := overlappingRosterGroupNames{StudentRepository: r.Timetable.Student, groups: groups}
-	calendarAdministration := schoolCalendarAdministration(settings.Settings, func(context.Context) error { return nil }, nil)
+	students := OverlappingRosterGroupNames{StudentRepository: r.Timetable.Student, Groups: groups}
+	calendarAdministration := SchoolCalendarAdministration(settings.Settings, func(context.Context) error { return nil }, nil)
 	calendar, err := NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	service := newStatistics(slog.Default(), presenceCompose.StatisticsDependencies{
+	service := NewStatistics(slog.Default(), presenceCompose.StatisticsDependencies{
 		DB:         db,
-		StatusDays: statisticsStatusDays{r.CarePlan}, Courses: newCourseStatistics(mustPresenceReads(db)),
-		Holidays:    tenantHolidays{calendar: calendar},
-		ClosingDays: tenantClosingDays{calendar: calendar}, Periods: statisticsReportPeriods{calendar}, Students: statisticsReportStudents{students}, Rooms: statisticsReportRooms{rooms},
-		AccessLog: statisticsAuditLog{r.AccessLog}, Retention: statisticsRetention{settings.Settings}, Logger: slog.Default(), Now: optionalClock(clocks),
+		StatusDays: StatisticsStatusDays{r.CarePlan}, Courses: NewCourseStatistics(MustPresenceReads(db)),
+		Holidays:    TenantHolidays{Calendar: calendar},
+		ClosingDays: TenantClosingDays{Calendar: calendar}, Periods: StatisticsReportPeriods{calendar}, Students: StatisticsReportStudents{students}, Rooms: StatisticsReportRooms{rooms},
+		AccessLog: StatisticsAuditLog{r.AccessLog}, Retention: StatisticsRetention{settings.Settings}, Logger: slog.Default(), Now: OptionalClock(clocks),
 	})
 	createClosingDay := func(ctx context.Context, start, end timezone.Date, reason string) error {
 		_, err := calendar.CreateClosingDay(ctx, schoolcalendar.CreateClosingDay{ClosingDayFields: schoolcalendar.ClosingDayFields{

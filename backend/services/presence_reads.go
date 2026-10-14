@@ -42,7 +42,7 @@ type courseStatistics struct {
 	reads timetableCompose.PresenceReads
 }
 
-func newCourseStatistics(reads timetableCompose.PresenceReads) courseStatistics {
+func NewCourseStatistics(reads timetableCompose.PresenceReads) courseStatistics {
 	return courseStatistics{reads: reads}
 }
 

@@ -96,7 +96,7 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 	if err != nil {
 		return ImportTestModule{}, err
 	}
-	wiring := importWiring{
+	wiring := ImportWiring{
 		Identity:      rfid,
 		Organizations: organizations,
 		Groups:        groups, Rooms: rooms,
@@ -120,7 +120,7 @@ func NewImportTestModuleWithOptions(db *bun.DB, unit tenant.UnitOfWork, options 
 		wiring.GuardianOverride = options.WrapGuardians(persons)
 	}
 
-	dataImports := newImports(wiring)
+	dataImports := NewImports(wiring)
 	return ImportTestModule{
 		PeopleDirectory: persons, Membership: membership,
 		Import: dataImports.Student, StaffImport: dataImports.Staff, ClassListImport: dataImports.ClassList,

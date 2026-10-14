@@ -94,7 +94,7 @@ type CalendarFeedTestRepositories struct {
 }
 
 func NewCalendarFeedTestRepositories(db *bun.DB) CalendarFeedTestRepositories {
-	identity := newPeopleIdentityAccess(db, nil)
+	identity := NewPeopleIdentityAccess(db, nil)
 	return CalendarFeedTestRepositories{StaffFeed: identity, ParentFeed: identity,
 		Tombstone: schoolCalendarCompose.NewFeedHistory(db)}
 }

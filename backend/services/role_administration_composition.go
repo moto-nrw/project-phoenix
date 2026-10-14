@@ -18,21 +18,21 @@ import (
 // the consumer-owned ports of the retained auth and people services over the
 // public module.
 
-// caregiverProfiles answers whether an account holds a live teacher profile
+// CaregiverProfiles answers whether an account holds a live teacher profile
 // at the tenant in ctx, through the School Membership staff identity read
 // over the People Directory. Soft-deleted (offboarded) records do not count.
 // Every path that guards the Lehrkraft role reads this one walk (#1772): the
 // Identity & Access role administration and school identity seam as well as
 // the operator school access.
-type caregiverProfiles struct {
-	persons    peopledirectory.Query
-	membership schoolmembership.StaffIdentities
+type CaregiverProfiles struct {
+	Persons    peopledirectory.Query
+	Membership schoolmembership.StaffIdentities
 }
 
-func (c caregiverProfiles) complete() bool { return c.persons != nil && c.membership != nil }
+func (c CaregiverProfiles) complete() bool { return c.Persons != nil && c.Membership != nil }
 
-func (c caregiverProfiles) hasLive(ctx context.Context, accountID int64) (bool, error) {
-	identity, err := c.membership.ResolveStaffIdentityByAccount(ctx, accountID, accountPersons{directory: c.persons})
+func (c CaregiverProfiles) hasLive(ctx context.Context, accountID int64) (bool, error) {
+	identity, err := c.Membership.ResolveStaffIdentityByAccount(ctx, accountID, accountPersons{directory: c.Persons})
 	if err != nil {
 		return false, err
 	}
@@ -54,31 +54,31 @@ func (p accountPersons) FindPersonIDByAccount(ctx context.Context, accountID int
 	return person.ID, true, nil
 }
 
-// roleAdministration serves the people services' role port over the public
+// RoleAdministration serves the people services' role port over the public
 // module. The module is composed after the person service, so it is read at
 // call time.
-type roleAdministration struct {
-	current func() *identityaccess.Module
+type RoleAdministration struct {
+	Current func() *identityaccess.Module
 }
 
-func (r roleAdministration) AssignRoleToAccount(ctx context.Context, accountID, roleID int64) error {
-	module := r.current()
+func (r RoleAdministration) AssignRoleToAccount(ctx context.Context, accountID, roleID int64) error {
+	module := r.Current()
 	if module == nil {
 		return identityaccess.ErrAccountLifecycleUnavailable
 	}
 	return module.AssignRoleToAccount(ctx, accountID, roleID)
 }
 
-func (r roleAdministration) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error {
-	module := r.current()
+func (r RoleAdministration) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error {
+	module := r.Current()
 	if module == nil {
 		return identityaccess.ErrAccountLifecycleUnavailable
 	}
 	return module.RemoveRoleFromAccount(ctx, accountID, roleID)
 }
 
-func (r roleAdministration) AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error) {
-	module := r.current()
+func (r RoleAdministration) AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error) {
+	module := r.Current()
 	if module == nil {
 		return false, identityaccess.ErrAccountLifecycleUnavailable
 	}

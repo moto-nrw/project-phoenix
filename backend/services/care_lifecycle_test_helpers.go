@@ -36,7 +36,7 @@ func NewCareLifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork) (CareLifecyc
 	if err != nil {
 		return CareLifecycleTestModule{}, err
 	}
-	audit := peopleCompose.NewStudentAuditService(testRequestTokens.auditActor, NewStudentAudit(db))
+	audit := peopleCompose.NewStudentAuditService(testRequestTokens.AuditActor, NewStudentAudit(db))
 	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return CareLifecycleTestModule{}, err
@@ -62,7 +62,7 @@ func NewStudentDocumentsTestModule(
 	userContext securityruntime.StudentAccessUserContext,
 	edits auditModels.StudentFieldEditRepository, accessLog auditModels.DataAccessLogRepository,
 ) (careplan.StudentDocuments, error) {
-	deps, err := studentDocumentDependencies(records, students, userContext, edits, accessLog)
+	deps, err := StudentDocumentDependencies(records, students, userContext, edits, accessLog)
 	if err != nil {
 		return nil, err
 	}

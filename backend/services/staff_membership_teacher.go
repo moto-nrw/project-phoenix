@@ -13,14 +13,14 @@ import (
 	"golang.org/x/text/language"
 )
 
-// teacherMembershipRepository serves users.TeacherRepository over the School
+// TeacherMembershipRepository serves users.TeacherRepository over the School
 // Membership capability.
-type teacherMembershipRepository struct {
-	membership schoolmembership.Capability
-	deps       *staffMembershipDeps
+type TeacherMembershipRepository struct {
+	Membership schoolmembership.Capability
+	Deps       *staffMembershipDeps
 }
 
-var _ userModels.TeacherRepository = teacherMembershipRepository{}
+var _ userModels.TeacherRepository = TeacherMembershipRepository{}
 
 func teacherFieldsFromLegacy(teacher *userModels.Teacher) schoolmembership.TeacherFields {
 	return schoolmembership.TeacherFields{
@@ -59,11 +59,11 @@ func toLegacyTeacherList(values []schoolmembership.Teacher) []*userModels.Teache
 
 // --- CRUD ---
 
-func (r teacherMembershipRepository) Create(ctx context.Context, entity *userModels.Teacher) error {
+func (r TeacherMembershipRepository) Create(ctx context.Context, entity *userModels.Teacher) error {
 	if entity == nil {
 		return repositoryError("create teacher", errors.New("teacher cannot be nil"))
 	}
-	created, err := r.membership.CreateTeacher(ctx, schoolmembership.CreateTeacher{TeacherFields: teacherFieldsFromLegacy(entity)})
+	created, err := r.Membership.CreateTeacher(ctx, schoolmembership.CreateTeacher{TeacherFields: teacherFieldsFromLegacy(entity)})
 	if err != nil {
 		return membershipError("create teacher", err)
 	}
@@ -71,11 +71,11 @@ func (r teacherMembershipRepository) Create(ctx context.Context, entity *userMod
 	return nil
 }
 
-func (r teacherMembershipRepository) Update(ctx context.Context, entity *userModels.Teacher) error {
+func (r TeacherMembershipRepository) Update(ctx context.Context, entity *userModels.Teacher) error {
 	if entity == nil {
 		return repositoryError("update teacher", errors.New("teacher cannot be nil"))
 	}
-	updated, err := r.membership.UpdateTeacher(ctx, schoolmembership.UpdateTeacher{ID: entity.ID, TeacherFields: teacherFieldsFromLegacy(entity)})
+	updated, err := r.Membership.UpdateTeacher(ctx, schoolmembership.UpdateTeacher{ID: entity.ID, TeacherFields: teacherFieldsFromLegacy(entity)})
 	if err != nil {
 		return membershipError("update teacher", err)
 	}
@@ -83,20 +83,20 @@ func (r teacherMembershipRepository) Update(ctx context.Context, entity *userMod
 	return nil
 }
 
-func (r teacherMembershipRepository) Delete(ctx context.Context, id any) error {
+func (r TeacherMembershipRepository) Delete(ctx context.Context, id any) error {
 	teacherID, err := membershipID(id)
 	if err != nil {
 		return repositoryError("delete teacher", err)
 	}
-	return membershipError("delete teacher", r.membership.DeleteTeacher(ctx, teacherID))
+	return membershipError("delete teacher", r.Membership.DeleteTeacher(ctx, teacherID))
 }
 
-func (r teacherMembershipRepository) FindByID(ctx context.Context, id any) (*userModels.Teacher, error) {
+func (r TeacherMembershipRepository) FindByID(ctx context.Context, id any) (*userModels.Teacher, error) {
 	teacherID, err := membershipID(id)
 	if err != nil {
 		return nil, repositoryError("find teacher by id", err)
 	}
-	value, err := r.membership.FindTeacher(ctx, teacherID)
+	value, err := r.Membership.FindTeacher(ctx, teacherID)
 	if err != nil {
 		return nil, membershipError("find teacher by id", err)
 	}
@@ -105,8 +105,8 @@ func (r teacherMembershipRepository) FindByID(ctx context.Context, id any) (*use
 
 // FindByStaffID returns (nil, nil) when the staff member is not a teacher —
 // the legacy contract every caller branches on.
-func (r teacherMembershipRepository) FindByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error) {
-	value, err := r.membership.FindTeacherByStaff(ctx, staffID)
+func (r TeacherMembershipRepository) FindByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error) {
+	value, err := r.Membership.FindTeacherByStaff(ctx, staffID)
 	if err != nil {
 		if errors.Is(err, schoolmembership.ErrTeacherNotFound) {
 			return nil, nil
@@ -116,11 +116,11 @@ func (r teacherMembershipRepository) FindByStaffID(ctx context.Context, staffID 
 	return toLegacyTeacher(value), nil
 }
 
-func (r teacherMembershipRepository) FindByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error) {
+func (r TeacherMembershipRepository) FindByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error) {
 	if len(staffIDs) == 0 {
 		return make(map[int64]*userModels.Teacher), nil
 	}
-	values, err := r.membership.ListTeachers(ctx, schoolmembership.TeacherFilter{StaffIDs: staffIDs})
+	values, err := r.Membership.ListTeachers(ctx, schoolmembership.TeacherFilter{StaffIDs: staffIDs})
 	if err != nil {
 		return nil, membershipError("find by staff IDs", err)
 	}
@@ -131,8 +131,8 @@ func (r teacherMembershipRepository) FindByStaffIDs(ctx context.Context, staffID
 	return result, nil
 }
 
-func (r teacherMembershipRepository) FindBySpecialization(ctx context.Context, specialization string) ([]*userModels.Teacher, error) {
-	values, err := r.membership.ListTeachers(ctx, schoolmembership.TeacherFilter{Specialization: specialization})
+func (r TeacherMembershipRepository) FindBySpecialization(ctx context.Context, specialization string) ([]*userModels.Teacher, error) {
+	values, err := r.Membership.ListTeachers(ctx, schoolmembership.TeacherFilter{Specialization: specialization})
 	if err != nil {
 		return nil, membershipError("find by specialization", err)
 	}
@@ -189,12 +189,12 @@ func teacherFilterFromLegacy(filters map[string]any) (schoolmembership.TeacherFi
 	return filter, nil
 }
 
-func (r teacherMembershipRepository) List(ctx context.Context, filters map[string]any) ([]*userModels.Teacher, error) {
+func (r TeacherMembershipRepository) List(ctx context.Context, filters map[string]any) ([]*userModels.Teacher, error) {
 	filter, err := teacherFilterFromLegacy(filters)
 	if err != nil {
 		return nil, repositoryError("list teachers", err)
 	}
-	values, err := r.membership.ListTeachers(ctx, filter)
+	values, err := r.Membership.ListTeachers(ctx, filter)
 	if err != nil {
 		return nil, membershipError("list teachers", err)
 	}
@@ -203,9 +203,9 @@ func (r teacherMembershipRepository) List(ctx context.Context, filters map[strin
 
 // FindByGroupID resolves the group's teacher assignments through the education
 // owner and then loads those teachers from the membership owner.
-func (r teacherMembershipRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*userModels.Teacher, error) {
+func (r TeacherMembershipRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*userModels.Teacher, error) {
 	const op = "find by group ID"
-	assignments, err := r.deps.groupTeachers().FindByGroup(ctx, groupID)
+	assignments, err := r.Deps.GroupTeachers().FindByGroup(ctx, groupID)
 	if err != nil {
 		return nil, repositoryError(op, err)
 	}
@@ -216,7 +216,7 @@ func (r teacherMembershipRepository) FindByGroupID(ctx context.Context, groupID 
 	for _, assignment := range assignments {
 		ids = append(ids, assignment.TeacherID)
 	}
-	values, err := r.membership.ListTeachers(ctx, schoolmembership.TeacherFilter{IDs: ids})
+	values, err := r.Membership.ListTeachers(ctx, schoolmembership.TeacherFilter{IDs: ids})
 	if err != nil {
 		return nil, membershipError(op, err)
 	}
@@ -228,7 +228,7 @@ func (r teacherMembershipRepository) FindByGroupID(ctx context.Context, groupID 
 // hydrateTeacherStaff attaches the staff member and their person to every
 // teacher. Staff rows are loaded WITH tombstones because the legacy join had
 // no deleted_at predicate on users.staff.
-func (r teacherMembershipRepository) hydrateTeacherStaff(ctx context.Context, teachers []*userModels.Teacher, liveStaffOnly bool) ([]*userModels.Teacher, error) {
+func (r TeacherMembershipRepository) hydrateTeacherStaff(ctx context.Context, teachers []*userModels.Teacher, liveStaffOnly bool) ([]*userModels.Teacher, error) {
 	if len(teachers) == 0 {
 		return teachers, nil
 	}
@@ -236,7 +236,7 @@ func (r teacherMembershipRepository) hydrateTeacherStaff(ctx context.Context, te
 	for _, teacher := range teachers {
 		staffIDs = append(staffIDs, teacher.StaffID)
 	}
-	staffValues, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, IncludeDeleted: !liveStaffOnly})
+	staffValues, err := r.Membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, IncludeDeleted: !liveStaffOnly})
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func (r teacherMembershipRepository) hydrateTeacherStaff(ctx context.Context, te
 		staffByID[value.ID] = toLegacyStaff(value)
 		personIDs = append(personIDs, value.PersonID)
 	}
-	persons, err := r.deps.persons.FindByIDs(ctx, personIDs)
+	persons, err := r.Deps.persons.FindByIDs(ctx, personIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -269,9 +269,9 @@ func (r teacherMembershipRepository) hydrateTeacherStaff(ctx context.Context, te
 	return result, nil
 }
 
-func (r teacherMembershipRepository) FindWithStaffAndPerson(ctx context.Context, id int64) (*userModels.Teacher, error) {
+func (r TeacherMembershipRepository) FindWithStaffAndPerson(ctx context.Context, id int64) (*userModels.Teacher, error) {
 	const op = "find with staff and person"
-	value, err := r.membership.FindTeacher(ctx, id)
+	value, err := r.Membership.FindTeacher(ctx, id)
 	if err != nil {
 		return nil, membershipError(op, err)
 	}
@@ -285,9 +285,9 @@ func (r teacherMembershipRepository) FindWithStaffAndPerson(ctx context.Context,
 	return teachers[0], nil
 }
 
-func (r teacherMembershipRepository) ListAllWithStaffAndPerson(ctx context.Context) ([]*userModels.Teacher, error) {
+func (r TeacherMembershipRepository) ListAllWithStaffAndPerson(ctx context.Context) ([]*userModels.Teacher, error) {
 	const op = "list all with staff and person"
-	values, err := r.membership.ListTeachers(ctx, schoolmembership.TeacherFilter{})
+	values, err := r.Membership.ListTeachers(ctx, schoolmembership.TeacherFilter{})
 	if err != nil {
 		return nil, membershipError(op, err)
 	}
@@ -298,12 +298,12 @@ func (r teacherMembershipRepository) ListAllWithStaffAndPerson(ctx context.Conte
 	return teachers, nil
 }
 
-func (r teacherMembershipRepository) FindWithStaffAndPersonByIDs(ctx context.Context, ids []int64) ([]*userModels.Teacher, error) {
+func (r TeacherMembershipRepository) FindWithStaffAndPersonByIDs(ctx context.Context, ids []int64) ([]*userModels.Teacher, error) {
 	const op = "find with staff and person by IDs"
 	if len(ids) == 0 {
 		return []*userModels.Teacher{}, nil
 	}
-	values, err := r.membership.ListTeachers(ctx, schoolmembership.TeacherFilter{IDs: ids})
+	values, err := r.Membership.ListTeachers(ctx, schoolmembership.TeacherFilter{IDs: ids})
 	if err != nil {
 		return nil, membershipError(op, err)
 	}
@@ -334,8 +334,8 @@ type activeCaregiverCandidate struct {
 // activeCaregivers is the canonical caregiver composition: live teachers of the
 // tenant whose staff member has a person with an active account, an active
 // tenant mapping, and one of the system caregiver roles at that tenant.
-func (r teacherMembershipRepository) activeCaregivers(ctx context.Context, accountID *int64) ([]*userModels.ActiveCaregiver, error) {
-	teachers, err := r.membership.ListTeachers(ctx, schoolmembership.TeacherFilter{})
+func (r TeacherMembershipRepository) activeCaregivers(ctx context.Context, accountID *int64) ([]*userModels.ActiveCaregiver, error) {
+	teachers, err := r.Membership.ListTeachers(ctx, schoolmembership.TeacherFilter{})
 	if err != nil {
 		return nil, err
 	}
@@ -346,7 +346,7 @@ func (r teacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 	for _, teacher := range teachers {
 		staffIDs = append(staffIDs, teacher.StaffID)
 	}
-	staffValues, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, IncludeDeleted: true})
+	staffValues, err := r.Membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, IncludeDeleted: true})
 	if err != nil {
 		return nil, err
 	}
@@ -356,7 +356,7 @@ func (r teacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 		staffByID[value.ID] = value
 		personIDs = append(personIDs, value.PersonID)
 	}
-	persons, err := r.deps.persons.FindByIDs(ctx, personIDs)
+	persons, err := r.Deps.persons.FindByIDs(ctx, personIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -402,7 +402,7 @@ func (r teacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 	caregiverAccountsByTenant := make(map[int64]map[int64]bool, len(accountIDsByTenant))
 	activeAccountIDs := make([]int64, 0, len(candidates))
 	for candidateTenantID, accountIDs := range accountIDsByTenant {
-		allowed, err := r.deps.identity.ListActiveAccountIDsForTenant(ctx, candidateTenantID, accountIDs)
+		allowed, err := r.Deps.identity.ListActiveAccountIDsForTenant(ctx, candidateTenantID, accountIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -413,7 +413,7 @@ func (r teacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 		}
 		activeByTenant[candidateTenantID] = active
 
-		withRole, err := r.deps.identity.ListAccountIDsWithSystemRoleNames(ctx, accountIDs, caregiverRoleNames, candidateTenantID)
+		withRole, err := r.Deps.identity.ListAccountIDsWithSystemRoleNames(ctx, accountIDs, caregiverRoleNames, candidateTenantID)
 		if err != nil {
 			return nil, err
 		}
@@ -423,7 +423,7 @@ func (r teacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 		}
 		caregiverAccountsByTenant[candidateTenantID] = caregiverAccounts
 	}
-	emails, err := r.deps.identity.ListAccountEmails(ctx, activeAccountIDs)
+	emails, err := r.Deps.identity.ListAccountEmails(ctx, activeAccountIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -455,7 +455,7 @@ func (r teacherMembershipRepository) activeCaregivers(ctx context.Context, accou
 	return result, nil
 }
 
-func (r teacherMembershipRepository) ListActiveCaregivers(ctx context.Context) ([]*userModels.ActiveCaregiver, error) {
+func (r TeacherMembershipRepository) ListActiveCaregivers(ctx context.Context) ([]*userModels.ActiveCaregiver, error) {
 	caregivers, err := r.activeCaregivers(ctx, nil)
 	if err != nil {
 		return nil, membershipError("list active caregivers", err)
@@ -463,7 +463,7 @@ func (r teacherMembershipRepository) ListActiveCaregivers(ctx context.Context) (
 	return caregivers, nil
 }
 
-func (r teacherMembershipRepository) FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*userModels.ActiveCaregiver, error) {
+func (r TeacherMembershipRepository) FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*userModels.ActiveCaregiver, error) {
 	caregivers, err := r.activeCaregivers(ctx, &accountID)
 	if err != nil {
 		return nil, membershipError("find active caregiver by account ID", err)

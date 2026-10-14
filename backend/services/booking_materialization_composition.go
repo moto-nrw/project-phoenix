@@ -27,9 +27,9 @@ import (
 // adapters below bind them over the owners' public capabilities with the
 // queries the retained repositories issued; they decide nothing.
 
-// bookingMaterializationInputs are the owners the materialization is composed
+// BookingMaterializationInputs are the owners the materialization is composed
 // over.
-type bookingMaterializationInputs struct {
+type BookingMaterializationInputs struct {
 	Catalog     careplan.CareOfferingCatalogCapability
 	Timetable   bookingTimetableOwner
 	Rosters     bookingRosterMaintenance
@@ -55,7 +55,7 @@ type bookingMaterializationInputs struct {
 	Logger                      *slog.Logger
 }
 
-func newBookingMaterialization(inputs bookingMaterializationInputs) (careplan.BookingMaterializationCapability, error) {
+func NewBookingMaterialization(inputs BookingMaterializationInputs) (careplan.BookingMaterializationCapability, error) {
 	if inputs.Timetable == nil || inputs.Rosters == nil || inputs.Students == nil || inputs.Enrollment == nil ||
 		inputs.Approved == nil || inputs.Adjustments == nil || inputs.Pickup == nil || inputs.PickupRows == nil {
 		return nil, errors.New("booking materialization: timetable, rosters, students, enrollment, approved bookings, adjustment audit and pickup are required")

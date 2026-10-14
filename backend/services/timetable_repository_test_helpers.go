@@ -92,9 +92,9 @@ func NewTimetableTestRepositoriesWithMembers(db *bun.DB, members MembershipTestR
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	adapters := newTimetableRepositories(db, TimetableDependencies{
+	adapters := NewTimetableRepositoriesWithPresence(db, TimetableDependencies{
 		Capability: bookings, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime,
-	}, newUnloggedStudentPresence(db))
+	}, NewUnloggedStudentPresence(db))
 	sessions := NewSessionRecords(db, SessionRecordOwners{
 		Now: now, Rooms: rooms, Timetable: bookings, Membership: membership, Persons: persons,
 	})

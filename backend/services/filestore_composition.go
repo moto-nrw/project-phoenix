@@ -11,31 +11,31 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 )
 
-type fileStorageSettings struct {
-	service settingsCompose.SettingsService
+type FileStorageSettings struct {
+	Service settingsCompose.SettingsService
 }
 
-func (s fileStorageSettings) StaffUploadEnabled(ctx context.Context) (bool, error) {
-	enabled, err := s.service.ResolveBool(ctx, configModels.KeyFilesStaffUploadEnabled)
+func (s FileStorageSettings) StaffUploadEnabled(ctx context.Context) (bool, error) {
+	enabled, err := s.Service.ResolveBool(ctx, configModels.KeyFilesStaffUploadEnabled)
 	if err != nil {
 		return false, fmt.Errorf("resolve %s: %w", configModels.KeyFilesStaffUploadEnabled, err)
 	}
 	return enabled, nil
 }
 
-func (s fileStorageSettings) MaxStorageBytes(ctx context.Context) (int64, error) {
-	mb, err := s.service.ResolveInt(ctx, configModels.KeyFilesMaxStorageMB)
+func (s FileStorageSettings) MaxStorageBytes(ctx context.Context) (int64, error) {
+	mb, err := s.Service.ResolveInt(ctx, configModels.KeyFilesMaxStorageMB)
 	if err != nil {
 		return 0, fmt.Errorf("resolve %s: %w", configModels.KeyFilesMaxStorageMB, err)
 	}
 	return int64(mb) * 1024 * 1024, nil
 }
 
-type fileStorageEvents struct {
-	repo auditModels.FileEventRepository
+type FileStorageEvents struct {
+	Repo auditModels.FileEventRepository
 }
 
-func (e fileStorageEvents) Record(ctx context.Context, event filestorageCompose.Event) error {
+func (e FileStorageEvents) Record(ctx context.Context, event filestorageCompose.Event) error {
 	name := strings.TrimSpace(event.Actor.Name)
 	if name == "" {
 		name = "Unbekannt"
@@ -52,5 +52,5 @@ func (e fileStorageEvents) Record(ctx context.Context, event filestorageCompose.
 		id := event.Actor.AccountID
 		row.ActorAccountID = &id
 	}
-	return e.repo.Create(ctx, row)
+	return e.Repo.Create(ctx, row)
 }

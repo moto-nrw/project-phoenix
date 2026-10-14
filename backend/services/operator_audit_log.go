@@ -9,10 +9,10 @@ import (
 	platform "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 )
 
-// newOperatorAuditLog serves the retained operator audit-log contract over
+// NewOperatorAuditLogFromEntries serves the retained operator audit-log contract over
 // the Audit owner's platform ledger (#2720), which the Audit composition
 // builds (ADR 0049).
-func newOperatorAuditLog(entries auditModels.OperatorAuditLogRepository) platform.OperatorAuditLogRepository {
+func NewOperatorAuditLogFromEntries(entries auditModels.OperatorAuditLogRepository) platform.OperatorAuditLogRepository {
 	if entries == nil {
 		panic("operator audit log repository: audit ledger is required")
 	}

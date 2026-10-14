@@ -46,7 +46,7 @@ func NewOperatorSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (Operator
 	registry := settingsCompose.NewSideEffectRegistry()
 	wc := facilitiesCompose.NewWCService(active.Facilities, facilitiesLegacy.ActivityCatalog(active.Activities), slog.Default())
 	facilitiesLegacy.RegisterSettingsSideEffects(registry, active.Schulhof, wc)
-	registerCareWithdrawalSettingsSideEffects(registry, care.CareLifecycle)
+	RegisterCareWithdrawalSettingsSideEffects(registry, care.CareLifecycle)
 	return OperatorSettingsTestModule{
 		ActiveTestModule:    active,
 		CareLifecycle:       care.CareLifecycle,
@@ -83,7 +83,7 @@ func (m OperatorSettingsTestModule) OperatorSchoolSettingsWith(opts OperatorScho
 		Settings:       m.Settings,
 		DB:             m.db,
 		Notify:         opts.Notify,
-		OpenAttendance: openAttendanceChecker{service: m.Active},
+		OpenAttendance: OpenAttendanceChecker{Service: m.Active},
 		CareLifecycle:  m.CareLifecycle,
 		OnValueSet:     opts.OnValueSet,
 	}

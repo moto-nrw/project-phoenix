@@ -23,70 +23,70 @@ import (
 // the People Directory rows and change history, the realtime hub, the parent
 // chat and the identity-owned review scope; they decide nothing.
 
-// masterDataDecisionWiring is the root's view of the decision dependencies.
+// MasterDataDecisionWiring is the root's view of the decision dependencies.
 // Nil effects are skipped.
-type masterDataDecisionWiring struct {
-	carePlan    careplan.Capability
-	fields      peopledirectory.StudentFieldReviewQuery
-	students    usersModels.StudentRepository
-	persons     usersModels.PersonRepository
-	audit       peopleCompose.StudentChangeRecorder
-	scope       carePlanCompose.ReviewScopeResolver
-	emitter     *communicationCompose.ParentEventEmitter
-	broadcaster realtime.Broadcaster
-	events      usersModels.ParentRequestEventRepository
-	shares      carePlanCompose.ShareVisibility
-	logger      *slog.Logger
-	today       func() timezone.Date
+type MasterDataDecisionWiring struct {
+	CarePlan    careplan.Capability
+	Fields      peopledirectory.StudentFieldReviewQuery
+	Students    usersModels.StudentRepository
+	Persons     usersModels.PersonRepository
+	Audit       peopleCompose.StudentChangeRecorder
+	Scope       carePlanCompose.ReviewScopeResolver
+	Emitter     *communicationCompose.ParentEventEmitter
+	Broadcaster realtime.Broadcaster
+	Events      usersModels.ParentRequestEventRepository
+	Shares      carePlanCompose.ShareVisibility
+	Logger      *slog.Logger
+	Today       func() timezone.Date
 }
 
-func newMasterDataDecisions(wiring masterDataDecisionWiring) (*carePlanCompose.MasterDataDecisions, error) {
-	if wiring.students == nil || wiring.persons == nil || wiring.fields == nil {
+func NewMasterDataDecisions(wiring MasterDataDecisionWiring) (*carePlanCompose.MasterDataDecisions, error) {
+	if wiring.Students == nil || wiring.Persons == nil || wiring.Fields == nil {
 		return nil, errors.New("master data decisions: student and person repositories and the field review are required")
 	}
 	deps := carePlanCompose.MasterDataDecisionDependencies{
-		CarePlan: wiring.carePlan, People: masterDataFieldReviews{fields: wiring.fields}, Scope: wiring.scope, Shares: wiring.shares,
-		Records: masterDataRecords{students: wiring.students, persons: wiring.persons, audit: wiring.audit},
-		Today:   carePlanCompose.Today, Logger: wiring.logger,
+		CarePlan: wiring.CarePlan, People: masterDataFieldReviews{fields: wiring.Fields}, Scope: wiring.Scope, Shares: wiring.Shares,
+		Records: masterDataRecords{students: wiring.Students, persons: wiring.Persons, audit: wiring.Audit},
+		Today:   carePlanCompose.Today, Logger: wiring.Logger,
 	}
-	if wiring.today != nil {
-		deps.Today = func() careplan.Date { return careplan.Date(wiring.today()) }
+	if wiring.Today != nil {
+		deps.Today = func() careplan.Date { return careplan.Date(wiring.Today()) }
 	}
-	if wiring.emitter != nil {
-		deps.Messenger = excusedRequestMessenger{emitter: wiring.emitter}
+	if wiring.Emitter != nil {
+		deps.Messenger = excusedRequestMessenger{emitter: wiring.Emitter}
 	}
-	if wiring.broadcaster != nil {
-		deps.Broadcaster = masterDataBroadcaster{broadcaster: wiring.broadcaster}
+	if wiring.Broadcaster != nil {
+		deps.Broadcaster = masterDataBroadcaster{broadcaster: wiring.Broadcaster}
 	}
-	if wiring.events != nil {
-		deps.Ledger = newParentRequestLedger(wiring.events)
+	if wiring.Events != nil {
+		deps.Ledger = newParentRequestLedger(wiring.Events)
 	}
 	return carePlanCompose.NewMasterDataDecisions(deps)
 }
 
-// parentRequestCoordinatorWiring names the four request queues the
+// ParentRequestCoordinatorWiring names the four request queues the
 // cross-kind commands are composed over.
-type parentRequestCoordinatorWiring struct {
-	masterData *carePlanCompose.MasterDataDecisions
-	excused    careplan.ExcusedAbsenceRequests
-	care       any
-	offering   carePlanCompose.ParentRequestConflicts
-	events     usersModels.ParentRequestEventRepository
-	// permissions reads the permissions of the request claims.
-	permissions func(context.Context) []string
+type ParentRequestCoordinatorWiring struct {
+	MasterData *carePlanCompose.MasterDataDecisions
+	Excused    careplan.ExcusedAbsenceRequests
+	Care       any
+	Offering   carePlanCompose.ParentRequestConflicts
+	Events     usersModels.ParentRequestEventRepository
+	// Permissions reads the permissions of the request claims.
+	Permissions func(context.Context) []string
 }
 
-func newParentRequestCoordinator(wiring parentRequestCoordinatorWiring) (parentrequests.Coordinator, error) {
-	care, ok := wiring.care.(carePlanCompose.ParentRequestConflicts)
+func NewParentRequestCoordinator(wiring ParentRequestCoordinatorWiring) (parentrequests.Coordinator, error) {
+	care, ok := wiring.Care.(carePlanCompose.ParentRequestConflicts)
 	if !ok {
 		return nil, errors.New("parent request coordinator: the care request service is not a conflict port")
 	}
 	deps := carePlanCompose.ParentRequestCoordinatorDependencies{
-		Rights: parentRequestRights(wiring.permissions), MasterData: wiring.masterData, Excused: wiring.excused,
-		Care: care, Offering: wiring.offering,
+		Rights: parentRequestRights(wiring.Permissions), MasterData: wiring.MasterData, Excused: wiring.Excused,
+		Care: care, Offering: wiring.Offering,
 	}
-	if wiring.events != nil {
-		deps.Ledger = newParentRequestLedger(wiring.events)
+	if wiring.Events != nil {
+		deps.Ledger = newParentRequestLedger(wiring.Events)
 	}
 	return carePlanCompose.NewParentRequestCoordinator(deps)
 }
@@ -100,10 +100,10 @@ func parentRequestRights(permissions func(context.Context) []string) func(contex
 	}
 }
 
-// parentRequestWriteScope adapts the identity-owned review policy to the
+// ParentRequestWriteScope adapts the identity-owned review policy to the
 // Stammdaten decision: the same reach the Stammdaten, Betreuungszeiten and
 // Angebote queues are listed with, from the request claims.
-func parentRequestWriteScope(policy interface {
+func ParentRequestWriteScope(policy interface {
 	Scope(ctx context.Context, permissions []string) (bool, []int64, error)
 }, permissions func(context.Context) []string) carePlanCompose.ReviewScopeResolver {
 	return func(ctx context.Context) (carePlanCompose.ReviewScope, error) {

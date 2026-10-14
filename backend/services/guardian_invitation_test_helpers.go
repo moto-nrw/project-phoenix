@@ -15,12 +15,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// GuardianEnrollmentClaims claims the enrollment requests a guardian filed
-// before they had an account.
-type GuardianEnrollmentClaims interface {
-	BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error)
-}
-
 // GuardianInvitationTestConfig is what a guardian invitation test varies:
 // the outbox it reads the queued mail from, the audit command it inspects,
 // the enrollment claims an acceptance runs and the token lifetime.
@@ -58,7 +52,7 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	}
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db})
 	audits = audits.WithRoutedWrites(audit)
-	signer, err := configuredTokenAuth()
+	signer, err := ConfiguredTokenAuth()
 	if err != nil {
 		return nil, err
 	}
@@ -70,11 +64,11 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	if outbox == nil {
 		outbox = discardingOutbox{}
 	}
-	claims := guardianEnrollmentClaims(unclaimedEnrollments{})
+	claims := GuardianEnrollmentClaims(unclaimedEnrollments{})
 	if cfg.Enrollments != nil {
 		claims = cfg.Enrollments
 	}
-	codec, err := signedIdentityTokensOf(signer)
+	codec, err := SignedIdentityTokensOf(signer)
 	if err != nil {
 		return nil, err
 	}
@@ -82,15 +76,15 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	if err != nil {
 		return nil, err
 	}
-	identityAccess, err := newIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db}, accountAuthenticationWiring{
-		repos: sessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db)), codec: codec, audit: audit, logger: logger,
-		lifecycle: &lifecycleWiring{
-			audit: audit, caregivers: caregivers,
-			guardianMail: &guardianInvitationWiring{
-				schools:     organizations,
-				outbox:      func() platformModels.OutboxResultEnqueuer { return outbox },
-				enrollments: claims,
-				parentsURL:  "http://localhost:3000", fallbackExpiry: expiry, logger: logger,
+	identityAccess, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: db}, AccountAuthenticationWiring{
+		Repos: SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db)), Codec: codec, Audit: audit, Logger: logger,
+		Lifecycle: &LifecycleWiring{
+			Audit: audit, Caregivers: caregivers,
+			GuardianMail: &GuardianInvitationWiring{
+				Schools:     organizations,
+				Outbox:      func() platformModels.OutboxResultEnqueuer { return outbox },
+				Enrollments: claims,
+				ParentsURL:  "http://localhost:3000", FallbackExpiry: expiry, Logger: logger,
 			},
 		},
 	})

@@ -58,8 +58,8 @@ func NewIoTDataTestModule(db *bun.DB, unit tenant.UnitOfWork) (IoTDataTestModule
 		return IoTDataTestModule{}, err
 	}
 	facility := facilitiesCompose.NewRoomService(facilitiesCompose.RoomServiceConfig{
-		Rooms: rooms, Occupancy: facilitiesLegacy.OccupancyProjection(roomOccupancyPresence{newStudentPresence(db, slog.Default())}, r.ActivityGroup, membership, people),
-		History: facilitiesLegacy.HistoryProjection(roomHistoryPresence{newStudentPresence(db, slog.Default())}, r.ActivityGroup, membership, people),
+		Rooms: rooms, Occupancy: facilitiesLegacy.OccupancyProjection(RoomOccupancyPresence{NewLoggedStudentPresence(db, slog.Default())}, r.ActivityGroup, membership, people),
+		History: facilitiesLegacy.HistoryProjection(RoomHistoryPresence{NewLoggedStudentPresence(db, slog.Default())}, r.ActivityGroup, membership, people),
 		ValidateDeletion: func(ctx context.Context, roomID int64) error {
 			groups, err := r.ActiveGroup.FindActiveByRoomID(ctx, roomID)
 			if err != nil {

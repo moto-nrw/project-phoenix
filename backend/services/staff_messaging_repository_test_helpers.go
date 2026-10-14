@@ -23,7 +23,7 @@ func NewStaffMessagingTestRepositories(db *bun.DB, members MembershipTestReposit
 		Thread:  staffStore.NewStaffMessageThreadRepository(db),
 		Message: staffStore.NewStaffMessageRepository(db),
 		Read: staffStore.NewStaffMessageReadRepository(db, peopleCompose.NewMessageableStaff(db,
-			parentStore.CurrentTenantStaffAccounts(parentStaffMembers{membership: membership}.list, members.Person),
-			staffMessageIdentity(newPeopleIdentityAccess(db, nil)))),
+			parentStore.CurrentTenantStaffAccounts(ParentStaffMembers{Membership: membership}.List, members.Person),
+			StaffMessageIdentity(NewPeopleIdentityAccess(db, nil)))),
 	}, nil
 }

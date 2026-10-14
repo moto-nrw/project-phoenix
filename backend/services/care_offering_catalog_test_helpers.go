@@ -56,8 +56,8 @@ func NewCareOfferingCatalogTestModule(db *bun.DB, unit tenant.UnitOfWork, option
 
 // newTestCareOfferingCatalog binds the catalog to the owners of a test
 // repository set.
-func newTestCareOfferingCatalog(r TimetableTestRepositories, settings careOfferingSettingsReads, options CareOfferingCatalogTestOptions) (careplan.CareOfferingCatalogCapability, error) {
-	return newCareOfferingCatalog(careOfferingCatalogInputs{
+func newTestCareOfferingCatalog(r TimetableTestRepositories, settings CareOfferingSettingsReads, options CareOfferingCatalogTestOptions) (careplan.CareOfferingCatalogCapability, error) {
+	return NewCareOfferingCatalog(CareOfferingCatalogInputs{
 		Records: r.CarePlan, Phases: r.Enrollment(), Bookings: r.Enrollment(),
 		Timetable: r.Timetable, Calendar: r.SchoolCalendar(), Settings: settings,
 		SourcedTemplates: func() careplanCompose.SourcedTemplateResyncer { return options.SourcedTemplates },

@@ -53,7 +53,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	now := optionalClock(clocks)
+	now := OptionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
 	logger := slog.Default()
 	hub := deliveryCompose.NewRealtimeHub(logger)
@@ -103,7 +103,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(r.ActiveGroup)
 	ender := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
-		SchoolPresence:  newStudentPresence(db, logger),
+		SchoolPresence:  NewLoggedStudentPresence(db, logger),
 		GroupRepo:       sessionGroups, SupervisorRepo: sessionSupervisors,
 		StudentRepo: PresenceStudents(db, r.Student), RoomRepo: NewAttendanceRooms(r.Room), ActivityGroupRepo: NewSessionActivities(r.GroupReads()),
 		EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff),
@@ -117,7 +117,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	calendarAdministration := schoolCalendarAdministration(settings.Settings,
+	calendarAdministration := SchoolCalendarAdministration(settings.Settings,
 		recurrenceLock.LockRecurrenceWrites,
 		offerings)
 	calendar, err := NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
@@ -125,7 +125,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		return TimetableTestModule{}, err
 	}
 	rows := r.TimetableTemplateRows()
-	materializationDeps := timetableMaterializationDependencies(timetableMaterializationInputs{
+	materializationDeps := TimetableMaterializationDependencies(TimetableMaterializationInputs{
 		Rows: rows, CareBounds: r.Student, NonWorkingDays: calendar, RecurrenceLock: recurrenceLock, Broadcaster: hub, Logger: logger,
 	})
 	materializationDeps.DB = db
@@ -138,23 +138,23 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, InstanceStudents: r.InstanceStudent,
 		Exceptions: r.ActivityException, Schedules: r.ActivitySchedule, Staff: r.Staff, CalendarPeriods: r.CalendarPeriod,
 		ArrivalExceptions: r.StudentArrivalException, Sessions: r.ActiveGroup, Shifts: r.StaffShift,
-		Presence: newStudentPresence(db, logger), ArrivalBaselines: arrival, Logger: logger,
+		Presence: NewLoggedStudentPresence(db, logger), ArrivalBaselines: arrival, Logger: logger,
 	})
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	substituteConflicts, err := newTimetableSubstituteConflicts(r.OwnerRows())
+	substituteConflicts, err := NewTimetableSubstituteConflicts(r.OwnerRows())
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
 	lifecycleRows := r.OwnerRows()
 	lifecycleRows.Locks = recovery
-	instance, err := newTimetableLifecycle(timetableLifecycleInputs{
+	instance, err := NewTimetableLifecycle(TimetableLifecycleInputs{
 		Rows: lifecycleRows, Planning: arrivalTimetable.InstanceLifecycleDependencies{
 			IdempotencyRepo: r.InstanceIdempotency, ExceptionRepo: r.ActivityException, CalendarPeriodRepo: r.CalendarPeriod, DB: db,
 		},
 		Staff: r.Staff, Sessions: r.ActiveGroup, Supervisions: r.GroupSupervisor,
-		Presence: newStudentPresence(db, logger), SessionEnder: ender, CareDays: careDay, CareDayLocks: carePlan,
+		Presence: NewLoggedStudentPresence(db, logger), SessionEnder: ender, CareDays: careDay, CareDayLocks: carePlan,
 		Settings: settings.Settings, Materialization: materialization, RecurrenceLock: recurrenceLock,
 		StartConflicts: conflicts, SubstituteConflicts: substituteConflicts, Broadcaster: hub, Logger: logger, Now: now,
 	})
@@ -163,15 +163,15 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	}
 	dataRows := r.OwnerRows()
 	dataRows.Locks = recovery
-	timetableData, err := newTimetableData(timetableDataInputs{
-		Rows: dataRows, ArrivalBaselines: arrival, PickupBaselines: pickup, Visits: newStudentPresence(db, logger),
+	timetableData, err := NewTimetableData(TimetableDataInputs{
+		Rows: dataRows, ArrivalBaselines: arrival, PickupBaselines: pickup, Visits: NewLoggedStudentPresence(db, logger),
 		Groups: r.Timetable, Sessions: r.ActiveGroup,
 		ConflictAcks: r.Timetable, BlockMetadata: arrivalTimetable.NewBlockDisplayMetadata(db, timetableblockdisplay.List), Transactional: true, Logger: logger,
 	})
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	templateDeps, err := timetableTemplateDependencies(timetableTemplateInputs{
+	templateDeps, err := TimetableTemplateDependencies(TimetableTemplateInputs{
 		Rows: rows, PlanningTracks: arrivalTimetable.NewPlanningTrackAdministration(r.Timetable, db),
 		Materialization: materialization, Deviations: instance.SeriesDeviations(), CareOfferings: offerings,
 		RecurrenceLock: recurrenceLock, Broadcaster: hub, Logger: logger, Today: today,
@@ -184,7 +184,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	deviationDeps, err := timetableStaffDeviationDependencies(timetableDeviationInputs{
+	deviationDeps, err := TimetableStaffDeviationDependencies(TimetableDeviationInputs{
 		Rows: r.OwnerRows(), Staff: r.Staff, Supervisions: r.GroupSupervisor,
 		Lifecycle: instance.DeviationLifecycle(), Broadcaster: hub, Logger: logger, Now: now,
 	})
@@ -197,7 +197,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		return TimetableTestModule{}, err
 	}
 	// The trail stays unwired, as before: a correction fails closed here.
-	corrections, err := newTimetableAttendanceCorrections(timetableCorrectionInputs{
+	corrections, err := NewTimetableAttendanceCorrections(TimetableCorrectionInputs{
 		Rows: dataRows, Logger: logger,
 	})
 	if err != nil {

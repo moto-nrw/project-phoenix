@@ -71,7 +71,7 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 	})
 	return SessionCleanupRepositories{
 		Sessions: sessions, Device: device,
-		TimetableBridge: timetableCompose.NewActivityInstanceRepository(db, timetableCapability, newUnloggedStudentPresence(db)),
+		TimetableBridge: timetableCompose.NewActivityInstanceRepository(db, timetableCapability, NewUnloggedStudentPresence(db)),
 	}
 }
 

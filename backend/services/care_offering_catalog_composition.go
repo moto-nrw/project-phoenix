@@ -23,14 +23,14 @@ import (
 // them over the owners' public capabilities and translate their rows into
 // the catalog's vocabulary; they add no read of their own.
 
-// careOfferingCatalogInputs are the owners the catalog is composed over.
-type careOfferingCatalogInputs struct {
+// CareOfferingCatalogInputs are the owners the catalog is composed over.
+type CareOfferingCatalogInputs struct {
 	Records   careplanCompose.CatalogRecords
 	Phases    careOfferingPhaseReads
 	Bookings  careOfferingBookingReads
 	Timetable careOfferingTimetableReads
 	Calendar  careOfferingCalendarReads
-	Settings  careOfferingSettingsReads
+	Settings  CareOfferingSettingsReads
 	// SourcedTemplates and Pickup resolve Enrollment's decision service,
 	// which is composed after the catalog; they return nil until then.
 	SourcedTemplates func() careplanCompose.SourcedTemplateResyncer
@@ -64,7 +64,7 @@ func lateCareOfferingResync(resync *careOfferingResync) (func() careplanCompose.
 	return sourced, pickup
 }
 
-func newCareOfferingCatalog(inputs careOfferingCatalogInputs) (careplan.CareOfferingCatalogCapability, error) {
+func NewCareOfferingCatalog(inputs CareOfferingCatalogInputs) (careplan.CareOfferingCatalogCapability, error) {
 	if inputs.Phases == nil || inputs.Bookings == nil || inputs.Timetable == nil || inputs.Calendar == nil || inputs.Settings == nil {
 		return nil, errors.New("care offering catalog: phases, bookings, timetable, calendar and settings are required")
 	}
@@ -327,11 +327,11 @@ func (careOfferingCatalogCalendar) WeekPatternApplies(weekPattern int, date cale
 	})
 }
 
-type careOfferingSettingsReads interface {
+type CareOfferingSettingsReads interface {
 	ResolveInt(context.Context, string) (int, error)
 }
 
-type careOfferingCatalogSettings struct{ settings careOfferingSettingsReads }
+type careOfferingCatalogSettings struct{ settings CareOfferingSettingsReads }
 
 func (s careOfferingCatalogSettings) GradeLevelMax(ctx context.Context) (int, error) {
 	return s.settings.ResolveInt(ctx, configModels.KeyEnrollmentGradeLevelMax)

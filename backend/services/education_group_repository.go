@@ -17,18 +17,18 @@ import (
 // owner (#2742) with what other owners hold bound: the rooms through
 // Facilities, the teaching assignments through School Membership and the
 // substitutions through Workforce.
-func NewGroupRepository(runtime educationRepo.LegacyRepositoryRuntime, rooms facilitiesModule.Query, membership schoolmembership.Capability, workTime workforce.Capability) *educationGroupRepository {
-	return newEducationGroupStore(runtime, educationRepo.GroupRepositoryDependencies{
+func NewGroupRepository(runtime educationRepo.LegacyRepositoryRuntime, rooms facilitiesModule.Query, membership schoolmembership.Capability, workTime workforce.Capability) *EducationGroupStore {
+	return NewEducationGroupStore(runtime, educationRepo.GroupRepositoryDependencies{
 		Rooms:               func() educationRepo.GroupRoomLookup { return educationRoomDirectory{rooms: rooms} },
 		TeachingAssignments: groupTeachingAssignments(membership),
 		SupervisingStaff:    supervisionStaffResolver(membership, workforceSubstitutedStaff(workTime)),
 	})
 }
 
-// newEducationGroupStore is the retained group store on the tenant
+// NewEducationGroupStore is the retained group store on the tenant
 // runtime of the School Structure owner, with only the given dependencies
 // bound.
-func newEducationGroupStore(runtime educationRepo.LegacyRepositoryRuntime, options ...educationRepo.GroupRepositoryDependencies) *educationGroupRepository {
+func NewEducationGroupStore(runtime educationRepo.LegacyRepositoryRuntime, options ...educationRepo.GroupRepositoryDependencies) *EducationGroupStore {
 	var deps educationRepo.GroupRepositoryDependencies
 	if len(options) > 0 {
 		deps = options[0]
@@ -37,10 +37,10 @@ func newEducationGroupStore(runtime educationRepo.LegacyRepositoryRuntime, optio
 		// No room owner bound: the room reads report the missing lookup.
 		deps.Rooms = func() educationRepo.GroupRoomLookup { return nil }
 	}
-	return &educationGroupRepository{GroupRepository: educationRepo.NewGroupRepository(runtime, deps)}
+	return &EducationGroupStore{GroupRepository: educationRepo.NewGroupRepository(runtime, deps)}
 }
 
-type educationGroupRepository struct {
+type EducationGroupStore struct {
 	*educationRepo.GroupRepository
 }
 
@@ -81,7 +81,7 @@ func (d educationRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) 
 
 // ListGroupSupervisors answers who supervises the groups on the day for the
 // staff notification recipients.
-func (r *educationGroupRepository) ListGroupSupervisors(ctx context.Context, groupIDs []int64, on calendar.Date) ([]notifications.StaffGroupPair, error) {
+func (r *EducationGroupStore) ListGroupSupervisors(ctx context.Context, groupIDs []int64, on calendar.Date) ([]notifications.StaffGroupPair, error) {
 	pairs, err := r.ListStaffIDsByEducationGroupIDs(ctx, groupIDs, on)
 	if err != nil {
 		return nil, err

@@ -41,7 +41,7 @@ func NewOrganizationTenancy(db *bun.DB) (organizationtenancy.Capability, error) 
 // the context, with the root database as the fallback, for the roots that
 // record operator actions.
 func NewOperatorAuditLog(db *bun.DB) platform.OperatorAuditLogRepository {
-	return newOperatorAuditLog(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).OperatorAuditLog)
+	return NewOperatorAuditLogFromEntries(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).OperatorAuditLog)
 }
 
 // DemoAccessExpiry is the Identity & Access capability the demo process runs
@@ -76,15 +76,15 @@ func NewGuardianSeedAccess(db *bun.DB) (func(context.Context, string, string) (i
 // names are bound by WithSchools.
 func NewParentPortalRepositories(db *bun.DB, owners ParentPortalOwners) ParentPortalRepositories {
 	identity := owners.Identity
-	members := parentStaffMembers{membership: owners.Membership}.list
+	members := ParentStaffMembers{Membership: owners.Membership}.List
 	// The staff accounts are loaded from the person rows.
 	persons := NewPersonRepository(db)
 	return ParentPortalRepositories{
 		ParentPortalRepositories: carePlanCompose.NewParentPortalRepositories(carePlanCompose.ParentPortalDependencies{
-			DB: db, Directory: parentPortalDirectory{people: owners.People},
+			DB: db, Directory: ParentPortalDirectory{People: owners.People},
 			AccountSchools: identity.ListActiveAccountSchoolIDs,
 			Phases:         owners.Enrollment, Applications: owners.Enrollment,
-			Accounts: identityAccountDirectory{accounts: identity},
+			Accounts: IdentityAccountDirectory{Accounts: identity},
 		}),
 		MessagingRepositories: parentStore.MessagingRepositories{
 			ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(db, ParentAnnouncementApplicants(owners.Enrollment), owners.Now),
@@ -92,7 +92,7 @@ func NewParentPortalRepositories(db *bun.DB, owners ParentPortalOwners) ParentPo
 			ParentMessageRead: parentStore.WithInboxGroupNames(
 				parentStore.NewStaffParentMessageReadRepository(db, members, persons), parentGroupNames{groups: owners.Groups}.list),
 			StaffMessageRead: staffStore.NewStaffMessageReadRepository(db, peopleCompose.NewMessageableStaff(db,
-				parentStore.CurrentTenantStaffAccounts(members, persons), staffMessageIdentity(identity))),
+				parentStore.CurrentTenantStaffAccounts(members, persons), StaffMessageIdentity(identity))),
 		},
 	}
 }

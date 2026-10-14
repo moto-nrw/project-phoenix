@@ -197,7 +197,7 @@ func newTimetableHTTPTestReads(db *bun.DB, r TimetableHTTPTestRows, rows timetab
 		Staff:             r.Staff,
 		CalendarPeriods:   r.CalendarPeriod,
 		ArrivalExceptions: r.StudentArrivalException,
-		ArrivalBaselines:  arrivalBaselineProjector{reader: arrivals},
+		ArrivalBaselines:  ArrivalBaselineProjector{Reader: arrivals},
 		Presence:          presence,
 		Sessions:          r.ActiveGroup,
 		ContentHash:       securityruntime.Fingerprint,
@@ -215,19 +215,19 @@ func newTimetableHTTPTestReads(db *bun.DB, r TimetableHTTPTestRows, rows timetab
 		Participants:      r.InstanceStudent,
 		PickupExceptions:  r.StudentPickupException,
 		ArrivalExceptions: r.StudentArrivalException,
-		ArrivalBaselines:  arrivalBaselineProjector{reader: arrivals},
-		PickupBaselines:   pickupBaselineProjector{reader: pickups},
+		ArrivalBaselines:  ArrivalBaselineProjector{Reader: arrivals},
+		PickupBaselines:   PickupBaselineProjector{Reader: pickups},
 		Visits:            presence,
 		Templates:         templates,
 		Groups:            r.Timetable,
 		BlockMetadata:     timetableCompose.NewBlockDisplayMetadata(db, timetableblockdisplay.List),
 		Categories:        r.ActivityCategory,
 		Rooms:             rows.RoomNames(),
-		RoomOccupancy:     timetableRoomOccupancy{sessions: r.ActiveGroup},
+		RoomOccupancy:     TimetableRoomOccupancy{Sessions: r.ActiveGroup},
 		DeviationEvents:   rows.DeviationEventReader(),
 		ConflictAcks:      r.Timetable,
 		Locks:             rows.AttendanceLocks(),
-		Advisory:          newTenantAdvisoryLocks(true),
+		Advisory:          NewTenantAdvisoryLocks(true),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -243,7 +243,7 @@ func timetableHTTPTestCareOfferingChecks(options TimetableHTTPTestOptions) timet
 		ValidateSeries:         options.ValidateCareOfferingSeries,
 		ValidateOfferingSource: options.ValidateOfferingSource,
 		IsConflict: func(err error) bool {
-			return isCareOfferingConfigInvalid(err)
+			return IsCareOfferingConfigInvalid(err)
 		},
 	}
 	if checks.ValidateSeries == nil {

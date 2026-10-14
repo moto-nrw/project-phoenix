@@ -16,23 +16,23 @@ import (
 // demoContact receives the lead mail and the prospects' answers.
 var demoContact = email.NewEmail("moto", "kontakt@moto.nrw")
 
-// demoAccessWiring configures the demo access; nil composes the module
+// DemoAccessWiring configures the demo access; nil composes the module
 // without it, as every environment but APP_ENV=demo does.
-type demoAccessWiring struct {
-	dispatcher  *email.Dispatcher
-	defaultFrom email.Email
-	frontendURL string
-	logger      *slog.Logger
-	// backoff spaces the send retries; nil uses the production spacing.
-	backoff []time.Duration
-	// maxActiveSchools caps the demo schools that may exist at once (#3466).
-	maxActiveSchools int
-	// operatorWithoutSecondFactor is set for APP_ENV=demo only (#3460).
-	operatorWithoutSecondFactor bool
-	// newToken mints the opaque capability token of a demo access link and
+type DemoAccessWiring struct {
+	Dispatcher  *email.Dispatcher
+	DefaultFrom email.Email
+	FrontendURL string
+	Logger      *slog.Logger
+	// Backoff spaces the send retries; nil uses the production spacing.
+	Backoff []time.Duration
+	// MaxActiveSchools caps the demo schools that may exist at once (#3466).
+	MaxActiveSchools int
+	// OperatorWithoutSecondFactor is set for APP_ENV=demo only (#3460).
+	OperatorWithoutSecondFactor bool
+	// NewToken mints the opaque capability token of a demo access link and
 	// fingerprint fingerprints a presented one.
-	newToken    func() (raw, fingerprint string, err error)
-	fingerprint func(raw string) string
+	NewToken    func() (raw, fingerprint string, err error)
+	Fingerprint func(raw string) string
 }
 
 // IsDemoEnvironment reports whether appEnv names the public demo, the only
@@ -42,14 +42,14 @@ func IsDemoEnvironment(appEnv string) bool {
 }
 
 // demoAccessWiringFor composes the demo access for APP_ENV=demo only.
-func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFrom email.Email, frontendURL string, maxActiveSchools int, tokens TokenAdapter, logger *slog.Logger) *demoAccessWiring {
+func demoAccessWiringFor(appEnv string, dispatcher *email.Dispatcher, defaultFrom email.Email, frontendURL string, maxActiveSchools int, tokens TokenAdapter, logger *slog.Logger) *DemoAccessWiring {
 	if !email.IsDemoEnvironment(appEnv) {
 		return nil
 	}
-	return &demoAccessWiring{
-		dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL, maxActiveSchools: maxActiveSchools, logger: logger,
-		operatorWithoutSecondFactor: true,
-		newToken:                    tokens.NewCapabilityToken, fingerprint: tokens.CapabilityFingerprint,
+	return &DemoAccessWiring{
+		Dispatcher: dispatcher, DefaultFrom: defaultFrom, FrontendURL: frontendURL, MaxActiveSchools: maxActiveSchools, Logger: logger,
+		OperatorWithoutSecondFactor: true,
+		NewToken:                    tokens.NewCapabilityToken, Fingerprint: tokens.CapabilityFingerprint,
 	}
 }
 
@@ -61,18 +61,18 @@ type demoAccessMail struct {
 	logger     *slog.Logger
 }
 
-func newDemoAccessMail(wiring *demoAccessWiring) demoAccessMail {
-	logger := wiring.logger
+func newDemoAccessMail(wiring *DemoAccessWiring) demoAccessMail {
+	logger := wiring.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
-	backoff := wiring.backoff
+	backoff := wiring.Backoff
 	if backoff == nil {
 		backoff = passwordResetEmailBackoff
 	}
 	return demoAccessMail{
-		dispatcher: wiring.dispatcher, from: wiring.defaultFrom, backoff: backoff, logger: logger,
-		logoURL: motoLogoURL(wiring.frontendURL),
+		dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, backoff: backoff, logger: logger,
+		logoURL: motoLogoURL(wiring.FrontendURL),
 	}
 }
 

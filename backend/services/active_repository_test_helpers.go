@@ -30,6 +30,6 @@ func NewActiveTestRepositories(db *bun.DB, members MembershipTestRepositories, c
 		return ActiveTestRepositories{}, err
 	}
 	return ActiveTestRepositories{TimetableTestRepositories: tt,
-		SessionStartLock: newUnloggedStudentPresence(db), GroupMapping: newUnloggedStudentPresence(db),
-		CrossTenant: NewCrossTenantQuery(newUnloggedStudentPresence(db), people, groups)}, nil
+		SessionStartLock: NewUnloggedStudentPresence(db), GroupMapping: NewUnloggedStudentPresence(db),
+		CrossTenant: NewCrossTenantQuery(NewUnloggedStudentPresence(db), people, groups)}, nil
 }

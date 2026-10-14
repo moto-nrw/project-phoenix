@@ -12,21 +12,21 @@ import (
 type openRoomActivityQuery interface {
 	ListGroups(context.Context, timetable.GroupFilter) ([]timetable.Group, error)
 }
-type openRoomSessionPresence struct {
-	presence interface {
+type OpenRoomSessionPresence struct {
+	Presence interface {
 		studentpresence.OpenRoomSessionQuery
 		QueryLiveGroups(context.Context, studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error)
 		QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
 	}
-	activities openRoomActivityQuery
+	Activities openRoomActivityQuery
 }
 
-func (s openRoomSessionPresence) GetStaffActiveGroupIDs(ctx context.Context, staffID int64) ([]int64, error) {
-	return activeStaffGroupIDs(ctx, s.presence, staffID)
+func (s OpenRoomSessionPresence) GetStaffActiveGroupIDs(ctx context.Context, staffID int64) ([]int64, error) {
+	return activeStaffGroupIDs(ctx, s.Presence, staffID)
 }
 
-func (s openRoomSessionPresence) ListRunningSessionIDs(ctx context.Context) ([]int64, error) {
-	rows, err := s.presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{})
+func (s OpenRoomSessionPresence) ListRunningSessionIDs(ctx context.Context) ([]int64, error) {
+	rows, err := s.Presence.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{})
 	if err != nil {
 		return nil, &studentpresence.OperationError{Op: "ListActiveGroups", Err: fmt.Errorf("list failed: %w", err)}
 	}
@@ -39,8 +39,8 @@ func (s openRoomSessionPresence) ListRunningSessionIDs(ctx context.Context) ([]i
 	return ids, nil
 }
 
-func (s openRoomSessionPresence) FindOpenSessionsInRooms(ctx context.Context, ids []int64) ([]supervisiondashboard.RunningSession, error) {
-	rows, err := s.presence.ListOpenRoomSessions(ctx, ids)
+func (s OpenRoomSessionPresence) FindOpenSessionsInRooms(ctx context.Context, ids []int64) ([]supervisiondashboard.RunningSession, error) {
+	rows, err := s.Presence.ListOpenRoomSessions(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (s openRoomSessionPresence) FindOpenSessionsInRooms(ctx context.Context, id
 	}
 	activities := make(map[int64]timetable.Group, len(activityIDs))
 	if len(activityIDs) > 0 {
-		groups, err := s.activities.ListGroups(ctx, timetable.GroupFilter{IDs: activityIDs})
+		groups, err := s.Activities.ListGroups(ctx, timetable.GroupFilter{IDs: activityIDs})
 		if err != nil {
 			return nil, err
 		}

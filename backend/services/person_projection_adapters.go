@@ -25,7 +25,7 @@ func (q educationPersonQuery) ListPersonsByID(ctx context.Context, ids []int64) 
 	return result, nil
 }
 
-func newEducationPersonQuery(persons peopledirectory.Query) educationService.PersonQuery {
+func NewEducationPersonQuery(persons peopledirectory.Query) educationService.PersonQuery {
 	return educationPersonQuery{persons: persons}
 }
 

@@ -38,12 +38,12 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 	if err != nil {
 		return MembershipTestRepositories{}, err
 	}
-	members := newMembershipRepositories(db, NewPersonRepository(db), newPeopleIdentityAccess(db, nil), membership, rooms, workTime)
+	members := NewMembershipRepositories(db, NewPersonRepository(db), NewPeopleIdentityAccess(db, nil), membership, rooms, workTime)
 	members.People = people
 	members.Student = NewStudentRepository(db, membership, groups)
 	members.GuardianProfile = NewGuardianProfileRepository(db)
 	members.StudentGuardian = NewStudentGuardianRepository(db)
-	members.GroupSubstitution = newGroupSubstitutionRepository(members.Group, membership, workTime)
+	members.GroupSubstitution = NewGroupSubstitutionRepository(members.Group, membership, workTime)
 	return members, nil
 }
 
@@ -60,18 +60,18 @@ func MustNewMembershipTestRepositories(db *bun.DB) MembershipTestRepositories {
 
 // authTestIdentityChain is the identity chain rows (persons, staff, teachers,
 // students, guardian profiles and relationships) the auth test graphs bind.
-func authTestIdentityChain(db *bun.DB) (lifecycleRepositories, error) {
+func authTestIdentityChain(db *bun.DB) (LifecycleRepositories, error) {
 	members, err := NewMembershipTestRepositories(db)
 	if err != nil {
-		return lifecycleRepositories{}, err
+		return LifecycleRepositories{}, err
 	}
 	return identityChainOf(db, members), nil
 }
 
-func identityChainOf(db *bun.DB, members MembershipTestRepositories) lifecycleRepositories {
-	return lifecycleRepositories{
-		persons: members.Person, staff: members.Staff, teachers: members.Teacher, students: NewUnboundStudentRepository(db),
-		guardianProfiles: members.GuardianProfile, studentGuardians: members.StudentGuardian,
+func identityChainOf(db *bun.DB, members MembershipTestRepositories) LifecycleRepositories {
+	return LifecycleRepositories{
+		Persons: members.Person, Staff: members.Staff, Teachers: members.Teacher, Students: NewUnboundStudentRepository(db),
+		GuardianProfiles: members.GuardianProfile, StudentGuardians: members.StudentGuardian,
 	}
 }
 
@@ -112,6 +112,6 @@ func NewWorkforceWithClock(db *bun.DB, membership schoolmembership.Capability, n
 // runtime of the School Structure owner over db, with only the given
 // dependencies bound, for the test graphs whose test roles may not name the
 // School Structure composition.
-func NewEducationGroupRepository(db *bun.DB, options ...educationRepo.GroupRepositoryDependencies) *educationGroupRepository {
-	return newEducationGroupStore(educationRepo.NewLegacyRepositoryRuntime(db), options...)
+func NewEducationGroupRepository(db *bun.DB, options ...educationRepo.GroupRepositoryDependencies) *EducationGroupStore {
+	return NewEducationGroupStore(educationRepo.NewLegacyRepositoryRuntime(db), options...)
 }

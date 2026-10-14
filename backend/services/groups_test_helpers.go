@@ -62,12 +62,12 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork, publishers ...realt
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(tt.ActiveGroup)
 	presence := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
-		YardRoomColor:   yardRoomColorQuery(rooms),
+		YardRoomColor:   YardRoomColorQuery(rooms),
 		StaffNames:      NewAttendanceStaffNames(tt.Staff, persons), GroupRepo: sessionGroups, SupervisorRepo: sessionSupervisors,
 		StudentRepo: PresenceStudents(db, tt.Student), StaffRepo: NewAttendanceStaffDirectory(tt.Staff), RoomRepo: NewAttendanceRooms(tt.Room),
 		EducationGroupRepo: NewAttendanceEducationGroups(tt.Group, tt.Student),
 		ActivityGroupRepo:  NewSessionActivities(tt.GroupReads()), DB: db, Logger: slog.Default(),
-		SchoolPresence: newStudentPresence(db, slog.Default()),
+		SchoolPresence: NewLoggedStudentPresence(db, slog.Default()),
 	})
 
 	return GroupsTestModule{Education: groups, Active: presence, Users: persons, People: peopleCompose.NewGroupRoutePeople(persons), UserContext: identity.UserContext}, nil

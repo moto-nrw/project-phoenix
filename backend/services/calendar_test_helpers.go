@@ -47,7 +47,7 @@ func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModu
 		return CalendarTestModule{}, err
 	}
 	logger := slog.Default()
-	cfg := currentFactoryConfig()
+	cfg := CurrentFactoryConfig()
 	calendarSvc := NewCalendarPortal(CalendarDependencies{
 		CalendarFacts: CalendarFacts{
 			StaffRepo:            repos.Staff,
@@ -69,7 +69,7 @@ func NewCalendarTestModule(db *bun.DB, unit tenant.UnitOfWork) (CalendarTestModu
 		Appointments:           appointments,
 		UserContext:            identity.UserContext.Caller(),
 		Runtime:                calendarCompose.NewTenantRuntime(db),
-		CalendarRenderer:       schoolCalendarRendererAdapter{renderer: schoolCalendar},
+		CalendarRenderer:       SchoolCalendarRendererAdapter{Renderer: schoolCalendar},
 		Outbox:                 delivery.EmailOutbox,
 		PushOutbox:             deliveryCompose.NewDurablePushOutbox(delivery.Delivery),
 		Settings:               settings.Settings,

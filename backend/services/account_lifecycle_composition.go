@@ -21,57 +21,57 @@ import (
 // invitation storage and delivery) and serves the retained auth service's
 // consumer-owned port over the public module.
 
-// lifecycleWiring is the retained material the lifecycle seams are bound to.
+// LifecycleWiring is the retained material the lifecycle seams are bound to.
 // The module composition fills repos from the session repositories.
-type lifecycleWiring struct {
-	repos    lifecycleRepositories
-	settings settingsCompose.SettingsService
-	audit    auditModels.Command
-	// caregivers is the Lehrkraft guard the role administration reads.
-	caregivers caregiverProfiles
-	// guardianMail carries the invitation delivery and the enrollment claim
+type LifecycleWiring struct {
+	repos    LifecycleRepositories
+	Settings settingsCompose.SettingsService
+	Audit    auditModels.Command
+	// Caregivers is the Lehrkraft guard the role administration reads.
+	Caregivers CaregiverProfiles
+	// GuardianMail carries the invitation delivery and the enrollment claim
 	// the guardian invitation flows leave to the root.
-	guardianMail *guardianInvitationWiring
+	GuardianMail *GuardianInvitationWiring
 }
 
-// lifecycleRepositories are the retained repositories the lifecycle seams
+// LifecycleRepositories are the retained repositories the lifecycle seams
 // read and write.
-type lifecycleRepositories struct {
-	persons          userModels.PersonRepository
-	staff            userModels.StaffRepository
-	teachers         userModels.TeacherRepository
-	students         userModels.StudentRepository
-	guardianProfiles userModels.GuardianProfileRepository
-	studentGuardians userModels.StudentGuardianRepository
+type LifecycleRepositories struct {
+	Persons          userModels.PersonRepository
+	Staff            userModels.StaffRepository
+	Teachers         userModels.TeacherRepository
+	Students         userModels.StudentRepository
+	GuardianProfiles userModels.GuardianProfileRepository
+	StudentGuardians userModels.StudentGuardianRepository
 	authEvents       auditModels.AuthEventRepository
 }
 
-func (w lifecycleWiring) complete() bool {
+func (w LifecycleWiring) complete() bool {
 	r := w.repos
-	return r.persons != nil && r.staff != nil && r.teachers != nil && r.students != nil &&
-		r.guardianProfiles != nil && r.studentGuardians != nil && r.authEvents != nil && w.audit != nil &&
-		w.caregivers.complete()
+	return r.Persons != nil && r.Staff != nil && r.Teachers != nil && r.Students != nil &&
+		r.GuardianProfiles != nil && r.StudentGuardians != nil && r.authEvents != nil && w.Audit != nil &&
+		w.Caregivers.complete()
 }
 
-func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*identityaccessCompose.LifecycleDependencies, error) {
+func lifecycleDependencies(wiring *LifecycleWiring, logger *slog.Logger) (*identityaccessCompose.LifecycleDependencies, error) {
 	if wiring == nil {
 		return nil, nil
 	}
 	if !wiring.complete() {
 		return nil, errors.New("identity access composition: every lifecycle repository, the audit command and the caregiver profiles are required")
 	}
-	delivery, enrollments, err := guardianInvitationDependencies(wiring.guardianMail)
+	delivery, enrollments, err := guardianInvitationDependencies(wiring.GuardianMail)
 	if err != nil {
 		return nil, err
 	}
 	return &identityaccessCompose.LifecycleDependencies{
-		Staff:       staffDirectory{repos: wiring.repos, caregivers: wiring.caregivers},
+		Staff:       staffDirectory{repos: wiring.repos, caregivers: wiring.Caregivers},
 		Audit:       previewAudit{events: wiring.repos.authEvents},
 		Passwords:   passwordPolicy{},
 		Guardians:   guardianDirectory{repos: wiring.repos},
 		Delivery:    delivery,
 		Enrollments: enrollments,
-		Financial:   financialAudit{command: wiring.audit},
+		Financial:   financialAudit{command: wiring.Audit},
 		Logger:      logger,
 	}, nil
 }
@@ -79,8 +79,8 @@ func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*ident
 // --- staff directory --------------------------------------------------------
 
 type staffDirectory struct {
-	repos      lifecycleRepositories
-	caregivers caregiverProfiles
+	repos      LifecycleRepositories
+	caregivers CaregiverProfiles
 }
 
 func personRecord(person *userModels.Person) identityaccessCompose.PersonRecord {
@@ -95,7 +95,7 @@ func staffMember(staff *userModels.Staff) identityaccessCompose.StaffMember {
 }
 
 func (d staffDirectory) FindStaff(ctx context.Context, staffID int64) (identityaccessCompose.StaffMember, bool, error) {
-	staff, err := d.repos.staff.FindByID(ctx, staffID)
+	staff, err := d.repos.Staff.FindByID(ctx, staffID)
 	if err != nil {
 		if userModels.RowMissing(err) {
 			return identityaccessCompose.StaffMember{}, false, nil
@@ -122,15 +122,15 @@ func (d staffDirectory) findPerson(person *userModels.Person, err error) (identi
 }
 
 func (d staffDirectory) FindPerson(ctx context.Context, personID int64) (identityaccessCompose.PersonRecord, bool, error) {
-	return d.findPerson(d.repos.persons.FindByID(ctx, personID))
+	return d.findPerson(d.repos.Persons.FindByID(ctx, personID))
 }
 
 func (d staffDirectory) FindPersonByAccount(ctx context.Context, accountID int64) (identityaccessCompose.PersonRecord, bool, error) {
-	return d.findPerson(d.repos.persons.FindByAccountID(ctx, accountID))
+	return d.findPerson(d.repos.Persons.FindByAccountID(ctx, accountID))
 }
 
 func (d staffDirectory) FindPersonByTag(ctx context.Context, tagID string) (identityaccessCompose.PersonRecord, bool, error) {
-	return d.findPerson(d.repos.persons.FindByTagID(ctx, tagID))
+	return d.findPerson(d.repos.Persons.FindByTagID(ctx, tagID))
 }
 
 func personNames(persons map[int64]*userModels.Person) map[int64]identityaccessCompose.PersonName {
@@ -144,7 +144,7 @@ func personNames(persons map[int64]*userModels.Person) map[int64]identityaccessC
 }
 
 func (d staffDirectory) FindPersonNames(ctx context.Context, accountIDs []int64) (map[int64]identityaccessCompose.PersonName, error) {
-	persons, err := d.repos.persons.FindByAccountIDs(ctx, accountIDs)
+	persons, err := d.repos.Persons.FindByAccountIDs(ctx, accountIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -154,24 +154,24 @@ func (d staffDirectory) FindPersonNames(ctx context.Context, accountIDs []int64)
 func (d staffDirectory) CreatePerson(ctx context.Context, record identityaccessCompose.PersonRecord) (int64, error) {
 	person := &userModels.Person{FirstName: record.FirstName, LastName: record.LastName, TagID: record.TagID}
 	person.SetTenantID(record.TenantID)
-	if err := d.repos.persons.Create(ctx, person); err != nil {
+	if err := d.repos.Persons.Create(ctx, person); err != nil {
 		return 0, err
 	}
 	return person.ID, nil
 }
 
 func (d staffDirectory) LinkPersonToAccount(ctx context.Context, personID, accountID int64) error {
-	return d.repos.persons.LinkToAccount(ctx, personID, accountID)
+	return d.repos.Persons.LinkToAccount(ctx, personID, accountID)
 }
 
 func (d staffDirectory) LinkPersonToRFIDCard(ctx context.Context, personID int64, tagID string) error {
-	return d.repos.persons.LinkToRFIDCard(ctx, personID, tagID)
+	return d.repos.Persons.LinkToRFIDCard(ctx, personID, tagID)
 }
 
 // IsStudentPerson: the repository reports "not a student" as sql.ErrNoRows
 // wrapped in a DatabaseError.
 func (d staffDirectory) IsStudentPerson(ctx context.Context, personID int64) (bool, error) {
-	student, err := d.repos.students.FindByPersonID(ctx, personID)
+	student, err := d.repos.Students.FindByPersonID(ctx, personID)
 	if err != nil {
 		if userModels.RowMissing(err) {
 			return false, nil
@@ -182,7 +182,7 @@ func (d staffDirectory) IsStudentPerson(ctx context.Context, personID int64) (bo
 }
 
 func (d staffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (identityaccessCompose.StaffMember, bool, error) {
-	staff, err := d.repos.staff.FindByPersonID(ctx, personID)
+	staff, err := d.repos.Staff.FindByPersonID(ctx, personID)
 	if err != nil {
 		if userModels.RowMissing(err) {
 			return identityaccessCompose.StaffMember{}, false, nil
@@ -198,14 +198,14 @@ func (d staffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (
 func (d staffDirectory) CreateStaff(ctx context.Context, tenantID, personID int64) (int64, error) {
 	staff := &userModels.Staff{PersonID: personID}
 	staff.SetTenantID(tenantID)
-	if err := d.repos.staff.Create(ctx, staff); err != nil {
+	if err := d.repos.Staff.Create(ctx, staff); err != nil {
 		return 0, err
 	}
 	return staff.ID, nil
 }
 
 func (d staffDirectory) FindCaregiverProfile(ctx context.Context, staffID int64) (identityaccessCompose.CaregiverProfile, bool, error) {
-	teacher, err := d.repos.teachers.FindByStaffID(ctx, staffID)
+	teacher, err := d.repos.Teachers.FindByStaffID(ctx, staffID)
 	if err != nil {
 		if userModels.RowMissing(err) {
 			return identityaccessCompose.CaregiverProfile{}, false, nil
@@ -225,7 +225,7 @@ func (d staffDirectory) HasLiveCaregiverProfile(ctx context.Context, accountID i
 func (d staffDirectory) CreateCaregiverProfile(ctx context.Context, tenantID, staffID int64, position string) (int64, error) {
 	teacher := &userModels.Teacher{StaffID: staffID, Role: position}
 	teacher.SetTenantID(tenantID)
-	if err := d.repos.teachers.Create(ctx, teacher); err != nil {
+	if err := d.repos.Teachers.Create(ctx, teacher); err != nil {
 		return 0, err
 	}
 	return teacher.ID, nil
@@ -282,7 +282,7 @@ func (a previewAudit) StaffPreviewEnded(ctx context.Context, adminAccountID int6
 
 // --- guardian directory ----------------------------------------------------
 
-type guardianDirectory struct{ repos lifecycleRepositories }
+type guardianDirectory struct{ repos LifecycleRepositories }
 
 func guardianProfile(profile *userModels.GuardianProfile) identityaccessCompose.GuardianProfile {
 	result := identityaccessCompose.GuardianProfile{
@@ -317,15 +317,15 @@ func (d guardianDirectory) findProfile(profile *userModels.GuardianProfile, err 
 }
 
 func (d guardianDirectory) FindGuardianProfileByEmail(ctx context.Context, email string) (identityaccessCompose.GuardianProfile, bool, error) {
-	return d.findProfile(d.repos.guardianProfiles.FindByEmail(ctx, email))
+	return d.findProfile(d.repos.GuardianProfiles.FindByEmail(ctx, email))
 }
 
 func (d guardianDirectory) FindGuardianProfile(ctx context.Context, id int64) (identityaccessCompose.GuardianProfile, bool, error) {
-	return d.findProfile(d.repos.guardianProfiles.FindByID(ctx, id))
+	return d.findProfile(d.repos.GuardianProfiles.FindByID(ctx, id))
 }
 
 func (d guardianDirectory) FindGuardianProfiles(ctx context.Context, ids []int64) (map[int64]identityaccessCompose.GuardianProfile, error) {
-	profiles, err := d.repos.guardianProfiles.FindByIDs(ctx, ids)
+	profiles, err := d.repos.GuardianProfiles.FindByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -350,22 +350,22 @@ func (d guardianDirectory) CreateGuardianProfile(ctx context.Context, record ide
 	if err := profile.Validate(); err != nil {
 		return 0, err
 	}
-	if err := d.repos.guardianProfiles.Create(ctx, profile); err != nil {
+	if err := d.repos.GuardianProfiles.Create(ctx, profile); err != nil {
 		return 0, err
 	}
 	return profile.ID, nil
 }
 
 func (d guardianDirectory) DeleteGuardianProfile(ctx context.Context, id int64) error {
-	return d.repos.guardianProfiles.Delete(ctx, id)
+	return d.repos.GuardianProfiles.Delete(ctx, id)
 }
 
 func (d guardianDirectory) LinkGuardianProfileToAccount(ctx context.Context, profileID, accountID int64) error {
-	return d.repos.guardianProfiles.LinkAccount(ctx, profileID, accountID)
+	return d.repos.GuardianProfiles.LinkAccount(ctx, profileID, accountID)
 }
 
 func (d guardianDirectory) FindStudentGuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (identityaccessCompose.StudentGuardianLink, bool, error) {
-	link, err := d.repos.studentGuardians.FindByStudentAndGuardianForUpdate(ctx, studentID, guardianProfileID)
+	link, err := d.repos.StudentGuardians.FindByStudentAndGuardianForUpdate(ctx, studentID, guardianProfileID)
 	if err != nil {
 		if userModels.RowMissing(err) {
 			return identityaccessCompose.StudentGuardianLink{}, false, nil
@@ -386,11 +386,11 @@ func (d guardianDirectory) LinkStudentGuardianIfAbsent(ctx context.Context, link
 	if link.TenantID > 0 {
 		rel.SetTenantID(link.TenantID)
 	}
-	return d.repos.studentGuardians.LinkIfNotExists(ctx, rel)
+	return d.repos.StudentGuardians.LinkIfNotExists(ctx, rel)
 }
 
 func (d guardianDirectory) PromoteStudentGuardianLink(ctx context.Context, linkID int64) error {
-	link, err := d.repos.studentGuardians.FindByID(ctx, linkID)
+	link, err := d.repos.StudentGuardians.FindByID(ctx, linkID)
 	if err != nil {
 		return err
 	}
@@ -398,7 +398,7 @@ func (d guardianDirectory) PromoteStudentGuardianLink(ctx context.Context, linkI
 		return userModels.ErrStudentGuardianNotFound
 	}
 	applyGuardianRolePreset(link, securityruntime.GuardianRoleLegalGuardian)
-	return d.repos.studentGuardians.Update(ctx, link)
+	return d.repos.StudentGuardians.Update(ctx, link)
 }
 
 func studentGuardianLinks(links []*userModels.StudentGuardian) []identityaccessCompose.StudentGuardianLink {
@@ -412,7 +412,7 @@ func studentGuardianLinks(links []*userModels.StudentGuardian) []identityaccessC
 }
 
 func (d guardianDirectory) ListStudentGuardianLinksByStudents(ctx context.Context, studentIDs []int64) ([]identityaccessCompose.StudentGuardianLink, error) {
-	links, err := d.repos.studentGuardians.FindByStudentIDs(ctx, studentIDs)
+	links, err := d.repos.StudentGuardians.FindByStudentIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -420,7 +420,7 @@ func (d guardianDirectory) ListStudentGuardianLinksByStudents(ctx context.Contex
 }
 
 func (d guardianDirectory) ListStudentGuardianLinksByProfile(ctx context.Context, guardianProfileID int64) ([]identityaccessCompose.StudentGuardianLink, error) {
-	links, err := d.repos.studentGuardians.FindByGuardianProfileID(ctx, guardianProfileID)
+	links, err := d.repos.StudentGuardians.FindByGuardianProfileID(ctx, guardianProfileID)
 	if err != nil {
 		return nil, err
 	}
@@ -428,7 +428,7 @@ func (d guardianDirectory) ListStudentGuardianLinksByProfile(ctx context.Context
 }
 
 func (d guardianDirectory) DeleteStudentGuardianLink(ctx context.Context, linkID int64) error {
-	return d.repos.studentGuardians.Delete(ctx, linkID)
+	return d.repos.StudentGuardians.Delete(ctx, linkID)
 }
 
 func (d guardianDirectory) GuardianRoleClass(role string) identityaccessCompose.GuardianRoleClass {
@@ -443,7 +443,7 @@ func (d guardianDirectory) GuardianRoleClass(role string) identityaccessCompose.
 }
 
 func (d guardianDirectory) FindStudents(ctx context.Context, ids []int64) (map[int64]identityaccessCompose.Student, error) {
-	students, err := d.repos.students.FindByIDs(ctx, ids)
+	students, err := d.repos.Students.FindByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -457,12 +457,12 @@ func (d guardianDirectory) FindStudents(ctx context.Context, ids []int64) (map[i
 }
 
 func (d guardianDirectory) LockStudent(ctx context.Context, studentID int64) error {
-	_, err := d.repos.students.FindByIDForUpdate(ctx, studentID)
+	_, err := d.repos.Students.FindByIDForUpdate(ctx, studentID)
 	return err
 }
 
 func (d guardianDirectory) FindPersonNamesByIDs(ctx context.Context, personIDs []int64) (map[int64]identityaccessCompose.PersonName, error) {
-	persons, err := d.repos.persons.FindByIDs(ctx, personIDs)
+	persons, err := d.repos.Persons.FindByIDs(ctx, personIDs)
 	if err != nil {
 		return nil, err
 	}

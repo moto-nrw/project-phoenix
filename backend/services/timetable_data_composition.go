@@ -12,12 +12,12 @@ import (
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// timetableDataInputs are the retained rows and the owners the planner's
+// TimetableDataInputs are the retained rows and the owners the planner's
 // reads of the Timetable owner read through (#3551). ArrivalBaselines and
 // PickupBaselines are optional; BlockMetadata is the block display projection
 // the composition root binds; Transactional binds the tenant runtime's
 // advisory locks a spontaneous start takes.
-type timetableDataInputs struct {
+type TimetableDataInputs struct {
 	Rows             timetableCompose.OwnerRows
 	ArrivalBaselines careplan.ArrivalBaselineReader
 	PickupBaselines  careplan.PickupBaselineReader
@@ -30,12 +30,12 @@ type timetableDataInputs struct {
 	Logger           *slog.Logger
 }
 
-// newTimetableData composes the planner's reads of the Timetable owner and
+// NewTimetableData composes the planner's reads of the Timetable owner and
 // binds the collaborators it may not name itself: Care Plan's baselines, the
 // Student Presence room occupancy and the tenant runtime's advisory locks;
 // the retained rows bind the Facilities rooms and the Audit Platform's
 // Änderungsprotokoll.
-func newTimetableData(in timetableDataInputs) (timetable.TimetableDataCapability, error) {
+func NewTimetableData(in TimetableDataInputs) (timetable.TimetableDataCapability, error) {
 	templates, err := in.Rows.DataTemplates()
 	if err != nil {
 		return nil, err
@@ -54,11 +54,11 @@ func newTimetableData(in timetableDataInputs) (timetable.TimetableDataCapability
 		BlockMetadata:     in.BlockMetadata,
 		Categories:        in.Rows.Categories,
 		Rooms:             in.Rows.RoomNames(),
-		RoomOccupancy:     timetableRoomOccupancy{sessions: in.Sessions},
+		RoomOccupancy:     TimetableRoomOccupancy{Sessions: in.Sessions},
 		DeviationEvents:   in.Rows.DeviationEventReader(),
 		ConflictAcks:      in.ConflictAcks,
 		Locks:             in.Rows.AttendanceLocks(),
-		Advisory:          newTenantAdvisoryLocks(in.Transactional),
+		Advisory:          NewTenantAdvisoryLocks(in.Transactional),
 		Logger:            in.Logger,
 	})
 }
@@ -67,31 +67,31 @@ func newArrivalBaselineProjector(reader careplan.ArrivalBaselineReader) timetabl
 	if reader == nil {
 		return nil
 	}
-	return arrivalBaselineProjector{reader: reader}
+	return ArrivalBaselineProjector{Reader: reader}
 }
 
 func newPickupBaselineProjector(reader careplan.PickupBaselineReader) timetableCompose.PickupBaselineProjector {
 	if reader == nil {
 		return nil
 	}
-	return pickupBaselineProjector{reader: reader}
+	return PickupBaselineProjector{Reader: reader}
 }
 
-func newTenantAdvisoryLocks(transactional bool) timetableCompose.AdvisoryLocks {
+func NewTenantAdvisoryLocks(transactional bool) timetableCompose.AdvisoryLocks {
 	if !transactional {
 		return nil
 	}
 	return timetableCompose.NewTenantAdvisoryLocks()
 }
 
-// pickupBaselineProjector serves the Timetable pickup port from Care Plan's
+// PickupBaselineProjector serves the Timetable pickup port from Care Plan's
 // baseline projection.
-type pickupBaselineProjector struct {
-	reader careplan.PickupBaselineReader
+type PickupBaselineProjector struct {
+	Reader careplan.PickupBaselineReader
 }
 
-func (p pickupBaselineProjector) ProjectPickups(ctx context.Context, studentIDs []int64, from, to timezone.Date) (timetableCompose.PickupBaselines, error) {
-	projection, err := p.reader.Project(ctx, studentIDs, from, to)
+func (p PickupBaselineProjector) ProjectPickups(ctx context.Context, studentIDs []int64, from, to timezone.Date) (timetableCompose.PickupBaselines, error) {
+	projection, err := p.Reader.Project(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -110,13 +110,13 @@ func (p pickupBaselineProjection) RegularPickup(studentID int64, date timezone.D
 	return row.PickupTime, true
 }
 
-// timetableRoomOccupancy asks Student Presence whether another open session
+// TimetableRoomOccupancy asks Student Presence whether another open session
 // occupies the room.
-type timetableRoomOccupancy struct {
-	sessions studentpresence.SessionRecords
+type TimetableRoomOccupancy struct {
+	Sessions studentpresence.SessionRecords
 }
 
-func (o timetableRoomOccupancy) RoomOccupied(ctx context.Context, roomID int64) (bool, error) {
-	occupied, _, err := o.sessions.CheckRoomConflict(ctx, roomID, 0)
+func (o TimetableRoomOccupancy) RoomOccupied(ctx context.Context, roomID int64) (bool, error) {
+	occupied, _, err := o.Sessions.CheckRoomConflict(ctx, roomID, 0)
 	return occupied, err
 }

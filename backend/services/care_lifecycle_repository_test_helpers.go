@@ -43,12 +43,12 @@ func NewCareLifecycleTestRepositoriesWithMembers(db *bun.DB, members MembershipT
 	care := tt.CarePlan
 	return CareLifecycleTestRepositories{
 		TimetableTestRepositories: tt,
-		CareWithdrawal:            newCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
+		CareWithdrawal:            NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
 		db:                        db,
 		sources: CareLifecycleOwnerSources{
 			Students: tt.Student, Persons: tt.Person, Membership: membership,
 			People: people, Timetable: tt.Timetable, Calendar: calendar,
-			Presence: newUnloggedStudentPresence(db), PlanReads: mustPresenceReads(db),
+			Presence: NewUnloggedStudentPresence(db), PlanReads: MustPresenceReads(db),
 		},
 	}, nil
 }
@@ -99,7 +99,7 @@ func MustNewStudentCompanions(records careplan.Capability, students usersModels.
 // suites that may not name Care Plan's edge type; production writes go
 // through the companion capability's rules instead.
 func ReplaceStudentCompanions(ctx context.Context, links usersModels.StudentCompanionRepository, studentID int64, edges []*usersModels.StudentCompanion) error {
-	repository, ok := links.(companionRepository)
+	repository, ok := links.(CompanionRepository)
 	if !ok {
 		return errors.New("companion links are not served by the Care Plan owner")
 	}
@@ -113,7 +113,7 @@ func ReplaceStudentCompanions(ctx context.Context, links usersModels.StudentComp
 			StudentLowID: edge.StudentLowID, StudentHighID: edge.StudentHighID, Weekday: edge.Weekday,
 		})
 	}
-	return wrapRetainedError("replace student companions", repository.capability.ReplaceCompanionEdges(ctx, studentID, values))
+	return WrapRetainedError("replace student companions", repository.Capability.ReplaceCompanionEdges(ctx, studentID, values))
 }
 
 // NewStudentCompanionEdge builds one stored "walks home with" edge between two

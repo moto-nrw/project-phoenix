@@ -7,16 +7,16 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
-type enrollmentCareBookingCommands struct {
-	owner careplan.OfferingBookingCommands
+type EnrollmentCareBookingAdapter struct {
+	Owner careplan.OfferingBookingCommands
 }
 
-func (a enrollmentCareBookingCommands) RecordCareBookings(ctx context.Context, childID int64, inputs []enrollmentOwner.CareBookingInput) error {
-	return a.owner.RecordCareOfferingBookings(ctx, childID, careBookingValues(inputs))
+func (a EnrollmentCareBookingAdapter) RecordCareBookings(ctx context.Context, childID int64, inputs []enrollmentOwner.CareBookingInput) error {
+	return a.Owner.RecordCareOfferingBookings(ctx, childID, careBookingValues(inputs))
 }
 
-func (a enrollmentCareBookingCommands) ReplaceCareBookings(ctx context.Context, childID int64, inputs []enrollmentOwner.CareBookingInput) error {
-	return a.owner.ReplaceCareOfferingBookings(ctx, childID, careBookingValues(inputs))
+func (a EnrollmentCareBookingAdapter) ReplaceCareBookings(ctx context.Context, childID int64, inputs []enrollmentOwner.CareBookingInput) error {
+	return a.Owner.ReplaceCareOfferingBookings(ctx, childID, careBookingValues(inputs))
 }
 
 func careBookingValues(inputs []enrollmentOwner.CareBookingInput) []careplan.CareOfferingBooking {

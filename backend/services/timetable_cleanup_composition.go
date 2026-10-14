@@ -27,10 +27,10 @@ type timetableRetentionSettingsSource interface {
 	ResolveInt(ctx context.Context, key string) (int, error)
 }
 
-// timetableRetentionInputs are the collaborators the Timetable owner may not
+// TimetableRetentionInputs are the collaborators the Timetable owner may not
 // name itself: the Settings Platform's retention window and the Audit
 // Platform's deletion records. Deviations and Settings are optional.
-type timetableRetentionInputs struct {
+type TimetableRetentionInputs struct {
 	Owner      timetable.Capability
 	Deletions  auditModels.DataDeletionRepository
 	Deviations auditModels.DeviationEventRepository
@@ -39,8 +39,8 @@ type timetableRetentionInputs struct {
 	Clock      func() time.Time
 }
 
-// newTimetableCleanup composes the Timetable owner's GDPR retention (WP-B14).
-func newTimetableCleanup(in timetableRetentionInputs) (timetable.TimetableCleanup, error) {
+// NewTimetableCleanup composes the Timetable owner's GDPR retention (WP-B14).
+func NewTimetableCleanup(in TimetableRetentionInputs) (timetable.TimetableCleanup, error) {
 	logger := in.Logger
 	if logger == nil {
 		logger = slog.Default()

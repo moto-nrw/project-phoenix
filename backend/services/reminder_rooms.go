@@ -7,14 +7,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 
-type reminderRoomReader struct {
-	source interface {
+type ReminderRoomReader struct {
+	Source interface {
 		ListRoomsByID(context.Context, []int64) ([]facilities.Room, error)
 	}
 }
 
-func (r reminderRoomReader) FindByIDs(ctx context.Context, ids []int64) ([]*ports.Room, error) {
-	values, err := r.source.ListRoomsByID(ctx, ids)
+func (r ReminderRoomReader) FindByIDs(ctx context.Context, ids []int64) ([]*ports.Room, error) {
+	values, err := r.Source.ListRoomsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}

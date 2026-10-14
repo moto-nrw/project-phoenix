@@ -47,5 +47,5 @@ func NewWorkSessionTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func
 	if err != nil {
 		return WorkSessionTestModule{}, err
 	}
-	return WorkSessionTestModule{TimeTracking: timeTracking, StaffClock: newStaffClockService(identity.Users, rfid.RFID, timeTracking.TimeClock)}, nil
+	return WorkSessionTestModule{TimeTracking: timeTracking, StaffClock: NewStaffClockService(identity.Users, rfid.RFID, timeTracking.TimeClock)}, nil
 }

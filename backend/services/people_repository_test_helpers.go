@@ -131,9 +131,9 @@ func newPeopleRepositorySuiteFactory(db *bun.DB, deps TimetableDependencies, clo
 	if deps.Capability == nil || deps.Students == nil || deps.Groups == nil || deps.Rooms == nil || deps.Calendar == nil || deps.Membership == nil || deps.Workforce == nil {
 		panic("repository test factory: timetable and projection dependencies are required")
 	}
-	now := optionalClock(clocks)
-	identity := newPeopleIdentityAccess(db, nil)
-	members := newMembershipRepositories(db, NewPersonRepository(db), identity, deps.Membership, deps.Rooms, deps.Workforce)
+	now := OptionalClock(clocks)
+	identity := NewPeopleIdentityAccess(db, nil)
+	members := NewMembershipRepositories(db, NewPersonRepository(db), identity, deps.Membership, deps.Rooms, deps.Workforce)
 	members.People = deps.Students
 	members.Student = NewStudentRepository(db, deps.Membership, deps.Groups)
 	members.GuardianProfile = NewGuardianProfileRepository(db)
@@ -165,14 +165,14 @@ func newPeopleRepositorySuiteFactory(db *bun.DB, deps TimetableDependencies, clo
 		SchoolCalendarRepositories: timetableCompose.NewSchoolCalendarRepositories(calendar, timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), deps.Capability)),
 		ParentPortalRepositories: NewParentPortalRepositories(db, ParentPortalOwners{
 			People: deps.Students, Groups: deps.Groups, Membership: deps.Membership,
-			Identity: newPeopleIdentityAccess(db, IdentityAccessObserver(deps.ObserveIdentityAccess)), Enrollment: enrollment, Now: now,
+			Identity: NewPeopleIdentityAccess(db, IdentityAccessObserver(deps.ObserveIdentityAccess)), Enrollment: enrollment, Now: now,
 		}),
 		GuardianPhoneNumber:      peopleCompose.NewGuardianPhoneNumberRepository(db),
 		GuardianFinancialData:    peopleCompose.NewGuardianFinancialDataRepository(db),
 		FamilyProtection:         peopleCompose.NewFamilyProtectionEventRepository(db),
 		ParentRequestShare:       peopleCompose.NewParentRequestShareEventRepository(db),
 		ParentRequestEvent:       peopleCompose.NewParentRequestEventRepository(db),
-		GroupSubstitution:        newGroupSubstitutionRepository(members.Group, deps.Membership, deps.Workforce),
+		GroupSubstitution:        NewGroupSubstitutionRepository(members.Group, deps.Membership, deps.Workforce),
 		CaregiverBindingLock:     NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability),
 		RFIDCard:                 identity,
 		Profile:                  identity,
@@ -251,7 +251,7 @@ func NewPeopleRepositorySuiteGuardianProfiles(db *bun.DB) usersModels.GuardianPr
 // reader as the composition root binds it, over the retained guardian profile
 // store of db (#2734).
 func NewEnrollmentGuardianAutofillSuite(db *bun.DB) EnrollmentGuardianAutofill {
-	return EnrollmentGuardianAutofill{loader: peopleCompose.NewGuardianProfileLoader(NewGuardianProfileRepository(db), db, nil)}
+	return EnrollmentGuardianAutofill{Loader: peopleCompose.NewGuardianProfileLoader(NewGuardianProfileRepository(db), db, nil)}
 }
 
 // NewPeopleRepositorySuiteRecipients is the parent-message recipient lookup
@@ -307,7 +307,7 @@ func PeopleRepositorySuiteWithOwners(pickup peopleCompose.RetainedGuardianPickup
 
 // PeopleRepositorySuiteWithDefaultRole binds the default role preset.
 func PeopleRepositorySuiteWithDefaultRole() peopleCompose.RetainedGuardianRelationshipOption {
-	return peopleCompose.RetainedWithGuardianDefaultRole(applyDefaultGuardianRole)
+	return peopleCompose.RetainedWithGuardianDefaultRole(ApplyDefaultGuardianRole)
 }
 
 // VerifyPeopleRepositorySuiteStudentSchema runs the students table check.

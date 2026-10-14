@@ -40,10 +40,10 @@ func (d phaseExpiryStudents) ListEnrolledStudents(ctx context.Context) ([]enroll
 	return result, nil
 }
 
-type offeringStudents struct{ query peopledirectory.StudentQuery }
+type OfferingStudents struct{ Query peopledirectory.StudentQuery }
 
-func (d offeringStudents) ListOfferingStudents(ctx context.Context, ids []int64) ([]enrollmentCompose.OfferingStudent, error) {
-	values, err := d.query.ListStudentsByID(ctx, ids)
+func (d OfferingStudents) ListOfferingStudents(ctx context.Context, ids []int64) ([]enrollmentCompose.OfferingStudent, error) {
+	values, err := d.Query.ListStudentsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}

@@ -77,22 +77,22 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 		return DeliveryTestModule{}, err
 	}
 	logger := slog.Default()
-	cfg := currentFactoryConfig()
+	cfg := CurrentFactoryConfig()
 	vapid := notifications.VAPIDConfig{PublicKey: strings.TrimSpace(cfg.VAPIDPublicKey), PrivateKey: strings.TrimSpace(cfg.VAPIDPrivateKey), Subscriber: strings.TrimSpace(cfg.VAPIDSubscriber)}
 	if err := vapid.Validate(); err != nil {
 		return DeliveryTestModule{}, err
 	}
 	pushRepo := deliveryCompose.NewPushSubscriptionRepository(db)
-	identity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: organizations},
+	identity := emailoutbox.NewTenantMailIdentity(SchoolContactDirectory{Schools: organizations},
 		func(ctx context.Context, tenantID int64) (string, error) {
 			return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 		}, logger)
 	guardians := peopleCompose.NewGuardianService(peopleCompose.GuardianServiceDependencies{GuardianProfileRepo: NewGuardianProfileTestRepository(db), DB: db})
 	delivery, err := deliveryCompose.New(deliveryCompose.Dependencies{
-		DB: db, People: guardianDisplayResolver{query: guardians}, Observe: func(deliveryModule.Observation) {},
-		Provider: &deliveryProvider{registry: emailoutbox.NewTemplateRegistry(nil), mailer: email.NewMockMailer(), mailIdentity: identity,
-			push:   deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{Subscriber: vapid.Subscriber, PublicKey: vapid.PublicKey, PrivateKey: vapid.PrivateKey}, newExpiredPushSubscriptionCleaner(deliveryCompose.NewTenantTransactions(db), pushRepo)),
-			logger: logger, tenants: deliveryCompose.NewTenantTransactions(db), pushAuthorized: newPushAuthorizationChecker(deliveryCompose.NewTenantTransactions(db), pushRepo)},
+		DB: db, People: GuardianDisplayResolver{Query: guardians}, Observe: func(deliveryModule.Observation) {},
+		Provider: &DeliveryProvider{Registry: emailoutbox.NewTemplateRegistry(nil), Mailer: email.NewMockMailer(), MailIdentity: identity,
+			Push:   deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{Subscriber: vapid.Subscriber, PublicKey: vapid.PublicKey, PrivateKey: vapid.PrivateKey}, NewExpiredPushSubscriptionCleaner(deliveryCompose.NewTenantTransactions(db), pushRepo)),
+			Logger: logger, Tenants: deliveryCompose.NewTenantTransactions(db), PushAuthorized: NewPushAuthorizationChecker(deliveryCompose.NewTenantTransactions(db), pushRepo)},
 	})
 	if err != nil {
 		return DeliveryTestModule{}, err
@@ -109,6 +109,6 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 	push.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
 	preferences := notifications.NewPreferenceService(NewNotificationConsentTestStore(db), settings.Settings, db, members)
 	preferences.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
-	return DeliveryTestModule{Delivery: delivery.Module, EmailOutbox: emailoutbox.NewService(durableEmailAdapter{module: delivery.Module}),
+	return DeliveryTestModule{Delivery: delivery.Module, EmailOutbox: emailoutbox.NewService(DurableEmailAdapter{Module: delivery.Module}),
 		Notifications: service, PushSubscriptions: push, NotificationPreferences: preferences}, nil
 }

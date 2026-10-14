@@ -59,19 +59,19 @@ func (r TimetableConflictReaders) dependencies() timetableCompose.ConflictDetect
 		Logger:            r.Logger,
 	}
 	if r.ArrivalBaselines != nil {
-		deps.ArrivalBaselines = arrivalBaselineProjector{reader: r.ArrivalBaselines}
+		deps.ArrivalBaselines = ArrivalBaselineProjector{Reader: r.ArrivalBaselines}
 	}
 	return deps
 }
 
-// arrivalBaselineProjector serves the Timetable conflict detection's arrival
+// ArrivalBaselineProjector serves the Timetable conflict detection's arrival
 // port from Care Plan's baseline projection.
-type arrivalBaselineProjector struct {
-	reader careplan.ArrivalBaselineReader
+type ArrivalBaselineProjector struct {
+	Reader careplan.ArrivalBaselineReader
 }
 
-func (p arrivalBaselineProjector) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to timezone.Date) (timetableCompose.ArrivalBaselines, error) {
-	projection, err := p.reader.Project(ctx, studentIDs, from, to)
+func (p ArrivalBaselineProjector) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to timezone.Date) (timetableCompose.ArrivalBaselines, error) {
+	projection, err := p.Reader.Project(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err
 	}

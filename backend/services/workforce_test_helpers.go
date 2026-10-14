@@ -51,13 +51,13 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	identityRoles := roleAdministration{current: func() *identityaccess.Module { return identityAccess }}
+	identityRoles := RoleAdministration{Current: func() *identityaccess.Module { return identityAccess }}
 	settingsService := settings.Settings
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
 	usersService := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
 		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
 		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
-		PersonRepo:       repos.Person, RFIDRepo: newPeopleIdentityAccess(db, nil), AccountExists: AccountExists(identityAccess), StudentRepo: repos.Student,
+		PersonRepo:       repos.Person, RFIDRepo: NewPeopleIdentityAccess(db, nil), AccountExists: AccountExists(identityAccess), StudentRepo: repos.Student,
 		TeacherRepo:    repos.Teacher,
 		StaffDirectory: NewStaffDirectory(StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher, LehrkraftRoles: identityRoles}),
 	})
@@ -68,13 +68,13 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	calendarAdministration := schoolCalendarAdministration(settingsService, func(context.Context) error { return nil }, nil)
+	calendarAdministration := SchoolCalendarAdministration(settingsService, func(context.Context) error { return nil }, nil)
 	calendar, err := NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	nonWorkingDayService := nonWorkingDays{calendar: calendar}
-	today := timezone.CalendarDateClock(optionalClock(clocks))
+	nonWorkingDayService := NonWorkingDays{Calendar: calendar}
+	today := timezone.CalendarDateClock(OptionalClock(clocks))
 	var shiftPlanSyncer shiftplansync.SickCascade
 	timeTracking, err := newTimeTrackingTestModule(db, repos.WorkSessionTestRepositories, timeTrackingTestGraph{
 		Audits: TimeTrackingAudits{

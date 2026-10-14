@@ -19,21 +19,21 @@ type excusedRequestReviewPolicy interface {
 	AbsenceScope(ctx context.Context, permissions []string) (schoolWide bool, groupIDs []int64, err error)
 }
 
-// excusedRequestWiring is the legacy root's view of the Care Plan
+// ExcusedRequestServiceWiring is the legacy root's view of the Care Plan
 // excused-absence workflow dependencies. Nil effects are skipped.
-type excusedRequestWiring struct {
-	carePlan    careplan.Capability
-	students    usersModels.StudentRepository
-	persons     usersModels.PersonRepository
-	scope       carePlanCompose.ReviewScopeResolver
-	emitter     *communicationCompose.ParentEventEmitter
-	broadcaster realtime.Broadcaster
-	events      usersModels.ParentRequestEventRepository
+type ExcusedRequestServiceWiring struct {
+	CarePlan    careplan.Capability
+	Students    usersModels.StudentRepository
+	Persons     usersModels.PersonRepository
+	Scope       carePlanCompose.ReviewScopeResolver
+	Emitter     *communicationCompose.ParentEventEmitter
+	Broadcaster realtime.Broadcaster
+	Events      usersModels.ParentRequestEventRepository
 	notifier    notifications.AbsenceNotifier
 	shares      carePlanCompose.ShareVisibility
 	observe     CarePlanObserver
-	logger      *slog.Logger
-	today       func() timezone.Date
+	Logger      *slog.Logger
+	Today       func() timezone.Date
 }
 
 // CarePlanObserver receives the Care Plan workflow observations (stable
@@ -50,38 +50,38 @@ func (f shareVisibilityFunc) SharedRecipientAccountIDs(ctx context.Context, stud
 	return f(ctx, studentID, requestType, requestID)
 }
 
-func newExcusedAbsenceRequests(wiring excusedRequestWiring) (*carePlanCompose.ExcusedAbsenceRequests, error) {
+func NewExcusedAbsenceRequestService(wiring ExcusedRequestServiceWiring) (*carePlanCompose.ExcusedAbsenceRequests, error) {
 	var messenger carePlanCompose.RequestMessenger
-	if wiring.emitter != nil {
-		messenger = excusedRequestMessenger{emitter: wiring.emitter}
+	if wiring.Emitter != nil {
+		messenger = excusedRequestMessenger{emitter: wiring.Emitter}
 	}
 	var broadcaster carePlanCompose.StaffBroadcaster
-	if wiring.broadcaster != nil {
-		broadcaster = excusedRequestBroadcaster{broadcaster: wiring.broadcaster}
+	if wiring.Broadcaster != nil {
+		broadcaster = excusedRequestBroadcaster{broadcaster: wiring.Broadcaster}
 	}
 	var ledger carePlanCompose.RequestLedger
-	if wiring.events != nil {
-		ledger = newParentRequestLedger(wiring.events)
+	if wiring.Events != nil {
+		ledger = newParentRequestLedger(wiring.Events)
 	}
 	var notifier carePlanCompose.AbsenceNotifier
 	if wiring.notifier != nil {
 		notifier = excusedAbsenceNotifier{notifier: wiring.notifier}
 	}
 	var today func() careplan.Date
-	if wiring.today != nil {
-		today = func() careplan.Date { return careplan.Date(wiring.today()) }
+	if wiring.Today != nil {
+		today = func() careplan.Date { return careplan.Date(wiring.Today()) }
 	}
 	return NewExcusedAbsenceRequests(ExcusedRequestWiring{
-		CarePlan: wiring.carePlan, Students: wiring.students, Persons: wiring.persons,
-		Scope: wiring.scope, Today: today, Logger: wiring.logger, Observe: wiring.observe,
+		CarePlan: wiring.CarePlan, Students: wiring.Students, Persons: wiring.Persons,
+		Scope: wiring.Scope, Today: today, Logger: wiring.Logger, Observe: wiring.observe,
 		Messenger: messenger, Broadcaster: broadcaster, Ledger: ledger,
 		Notifier: notifier, Shares: wiring.shares,
 	})
 }
 
-// parentRequestReviewScope adapts the identity-owned review policy to the
+// ParentRequestReviewScope adapts the identity-owned review policy to the
 // workflow's data-only port: the permissions come from the request claims.
-func parentRequestReviewScope(policy excusedRequestReviewPolicy, permissions func(context.Context) []string) carePlanCompose.ReviewScopeResolver {
+func ParentRequestReviewScope(policy excusedRequestReviewPolicy, permissions func(context.Context) []string) carePlanCompose.ReviewScopeResolver {
 	return func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
 		schoolWide, groupIDs, err := policy.AbsenceScope(ctx, permissions(ctx))
 		if err != nil {

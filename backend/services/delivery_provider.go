@@ -17,14 +17,14 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 )
 
-type deliveryProvider struct {
-	registry       *emailoutbox.TemplateRegistry
-	mailer         email.Mailer
-	mailIdentity   email.ReplyToResolver
-	push           delivery.PushSender
-	logger         *slog.Logger
-	tenants        intentTenantTransactions
-	pushAuthorized func(context.Context, delivery.ClaimedIntent) (bool, error)
+type DeliveryProvider struct {
+	Registry       *emailoutbox.TemplateRegistry
+	Mailer         email.Mailer
+	MailIdentity   email.ReplyToResolver
+	Push           delivery.PushSender
+	Logger         *slog.Logger
+	Tenants        intentTenantTransactions
+	PushAuthorized func(context.Context, delivery.ClaimedIntent) (bool, error)
 }
 
 // intentTenantTransactions runs a provider step in the tenant transaction
@@ -49,7 +49,7 @@ type pushSubscriptionAuthorizer interface {
 	FindForSchoolAccounts(context.Context, []int64) ([]*deliveryModels.PushSubscription, error)
 }
 
-func newPushAuthorizationChecker(tenants intentTenantTransactions, subscriptions pushSubscriptionAuthorizer) func(context.Context, delivery.ClaimedIntent) (bool, error) {
+func NewPushAuthorizationChecker(tenants intentTenantTransactions, subscriptions pushSubscriptionAuthorizer) func(context.Context, delivery.ClaimedIntent) (bool, error) {
 	return func(ctx context.Context, intent delivery.ClaimedIntent) (bool, error) {
 		var eligible []*deliveryModels.PushSubscription
 		err := tenants.WithinTenant(ctx, intent.TenantID, func(txCtx context.Context) error {
@@ -94,7 +94,7 @@ func containsPushSubscription(subscriptions []*deliveryModels.PushSubscription, 
 	return false
 }
 
-func newExpiredPushSubscriptionCleaner(tenants intentTenantTransactions, subscriptions pushSubscriptionCleaner) func(context.Context, delivery.ClaimedIntent) error {
+func NewExpiredPushSubscriptionCleaner(tenants intentTenantTransactions, subscriptions pushSubscriptionCleaner) func(context.Context, delivery.ClaimedIntent) error {
 	return func(ctx context.Context, intent delivery.ClaimedIntent) error {
 		return tenants.WithinTenant(ctx, intent.TenantID, func(txCtx context.Context) error {
 			subscription := &deliveryModels.PushSubscription{
@@ -110,13 +110,13 @@ func newExpiredPushSubscriptionCleaner(tenants intentTenantTransactions, subscri
 	}
 }
 
-type guardianDisplayResolver struct{ query guardianDisplayQuery }
+type GuardianDisplayResolver struct{ Query guardianDisplayQuery }
 
-func (r guardianDisplayResolver) ResolveGuardianDisplays(ctx context.Context, ids []int64) ([]delivery.GuardianDisplay, error) {
+func (r GuardianDisplayResolver) ResolveGuardianDisplays(ctx context.Context, ids []int64) ([]delivery.GuardianDisplay, error) {
 	if len(ids) == 0 {
 		return []delivery.GuardianDisplay{}, nil
 	}
-	profiles, err := r.query.GuardianDisplays(ctx, ids)
+	profiles, err := r.Query.GuardianDisplays(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("delivery: resolve guardian display data: %w", err)
 	}
@@ -131,7 +131,7 @@ func (r guardianDisplayResolver) ResolveGuardianDisplays(ctx context.Context, id
 
 type announcementDeliveryAdapter struct{ module *delivery.Module }
 
-type durableEmailAdapter struct{ module *delivery.Module }
+type DurableEmailAdapter struct{ Module *delivery.Module }
 
 type enrollmentDeliveryAdapter struct {
 	module   *delivery.Module
@@ -155,8 +155,8 @@ func (a enrollmentDeliveryAdapter) CancelRelatedEmails(ctx context.Context, rela
 	return a.module.Cancel(ctx, tenantID, delivery.TransportEmail, delivery.RelatedEntity{Type: relatedType, ID: relatedID}, reason)
 }
 
-func (a durableEmailAdapter) EnqueueEmail(ctx context.Context, input emailoutbox.DurableEmail) (emailoutbox.DurableEmailResult, error) {
-	stored, err := a.module.EnqueueEmail(ctx, delivery.EmailIntent{
+func (a DurableEmailAdapter) EnqueueEmail(ctx context.Context, input emailoutbox.DurableEmail) (emailoutbox.DurableEmailResult, error) {
+	stored, err := a.Module.EnqueueEmail(ctx, delivery.EmailIntent{
 		TenantID: input.TenantID, Template: input.Template,
 		Recipient: delivery.EmailRecipient{Address: input.Recipient}, Payload: input.Payload,
 		IdempotencyKey: input.IdempotencyKey,
@@ -177,17 +177,17 @@ func guardianInvitationRenderer(render func(context.Context, map[string]any) (*e
 	}
 }
 
-// outboxEnqueuer serves the retained OutboxEnqueuer contract of the auth and
+// OutboxEnqueuer serves the retained OutboxEnqueuer contract of the auth and
 // enrollment producers over the Delivery enqueue facade.
-type outboxEnqueuer struct{ outbox *emailoutbox.Service }
+type OutboxEnqueuer struct{ Outbox *emailoutbox.Service }
 
-func (o outboxEnqueuer) EnqueueOutbox(ctx context.Context, req platformModels.OutboxEnqueueRequest) error {
+func (o OutboxEnqueuer) EnqueueOutbox(ctx context.Context, req platformModels.OutboxEnqueueRequest) error {
 	_, err := o.EnqueueOutboxWithResult(ctx, req)
 	return err
 }
 
-func (o outboxEnqueuer) EnqueueOutboxWithResult(ctx context.Context, req platformModels.OutboxEnqueueRequest) (platformModels.OutboxEnqueued, error) {
-	stored, err := o.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
+func (o OutboxEnqueuer) EnqueueOutboxWithResult(ctx context.Context, req platformModels.OutboxEnqueueRequest) (platformModels.OutboxEnqueued, error) {
+	stored, err := o.Outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
 		Kind: req.Kind, Payload: req.Payload, RelatedEntityType: req.RelatedEntityType,
 		RelatedEntityID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey, DeliverAfter: req.DeliverAfter,
 	})
@@ -197,8 +197,8 @@ func (o outboxEnqueuer) EnqueueOutboxWithResult(ctx context.Context, req platfor
 	return platformModels.OutboxEnqueued{ID: stored.ID}, nil
 }
 
-func (a durableEmailAdapter) CancelEmail(ctx context.Context, tenantID int64, relatedType string, relatedID int64, reason string) (int64, error) {
-	return a.module.Cancel(ctx, tenantID, delivery.TransportEmail, delivery.RelatedEntity{Type: relatedType, ID: relatedID}, reason)
+func (a DurableEmailAdapter) CancelEmail(ctx context.Context, tenantID int64, relatedType string, relatedID int64, reason string) (int64, error) {
+	return a.Module.Cancel(ctx, tenantID, delivery.TransportEmail, delivery.RelatedEntity{Type: relatedType, ID: relatedID}, reason)
 }
 
 func (a announcementDeliveryAdapter) ReplaceForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64, rows []announcement.ParentAnnouncementEmailDelivery) error {
@@ -241,7 +241,7 @@ func (a announcementDeliveryAdapter) ClaimFailedDelivery(ctx context.Context, te
 	return a.module.ClaimFailedEmailDelivery(ctx, tenantID, deliveryID)
 }
 
-func (p *deliveryProvider) SendEmail(ctx context.Context, intent delivery.ClaimedIntent) (delivery.ProviderResult, error) {
+func (p *DeliveryProvider) SendEmail(ctx context.Context, intent delivery.ClaimedIntent) (delivery.ProviderResult, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(intent.EmailPayload, &payload); err != nil {
 		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: decode email payload: %w", err)
@@ -259,12 +259,12 @@ func (p *deliveryProvider) SendEmail(ctx context.Context, intent delivery.Claime
 		RelatedEntityType: relatedType, RelatedEntityID: relatedID,
 		Payload: payload, Attempts: intent.Attempts,
 	}
-	renderer, err := p.registry.Lookup(intent.Template)
+	renderer, err := p.Registry.Lookup(intent.Template)
 	if err != nil {
 		return delivery.ProviderResult{}, err
 	}
 	var message *email.Message
-	err = p.tenants.WithinTenant(ctx, intent.TenantID, func(tenantCtx context.Context) error {
+	err = p.Tenants.WithinTenant(ctx, intent.TenantID, func(tenantCtx context.Context) error {
 		var renderErr error
 		message, renderErr = renderer.Render(tenantCtx, row)
 		if renderErr == nil {
@@ -281,7 +281,7 @@ func (p *deliveryProvider) SendEmail(ctx context.Context, intent delivery.Claime
 		}
 		return delivery.ProviderResult{}, err
 	}
-	if err := sendRenderedEmail(ctx, p.mailer, intent.EmailRecipient, message); err != nil {
+	if err := sendRenderedEmail(ctx, p.Mailer, intent.EmailRecipient, message); err != nil {
 		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: send email: %w", err)
 	}
 	return delivery.ProviderResult{StatusCode: delivery.ProviderAcceptedStatusCode}, nil
@@ -302,13 +302,13 @@ func sendRenderedEmail(ctx context.Context, mailer email.Mailer, recipient deliv
 	return mailer.Send(*message)
 }
 
-func (p *deliveryProvider) applyReplyTo(ctx context.Context, intent delivery.ClaimedIntent, message *email.Message) {
-	if p.mailIdentity == nil || message == nil || message.ReplyTo.Address != "" {
+func (p *DeliveryProvider) applyReplyTo(ctx context.Context, intent delivery.ClaimedIntent, message *email.Message) {
+	if p.MailIdentity == nil || message == nil || message.ReplyTo.Address != "" {
 		return
 	}
-	identity, err := p.mailIdentity.ResolveReplyTo(ctx, intent.TenantID)
+	identity, err := p.MailIdentity.ResolveReplyTo(ctx, intent.TenantID)
 	if err != nil {
-		p.logger.Warn("delivery: reply-to lookup failed",
+		p.Logger.Warn("delivery: reply-to lookup failed",
 			slog.Int64("intent_id", intent.ID),
 			slog.String("error", err.Error()),
 		)
@@ -319,16 +319,16 @@ func (p *deliveryProvider) applyReplyTo(ctx context.Context, intent delivery.Cla
 	}
 }
 
-func (p *deliveryProvider) SendPush(ctx context.Context, intent delivery.ClaimedIntent) (delivery.ProviderResult, error) {
-	if p.pushAuthorized == nil {
+func (p *DeliveryProvider) SendPush(ctx context.Context, intent delivery.ClaimedIntent) (delivery.ProviderResult, error) {
+	if p.PushAuthorized == nil {
 		return delivery.ProviderResult{}, errors.New("delivery provider: push authorization is not configured")
 	}
-	allowed, err := p.pushAuthorized(ctx, intent)
+	allowed, err := p.PushAuthorized(ctx, intent)
 	if err != nil {
 		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: check push authorization: %w", err)
 	}
 	if !allowed {
 		return delivery.ProviderResult{}, delivery.ErrCancelled
 	}
-	return p.push.SendPush(ctx, intent)
+	return p.Push.SendPush(ctx, intent)
 }

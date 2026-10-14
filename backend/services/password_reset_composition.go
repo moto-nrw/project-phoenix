@@ -27,44 +27,44 @@ var passwordResetEmailBackoff = []time.Duration{
 // which only clean up and never issue a link.
 const cleanupResetExpiry = time.Hour
 
-// passwordResetWiring is the configuration the reset flows are composed
+// PasswordResetWiring is the configuration the reset flows are composed
 // with. dispatcher may be nil: the link is then not mailed, as before.
-type passwordResetWiring struct {
-	dispatcher       *email.Dispatcher
-	defaultFrom      email.Email
-	staffURL         string
-	parentsURL       string
-	schoolURL        string
-	expiry           time.Duration
-	rateLimitEnabled bool
-	// backoff spaces the send retries; nil uses the production spacing.
-	backoff []time.Duration
+type PasswordResetWiring struct {
+	Dispatcher       *email.Dispatcher
+	DefaultFrom      email.Email
+	StaffURL         string
+	ParentsURL       string
+	SchoolURL        string
+	Expiry           time.Duration
+	RateLimitEnabled bool
+	// Backoff spaces the send retries; nil uses the production spacing.
+	Backoff []time.Duration
 }
 
-func passwordResetDependencies(wiring *passwordResetWiring, records func() identityaccess.PasswordResets, logger *slog.Logger) *identityaccessCompose.PasswordResetDependencies {
+func passwordResetDependencies(wiring *PasswordResetWiring, records func() identityaccess.PasswordResets, logger *slog.Logger) *identityaccessCompose.PasswordResetDependencies {
 	if wiring == nil {
 		return nil
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	backoff := wiring.backoff
+	backoff := wiring.Backoff
 	if backoff == nil {
 		backoff = passwordResetEmailBackoff
 	}
 	return &identityaccessCompose.PasswordResetDependencies{
 		Delivery: passwordResetDelivery{
-			dispatcher: wiring.dispatcher, from: wiring.defaultFrom, records: records, logger: logger,
+			dispatcher: wiring.Dispatcher, from: wiring.DefaultFrom, records: records, logger: logger,
 			backoff: backoff,
 			hosts: map[identityaccess.PasswordResetScope]string{
-				identityaccess.PasswordResetScopeStaff:  wiring.staffURL,
-				identityaccess.PasswordResetScopeParent: wiring.parentsURL,
-				identityaccess.PasswordResetScopeSchool: wiring.schoolURL,
+				identityaccess.PasswordResetScopeStaff:  wiring.StaffURL,
+				identityaccess.PasswordResetScopeParent: wiring.ParentsURL,
+				identityaccess.PasswordResetScopeSchool: wiring.SchoolURL,
 			},
 		},
 		Passwords:        passwordPolicy{},
-		Expiry:           wiring.expiry,
-		RateLimitEnabled: wiring.rateLimitEnabled,
+		Expiry:           wiring.Expiry,
+		RateLimitEnabled: wiring.RateLimitEnabled,
 		Logger:           logger,
 	}
 }

@@ -131,7 +131,7 @@ func (a EnrollmentBookingFixture) bookingCommandValues(ctx context.Context, chil
 			manual = selection.SelectedDays
 		}
 		values = append(values, careplan.CareOfferingBooking{RequestChildID: childID, CareOfferingID: selection.CareOfferingID,
-			ManualSelectedDays: manual, AutomaticSelectedDays: selection.AutomaticSelectedDays, ValidFrom: carePlanBookingDate(from), ValidUntil: carePlanBookingDate(until)})
+			ManualSelectedDays: manual, AutomaticSelectedDays: selection.AutomaticSelectedDays, ValidFrom: CarePlanBookingDate(from), ValidUntil: CarePlanBookingDate(until)})
 		selection.RequestChildID, selection.ValidFrom, selection.ValidUntil = childID, from, until
 	}
 	return values, nil

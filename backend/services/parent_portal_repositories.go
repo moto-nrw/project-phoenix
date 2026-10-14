@@ -48,16 +48,16 @@ func (r ParentPortalRepositories) WithSchools(schools organizationtenancy.Query)
 		panic("parent portal repositories: organization tenancy query is required")
 	}
 	return ParentPortalRepositories{
-		ParentPortalRepositories: r.ParentPortalRepositories.WithSchools(parentPortalSchools{schools: schools}),
-		MessagingRepositories:    r.WithSchoolNames(parentPortalSchools{schools: schools}),
+		ParentPortalRepositories: r.ParentPortalRepositories.WithSchools(ParentPortalSchools{Schools: schools}),
+		MessagingRepositories:    r.WithSchoolNames(ParentPortalSchools{Schools: schools}),
 	}
 }
 
-// parentPortalDirectory serves the guardian portal's People Directory port.
-type parentPortalDirectory struct{ people peopledirectory.Capability }
+// ParentPortalDirectory serves the guardian portal's People Directory port.
+type ParentPortalDirectory struct{ People peopledirectory.Capability }
 
-func (d parentPortalDirectory) ListParentPortalStudents(ctx context.Context, ids []int64) ([]carePlanCompose.ParentPortalStudent, error) {
-	students, err := d.people.ListStudentsByID(ctx, ids)
+func (d ParentPortalDirectory) ListParentPortalStudents(ctx context.Context, ids []int64) ([]carePlanCompose.ParentPortalStudent, error) {
+	students, err := d.People.ListStudentsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -72,8 +72,8 @@ func (d parentPortalDirectory) ListParentPortalStudents(ctx context.Context, ids
 	return result, nil
 }
 
-func (d parentPortalDirectory) ListParentPortalGuardianLinks(ctx context.Context, accountID int64) ([]carePlanCompose.ParentPortalGuardianLink, error) {
-	links, err := d.people.ListGuardianLinksByAccount(ctx, accountID)
+func (d ParentPortalDirectory) ListParentPortalGuardianLinks(ctx context.Context, accountID int64) ([]carePlanCompose.ParentPortalGuardianLink, error) {
+	links, err := d.People.ListGuardianLinksByAccount(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -86,8 +86,8 @@ func (d parentPortalDirectory) ListParentPortalGuardianLinks(ctx context.Context
 	return result, nil
 }
 
-func (d parentPortalDirectory) ListParentPortalPersons(ctx context.Context, ids []int64) ([]carePlanCompose.ParentPortalPerson, error) {
-	persons, err := d.people.ListPersonsByID(ctx, ids)
+func (d ParentPortalDirectory) ListParentPortalPersons(ctx context.Context, ids []int64) ([]carePlanCompose.ParentPortalPerson, error) {
+	persons, err := d.People.ListPersonsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -98,12 +98,12 @@ func (d parentPortalDirectory) ListParentPortalPersons(ctx context.Context, ids 
 	return result, nil
 }
 
-// parentPortalSchools serves the guardian portal's and the parent inbox's
+// ParentPortalSchools serves the guardian portal's and the parent inbox's
 // school ports from the Organisation & Tenancy owner.
-type parentPortalSchools struct{ schools organizationtenancy.Query }
+type ParentPortalSchools struct{ Schools organizationtenancy.Query }
 
-func (d parentPortalSchools) ListParentPortalSchools(ctx context.Context, ids []int64) ([]carePlanCompose.ParentPortalSchool, error) {
-	schools, err := d.schools.ListSchoolsByID(ctx, ids)
+func (d ParentPortalSchools) ListParentPortalSchools(ctx context.Context, ids []int64) ([]carePlanCompose.ParentPortalSchool, error) {
+	schools, err := d.Schools.ListSchoolsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -117,16 +117,16 @@ func (d parentPortalSchools) ListParentPortalSchools(ctx context.Context, ids []
 	return result, nil
 }
 
-func (d parentPortalSchools) SchoolName(ctx context.Context, tenantID int64) (string, error) {
-	school, err := d.schools.FindSchool(ctx, tenantID)
+func (d ParentPortalSchools) SchoolName(ctx context.Context, tenantID int64) (string, error) {
+	school, err := d.Schools.FindSchool(ctx, tenantID)
 	if err != nil {
 		return "", err
 	}
 	return school.Name, nil
 }
 
-func (d parentPortalSchools) SchoolNames(ctx context.Context, ids []int64) (map[int64]string, error) {
-	schools, err := schoolsByID(ctx, d.schools, ids)
+func (d ParentPortalSchools) SchoolNames(ctx context.Context, ids []int64) (map[int64]string, error) {
+	schools, err := schoolsByID(ctx, d.Schools, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -137,12 +137,12 @@ func (d parentPortalSchools) SchoolNames(ctx context.Context, ids []int64) (map[
 	return names, nil
 }
 
-// parentStaffMembers serves the parent inbox's staff port from School
+// ParentStaffMembers serves the parent inbox's staff port from School
 // Membership.
-type parentStaffMembers struct{ membership schoolmembership.Query }
+type ParentStaffMembers struct{ Membership schoolmembership.Query }
 
-func (d parentStaffMembers) list(ctx context.Context, tenantIDs []int64) ([]parentStore.StaffMember, error) {
-	members, err := d.membership.ListStaff(ctx, schoolmembership.StaffFilter{TenantIDs: tenantIDs})
+func (d ParentStaffMembers) List(ctx context.Context, tenantIDs []int64) ([]parentStore.StaffMember, error) {
+	members, err := d.Membership.ListStaff(ctx, schoolmembership.StaffFilter{TenantIDs: tenantIDs})
 	if err != nil {
 		return nil, err
 	}

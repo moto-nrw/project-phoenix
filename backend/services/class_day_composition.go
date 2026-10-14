@@ -28,9 +28,9 @@ type classDayStatusDayReader interface {
 	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date absencerecords.Date) ([]*absencerecords.StudentStatusDay, error)
 }
 
-// classDaySources are the reads and writes the root binds the class-day
+// ClassDaySources are the reads and writes the root binds the class-day
 // capability to.
-type classDaySources struct {
+type ClassDaySources struct {
 	Caller                 classdayCompose.CallerReader
 	Reports                enrollmentOwner.Reports
 	StatusDays             classDayStatusDayReader
@@ -51,8 +51,8 @@ type classDaySources struct {
 	Logger      *slog.Logger
 }
 
-// newClassDay composes the school portal's class-day capability.
-func newClassDay(sources classDaySources) classday.ClassDay {
+// NewClassDay composes the school portal's class-day capability.
+func NewClassDay(sources ClassDaySources) classday.ClassDay {
 	deps := classdayCompose.ClassDayDependencies{
 		Caller:                 sources.Caller,
 		PickupTimes:            sources.PickupTimes,

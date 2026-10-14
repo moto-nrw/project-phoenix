@@ -55,9 +55,9 @@ func NewOfferingChangeTestModule(db *bun.DB, options OfferingChangeTestOptions) 
 	if err != nil {
 		return nil, err
 	}
-	return newOfferingChanges(offeringChangeInputs{
+	return NewOfferingChanges(OfferingChangeInputs{
 		CarePlan: repos.CarePlan, Catalog: options.Catalog, Enrollment: repos.Enrollment(), Students: repos.Student,
-		Withdrawals: repos.CareWithdrawal, Settings: options.Settings, Planning: manualPlanningReader{query: enrollmentCompose.NewManualPlanningQuery(db), courseGroups: repos.Timetable},
+		Withdrawals: repos.CareWithdrawal, Settings: options.Settings, Planning: ManualPlanningReader{Query: enrollmentCompose.NewManualPlanningQuery(db), CourseGroups: repos.Timetable},
 		Bookings: options.Bookings, Reviews: offeringChangeTestScope(options.Scope), Permissions: testRequestTokens.Permissions, Today: options.Today,
 		Logger: slog.Default(),
 	})

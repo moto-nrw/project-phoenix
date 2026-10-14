@@ -41,9 +41,9 @@ type timetablePickupTimes interface {
 	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectivePickupTime, error)
 }
 
-// timetableOperationInputs are the retained rows and the owners the
+// TimetableOperationInputs are the retained rows and the owners the
 // Timetable operational day reads through (#3551). Broadcaster is optional.
-type timetableOperationInputs struct {
+type TimetableOperationInputs struct {
 	Rows           timetableCompose.OwnerRows
 	PlanningTracks timetable.PlanningTrackQuery
 	Sessions       studentpresence.SessionRecords
@@ -61,9 +61,9 @@ type timetableOperationInputs struct {
 	Now            func() time.Time
 }
 
-// newTimetableOperations composes the Timetable owner's operational day and
+// NewTimetableOperations composes the Timetable owner's operational day and
 // binds the collaborators it may not name itself.
-func newTimetableOperations(in timetableOperationInputs) (timetable.OperationCapability, error) {
+func NewTimetableOperations(in TimetableOperationInputs) (timetable.OperationCapability, error) {
 	templates, err := in.Rows.OperationTemplates()
 	if err != nil {
 		return nil, err

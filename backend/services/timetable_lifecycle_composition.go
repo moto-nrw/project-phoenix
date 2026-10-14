@@ -24,14 +24,14 @@ import (
 // Platform's Änderungsprotokoll, Security Runtime's content fingerprint
 // and the realtime hub.
 
-// timetableLifecycleInputs compose the lifecycle over the retained rows
+// TimetableLifecycleInputs compose the lifecycle over the retained rows
 // (Instances, InstanceStaff, Participants, Templates, Students, Rooms,
 // DeviationEvents and the recovery Locks). Planning carries the retained
 // planning repositories the rows do not (IdempotencyRepo, ExceptionRepo,
 // CalendarPeriodRepo) and the composition root's DB; every other field of it
 // is filled here. Broadcaster
 // and GuardianNotices are optional.
-type timetableLifecycleInputs struct {
+type TimetableLifecycleInputs struct {
 	Rows                timetableCompose.OwnerRows
 	Planning            timetableCompose.InstanceLifecycleDependencies
 	Staff               usersModels.StaffRepository
@@ -53,7 +53,7 @@ type timetableLifecycleInputs struct {
 	EnforceTimePolicy   bool
 }
 
-func newTimetableLifecycle(in timetableLifecycleInputs) (*timetableCompose.InstanceLifecycleService, error) {
+func NewTimetableLifecycle(in TimetableLifecycleInputs) (*timetableCompose.InstanceLifecycleService, error) {
 	if in.Rows.Locks == nil {
 		return nil, errors.New("timetable instance lifecycle: the recovery locks are required")
 	}

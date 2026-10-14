@@ -32,15 +32,15 @@ func (f *Factory) SettingsChangedNotifier() settingsCompose.SettingsChangedNotif
 // Presence. Without the presence service it reports no open attendance,
 // which disables the guard.
 func (f *Factory) OpenAttendanceChecker() settingsCompose.OpenAttendanceChecker {
-	return openAttendanceChecker{service: f.Active}
+	return OpenAttendanceChecker{Service: f.Active}
 }
 
-type openAttendanceChecker struct{ service studentpresence.Presence }
+type OpenAttendanceChecker struct{ Service studentpresence.Presence }
 
-func (c openAttendanceChecker) HasOpenAttendanceOn(ctx context.Context, day configModel.CalendarDate) (bool, error) {
-	if c.service == nil {
+func (c OpenAttendanceChecker) HasOpenAttendanceOn(ctx context.Context, day configModel.CalendarDate) (bool, error) {
+	if c.Service == nil {
 		return false, nil
 	}
 	value := day.UTCMidnight()
-	return c.service.HasOpenAttendanceOn(ctx, timezone.NewDate(value.Year(), value.Month(), value.Day()))
+	return c.Service.HasOpenAttendanceOn(ctx, timezone.NewDate(value.Year(), value.Month(), value.Day()))
 }

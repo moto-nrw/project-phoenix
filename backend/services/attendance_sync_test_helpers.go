@@ -10,7 +10,7 @@ import (
 // the attendance sync bridge without constructing the legacy repository
 // factory: the instance and participant rows.
 func NewAttendanceSyncTestRepositories(db *bun.DB, capability timetable.Capability) timetableCompose.OwnerRows {
-	presence := newUnloggedStudentPresence(db)
+	presence := NewUnloggedStudentPresence(db)
 	return timetableCompose.OwnerRows{
 		Instances:    timetableCompose.NewActivityInstanceRepository(db, capability, presence),
 		Participants: timetableCompose.NewInstanceStudentRepository(db, capability, presence, NewPartialAbsencePreview(db)),

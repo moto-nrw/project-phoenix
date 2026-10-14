@@ -14,8 +14,8 @@ import (
 // consumer reads schools through a port it owns; the adapters below bind
 // those ports to the public capability.
 
-// findSchool reads one school and reports a missing row as found=false.
-func findSchool(ctx context.Context, schools organizationtenancy.Query, id int64) (organizationtenancy.School, bool, error) {
+// FindSchool reads one school and reports a missing row as found=false.
+func FindSchool(ctx context.Context, schools organizationtenancy.Query, id int64) (organizationtenancy.School, bool, error) {
 	school, err := schools.FindSchool(ctx, id)
 	if errors.Is(err, organizationtenancy.ErrSchoolNotFound) {
 		return organizationtenancy.School{}, false, nil
@@ -26,13 +26,13 @@ func findSchool(ctx context.Context, schools organizationtenancy.Query, id int64
 	return school, true, nil
 }
 
-// enrollmentSchoolDirectory answers the enrollment flows.
-type enrollmentSchoolDirectory struct {
-	schools organizationtenancy.Query
+// EnrollmentSchoolDirectory answers the enrollment flows.
+type EnrollmentSchoolDirectory struct {
+	Schools organizationtenancy.Query
 }
 
-func (d enrollmentSchoolDirectory) FindSchool(ctx context.Context, id int64) (*enrollmentOwner.School, error) {
-	school, found, err := findSchool(ctx, d.schools, id)
+func (d EnrollmentSchoolDirectory) FindSchool(ctx context.Context, id int64) (*enrollmentOwner.School, error) {
+	school, found, err := FindSchool(ctx, d.Schools, id)
 	if err != nil || !found {
 		return nil, err
 	}
@@ -41,13 +41,13 @@ func (d enrollmentSchoolDirectory) FindSchool(ctx context.Context, id int64) (*e
 	}, nil
 }
 
-// schoolContactDirectory answers the reply address of tenant-bound mail.
-type schoolContactDirectory struct {
-	schools organizationtenancy.Query
+// SchoolContactDirectory answers the reply address of tenant-bound mail.
+type SchoolContactDirectory struct {
+	Schools organizationtenancy.Query
 }
 
-func (d schoolContactDirectory) FindSchoolContact(ctx context.Context, tenantID int64) (*emailoutbox.SchoolContact, error) {
-	school, found, err := findSchool(ctx, d.schools, tenantID)
+func (d SchoolContactDirectory) FindSchoolContact(ctx context.Context, tenantID int64) (*emailoutbox.SchoolContact, error) {
+	school, found, err := FindSchool(ctx, d.Schools, tenantID)
 	if err != nil || !found {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ type schoolNameDirectory struct {
 }
 
 func (d schoolNameDirectory) FindSchoolName(ctx context.Context, id int64) (string, bool, error) {
-	school, found, err := findSchool(ctx, d.schools, id)
+	school, found, err := FindSchool(ctx, d.schools, id)
 	return school.Name, found, err
 }
 
@@ -70,7 +70,7 @@ type displaySchoolDirectory struct {
 }
 
 func (d displaySchoolDirectory) FindDisplaySchool(ctx context.Context, tenantID int64) (devicefleetCompose.School, bool, error) {
-	school, found, err := findSchool(ctx, d.schools, tenantID)
+	school, found, err := FindSchool(ctx, d.schools, tenantID)
 	if err != nil || !found {
 		return devicefleetCompose.School{}, found, err
 	}

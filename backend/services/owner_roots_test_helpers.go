@@ -15,7 +15,7 @@ import (
 // NewCalendarReminderCommand binds the existing notification adapters to the
 // reminder workflow without constructing a repository or service factory.
 func NewCalendarReminderCommand(db *bun.DB, source CalendarReminderSource) reminder.Command {
-	return reminderCompose.NewCommand(db, calendarReminderDelivery(source))
+	return reminderCompose.NewCommand(db, CalendarReminderDelivery(source))
 }
 
 // NewFacilities composes the unobserved room owner for the test and CLI

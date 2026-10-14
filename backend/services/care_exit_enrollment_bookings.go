@@ -77,7 +77,7 @@ func enrollmentBookingDate(date *careplan.Date) *enrollment.Date {
 	return new(enrollment.Date(*date))
 }
 
-func carePlanBookingDate(date *enrollment.Date) *careplan.Date {
+func CarePlanBookingDate(date *enrollment.Date) *careplan.Date {
 	if date == nil {
 		return nil
 	}
@@ -168,7 +168,7 @@ func (a EnrollmentBookingProjection) RestoreCareExitOfferingLinks(ctx context.Co
 		restores = append(restores, careplan.CareOfferingBookingRestore{WasDeleted: snapshot.WasDeleted, Booking: careplan.CareOfferingBooking{
 			ID: row.ID, TenantID: row.TenantID, RequestChildID: row.RequestChildID, CareOfferingID: row.CareOfferingID,
 			ManualSelectedDays: manual, AutomaticSelectedDays: row.AutomaticSelectedDays,
-			ValidFrom: carePlanBookingDate(row.ValidFrom), ValidUntil: carePlanBookingDate(row.ValidUntil), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			ValidFrom: CarePlanBookingDate(row.ValidFrom), ValidUntil: CarePlanBookingDate(row.ValidUntil), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		}})
 	}
 	return a.bookings.RestoreCareOfferingBookings(ctx, restores)

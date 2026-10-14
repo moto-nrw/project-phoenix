@@ -82,14 +82,14 @@ func NewBookingMaterializationTestModule(db *bun.DB, unit tenant.UnitOfWork, opt
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	approved := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: people})
+	approved := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), OfferingStudents{Query: people})
 	pickup, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approved, func(ctx context.Context) (bool, error) {
 		return settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	bookings, err := newBookingMaterialization(bookingMaterializationInputs{
+	bookings, err := NewBookingMaterialization(BookingMaterializationInputs{
 		Catalog: catalog, Timetable: repos.Timetable, Rosters: repos.RosterMaintenance(slog.Default(), nil),
 		Students: people, Periods: repos.SchoolCalendar(), Enrollment: repos.Enrollment(), Approved: approved,
 		Settings: settings, Bookings: repos.CarePlan, Withdrawals: options.Withdrawals,

@@ -65,7 +65,7 @@ func NewBirthdayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 	}
 	birthdays := NewBirthdays(
 		BirthdayRepositories{Students: NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
-		settings.Settings, slog.Default(), optionalClock(clocks))
+		settings.Settings, slog.Default(), OptionalClock(clocks))
 	return BirthdayTestModule{Birthdays: birthdays, UserContext: identity, Settings: settings.Settings, ListExport: lists.NewRendererService()}, nil
 }
 

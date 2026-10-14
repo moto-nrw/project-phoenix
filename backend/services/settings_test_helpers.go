@@ -34,7 +34,7 @@ func NewSettingsTestModule(db *bun.DB, unit tenant.UnitOfWork) (SettingsTestModu
 	homeLayouts := settingsCompose.NewHomeLayoutService(settingsCompose.NewHomeLayoutRepository(runtime), runtime, slog.Default())
 	settings := settingsCompose.NewSettingsServiceWithHomeLayouts(
 		repos.Values, repos.Audit,
-		newSchoolSettingsStore(organizations), runtime, slog.Default(), homeLayouts,
+		NewSchoolSettingsStore(organizations), runtime, slog.Default(), homeLayouts,
 	)
 	guards := settings.(interface {
 		SetClassRestrictionGuard(func(context.Context) (bool, error))

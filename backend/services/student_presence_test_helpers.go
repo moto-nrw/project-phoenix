@@ -10,5 +10,5 @@ import (
 // import's retention consents (#2708). The production root composes the same
 // module behind its own observation sink.
 func NewStudentPresenceForTests(db *bun.DB) studentpresence.Capability {
-	return newUnloggedStudentPresence(db)
+	return NewUnloggedStudentPresence(db)
 }

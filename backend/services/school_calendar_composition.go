@@ -22,12 +22,12 @@ type federalStateResolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
-// schoolCalendarAdministration binds the owner collaborators the School
+// SchoolCalendarAdministration binds the owner collaborators the School
 // Calendar period administration and the tenant holiday reads resolve at
 // call time: the federal-state setting (#1418 3a), the shared tenant
 // recurrence gate and the Care Plan catalog's care-offering guard, whose
 // refusal is mapped onto the calendar's own sentinel.
-func schoolCalendarAdministration(
+func SchoolCalendarAdministration(
 	settings federalStateResolver,
 	lockRecurrence func(context.Context) error,
 	careOfferings careplan.CareOfferingGuards,
@@ -75,9 +75,9 @@ func (f *Factory) SchoolCalendarAdministration() schoolCalendarCompose.Administr
 	if f.EnrollmentCareOffering != nil {
 		guard = f.EnrollmentCareOffering
 	}
-	runtime := schoolCalendarAdministration(f.Settings, f.lockTenantRecurrence, guard)
+	runtime := SchoolCalendarAdministration(f.Settings, f.lockTenantRecurrence, guard)
 	if guard == nil {
-		// newFactory refuses this composition; keep the refusal loud on the
+		// NewFactoryWithConfig refuses this composition; keep the refusal loud on the
 		// write path rather than administering periods unguarded.
 		runtime.CareOfferingGuard = func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error {
 			return errors.New("calendar period care-offering validation is not configured")
@@ -95,36 +95,36 @@ func (f *Factory) lockTenantRecurrence(ctx context.Context) error {
 	return f.TimetableData.RecurrenceLock.LockRecurrenceWrites(ctx)
 }
 
-// nonWorkingDays serves the retained Soll consumers (time tracking, the
+// NonWorkingDays serves the retained Soll consumers (time tracking, the
 // Dienstplan overview) with the union of statutory holidays and closing
 // days keyed by calendar date (#1418 3a/3b): a day that is both collapses
 // into one key, so it can never be subtracted twice.
-type nonWorkingDays struct {
-	calendar schoolcalendar.NonWorkingDayQuery
+type NonWorkingDays struct {
+	Calendar schoolcalendar.NonWorkingDayQuery
 }
 
-func (d nonWorkingDays) HolidayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
-	return calendarDateSet(d.calendar.NonWorkingDayDates(ctx, from.String(), to.String()))
+func (d NonWorkingDays) HolidayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
+	return calendarDateSet(d.Calendar.NonWorkingDayDates(ctx, from.String(), to.String()))
 }
 
-// tenantHolidays serves the consumers that must only see statutory
+// TenantHolidays serves the consumers that must only see statutory
 // holidays (the holidays endpoint, the Feiertagsarbeit warning, the
 // statistics reports): closing days never leak in.
-type tenantHolidays struct {
-	calendar schoolcalendar.NonWorkingDayQuery
+type TenantHolidays struct {
+	Calendar schoolcalendar.NonWorkingDayQuery
 }
 
-func (h tenantHolidays) HolidayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
-	return calendarDateSet(h.calendar.TenantHolidayDates(ctx, from.String(), to.String()))
+func (h TenantHolidays) HolidayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
+	return calendarDateSet(h.Calendar.TenantHolidayDates(ctx, from.String(), to.String()))
 }
 
-// tenantClosingDays expands the school's closure ranges into a date set.
-type tenantClosingDays struct {
-	calendar schoolcalendar.NonWorkingDayQuery
+// TenantClosingDays expands the school's closure ranges into a date set.
+type TenantClosingDays struct {
+	Calendar schoolcalendar.NonWorkingDayQuery
 }
 
-func (c tenantClosingDays) ClosingDayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
-	return calendarDateSet(c.calendar.ClosingDayDates(ctx, from.String(), to.String()))
+func (c TenantClosingDays) ClosingDayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
+	return calendarDateSet(c.Calendar.ClosingDayDates(ctx, from.String(), to.String()))
 }
 
 func calendarDateSet(values map[string]bool, err error) (map[calendar.Date]bool, error) {
@@ -241,7 +241,7 @@ func TimeframeChangeGuard(
 			}
 		}
 		if err := validate(ctx, timeframeID, proposed); err != nil {
-			if isCareOfferingConfigInvalid(err) {
+			if IsCareOfferingConfigInvalid(err) {
 				return fmt.Errorf("%w: %w", timetable.ErrTimeframeRequiredByCareOffering, err)
 			}
 			return fmt.Errorf("validate care offerings: %w", err)

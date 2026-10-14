@@ -33,7 +33,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 	require.NoError(t, err)
 
 	observedAppends := 0
-	factory, err := newFactory(
+	factory, err := NewFactoryWithConfig(
 		carePlan,
 		db,
 		slog.Default(),

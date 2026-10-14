@@ -13,8 +13,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 
-// reminderClock derives both evaluation inputs from the same Berlin instant.
-func reminderClock(clocks ...func() time.Time) func() (string, int) {
+// ReminderClock derives both evaluation inputs from the same Berlin instant.
+func ReminderClock(clocks ...func() time.Time) func() (string, int) {
 	now := timezone.Now
 	if len(clocks) > 0 && clocks[0] != nil {
 		now = clocks[0]
@@ -25,14 +25,14 @@ func reminderClock(clocks ...func() time.Time) func() (string, int) {
 	}
 }
 
-type reminderVisitReader struct {
-	source interface {
+type ReminderVisitReader struct {
+	Source interface {
 		ListOpenVisitRooms(context.Context, int64) ([]studentpresence.OpenVisitRoom, error)
 	}
 }
 
-func (r reminderVisitReader) ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error) {
-	rows, err := r.source.ListOpenVisitRooms(ctx, 0)
+func (r ReminderVisitReader) ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error) {
+	rows, err := r.Source.ListOpenVisitRooms(ctx, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -43,14 +43,14 @@ func (r reminderVisitReader) ListOpenVisitStudentIDsByRoom(ctx context.Context) 
 	return result, nil
 }
 
-type reminderPickupReader struct {
-	source interface {
+type ReminderPickupReader struct {
+	Source interface {
 		GetBulkEffectivePickupTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*careplan.EffectivePickupTime, error)
 	}
 }
 
-func (r reminderPickupReader) GetBulkEffectivePickupTimesForDate(ctx context.Context, ids []int64, date string) (map[int64]*ports.EffectivePickupTime, error) {
-	values, err := r.source.GetBulkEffectivePickupTimesForDate(ctx, ids, timezone.Date(date))
+func (r ReminderPickupReader) GetBulkEffectivePickupTimesForDate(ctx context.Context, ids []int64, date string) (map[int64]*ports.EffectivePickupTime, error) {
+	values, err := r.Source.GetBulkEffectivePickupTimesForDate(ctx, ids, timezone.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -65,11 +65,11 @@ func (r reminderPickupReader) GetBulkEffectivePickupTimesForDate(ctx context.Con
 	return result, nil
 }
 
-type reminderSettings struct {
+type ReminderSettings struct {
 	settingsCompose.SettingsService
 }
 
-func (r reminderSettings) Snapshot(ctx context.Context) (context.Context, error) {
+func (r ReminderSettings) Snapshot(ctx context.Context) (context.Context, error) {
 	batch, ok := r.SettingsService.(interface {
 		ResolveMany(context.Context, []string) (*settingsCompose.SettingsSnapshot, error)
 	})
@@ -92,35 +92,35 @@ func (r reminderSettings) Snapshot(ctx context.Context) (context.Context, error)
 	return settingsCompose.WithSettingsSnapshot(ctx, snapshot), nil
 }
 
-func (r reminderSettings) PickupUpcomingEnabled(ctx context.Context) (bool, error) {
+func (r ReminderSettings) PickupUpcomingEnabled(ctx context.Context) (bool, error) {
 	return reminderSettingValue(ctx, configModel.KeyRemindersPickupUpcomingEnabled, r.ResolveBool)
 }
 
-func (r reminderSettings) PickupOverdueEnabled(ctx context.Context) (bool, error) {
+func (r ReminderSettings) PickupOverdueEnabled(ctx context.Context) (bool, error) {
 	return reminderSettingValue(ctx, configModel.KeyRemindersPickupOverdueEnabled, r.ResolveBool)
 }
 
-func (r reminderSettings) ActivityStartEnabled(ctx context.Context) (bool, error) {
+func (r ReminderSettings) ActivityStartEnabled(ctx context.Context) (bool, error) {
 	return reminderSettingValue(ctx, configModel.KeyRemindersActivityStartEnabled, r.ResolveBool)
 }
 
-func (r reminderSettings) ActivityOverdueEnabled(ctx context.Context) (bool, error) {
+func (r ReminderSettings) ActivityOverdueEnabled(ctx context.Context) (bool, error) {
 	return reminderSettingValue(ctx, configModel.KeyRemindersActivityOverdueEnabled, r.ResolveBool)
 }
 
-func (r reminderSettings) PickupLeadMinutes(ctx context.Context) (int, error) {
+func (r ReminderSettings) PickupLeadMinutes(ctx context.Context) (int, error) {
 	return reminderSettingValue(ctx, configModel.KeyRemindersPickupUpcomingLeadMinutes, r.ResolveInt)
 }
 
-func (r reminderSettings) ActivityLeadMinutes(ctx context.Context) (int, error) {
+func (r ReminderSettings) ActivityLeadMinutes(ctx context.Context) (int, error) {
 	return reminderSettingValue(ctx, configModel.KeyRemindersActivityStartLeadMinutes, r.ResolveInt)
 }
 
-func (r reminderSettings) OverdueThresholdMinutes(ctx context.Context) (int, error) {
+func (r ReminderSettings) OverdueThresholdMinutes(ctx context.Context) (int, error) {
 	return reminderSettingValue(ctx, configModel.KeyTimetableOverdueThresholdMinutes, r.ResolveInt)
 }
 
-func (r reminderSettings) BinaryPresence(ctx context.Context) (bool, error) {
+func (r ReminderSettings) BinaryPresence(ctx context.Context) (bool, error) {
 	v, err := reminderSettingValue(ctx, configModel.KeyPresenceMode, r.ResolveString)
 	return v == configModel.PresenceModeBinary, err
 }

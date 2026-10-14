@@ -75,12 +75,12 @@ func (a studentDocumentAudit) RecordDocumentDownload(ctx context.Context, studen
 	})
 }
 
-// studentDocumentDependencies binds Care Plan's child document capability to
+// StudentDocumentDependencies binds Care Plan's child document capability to
 // its authority and audit. It refuses to compose without either audit
 // repository: an unlogged upload, deletion or sensitive download of a child's
 // paperwork is worse than a server that does not start. The composition root
 // adds its database handle to the dependencies they bind.
-func studentDocumentDependencies(
+func StudentDocumentDependencies(
 	records careplan.Capability, students userModels.StudentRepository,
 	userContext securityruntime.StudentAccessUserContext,
 	edits auditModels.StudentFieldEditRepository, accessLog auditModels.DataAccessLogRepository,

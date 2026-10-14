@@ -14,14 +14,14 @@ import (
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-type statisticsAuditLog struct {
-	log interface {
+type StatisticsAuditLog struct {
+	Log interface {
 		Create(context.Context, *auditModels.DataAccessLog) error
 		ExistsSince(context.Context, int64, string, map[string]string, time.Time) (bool, error)
 	}
 }
 
-func (a statisticsAuditLog) RecordStatisticsAccess(ctx context.Context, event presenceCompose.StatisticsAccessEvent) error {
+func (a StatisticsAuditLog) RecordStatisticsAccess(ctx context.Context, event presenceCompose.StatisticsAccessEvent) error {
 	entry := &auditModels.DataAccessLog{
 		ActorAccountID: event.ActorAccountID, ActorRole: event.ActorRole,
 		ResourceType: auditModels.ResourceTypeAttendanceStatistics,
@@ -30,21 +30,21 @@ func (a statisticsAuditLog) RecordStatisticsAccess(ctx context.Context, event pr
 	for key, value := range event.Metadata {
 		entry.SetMetadata(key, value)
 	}
-	return a.log.Create(ctx, entry)
+	return a.Log.Create(ctx, entry)
 }
 
-func (a statisticsAuditLog) SeenStatisticsAccessSince(ctx context.Context, actorID int64, metadata map[string]string, since time.Time) (bool, error) {
-	return a.log.ExistsSince(ctx, actorID, auditModels.ResourceTypeAttendanceStatistics, metadata, since)
+func (a StatisticsAuditLog) SeenStatisticsAccessSince(ctx context.Context, actorID int64, metadata map[string]string, since time.Time) (bool, error) {
+	return a.Log.ExistsSince(ctx, actorID, auditModels.ResourceTypeAttendanceStatistics, metadata, since)
 }
 
-type statisticsReportRooms struct {
-	rooms interface {
+type StatisticsReportRooms struct {
+	Rooms interface {
 		ListRooms(context.Context, facilities.RoomFilter) ([]facilities.Room, error)
 	}
 }
 
-func (a statisticsReportRooms) StatisticsRooms(ctx context.Context) ([]presenceCompose.StatisticsRoom, error) {
-	values, err := a.rooms.ListRooms(ctx, facilities.RoomFilter{})
+func (a StatisticsReportRooms) StatisticsRooms(ctx context.Context) ([]presenceCompose.StatisticsRoom, error) {
+	values, err := a.Rooms.ListRooms(ctx, facilities.RoomFilter{})
 	if err != nil {
 		return nil, err
 	}
@@ -55,14 +55,14 @@ func (a statisticsReportRooms) StatisticsRooms(ctx context.Context) ([]presenceC
 	return result, nil
 }
 
-type statisticsReportPeriods struct {
-	periods interface {
+type StatisticsReportPeriods struct {
+	Periods interface {
 		ListCalendarPeriods(context.Context, schoolcalendar.CalendarPeriodFilter) ([]schoolcalendar.CalendarPeriod, error)
 	}
 }
 
-func (a statisticsReportPeriods) StatisticsHolidayPeriods(ctx context.Context, from, to timezone.Date) ([]presenceCompose.HolidayPeriod, error) {
-	values, err := a.periods.ListCalendarPeriods(ctx, schoolcalendar.CalendarPeriodFilter{
+func (a StatisticsReportPeriods) StatisticsHolidayPeriods(ctx context.Context, from, to timezone.Date) ([]presenceCompose.HolidayPeriod, error) {
+	values, err := a.Periods.ListCalendarPeriods(ctx, schoolcalendar.CalendarPeriodFilter{
 		PeriodType: schoolcalendar.PeriodTypeHoliday, ActiveOnly: true, OverlappingFrom: from.String(), OverlappingTo: to.String(),
 	})
 	if err != nil {
@@ -75,27 +75,27 @@ func (a statisticsReportPeriods) StatisticsHolidayPeriods(ctx context.Context, f
 	return result, nil
 }
 
-type statisticsRetention struct {
-	settings interface {
+type StatisticsRetention struct {
+	Settings interface {
 		ResolveInt(context.Context, string) (int, error)
 	}
 }
 
-func (r statisticsRetention) RoomRetentionDays(ctx context.Context) (int, error) {
-	return r.settings.ResolveInt(ctx, configModels.KeyPrivacyConsentRetentionDays)
+func (r StatisticsRetention) RoomRetentionDays(ctx context.Context) (int, error) {
+	return r.Settings.ResolveInt(ctx, configModels.KeyPrivacyConsentRetentionDays)
 }
-func (r statisticsRetention) CourseRetentionDays(ctx context.Context) (int, error) {
-	return r.settings.ResolveInt(ctx, configModels.KeyGDPRTimetableRetentionDays)
+func (r StatisticsRetention) CourseRetentionDays(ctx context.Context) (int, error) {
+	return r.Settings.ResolveInt(ctx, configModels.KeyGDPRTimetableRetentionDays)
 }
 
-type statisticsReportStudents struct {
-	students interface {
+type StatisticsReportStudents struct {
+	Students interface {
 		FindOverlappingWithGroups(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]*userModels.StudentWithGroupInfo, error)
 	}
 }
 
-func (r statisticsReportStudents) FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*presenceCompose.StatisticsStudent, error) {
-	values, err := r.students.FindOverlappingWithGroups(ctx, from, to, today)
+func (r StatisticsReportStudents) FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*presenceCompose.StatisticsStudent, error) {
+	values, err := r.Students.FindOverlappingWithGroups(ctx, from, to, today)
 	if err != nil {
 		return nil, err
 	}
@@ -118,12 +118,12 @@ func (r statisticsReportStudents) FindOverlappingWithGroups(ctx context.Context,
 	return result, nil
 }
 
-type statisticsStatusDays struct {
-	query careplan.StudentStatusDaysQuery
+type StatisticsStatusDays struct {
+	Query careplan.StudentStatusDaysQuery
 }
 
-func (a statisticsStatusDays) StatusDays(ctx context.Context, from, to timezone.Date) ([]presenceCompose.StatusDay, error) {
-	values, err := a.query.ListStatusDaySummaries(ctx, careplan.Date(from), careplan.Date(to))
+func (a StatisticsStatusDays) StatusDays(ctx context.Context, from, to timezone.Date) ([]presenceCompose.StatusDay, error) {
+	values, err := a.Query.ListStatusDaySummaries(ctx, careplan.Date(from), careplan.Date(to))
 	if err != nil {
 		return nil, err
 	}

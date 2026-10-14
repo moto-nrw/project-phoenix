@@ -22,12 +22,12 @@ import (
 // TimetableAttendanceCorrectionTrail), the realtime hub and
 // Student Presence's attendance syncer port.
 
-// timetableDeviationInputs compose the deviation writes over the retained
+// TimetableDeviationInputs compose the deviation writes over the retained
 // rows (Instances, InstanceStaff and the Audit Platform's DeviationEvents).
 // Lifecycle is the instance lifecycle the cancel branch and the
 // "deliberately unstaffed" acknowledgement hand over to. The composition root
 // adds its database handle to the dependencies they bind.
-type timetableDeviationInputs struct {
+type TimetableDeviationInputs struct {
 	Rows         timetableCompose.OwnerRows
 	Staff        usersModels.StaffRepository
 	Supervisions studentpresence.SupervisionRecords
@@ -37,7 +37,7 @@ type timetableDeviationInputs struct {
 	Now          func() time.Time
 }
 
-func timetableStaffDeviationDependencies(in timetableDeviationInputs) (timetableCompose.StaffDeviationDependencies, error) {
+func TimetableStaffDeviationDependencies(in TimetableDeviationInputs) (timetableCompose.StaffDeviationDependencies, error) {
 	if in.Lifecycle == nil || in.Rows.Deviations == nil || in.Broadcaster == nil {
 		return timetableCompose.StaffDeviationDependencies{}, errors.New("timetable staff deviations: lifecycle, protocol and broadcaster are required")
 	}
@@ -54,25 +54,25 @@ func timetableStaffDeviationDependencies(in timetableDeviationInputs) (timetable
 	}, nil
 }
 
-// newTimetableSubstituteConflicts composes the substitute time-overlap
+// NewTimetableSubstituteConflicts composes the substitute time-overlap
 // advisories the instance lifecycle's staff move asks for.
-func newTimetableSubstituteConflicts(rows timetableCompose.OwnerRows) (timetable.SubstituteConflictQuery, error) {
+func NewTimetableSubstituteConflicts(rows timetableCompose.OwnerRows) (timetable.SubstituteConflictQuery, error) {
 	return timetableCompose.NewSubstituteConflicts(timetableCompose.SubstituteConflictDependencies{
 		Instances: rows.Instances, InstanceStaff: rows.InstanceStaff,
 	})
 }
 
-// timetableCorrectionInputs compose the attendance correction over the
+// TimetableCorrectionInputs compose the attendance correction over the
 // retained rows (Participants, Instances and the optional completion Locks).
 // Trail is optional: without it every correction fails closed.
-type timetableCorrectionInputs struct {
+type TimetableCorrectionInputs struct {
 	Rows   timetableCompose.OwnerRows
 	Trail  auditModels.AttendanceCorrectionRepository
 	People usersModels.PersonRepository
 	Logger *slog.Logger
 }
 
-func newTimetableAttendanceCorrections(in timetableCorrectionInputs) (timetable.AttendanceCorrections, error) {
+func NewTimetableAttendanceCorrections(in TimetableCorrectionInputs) (timetable.AttendanceCorrections, error) {
 	return timetableCompose.NewAttendanceCorrections(timetableCompose.AttendanceCorrectionDependencies{
 		Participants: in.Rows.Participants,
 		Instances:    in.Rows.Instances,

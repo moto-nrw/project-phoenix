@@ -54,9 +54,9 @@ func NewStudentPresence(db *bun.DB, observe func(presenceCompose.Observation)) (
 	})
 }
 
-// newUnloggedStudentPresence composes the bootstrap Student Presence owner
+// NewUnloggedStudentPresence composes the bootstrap Student Presence owner
 // behind the legacy repository adapters.
-func newUnloggedStudentPresence(db *bun.DB) *studentpresence.Module {
+func NewUnloggedStudentPresence(db *bun.DB) *studentpresence.Module {
 	module, err := NewStudentPresence(db, presenceObserver())
 	if err != nil {
 		panic(err)
@@ -64,9 +64,9 @@ func newUnloggedStudentPresence(db *bun.DB) *studentpresence.Module {
 	return module
 }
 
-// newStudentPresence composes the Student Presence owner with its operations
+// NewLoggedStudentPresence composes the Student Presence owner with its operations
 // logged at debug level.
-func newStudentPresence(db *bun.DB, logger *slog.Logger) *studentpresence.Module {
+func NewLoggedStudentPresence(db *bun.DB, logger *slog.Logger) *studentpresence.Module {
 	module, err := NewStudentPresence(db, studentPresenceObserver(logger))
 	if err != nil {
 		panic(err)
@@ -105,7 +105,7 @@ func NewSessionRecords(db *bun.DB, owners SessionRecordOwners) *presenceCompose.
 	return newPresenceSessionRecords(deps)
 }
 
-func mustPresenceReads(db *bun.DB) timetableCompose.PresenceReads {
+func MustPresenceReads(db *bun.DB) timetableCompose.PresenceReads {
 	reads, err := timetableCompose.NewPresenceReads(db)
 	if err != nil {
 		panic(err)
@@ -121,11 +121,11 @@ func NewPartialAbsencePreview(db *bun.DB) timetableCompose.PartialAbsencePreview
 	if err != nil {
 		panic(fmt.Sprintf("partial absence preview: compose care plan exception queries: %v", err))
 	}
-	return newPartialAbsencePreview(mustPresenceReads(db), peopleCompose.MustNewReads(db), exceptions)
+	return newPartialAbsencePreview(MustPresenceReads(db), peopleCompose.MustNewReads(db), exceptions)
 }
 
 // NewPickupReviewBlocks previews the blocks a pickup change under review
 // would excuse over the joined presence reads of the database.
 func NewPickupReviewBlocks(db *bun.DB) carePlanCompose.PickupReviewBlocks {
-	return PickupReviewBlocks{reads: mustPresenceReads(db)}
+	return PickupReviewBlocks{reads: MustPresenceReads(db)}
 }

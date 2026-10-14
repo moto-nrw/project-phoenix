@@ -84,7 +84,7 @@ func (s *statusDayStudents) LockForStatusWrite(ctx context.Context, studentID in
 	if err != nil {
 		return nil, err
 	}
-	record := studentRecord(fresh)
+	record := StudentRecord(fresh)
 	if !s.authorize(ctx, record, status) {
 		return nil, studentpresence.ErrStudentStatusDayReassigned
 	}

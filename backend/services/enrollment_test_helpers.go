@@ -19,5 +19,5 @@ func NewApprovedOfferingTestProjection(db *bun.DB, selections enrollmentCompose.
 	if err != nil {
 		return nil, err
 	}
-	return enrollmentCompose.NewApprovedOfferingProjection(selections, offeringStudents{query: students}), nil
+	return enrollmentCompose.NewApprovedOfferingProjection(selections, OfferingStudents{Query: students}), nil
 }

@@ -37,9 +37,9 @@ func NewTestExcusedAbsenceRequests(options ExcusedRequestTestOptions) (*carePlan
 	if scope == nil {
 		scope = SchoolWideReviewScope
 	}
-	return newExcusedAbsenceRequests(excusedRequestWiring{
-		carePlan: options.CarePlan, students: options.Students, persons: options.Persons,
-		scope: scope, emitter: options.Emitter, broadcaster: options.Broadcaster, events: options.Events,
-		logger: options.Logger, today: options.Today,
+	return NewExcusedAbsenceRequestService(ExcusedRequestServiceWiring{
+		CarePlan: options.CarePlan, Students: options.Students, Persons: options.Persons,
+		Scope: scope, Emitter: options.Emitter, Broadcaster: options.Broadcaster, Events: options.Events,
+		Logger: options.Logger, Today: options.Today,
 	})
 }

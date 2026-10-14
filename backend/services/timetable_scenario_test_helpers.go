@@ -42,9 +42,9 @@ func NewTimetableScenarioTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks .
 	if err != nil {
 		return TimetableScenarioTestModule{}, err
 	}
-	cleanup, err := newTimetableCleanup(timetableRetentionInputs{
+	cleanup, err := NewTimetableCleanup(TimetableRetentionInputs{
 		Owner: r.Timetable, Deletions: NewDataDeletionTestRepository(db, command),
-		Deviations: r.DeviationEvent, Settings: live.Settings, Logger: slog.Default(), Clock: optionalClock(clocks),
+		Deviations: r.DeviationEvent, Settings: live.Settings, Logger: slog.Default(), Clock: OptionalClock(clocks),
 	})
 	if err != nil {
 		return TimetableScenarioTestModule{}, err

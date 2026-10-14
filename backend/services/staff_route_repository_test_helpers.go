@@ -16,7 +16,7 @@ func NewAbsenceTypeTestCapability(db *bun.DB, clocks ...func() time.Time) workfo
 	if err != nil {
 		panic(err)
 	}
-	workTime, err := NewWorkforceWithClock(db, membership, optionalClock(clocks))
+	workTime, err := NewWorkforceWithClock(db, membership, OptionalClock(clocks))
 	if err != nil {
 		panic(err)
 	}

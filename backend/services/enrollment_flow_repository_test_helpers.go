@@ -47,7 +47,7 @@ func NewEnrollmentFlowTestRepositoriesWithMembers(db *bun.DB, members Membership
 		StudentGuardian:           members.StudentGuardian,
 		GuardianProfile:           members.GuardianProfile,
 		GuardianPhoneNumber:       peopleCompose.NewGuardianPhoneNumberRepository(db),
-		CareWithdrawal:            newCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
+		CareWithdrawal:            NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
 	}, nil
 }
 

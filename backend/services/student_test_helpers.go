@@ -126,13 +126,13 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		return StudentTestModule{}, err
 	}
 	logger := slog.Default()
-	now := optionalClock(clocks)
+	now := OptionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
 	settingsService := live.Settings
 	// Care Plan is composed after the live graph's person directory; the
 	// module hands out the copy that reaches it.
-	usersService := live.Users.WithCareParticipation(careParticipationResolver(func() careplan.CareParticipation {
+	usersService := live.Users.WithCareParticipation(CareParticipationResolver(func() careplan.CareParticipation {
 		return care.CareLifecycle
 	}))
 	live.Users = usersService
@@ -146,8 +146,8 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	careLifecycleService := care.CareLifecycle
 	studentAuditService := care.StudentAudit
 	emailOutboxService := delivery.EmailOutbox
-	frontendURL := currentFactoryConfig().FrontendURL
-	parentsURL := currentFactoryConfig().ParentsURL
+	frontendURL := CurrentFactoryConfig().FrontendURL
+	parentsURL := CurrentFactoryConfig().ParentsURL
 	studentConsentService := NewStudentConsents(db)
 	// The stored files live in the API layer, so a services-only graph binds
 	// no unlinker: the runtime skips the cleanup instead of guessing a path.
@@ -160,7 +160,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	}
 	studentPhotoService := newStudentPhotos(realtimeHub, nil)
 	careplanCompose.WireCareParticipation(careDayService, careLifecycleService)
-	approvedOfferings := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
+	approvedOfferings := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), OfferingStudents{Query: persons})
 	pickupBaselines, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
 		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
@@ -168,7 +168,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		return StudentTestModule{}, err
 	}
 	pickupAutoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db, Records: repos.CarePlan, Baselines: pickupBaselines, Blocks: newStudentPresence(db, logger), Preview: newPickupExcusalTimetable(repos.Timetable, NewPartialAbsencePreview(db)),
+		DB: db, Records: repos.CarePlan, Baselines: pickupBaselines, Blocks: NewLoggedStudentPresence(db, logger), Preview: NewPickupExcusalTimetable(repos.Timetable, NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
 		return StudentTestModule{}, err
@@ -187,7 +187,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		Broadcaster: realtimeHub,
 		Logger:      logger.With("service", "parent-events"),
 	})
-	partialAbsenceService, err := careplanCompose.NewPartialAbsences(db, repos.CarePlan, newStudentPresence(db, logger), pickupAutoExcusal)
+	partialAbsenceService, err := careplanCompose.NewPartialAbsences(db, repos.CarePlan, NewLoggedStudentPresence(db, logger), pickupAutoExcusal)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
@@ -211,7 +211,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 			return nil
 		})
 	}
-	careBookings, err := newBookingMaterialization(bookingMaterializationInputs{
+	careBookings, err := NewBookingMaterialization(BookingMaterializationInputs{
 		Catalog: offeringLinks.Catalog, Timetable: repos.Timetable, Rosters: rosterReconciler, Students: persons,
 		Periods: repos.SchoolCalendar(), Enrollment: repos.Enrollment(), Approved: approvedOfferings,
 		Settings: settingsService, Bookings: repos.CarePlan, Withdrawals: careLifecycleService,
@@ -238,7 +238,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		DataAccessLog:          repos.DataAccessLog,
 		OfferingAdjustments:    repos.EnrollmentOfferingAdjustment,
 		Restorations:           repos.EnrollmentRestorationAudit,
-		Notifications:          newEnrollmentNotifications(repos.Enrollment(), settingsService, outboxEnqueuer{outbox: emailOutboxService}, enrollmentSchoolDirectory{schools: repos.School}),
+		Notifications:          NewEnrollmentNotifications(repos.Enrollment(), settingsService, OutboxEnqueuer{Outbox: emailOutboxService}, EnrollmentSchoolDirectory{Schools: repos.School}),
 		Persons:                repos.Person,
 		Staff:                  repos.Staff,
 		Students:               repos.Student,
@@ -286,7 +286,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		persons,
 		arrivalScheduleService,
 		pickupScheduleService,
-		newStudentPresence(db, logger),
+		NewLoggedStudentPresence(db, logger),
 		pickupAutoExcusal,
 		repos.CarePlan,
 		userContextService,
@@ -299,10 +299,10 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		studentAuditService,
 		WithCareRequestToday(today),
 	)
-	offeringChanges, err := newOfferingChanges(offeringChangeInputs{
+	offeringChanges, err := NewOfferingChanges(OfferingChangeInputs{
 		CarePlan: repos.CarePlan, Enrollment: repos.Enrollment(), Students: repos.Student,
 		Withdrawals: repos.CareWithdrawal, Settings: settingsService,
-		Planning: manualPlanningReader{query: enrollmentCompose.NewManualPlanningQuery(db), courseGroups: repos.Timetable},
+		Planning: ManualPlanningReader{Query: enrollmentCompose.NewManualPlanningQuery(db), CourseGroups: repos.Timetable},
 		Bookings: careBookings, Reviews: requestReviewPolicy, Permissions: testRequestTokens.Permissions, Emitter: pillEmitter,
 		Events: parentRequestEvents, Today: today, Logger: logger.With("service", "offering-change-requests"),
 	})
@@ -310,7 +310,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		return StudentTestModule{}, err
 	}
 	newPickupAdjustmentsFor := func(offerings careplan.DirectOfferingAdjustments) (careplan.PickupAdjustments, error) {
-		return newPickupAdjustments(pickupAdjustmentInputs{
+		return NewPickupAdjustments(PickupAdjustmentInputs{
 			CarePlan: repos.CarePlan, PickupSchedules: pickupScheduleService, ArrivalSchedules: arrivalScheduleService,
 			Baselines: pickupBaselines, Offerings: offerings, Settings: settingsService,
 			Audit: studentAuditService, Students: repos.Student, Today: today,
@@ -320,28 +320,28 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	excusedRequestService, err := newExcusedAbsenceRequests(excusedRequestWiring{
-		carePlan: repos.CarePlan, students: repos.Student, persons: repos.Person,
-		scope:   parentRequestReviewScope(requestReviewPolicy, testRequestTokens.Permissions),
-		emitter: pillEmitter, broadcaster: realtimeHub, events: parentRequestEvents,
-		logger: logger.With("service", "excused-requests"),
+	excusedRequestService, err := NewExcusedAbsenceRequestService(ExcusedRequestServiceWiring{
+		CarePlan: repos.CarePlan, Students: repos.Student, Persons: repos.Person,
+		Scope:   ParentRequestReviewScope(requestReviewPolicy, testRequestTokens.Permissions),
+		Emitter: pillEmitter, Broadcaster: realtimeHub, Events: parentRequestEvents,
+		Logger: logger.With("service", "excused-requests"),
 	})
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	masterDataDecisions, err := newMasterDataDecisions(masterDataDecisionWiring{
-		carePlan: repos.CarePlan, fields: persons, students: repos.Student, persons: repos.Person,
-		audit: studentAuditService, scope: parentRequestWriteScope(requestReviewPolicy, testRequestTokens.Permissions),
-		emitter: pillEmitter, broadcaster: realtimeHub, events: parentRequestEvents,
-		logger: logger.With("service", "master-data-review"),
+	masterDataDecisions, err := NewMasterDataDecisions(MasterDataDecisionWiring{
+		CarePlan: repos.CarePlan, Fields: persons, Students: repos.Student, Persons: repos.Person,
+		Audit: studentAuditService, Scope: ParentRequestWriteScope(requestReviewPolicy, testRequestTokens.Permissions),
+		Emitter: pillEmitter, Broadcaster: realtimeHub, Events: parentRequestEvents,
+		Logger: logger.With("service", "master-data-review"),
 	})
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	parentRequestCoordinator, err := newParentRequestCoordinator(parentRequestCoordinatorWiring{
-		masterData: masterDataDecisions, excused: excusedRequestService, care: careRequestService,
-		offering: offeringChangeConflictPort{changes: offeringChanges}, events: parentRequestEvents,
-		permissions: testRequestTokens.Permissions,
+	parentRequestCoordinator, err := NewParentRequestCoordinator(ParentRequestCoordinatorWiring{
+		MasterData: masterDataDecisions, Excused: excusedRequestService, Care: careRequestService,
+		Offering: OfferingChangeConflictPort{Changes: offeringChanges}, Events: parentRequestEvents,
+		Permissions: testRequestTokens.Permissions,
 	})
 	if err != nil {
 		return StudentTestModule{}, err
@@ -356,8 +356,8 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 	}
 	substitutionService := schoolStructure.NewSubstitutionModule(schoolStructure.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: NewEducationHandovers(contextRepos.Substitutions),
-		Persons: newEducationPersonQuery(persons), Teachers: NewEducationCaregivers(repos.Teacher),
-		Staff: NewEducationStaff(repos.Staff), Actors: substitutionActorResolver{identity: userContextService.Caller()},
+		Persons: NewEducationPersonQuery(persons), Teachers: NewEducationCaregivers(repos.Teacher),
+		Staff: NewEducationStaff(repos.Staff), Actors: SubstitutionActorResolver{Identity: userContextService.Caller()},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Audit:                   NewEducationSubstitutionAudit(repos.SubstitutionChange),
@@ -384,11 +384,11 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter st
 		now,
 	)
 	ogsGroupLiveService, err := grouplivelegacy.New(grouplivelegacy.Sources{
-		Presence:          newStudentPresence(db, logger),
+		Presence:          NewLoggedStudentPresence(db, logger),
 		People:            GroupRosterPeople(usersService),
 		Education:         educationService,
 		Substitutions:     substitutionService,
-		UserContext:       groupLiveCaller{userContextService},
+		UserContext:       GroupLiveCaller{userContextService},
 		Active:            activeService,
 		Settings:          settingsService,
 		Pickups:           pickupScheduleService,

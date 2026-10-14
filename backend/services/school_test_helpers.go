@@ -55,7 +55,7 @@ func SchoolDeletionLookupForTests(db *bun.DB, runtime tenant.UnitOfWork) (func(c
 		return nil, err
 	}
 	return func(ctx context.Context, id int64) (bool, bool, error) {
-		school, found, err := findSchool(tenant.WithUnitOfWork(ctx, runtime), schools, id)
+		school, found, err := FindSchool(tenant.WithUnitOfWork(ctx, runtime), schools, id)
 		return found, found && school.IsDeleted(), err
 	}, nil
 }

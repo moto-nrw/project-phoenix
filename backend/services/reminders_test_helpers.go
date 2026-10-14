@@ -59,7 +59,7 @@ func NewRemindersTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		return RemindersTestModule{}, err
 	}
 	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db, Records: carePlan, Baselines: baseline, Blocks: newStudentPresence(db, slog.Default()), Preview: newPickupExcusalTimetable(r.Timetable, NewPartialAbsencePreview(db)),
+		DB: db, Records: carePlan, Baselines: baseline, Blocks: NewLoggedStudentPresence(db, slog.Default()), Preview: NewPickupExcusalTimetable(r.Timetable, NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
 		return RemindersTestModule{}, err
@@ -73,12 +73,12 @@ func NewRemindersTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		return RemindersTestModule{}, err
 	}
 	service := reminderCompose.NewQuery(reminderPorts.QueryDependencies{
-		Clock:        reminderClock(clocks...),
-		CurrentStaff: reminderStaffIdentity(groups.UserContext),
-		Settings:     reminderSettings{settings.Settings}, Attendance: newStudentPresence(db, slog.Default()), Pickup: reminderPickupReader{source: pickup},
-		Instance: reminderTimetableReader{source: r.Timetable}, Room: reminderRoomReader{source: rooms},
-		Student: reminderStudentReader{source: r.Student}, Person: reminderPersonReader{source: r.Person}, Supervision: reminderSupervisionReader{source: groups.Active, presence: newStudentPresence(db, slog.Default())},
-		Visits: reminderVisitReader{source: newStudentPresence(db, slog.Default())}, Logger: slog.Default(), BulkSupervision: reminderBulkSupervisionReader{source: r.GroupSupervisor}, BulkInstanceStaff: reminderTimetableReader{source: r.Timetable},
+		Clock:        ReminderClock(clocks...),
+		CurrentStaff: ReminderStaffIdentity(groups.UserContext),
+		Settings:     ReminderSettings{settings.Settings}, Attendance: NewLoggedStudentPresence(db, slog.Default()), Pickup: ReminderPickupReader{Source: pickup},
+		Instance: ReminderTimetableReader{Source: r.Timetable}, Room: ReminderRoomReader{Source: rooms},
+		Student: ReminderStudentReader{Source: r.Student}, Person: ReminderPersonReader{Source: r.Person}, Supervision: ReminderSupervisionReader{Source: groups.Active, Presence: NewLoggedStudentPresence(db, slog.Default())},
+		Visits: ReminderVisitReader{Source: NewLoggedStudentPresence(db, slog.Default())}, Logger: slog.Default(), BulkSupervision: ReminderBulkSupervisionReader{Source: r.GroupSupervisor}, BulkInstanceStaff: ReminderTimetableReader{Source: r.Timetable},
 	})
 	return RemindersTestModule{Reminders: service, Settings: settings.Settings, UserContext: groups.UserContext}, nil
 }

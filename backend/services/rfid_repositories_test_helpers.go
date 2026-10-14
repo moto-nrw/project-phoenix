@@ -17,7 +17,7 @@ func NewRFIDTestRepositories(db *bun.DB) (RFIDTestRepositories, error) {
 	if err != nil {
 		return RFIDTestRepositories{}, err
 	}
-	return RFIDTestRepositories{Membership: members, RFID: newPeopleIdentityAccess(db, nil), Student: NewUnboundStudentRepository(db)}, nil
+	return RFIDTestRepositories{Membership: members, RFID: NewPeopleIdentityAccess(db, nil), Student: NewUnboundStudentRepository(db)}, nil
 }
 
 // NewStudentLookupTestRepository is the retained student repository for suites

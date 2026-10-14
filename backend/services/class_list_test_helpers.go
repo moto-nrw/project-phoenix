@@ -27,7 +27,7 @@ func NewClassListTestModule(db *bun.DB) (ClassListTestModule, error) {
 	if err != nil {
 		return ClassListTestModule{}, err
 	}
-	if err := bindClassListEntryAdministration(membership, persons, command); err != nil {
+	if err := BindClassListEntryAdministration(membership, persons, command); err != nil {
 		return ClassListTestModule{}, err
 	}
 	return ClassListTestModule{Membership: membership}, nil

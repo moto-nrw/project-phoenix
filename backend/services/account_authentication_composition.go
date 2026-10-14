@@ -26,43 +26,43 @@ import (
 // signer) and serves the retained auth service's consumer-owned port over
 // the public module.
 
-// accountAuthenticationWiring is the retained material the session seams
+// AccountAuthenticationWiring is the retained material the session seams
 // are bound to. mfa is read at call time so the auth service's
 // SetMFAService keeps its meaning; tenantRuntime attaches the unit of work
 // the auth service was composed with.
-type accountAuthenticationWiring struct {
-	repos         sessionRepositories
-	codec         identityaccessCompose.SignedIdentityTokens
-	settings      settingsCompose.SettingsService
-	audit         auditModels.Command
-	logger        *slog.Logger
+type AccountAuthenticationWiring struct {
+	Repos         sessionRepositories
+	Codec         identityaccessCompose.SignedIdentityTokens
+	Settings      settingsCompose.SettingsService
+	Audit         auditModels.Command
+	Logger        *slog.Logger
 	observe       IdentityAccessObserver
 	tenantRuntime func(context.Context) context.Context
-	// mfa composes the second factor and the passkey ceremonies (#3331);
+	// Mfa composes the second factor and the passkey ceremonies (#3331);
 	// nil composes the module without them.
-	mfa *mfaWiring
-	// operators composes the operator flows (#3252); nil leaves them
+	Mfa *MfaWiring
+	// Operators composes the operator flows (#3252); nil leaves them
 	// unavailable, as the cleanup roots compose the module.
-	operators *identityaccessCompose.OperatorDependencies
-	// lifecycle binds the account lifecycle seams (#3225); nil composes the
+	Operators *identityaccessCompose.OperatorDependencies
+	// Lifecycle binds the account lifecycle seams (#3225); nil composes the
 	// module without them (cleanup roots, repository fixtures).
-	lifecycle *lifecycleWiring
-	// resets configures the password reset flows (#2722); nil composes the
+	Lifecycle *LifecycleWiring
+	// Resets configures the password reset flows (#2722); nil composes the
 	// module without them and every reset reports it as unavailable.
-	resets *passwordResetWiring
-	// invitations configures the school invitation flows (#2722); nil
+	Resets *PasswordResetWiring
+	// Invitations configures the school invitation flows (#2722); nil
 	// composes the module with the invitation maintenance only.
-	invitations *invitationWiring
+	Invitations *InvitationWiring
 	// operatorLinks configures the operator invitation and e-mail change
 	// flows (#3332); nil composes the module without them and every
 	// operator link reports it as unavailable.
 	operatorLinks *operatorLinkWiring
-	// demoAccess composes the public demo flow only for APP_ENV=demo.
-	demoAccess *demoAccessWiring
-	// demoStandingSchool is the slug of the standing demo school every demo
+	// DemoAccess composes the public demo flow only for APP_ENV=demo.
+	DemoAccess *DemoAccessWiring
+	// DemoStandingSchool is the slug of the standing demo school every demo
 	// access enters instead of a school of its own: the fallback of #3463.
 	// Empty gives every access its own school.
-	demoStandingSchool string
+	DemoStandingSchool string
 }
 
 // sessionRepositories are the retained repositories the session seams read:
@@ -75,30 +75,30 @@ type sessionRepositories struct {
 	persons           userModels.PersonRepository
 	authEvents        auditModels.AuthEventRepository
 	pushSubscriptions deliveryModels.PushSubscriptionRepository
-	lifecycle         lifecycleRepositories
+	Lifecycle         LifecycleRepositories
 }
 
-// sessionRepositoriesOf binds the session seams to the identity chain rows
+// SessionRepositoriesOf binds the session seams to the identity chain rows
 // in people (persons, staff, teachers, students, guardian profiles and
 // relationships) and the given ledgers.
-func sessionRepositoriesOf(people lifecycleRepositories, organizations organizationtenancy.Query, authEvents auditModels.AuthEventRepository, pushSubscriptions deliveryModels.PushSubscriptionRepository) sessionRepositories {
-	if people.persons == nil {
+func SessionRepositoriesOf(people LifecycleRepositories, organizations organizationtenancy.Query, authEvents auditModels.AuthEventRepository, pushSubscriptions deliveryModels.PushSubscriptionRepository) sessionRepositories {
+	if people.Persons == nil {
 		return sessionRepositories{}
 	}
 	lifecycle := people
 	lifecycle.authEvents = authEvents
 	return sessionRepositories{
 		schools: schoolDirectory{schools: organizations},
-		persons: people.persons, authEvents: authEvents, pushSubscriptions: pushSubscriptions,
-		lifecycle: lifecycle,
+		persons: people.Persons, authEvents: authEvents, pushSubscriptions: pushSubscriptions,
+		Lifecycle: lifecycle,
 	}
 }
 
-// newIdentityAccessWithSessions composes the Identity & Access module with
+// NewIdentityAccessWithSessions composes the Identity & Access module with
 // the account-authentication flows bound. base carries what the caller binds
 // (the database); the flows are bound here.
-func newIdentityAccessWithSessions(base identityaccessCompose.Dependencies, wiring accountAuthenticationWiring) (*identityaccess.Module, error) {
-	if wiring.repos.schools.schools == nil || wiring.repos.persons == nil || wiring.repos.authEvents == nil || wiring.repos.pushSubscriptions == nil || wiring.codec == nil || wiring.audit == nil {
+func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, wiring AccountAuthenticationWiring) (*identityaccess.Module, error) {
+	if wiring.Repos.schools.schools == nil || wiring.Repos.persons == nil || wiring.Repos.authEvents == nil || wiring.Repos.pushSubscriptions == nil || wiring.Codec == nil || wiring.Audit == nil {
 		return nil, errors.New("identity access composition: repositories, token codec and audit command are required")
 	}
 	observe := func(identityaccessCompose.Observation) {}
@@ -107,44 +107,44 @@ func newIdentityAccessWithSessions(base identityaccessCompose.Dependencies, wiri
 			wiring.observe(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, identityaccess.ErrorCode(observation.Err), observation.Err)
 		}
 	}
-	var lifecycleBinding *lifecycleWiring
-	if wiring.lifecycle != nil {
-		bound := *wiring.lifecycle
-		bound.repos = wiring.repos.lifecycle
+	var lifecycleBinding *LifecycleWiring
+	if wiring.Lifecycle != nil {
+		bound := *wiring.Lifecycle
+		bound.repos = wiring.Repos.Lifecycle
 		lifecycleBinding = &bound
 	}
-	lifecycle, err := lifecycleDependencies(lifecycleBinding, wiring.logger)
+	lifecycle, err := lifecycleDependencies(lifecycleBinding, wiring.Logger)
 	if err != nil {
 		return nil, err
 	}
-	demo, err := demoDependencies(wiring.demoAccess, wiring.demoStandingSchool, wiring.repos.schools.schools)
+	demo, err := demoDependencies(wiring.DemoAccess, wiring.DemoStandingSchool, wiring.Repos.schools.schools)
 	if err != nil {
 		return nil, err
 	}
 	// The reset delivery records its outcome through the module it is
 	// composed into, so it reads the module back at call time.
 	var module *identityaccess.Module
-	resets := passwordResetDependencies(wiring.resets, func() identityaccess.PasswordResets { return module }, wiring.logger)
-	invitations := invitationDependencies(wiring.invitations, wiring.codec, func() identityaccess.SchoolInvitations { return module }, wiring.logger)
-	operatorLinks := operatorProvisioningDependencies(wiring.operatorLinks, func() identityaccess.OperatorTokens { return module }, wiring.logger)
+	resets := passwordResetDependencies(wiring.Resets, func() identityaccess.PasswordResets { return module }, wiring.Logger)
+	invitations := invitationDependencies(wiring.Invitations, wiring.Codec, func() identityaccess.SchoolInvitations { return module }, wiring.Logger)
+	operatorLinks := operatorProvisioningDependencies(wiring.operatorLinks, func() identityaccess.OperatorTokens { return module }, wiring.Logger)
 	base.Lifecycle = lifecycle
 	base.Resets = resets
 	base.Invitations = invitations
-	base.MFA = mfaDependencies(wiring.mfa, wiring.codec)
+	base.MFA = mfaDependencies(wiring.Mfa, wiring.Codec)
 	base.OperatorProvisioning = operatorLinks
 	base.Observe = observe
 	base.Sessions = &identityaccessCompose.SessionDependencies{
-		Schools:       wiring.repos.schools,
-		Persons:       personDirectory{persons: wiring.repos.persons},
+		Schools:       wiring.Repos.schools,
+		Persons:       personDirectory{persons: wiring.Repos.persons},
 		Passwords:     passwordVerifier{},
-		Codec:         wiring.codec,
-		MFALock:       mfaPolicyLock{settings: wiring.settings},
-		Audit:         authAudit{command: wiring.audit, events: wiring.repos.authEvents},
-		Push:          pushSubscriptionCleanup{subscriptions: wiring.repos.pushSubscriptions},
+		Codec:         wiring.Codec,
+		MFALock:       mfaPolicyLock{settings: wiring.Settings},
+		Audit:         authAudit{command: wiring.Audit, events: wiring.Repos.authEvents},
+		Push:          pushSubscriptionCleanup{subscriptions: wiring.Repos.pushSubscriptions},
 		TenantRuntime: wiring.tenantRuntime,
-		Logger:        wiring.logger,
+		Logger:        wiring.Logger,
 	}
-	base.Operators = wiring.operators
+	base.Operators = wiring.Operators
 	base.Demo = demo
 	module, err = identityaccessCompose.New(base)
 	if err != nil {
@@ -153,20 +153,20 @@ func newIdentityAccessWithSessions(base identityaccessCompose.Dependencies, wiri
 	return module, nil
 }
 
-func demoDependencies(wiring *demoAccessWiring, standingSchool string, schools organizationtenancy.Query) (*identityaccessCompose.DemoDependencies, error) {
+func demoDependencies(wiring *DemoAccessWiring, standingSchool string, schools organizationtenancy.Query) (*identityaccessCompose.DemoDependencies, error) {
 	if wiring == nil {
 		return nil, nil
 	}
-	if wiring.maxActiveSchools < 1 {
+	if wiring.MaxActiveSchools < 1 {
 		return nil, errors.New("the public demo requires serve --demo-max-active-schools above zero")
 	}
 	return &identityaccessCompose.DemoDependencies{
 		Schools: demoSchoolDirectory{
-			schools: schools, orders: organizationCompose.NewDemoSchoolOrders(SecureRandomSource(), wiring.maxActiveSchools), standing: standingSchool,
+			schools: schools, orders: organizationCompose.NewDemoSchoolOrders(SecureRandomSource(), wiring.MaxActiveSchools), standing: standingSchool,
 		},
 		Mail:     newDemoAccessMail(wiring),
-		NewToken: wiring.newToken, Fingerprint: wiring.fingerprint,
-		OperatorWithoutSecondFactor: wiring.operatorWithoutSecondFactor,
+		NewToken: wiring.NewToken, Fingerprint: wiring.Fingerprint,
+		OperatorWithoutSecondFactor: wiring.OperatorWithoutSecondFactor,
 	}, nil
 }
 
@@ -293,7 +293,7 @@ func (d schoolDirectory) FindSchool(ctx context.Context, id int64) (identityacce
 	if d.schools == nil {
 		return identityaccess.School{}, false, errors.New("school directory is not composed")
 	}
-	school, found, err := findSchool(ctx, d.schools, id)
+	school, found, err := FindSchool(ctx, d.schools, id)
 	if err != nil || !found {
 		return identityaccess.School{}, false, err
 	}

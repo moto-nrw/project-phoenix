@@ -23,8 +23,8 @@ type enrollmentReportOwnerReads interface {
 	enrollmentCompose.ReportPhases
 }
 
-// enrollmentReportSources are the reads the root binds the reports to.
-type enrollmentReportSources struct {
+// EnrollmentReportSources are the reads the root binds the reports to.
+type EnrollmentReportSources struct {
 	Owner             enrollmentReportOwnerReads
 	Offerings         enrollmentCompose.ReportOfferings
 	AccessLog         auditModels.DataAccessLogRepository
@@ -41,10 +41,10 @@ type enrollmentReportSources struct {
 	}
 }
 
-// newEnrollmentReports composes Enrollment's reports over the root's reads.
+// NewEnrollmentReports composes Enrollment's reports over the root's reads.
 // A missing read stays unbound, so the report that needs it answers "not
 // configured" instead of dereferencing nothing.
-func newEnrollmentReports(sources enrollmentReportSources) enrollmentOwner.Reports {
+func NewEnrollmentReports(sources EnrollmentReportSources) enrollmentOwner.Reports {
 	deps := enrollmentCompose.ReportDependencies{
 		Requests:          sources.Owner,
 		Children:          sources.Owner,

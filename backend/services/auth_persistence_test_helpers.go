@@ -43,8 +43,8 @@ func newInvitationMembershipRepositories(db *bun.DB) (userModels.StaffRepository
 	if err != nil {
 		return nil, nil, err
 	}
-	deps := newStaffMembershipDeps(NewPersonRepository(db), newPeopleIdentityAccess(db, nil), workforceCompose.MustNewStaffEmployment(db))
-	groupTeachers := newGroupTeacherRepository(membership, NewEducationGroupRepository(db))
-	deps.groupTeachers = func() GroupTeacherRepository { return groupTeachers }
-	return staffMembershipRepository{membership: membership, deps: deps}, teacherMembershipRepository{membership: membership, deps: deps}, nil
+	deps := NewStaffMembershipDeps(NewPersonRepository(db), NewPeopleIdentityAccess(db, nil), workforceCompose.MustNewStaffEmployment(db))
+	groupTeachers := NewGroupTeacherRepository(membership, NewEducationGroupRepository(db))
+	deps.GroupTeachers = func() GroupTeacherRepository { return groupTeachers }
+	return StaffMembershipRepository{Membership: membership, Deps: deps}, TeacherMembershipRepository{Membership: membership, Deps: deps}, nil
 }

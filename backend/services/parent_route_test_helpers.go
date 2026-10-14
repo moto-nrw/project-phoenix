@@ -50,7 +50,7 @@ func NewParentRouteTestRepositories(db *bun.DB, members MembershipTestRepositori
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	slots := timetableCompose.NewInstanceStudentRepository(db, bookings, newUnloggedStudentPresence(db), NewPartialAbsencePreview(db))
+	slots := timetableCompose.NewInstanceStudentRepository(db, bookings, NewUnloggedStudentPresence(db), NewPartialAbsencePreview(db))
 	care, err := NewCarePlan(db, people, slots)
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
@@ -63,7 +63,7 @@ func NewParentRouteTestRepositories(db *bun.DB, members MembershipTestRepositori
 	}
 	return ParentRouteTestRepositories{
 		ParentPortalRepositories: carePlanCompose.ParentPortalRepositories{
-			ParentChild: carePlanCompose.NewParentChildRepository(newPeopleIdentityAccess(db, nil).ListActiveAccountSchoolIDs, parentPortalDirectory{people: people}),
+			ParentChild: carePlanCompose.NewParentChildRepository(NewPeopleIdentityAccess(db, nil).ListActiveAccountSchoolIDs, ParentPortalDirectory{People: people}),
 		},
 		Student: members.Student, Person: members.Person,
 		GuardianProfile: members.GuardianProfile, StudentGuardian: members.StudentGuardian,

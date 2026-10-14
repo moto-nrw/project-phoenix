@@ -16,7 +16,7 @@ import (
 type timeTrackingTestGraph struct {
 	Audits        TimeTrackingAudits
 	Settings      settingsCompose.SettingsService
-	People        timeTrackingStaffLookup
+	People        TimeTrackingStaffLookup
 	Holidays      workforceCompose.HolidayDatesReader
 	Events        workforceCompose.EventPublisher
 	ShiftPlanSync workforceCompose.ShiftPlanSyncer
@@ -38,7 +38,7 @@ func newTimeTrackingTestModule(db *bun.DB, repos WorkSessionTestRepositories, gr
 		}
 		return len(staff), withoutPersonnelNumber, nil
 	})
-	return newTimeTracking(TimeTrackingPortDependencies{
+	return NewTimeTracking(TimeTrackingPortDependencies{
 		Workforce: repos.Workforce, StaffAbsences: repos.StaffAbsence, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(repos.Workforce),
 		Audits: graph.Audits, Supervisions: repos.GroupSupervisor, SessionRecords: repos.ActiveGroup,
 		Staff: repos.Staff, People: graph.People, StaffEmployment: workforceCompose.MustNewStaffEmployment(db),

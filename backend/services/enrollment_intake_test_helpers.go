@@ -20,7 +20,7 @@ type EnrollmentCareBookingCommands interface {
 // NewEnrollmentCareBookingCommands binds the intake's booking writes to Care
 // Plan's offering bookings.
 func NewEnrollmentCareBookingCommands(owner careplan.OfferingBookingCommands) EnrollmentCareBookingCommands {
-	return enrollmentCareBookingCommands{owner: owner}
+	return EnrollmentCareBookingAdapter{Owner: owner}
 }
 
 // NewEnrollmentCareOfferingRecords reads Care Plan's offerings in enrollment

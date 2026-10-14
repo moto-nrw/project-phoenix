@@ -7,12 +7,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
-type roomOccupancyPresence struct {
-	source studentpresence.RoomOccupancyQuery
+type RoomOccupancyPresence struct {
+	Source studentpresence.RoomOccupancyQuery
 }
 
-func (p roomOccupancyPresence) ListRoomOccupancy(ctx context.Context, ids []int64) ([]facilitiesLegacy.RoomOccupancyFact, error) {
-	rows, err := p.source.ListRoomOccupancy(ctx, ids)
+func (p RoomOccupancyPresence) ListRoomOccupancy(ctx context.Context, ids []int64) ([]facilitiesLegacy.RoomOccupancyFact, error) {
+	rows, err := p.Source.ListRoomOccupancy(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
