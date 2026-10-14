@@ -168,6 +168,35 @@ func TestFailedNightlyCleanupKeepsTheLastRunAndIsCaughtUp(t *testing.T) {
 	assert.Equal(t, berlin(14, 3, 0), last)
 }
 
+func TestFailedFirstNightlyCleanupIsCaughtUp(t *testing.T) {
+	t.Parallel()
+
+	runs := newFakeCleanupRuns()
+	clock := &cleanupClock{now: berlin(14, 2, 0)}
+	cleanup := &fakeTimetableCleanup{err: errors.New("database unavailable")}
+	s := catchUpScheduler(runs, clock, cleanup)
+
+	runTimetableTick(s)
+	require.Equal(t, 1, cleanup.cleanupCalls)
+	_, ok := runs.last("timetable-cleanup")
+	assert.False(t, ok, "a failed first run must not count as succeeded")
+
+	clock.Set(berlin(14, 2, 1))
+	runTimetableTick(s)
+	assert.Equal(t, 1, cleanup.cleanupCalls, "a failed first run is not retried every minute")
+
+	cleanup.mu.Lock()
+	cleanup.err = nil
+	cleanup.mu.Unlock()
+	clock.Set(berlin(14, 3, 0))
+	runTimetableTick(s)
+
+	assert.Equal(t, 2, cleanup.cleanupCalls, "the failed first run is caught up after the retry interval")
+	last, ok := runs.last("timetable-cleanup")
+	require.True(t, ok)
+	assert.Equal(t, berlin(14, 3, 0), last)
+}
+
 func TestNightlyCleanupWithoutAStoredRunWaitsForItsMinute(t *testing.T) {
 	t.Parallel()
 

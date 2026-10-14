@@ -106,10 +106,18 @@ func (s *Scheduler) dailyCleanupDue(ctx context.Context, dayCache *sync.Map, job
 		return false, err
 	}
 	due, catchUp := cleanupDue(now, cleanupTime, last, hasLast)
+	attemptKey := cleanupAttemptKey{jobID: jobID, tenantID: tenantID}
+	failed, hasFailure := s.cleanupFailures.Load(attemptKey)
+	// A missing ledger row normally means this school waits for its first
+	// configured minute. After that first attempt failed, the process-local
+	// marker distinguishes it from an untouched school and enables the retry.
+	if !due && !hasLast && hasFailure {
+		due, catchUp = true, true
+	}
 	if !due || !catchUp {
 		return due, nil
 	}
-	if failed, ok := s.cleanupFailures.Load(cleanupAttemptKey{jobID: jobID, tenantID: tenantID}); ok {
+	if hasFailure {
 		if failedAt, ok := failed.(time.Time); ok && now.Sub(failedAt) < cleanupRetryAfter {
 			return false, nil
 		}
