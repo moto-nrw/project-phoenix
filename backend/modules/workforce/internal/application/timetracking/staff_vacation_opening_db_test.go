@@ -10,10 +10,8 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -67,7 +65,7 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 
 	svc := timetracking.NewStaffAbsenceService(
 		repos.StaffAbsence, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).VacationQuotas,
-		workforceLegacy.NewStaffAbsenceAuditRepository(owners.Workforce), wtmIntSettings{}, nil,
+		workforceCompose.NewStaffAbsenceAuditRepository(owners.Workforce), wtmIntSettings{}, nil,
 		timetracking.WithAbsenceToday(func() timezone.Date { return timezone.NewDate(2026, 8, 24) }),
 		// Wired exactly like services/factory.go does.
 		timetracking.WithVacationOpenings(workforceCompose.NewTimeTrackingTestRows(owners.Workforce).VacationOpenings),
@@ -118,7 +116,7 @@ func previousWorkingDay(d timezone.Date) timezone.Date {
 // fixture — the vacation request flow is not under test here.
 func (f *vacationOpeningFixture) addVacationAbsence(t *testing.T, status string, start, end timezone.Date) {
 	t.Helper()
-	absence := &timerecords.StaffAbsence{
+	absence := &timetracking.StaffAbsence{
 		StaffID:     f.staff,
 		AbsenceType: workforce.AbsenceTypeVacation,
 		Status:      status,
@@ -130,7 +128,7 @@ func (f *vacationOpeningFixture) addVacationAbsence(t *testing.T, status string,
 	require.NoError(t, f.repos.StaffAbsence.Create(f.ctx, absence))
 }
 
-func (f *vacationOpeningFixture) set(remainingDays float64) (*timerecords.StaffVacationOpening, error) {
+func (f *vacationOpeningFixture) set(remainingDays float64) (*timetracking.StaffVacationOpening, error) {
 	return f.svc.SetVacationOpening(f.ctx, f.staff, f.admin, timetracking.SetVacationOpeningRequest{
 		EffectiveDate: f.cutoff,
 		RemainingDays: remainingDays,
@@ -269,7 +267,7 @@ func TestSetVacationOpening_IgnoresDeclinedAndLaterAbsences(t *testing.T) {
 	// Starting ON the Stichtag is already inside the moto era.
 	f.addVacationAbsence(t, workforce.AbsenceStatusApproved, f.cutoff, f.cutoff)
 	// A sick day before the Stichtag never touches the vacation quota.
-	sick := &timerecords.StaffAbsence{
+	sick := &timetracking.StaffAbsence{
 		StaffID:     f.staff,
 		AbsenceType: workforce.AbsenceTypeSick,
 		Status:      workforce.AbsenceStatusApproved,
@@ -384,7 +382,7 @@ func TestDeleteVacationOpening_WritesTombstoneAndRestoresSummary(t *testing.T) {
 	assert.Equal(t, f.admin, tombstones[0].DeletedBy)
 	assert.Equal(t, f.tenantID, tombstones[0].TenantID)
 
-	var payload timerecords.StaffVacationOpening
+	var payload timetracking.StaffVacationOpening
 	require.NoError(t, json.Unmarshal(tombstones[0].Payload, &payload),
 		"the tombstone payload must be the deleted row verbatim")
 	assert.InDelta(t, 17.5, payload.TakenBeforeDays, 0.001)

@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
 // ErrAbsenceRebookingBlocked marks a rebooking the Leitung has to resolve
@@ -87,7 +86,7 @@ func (s *staffAbsenceService) RebookAbsences(ctx context.Context, req RebookAbse
 	if err != nil {
 		return nil, err
 	}
-	if !slices.Contains(timerecords.ValidAbsenceTypes, baseType) {
+	if !slices.Contains(ValidAbsenceTypes, baseType) {
 		return nil, fmt.Errorf("invalid absence type")
 	}
 	if baseType == AbsenceTypeSick {
@@ -462,7 +461,7 @@ func (s *staffAbsenceService) writeRebookedAbsences(ctx context.Context, actorAc
 			ToStatus:   status,
 			ActorID:    actorAccountID,
 			Note:       reason,
-			TypeChange: &timerecords.StaffAbsenceTypeChange{
+			TypeChange: &StaffAbsenceTypeChange{
 				FromType: entry.before.AbsenceType, FromTypeID: entry.before.AbsenceTypeID,
 				ToType: after.AbsenceType, ToTypeID: after.AbsenceTypeID,
 			},

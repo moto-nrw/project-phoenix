@@ -38,7 +38,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -112,8 +111,8 @@ type retentionSettingsResolver interface {
 }
 
 type timeTrackingCleanupService struct {
-	workSessionRepo  timerecords.WorkSessionRepository
-	staffAbsenceRepo timerecords.StaffAbsenceRepository
+	workSessionRepo  WorkSessionRepository
+	staffAbsenceRepo StaffAbsenceRepository
 	auditRepo        DeletionAudit
 	settings         retentionSettingsResolver
 	logger           *slog.Logger
@@ -123,8 +122,8 @@ type timeTrackingCleanupService struct {
 // receives a per-staff data_deletions row per cleanup run; settings may be
 // nil in tests, in which case retention resolves to the last-resort default.
 func NewTimeTrackingCleanupService(
-	workSessionRepo timerecords.WorkSessionRepository,
-	staffAbsenceRepo timerecords.StaffAbsenceRepository,
+	workSessionRepo WorkSessionRepository,
+	staffAbsenceRepo StaffAbsenceRepository,
 	auditRepo DeletionAudit,
 	settings retentionSettingsResolver,
 	logger *slog.Logger,

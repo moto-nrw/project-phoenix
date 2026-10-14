@@ -10,14 +10,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,7 +75,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	// Session + two edit rows from one save action.
 	checkIn := time.Date(2025, time.August, 4, 8, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(8 * time.Hour)
-	session := &timerecords.WorkSession{
+	session := &timetracking.WorkSession{
 		StaffID:     staffA.ID,
 		Date:        timezone.NewDate(2025, time.August, 4),
 		Status:      workforce.WorkSessionStatusPresent,
@@ -104,7 +102,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	require.NoError(t, services.NewTestAuditPersistence(db, nil).WorkSessionEdit.CreateBatch(ctx, edits))
 
 	// Absence + status-transition audit row (actor = ACCOUNT id).
-	absence := &timerecords.StaffAbsence{
+	absence := &timetracking.StaffAbsence{
 		StaffID:     staffA.ID,
 		AbsenceType: workforce.AbsenceTypeSick,
 		DateStart:   timezone.NewDate(2025, time.August, 6),
@@ -115,7 +113,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	absence.SetTenantID(tenantID)
 	require.NoError(t, repos.StaffAbsence.Create(ctx, absence))
 	fromStatus := workforce.AbsenceStatusReported
-	absenceAudit := &timerecords.StaffAbsenceAudit{
+	absenceAudit := &timetracking.StaffAbsenceAudit{
 		AbsenceID:  absence.ID,
 		FromStatus: &fromStatus,
 		ToStatus:   workforce.AbsenceStatusApproved,
@@ -123,11 +121,11 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		Note:       "Attest liegt vor",
 	}
 	absenceAudit.TenantID = tenantID
-	require.NoError(t, workforceLegacy.NewStaffAbsenceAuditRepository(owners.Workforce).Create(ctx, absenceAudit))
+	require.NoError(t, workforceCompose.NewStaffAbsenceAuditRepository(owners.Workforce).Create(ctx, absenceAudit))
 
 	// Balance adjustment for staffA (stays) and one for staffB (deleted below).
-	makeAdjustment := func(staffID int64, day int) *timerecords.StaffBalanceAdjustment {
-		adj := &timerecords.StaffBalanceAdjustment{
+	makeAdjustment := func(staffID int64, day int) *timetracking.StaffBalanceAdjustment {
+		adj := &timetracking.StaffBalanceAdjustment{
 			StaffID:       staffID,
 			Type:          workforce.BalanceAdjustmentTypePayout,
 			MinutesDelta:  -60,

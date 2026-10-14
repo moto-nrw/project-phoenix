@@ -6,7 +6,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
 // --- absences ---------------------------------------------------------------
@@ -24,7 +23,7 @@ func StaffAbsenceCapability(absences timetracking.StaffAbsenceService) workforce
 	return staffAbsenceCapability{absences: absences}
 }
 
-func publicStaffAbsence(entity *timerecords.StaffAbsence) *workforce.StaffAbsence {
+func publicStaffAbsence(entity *timetracking.StaffAbsence) *workforce.StaffAbsence {
 	if entity == nil {
 		return nil
 	}
@@ -57,7 +56,7 @@ func publicAbsenceResponses(values []*timetracking.StaffAbsenceResponse) []*work
 	return result
 }
 
-func publicVacationOpening(entity *timerecords.StaffVacationOpening) *workforce.StaffVacationOpening {
+func publicVacationOpening(entity *timetracking.StaffVacationOpening) *workforce.StaffVacationOpening {
 	if entity == nil {
 		return nil
 	}

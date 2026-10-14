@@ -6,8 +6,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,13 +21,13 @@ func TestWorkSessionHistoryQueryBudget(t *testing.T) {
 			day := snapshotSessionDay + i + 1
 			checkIn := time.Date(snapshotYear, time.August, day, 8, 0, 0, 0, time.UTC)
 			checkOut := checkIn.Add(8 * time.Hour)
-			session := &timerecords.WorkSession{StaffID: f.staff, Date: timezone.NewDate(snapshotYear, time.August, day),
+			session := &timetracking.WorkSession{StaffID: f.staff, Date: timezone.NewDate(snapshotYear, time.August, day),
 				Status: workforce.WorkSessionStatusPresent, Source: workforce.WorkSessionSourceApp,
 				CheckInTime: checkIn, CheckOutTime: &checkOut, CreatedBy: f.staff}
 			session.SetTenantID(f.tenantID)
 			require.NoError(t, workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions.Create(f.ctx, session))
 			ended := checkIn.Add(30 * time.Minute)
-			brk := &timerecords.WorkSessionBreak{SessionID: session.ID, StartedAt: checkIn, EndedAt: &ended, DurationMinutes: 30}
+			brk := &timetracking.WorkSessionBreak{SessionID: session.ID, StartedAt: checkIn, EndedAt: &ended, DurationMinutes: 30}
 			brk.SetTenantID(f.tenantID)
 			require.NoError(t, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks.Create(f.ctx, brk))
 		}

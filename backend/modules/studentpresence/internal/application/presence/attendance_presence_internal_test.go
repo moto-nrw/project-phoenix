@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -19,7 +19,7 @@ func TestEnsureStaffPresenceKeepsCheckInFailureBestEffort(t *testing.T) {
 
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*timerecords.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*workforce.WorkSession, error) {
 			called = true
 			return nil, errors.New("check-in failed")
 		},
@@ -39,7 +39,7 @@ func TestEnsureStaffPresenceAcceptsClosedSessionSkip(t *testing.T) {
 
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*timerecords.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*workforce.WorkSession, error) {
 			called = true
 			return nil, nil
 		},
@@ -59,7 +59,7 @@ func TestEnsureStaffPresenceForAttendanceResultSkipsIdempotentCheckout(t *testin
 
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*timerecords.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*workforce.WorkSession, error) {
 			called = true
 			return nil, nil
 		},
@@ -81,7 +81,7 @@ func TestEnsureStaffPresenceForAttendanceResultStampsMutatingCheckout(t *testing
 
 	called := false
 	workSessions := &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*timerecords.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*workforce.WorkSession, error) {
 			called = true
 			return nil, nil
 		},
@@ -118,7 +118,7 @@ func TestEnsureStaffPresenceRollsBackFailedCheckInToSavepoint(t *testing.T) {
 	mock.ExpectRollback()
 
 	workSessions := &workSessionServiceForSessionUnitTest{
-		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*timerecords.WorkSession, error) {
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*workforce.WorkSession, error) {
 			return nil, errors.New("check-in failed")
 		},
 	}

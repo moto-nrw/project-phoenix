@@ -193,23 +193,23 @@ type monthShiftReader interface {
 	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end timezone.Date) ([]*TimeTrackingShift, error)
 }
 
-// monthSessionReader is implemented by timerecords.WorkSessionRepository.
+// monthSessionReader is implemented by WorkSessionRepository.
 type monthSessionReader interface {
 	ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*WorkSession, error)
 }
 
-// monthBreakReader is implemented by timerecords.WorkSessionBreakRepository.
+// monthBreakReader is implemented by WorkSessionBreakRepository.
 type monthBreakReader interface {
 	GetBySessionID(ctx context.Context, sessionID int64) ([]*WorkSessionBreak, error)
 	GetBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64][]*WorkSessionBreak, error)
 }
 
-// monthAbsenceReader is implemented by timerecords.StaffAbsenceRepository.
+// monthAbsenceReader is implemented by StaffAbsenceRepository.
 type monthAbsenceReader interface {
 	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsence, error)
 }
 
-// monthAdjustmentReader is implemented by timerecords.StaffBalanceAdjustmentRepository.
+// monthAdjustmentReader is implemented by StaffBalanceAdjustmentRepository.
 type monthAdjustmentReader interface {
 	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffBalanceAdjustment, error)
 }

@@ -5,7 +5,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
 // The retained vocabulary these services still speak. The package names the
@@ -36,26 +35,16 @@ var (
 	SortDesc    = base.SortDesc
 )
 
-// Retained rows and repository contracts: the Workforce time records and the
-// Student Presence supervision rows.
+// The Student Presence supervision rows. The Workforce time records and their
+// repository contracts are declared in this package (*_record.go,
+// time_record_repositories.go).
 type (
-	AbsenceRequestFilter             = timerecords.AbsenceRequestFilter
-	AbsenceRequestRow                = timerecords.AbsenceRequestRow
-	Group                            = studentpresence.LiveGroup
-	GroupSupervisor                  = studentpresence.GroupSupervision
-	GroupRepository                  = studentpresence.SessionRecords
-	GroupSupervisorRepository        = studentpresence.SupervisionRecords
-	StaffAbsence                     = timerecords.StaffAbsence
-	StaffAbsenceAudit                = timerecords.StaffAbsenceAudit
-	StaffAbsenceType                 = timerecords.StaffAbsenceType
-	StaffBalanceAdjustment           = timerecords.StaffBalanceAdjustment
-	StaffBalanceAdjustmentRepository = timerecords.StaffBalanceAdjustmentRepository
-	StaffRoomSupervision             = studentpresence.StaffRoomSupervision
-	StaffVacationOpening             = timerecords.StaffVacationOpening
-	StaffVacationQuota               = timerecords.StaffVacationQuota
-	SupervisionBlocker               = studentpresence.SupervisionBlocker
-	WorkSession                      = timerecords.WorkSession
-	WorkSessionBreak                 = timerecords.WorkSessionBreak
+	Group                     = studentpresence.LiveGroup
+	GroupSupervisor           = studentpresence.GroupSupervision
+	GroupRepository           = studentpresence.SessionRecords
+	GroupSupervisorRepository = studentpresence.SupervisionRecords
+	StaffRoomSupervision      = studentpresence.StaffRoomSupervision
+	SupervisionBlocker        = studentpresence.SupervisionBlocker
 )
 
 // Canonical Workforce enumerations.
