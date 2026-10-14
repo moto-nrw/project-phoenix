@@ -35,6 +35,9 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 	identity, err := api.IdentityRootForTests(testpkg.NewDatabase(t, db), cfg)
 	require.NoError(t, err)
 
+	people, err := owners.PeopleWiring(testpkg.NewDatabase(t, db), carePlan, slog.Default())
+	require.NoError(t, err)
+
 	observedAppends := 0
 	factory, err := services.NewFactoryWithConfig(
 		carePlan,
@@ -68,6 +71,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		nil,
 		services.FileStorageWiring{},
 		identity,
+		people,
 		true,
 	)
 	require.NoError(t, err)

@@ -14,7 +14,7 @@ func NewOwnerApprovedOfferingTestProjection(db transactionruntime.Database) (*Ap
 }
 
 func NewApprovedOfferingTestProjection(db transactionruntime.Database, selections enrollmentCompose.ApprovedSelections) (*enrollmentCompose.ApprovedOfferingProjection, error) {
-	students, err := services.NewPeopleDirectory(db.Pool())
+	students, err := NewPeopleDirectory(db)
 	if err != nil {
 		return nil, err
 	}

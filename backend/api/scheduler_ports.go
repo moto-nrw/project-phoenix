@@ -136,7 +136,7 @@ type workerReads struct {
 	// students and staff are the retained People Directory and School
 	// Membership repositories the activation tick and the reminder
 	// recipients read (#2743).
-	students services.StudentRootReads
+	students StudentRootReads
 	staff    interface {
 		ListAllStaffAccountIDs(ctx context.Context) (map[int64]int64, error)
 	}

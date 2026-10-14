@@ -575,6 +575,21 @@ merge-base measures 35,473, the base fix of #4049 adds nine), and
 the Factory takes the Workforce bindings from the root as one value,
 `WorkforceWiring` (see [Workforce wiring out of services](#workforce-wiring-out-of-services-4008)).
 
+#4007 moved the People Directory, School Membership and School Structure
+wiring out of `services` without a key or a policy rule. Single-owner code went
+into those owners' compositions, the substitution visibility decision into
+Workforce (`CanSeeAllSubstitutions`) and the guardian role preset into People
+Directory. The root builds the retained repositories and the cross-owner
+adapters (`api.NewPeopleWiring`) and hands them to `NewFactoryWithModules` as
+`services.PeopleWiring`, in place of what the Factory built itself; an adapter
+over a value the Factory composes arrives as a constructor. The root's adapters
+take narrow ports of their own instead of the retained repository types where
+they read a few methods, which keeps `TestHandlerLayerRatchet` R1 green; the
+root's builders still return and embed retained repository types, which R1's
+pattern does not cover. Code that other slices still call stays with those callers in
+`services` until they move. Two stale offboarding rules of the legacy
+composition are gone, and the composition surface fell from 250 to 248.
+
 #2734 closed the carrier of `api/enrollment`: its 26 remaining keys, the
 root's `api -> api/enrollment` key (#2750) and three parent-portal keys of
 #3421 (the production and internal-test import of `api/enrollment`, and the

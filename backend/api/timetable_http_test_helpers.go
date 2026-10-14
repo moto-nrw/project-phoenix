@@ -158,7 +158,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 // newTimetableHTTPTestReads composes the conflict detection and the planner
 // reads over Care Plan's baselines in the legacy booking mode.
 func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTestRows, rows timetableCompose.OwnerRows) (timetable.ConflictDetectionCapability, timetable.TimetableDataCapability, error) {
-	people, err := services.NewPeopleDirectory(db.Pool())
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -310,7 +310,7 @@ func NewTimetableHTTPTestPeople(db transactionruntime.Database) (services.Timeta
 	}
 	return services.NewTimetablePeople(peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
 		PersonRepo: r.Person, StudentRepo: r.Student,
-		StaffDirectory: services.NewStaffDirectory(services.StaffDirectoryDependencies{Persons: r.Person, Staff: r.Staff}),
+		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Persons: r.Person, Staff: r.Staff, MayManageStaff: StaffAdministrationPermitted}),
 	})), nil
 }
 

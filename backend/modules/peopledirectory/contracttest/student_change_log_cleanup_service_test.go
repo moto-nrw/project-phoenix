@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,7 +88,7 @@ func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 	insertFieldEdit(t, db, student.ID, daysAgo(400))
 	insertFieldEdit(t, db, student.ID, daysAgo(10))
 
-	svc := services.NewStudentChangeLogCleanup(
+	svc := api.NewStudentChangeLogCleanup(
 		api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentFieldEdit,
 		api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion,
 		changeLogSettings(90),
@@ -118,7 +117,7 @@ func TestStudentChangeLogCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	insertFieldEdit(t, db, student.ID, daysAgo(5))
 	insertFieldEdit(t, db, student.ID, daysAgo(30))
 
-	svc := services.NewStudentChangeLogCleanup(
+	svc := api.NewStudentChangeLogCleanup(
 		api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentFieldEdit,
 		api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion,
 		changeLogSettings(90),

@@ -27,7 +27,7 @@ func arrivalServiceWithClassExceptions(t *testing.T, repos *api.RepositoryTestFa
 	db := testpkg.SetupTestDB(t)
 	classes, err := arrivalTimetable.NewClassArrivals(db, func(arrivalTimetable.Observation) {})
 	require.NoError(t, err)
-	classExceptions, err := services.NewClassArrivalExceptions(classes, services.MustNewPeopleDirectory(db))
+	classExceptions, err := services.NewClassArrivalExceptions(classes, api.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
 	require.NoError(t, err)
 	return nativeArrivalSchedules(t, repos.CarePlan(), classArrivalBaseline(t, repos), services.ClassArrivalPlans(classes), classExceptions)
 }

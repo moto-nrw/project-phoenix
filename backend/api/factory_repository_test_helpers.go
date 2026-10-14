@@ -15,11 +15,11 @@ func NewStudentScheduleRepositories(db transactionruntime.Database, dependencies
 		panic(fmt.Sprintf("student schedule repositories: compose care plan: %v", err))
 	}
 	return StudentScheduleRepositories{
-		ArrivalSchedule:  services.NewArrivalScheduleRepository(carePlan),
-		ArrivalException: services.NewArrivalExceptionRepository(carePlan),
+		ArrivalSchedule:  NewArrivalScheduleRepository(carePlan),
+		ArrivalException: NewArrivalExceptionRepository(carePlan),
 		ArrivalNote:      NewArrivalNoteRepository(carePlan),
-		PickupSchedule:   services.NewPickupScheduleRepository(carePlan),
-		PickupException:  services.NewPickupExceptionRepository(carePlan),
+		PickupSchedule:   NewPickupScheduleRepository(carePlan),
+		PickupException:  NewPickupExceptionRepository(carePlan),
 		PickupNote:       NewPickupNoteRepository(carePlan),
 		StatusDay:        services.NewStudentStatusDayRepository(carePlan),
 	}

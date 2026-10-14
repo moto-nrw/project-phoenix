@@ -35,7 +35,7 @@ func NewStudentHTTPTestRows(db transactionruntime.Database, command auditModels.
 // NewStudentHTTPTestPeople is the People Directory owner over the test
 // database.
 func NewStudentHTTPTestPeople(db transactionruntime.Database) peopledirectory.Capability {
-	return services.MustNewPeopleDirectory(db.Pool())
+	return MustNewPeopleDirectory(db)
 }
 
 // NewStudentHTTPTestCompanions composes Care Plan's companion graph over the
@@ -51,7 +51,7 @@ func NewStudentHTTPTestCompanions(rows StudentHTTPTestRows, people peopledirecto
 
 // StudentHTTPTestConsents is the consent projection and trail the student
 // routes read and append to.
-type StudentHTTPTestConsents = *services.StudentConsents
+type StudentHTTPTestConsents = *StudentConsents
 
 // NewStudentHTTPTestConsents binds the consent projection and the Audit
 // Platform trail over the test database.

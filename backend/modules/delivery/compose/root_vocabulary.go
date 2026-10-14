@@ -20,6 +20,12 @@ type (
 	PushSubscriptionService       = notifications.PushSubscriptionService
 	VAPIDConfig                   = notifications.VAPIDConfig
 	RealtimePublisher             = realtimeevents.Publisher
+	// StaffGroupPair is one supervisor of a group, the answer the staff
+	// notification recipients read from School Structure.
+	StaffGroupPair = notifications.StaffGroupPair
+	// SchoolContact is the reply address of tenant-bound mail, the answer
+	// the mail identity reads from Organisation & Tenancy.
+	SchoolContact = emailoutbox.SchoolContact
 	// The mail renderers of Identity & Access, which the root binds to
 	// Delivery (#4006).
 	MailIntent       = emailoutbox.Intent

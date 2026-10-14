@@ -4,6 +4,9 @@ import (
 	"context"
 	"time"
 
+	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -126,7 +129,7 @@ func (d ParentPortalSchools) SchoolName(ctx context.Context, tenantID int64) (st
 }
 
 func (d ParentPortalSchools) SchoolNames(ctx context.Context, ids []int64) (map[int64]string, error) {
-	schools, err := schoolsByID(ctx, d.Schools, ids)
+	schools, err := organizationTenancyCompose.SchoolsByID(ctx, d.Schools, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -158,5 +161,5 @@ func (d ParentStaffMembers) List(ctx context.Context, tenantIDs []int64) ([]pare
 type parentGroupNames struct{ groups schoolstructure.Query }
 
 func (d parentGroupNames) list(ctx context.Context, ids []int64) (map[int64]string, error) {
-	return groupNamesByID(ctx, d.groups, ids)
+	return schoolStructureCompose.GroupNamesByID(ctx, d.groups, ids)
 }

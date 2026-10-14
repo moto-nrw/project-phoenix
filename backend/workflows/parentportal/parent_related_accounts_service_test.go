@@ -17,7 +17,6 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/services"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -81,7 +80,7 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (*pare
 	invites := &stubInvites{}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:      repos.CarePlan(),
-		People:        services.MustNewPeopleDirectory(db),
+		People:        api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:  careProfiles(t, db),
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
@@ -419,7 +418,7 @@ func buildRelAcctServiceWith(t *testing.T, settings configService.SettingsServic
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CarePlan(),
-		People:              services.MustNewPeopleDirectory(db),
+		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
@@ -491,7 +490,7 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:      repos.CarePlan(),
-		People:        services.MustNewPeopleDirectory(db),
+		People:        api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:  careProfiles(t, db),
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,

@@ -32,7 +32,7 @@ type EnrollmentFlowTestRepositories struct {
 
 // NewEnrollmentFlowTestRepositoriesWithMembers composes the enrollment flow suites'
 // repositories over the test database.
-func NewEnrollmentFlowTestRepositoriesWithMembers(db transactionruntime.Database, members services.MembershipTestRepositories) (*EnrollmentFlowTestRepositories, error) {
+func NewEnrollmentFlowTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (*EnrollmentFlowTestRepositories, error) {
 	tt, err := NewTimetableTestRepositoriesWithMembers(db, members)
 	if err != nil {
 		return nil, err

@@ -57,7 +57,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	today := timezone.CalendarDateClock(now)
 	logger := slog.Default()
 	hub := deliveryCompose.NewRealtimeHub(logger)
-	students, err := services.NewPeopleDirectory(db.Pool())
+	students, err := NewPeopleDirectory(db)
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
@@ -105,7 +105,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		PrincipalReader: services.AttendancePrincipal,
 		SchoolPresence:  services.NewLoggedStudentPresence(db.Pool(), logger),
 		GroupRepo:       sessionGroups, SupervisorRepo: sessionSupervisors,
-		StudentRepo: services.PresenceStudents(db.Pool(), r.Student), RoomRepo: services.NewAttendanceRooms(r.Room), ActivityGroupRepo: services.NewSessionActivities(r.GroupReads()),
+		StudentRepo: PresenceStudents(db, r.Student), RoomRepo: services.NewAttendanceRooms(r.Room), ActivityGroupRepo: services.NewSessionActivities(r.GroupReads()),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(r.Group, r.Student), StaffRepo: services.NewAttendanceStaffDirectory(r.Staff),
 		DB: db.Pool(), Broadcaster: hub, Logger: logger, Now: now,
 		AttendanceSyncer:         attendanceMirror,

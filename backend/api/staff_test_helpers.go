@@ -12,10 +12,10 @@ import (
 type StaffTestModule struct {
 	WorkforceTestModule
 	PeopleDirectory   peopledirectory.Capability
-	membershipRuntime func(transactionruntime.Database, *slog.Logger, services.StaffMembershipHooks) services.StaffMembershipRuntime
+	membershipRuntime func(transactionruntime.Database, *slog.Logger, StaffMembershipHooks) StaffMembershipRuntime
 }
 
-func (m StaffTestModule) NewStaffMembershipRuntime(db transactionruntime.Database, logger *slog.Logger, hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
+func (m StaffTestModule) NewStaffMembershipRuntime(db transactionruntime.Database, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
 	return m.membershipRuntime(db, logger, hooks)
 }
 
@@ -32,13 +32,13 @@ func NewStaffTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) 
 	if err != nil {
 		return StaffTestModule{}, err
 	}
-	people, err := services.NewPeopleDirectory(db.Pool())
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return StaffTestModule{}, err
 	}
 	carrier := &services.Factory{Users: work.Users, Education: groups.Education, WorkSession: work.TimeTracking}
-	membershipRuntime := func(db transactionruntime.Database, logger *slog.Logger, hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
-		return carrier.NewStaffMembershipRuntime(db.Pool(), auth.Auth, logger, hooks)
+	membershipRuntime := func(db transactionruntime.Database, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
+		return NewStaffMembershipRuntime(carrier, db, auth.Auth, logger, hooks)
 	}
 	return StaffTestModule{WorkforceTestModule: work, PeopleDirectory: people, membershipRuntime: membershipRuntime}, nil
 }

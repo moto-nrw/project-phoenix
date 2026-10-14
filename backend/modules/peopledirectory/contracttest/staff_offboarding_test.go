@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -76,7 +78,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
 	deps := offboardingcompose.Dependencies{
-		DB: db, Access: services.StaffOffboardingAccess(authService),
+		DB: db, Access: api.StaffOffboardingAccess(authService),
 		Employment: services.MembershipStaffEmployment(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
 		Authorize: func(ctx context.Context) (staffoffboarding.Actor, error) {
 			actor, _ := ctx.Value(offboardingTestActorKey{}).(staffoffboarding.Actor)
@@ -116,7 +118,7 @@ func (r *offboardingTestRunner) OffboardStaff(ctx context.Context, staffID, acto
 	ctx = context.WithValue(ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actorID, Username: username})
 	_, err = workflow.Offboard(ctx, staffID)
 	if errors.Is(err, staffoffboarding.ErrInUse) {
-		return services.ErrStaffInUse
+		return peopleCompose.ErrStaffInUse
 	}
 	return err
 }
@@ -655,7 +657,7 @@ func TestOffboardStaff_ActiveSupervisionBlocks(t *testing.T) {
 
 	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, services.ErrStaffInUse), "active supervision must block offboarding")
+	assert.True(t, errors.Is(err, peopleCompose.ErrStaffInUse), "active supervision must block offboarding")
 
 	var deletedAt *time.Time
 	scanErr := sc.db.NewSelect().
@@ -679,7 +681,7 @@ func TestOffboardStaff_ActiveGroupHandoverBlocks(t *testing.T) {
 	)
 
 	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
-	require.ErrorIs(t, err, services.ErrStaffInUse)
+	require.ErrorIs(t, err, peopleCompose.ErrStaffInUse)
 
 	_, err = sc.repos.GroupSubstitution.FindByID(sc.ctx, handover.ID)
 	require.NoError(t, err)

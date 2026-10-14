@@ -432,3 +432,7 @@ func readBack[M any](t *testing.T, ctx context.Context, find func(context.Contex
 // ownerDate gives an ISO day the owner's calendar-date type, taken from one of
 // its values, since this test role may not name the type.
 func ownerDate[D ~string](_ D, iso string) D { return D(iso) }
+
+// missingID derives an id no fixture can have produced, so the test carries no
+// assumption about which ids the shared database already holds.
+func missingID(anchor int64) int64 { return anchor + 1_000_000 }

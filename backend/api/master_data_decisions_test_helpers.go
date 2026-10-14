@@ -43,7 +43,7 @@ func NewTestMasterDataDecisions(options MasterDataDecisionTestOptions) (*carePla
 	if scope == nil {
 		scope = schoolWideReviewScope
 	}
-	return services.NewMasterDataDecisions(services.MasterDataDecisionWiring{
+	return NewMasterDataDecisions(services.MasterDataDecisionWiring{
 		CarePlan: options.CarePlan, Fields: options.People, Students: options.Students, Persons: options.Persons,
 		Audit: options.Audit, Scope: scope, Emitter: options.Emitter, Broadcaster: options.Broadcaster,
 		Events: options.Events, Shares: options.Shares, Logger: options.Logger, Today: options.Today,

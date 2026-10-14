@@ -5,7 +5,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 type ActivitiesTestModule struct {
@@ -33,10 +32,10 @@ func NewActivitiesTestModule(db transactionruntime.Database) (ActivitiesTestModu
 	return ActivitiesTestModule{
 		Activities: activityService, Timetable: r.Timetable, UserContext: identity,
 		Users: peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
-			PersonDirectory:  peopleCompose.NewPersonWrites(services.MustNewPeopleDirectory(db.Pool())),
-			StudentDirectory: peopleCompose.NewStudentDirectory(services.MustNewPeopleDirectory(db.Pool())),
+			PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
+			StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
 			PersonRepo:       r.Person, TeacherRepo: r.Teacher,
-			StaffDirectory: services.NewStaffDirectory(services.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: r.Person, Staff: r.Staff, Teachers: r.Teacher}),
+			StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: r.Person, Staff: r.Staff, Teachers: r.Teacher, MayManageStaff: StaffAdministrationPermitted}),
 		}),
 	}, nil
 }

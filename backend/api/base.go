@@ -184,12 +184,16 @@ type moduleServices struct {
 	// config.staff_work_schedules (#2687).
 	workforce *workforceModule.Module
 	// studentPhotoRuntime is the slot the People Directory photo lifecycle
-	// resolves from; EnableStudentPhotos fills it once the factory exists.
+	// resolves from; enableStudentPhotos fills it once the factory exists.
 	studentPhotoRuntime *peopleCompose.StudentPhotoRuntime
 	// students is the retained student repository over the People Directory
 	// (#2743).
-	students services.StudentRootReads
-	staff    interface {
+	students StudentRootReads
+	// guardianProfiles loads a guardian's profile with the children for the
+	// enrollment me/profile routes; birthdays is the birthday display (#4007).
+	guardianProfiles *peopleCompose.GuardianProfileLoader
+	birthdays        peopleModule.Birthdays
+	staff            interface {
 		ListAllStaffAccountIDs(ctx context.Context) (map[int64]int64, error)
 	}
 }
@@ -239,8 +243,8 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	// The photo lifecycle's runtime (feature gate, caller access, file
 	// cleanup, live refresh, consent trail) only exists once the services
 	// factory and the HTTP layer are up, so the owner resolves it from a slot
-	// that EnableStudentPhotos fills.
-	persons, studentPhotoRuntime, err := services.NewPeopleDirectoryWithPhotosAndObserver(pool, func(observation peopleCompose.Observation) {
+	// that enableStudentPhotos fills.
+	persons, studentPhotoRuntime, err := NewPeopleDirectoryWithPhotosAndObserver(db, func(observation peopleCompose.Observation) {
 		observability.ObservePeopleDirectoryOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, peopleModule.ErrorCode(observation.Err), observation.Err)
 	})
 	if err != nil {
@@ -262,24 +266,7 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	if err != nil {
 		return moduleServices{}, err
 	}
-	// A staff member is School Membership's membership row plus Workforce's
-	// employment profile (#2753); the membership owner composes the two.
-	staffEmployment, err := workforceCompose.NewStaffEmployment(pool, func(observation workforceCompose.Observation) {
-		observability.ObserveWorkforceOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, workforceModule.ErrorCode(observation.Err), observation.Err)
-	})
-	if err != nil {
-		return moduleServices{}, err
-	}
-	membership, err := schoolMembershipCompose.New(schoolMembershipCompose.Dependencies{
-		DB: pool,
-		Observe: func(observation schoolMembershipCompose.Observation) {
-			observability.ObserveSchoolMembershipOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolMembershipModule.ErrorCode(observation.Err), observation.Err)
-		},
-		Employment: services.MembershipStaffEmployment(staffEmployment),
-		// Every counting membership write is checked against the school's
-		// Kinderkontingent, which Organisation & Tenancy owns (#3567).
-		ChildQuota: organizationCompose.NewChildQuotaLimits(),
-	})
+	membership, err := composeSchoolMembership(db)
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -358,12 +345,21 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	if err != nil {
 		return moduleServices{}, err
 	}
-	// The retained student repository is built where it is used (#2743): the
-	// meal plan's participants and the Worker's activation tick read it.
-	students := services.NewStudentRootReads(services.NewStudentRepository(pool, membership, groups))
-	// The Worker's reminder recipients read the staff accounts through the
-	// same School Membership owner.
-	staff := services.NewStaffRepository(pool, membership, rooms, workTime, observability.ObserveIdentityAccessOperation)
+	// The retained People Directory, School Membership and School Structure
+	// repositories and their adapters are built here and handed to the
+	// legacy service graph (#4007). The meal plan's participants, the
+	// Worker's activation tick and its reminder recipients read the same
+	// student and staff repositories.
+	people, err := NewPeopleWiring(PeopleWiringOwners{
+		DB: db, Logger: logger, Persons: persons, Groups: groups, Rooms: rooms, Membership: membership,
+		Workforce: workTime, CarePlan: carePlan, Organizations: organizations, Timetable: timetableCapability,
+		ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
+	})
+	if err != nil {
+		return moduleServices{}, err
+	}
+	students := NewStudentRootReads(people.Students)
+	staff := people.Staff
 	mealPlanSettings := mealplanCompose.NewSettings()
 	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
 		DB:       pool,
@@ -378,22 +374,7 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 		return moduleServices{}, err
 	}
 	feedbackSettings := feedbackCompose.NewSettings()
-	feedbackCapability, err := feedbackCompose.New(feedbackCompose.Dependencies{
-		DB:       pool,
-		Settings: feedbackSettings,
-		Today:    feedbackModule.Today,
-		Observe: func(observation feedbackCompose.Observation) {
-			observability.ObserveFeedbackOperation(
-				observation.Operation,
-				observation.Duration,
-				observation.Stats.Queries,
-				observation.Stats.Rows,
-				observation.Stats.StatementDuration,
-				feedbackModule.ErrorCode(observation.Err),
-				observation.Err,
-			)
-		},
-	})
+	feedbackCapability, err := composeFeedback(db, feedbackSettings)
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -430,16 +411,66 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 			productEvents,
 			fileStorageWiring,
 			identity,
+			people,
 		)
 	})
 	if err != nil {
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
+	// The guardian profile loader backs the public and parent enrollment
+	// me/profile reads; the birthday display (#1542) reads the same retained
+	// rows. The root builds both where it mounts them (#4007).
+	guardianProfiles := peopleCompose.NewGuardianProfileLoader(people.GuardianProfiles, pool, logger.With("service", "guardian-profile-loader"))
+	birthdays := services.NewBirthdays(services.BirthdayRepositories{Students: people.Students, Staff: people.Staff, Persons: people.Persons},
+		factory.Settings, logger.With("service", "birthdays"), nil)
 	calendarAdministration = factory.SchoolCalendarAdministration()
 	identityModule, userContext := identity()
 	studentStatusDays := services.NewStudentStatusDayRepository(carePlan)
-	return moduleServices{carePlan: carePlan, studentStatusDays: studentStatusDays, timetableRepositories: timetableRepositories, services: factory, identity: identityModule, userContext: userContext, demoAccess: authAPI.ComposedDemoAccess(identityModule.DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff}, nil
+	return moduleServices{carePlan: carePlan, studentStatusDays: studentStatusDays, timetableRepositories: timetableRepositories, services: factory, identity: identityModule, userContext: userContext, demoAccess: authAPI.ComposedDemoAccess(identityModule.DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff, guardianProfiles: guardianProfiles, birthdays: birthdays}, nil
+}
+
+// composeSchoolMembership composes the observed School Membership owner. A
+// staff member is School Membership's membership row plus Workforce's
+// employment profile (#2753); the membership owner composes the two.
+func composeSchoolMembership(db transactionruntime.Database) (*schoolMembershipModule.Module, error) {
+	pool := db.Pool()
+	staffEmployment, err := workforceCompose.NewStaffEmployment(pool, func(observation workforceCompose.Observation) {
+		observability.ObserveWorkforceOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, workforceModule.ErrorCode(observation.Err), observation.Err)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return schoolMembershipCompose.New(schoolMembershipCompose.Dependencies{
+		DB: pool,
+		Observe: func(observation schoolMembershipCompose.Observation) {
+			observability.ObserveSchoolMembershipOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolMembershipModule.ErrorCode(observation.Err), observation.Err)
+		},
+		Employment: services.MembershipStaffEmployment(staffEmployment),
+		// Every counting membership write is checked against the school's
+		// Kinderkontingent, which Organisation & Tenancy owns (#3567).
+		ChildQuota: organizationCompose.NewChildQuotaLimits(),
+	})
+}
+
+// composeFeedback composes the observed Feedback owner over its settings.
+func composeFeedback(db transactionruntime.Database, settings *feedbackCompose.Settings) (*feedbackModule.Module, error) {
+	return feedbackCompose.New(feedbackCompose.Dependencies{
+		DB:       db.Pool(),
+		Settings: settings,
+		Today:    feedbackModule.Today,
+		Observe: func(observation feedbackCompose.Observation) {
+			observability.ObserveFeedbackOperation(
+				observation.Operation,
+				observation.Duration,
+				observation.Stats.Queries,
+				observation.Stats.Rows,
+				observation.Stats.StatementDuration,
+				feedbackModule.ErrorCode(observation.Err),
+				observation.Err,
+			)
+		},
+	})
 }
 
 // withRootWiring resolves what the service factory needs from the root and
@@ -550,7 +581,7 @@ func mapRoomDeletionError(err error) error {
 	}
 }
 
-func mealPlanParticipantFinder(students services.StudentRootReads, now func() time.Time) mealplanCompose.ParticipantFinder {
+func mealPlanParticipantFinder(students StudentRootReads, now func() time.Time) mealplanCompose.ParticipantFinder {
 	return func(ctx context.Context, date string) ([]mealplanCompose.ParticipantCandidate, error) {
 		rows, err := students.OverlappingOnDate(ctx, date, now())
 		if err != nil {
@@ -946,12 +977,7 @@ func (graph *serveGraph) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // core-action classification.
 func mountRoutes(root chi.Router, in routeInputs, limiters authRateLimiters) (documentSweeps, error) {
 	svc := in.modules.services
-	svc.EnableStudentPhotos(services.StudentPhotoBootstrap{
-		Unlinker:      studentsAPI.NewPhotoUnlinker(in.logger.With("component", "student-photo-unlinker"), "public"),
-		PhotoRuntime:  in.modules.studentPhotoRuntime,
-		Logger:        in.logger.With("service", "student-photo"),
-		ActingAccount: actingAccountID,
-	})
+	enableStudentPhotos(svc, in.modules.studentPhotoRuntime, studentsAPI.NewPhotoUnlinker(in.logger.With("component", "student-photo-unlinker"), "public"), in.logger.With("service", "student-photo"))
 	if err := mountDemoAccess(root, in.modules.demoAccess, viper.GetString("app_env"), in.frontendURL, viper.GetString("tenant_domain")); err != nil {
 		return documentSweeps{}, err
 	}
@@ -1569,7 +1595,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		Administration:   devicefleetCompose.NewAdministration(svc.IoT.Fleet()),
 		DeviceScan:       deviceScan,
 		OpenRooms:        deviceScan,
-		StaffClock:       newStaffClockService(svc.Users, services.NewPeopleIdentityAccess(in.db.Pool(), observability.ObserveIdentityAccessOperation), svc.WorkSession.TimeClock),
+		StaffClock:       newStaffClockService(svc.Users, NewPeopleIdentityAccess(in.db, observability.ObserveIdentityAccessOperation), svc.WorkSession.TimeClock),
 		Configuration:    devicescanCompose.NewConfiguration(svc.Settings),
 		Rooms:            devicescanCompose.NewRoomAvailability(svc.Facilities),
 		Directory:        devicescanCompose.NewDirectory(svc.Users, svc.Activities, logger),
@@ -1635,7 +1661,7 @@ func mountSchoolPortalRoutes(root, tenant chi.Router, in routeInputs, presence *
 	// pattern and the People Directory names of the acknowledgement list
 	// (#3418). All staff read them, admins write them.
 	staffNotices := timetableHTTPAdapter.NewStaffNoticeResource(timetableCompose.NewStaffNotices(timetableCompose.StaffNoticeDependencies{
-		DB: in.db.Pool(), Periods: timetableCompose.NewCalendarPeriodRepository(in.modules.calendar, services.NewCalendarPeriodUsage(in.modules.timetable)), Names: services.StaffNoticeNames(svc.PeopleDirectory),
+		DB: in.db.Pool(), Periods: timetableCompose.NewCalendarPeriodRepository(in.modules.calendar, services.NewCalendarPeriodUsage(in.modules.timetable)), Names: peopleCompose.StaffNoticeNames(svc.PeopleDirectory),
 		Logger: in.logger.With("service", "staffnotice"),
 	}), func(ctx context.Context) int64 { return timeTrackingIdentity(ctx).AccountID })
 	// Notification abstraction (#1624).
@@ -1695,7 +1721,7 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	tenant.Mount("/rooms", roomsHTTPAdapter.NewResource(modules.rooms, roomsHTTPAdapter.Dependencies{
 		Facilities: svc.Facilities, Settings: svc.Settings,
 		UserContext: modules.userContext, Active: svc.Active,
-		Users: services.NewRoomSnapshotPeople(svc.Users), Education: svc.Education,
+		Users: peopleCompose.NewRoomSnapshotPeople(svc.Users), Education: svc.Education,
 		ListExport: svc.ListExport,
 	}, logger.With("handler", "rooms")).Router())
 	tenant.Mount("/groups", groupsHTTP.NewResource(svc.Education, svc.Active, peopleCompose.NewGroupRoutePeople(svc.Users), modules.userContext).Router())
@@ -1741,7 +1767,7 @@ func newEnrollmentResource(modules moduleServices) *enrollmentAPI.Resource {
 		enrollmentAPI.NewChangeRequestService(svc.EnrollmentChangeRequest),
 		svc.EnrollmentDeletion,
 		enrollmentGuardianInvitations(modules.identity),
-		services.NewEnrollmentGuardianAutofill(svc.GuardianProfileLoader),
+		services.NewEnrollmentGuardianAutofill(modules.guardianProfiles),
 		enrollmentSchoolDirectory{schools: svc.Schools},
 		services.NewEnrollmentBookings(),
 	)
@@ -1756,7 +1782,7 @@ func newEnrollmentResource(modules moduleServices) *enrollmentAPI.Resource {
 func mountPeopleRoutes(tenant chi.Router, in routeInputs) {
 	svc, modules, logger := in.modules.services, in.modules, in.logger
 	tenant.Mount("/statistics", statisticsAPI.NewResource(svc.Statistics, svc.ListExport, logger.With("handler", "statistics")).Router())
-	tenant.Mount("/guardians", newGuardiansResource(svc.PeopleDirectory, svc.NewGuardianDirectoryRuntime(modules.identity, modules.userContext.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(in.db.Pool())), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
+	tenant.Mount("/guardians", newGuardiansResource(svc.PeopleDirectory, NewGuardianDirectoryRuntime(svc, modules.identity, modules.userContext.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(in.db.Pool())), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
 	tenant.Mount("/feedback", newFeedbackResource(modules.feedback).Router())
 	tenant.Mount("/meal-plan", newMealPlanResource(modules.mealPlan, newMealPlanExportRenderer()).Router())
 	tenant.Mount("/users", newUsersResource(modules.persons, modules.identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
@@ -1764,7 +1790,7 @@ func mountPeopleRoutes(tenant chi.Router, in routeInputs) {
 		return found, err
 	}).Router())
 	// Birthday display and staff birthday list (#1542).
-	tenant.Mount("/birthdays", birthdaysAPI.NewResource(svc.Birthdays, svc.ListExport, modules.userContext, logger.With("handler", "birthdays")).Router())
+	tenant.Mount("/birthdays", birthdaysAPI.NewResource(modules.birthdays, svc.ListExport, modules.userContext, logger.With("handler", "birthdays")).Router())
 	tenant.Mount("/me", meAPI.NewResource(modules.userContext.Caller(), modules.userContext).Router())
 	tenant.Mount("/emergency", emergencyAPI.NewResource(svc.Emergency).Router())
 }
@@ -1935,7 +1961,7 @@ func newParentResource(in routeInputs) *parentAPI.Resource {
 		Parent:                svc.Parent,
 		Calendar:              svc.Calendar,
 		Enrollment:            parentEnrollmentForms(enrollmentAPI.NewRequestService(svc.EnrollmentRequest)),
-		GuardianProfileLoader: newParentGuardianProfiles(svc.GuardianProfileLoader),
+		GuardianProfileLoader: newParentGuardianProfiles(in.modules.guardianProfiles),
 		Schools:               parentSchoolDirectory{schools: svc.Schools},
 		Push:                  svc.PushSubscriptions,
 		Preferences:           svc.NotificationPreferences,

@@ -6,7 +6,6 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The test graphs below are the repository test sets of the legacy
@@ -193,9 +192,9 @@ func NewGuardianTestRepositories(db transactionruntime.Database, command auditMo
 }
 
 // NewStudentConsents composes unobserved owners behind the consent seam.
-func NewStudentConsents(db transactionruntime.Database) *services.StudentConsents {
-	return services.NewStudentConsentsFor(
-		services.MustNewPeopleDirectory(db.Pool()),
+func NewStudentConsents(db transactionruntime.Database) *StudentConsents {
+	return NewStudentConsentsFor(
+		MustNewPeopleDirectory(db),
 		NewTestAuditPersistence(db, nil).StudentConsentChange,
 	)
 }

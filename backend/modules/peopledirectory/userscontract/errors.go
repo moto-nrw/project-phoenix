@@ -9,9 +9,9 @@
 // public People Directory package has sentinels of the same names and
 // messages; they are separate instances, and the retained callers match these.
 // The staff write refusals (ErrStaffAdoptionNotPermitted,
-// ErrStaffLehrkraftCaregiverProfile, ErrStaffInUse) live in the root
-// composition next to the staff directory that raises them, because that
-// composition may not import this package.
+// ErrStaffLehrkraftCaregiverProfile, ErrStaffInUse) live in the People
+// Directory composition next to the staff directory that raises them
+// (#4007).
 package userscontract
 
 import (

@@ -6,9 +6,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The absence request mails of the time-tracking services go out through
@@ -63,7 +63,7 @@ type absenceEmailSchoolDirectory struct {
 }
 
 func (d absenceEmailSchoolDirectory) FindSchoolSubdomain(ctx context.Context, id int64) (string, bool, error) {
-	school, found, err := services.FindSchool(ctx, d.schools, id)
+	school, found, err := organizationCompose.FindSchool(ctx, d.schools, id)
 	return school.Subdomain, found, err
 }
 

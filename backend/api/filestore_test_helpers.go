@@ -52,7 +52,7 @@ func NewFileStoreTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return FileStoreTestModule{}, err
 	}
-	persons, err := services.NewPeopleDirectory(db.Pool())
+	persons, err := NewPeopleDirectory(db)
 	if err != nil {
 		return FileStoreTestModule{}, err
 	}

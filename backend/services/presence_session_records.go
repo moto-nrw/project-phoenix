@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -66,7 +68,7 @@ func sessionRecordDependencies(owners SessionRecordOwners) presenceCompose.Sessi
 // through School Membership and, when the People Directory is given, their
 // person facts.
 type presenceSupervisionStaff struct {
-	membership staffLookup
+	membership schoolMembershipCompose.StaffLookup
 	persons    peopledirectory.Query
 }
 
@@ -75,7 +77,7 @@ func (d presenceSupervisionStaff) SupervisionStaff(ctx context.Context, staffIDs
 	if d.membership == nil {
 		return result, nil
 	}
-	members, err := staffByID(ctx, d.membership, staffIDs, true)
+	members, err := schoolMembershipCompose.StaffByID(ctx, d.membership, staffIDs, true)
 	if err != nil {
 		return nil, err
 	}
@@ -86,6 +88,31 @@ func (d presenceSupervisionStaff) SupervisionStaff(ctx context.Context, staffIDs
 		return result, nil
 	}
 	return result, attachSupervisionPersons(ctx, d.persons, result)
+}
+
+// personGroupSupervisorRepository attaches Staff.Person to active-group
+// supervisions.
+func attachSupervisionPersons(ctx context.Context, query peopledirectory.Query, staff map[int64]*presenceCompose.SessionStaff) error {
+	ids := make([]int64, 0, len(staff))
+	for _, member := range staff {
+		ids = append(ids, member.PersonID)
+	}
+	persons, err := peopleCompose.PersonsByID(ctx, query, ids)
+	if err != nil {
+		return err
+	}
+	for _, member := range staff {
+		if person, found := persons[member.PersonID]; found {
+			// The birthday stays with the owner; no supervision reader
+			// renders it.
+			member.Person = &presenceCompose.SessionStaffPerson{
+				ID: person.ID, TenantID: person.TenantID, CreatedAt: person.CreatedAt, UpdatedAt: person.UpdatedAt,
+				FirstName: person.FirstName, LastName: person.LastName,
+				TagID: person.TagID, AccountID: person.AccountID,
+			}
+		}
+	}
+	return nil
 }
 
 // sessionStaff is the supervising staff member of an active-group

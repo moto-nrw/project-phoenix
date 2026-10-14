@@ -82,7 +82,7 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return DeliveryTestModule{}, err
 	}
 	pushRepo := deliveryCompose.NewPushSubscriptionRepository(db.Pool())
-	identity := deliveryCompose.NewTenantMailIdentity(services.SchoolContactDirectory{Schools: organizations},
+	identity := deliveryCompose.NewTenantMailIdentity(SchoolContactDirectory{Schools: organizations},
 		func(ctx context.Context, tenantID int64) (string, error) {
 			return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 		}, logger)

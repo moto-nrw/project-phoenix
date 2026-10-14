@@ -110,7 +110,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	}
 	logger := slog.Default()
 	hub := deliveryCompose.NewRealtimeHub(logger)
-	students, err := services.NewPeopleDirectory(db.Pool())
+	students, err := NewPeopleDirectory(db)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -160,12 +160,12 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(r.ActiveGroup)
 	presenceDeps := presenceservice.PresenceDependencies{
 		PrincipalReader: services.AttendancePrincipal,
-		StudentDisplay:  services.StudentDisplayProjection{Students: students, Groups: displayGroups},
+		StudentDisplay:  StudentDisplayProjection{Students: students, Groups: displayGroups},
 		SchoolPresence:  services.NewLoggedStudentPresence(db.Pool(), logger),
 		YardRoomColor:   services.YardRoomColorQuery(rooms),
 		GroupRepo:       sessionGroups, SessionStartLock: r.SessionStartLock, SupervisorRepo: sessionSupervisors,
-		StudentStatusRepo: r.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: services.NewActiveSchoolQuery(organizations),
-		StudentRepo: services.PresenceStudents(db.Pool(), r.Student), StaffRepo: services.NewAttendanceStaffDirectory(r.Staff), RoomRepo: services.NewAttendanceRooms(r.Room),
+		StudentStatusRepo: r.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: NewActiveSchoolQuery(organizations),
+		StudentRepo: PresenceStudents(db, r.Student), StaffRepo: services.NewAttendanceStaffDirectory(r.Staff), RoomRepo: services.NewAttendanceRooms(r.Room),
 		ActivityGroupRepo: services.NewSessionActivities(r.GroupReads()), ActivityCatRepo: services.NewAttendanceActivityCategories(r.ActivityCategory), EducationGroupRepo: services.NewAttendanceEducationGroups(r.Group, r.Student), DeviceRepo: services.NewSessionDeviceDirectory(devices, settings.Settings, logger),
 		StaffNames: services.NewAttendanceStaffNames(r.Staff, data.Users), DB: db.Pool(), Broadcaster: hub, WorkSessionService: work.TimeTracking.AutoCheckIn,
 		AttendanceSyncer:         attendanceMirror,

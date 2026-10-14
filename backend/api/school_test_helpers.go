@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
@@ -58,7 +60,7 @@ func SchoolDeletionLookupForTests(db transactionruntime.Database, runtime tenant
 		return nil, err
 	}
 	return func(ctx context.Context, id int64) (bool, bool, error) {
-		school, found, err := services.FindSchool(tenant.WithUnitOfWork(ctx, runtime), schools, id)
+		school, found, err := organizationTenancyCompose.FindSchool(tenant.WithUnitOfWork(ctx, runtime), schools, id)
 		return found, found && school.IsDeleted(), err
 	}, nil
 }

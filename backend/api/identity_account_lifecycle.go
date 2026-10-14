@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -397,7 +399,7 @@ func (d guardianDirectory) PromoteStudentGuardianLink(ctx context.Context, linkI
 	if link == nil {
 		return userModels.ErrStudentGuardianNotFound
 	}
-	applyGuardianRolePreset(link, securityruntime.GuardianRoleLegalGuardian)
+	peopleCompose.ApplyGuardianRolePreset(guardianRolePresets, link, securityruntime.GuardianRoleLegalGuardian)
 	return d.repos.StudentGuardians.Update(ctx, link)
 }
 
@@ -484,17 +486,6 @@ func (a financialAudit) RecordPayerRemoved(ctx context.Context, guardianProfileI
 		NewValue:          "false",
 		Note:              "Erziehungsberechtigte Person vom Kind entfernt",
 	})
-}
-
-// applyGuardianRolePreset sets a relationship's role to the preset and its
-// parent-portal permissions to exactly the ones the preset grants.
-func applyGuardianRolePreset(link *userModels.StudentGuardian, role string) {
-	normalized, granted := securityruntime.StudentGuardianRolePreset(role)
-	permissions := make(map[string]interface{}, len(granted))
-	for _, permission := range granted {
-		permissions[permission] = true
-	}
-	link.SetGuardianAuthorizationData(normalized, permissions)
 }
 
 // isSocialWorkerGuardianRole reports whether the stored relationship role is

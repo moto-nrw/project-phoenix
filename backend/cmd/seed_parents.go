@@ -8,13 +8,16 @@ import (
 	"sort"
 	"strings"
 
+	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
+	"github.com/moto-nrw/project-phoenix/api"
+
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 
 	"github.com/spf13/cobra"
 
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -111,7 +114,7 @@ func seedParentAccounts(ctx context.Context, db transactionruntime.Database, cou
 		return fmt.Errorf("hash password: %w", err)
 	}
 
-	repos := services.NewGuardianSeedRepositories(db.Pool())
+	repos := guardianSeedRepositories{GuardianProfile: api.NewGuardianProfileRepository(db), StudentGuardian: api.NewStudentGuardianRepository(db)}
 
 	seedAccount, err := identityaccessCompose.NewGuardianSeedAccess(db.Pool())
 	if err != nil {
@@ -159,7 +162,7 @@ func seedParentAccounts(ctx context.Context, db transactionruntime.Database, cou
 // superuser connection sees every tenant, so the invitable list spans the
 // whole demo database; the guardian rows belong to the People Directory
 // owner and are read through its repositories (#2663).
-func promotableGuardians(ctx context.Context, repos services.GuardianSeedRepositories, count int) ([]parentCandidate, error) {
+func promotableGuardians(ctx context.Context, repos guardianSeedRepositories, count int) ([]parentCandidate, error) {
 	profiles, err := repos.GuardianProfile.FindInvitable(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("find promotable guardians: %w", err)
@@ -202,7 +205,7 @@ func promotableGuardians(ctx context.Context, repos services.GuardianSeedReposit
 // reused (in which case its password is left untouched).
 func promoteGuardian(
 	ctx context.Context,
-	repos services.GuardianSeedRepositories,
+	repos guardianSeedRepositories,
 	seedAccount func(context.Context, string, string) (int64, bool, error),
 	c parentCandidate,
 	passwordHash string,
@@ -218,4 +221,11 @@ func promoteGuardian(
 	}
 
 	return reused, nil
+}
+
+// guardianSeedRepositories are the guardian rows the parent-portal seed
+// command promotes to portal accounts.
+type guardianSeedRepositories struct {
+	GuardianProfile usersModels.GuardianProfileRepository
+	StudentGuardian usersModels.StudentGuardianRepository
 }

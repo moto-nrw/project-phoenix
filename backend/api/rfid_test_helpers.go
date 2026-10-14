@@ -5,7 +5,6 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 type RFIDTestModule struct {
@@ -26,10 +25,10 @@ func NewRFIDTestModule(db transactionruntime.Database) (RFIDTestModule, error) {
 		return RFIDTestModule{}, err
 	}
 	people := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
-		PersonDirectory:  peopleCompose.NewPersonWrites(services.MustNewPeopleDirectory(db.Pool())),
-		StudentDirectory: peopleCompose.NewStudentDirectory(services.MustNewPeopleDirectory(db.Pool())),
+		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
+		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
 		PersonRepo:       r.Membership.Person, TeacherRepo: r.Membership.Teacher,
-		StaffDirectory: services.NewStaffDirectory(services.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: r.Membership.Person, Staff: r.Membership.Staff, Teachers: r.Membership.Teacher}),
+		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: r.Membership.Person, Staff: r.Membership.Staff, Teachers: r.Membership.Teacher, MayManageStaff: StaffAdministrationPermitted}),
 		AccountExists:  identityaccessCompose.AccountExists(accounts), StudentRepo: r.Student, RFIDRepo: r.RFID,
 	})
 	return RFIDTestModule{Users: people, FeedbackStudents: devicescanCompose.NewFeedbackStudents(people), TagAssignments: devicescanCompose.NewTagAssignments(people, nil)}, nil

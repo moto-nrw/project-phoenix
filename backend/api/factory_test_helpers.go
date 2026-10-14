@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
@@ -83,8 +84,12 @@ func NewFactoryForTestsWithConfig(repos *RepositoryTestFactory, db transactionru
 	if err != nil {
 		return nil, err
 	}
+	people, err := owners.PeopleWiring(db, repos.CarePlan(), logger)
+	if err != nil {
+		return nil, err
+	}
 	wiring, identity := newIdentityRoot(db, tokens)
-	factory, err := owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, owners.WorkforceWiring(db), func(services.DataImportObservation) {}, nil, services.FileStorageWiring{}, wiring, true, clocks...))
+	factory, err := owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, owners.WorkforceWiring(db), func(services.DataImportObservation) {}, nil, services.FileStorageWiring{}, wiring, people, true, clocks...))
 	if err != nil {
 		return nil, err
 	}
@@ -96,6 +101,17 @@ func NewFactoryForTestsWithConfig(repos *RepositoryTestFactory, db transactionru
 	}, nil
 }
 
+// PeopleWiring builds the People Directory, School Membership and School
+// Structure wiring over the test owners and the given Care Plan, as the
+// serving root does (#4007).
+func (owners OwnerCapabilities) PeopleWiring(db transactionruntime.Database, carePlan careplan.Capability, logger *slog.Logger) (services.PeopleWiring, error) {
+	return NewPeopleWiring(PeopleWiringOwners{
+		DB: db, Logger: logger, Persons: owners.Persons, Groups: owners.Groups, Rooms: owners.Rooms,
+		Membership: owners.Membership, Workforce: owners.Workforce, CarePlan: carePlan,
+		Organizations: owners.Organizations, Timetable: owners.Timetable,
+	})
+}
+
 func currentTestFactoryConfig() services.FactoryConfig {
 	cfg := services.CurrentFactoryConfig()
 	cfg.PublicAPIURL = "http://api.test"
@@ -105,7 +121,7 @@ func currentTestFactoryConfig() services.FactoryConfig {
 // caregiverProfilesForTests binds the Lehrkraft guard to real People
 // Directory and School Membership compositions over db, as the factory does.
 func caregiverProfilesForTests(db transactionruntime.Database) (CaregiverProfiles, error) {
-	persons, err := services.NewPeopleDirectory(db.Pool())
+	persons, err := NewPeopleDirectory(db)
 	if err != nil {
 		return CaregiverProfiles{}, err
 	}
@@ -123,7 +139,7 @@ func NewOwnerCapabilitiesForTests(db transactionruntime.Database) (OwnerCapabili
 	if err != nil {
 		return OwnerCapabilities{}, err
 	}
-	persons, err := services.NewPeopleDirectory(db.Pool())
+	persons, err := NewPeopleDirectory(db)
 	if err != nil {
 		return OwnerCapabilities{}, err
 	}
@@ -166,7 +182,7 @@ func NewOwnerCapabilitiesForTests(db transactionruntime.Database) (OwnerCapabili
 // WorkforceWiring is the Workforce wiring the root hands the factory, over
 // the owners of this test graph.
 func (o OwnerCapabilities) WorkforceWiring(db transactionruntime.Database) services.WorkforceWiring {
-	staff := services.NewStaffRepository(db.Pool(), o.Membership, o.Rooms, o.Workforce, nil)
+	staff := NewMembershipRepositories(db, services.NewPersonRepository(db.Pool()), NewPeopleIdentityAccess(db, nil), o.Membership, o.Rooms, o.Workforce).Staff
 	return newWorkforceWiring(db, o.Workforce, o.Membership, o.Persons, o.Organizations, staff)
 }
 

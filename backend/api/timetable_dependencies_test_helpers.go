@@ -13,7 +13,7 @@ import (
 // roots. The People Directory is composed here since its construction left
 // the repository composition (#2743).
 func NewUnobservedTimetableDependencies(db transactionruntime.Database) services.TimetableDependencies {
-	students, err := services.NewPeopleDirectory(db.Pool())
+	students, err := NewPeopleDirectory(db)
 	if err != nil {
 		panic(fmt.Sprintf("compose timetable students: %v", err))
 	}

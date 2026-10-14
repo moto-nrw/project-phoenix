@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-func newStaffIdentityForTests(db transactionruntime.Database) (*CallerRows, services.MembershipTestRepositories, error) {
+func newStaffIdentityForTests(db transactionruntime.Database) (*CallerRows, MembershipTestRepositories, error) {
 	members, err := NewMembershipTestRepositories(db)
 	if err != nil {
 		return nil, members, err

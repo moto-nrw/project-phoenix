@@ -42,7 +42,7 @@ type AuthTestModule struct {
 	OperatorPasskeys identityaccess.OperatorPasskeyFlows
 	// Repos and SessionSigning let a behaviour test read the rows the flows
 	// wrote and mint the tokens they expect.
-	Repos          services.MembershipTestRepositories
+	Repos          MembershipTestRepositories
 	SessionSigning AuthTestSessionSigning
 }
 
@@ -233,7 +233,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	// The delivery module is composed after the identity module, so the
 	// guardian mail reads its outbox at call time, as the factory does.
 	var deliveryModule DeliveryTestModule
-	identity := deliveryCompose.NewTenantMailIdentity(services.SchoolContactDirectory{Schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
+	identity := deliveryCompose.NewTenantMailIdentity(SchoolContactDirectory{Schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
 		return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, logger)
 	sessionRepos := SessionRepositoriesOf(r, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))

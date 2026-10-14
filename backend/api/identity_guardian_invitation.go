@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -120,7 +120,7 @@ func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int
 	if tenantID <= 0 {
 		return ""
 	}
-	school, found, err := services.FindSchool(ctx, d.wiring.Schools, tenantID)
+	school, found, err := organizationTenancyCompose.FindSchool(ctx, d.wiring.Schools, tenantID)
 	if err != nil || !found || school.IsDeleted() {
 		return ""
 	}

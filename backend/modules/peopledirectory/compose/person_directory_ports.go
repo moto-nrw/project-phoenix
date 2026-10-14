@@ -40,7 +40,7 @@ type StudentLocker interface {
 
 // StaffDirectory serves the staff and teacher lookups and the two staff writes
 // the person directory hands on (#3752). The rows belong to School Membership
-// and Workforce; the composition root binds services.NewStaffDirectory.
+// and Workforce; the composition root binds NewStaffDirectory.
 //
 // Every read returns the repository result and error verbatim, without
 // wrapping or sentinel mapping: callers (IoT device flows, PyrePortal) branch

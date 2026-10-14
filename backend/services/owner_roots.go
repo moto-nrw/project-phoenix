@@ -5,19 +5,24 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+
+	"fmt"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	platform "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/uptrace/bun"
 )
 
@@ -91,6 +96,32 @@ func NewDeviceFleet(db *bun.DB, onlineWindows ...func(context.Context) time.Dura
 		OnlineWindow: onlineWindow,
 		Observe:      func(devicefleetCompose.Observation) {},
 	})
+}
+
+// NewPersonRepository is the person repository with the Identity & Access
+// account lookup FindWithAccount attaches (#2720).
+func NewPersonRepository(db *bun.DB) userModels.PersonRepository {
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+	if err != nil {
+		panic(fmt.Sprintf("compose identity access: %v", err))
+	}
+	return peopleCompose.NewPersonRepository(db, accountLookup(identity))
+}
+
+// accountLookup adapts the owner's by-id read to the People Directory
+// lookup: a missing account resolves to nil, as the former LEFT JOIN did.
+func accountLookup(accounts identityaccess.AccountProfiles) peopleCompose.AccountLookup {
+	return func(ctx context.Context, accountID int64) (*userModels.PersonAccount, error) {
+		account, err := accounts.FindAccountMetadata(ctx, accountID)
+		if errors.Is(err, identityaccess.ErrAccountNotFound) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		result := userModels.PersonAccount(account)
+		return &result, nil
+	}
 }
 
 // Identity & Access owns auth.accounts, platform.operators and the operator

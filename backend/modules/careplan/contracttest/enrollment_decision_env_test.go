@@ -382,7 +382,7 @@ func composeDecisions(
 	}
 	guardianAccess, err := api.NewCarePlanContractGuardianAccess(testpkg.NewDatabase(tb, db))
 	require.NoError(tb, err)
-	students, err := services.NewPeopleDirectory(db)
+	students, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
 	require.NoError(tb, err)
 	audits := api.NewTestAuditPersistence(testpkg.NewDatabase(tb, db), nil)
 	return api.NewEnrollmentDecisions(api.EnrollmentDecisionSources{

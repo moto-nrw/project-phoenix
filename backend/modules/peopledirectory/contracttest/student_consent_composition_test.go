@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	api "github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,7 +70,7 @@ func TestStudentConsentsReturnTheCurrentSharedPortalState(t *testing.T) {
 	}
 	student.ID = 91
 
-	states, err := services.NewStudentConsentsFor(directory, &stubStudentConsentTrail{}).
+	states, err := api.NewStudentConsentsFor(directory, &stubStudentConsentTrail{}).
 		CurrentStates(context.Background(), student, true)
 
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestStudentConsentsReturnTheCurrentSharedPortalState(t *testing.T) {
 func TestStudentConsentsRejectUnpersistedStudent(t *testing.T) {
 	t.Parallel()
 
-	seam := services.NewStudentConsentsFor(&stubStudentConsentDirectory{}, &stubStudentConsentTrail{})
+	seam := api.NewStudentConsentsFor(&stubStudentConsentDirectory{}, &stubStudentConsentTrail{})
 	_, err := seam.CurrentStates(context.Background(), &userModels.Student{}, false)
 	require.ErrorContains(t, err, "persisted student is required")
 	_, err = seam.CurrentStates(context.Background(), nil, false)
@@ -104,7 +104,7 @@ func TestStudentConsentsRecordOnlyBooleanStateTransitions(t *testing.T) {
 	t.Parallel()
 
 	trail := &stubStudentConsentTrail{}
-	recorder := services.NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
+	recorder := api.NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
 	oldTime := time.Date(2025, time.September, 1, 8, 0, 0, 0, time.UTC)
 	newTime := time.Date(2026, time.August, 31, 9, 0, 0, 0, time.UTC)
 	actor := int64(42)
@@ -144,7 +144,7 @@ func TestStudentConsentsRecordGrantedFieldsOnCreate(t *testing.T) {
 	t.Parallel()
 
 	trail := &stubStudentConsentTrail{}
-	recorder := services.NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
+	recorder := api.NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
 	grantedAt := time.Date(2026, time.August, 31, 9, 0, 0, 0, time.UTC)
 	after := &userModels.Student{EmailContactAcceptedAt: &grantedAt}
 	after.ID = 88

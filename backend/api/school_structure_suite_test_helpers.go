@@ -60,9 +60,9 @@ func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db transactio
 		panic(fmt.Sprintf("education suite: compose facilities: %v", err))
 	}
 	service := education.NewService(repos.Group, repos.GroupTeacher, repos.ClassTeacher,
-		services.NewEducationRooms(rooms), services.NewEducationTeachers(repos.Teacher),
-		services.NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
-		education.NewLegacyRepositoryRuntime(db.Pool()), education.GroupServiceOptions{Broadcaster: broadcaster, Audit: services.NewEducationClassAssignmentAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).StaffMasterDataChange)})
+		NewEducationRooms(rooms), NewEducationTeachers(repos.Teacher),
+		NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
+		education.NewLegacyRepositoryRuntime(db.Pool()), education.GroupServiceOptions{Broadcaster: broadcaster, Audit: NewEducationClassAssignmentAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).StaffMasterDataChange)})
 
 	return service
 }
@@ -78,16 +78,16 @@ func NewSubstitutionSuiteModule(repos *PeopleRepositorySuiteFactory, db transact
 		deps.Substitutions = services.NewEducationHandovers(repos.GroupSubstitution)
 	}
 	if deps.Teachers == nil {
-		deps.Teachers = services.NewEducationCaregivers(repos.Teacher)
+		deps.Teachers = NewEducationCaregivers(repos.Teacher)
 	}
 	if deps.Staff == nil {
-		deps.Staff = services.NewEducationStaff(repos.Staff)
+		deps.Staff = NewEducationStaff(repos.Staff)
 	}
 	if deps.ExternalCaregivers == nil {
-		deps.ExternalCaregivers = services.NewEducationExternalCaregivers(repos.Staff, repos.Guest)
+		deps.ExternalCaregivers = NewEducationExternalCaregivers(repos.Staff, repos.Guest)
 	}
 	if deps.Audit == nil {
-		deps.Audit = services.NewEducationSubstitutionAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).SubstitutionChange)
+		deps.Audit = NewEducationSubstitutionAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).SubstitutionChange)
 	}
 	if deps.Runtime == nil {
 		deps.Runtime = education.NewLegacyRepositoryRuntime(db.Pool())
@@ -118,7 +118,7 @@ func NewGradeTransitionSuiteOwners(db transactionruntime.Database, clock func() 
 	if err != nil {
 		return GradeTransitionSuiteOwners{}, err
 	}
-	people, err := services.NewPeopleDirectory(db.Pool())
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return GradeTransitionSuiteOwners{}, err
 	}

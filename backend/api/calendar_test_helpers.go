@@ -53,7 +53,7 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		CalendarFacts: services.CalendarFacts{
 			StaffRepo:            repos.Staff,
 			StudentRepo:          repos.Student,
-			GuardianProfileRepo:  services.NewCalendarGuardianDirectory(repos.GuardianProfile, services.MustNewPeopleDirectory(db.Pool())),
+			GuardianProfileRepo:  services.NewCalendarGuardianDirectory(repos.GuardianProfile, MustNewPeopleDirectory(db)),
 			StudentGuardianRepo:  repos.StudentGuardian,
 			ChildRepo:            parents.ParentChildLinks(),
 			GroupRepo:            repos.Group,

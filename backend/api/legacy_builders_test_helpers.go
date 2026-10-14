@@ -5,10 +5,10 @@ import (
 	"time"
 
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -23,17 +23,6 @@ import (
 // NewOrganizationTenancy composes the Organization & Tenancy owner.
 func NewOrganizationTenancy(db transactionruntime.Database) (organizationtenancy.Capability, error) {
 	return services.NewOrganizationTenancy(db.Pool())
-}
-
-// NewPeopleDirectory composes the People Directory owner, unobserved.
-func NewPeopleDirectory(db transactionruntime.Database) (peopledirectory.Capability, error) {
-	return services.NewPeopleDirectory(db.Pool())
-}
-
-// MustNewPeopleDirectory is NewPeopleDirectory for graphs that cannot return
-// an error.
-func MustNewPeopleDirectory(db transactionruntime.Database) peopledirectory.Capability {
-	return services.MustNewPeopleDirectory(db.Pool())
 }
 
 // NewSchoolMembership composes the School Membership owner, unobserved.
@@ -71,6 +60,7 @@ type (
 	EnrollmentIntakeSources        = services.EnrollmentIntakeSources
 	EnrollmentRolloverSources      = services.EnrollmentRolloverSources
 	SessionRecordOwners            = services.SessionRecordOwners
+	TimetableDependencies          = services.TimetableDependencies
 )
 
 var (
@@ -82,7 +72,7 @@ var (
 	NewEnrollmentRollovers        = services.NewEnrollmentRollovers
 	// NewRoomSnapshotPeople reads the room snapshot's students through the
 	// People Directory.
-	NewRoomSnapshotPeople = services.NewRoomSnapshotPeople
+	NewRoomSnapshotPeople = peopleCompose.NewRoomSnapshotPeople
 	// AccountExists is the People Directory's account-reference check over
 	// Identity & Access, as the root binds it.
 	AccountExists = identityaccessCompose.AccountExists
@@ -91,9 +81,8 @@ var (
 // The legacy composition's values the Identity & Access behaviour suites
 // name build through the typed root (#4006).
 type (
-	FactoryConfig              = services.FactoryConfig
-	MembershipTestRepositories = services.MembershipTestRepositories
-	ParentRequestReviewPolicy  = services.ParentRequestReviewPolicy
+	FactoryConfig             = services.FactoryConfig
+	ParentRequestReviewPolicy = services.ParentRequestReviewPolicy
 )
 
 var (
@@ -105,14 +94,7 @@ var (
 	// Identity & Access, the People Directory, School Membership and the
 	// schools.
 	NewOperatorAccountDirectory = services.NewOperatorAccountDirectory
-	// ClassifyGuardianInvitationFailure classifies the guardian routes'
-	// invitation refusals.
-	ClassifyGuardianInvitationFailure = services.ClassifyGuardianInvitationFailure
 )
-
-// GuardianFailureConflict is the conflict a guardian invitation refusal is
-// classified as.
-const GuardianFailureConflict = services.GuardianFailureConflict
 
 // AccountRoleGrantPolicy returns Security Runtime's role grant decision the
 // root binds to the account routes.

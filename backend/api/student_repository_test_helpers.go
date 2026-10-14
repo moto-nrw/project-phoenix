@@ -38,7 +38,7 @@ type StudentTestRepositories struct {
 	ParentMessage                usersModels.ParentMessageRepository
 }
 
-func NewStudentTestRepositoriesWithMembers(db transactionruntime.Database, members services.MembershipTestRepositories) (StudentTestRepositories, error) {
+func NewStudentTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (StudentTestRepositories, error) {
 	enrollment, err := NewEnrollmentTestRepositoriesWithMembers(db, members)
 	if err != nil {
 		return StudentTestRepositories{}, err

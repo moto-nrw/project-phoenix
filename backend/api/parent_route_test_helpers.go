@@ -41,7 +41,7 @@ func schoolWideReviewScope(context.Context) (carePlanCompose.ReviewScope, error)
 	return carePlanCompose.ReviewScope{SchoolWide: true}, nil
 }
 
-func NewParentRouteTestRepositories(db transactionruntime.Database, members services.MembershipTestRepositories) (ParentRouteTestRepositories, error) {
+func NewParentRouteTestRepositories(db transactionruntime.Database, members MembershipTestRepositories) (ParentRouteTestRepositories, error) {
 	people := members.People
 	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
 	if err != nil {
@@ -64,7 +64,7 @@ func NewParentRouteTestRepositories(db transactionruntime.Database, members serv
 	}
 	return ParentRouteTestRepositories{
 		ParentPortalRepositories: carePlanCompose.ParentPortalRepositories{
-			ParentChild: carePlanCompose.NewParentChildRepository(services.NewPeopleIdentityAccess(db.Pool(), nil).ListActiveAccountSchoolIDs, services.ParentPortalDirectory{People: people}),
+			ParentChild: carePlanCompose.NewParentChildRepository(NewPeopleIdentityAccess(db, nil).ListActiveAccountSchoolIDs, services.ParentPortalDirectory{People: people}),
 		},
 		Student: members.Student, Person: members.Person,
 		GuardianProfile: members.GuardianProfile, StudentGuardian: members.StudentGuardian,

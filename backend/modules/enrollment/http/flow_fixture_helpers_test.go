@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -194,7 +193,7 @@ func testGuardianAccess(db *bun.DB) TestDecisionGuardianAccess {
 }
 
 func testStudentEnrollment(db *bun.DB) TestDecisionStudentEnrollment {
-	module, err := services.NewPeopleDirectory(db)
+	module, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
 	if err != nil {
 		panic(err)
 	}

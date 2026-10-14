@@ -14,7 +14,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,8 +72,9 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc, err := api.NewStaffAdmin(payrollAdminDeps(db, repos, repos.Staff))
 	require.NoError(t, err)
-	dir := services.NewStaffDirectory(services.StaffDirectoryDependencies{
+	dir := peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{
 		Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher,
+		MayManageStaff: api.StaffAdministrationPermitted,
 	})
 
 	updateStaff := func(ctx context.Context, staff *userModels.Staff) error {

@@ -16377,33 +16377,53 @@
         },
         {
           "file": "api/base.go",
-          "line": 400,
+          "line": 381,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 452,
+          "line": 483,
           "declaration": "withRootWiring"
         },
         {
           "file": "api/base.go",
-          "line": 716,
+          "line": 747,
           "declaration": "type serveGraph"
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 47,
+          "line": 48,
           "declaration": "type TestFactory"
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 175,
+          "line": 191,
           "declaration": "OwnerCapabilities.factory"
         },
         {
+          "file": "api/guardian_directory_composition.go",
+          "line": 143,
+          "declaration": "NewGuardianDirectoryRuntime"
+        },
+        {
+          "file": "api/guardian_directory_composition.go",
+          "line": 215,
+          "declaration": "pendingGuardianInvitations"
+        },
+        {
+          "file": "api/guardian_directory_composition.go",
+          "line": 274,
+          "declaration": "guardianPaymentExport"
+        },
+        {
           "file": "api/guardian_test_helpers.go",
-          "line": 59,
+          "line": 60,
           "declaration": "NewGuardianTestModule"
+        },
+        {
+          "file": "api/people_directory_roots.go",
+          "line": 201,
+          "declaration": "NewStaffMembershipRuntime"
         },
         {
           "file": "api/session_end.go",
@@ -16421,9 +16441,44 @@
           "declaration": "newExportTransferModule"
         },
         {
+          "file": "api/staff_membership_composition.go",
+          "line": 162,
+          "declaration": "bindStaffMembershipRuntime"
+        },
+        {
+          "file": "api/staff_membership_composition.go",
+          "line": 213,
+          "declaration": "newStaffOffboardingWorkflow"
+        },
+        {
+          "file": "api/staff_membership_composition.go",
+          "line": 228,
+          "declaration": "staffDirectoryPersons"
+        },
+        {
+          "file": "api/staff_membership_composition.go",
+          "line": 268,
+          "declaration": "membershipTeacherGroups"
+        },
+        {
+          "file": "api/staff_membership_composition.go",
+          "line": 283,
+          "declaration": "membershipRoleRows"
+        },
+        {
+          "file": "api/staff_membership_composition.go",
+          "line": 321,
+          "declaration": "staffDirectoryWrites"
+        },
+        {
           "file": "api/staff_test_helpers.go",
           "line": 39,
           "declaration": "NewStaffTestModule"
+        },
+        {
+          "file": "api/student_photo_composition.go",
+          "line": 289,
+          "declaration": "enableStudentPhotos"
         },
         {
           "file": "api/time_tracking_composition.go",

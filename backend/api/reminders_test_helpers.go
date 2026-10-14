@@ -44,7 +44,7 @@ func NewRemindersTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return RemindersTestModule{}, err
 	}
-	students, err := services.NewPeopleDirectory(db.Pool())
+	students, err := NewPeopleDirectory(db)
 	if err != nil {
 		return RemindersTestModule{}, err
 	}

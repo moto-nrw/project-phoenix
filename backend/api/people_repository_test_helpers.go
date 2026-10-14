@@ -39,7 +39,7 @@ type (
 // repositories, and the retained repositories the retired repository factory
 // held, each built over the same owners (#2743).
 type PeopleRepositorySuiteFactory struct {
-	services.MembershipTestRepositories
+	MembershipTestRepositories
 	CareScheduleRepositories
 	timetableCompose.SchoolCalendarRepositories
 	services.ParentPortalRepositories
@@ -61,7 +61,7 @@ type PeopleRepositorySuiteFactory struct {
 	ExcusedAbsenceRequest    *services.ExcusedAbsenceRequestRepository
 	ActiveGroup              studentpresence.SessionRecords
 	GroupSupervisor          studentpresence.SupervisionRecords
-	CrossTenant              services.CrossTenantQuery
+	CrossTenant              CrossTenantQuery
 	StaffAbsence             workforceCompose.StaffAbsenceRepository
 	SessionStartLock         interface {
 		LockSessionStart(context.Context, int64) error
@@ -113,12 +113,12 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps servic
 		panic("repository test factory: timetable and projection dependencies are required")
 	}
 	now := services.OptionalClock(clocks)
-	identity := services.NewPeopleIdentityAccess(db.Pool(), nil)
-	members := services.NewMembershipRepositories(db.Pool(), services.NewPersonRepository(db.Pool()), identity, deps.Membership, deps.Rooms, deps.Workforce)
+	identity := NewPeopleIdentityAccess(db, nil)
+	members := NewMembershipRepositories(db, services.NewPersonRepository(db.Pool()), identity, deps.Membership, deps.Rooms, deps.Workforce)
 	members.People = deps.Students
-	members.Student = services.NewStudentRepository(db.Pool(), deps.Membership, deps.Groups)
-	members.GuardianProfile = services.NewGuardianProfileRepository(db.Pool())
-	members.StudentGuardian = services.NewStudentGuardianRepository(db.Pool())
+	members.Student = NewStudentRepository(db, deps.Membership, deps.Groups)
+	members.GuardianProfile = NewGuardianProfileRepository(db)
+	members.StudentGuardian = NewStudentGuardianRepository(db)
 	// The retained repositories the repository factory used to hold read
 	// through unobserved Care Plan, School Calendar, Student Presence, Device
 	// Fleet and Enrollment owners of db, bound at construction (#2743). The
@@ -146,7 +146,7 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps servic
 		SchoolCalendarRepositories: timetableCompose.NewSchoolCalendarRepositories(calendar, timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), deps.Capability)),
 		ParentPortalRepositories: services.NewParentPortalRepositories(db.Pool(), services.ParentPortalOwners{
 			People: deps.Students, Groups: deps.Groups, Membership: deps.Membership,
-			Identity: services.NewPeopleIdentityAccess(db.Pool(), services.IdentityAccessObserver(deps.ObserveIdentityAccess)), Enrollment: enrollment, Now: now,
+			Identity: NewPeopleIdentityAccess(db, services.IdentityAccessObserver(deps.ObserveIdentityAccess)), Enrollment: enrollment, Now: now,
 		}),
 		GuardianPhoneNumber:      peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
 		GuardianFinancialData:    peopleCompose.NewGuardianFinancialDataRepository(db.Pool()),
@@ -154,7 +154,7 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps servic
 		ParentRequestShare:       peopleCompose.NewParentRequestShareEventRepository(db.Pool()),
 		ParentRequestEvent:       peopleCompose.NewParentRequestEventRepository(db.Pool()),
 		GroupSubstitution:        services.NewGroupSubstitutionRepository(members.Group, deps.Membership, deps.Workforce),
-		CaregiverBindingLock:     services.NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability),
+		CaregiverBindingLock:     NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability),
 		RFIDCard:                 identity,
 		Profile:                  identity,
 		CareWithdrawal:           services.NewCareWithdrawalCompletionRepository(carePlan),
@@ -162,8 +162,8 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps servic
 		StudentStatusDay:         services.NewStudentStatusDayRepository(carePlan),
 		ExcusedAbsenceRequest:    services.NewExcusedAbsenceRequestRepository(carePlan),
 		ActiveGroup:              sessions,
-		GroupSupervisor:          services.NewGroupSupervisionRecords(sessions, deps.Groups),
-		CrossTenant:              services.NewCrossTenantQuery(presence, deps.Students, deps.Groups),
+		GroupSupervisor:          NewGroupSupervisionRecords(sessions, deps.Groups),
+		CrossTenant:              NewCrossTenantQuery(presence, deps.Students, deps.Groups),
 		StaffAbsence:             NewStaffAbsenceRepository(deps.Workforce, deps.Membership, deps.Students),
 		SessionStartLock:         presence,
 		carePlan:                 carePlan,
@@ -174,7 +174,7 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps servic
 
 // NewPeopleRepositorySuitePeople is the People Directory owner.
 func NewPeopleRepositorySuitePeople(db transactionruntime.Database) peopledirectory.Capability {
-	return services.MustNewPeopleDirectory(db.Pool())
+	return MustNewPeopleDirectory(db)
 }
 
 // NewPeopleRepositorySuiteCareLifecycle composes the care lifecycle; a nil
@@ -198,7 +198,7 @@ func NewPeopleRepositorySuiteAnnouncements(db transactionruntime.Database, audie
 // lock over the four owners that hold caregiver capability.
 func NewPeopleRepositorySuiteCaregiverBindingLocker(db transactionruntime.Database) usersModels.CaregiverBindingLocker {
 	deps := NewUnobservedTimetableDependencies(db)
-	return services.NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability)
+	return NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability)
 }
 
 // NewPeopleRepositorySuiteCompanions is the companion store over Care Plan.
@@ -219,20 +219,20 @@ func ReplacePeopleRepositorySuiteCompanions(ctx context.Context, links usersMode
 // NewPeopleRepositorySuiteRelationships is the relationship store with its
 // owners bound, as the composition root binds it.
 func NewPeopleRepositorySuiteRelationships(db transactionruntime.Database) usersModels.StudentGuardianRepository {
-	return services.NewStudentGuardianRepository(db.Pool())
+	return NewStudentGuardianRepository(db)
 }
 
 // NewPeopleRepositorySuiteGuardianProfiles is the guardian profile store as
 // the composition root binds it.
 func NewPeopleRepositorySuiteGuardianProfiles(db transactionruntime.Database) usersModels.GuardianProfileRepository {
-	return services.NewGuardianProfileRepository(db.Pool())
+	return NewGuardianProfileRepository(db)
 }
 
 // NewEnrollmentGuardianAutofillSuite is the enrollment form's autofill
 // reader as the composition root binds it, over the retained guardian profile
 // store of db (#2734).
 func NewEnrollmentGuardianAutofillSuite(db transactionruntime.Database) services.EnrollmentGuardianAutofill {
-	return services.EnrollmentGuardianAutofill{Loader: peopleCompose.NewGuardianProfileLoader(services.NewGuardianProfileRepository(db.Pool()), db.Pool(), nil)}
+	return services.EnrollmentGuardianAutofill{Loader: peopleCompose.NewGuardianProfileLoader(NewGuardianProfileRepository(db), db.Pool(), nil)}
 }
 
 // NewPeopleRepositorySuiteRecipients is the parent-message recipient lookup
@@ -258,7 +258,9 @@ func PeopleRepositorySuiteWithOwners(pickup peopleCompose.RetainedGuardianPickup
 
 // PeopleRepositorySuiteWithDefaultRole binds the default role preset.
 func PeopleRepositorySuiteWithDefaultRole() peopleCompose.RetainedGuardianRelationshipOption {
-	return peopleCompose.RetainedWithGuardianDefaultRole(services.ApplyDefaultGuardianRole)
+	return peopleCompose.RetainedWithGuardianDefaultRole(func(link *usersModels.StudentGuardian) {
+		peopleCompose.ApplyDefaultGuardianRole(guardianRolePresets, link)
+	})
 }
 
 // RepositoryTestFactory is the repository factory test graphs compose, next to
@@ -287,6 +289,6 @@ func NewUnboundStudentRepository(db transactionruntime.Database) usersModels.Stu
 		panic(fmt.Sprintf("student repository: compose membership: %v", err))
 	}
 	return peopleCompose.NewStudentRepository(peopleCompose.StudentRepositoryDependencies{
-		DB: db.Pool(), Directory: services.MustNewPeopleDirectory(db.Pool()), Enrollment: enrollment,
+		DB: db.Pool(), Directory: MustNewPeopleDirectory(db), Enrollment: enrollment,
 	})
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // Companion edges are Care Plan records that the retained student services
@@ -80,4 +81,43 @@ func companionToLegacy(value careplan.CompanionEdge) *userModels.StudentCompanio
 	result := &userModels.StudentCompanion{StudentLowID: value.StudentLowID, StudentHighID: value.StudentHighID, Weekday: value.Weekday}
 	result.ID, result.TenantID, result.CreatedAt, result.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return result
+}
+
+// studentLifecycle maps the owner's lifecycle status onto the three states the
+// presence flows branch on. Every other status, today only "pending", is
+// StudentLifecycleOther and is treated as not-yet-active, which is what the
+// enrollment filter and the check-in guards already did for it.
+func studentLifecycle(status userModels.StudentStatus) studentpresence.StudentLifecycle {
+	switch status {
+	case userModels.StudentStatusActive:
+		return studentpresence.StudentLifecycleActive
+	case userModels.StudentStatusInactive:
+		return studentpresence.StudentLifecycleInactive
+	case userModels.StudentStatusAlumnus:
+		return studentpresence.StudentLifecycleAlumnus
+	case userModels.StudentStatusPending:
+		return studentpresence.StudentLifecycleOther
+	default:
+		return studentpresence.StudentLifecycleOther
+	}
+}
+
+func StudentRecord(row *userModels.Student) *studentpresence.StudentRecord {
+	if row == nil {
+		return nil
+	}
+	return &studentpresence.StudentRecord{
+		ID:            row.ID,
+		TenantID:      row.TenantID,
+		PersonID:      row.PersonID,
+		GroupID:       row.GroupID,
+		SchoolClass:   row.SchoolClass,
+		Lifecycle:     studentLifecycle(row.Status),
+		EnrolledFrom:  row.EnrolledFrom,
+		EnrolledUntil: row.EnrolledUntil,
+		Sick:          row.Sick,
+		SickSince:     row.SickSince,
+		Excused:       row.Excused,
+		ExcusedSince:  row.ExcusedSince,
+	}
 }
