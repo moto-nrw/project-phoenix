@@ -14,27 +14,27 @@ import (
 // sent, finally failed or cancelled; rows from before the leased outbox
 // (1.15.360) may lack the timestamp of their state, so their last update
 // stands in.
+// intentEndedBefore matches an intent of the queue that left it before ?1.
+const intentEndedBefore = `status IN ('sent', 'dead_letter', 'cancelled')
+	AND COALESCE(CASE status WHEN 'sent' THEN sent_at WHEN 'dead_letter' THEN dead_letter_at ELSE cancelled_at END, updated_at) < ?1`
+
 const (
 	deleteExpiredEmailDeliveriesSQL = `DELETE FROM platform.delivery_email_deliveries
 		WHERE tenant_id = ?0 AND (
 			(outbox_id IS NULL AND created_at < ?1)
 			OR outbox_id IN (
 				SELECT id FROM platform.email_outbox
-				WHERE tenant_id = ?0 AND status IN ('sent', 'dead_letter', 'cancelled')
-					AND COALESCE(CASE status WHEN 'sent' THEN sent_at WHEN 'dead_letter' THEN dead_letter_at ELSE cancelled_at END, updated_at) < ?1))`
+				WHERE tenant_id = ?0 AND ` + intentEndedBefore + `))`
 	deleteExpiredEmailIntentsSQL = `DELETE FROM platform.email_outbox
-		WHERE tenant_id = ?0 AND status IN ('sent', 'dead_letter', 'cancelled')
-			AND COALESCE(CASE status WHEN 'sent' THEN sent_at WHEN 'dead_letter' THEN dead_letter_at ELSE cancelled_at END, updated_at) < ?1
+		WHERE tenant_id = ?0 AND ` + intentEndedBefore + `
 			AND kind NOT IN (?2)`
 	clearExpiredKeyOnlyEmailIntentsSQL = `UPDATE platform.email_outbox
 		SET recipient = '{}'::jsonb, payload = '{}'::jsonb, provider_result = NULL, last_error = NULL
-		WHERE tenant_id = ?0 AND status IN ('sent', 'dead_letter', 'cancelled')
-			AND COALESCE(CASE status WHEN 'sent' THEN sent_at WHEN 'dead_letter' THEN dead_letter_at ELSE cancelled_at END, updated_at) < ?1
+		WHERE tenant_id = ?0 AND ` + intentEndedBefore + `
 			AND kind IN (?2)
 			AND (recipient <> '{}'::jsonb OR payload <> '{}'::jsonb OR provider_result IS NOT NULL OR last_error IS NOT NULL)`
 	deleteExpiredPushIntentsSQL = `DELETE FROM platform.push_outbox
-		WHERE tenant_id = ?0 AND status IN ('sent', 'dead_letter', 'cancelled')
-			AND COALESCE(CASE status WHEN 'sent' THEN sent_at WHEN 'dead_letter' THEN dead_letter_at ELSE cancelled_at END, updated_at) < ?1`
+		WHERE tenant_id = ?0 AND ` + intentEndedBefore + ``
 )
 
 func (s *Store) DeleteExpiredEmailDeliveryLogs(ctx context.Context, tenantID int64, before time.Time) (int, error) {

@@ -61,6 +61,7 @@ func (r *SignInDataRetention) DeleteExpiredMFAEmailChallenges(ctx context.Contex
 	if err != nil {
 		return 0, failed("delete expired operator mfa email challenges", err)
 	}
+	r.logDeleted("expired mfa email challenges deleted", accounts+operators, SignInChallengeRetention)
 	return accounts + operators, nil
 }
 
@@ -74,5 +75,14 @@ func (r *SignInDataRetention) DeleteExpiredPasskeySessions(ctx context.Context) 
 	if err != nil {
 		return 0, failed("delete expired operator passkey sessions", err)
 	}
+	r.logDeleted("expired passkey sessions deleted", accounts+operators, SignInChallengeRetention)
 	return accounts + operators, nil
+}
+
+func (r *SignInDataRetention) logDeleted(message string, deleted int, window time.Duration) {
+	if deleted > 0 {
+		r.logger.Info(message,
+			slog.Int("records_deleted", deleted),
+			slog.Int("retention_days", int(window.Hours()/24)))
+	}
 }

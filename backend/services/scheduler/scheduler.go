@@ -1331,9 +1331,6 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 // signInDataCleanupJobs deletes the short-lived sign-in data after its fixed
 // window. Operator sessions go at their expiry, as account sessions do.
 func signInDataCleanupJobs(cleaner SignInDataCleaner) []CleanupJob {
-	if cleaner == nil {
-		return nil
-	}
 	return []CleanupJob{
 		{Description: "Guardian invitation cleanup", Run: cleaner.DeleteExpiredGuardianInvitations},
 		{Description: "MFA email code cleanup", Run: cleaner.DeleteExpiredMFAEmailChallenges},

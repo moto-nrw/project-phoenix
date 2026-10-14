@@ -9,7 +9,7 @@ Diese Liste nennt jede Datenart mit Personenbezug, ihre Löschfrist, den Startze
 
 - **Stündlicher Token-Aufräumjob.** Einladungen für Eltern, MFA-Codes per E-Mail, Passkey-Sitzungen und abgelaufene Refresh-Tokens löscht der stündliche Aufräumjob für alle Schulen und Operatoren gemeinsam (#3954). Diese Läufe stehen nicht im Löschprotokoll, weil sie keiner Schule zugeordnet sind.
 - **Nächtlicher Lauf je Schule.** Zur eingestellten Uhrzeit (`gdpr.data_cleanup_time`, Voreinstellung 02:00) löscht moto in einer Transaktion der Schule alles, was älter als die Frist ist. Wurde ein geplanter Lauf verpasst, weil der letzte erfolgreiche Lauf vor dem Tag des letzten geplanten Termins liegt, holt moto ihn beim nächsten Minutentakt nach; ein fehlgeschlagener Lauf zählt nicht und wird nachgeholt (#3950).
-- **Löschprotokoll.** Jede automatische Löschung schreibt einen Eintrag in `audit.data_deletions` mit Datenart und Anzahl, ohne die gelöschten Inhalte.
+- **Löschprotokoll.** Jede automatische Löschung des nächtlichen Laufs schreibt einen Eintrag in `audit.data_deletions` mit Datenart und Anzahl, ohne die gelöschten Inhalte.
 - **Wer die Fristen einstellt.** Fachliche Fristen trägt das moto-Team je Schule im Operator-Dashboard ein, so wie sie im Vertrag stehen; ohne Eintrag gilt die Voreinstellung. Die Schule sieht ihre Fristen unter „Datenschutz“ und kann sie nicht ändern. Technische Daten und Protokolle haben feste Fristen für alle Schulen. Den nächtlichen Lauf hält nur das moto-Team als Notbremse an.
 
 ## Fachliche Daten (je Schule, operator_managed)
