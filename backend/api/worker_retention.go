@@ -8,6 +8,7 @@ import (
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -50,11 +51,9 @@ type retentionOwners struct {
 	settings interface {
 		ResolveInt(ctx context.Context, key string) (int, error)
 	}
-	unregisteredTagScans interface {
-		DeleteExpired(ctx context.Context) (deleted, retentionDays int, err error)
-	}
-	statusDays     carePlanModule.StudentStatusDayRetention
-	parentMessages communicationModule.ParentMessageCleanup
+	unregisteredTagScans devicefleet.UnregisteredTagScanRetention
+	statusDays           carePlanModule.StudentStatusDayRetention
+	parentMessages       communicationModule.ParentMessageCleanup
 	// auditLedgers deletes the expired rows of the append-only audit ledgers
 	// through their fixed database functions (#3956).
 	auditLedgers interface {
@@ -89,7 +88,7 @@ func newWorkerRetention(owners retentionOwners, logger *slog.Logger) (workerRete
 func retentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 	var steps []scheduler.RetentionStep
 	if owners.unregisteredTagScans != nil {
-		steps = append(steps, fixedRetentionStep(retentionUnregisteredTagScans, owners.unregisteredTagScans.DeleteExpired))
+		steps = append(steps, fixedRetentionStep(retentionUnregisteredTagScans, owners.unregisteredTagScans.DeleteUnregisteredTagScansAfterRetention))
 	}
 	if owners.statusDays != nil {
 		statusDays := owners.statusDays

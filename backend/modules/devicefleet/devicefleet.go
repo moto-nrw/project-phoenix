@@ -223,6 +223,7 @@ type Command interface {
 type Capability interface {
 	Query
 	Command
+	UnregisteredTagScanRetention
 }
 
 // engine is the composed runtime behind the facade. Device authentication
