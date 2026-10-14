@@ -79,6 +79,28 @@ describe("SettingsField retention windows (ADR 0048)", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it("does not save an unconfirmed shorter window when the field unmounts", async () => {
+    const { input, onSave, findByText, unmount } =
+      renderOperatorField(retentionSetting());
+
+    fireEvent.change(input, { target: { value: "90" } });
+    fireEvent.blur(input);
+    await findByText(/älter als 90 Tage sind/);
+    unmount();
+
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("does not save a pending shorter window when the field unmounts", async () => {
+    const { input, onSave, unmount } = renderOperatorField(retentionSetting());
+
+    fireEvent.change(input, { target: { value: "90" } });
+    unmount();
+
+    await Promise.resolve();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   it("saves a longer retention window without asking", async () => {
     const { input, onSave, queryByText } =
       renderOperatorField(retentionSetting());
@@ -141,5 +163,21 @@ describe("SettingsField retention windows (ADR 0048)", () => {
     expect(await findByText("Minimum: 30")).toBeInTheDocument();
     expect(queryByText("Löschfrist verkürzen?")).toBeNull();
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("keeps open parent requests when the parent-message window is shortened", async () => {
+    const { input, findByText } = renderOperatorField(
+      retentionSetting({
+        key: "gdpr.parent_message_retention_days",
+        label: "Elternnachrichten aufbewahren (Tage)",
+      }),
+    );
+
+    fireEvent.change(input, { target: { value: "90" } });
+    fireEvent.blur(input);
+
+    expect(
+      await findByText(/Offene Elternanfragen bleiben erhalten/),
+    ).toBeInTheDocument();
   });
 });

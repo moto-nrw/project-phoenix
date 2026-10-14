@@ -418,7 +418,12 @@ export function SettingsField({
       pending.localValue,
       pending.categoryItems,
     );
-    if (!localErr) {
+    const shortening = shortenedRetentionDays(
+      pending.setting,
+      pending.localValue,
+      audience,
+    );
+    if (!localErr && shortening === null) {
       // The field is gone: nothing left to show an error at. The page
       // reloads the schema, so a lost value shows up as the old one.
       void persistSetting(onSave, pending.setting.key, pending.localValue);
@@ -1053,7 +1058,7 @@ export function SettingsField({
       >
         <p className="text-sm text-gray-600">
           {pendingShortening
-            ? retentionShorteningText(pendingShortening.days)
+            ? retentionShorteningText(setting, pendingShortening.days)
             : null}
         </p>
       </ConfirmationModal>

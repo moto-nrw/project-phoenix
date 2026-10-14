@@ -8,6 +8,7 @@ import (
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -32,14 +33,8 @@ const (
 	retentionDeletionLog          = "deletion_log_retention"
 )
 
-// Retention windows the moto team records per school (ADR 0048). The Settings
-// Platform owns the keys; newWorkerRetention refuses a key it does not define.
-const (
-	settingStatusDayRetentionDays = "gdpr.status_day_retention_days"
-)
-
 var retentionSettingKeys = []string{
-	settingStatusDayRetentionDays,
+	settingsModule.KeyGDPRStatusDayRetentionDays,
 }
 
 // retentionOwners are the owner capabilities whose data the nightly cleanup
@@ -95,7 +90,7 @@ func retentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 		steps = append(steps, scheduler.RetentionStep{
 			Kind: retentionStatusDays,
 			Run: func(ctx context.Context) (scheduler.RetentionOutcome, error) {
-				days, err := retentionDays(ctx, owners.settings, settingStatusDayRetentionDays)
+				days, err := retentionDays(ctx, owners.settings, settingsModule.KeyGDPRStatusDayRetentionDays)
 				if err != nil {
 					return scheduler.RetentionOutcome{}, err
 				}

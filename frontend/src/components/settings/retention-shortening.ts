@@ -31,6 +31,12 @@ export function shortenedRetentionDays(
   return nextDays < current ? nextDays : null;
 }
 
-export function retentionShorteningText(days: number): string {
+export function retentionShorteningText(
+  setting: ResolvedSetting,
+  days: number,
+): string {
+  if (setting.key === "gdpr.parent_message_retention_days") {
+    return `Beim nächsten nächtlichen Lauf löscht moto bei dieser Schule Elternnachrichten, die älter als ${days} Tage sind. Offene Elternanfragen bleiben erhalten. Gelöschte Daten lassen sich nicht wiederherstellen.`;
+  }
   return `Beim nächsten nächtlichen Lauf löscht moto bei dieser Schule alle Daten dieser Art, die älter als ${days} Tage sind. Gelöschte Daten lassen sich nicht wiederherstellen.`;
 }
