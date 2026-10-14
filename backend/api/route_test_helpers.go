@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
@@ -17,7 +18,7 @@ import (
 func newStaffTestResource(module schoolmembership.Capability, svc StaffTestModule, db transactionruntime.Database, logger *slog.Logger) *staffHTTP.Resource {
 	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffAdmin, svc.TimeTracking)
 	admin := newStaffAdminResource(capabilities, nil, nil, nil, db, logger)
-	return newStaffResource(module, svc.PeopleDirectory, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
+	return newStaffResource(module, svc.PeopleDirectory, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
 		return svc.NewStaffMembershipRuntime(db, logger, hooks)
 	}, admin, logger)
 }
@@ -37,8 +38,8 @@ func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTes
 	return router, nil
 }
 
-func newStudentPhotoTestBootstrap() services.StudentPhotoBootstrap {
-	return services.StudentPhotoBootstrap{Unlinker: studentsAPI.NewPhotoUnlinker(slog.Default(), "public"), ActingAccount: actingAccountID}
+func newStudentPhotoTestUnlinker() peopleCompose.PhotoUnlinker {
+	return studentsAPI.NewPhotoUnlinker(slog.Default(), "public")
 }
 
 func newDatabaseStatsTestRouter(db transactionruntime.Database) (chi.Router, error) {

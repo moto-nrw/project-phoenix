@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	api "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/services"
 
 	careCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -63,7 +65,7 @@ func TestStudentOwnerWritesRollbackWhenCallerCatchesFailure(t *testing.T) {
 			failure := errors.New("failure after owner write")
 			module, err := peopleCompose.New(peopleCompose.Dependencies{
 				DB: db, Observe: func(peopleCompose.Observation) {},
-				StudentOwners: failingStudentOwner{StudentOwners: services.NewStudentOwners(membership, care), stage: stage, failure: failure},
+				StudentOwners: failingStudentOwner{StudentOwners: api.NewStudentOwners(membership, care), stage: stage, failure: failure},
 			})
 			require.NoError(t, err)
 			require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
@@ -96,7 +98,7 @@ func TestStudentOwnerUpdatesRollbackWhenCallerCatchesFailure(t *testing.T) {
 				failure := errors.New("failure after owner update")
 				module, err := peopleCompose.New(peopleCompose.Dependencies{
 					DB: db, Observe: func(peopleCompose.Observation) {},
-					StudentOwners: failingStudentOwner{StudentOwners: services.NewStudentOwners(membership, care), stage: stage, failure: failure},
+					StudentOwners: failingStudentOwner{StudentOwners: api.NewStudentOwners(membership, care), stage: stage, failure: failure},
 				})
 				require.NoError(t, err)
 				before, err := module.FindStudentRecord(ctx, student.ID)

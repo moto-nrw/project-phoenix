@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
+
+	"strings"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -47,7 +51,7 @@ type absenceRequestRowsQuery interface {
 type staffAbsenceRepository struct {
 	workforceCompose.StaffAbsenceRepository
 	rows       absenceRequestRowsQuery
-	membership staffLookup
+	membership schoolMembershipCompose.StaffLookup
 }
 
 // NewStaffAbsenceRepository is the Workforce staff absence repository with
@@ -61,7 +65,7 @@ func NewStaffAbsenceRepository(workTime workforce.Capability, membership schoolm
 	}
 }
 
-func newStaffAbsenceRepository(inner workforceCompose.StaffAbsenceRepository, membership staffLookup) workforceCompose.StaffAbsenceRepository {
+func newStaffAbsenceRepository(inner workforceCompose.StaffAbsenceRepository, membership schoolMembershipCompose.StaffLookup) workforceCompose.StaffAbsenceRepository {
 	rows, _ := inner.(absenceRequestRowsQuery)
 	return staffAbsenceRepository{StaffAbsenceRepository: inner, rows: rows, membership: membership}
 }
@@ -103,7 +107,7 @@ func (r staffAbsenceRepository) ListRequests(ctx context.Context, filter workfor
 			ids = append(ids, *row.ApprovedBy)
 		}
 	}
-	members, err := staffByID(ctx, r.membership, ids, true)
+	members, err := schoolMembershipCompose.StaffByID(ctx, r.membership, ids, true)
 	if err != nil {
 		return nil, err
 	}
@@ -121,4 +125,55 @@ func (r staffAbsenceRepository) ListRequests(ctx context.Context, filter workfor
 		}
 	}
 	return rows, nil
+}
+
+type personStaffAbsenceRepository struct {
+	workforceCompose.StaffAbsenceRepository
+	persons peopledirectory.Query
+}
+
+func (r personStaffAbsenceRepository) ListRequests(ctx context.Context, filter workforceCompose.AbsenceRequestFilter) ([]*workforceCompose.AbsenceRequestRow, error) {
+	if search := strings.TrimSpace(filter.Search); search != "" && filter.SubjectPersonIDs == nil {
+		matches, err := r.persons.SearchPersons(ctx, peopledirectory.PersonFilter{FullNameContains: search})
+		if err != nil {
+			return nil, err
+		}
+		filter.SubjectPersonIDs = make([]int64, 0, len(matches))
+		for _, match := range matches {
+			filter.SubjectPersonIDs = append(filter.SubjectPersonIDs, match.ID)
+		}
+	}
+	rows, err := r.StaffAbsenceRepository.ListRequests(ctx, filter)
+	if err != nil || len(rows) == 0 {
+		return rows, err
+	}
+	ids := make([]int64, 0, 2*len(rows))
+	for _, row := range rows {
+		if row.SubjectPersonID != nil {
+			ids = append(ids, *row.SubjectPersonID)
+		}
+		if row.DeciderPersonID != nil {
+			ids = append(ids, *row.DeciderPersonID)
+		}
+	}
+	persons, err := peopleCompose.PersonsByID(ctx, r.persons, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		row.StaffName = fullNameOf(persons, row.SubjectPersonID)
+		row.DecidedByName = fullNameOf(persons, row.DeciderPersonID)
+	}
+	return rows, nil
+}
+
+func fullNameOf(persons map[int64]peopledirectory.Person, id *int64) string {
+	if id == nil {
+		return ""
+	}
+	person, found := persons[*id]
+	if !found {
+		return ""
+	}
+	return person.FullName()
 }

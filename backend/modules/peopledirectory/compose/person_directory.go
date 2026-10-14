@@ -49,7 +49,7 @@ type PersonDirectoryDependencies struct {
 	StudentRepo   userModels.StudentRepository
 	TeacherRepo   userModels.TeacherRepository
 	// StaffDirectory serves the staff and teacher lookups and the two staff
-	// writes (#3752); the composition root binds services.NewStaffDirectory.
+	// writes (#3752); the composition root binds NewStaffDirectory.
 	StaffDirectory StaffDirectory
 	// CareParticipation is the Care Plan seam behind the dated roster read.
 	// Care Plan is composed after this directory, so the root binds a resolver

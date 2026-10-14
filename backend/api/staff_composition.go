@@ -28,17 +28,17 @@ import (
 // about working time, Stammdaten and documents. Both register on one
 // protected router so the URL surface stays exactly what the frontend calls.
 
-func staffFailureKind(kind services.StaffFailureKind) staffHTTP.FailureKind {
+func staffFailureKind(kind StaffFailureKind) staffHTTP.FailureKind {
 	switch kind {
-	case services.StaffFailureInvalidRequest:
+	case StaffFailureInvalidRequest:
 		return staffHTTP.FailureInvalidRequest
-	case services.StaffFailureUnauthorized:
+	case StaffFailureUnauthorized:
 		return staffHTTP.FailureUnauthorized
-	case services.StaffFailureForbidden:
+	case StaffFailureForbidden:
 		return staffHTTP.FailureForbidden
-	case services.StaffFailureNotFound:
+	case StaffFailureNotFound:
 		return staffHTTP.FailureNotFound
-	case services.StaffFailureConflict:
+	case StaffFailureConflict:
 		return staffHTTP.FailureConflict
 	default:
 		return staffHTTP.FailureInternal
@@ -82,14 +82,14 @@ func renderStaffFailure(w http.ResponseWriter, r *http.Request, kind staffHTTP.F
 	}
 }
 
-func toStaffHTTPPerson(person services.StaffDirectoryPerson) staffHTTP.Person {
+func toStaffHTTPPerson(person StaffDirectoryPerson) staffHTTP.Person {
 	return staffHTTP.Person{
 		ID: person.ID, FirstName: person.FirstName, LastName: person.LastName, TagID: person.TagID,
 		AccountID: person.AccountID, CreatedAt: person.CreatedAt, UpdatedAt: person.UpdatedAt,
 	}
 }
 
-func toStaffHTTPRoleRows(rows []services.StaffRoleRow) []staffHTTP.StaffWithRoleResponse {
+func toStaffHTTPRoleRows(rows []StaffRoleRow) []staffHTTP.StaffWithRoleResponse {
 	if rows == nil {
 		// A nil result stays nil: the by-role endpoint historically answered
 		// "data":null for an empty role match.
@@ -117,8 +117,8 @@ func newStaffComposition(module schoolMembershipModule.Capability, workforce wor
 	}
 	capabilities := services.NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession)
 	staffAdmin := newStaffAdminResource(capabilities, workforce, services.StaffTimeTrackingNotifier(svc.RealtimeHub), exportTransfer, db, logger)
-	return newStaffResource(module, svc.PeopleDirectory, func(hooks services.StaffMembershipHooks) services.StaffMembershipRuntime {
-		return svc.NewStaffMembershipRuntime(db.Pool(), logger, hooks)
+	return newStaffResource(module, svc.PeopleDirectory, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
+		return NewStaffMembershipRuntime(svc, db, logger, hooks)
 	}, staffAdmin, logger), staffAdmin, nil
 }
 
@@ -155,8 +155,8 @@ func newExportTransferModule(svc *services.Factory, db transactionruntime.Databa
 
 // newStaffResource binds the School Membership HTTP adapter to the shared
 // renderer, the JWT identity and the legacy-service composition.
-func newStaffResource(module schoolMembershipModule.Capability, people peopleModule.Capability, buildRuntime func(services.StaffMembershipHooks) services.StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource, logger *slog.Logger) *staffHTTP.Resource {
-	runtime := buildRuntime(services.StaffMembershipHooks{
+func newStaffResource(module schoolMembershipModule.Capability, people peopleModule.Capability, buildRuntime func(StaffMembershipHooks) StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource, logger *slog.Logger) *staffHTTP.Resource {
+	runtime := buildRuntime(StaffMembershipHooks{
 		ResolveEditorStaffID:           staffAdmin.ResolveEditorStaffID,
 		QueueOffboardedDocumentCleanup: staffAdmin.QueueOffboardedStaffDocumentCleanup,
 	})
@@ -176,7 +176,7 @@ func newStaffResource(module schoolMembershipModule.Capability, people peopleMod
 		ObserveResponse:    observability.ObserveSchoolMembershipHTTPResponse,
 		ServeAvatar:        serveStaffAvatar,
 		WriteFailure:       renderStaffWriteFailure,
-		SchoolClassFailure: delegatedStaffFailure(services.ClassifyStaffSchoolClassFailure),
+		SchoolClassFailure: delegatedStaffFailure(ClassifyStaffSchoolClassFailure),
 
 		Permissions:      sessiontoken.PermissionsFromCtx,
 		HasPermission:    apiCommon.HasPermission,
@@ -238,11 +238,11 @@ func renderStaffWriteFailure(w http.ResponseWriter, r *http.Request, err error) 
 		renderStaffFailure(w, r, staffHTTP.FailureConflict, errStaffStillReferenced)
 		return
 	}
-	kind, rendered := services.ClassifyStaffWriteFailure(err)
+	kind, rendered := ClassifyStaffWriteFailure(err)
 	renderStaffFailure(w, r, staffFailureKind(kind), rendered)
 }
 
-func delegatedStaffFailure(classify func(error) (services.StaffFailureKind, error)) func(http.ResponseWriter, *http.Request, error) {
+func delegatedStaffFailure(classify func(error) (StaffFailureKind, error)) func(http.ResponseWriter, *http.Request, error) {
 	return func(w http.ResponseWriter, r *http.Request, err error) {
 		kind, rendered := classify(err)
 		renderStaffFailure(w, r, staffFailureKind(kind), rendered)
@@ -257,7 +257,7 @@ func currentStaffUsername(ctx context.Context) string {
 	return sessiontoken.ClaimsFromCtx(ctx).Username
 }
 
-func staffPersonLookup(runtime services.StaffMembershipRuntime) func(context.Context, int64) (staffHTTP.Person, error) {
+func staffPersonLookup(runtime StaffMembershipRuntime) func(context.Context, int64) (staffHTTP.Person, error) {
 	return func(ctx context.Context, id int64) (staffHTTP.Person, error) {
 		person, err := runtime.Person(ctx, id)
 		if err != nil {
@@ -282,7 +282,7 @@ func staffPersonCreate(people peopleModule.Capability) func(context.Context, str
 	}
 }
 
-func staffPersonsLookup(runtime services.StaffMembershipRuntime) func(context.Context, []int64) ([]staffHTTP.Person, error) {
+func staffPersonsLookup(runtime StaffMembershipRuntime) func(context.Context, []int64) ([]staffHTTP.Person, error) {
 	return func(ctx context.Context, ids []int64) ([]staffHTTP.Person, error) {
 		persons, err := runtime.Persons(ctx, ids)
 		if err != nil {
@@ -296,7 +296,7 @@ func staffPersonsLookup(runtime services.StaffMembershipRuntime) func(context.Co
 	}
 }
 
-func staffTeacherGroups(runtime services.StaffMembershipRuntime) func(context.Context, int64) ([]staffHTTP.Group, error) {
+func staffTeacherGroups(runtime StaffMembershipRuntime) func(context.Context, int64) ([]staffHTTP.Group, error) {
 	return func(ctx context.Context, teacherID int64) ([]staffHTTP.Group, error) {
 		groups, err := runtime.TeacherGroups(ctx, teacherID)
 		if err != nil {
@@ -310,7 +310,7 @@ func staffTeacherGroups(runtime services.StaffMembershipRuntime) func(context.Co
 	}
 }
 
-func staffRoleRows(list func(context.Context) ([]services.StaffRoleRow, error)) func(context.Context) ([]staffHTTP.StaffWithRoleResponse, error) {
+func staffRoleRows(list func(context.Context) ([]StaffRoleRow, error)) func(context.Context) ([]staffHTTP.StaffWithRoleResponse, error) {
 	return func(ctx context.Context) ([]staffHTTP.StaffWithRoleResponse, error) {
 		rows, err := list(ctx)
 		if err != nil {
@@ -320,7 +320,7 @@ func staffRoleRows(list func(context.Context) ([]services.StaffRoleRow, error)) 
 	}
 }
 
-func staffRoleRowsByRole(list func(context.Context, []string) ([]services.StaffRoleRow, error)) func(context.Context, []string) ([]staffHTTP.StaffWithRoleResponse, error) {
+func staffRoleRowsByRole(list func(context.Context, []string) ([]StaffRoleRow, error)) func(context.Context, []string) ([]staffHTTP.StaffWithRoleResponse, error) {
 	return func(ctx context.Context, roles []string) ([]staffHTTP.StaffWithRoleResponse, error) {
 		rows, err := list(ctx, roles)
 		if err != nil {
@@ -330,9 +330,9 @@ func staffRoleRowsByRole(list func(context.Context, []string) ([]services.StaffR
 	}
 }
 
-func staffCreate(runtime services.StaffMembershipRuntime) func(context.Context, staffHTTP.CreateStaffInput) (staffHTTP.CreateStaffResult, error) {
+func staffCreate(runtime StaffMembershipRuntime) func(context.Context, staffHTTP.CreateStaffInput) (staffHTTP.CreateStaffResult, error) {
 	return func(ctx context.Context, input staffHTTP.CreateStaffInput) (staffHTTP.CreateStaffResult, error) {
-		result, err := runtime.CreateStaff(ctx, services.StaffCreateInput{
+		result, err := runtime.CreateStaff(ctx, StaffCreateInput{
 			PersonID: input.PersonID, StaffNotes: input.StaffNotes, IsTeacher: input.IsTeacher,
 			Specialization: input.Specialization, Role: input.Role, Qualifications: input.Qualifications,
 			ActorPermissions: input.ActorPermissions,
@@ -344,9 +344,9 @@ func staffCreate(runtime services.StaffMembershipRuntime) func(context.Context, 
 	}
 }
 
-func staffUpdate(runtime services.StaffMembershipRuntime) func(context.Context, staffHTTP.UpdateStaffInput) (staffHTTP.UpdateStaffResult, error) {
+func staffUpdate(runtime StaffMembershipRuntime) func(context.Context, staffHTTP.UpdateStaffInput) (staffHTTP.UpdateStaffResult, error) {
 	return func(ctx context.Context, input staffHTTP.UpdateStaffInput) (staffHTTP.UpdateStaffResult, error) {
-		result, err := runtime.UpdateStaff(ctx, services.StaffUpdateInput{
+		result, err := runtime.UpdateStaff(ctx, StaffUpdateInput{
 			StaffID: input.StaffID, PersonID: input.PersonID, StaffNotes: input.StaffNotes, IsTeacher: input.IsTeacher,
 			Specialization: input.Specialization, Role: input.Role, Qualifications: input.Qualifications,
 		})

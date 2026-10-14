@@ -85,3 +85,10 @@ func presenceEngineOf(value studentpresence.Presence) (presence.Service, bool) {
 func NewPresenceCleanup(presenceRetention PresenceRetention, supervisors ports.GroupSupervisorRepository, deletions DeletionAudit, settings VisitRetentionSettings, today ...func() timezone.Date) studentpresence.PresenceCleanup {
 	return presence.NewCleanupService(presenceRetention, supervisors, deletions, settings, today...)
 }
+
+// The student display and visitor reads the root binds over the People
+// Directory and School Structure (#4007).
+type (
+	StudentDisplayReader = presence.StudentDisplayReader
+	CrossTenantRepo      = presence.CrossTenantRepo
+)

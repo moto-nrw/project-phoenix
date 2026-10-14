@@ -54,7 +54,7 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 		GroupRepo:          sessionGroups,
 		SupervisorRepo:     sessionSupervisors,
 		SchoolPresence:     presence,
-		StudentRepo:        services.PresenceStudents(db, repos.Student),
+		StudentRepo:        api.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
 		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
 		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
 		ActivityGroupRepo:  services.NewSessionActivities(timetableRepos.GroupReads()),

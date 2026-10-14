@@ -15,7 +15,7 @@ type StaffMessagingTestRepositories struct {
 	Read    usersModels.StaffMessageReadRepository
 }
 
-func NewStaffMessagingTestRepositories(db transactionruntime.Database, members services.MembershipTestRepositories) (StaffMessagingTestRepositories, error) {
+func NewStaffMessagingTestRepositories(db transactionruntime.Database, members MembershipTestRepositories) (StaffMessagingTestRepositories, error) {
 	membership, err := services.NewSchoolMembership(db.Pool())
 	if err != nil {
 		return StaffMessagingTestRepositories{}, err
@@ -25,6 +25,6 @@ func NewStaffMessagingTestRepositories(db transactionruntime.Database, members s
 		Message: staffStore.NewStaffMessageRepository(db.Pool()),
 		Read: staffStore.NewStaffMessageReadRepository(db.Pool(), peopleCompose.NewMessageableStaff(db.Pool(),
 			parentStore.CurrentTenantStaffAccounts(services.ParentStaffMembers{Membership: membership}.List, members.Person),
-			services.StaffMessageIdentity(services.NewPeopleIdentityAccess(db.Pool(), nil)))),
+			services.StaffMessageIdentity(NewPeopleIdentityAccess(db, nil)))),
 	}, nil
 }

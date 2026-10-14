@@ -4,9 +4,10 @@ import (
 	"context"
 	"time"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -21,17 +22,6 @@ import (
 // NewOrganizationTenancy composes the Organization & Tenancy owner.
 func NewOrganizationTenancy(db transactionruntime.Database) (organizationtenancy.Capability, error) {
 	return services.NewOrganizationTenancy(db.Pool())
-}
-
-// NewPeopleDirectory composes the People Directory owner, unobserved.
-func NewPeopleDirectory(db transactionruntime.Database) (peopledirectory.Capability, error) {
-	return services.NewPeopleDirectory(db.Pool())
-}
-
-// MustNewPeopleDirectory is NewPeopleDirectory for graphs that cannot return
-// an error.
-func MustNewPeopleDirectory(db transactionruntime.Database) peopledirectory.Capability {
-	return services.MustNewPeopleDirectory(db.Pool())
 }
 
 // NewSchoolMembership composes the School Membership owner, unobserved.
@@ -69,6 +59,7 @@ type (
 	EnrollmentIntakeSources        = services.EnrollmentIntakeSources
 	EnrollmentRolloverSources      = services.EnrollmentRolloverSources
 	SessionRecordOwners            = services.SessionRecordOwners
+	TimetableDependencies          = services.TimetableDependencies
 )
 
 var (
@@ -82,7 +73,7 @@ var (
 	IsDemoEnvironment = services.IsDemoEnvironment
 	// NewRoomSnapshotPeople reads the room snapshot's students through the
 	// People Directory.
-	NewRoomSnapshotPeople = services.NewRoomSnapshotPeople
+	NewRoomSnapshotPeople = peopleCompose.NewRoomSnapshotPeople
 	// NewWorkforceAdminCapabilities adapts the retained workforce services to
 	// the public Workforce contracts, as the root does.
 	NewWorkforceAdminCapabilities = services.NewWorkforceAdminCapabilities

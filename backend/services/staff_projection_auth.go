@@ -4,18 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
 // caregiverChainsFromMembership is the caregiver half of the account
 // listings, served from the School Membership capability instead of the auth
 // repository's former staff/teacher join.
-func caregiverChainsFromMembership(membership staffLookup) caregiverChainQuery {
+func caregiverChainsFromMembership(membership schoolMembershipCompose.StaffLookup) caregiverChainQuery {
 	return membershipCaregiverChains{membership: membership}
 }
 
 type membershipCaregiverChains struct {
-	membership staffLookup
+	membership schoolMembershipCompose.StaffLookup
 }
 
 // CaregiverChainByPersonIDs returns the live staff record (and its live

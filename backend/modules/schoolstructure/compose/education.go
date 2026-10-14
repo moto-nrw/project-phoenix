@@ -12,6 +12,7 @@ type Assignment = groups.Assignment
 type AssignmentResult = groups.AssignmentResult
 type Caller = groups.Caller
 type CaregiverDirectory = groups.CaregiverDirectory
+type ExternalCaregiverDirectory = groups.ExternalCaregiverDirectory
 type ClassAssignmentAudit = groups.ClassAssignmentAudit
 type ClassTeacherStore = groups.ClassTeacherStore
 type EducationError = groups.EducationError

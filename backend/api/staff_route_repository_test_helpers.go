@@ -31,7 +31,7 @@ type ShiftTypeTestRepositories struct {
 	Rows timetableCompose.Repositories
 }
 
-func NewShiftTypeTestRepositories(db transactionruntime.Database, members services.MembershipTestRepositories) ShiftTypeTestRepositories {
+func NewShiftTypeTestRepositories(db transactionruntime.Database, members MembershipTestRepositories) ShiftTypeTestRepositories {
 	repos, err := NewTimetableTestRepositoriesWithMembers(db, members)
 	if err != nil {
 		panic(err)

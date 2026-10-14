@@ -53,7 +53,14 @@ func BindClassListEntryAdministration(
 // directory leaves soft-deleted persons out, so a student whose person row is
 // deleted no longer blocks an entry. That row is a broken state either way,
 // and the owner is the only one allowed to decide which persons exist.
-type classListEntryStudents struct{ persons peopledirectory.Capability }
+type classListEntryStudents struct{ persons classListEntryPeople }
+
+// classListEntryPeople is the slice of the People Directory the lookup reads.
+type classListEntryPeople interface {
+	SearchPersons(context.Context, peopledirectory.PersonFilter) ([]peopledirectory.Person, error)
+	ListStudentsByPersonID(context.Context, []int64) ([]peopledirectory.Student, error)
+	ListStudentsByID(context.Context, []int64) ([]peopledirectory.Student, error)
+}
 
 func (d classListEntryStudents) ListStudentIDsByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]int64, error) {
 	first, last := strings.TrimSpace(firstName), strings.TrimSpace(lastName)

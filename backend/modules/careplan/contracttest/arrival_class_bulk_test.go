@@ -29,7 +29,7 @@ func nativeClassArrivalPlans(t *testing.T) careplanCompose.ArrivalClassPlans {
 func nativeArrivalSchedules(t *testing.T, records careplanCompose.ArrivalScheduleRecords, baselines careplan.ArrivalBaselineReader, classes careplanCompose.ArrivalClassPlans, exceptions careplan.ClassArrivalExceptions) careplan.ArrivalScheduleService {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	rules, deps, err := services.ArrivalScheduleBinding(services.MustNewPeopleDirectory(db), classes, exceptions, nil)
+	rules, deps, err := services.ArrivalScheduleBinding(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)), classes, exceptions, nil)
 	require.NoError(t, err)
 	service, err := careplanCompose.NewArrivalSchedules(db, records, baselines, rules, deps)
 	require.NoError(t, err)

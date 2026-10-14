@@ -67,3 +67,12 @@ func (l *parentRequestLedger) ListForRequest(ctx context.Context, requestType st
 	}
 	return l.repo.ListForRequest(ctx, requestType, requestID)
 }
+
+// NewParentRequestLedger is the request ledger over repo for the root's
+// Stammdaten decision and request coordinator; a nil repo records nothing.
+func NewParentRequestLedger(repo usersModels.ParentRequestEventRepository) carePlanCompose.RequestLedger {
+	if repo == nil {
+		return nil
+	}
+	return newParentRequestLedger(repo)
+}

@@ -19,7 +19,7 @@ func newProjectedOperatorAccountDirectory(t *testing.T, db *bun.DB) services.Ope
 	t.Helper()
 	schools, err := services.NewOrganizationTenancy(db)
 	require.NoError(t, err)
-	persons, err := services.NewPeopleDirectory(db)
+	persons, err := api.NewPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	membership, err := services.NewSchoolMembership(db)
 	require.NoError(t, err)

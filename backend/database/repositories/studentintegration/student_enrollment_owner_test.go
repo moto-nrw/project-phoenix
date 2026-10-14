@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	api "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -178,7 +180,7 @@ func buildStudentOwnersModule(t *testing.T, db *bun.DB, observations ...func(peo
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, _, err := services.NewPeopleDirectoryWithPhotosAndObserver(db, observe)
+	module, _, err := api.NewPeopleDirectoryWithPhotosAndObserver(testpkg.NewDatabase(t, db), observe)
 	require.NoError(t, err)
 	return module
 }

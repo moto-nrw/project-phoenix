@@ -58,9 +58,9 @@ type GuardianRelationshipDependencies struct {
 	Memberships SchoolMembershipLookup
 	Pickup      GuardianPickupPermissionCommand
 	Access      GuardianStudentAccessCommand
-	// DefaultRole gives a link without a role or permissions the
-	// authorization policy's default preset.
-	DefaultRole func(*userModels.StudentGuardian)
+	// RolePresets is the authorization policy whose default preset a link
+	// without a role or permissions takes; nil leaves such a link as it is.
+	RolePresets GuardianRolePresets
 }
 
 // NewGuardianRelationshipRepository is the relationship store with its
@@ -69,7 +69,16 @@ func NewGuardianRelationshipRepository(db *bun.DB, dependencies GuardianRelation
 	return usersRepo.NewGuardianRelationshipRepository(NewLegacyRepositoryRuntime(db),
 		usersRepo.WithGuardianRelationshipMemberships(dependencies.Memberships),
 		usersRepo.WithGuardianRelationshipOwners(dependencies.Pickup, dependencies.Access),
-		usersRepo.WithGuardianDefaultRole(dependencies.DefaultRole))
+		usersRepo.WithGuardianDefaultRole(defaultGuardianRole(dependencies.RolePresets)))
+}
+
+// defaultGuardianRole applies the default preset, or nothing without a
+// policy.
+func defaultGuardianRole(presets GuardianRolePresets) func(*userModels.StudentGuardian) {
+	if presets == nil {
+		return nil
+	}
+	return func(link *userModels.StudentGuardian) { ApplyDefaultGuardianRole(presets, link) }
 }
 
 // NewGuardianPhoneNumberRepository is the guardian phone number repository.

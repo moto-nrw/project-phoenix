@@ -6,7 +6,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // StatisticsTestRepositories are the statistics suites' repositories;
@@ -17,7 +16,7 @@ type StatisticsTestRepositories struct {
 	AccessLog auditModels.DataAccessLogRepository
 }
 
-func NewStatisticsTestRepositoriesWithMembers(db transactionruntime.Database, members services.MembershipTestRepositories, clocks ...func() time.Time) (StatisticsTestRepositories, error) {
+func NewStatisticsTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories, clocks ...func() time.Time) (StatisticsTestRepositories, error) {
 	timetable, err := NewTimetableTestRepositoriesWithMembers(db, members, clocks...)
 	if err != nil {
 		return StatisticsTestRepositories{}, err

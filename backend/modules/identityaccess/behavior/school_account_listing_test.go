@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	api "github.com/moto-nrw/project-phoenix/api"
+
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 
@@ -68,7 +70,7 @@ func TestOperatorAccountListingCaregiverEnrichment(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Ada", "Listing")
 	query, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
-	persons, err := services.NewPeopleDirectory(db)
+	persons, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
 	require.NoError(t, err)
 	membership, err := services.NewSchoolMembership(db)
 	require.NoError(t, err)

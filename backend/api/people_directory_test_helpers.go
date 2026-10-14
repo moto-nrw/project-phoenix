@@ -6,7 +6,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // TestPersonDirectorySources are the retained repositories a test person
@@ -27,7 +26,7 @@ type TestPersonDirectorySources struct {
 // import that composition. The dated roster read stays unwired; a suite that
 // needs it derives a copy with WithCareParticipation.
 func NewTestPersonDirectory(db transactionruntime.Database, sources TestPersonDirectorySources) *peopleCompose.PersonDirectory {
-	people := services.MustNewPeopleDirectory(db.Pool())
+	people := MustNewPeopleDirectory(db)
 	deps := peopleCompose.PersonDirectoryDependencies{
 		PersonDirectory:  peopleCompose.NewPersonWrites(people),
 		StudentDirectory: peopleCompose.NewStudentDirectory(people),
@@ -38,7 +37,7 @@ func NewTestPersonDirectory(db transactionruntime.Database, sources TestPersonDi
 		TeacherRepo:      sources.Teachers,
 	}
 	if sources.Staff != nil {
-		deps.StaffDirectory = services.NewStaffDirectory(services.StaffDirectoryDependencies{
+		deps.StaffDirectory = peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{
 			Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: sources.Persons, Staff: sources.Staff, Teachers: sources.Teachers,
 		})
 	}

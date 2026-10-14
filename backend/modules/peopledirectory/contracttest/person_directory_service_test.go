@@ -9,11 +9,12 @@ package contracttest_test
 import (
 	"testing"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1186,7 +1187,7 @@ func TestPersonService_CreateStaffWithTeacher_AdoptsLiveCaregiverProfile(t *test
 	existing := testpkg.CreateTestTeacher(t, db, "Uebernommen", "Betreuung")
 
 	// ACT — the details request does not ask for a caregiver profile.
-	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, services.StaffDirectoryCreateInput(services.StaffCreateInput{
+	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, api.StaffDirectoryCreateInput(api.StaffCreateInput{
 		PersonID:         existing.Staff.PersonID,
 		StaffNotes:       "Notiz",
 		IsTeacher:        false,
@@ -1245,7 +1246,7 @@ func TestPersonService_CreateStaffWithTeacher_RefusesAdoptionWithoutUpdatePermis
 	require.NoError(t, before.Close())
 
 	// ACT — a caller that may only create.
-	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, services.StaffDirectoryCreateInput(services.StaffCreateInput{
+	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, api.StaffDirectoryCreateInput(api.StaffCreateInput{
 		PersonID:         existing.PersonID,
 		StaffNotes:       "Fremde Notiz",
 		IsTeacher:        false,
@@ -1253,7 +1254,7 @@ func TestPersonService_CreateStaffWithTeacher_RefusesAdoptionWithoutUpdatePermis
 	}))
 
 	// ASSERT — refused, and nothing written.
-	require.ErrorIs(t, err, services.ErrStaffAdoptionNotPermitted)
+	require.ErrorIs(t, err, peopleCompose.ErrStaffAdoptionNotPermitted)
 	assert.Nil(t, staff)
 	assert.Nil(t, teacher)
 	assert.False(t, teacherCreationFailed)
@@ -1293,7 +1294,7 @@ func TestPersonService_CreateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, testpkg.Tenant(t))
 
 	// ACT — the request asks for a caregiver profile anyway.
-	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, services.StaffDirectoryCreateInput(services.StaffCreateInput{
+	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, api.StaffDirectoryCreateInput(api.StaffCreateInput{
 		PersonID:         staffRecord.PersonID,
 		IsTeacher:        true,
 		Specialization:   "Betreuung",
@@ -1301,7 +1302,7 @@ func TestPersonService_CreateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 	}))
 
 	// ASSERT — refused before anything is written.
-	require.ErrorIs(t, err, services.ErrStaffLehrkraftCaregiverProfile)
+	require.ErrorIs(t, err, peopleCompose.ErrStaffLehrkraftCaregiverProfile)
 	assert.Nil(t, staff)
 	assert.Nil(t, teacher)
 	assert.False(t, teacherCreationFailed)
@@ -1333,9 +1334,9 @@ func TestPersonService_UpdateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 	teacher, action, err := service.UpdateStaffWithTeacher(ctx, staffRecord, true, "Betreuung", "", "")
 
 	// ASSERT
-	require.ErrorIs(t, err, services.ErrStaffLehrkraftCaregiverProfile)
+	require.ErrorIs(t, err, peopleCompose.ErrStaffLehrkraftCaregiverProfile)
 	assert.Nil(t, teacher)
-	assert.Equal(t, services.StaffTeacherActionNone, services.StaffTeacherActionFor(action))
+	assert.Equal(t, api.StaffTeacherActionNone, api.StaffTeacherActionFor(action))
 
 	count, err := db.NewSelect().
 		TableExpr(`users.teachers`).
@@ -1359,7 +1360,7 @@ func TestPersonService_CreateStaffWithTeacher_CreatesCaregiverProfileWithoutAcco
 	person := testpkg.CreateTestPerson(t, db, "Ohne", "Konto")
 
 	// ACT
-	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, services.StaffDirectoryCreateInput(services.StaffCreateInput{
+	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, api.StaffDirectoryCreateInput(api.StaffCreateInput{
 		PersonID:         person.ID,
 		IsTeacher:        true,
 		Specialization:   "Betreuung",

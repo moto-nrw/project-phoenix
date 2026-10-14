@@ -58,7 +58,7 @@ type TimetableTestRepositories struct {
 // NewTimetableTestRepositoriesWithMembers composes the timetable suites' repository
 // graph over the People Directory and School Membership repositories in
 // members, which services composes (#2743).
-func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, members services.MembershipTestRepositories, clocks ...func() time.Time) (TimetableTestRepositories, error) {
+func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories, clocks ...func() time.Time) (TimetableTestRepositories, error) {
 	var now func() time.Time
 	if len(clocks) > 0 {
 		now = clocks[0]
@@ -115,7 +115,7 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 		},
 		Staff: members.Staff, Teacher: members.Teacher, ClassTeacher: members.ClassTeacher, GroupTeacher: members.GroupTeacher,
 		Person: members.Person, Student: members.Student, Group: members.Group,
-		ActiveGroup: sessions, GroupSupervisor: services.NewGroupSupervisionRecords(sessions, groups),
+		ActiveGroup: sessions, GroupSupervisor: NewGroupSupervisionRecords(sessions, groups),
 		CareScheduleRepositories: NewCareScheduleRepositories(carePlan),
 		StudentStatusDay:         services.NewStudentStatusDayRepository(carePlan), CarePlan: carePlan,
 		enrollment: enrollment, schoolCalendar: calendar, calendarPeriodUsage: usage,

@@ -36,7 +36,7 @@ func NewGradeTransitionTestModule(db transactionruntime.Database, resync Offerin
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
-	people, err := services.NewPeopleDirectory(db.Pool())
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}

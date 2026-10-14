@@ -121,12 +121,7 @@ func (s *GuardianService) GetGuardianStudents(ctx context.Context, guardianProfi
 // applyRolePreset sets the relationship's role to the preset and its
 // parent-portal permissions to exactly the ones the preset grants.
 func (s *GuardianService) applyRolePreset(relationship *users.StudentGuardian, role string) {
-	normalized, granted := s.RolePresets.Preset(role)
-	permissions := make(map[string]interface{}, len(granted))
-	for _, permission := range granted {
-		permissions[permission] = true
-	}
-	relationship.SetGuardianAuthorizationData(normalized, permissions)
+	ApplyGuardianRolePreset(s.RolePresets, relationship, role)
 }
 
 // LinkGuardianToStudent creates a relationship between guardian and student

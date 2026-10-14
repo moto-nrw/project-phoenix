@@ -163,3 +163,9 @@ func (n excusedAbsenceNotifier) NotifyAbsenceReported(ctx context.Context, repor
 		FromParent: report.FromParent, ActorAccountID: report.ActorAccountID, ExcludedAccountIDs: report.ExcludedAccountIDs,
 	})
 }
+
+// NewExcusedRequestMessenger maps Care Plan's request events onto the
+// Communication parent-event emitter, for the root's Stammdaten decision.
+func NewExcusedRequestMessenger(emitter *communicationCompose.ParentEventEmitter) carePlanCompose.RequestMessenger {
+	return excusedRequestMessenger{emitter: emitter}
+}

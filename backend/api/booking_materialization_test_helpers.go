@@ -73,7 +73,7 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	people, err := services.NewPeopleDirectory(db.Pool())
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}

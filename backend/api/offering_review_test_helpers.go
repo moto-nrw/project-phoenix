@@ -28,7 +28,7 @@ func NewOfferingReviewTestQuery(db transactionruntime.Database, today func() cal
 	if err != nil {
 		return nil, err
 	}
-	people, err := services.NewPeopleDirectory(db.Pool())
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return nil, err
 	}

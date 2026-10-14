@@ -9,7 +9,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -37,11 +36,11 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 	if err != nil {
 		return SettingsCallbacksTestModule{}, err
 	}
-	photos := services.NewStudentPhotos(directory, photoRuntime, services.StudentPhotoRuntimeDependencies{
+	photos := NewStudentPhotos(directory, photoRuntime, StudentPhotoRuntimeDependencies{
 		Settings: settings.Settings, Broadcaster: hub, Unlinker: unlinker, Logger: slog.Default(),
 		ActingAccount: actingAccountID,
 	})
-	services.RegisterStudentPhotoSettingsSideEffects(module.SettingsSideEffects, photos)
+	RegisterStudentPhotoSettingsSideEffects(module.SettingsSideEffects, photos)
 	operations := settingsCompose.NewTenantOperations(settings.Settings, settings.payroll, settings.runtime,
 		module.SettingsSideEffects.Dispatch,
 		func(_ context.Context, tenantID int64, key string) {

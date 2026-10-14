@@ -23,7 +23,7 @@ type WorkSessionTestRepositories struct {
 	WorkTimeModel     configModels.WorkTimeModelRepository
 }
 
-func NewWorkSessionTestRepositoriesWithMembers(db transactionruntime.Database, members services.MembershipTestRepositories, clocks ...func() time.Time) (WorkSessionTestRepositories, error) {
+func NewWorkSessionTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories, clocks ...func() time.Time) (WorkSessionTestRepositories, error) {
 	tt, err := NewTimetableTestRepositoriesWithMembers(db, members, clocks...)
 	if err != nil {
 		return WorkSessionTestRepositories{}, err

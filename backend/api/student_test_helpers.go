@@ -57,7 +57,7 @@ type StudentTestModule struct {
 	// NewStudentPhotos rebinds the photo lifecycle to the caller's broadcaster
 	// and file cleanup. Adapter tests assert on both, and the stored files are
 	// an api-layer concern this graph cannot supply.
-	NewStudentPhotos func(services.PhotoBroadcaster, peopleCompose.PhotoUnlinker) peopleCompose.StudentPhotoService
+	NewStudentPhotos func(PhotoBroadcaster, peopleCompose.PhotoUnlinker) peopleCompose.StudentPhotoService
 	// NewPickupAdjustments rebinds the pickup adjustment to the caller's
 	// offering adjustments, so a route test can fail an apply after the
 	// offering write.
@@ -148,8 +148,8 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	studentConsentService := NewStudentConsents(db)
 	// The stored files live in the API layer, so a services-only graph binds
 	// no unlinker: the runtime skips the cleanup instead of guessing a path.
-	newStudentPhotos := func(broadcaster services.PhotoBroadcaster, unlinker peopleCompose.PhotoUnlinker) peopleCompose.StudentPhotoService {
-		return services.NewStudentPhotos(persons, guardian.PhotoRuntime, services.StudentPhotoRuntimeDependencies{
+	newStudentPhotos := func(broadcaster PhotoBroadcaster, unlinker peopleCompose.PhotoUnlinker) peopleCompose.StudentPhotoService {
+		return NewStudentPhotos(persons, guardian.PhotoRuntime, StudentPhotoRuntimeDependencies{
 			Settings: settingsService, Broadcaster: broadcaster, Unlinker: unlinker,
 			Consents: studentConsentService, Logger: logger,
 			ActingAccount: actingAccountID,
@@ -235,7 +235,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		DataAccessLog:          repos.DataAccessLog,
 		OfferingAdjustments:    repos.EnrollmentOfferingAdjustment,
 		Restorations:           repos.EnrollmentRestorationAudit,
-		Notifications:          services.NewEnrollmentNotifications(repos.Enrollment(), settingsService, services.OutboxEnqueuer{Outbox: emailOutboxService}, services.EnrollmentSchoolDirectory{Schools: repos.School}),
+		Notifications:          services.NewEnrollmentNotifications(repos.Enrollment(), settingsService, services.OutboxEnqueuer{Outbox: emailOutboxService}, EnrollmentSchoolDirectory{Schools: repos.School}),
 		Persons:                repos.Person,
 		Staff:                  repos.Staff,
 		Students:               repos.Student,
@@ -326,16 +326,16 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	masterDataDecisions, err := services.NewMasterDataDecisions(services.MasterDataDecisionWiring{
+	masterDataDecisions, err := NewMasterDataDecisions(services.MasterDataDecisionWiring{
 		CarePlan: repos.CarePlan, Fields: persons, Students: repos.Student, Persons: repos.Person,
-		Audit: studentAuditService, Scope: services.ParentRequestWriteScope(requestReviewPolicy, requestTokenReads.Permissions),
+		Audit: studentAuditService, Scope: ParentRequestWriteScope(requestReviewPolicy, requestTokenReads.Permissions),
 		Emitter: pillEmitter, Broadcaster: realtimeHub, Events: parentRequestEvents,
 		Logger: logger.With("service", "master-data-review"),
 	})
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	parentRequestCoordinator, err := services.NewParentRequestCoordinator(services.ParentRequestCoordinatorWiring{
+	parentRequestCoordinator, err := NewParentRequestCoordinator(services.ParentRequestCoordinatorWiring{
 		MasterData: masterDataDecisions, Excused: excusedRequestService, Care: careRequestService,
 		Offering: services.OfferingChangeConflictPort{Changes: offeringChanges}, Events: parentRequestEvents,
 		Permissions: requestTokenReads.Permissions,
@@ -353,11 +353,11 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	}
 	substitutionService := schoolStructure.NewSubstitutionModule(schoolStructure.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: services.NewEducationHandovers(contextRepos.Substitutions),
-		Persons: services.NewEducationPersonQuery(persons), Teachers: services.NewEducationCaregivers(repos.Teacher),
-		Staff: services.NewEducationStaff(repos.Staff), Actors: services.SubstitutionActorResolver{Identity: userContextService.Caller()},
+		Persons: NewEducationPersonQuery(persons), Teachers: NewEducationCaregivers(repos.Teacher),
+		Staff: NewEducationStaff(repos.Staff), Actors: services.SubstitutionActorResolver{Identity: userContextService.Caller()},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
-		Audit:                   services.NewEducationSubstitutionAudit(repos.SubstitutionChange),
+		Audit:                   NewEducationSubstitutionAudit(repos.SubstitutionChange),
 		Runtime:                 schoolStructure.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: realtimeHub,
 		Logger:   logger.With("service", "substitution"),
 		Schedule: scheduleSubstitution,
@@ -382,7 +382,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	)
 	ogsGroupLiveService, err := groupliveCompose.New(groupliveCompose.Sources{
 		Presence:          services.NewLoggedStudentPresence(db.Pool(), logger),
-		People:            services.GroupRosterPeople(usersService),
+		People:            GroupRosterPeople(usersService),
 		Education:         educationService,
 		Substitutions:     substitutionService,
 		UserContext:       services.GroupLiveCaller{CallerRows: userContextService},
@@ -414,7 +414,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 // StatusDayOverviewPeople serves the absence overview's people reads from the
 // module's users service.
 func (m StudentTestModule) StatusDayOverviewPeople() presenceservice.StatusDayOverviewPeople {
-	return services.StatusDayOverviewPeople(m.Users)
+	return StatusDayOverviewPeople(m.Users)
 }
 
 // HistorySlots supplies the same owner projection to narrow student route fixtures.

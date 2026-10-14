@@ -24,7 +24,7 @@ type EnrollmentTestRepositories struct {
 	DataAccessLog       auditModels.DataAccessLogRepository
 }
 
-func NewEnrollmentTestRepositoriesWithMembers(db transactionruntime.Database, members services.MembershipTestRepositories) (EnrollmentTestRepositories, error) {
+func NewEnrollmentTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (EnrollmentTestRepositories, error) {
 	tt, err := NewTimetableTestRepositoriesWithMembers(db, members)
 	if err != nil {
 		return EnrollmentTestRepositories{}, err

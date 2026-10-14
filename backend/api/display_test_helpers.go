@@ -3,7 +3,6 @@ package api
 import (
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // DisplayReadRepositories bundles the readers the info-point dashboard
@@ -16,7 +15,7 @@ type DisplayReadRepositories struct {
 }
 
 // NewDisplayTestRepositoriesWithMembers composes the dashboard's read dependencies.
-func NewDisplayTestRepositoriesWithMembers(db transactionruntime.Database, members services.MembershipTestRepositories) (DisplayReadRepositories, error) {
+func NewDisplayTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (DisplayReadRepositories, error) {
 	r, err := NewTimetableTestRepositoriesWithMembers(db, members)
 	if err != nil {
 		return DisplayReadRepositories{}, err

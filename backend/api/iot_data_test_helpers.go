@@ -38,7 +38,7 @@ func NewIoTDataTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return IoTDataTestModule{}, err
 	}
-	people, err := services.NewPeopleDirectory(db.Pool())
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
 		return IoTDataTestModule{}, err
 	}

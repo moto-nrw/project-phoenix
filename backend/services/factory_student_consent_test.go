@@ -35,6 +35,9 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 	tokens, err := api.TokenAdapterForTests(cfg)
 	require.NoError(t, err)
 
+	people, err := owners.PeopleWiring(testpkg.NewDatabase(t, db), carePlan, slog.Default())
+	require.NoError(t, err)
+
 	observedAppends := 0
 	factory, err := services.NewFactoryWithConfig(
 		carePlan,
@@ -67,6 +70,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		nil,
 		services.FileStorageWiring{},
 		tokens,
+		people,
 		true,
 	)
 	require.NoError(t, err)

@@ -34,7 +34,7 @@ type WorkforceTestRepositories struct {
 	DataDeletion                    auditModels.DataDeletionRepository
 }
 
-func NewWorkforceTestRepositoriesWithMembers(db transactionruntime.Database, members services.MembershipTestRepositories, clocks ...func() time.Time) (WorkforceTestRepositories, error) {
+func NewWorkforceTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories, clocks ...func() time.Time) (WorkforceTestRepositories, error) {
 	sessions, err := NewWorkSessionTestRepositoriesWithMembers(db, members, clocks...)
 	if err != nil {
 		return WorkforceTestRepositories{}, err

@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -49,7 +51,11 @@ func NewFactoryForTests(repos *RepositoryTestFactory, db transactionruntime.Data
 	if err != nil {
 		return nil, err
 	}
-	return owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, func(services.DataImportObservation) {}, nil, services.FileStorageWiring{}, tokens, true, clocks...))
+	people, err := owners.peopleWiring(repos, db, logger)
+	if err != nil {
+		return nil, err
+	}
+	return owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, func(services.DataImportObservation) {}, nil, services.FileStorageWiring{}, tokens, people, true, clocks...))
 }
 
 func NewFactoryForTestsWithConfig(repos *RepositoryTestFactory, db transactionruntime.Database, logger *slog.Logger, cfg services.FactoryConfig, clocks ...func() time.Time) (*services.Factory, error) {
@@ -61,7 +67,27 @@ func NewFactoryForTestsWithConfig(repos *RepositoryTestFactory, db transactionru
 	if err != nil {
 		return nil, err
 	}
-	return owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, func(services.DataImportObservation) {}, nil, services.FileStorageWiring{}, tokens, true, clocks...))
+	people, err := owners.peopleWiring(repos, db, logger)
+	if err != nil {
+		return nil, err
+	}
+	return owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, func(services.DataImportObservation) {}, nil, services.FileStorageWiring{}, tokens, people, true, clocks...))
+}
+
+// peopleWiring builds the People Directory, School Membership and School
+// Structure wiring over the test owners, as the serving root does (#4007).
+func (owners OwnerCapabilities) peopleWiring(repos *RepositoryTestFactory, db transactionruntime.Database, logger *slog.Logger) (services.PeopleWiring, error) {
+	return owners.PeopleWiring(db, repos.CarePlan(), logger)
+}
+
+// PeopleWiring builds the People Directory, School Membership and School
+// Structure wiring over the test owners and the given Care Plan.
+func (owners OwnerCapabilities) PeopleWiring(db transactionruntime.Database, carePlan careplan.Capability, logger *slog.Logger) (services.PeopleWiring, error) {
+	return NewPeopleWiring(PeopleWiringOwners{
+		DB: db, Logger: logger, Persons: owners.Persons, Groups: owners.Groups, Rooms: owners.Rooms,
+		Membership: owners.Membership, Workforce: owners.Workforce, CarePlan: carePlan,
+		Organizations: owners.Organizations, Timetable: owners.Timetable,
+	})
 }
 
 func currentTestFactoryConfig() services.FactoryConfig {
@@ -73,7 +99,7 @@ func currentTestFactoryConfig() services.FactoryConfig {
 // caregiverProfilesForTests binds the Lehrkraft guard to real People
 // Directory and School Membership compositions over db, as the factory does.
 func caregiverProfilesForTests(db transactionruntime.Database) (services.CaregiverProfiles, error) {
-	persons, err := services.NewPeopleDirectory(db.Pool())
+	persons, err := NewPeopleDirectory(db)
 	if err != nil {
 		return services.CaregiverProfiles{}, err
 	}
@@ -91,7 +117,7 @@ func NewOwnerCapabilitiesForTests(db transactionruntime.Database) (OwnerCapabili
 	if err != nil {
 		return OwnerCapabilities{}, err
 	}
-	persons, err := services.NewPeopleDirectory(db.Pool())
+	persons, err := NewPeopleDirectory(db)
 	if err != nil {
 		return OwnerCapabilities{}, err
 	}

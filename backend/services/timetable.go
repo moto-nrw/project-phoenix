@@ -3,6 +3,10 @@ package services
 import (
 	"context"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
@@ -106,7 +110,7 @@ func timetableDirectories(deps TimetableDependencies) timetableCompose.Repositor
 	var directories timetableCompose.RepositoryDirectories
 	if deps.Groups != nil {
 		directories.GroupNames = func(ctx context.Context, ids []int64) (map[int64]string, error) {
-			return groupNamesByID(ctx, deps.Groups, ids)
+			return schoolStructureCompose.GroupNamesByID(ctx, deps.Groups, ids)
 		}
 	}
 	if deps.Rooms != nil {
@@ -153,9 +157,9 @@ func timetableShiftTypes(shifts workforce.ShiftQuery) func(context.Context) ([]t
 	}
 }
 
-func timetableStaffPersons(membership staffLookup) func(context.Context, []int64, bool) (map[int64]int64, error) {
+func timetableStaffPersons(membership schoolMembershipCompose.StaffLookup) func(context.Context, []int64, bool) (map[int64]int64, error) {
 	return func(ctx context.Context, ids []int64, includeDeleted bool) (map[int64]int64, error) {
-		members, err := staffByID(ctx, membership, ids, includeDeleted)
+		members, err := schoolMembershipCompose.StaffByID(ctx, membership, ids, includeDeleted)
 		if err != nil {
 			return nil, err
 		}
@@ -169,7 +173,7 @@ func timetableStaffPersons(membership staffLookup) func(context.Context, []int64
 
 func timetablePersonNames(persons peopledirectory.Query) func(context.Context, []int64) (map[int64]timetableCompose.PersonName, error) {
 	return func(ctx context.Context, ids []int64) (map[int64]timetableCompose.PersonName, error) {
-		values, err := personsByID(ctx, persons, ids)
+		values, err := peopleCompose.PersonsByID(ctx, persons, ids)
 		if err != nil {
 			return nil, err
 		}

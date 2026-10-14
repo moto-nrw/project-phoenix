@@ -8,11 +8,12 @@ import (
 	"sync/atomic"
 	"testing"
 
+	api "github.com/moto-nrw/project-phoenix/api"
+
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	servicesPkg "github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,12 +69,12 @@ func tenantIDsOf(calls []testpkg.BroadcastCall) []int64 {
 func newPhotoSeam(
 	t *testing.T,
 	directory *stubPhotoDirectory,
-	broadcaster servicesPkg.PhotoBroadcaster,
+	broadcaster api.PhotoBroadcaster,
 	unlinker peopleCompose.PhotoUnlinker,
 	logger *slog.Logger,
 ) peopleCompose.StudentPhotoService {
 	t.Helper()
-	return servicesPkg.NewStudentPhotos(directory, nil, servicesPkg.StudentPhotoRuntimeDependencies{
+	return api.NewStudentPhotos(directory, nil, api.StudentPhotoRuntimeDependencies{
 		Broadcaster: broadcaster, Unlinker: unlinker, Logger: logger,
 	})
 }
@@ -197,9 +198,9 @@ func TestPhotoRoutesRequireATenantContext(t *testing.T) {
 
 	require.ErrorIs(t,
 		seam.CommitUpload(context.Background(), peopleCompose.CommitUploadRequest{StudentID: 1}),
-		servicesPkg.ErrPhotoNoTenant)
+		api.ErrPhotoNoTenant)
 	_, err := seam.CommitDelete(context.Background(), 1)
-	require.ErrorIs(t, err, servicesPkg.ErrPhotoNoTenant)
+	require.ErrorIs(t, err, api.ErrPhotoNoTenant)
 	_, err = seam.LookupForRead(context.Background(), 1, "a.jpg")
-	require.ErrorIs(t, err, servicesPkg.ErrPhotoNoTenant)
+	require.ErrorIs(t, err, api.ErrPhotoNoTenant)
 }

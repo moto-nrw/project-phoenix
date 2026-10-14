@@ -10,7 +10,6 @@ import (
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // NewSchoolCalendarWithAdministration composes the unobserved calendar owner
@@ -52,7 +51,7 @@ type CalendarTestRepositories struct {
 	schoolCalendar             schoolcalendar.Capability
 }
 
-func NewCalendarTestRepositories(db transactionruntime.Database, members services.MembershipTestRepositories) (CalendarTestRepositories, error) {
+func NewCalendarTestRepositories(db transactionruntime.Database, members MembershipTestRepositories) (CalendarTestRepositories, error) {
 	identity, err := NewUserContextTestRepositories(db, members)
 	if err != nil {
 		return CalendarTestRepositories{}, err
@@ -95,7 +94,7 @@ type CalendarFeedTestRepositories struct {
 }
 
 func NewCalendarFeedTestRepositories(db transactionruntime.Database) CalendarFeedTestRepositories {
-	identity := services.NewPeopleIdentityAccess(db.Pool(), nil)
+	identity := NewPeopleIdentityAccess(db, nil)
 	return CalendarFeedTestRepositories{StaffFeed: identity, ParentFeed: identity,
 		Tombstone: schoolCalendarCompose.NewFeedHistory(db.Pool())}
 }

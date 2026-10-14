@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -49,7 +48,7 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:     repos.CarePlan(),
-		People:       services.MustNewPeopleDirectory(db),
+		People:       api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles: careProfiles(t, db),
 		ChildRepo:    repos.ParentChild, GuardianProfileRepo: repos.GuardianProfile,
 		GuardianPhoneRepo: repos.GuardianPhoneNumber, PersonRepo: repos.Person,

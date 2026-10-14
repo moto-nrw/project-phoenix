@@ -567,6 +567,19 @@ epoch 41 (see [Standing composition reaches](#standing-composition-reaches-adr-0
 The three keys stay until #4005 to #4013 have moved the code out of
 `services` and #2747 deletes the package.
 
+#4007 moved the People Directory, School Membership and School Structure
+wiring out of `services` without a key or a policy rule. Single-owner code went
+into those owners' compositions, the substitution visibility decision into
+Workforce (`CanSeeAllSubstitutions`) and the guardian role preset into People
+Directory. The root builds the retained repositories and the cross-owner
+adapters (`api.NewPeopleWiring`) and hands them to `NewFactoryWithModules` as
+`services.PeopleWiring`, in place of what the Factory built itself; an adapter
+over a value the Factory composes arrives as a constructor. The root's adapters
+read through their own ports, so `TestHandlerLayerRatchet` keeps holding for
+`api`. Code that other slices still call stays with those callers in
+`services` until they move. Two stale offboarding rules of the legacy
+composition are gone, and the composition surface fell from 250 to 248.
+
 #2734 closed the carrier of `api/enrollment`: its 26 remaining keys, the
 root's `api -> api/enrollment` key (#2750) and three parent-portal keys of
 #3421 (the production and internal-test import of `api/enrollment`, and the

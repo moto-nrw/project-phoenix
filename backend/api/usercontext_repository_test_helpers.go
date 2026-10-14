@@ -3,6 +3,7 @@ package api
 import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 )
@@ -14,7 +15,7 @@ type UserContextTestRepositories struct {
 	StaffGroups   schoolstructure.StaffGroupQuery
 }
 
-func NewUserContextTestRepositories(db transactionruntime.Database, members services.MembershipTestRepositories) (UserContextTestRepositories, error) {
+func NewUserContextTestRepositories(db transactionruntime.Database, members MembershipTestRepositories) (UserContextTestRepositories, error) {
 	timetable, err := NewTimetableTestRepositoriesWithMembers(db, members)
 	if err != nil {
 		return UserContextTestRepositories{}, err
@@ -31,11 +32,11 @@ func NewUserContextTestRepositories(db transactionruntime.Database, members serv
 	if err != nil {
 		return UserContextTestRepositories{}, err
 	}
-	staffGroups, err := services.NewUserContextStaffGroups(structure, membership, workTime)
+	staffGroups, err := schoolStructureCompose.NewStaffGroups(schoolStructureCompose.StaffGroupsDependencies{Groups: structure, Assignments: membership, Substitutions: workTime})
 	if err != nil {
 		return UserContextTestRepositories{}, err
 	}
 	return UserContextTestRepositories{
-		Timetable: timetable, Profile: services.NewPeopleIdentityAccess(db.Pool(), nil), Substitutions: members.GroupSubstitution, StaffGroups: staffGroups,
+		Timetable: timetable, Profile: NewPeopleIdentityAccess(db, nil), Substitutions: members.GroupSubstitution, StaffGroups: staffGroups,
 	}, nil
 }

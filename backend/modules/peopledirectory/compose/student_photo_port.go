@@ -12,7 +12,7 @@ import (
 // (#3753). The lifecycle behind them — the feature gate, the consent it
 // depends on, the row lock and the purge — belongs to the People Directory
 // owner; #3349 moved it there. The composition root binds an implementation
-// (services.NewStudentPhotos).
+// (api.NewStudentPhotos).
 
 // PhotoSettings is the narrow settings surface the photo feature gate needs.
 type PhotoSettings interface {
@@ -49,7 +49,7 @@ type StudentPhotoService interface {
 
 // StudentConsentRecorder appends the Audit Platform trail entry for an
 // effective consent change. The composition root binds it
-// (services.NewStudentConsentsFor); Audit Platform owns the trail.
+// (api.NewStudentConsentsFor); Audit Platform owns the trail.
 type StudentConsentRecorder interface {
 	RecordTransitions(
 		ctx context.Context,

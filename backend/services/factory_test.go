@@ -1,7 +1,6 @@
 package services_test
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 	"time"
@@ -329,15 +328,4 @@ func TestNewFactory_NegativePasswordResetExpiry(t *testing.T) {
 	require.NotNil(t, factory)
 
 	assert.Equal(t, 30*time.Minute, factory.PasswordResetTokenExpiry)
-}
-
-func TestEnableStudentPhotos(t *testing.T) {
-	t.Parallel()
-
-	f := &services.Factory{SettingsSideEffects: services.NewSettingsSideEffects()}
-	f.EnableStudentPhotos(services.StudentPhotoBootstrap{Logger: slog.Default()})
-	require.NotNil(t, f.StudentPhotos)
-	post, err := f.SettingsSideEffects.Dispatch(context.Background(), 1, "operations.student_photos_enabled", "x")
-	require.NoError(t, err)
-	require.NotNil(t, post)
 }

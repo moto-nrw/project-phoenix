@@ -45,14 +45,14 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		publisher = publishers[0]
 	}
 	groups := education.NewGroupManagement(tt.Group, tt.GroupTeacher, tt.ClassTeacher,
-		services.NewEducationRooms(tt.Facilities), services.NewEducationTeachers(tt.Teacher), services.NewEducationStaff(tt.Staff),
+		NewEducationRooms(tt.Facilities), NewEducationTeachers(tt.Teacher), NewEducationStaff(tt.Staff),
 		tt.Student, r.Substitutions, education.NewLegacyRepositoryRuntime(db.Pool()), education.GroupServiceOptions{Broadcaster: publisher})
 
 	persons := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
-		PersonDirectory:  peopleCompose.NewPersonWrites(services.MustNewPeopleDirectory(db.Pool())),
-		StudentDirectory: peopleCompose.NewStudentDirectory(services.MustNewPeopleDirectory(db.Pool())),
+		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
+		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
 		PersonRepo:       tt.Person, StudentRepo: tt.Student, TeacherRepo: tt.Teacher, AccountExists: services.AccountExists(r.Profile),
-		StaffDirectory: services.NewStaffDirectory(services.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: tt.Person, Staff: tt.Staff, Teachers: tt.Teacher}),
+		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: tt.Person, Staff: tt.Staff, Teachers: tt.Teacher}),
 	})
 	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
 	if err != nil {
@@ -63,7 +63,7 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		PrincipalReader: services.AttendancePrincipal,
 		YardRoomColor:   services.YardRoomColorQuery(rooms),
 		StaffNames:      services.NewAttendanceStaffNames(tt.Staff, persons), GroupRepo: sessionGroups, SupervisorRepo: sessionSupervisors,
-		StudentRepo: services.PresenceStudents(db.Pool(), tt.Student), StaffRepo: services.NewAttendanceStaffDirectory(tt.Staff), RoomRepo: services.NewAttendanceRooms(tt.Room),
+		StudentRepo: PresenceStudents(db, tt.Student), StaffRepo: services.NewAttendanceStaffDirectory(tt.Staff), RoomRepo: services.NewAttendanceRooms(tt.Room),
 		EducationGroupRepo: services.NewAttendanceEducationGroups(tt.Group, tt.Student),
 		ActivityGroupRepo:  services.NewSessionActivities(tt.GroupReads()), DB: db.Pool(), Logger: slog.Default(),
 		SchoolPresence: services.NewLoggedStudentPresence(db.Pool(), slog.Default()),

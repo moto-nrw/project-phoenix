@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"time"
 
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -17,32 +21,32 @@ import (
 // NewMembershipTestRepositories composes the People Directory and School
 // Membership repositories the repository test graphs read through, over
 // unobserved owners (#2743).
-func NewMembershipTestRepositories(db transactionruntime.Database) (services.MembershipTestRepositories, error) {
+func NewMembershipTestRepositories(db transactionruntime.Database) (MembershipTestRepositories, error) {
 	membership, err := services.NewSchoolMembership(db.Pool())
 	if err != nil {
-		return services.MembershipTestRepositories{}, err
+		return MembershipTestRepositories{}, err
 	}
-	people, err := services.NewPeopleDirectory(db.Pool())
+	people, err := NewPeopleDirectory(db)
 	if err != nil {
-		return services.MembershipTestRepositories{}, err
+		return MembershipTestRepositories{}, err
 	}
 	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
 	if err != nil {
-		return services.MembershipTestRepositories{}, err
+		return MembershipTestRepositories{}, err
 	}
 	workTime, err := NewWorkforce(db, membership)
 	if err != nil {
-		return services.MembershipTestRepositories{}, err
+		return MembershipTestRepositories{}, err
 	}
 	groups, err := NewSchoolStructure(db)
 	if err != nil {
-		return services.MembershipTestRepositories{}, err
+		return MembershipTestRepositories{}, err
 	}
-	members := services.NewMembershipRepositories(db.Pool(), services.NewPersonRepository(db.Pool()), services.NewPeopleIdentityAccess(db.Pool(), nil), membership, rooms, workTime)
+	members := NewMembershipRepositories(db, services.NewPersonRepository(db.Pool()), NewPeopleIdentityAccess(db, nil), membership, rooms, workTime)
 	members.People = people
-	members.Student = services.NewStudentRepository(db.Pool(), membership, groups)
-	members.GuardianProfile = services.NewGuardianProfileRepository(db.Pool())
-	members.StudentGuardian = services.NewStudentGuardianRepository(db.Pool())
+	members.Student = NewStudentRepository(db, membership, groups)
+	members.GuardianProfile = NewGuardianProfileRepository(db)
+	members.StudentGuardian = NewStudentGuardianRepository(db)
 	members.GroupSubstitution = services.NewGroupSubstitutionRepository(members.Group, membership, workTime)
 	return members, nil
 }
@@ -50,7 +54,7 @@ func NewMembershipTestRepositories(db transactionruntime.Database) (services.Mem
 // MustNewMembershipTestRepositories is NewMembershipTestRepositories for test
 // graphs that cannot return an error; composing only fails on missing
 // dependencies, which is a programming error at wiring time.
-func MustNewMembershipTestRepositories(db transactionruntime.Database) services.MembershipTestRepositories {
+func MustNewMembershipTestRepositories(db transactionruntime.Database) MembershipTestRepositories {
 	members, err := NewMembershipTestRepositories(db)
 	if err != nil {
 		panic(fmt.Sprintf("compose membership test repositories: %v", err))
@@ -68,7 +72,7 @@ func authTestIdentityChain(db transactionruntime.Database) (services.LifecycleRe
 	return identityChainOf(db, members), nil
 }
 
-func identityChainOf(db transactionruntime.Database, members services.MembershipTestRepositories) services.LifecycleRepositories {
+func identityChainOf(db transactionruntime.Database, members MembershipTestRepositories) services.LifecycleRepositories {
 	return services.LifecycleRepositories{
 		Persons: members.Person, Staff: members.Staff, Teachers: members.Teacher, Students: NewUnboundStudentRepository(db),
 		GuardianProfiles: members.GuardianProfile, StudentGuardians: members.StudentGuardian,
@@ -105,6 +109,50 @@ func NewWorkforceWithClock(db transactionruntime.Database, membership schoolmemb
 // runtime of the School Structure owner over db, with only the given
 // dependencies bound, for the test graphs whose test roles may not name the
 // School Structure composition.
-func NewEducationGroupRepository(db transactionruntime.Database, options ...educationRepo.GroupRepositoryDependencies) *services.EducationGroupStore {
-	return services.NewEducationGroupStore(educationRepo.NewLegacyRepositoryRuntime(db.Pool()), options...)
+func NewEducationGroupRepository(db transactionruntime.Database, options ...educationRepo.GroupRepositoryDependencies) *EducationGroupStore {
+	return NewEducationGroupStore(educationRepo.NewLegacyRepositoryRuntime(db.Pool()), options...)
+}
+
+// MembershipTestRepositories are the People Directory and School Membership
+// repositories the retained graphs read through. services composes them where
+// it composes the owners; the test graphs build them through
+// api.NewMembershipTestRepositories (#2743, #4005).
+type MembershipTestRepositories struct {
+	// People is the People Directory owner the student rows translate to.
+	People          peopledirectory.Capability
+	Person          userModels.PersonRepository
+	Student         userModels.StudentRepository
+	GuardianProfile userModels.GuardianProfileRepository
+	StudentGuardian userModels.StudentGuardianRepository
+	Staff           userModels.StaffRepository
+	Teacher         userModels.TeacherRepository
+	Guest           userModels.GuestRepository
+	Group           services.EducationGroupRepository
+	GroupTeacher    services.GroupTeacherRepository
+	ClassTeacher    services.ClassTeacherRepository
+	// GroupSubstitution is the Workforce group substitution contract over the
+	// group store and School Membership.
+	GroupSubstitution services.GroupSubstitutionRepository
+	// Membership is the owner capability itself; the class-list entries
+	// (#2382) are read and written through it.
+	Membership schoolmembership.Capability
+}
+
+// NewMembershipRepositories composes the staff, teacher and guest adapters
+// over membership, with the group store and the teaching assignments they
+// resolve through. members.People, Person, Student and the guardian fields
+// stay unset; the caller composes them.
+func NewMembershipRepositories(db transactionruntime.Database, persons userModels.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) MembershipTestRepositories {
+	adapters := newMembershipAdapters(db, persons, identity, membership, rooms, workTime)
+	return MembershipTestRepositories{
+		Person: persons, Staff: adapters.Staff, Teacher: adapters.Teacher, Guest: adapters.Guest,
+		Group: adapters.Group, GroupTeacher: adapters.GroupTeacher, ClassTeacher: adapters.ClassTeacher,
+		Membership: membership,
+	}
+}
+
+// NewGroupTeacherRepository serves the retained teaching-assignment contract
+// over membership, for the repository test graphs.
+func NewGroupTeacherRepository(membership schoolmembership.Capability, groups groupsByID) services.GroupTeacherRepository {
+	return newGroupTeacherRepository(membership, groups)
 }

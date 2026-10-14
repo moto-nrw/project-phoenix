@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -16,10 +17,10 @@ type GuardianTestModule struct {
 	// PhotoRuntime is the slot the directory resolves its photo runtime from,
 	// filled by the graph that also owns the feature gate and the file cleanup.
 	PhotoRuntime *peopleCompose.StudentPhotoRuntime
-	runtime      services.GuardianDirectoryRuntime
+	runtime      GuardianDirectoryRuntime
 }
 
-func (m GuardianTestModule) NewGuardianDirectoryRuntime(transactionruntime.Database) services.GuardianDirectoryRuntime {
+func (m GuardianTestModule) NewGuardianDirectoryRuntime(transactionruntime.Database) GuardianDirectoryRuntime {
 	return m.runtime
 }
 
@@ -37,7 +38,7 @@ func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return GuardianTestModule{}, err
 	}
 	g := NewGuardianTestRepositories(db, command)
-	people, photoRuntime, err := services.NewPeopleDirectoryWithPhotos(db.Pool())
+	people, photoRuntime, err := NewPeopleDirectoryWithPhotos(db)
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
@@ -50,12 +51,12 @@ func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		GuardianInvitations: services.NewGuardianInvitationReads(func() identityaccess.GuardianInvitations { return auth.AccountAuthentication }),
 		StudentRepo:         NewUnboundStudentRepository(db), PersonRepo: r.Person,
 		GuardianFinancialRepo:  g.Financial,
-		GuardianFinancialAudit: services.NewGuardianFinancialAudit(g.FinancialAudit), DataAccessLog: services.NewGuardianDataAccessLog(g.AccessLog),
-		RolePresets: services.GuardianRolePresets{}, DB: db.Pool(),
+		GuardianFinancialAudit: NewGuardianFinancialAudit(g.FinancialAudit), DataAccessLog: NewGuardianDataAccessLog(g.AccessLog),
+		RolePresets: guardianRolePresets, DB: db.Pool(),
 	})
-	people.(services.GuardianProviderBinder).BindGuardianProvider(&services.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool())})
+	peopleCompose.BindGuardianDirectory(people, &peopleCompose.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), PermissionGranted: securityruntime.GuardianPermissionGranted})
 	// The compatibility carrier only maps the existing four capabilities to
 	// the production runtime closures. It constructs no additional services.
 	carrier := &services.Factory{Guardian: guardian, GuardianInvitation: auth.GuardianInvitation, UserContext: identity, ListExport: lists.NewRendererService()}
-	return GuardianTestModule{PeopleDirectory: people, PhotoRuntime: photoRuntime, runtime: carrier.NewGuardianDirectoryRuntime(peopleCompose.NewLegacyRepositoryRuntime(db.Pool()))}, nil
+	return GuardianTestModule{PeopleDirectory: people, PhotoRuntime: photoRuntime, runtime: NewGuardianDirectoryRuntime(carrier, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()))}, nil
 }

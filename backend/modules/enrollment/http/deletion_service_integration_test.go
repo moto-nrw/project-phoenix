@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"log/slog"
 	"os"
@@ -482,7 +481,7 @@ func TestRejectedEnrollmentCleanup_WritesSystemDeletionAudit(t *testing.T) {
 
 func (f *deletionTestFixture) guardians() deletionTestGuardians {
 	f.t.Helper()
-	people, err := services.NewPeopleDirectory(f.db)
+	people, err := api.NewPeopleDirectory(testpkg.MustDatabase(f.db))
 	require.NoError(f.t, err)
 	return deletionTestGuardians{
 		byAccount: func(ctx context.Context, ids []int64) ([]TestDirectoryGuardian, error) {

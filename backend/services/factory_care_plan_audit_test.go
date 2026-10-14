@@ -22,7 +22,7 @@ func TestNewFactoryRetainsCarePlanForBookingConsistencyAudit(t *testing.T) {
 	_, err := api.NewFactoryForTestsWithConfig(repos, testpkg.NewDatabase(t, db), slog.Default(), testFactoryConfig())
 	require.NoError(t, err)
 
-	bookings, err := services.NewBookingConsistencyAudit(db, services.MustNewPeopleDirectory(db), repos.CarePlan())
+	bookings, err := services.NewBookingConsistencyAudit(db, api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)), repos.CarePlan())
 	require.NoError(t, err)
 	audit := reflect.ValueOf(bookings)
 	auditDate := reflect.New(audit.Type().In(1)).Elem()

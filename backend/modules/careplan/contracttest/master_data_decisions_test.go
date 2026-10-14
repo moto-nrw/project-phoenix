@@ -22,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -53,7 +52,7 @@ func newMasterDataFixture(t *testing.T, db *bun.DB) masterDataFixture {
 func (f masterDataFixture) decisions(t *testing.T, configure ...func(*api.MasterDataDecisionTestOptions)) *careplanCompose.MasterDataDecisions {
 	t.Helper()
 	options := api.MasterDataDecisionTestOptions{
-		CarePlan: f.repos.CarePlan(), People: services.MustNewPeopleDirectory(f.db),
+		CarePlan: f.repos.CarePlan(), People: api.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)),
 		Students: f.repos.Student, Persons: f.repos.Person, Logger: slog.Default(),
 	}
 	for _, apply := range configure {
@@ -67,7 +66,7 @@ func (f masterDataFixture) decisions(t *testing.T, configure ...func(*api.Master
 // queue is the native open queue and history the decisions are listed from.
 func (f masterDataFixture) queue(t *testing.T, scope careplanCompose.ReviewScopeResolver) careplan.MasterDataReviewQuery {
 	t.Helper()
-	queue, err := requestreviewcompose.NewMasterDataReviews(f.db, services.MustNewPeopleDirectory(f.db), scope,
+	queue, err := requestreviewcompose.NewMasterDataReviews(f.db, api.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)), scope,
 		careplanCompose.Today, func(requestreviewcompose.CareObservation) {})
 	require.NoError(t, err)
 	return queue

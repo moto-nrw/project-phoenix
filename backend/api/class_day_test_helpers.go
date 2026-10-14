@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"time"
 
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
@@ -43,7 +45,7 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	careplanCompose.WireCareParticipation(active.CareDay, care.CareLifecycle)
 	reports := services.NewEnrollmentReports(services.EnrollmentReportSources{
 		Owner: r.Enrollment(), Offerings: enrollmentCompose.NewCareOfferingRecords(r.CarePlan), AccessLog: r.DataAccessLog,
-		Students: r.Student, Persons: r.Person, Groups: services.NewGroupNames(r.Group), StudentGuardians: r.StudentGuardian,
+		Students: r.Student, Persons: r.Person, Groups: schoolStructureCompose.NewGroupNames(r.Group), StudentGuardians: r.StudentGuardian,
 		Companions: services.NewStudentCompanionRepository(r.CarePlan), ClassListEntries: services.NewClassListEntryRosterReader(r.Membership),
 		PickupSchedules: active.PickupSchedule, CareParticipation: care.CareLifecycle, Settings: active.Settings,
 	})

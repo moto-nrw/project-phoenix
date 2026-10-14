@@ -20,7 +20,7 @@ func NewClassListTestModule(db transactionruntime.Database) (ClassListTestModule
 	if err != nil {
 		return ClassListTestModule{}, err
 	}
-	persons, err := services.NewPeopleDirectory(db.Pool())
+	persons, err := NewPeopleDirectory(db)
 	if err != nil {
 		return ClassListTestModule{}, err
 	}

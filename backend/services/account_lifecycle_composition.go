@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -397,7 +399,7 @@ func (d guardianDirectory) PromoteStudentGuardianLink(ctx context.Context, linkI
 	if link == nil {
 		return userModels.ErrStudentGuardianNotFound
 	}
-	applyGuardianRolePreset(link, securityruntime.GuardianRoleLegalGuardian)
+	peopleCompose.ApplyGuardianRolePreset(securityGuardianRolePresets, link, securityruntime.GuardianRoleLegalGuardian)
 	return d.repos.StudentGuardians.Update(ctx, link)
 }
 
@@ -484,4 +486,18 @@ func (a financialAudit) RecordPayerRemoved(ctx context.Context, guardianProfileI
 		NewValue:          "false",
 		Note:              "Erziehungsberechtigte Person vom Kind entfernt",
 	})
+}
+
+// isSocialWorkerGuardianRole reports whether the stored relationship role is
+// the school-managed social worker preset.
+func isSocialWorkerGuardianRole(role string) bool {
+	normalized, _ := securityruntime.StudentGuardianRolePreset(role)
+	return normalized == securityruntime.GuardianRoleSocialWorker
+}
+
+// securityGuardianRolePresets is the Security Runtime's role-preset policy as
+// People Directory's preset port.
+var securityGuardianRolePresets = peopleCompose.GuardianRolePresetFuncs{
+	Default: securityruntime.DefaultStudentGuardianRole,
+	Presets: securityruntime.StudentGuardianRolePreset,
 }

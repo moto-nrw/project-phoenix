@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 
+	"errors"
+
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -30,11 +32,11 @@ func (e membershipStaffEmployment) StaffEmployments(ctx context.Context, ids []i
 }
 
 func (e membershipStaffEmployment) SaveStaffEmployment(ctx context.Context, value schoolMembershipCompose.StaffEmploymentProfile) error {
-	return membershipEmploymentError(e.employment.SaveStaffEmployment(ctx, workforce.StaffEmployment(value)))
+	return MembershipEmploymentError(e.employment.SaveStaffEmployment(ctx, workforce.StaffEmployment(value)))
 }
 
 func (e membershipStaffEmployment) ClearStaffWorkTimeModel(ctx context.Context, membershipID int64) error {
-	return membershipEmploymentError(e.employment.ClearStaffWorkTimeModel(ctx, membershipID))
+	return MembershipEmploymentError(e.employment.ClearStaffWorkTimeModel(ctx, membershipID))
 }
 
 // WorkforceLiveStaffIDs answers Workforce's one question to School
@@ -62,4 +64,16 @@ func WorkforceStaffAssignmentLock(membership schoolmembership.Capability) func(c
 		_, err := membership.FindStaffForMutation(ctx, staffID)
 		return err
 	}
+}
+
+// MembershipEmploymentError restates Workforce's employment refusals in the
+// School Membership vocabulary the staff adapters map.
+func MembershipEmploymentError(err error) error {
+	switch {
+	case errors.Is(err, workforce.ErrPersonnelNumberTaken):
+		return schoolmembership.ErrPersonnelNumberConflict
+	case errors.Is(err, workforce.ErrStaffEmploymentNotFound):
+		return schoolmembership.ErrStaffNotFound
+	}
+	return err
 }

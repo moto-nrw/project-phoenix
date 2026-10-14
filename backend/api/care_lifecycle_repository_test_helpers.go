@@ -27,7 +27,7 @@ type CareLifecycleTestRepositories struct {
 	sources          services.CareLifecycleOwnerSources
 }
 
-func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database, members services.MembershipTestRepositories) (CareLifecycleTestRepositories, error) {
+func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (CareLifecycleTestRepositories, error) {
 	tt, err := NewTimetableTestRepositoriesWithMembers(db, members)
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
