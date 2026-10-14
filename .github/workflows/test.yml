@@ -149,11 +149,30 @@ jobs:
           git fetch --no-tags --unshallow origin "${refs[@]}"
 
       - name: Setup Go
+        id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
           cache: true
           cache-dependency-path: backend/go.sum
+
+      # setup-go's go.sum-only key is immutable. It restores dependencies but
+      # never saves later source builds on an exact hit. Keep a source-keyed
+      # build layer per shard, with the last source build as a warm fallback.
+      - name: Compute backend build cache key
+        id: build-cache-key
+        env:
+          BACKEND_CACHE_PREFIX: backend-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ matrix.shard }}-${{ hashFiles('backend/go.sum', 'scripts/backend-architecture/go.sum') }}-
+          BACKEND_SOURCE_HASH: ${{ hashFiles('backend/**/*.go', 'scripts/backend-architecture/**/*.go', 'scripts/backend-test-matrix.sh') }}
+        run: |
+          echo "prefix=$BACKEND_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "key=$BACKEND_CACHE_PREFIX$BACKEND_SOURCE_HASH" >> "$GITHUB_OUTPUT"
+      - name: Restore backend build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}
+          restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
 
       - name: Test backend test scripts
         if: ${{ matrix.shard == 0 && (!inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '') }}
@@ -278,7 +297,7 @@ jobs:
           # Single pass produces junit.xml. No retries: flaky tests should fail
           # loudly, not be hidden.
           go tool gotestsum --format pkgname-and-test-fails \
-            --junitfile junit.xml -- -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
+            --junitfile junit.xml -- -count=1 -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
 
       - name: Publish backend test results
         uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
