@@ -4,6 +4,10 @@ name: Nightly full suite
 # change, so this run catches what slips between them: two pull requests that
 # pass alone but break together, and gaps in changed-test selection. It runs the
 # full suites on the development head before perf-nightly (03:30 UTC).
+#
+# The full lint run serves the same purpose for changed-package lint. It also
+# saves the development caches that the lint jobs on standard GitHub runners
+# restore in pull requests; a pull request cannot read another one's cache.
 
 on:
   schedule:
@@ -26,3 +30,13 @@ jobs:
       base_ref: ""
       full-backend-suite: true
       full-frontend-suite: true
+
+  lint:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/lint.yml
+    with:
+      run-backend: true
+      full-backend: true
+      run-frontend: true
+      run-error-codes: true

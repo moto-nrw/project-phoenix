@@ -48,7 +48,9 @@ jobs:
   perf-nightly:
     name: Perf trace and render counters
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # Standard-Runner sind für dieses öffentliche Repository kostenlos. Die
+    # Zähler hängen nicht vom Runner ab, nur die absoluten Zeiten.
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
       contents: read
