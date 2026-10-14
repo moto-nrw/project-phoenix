@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"errors"
@@ -8,6 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -25,9 +27,13 @@ type RetentionTestOwners struct {
 	ParentMessages       communication.ParentMessageCleanup
 }
 
-// NewRetentionTestOwners composes the retention owners over db; unit is the
-// tenant runtime the settings resolve in.
-func NewRetentionTestOwners(db *bun.DB, unit tenant.UnitOfWork) (RetentionTestOwners, error) {
+// NewRetentionTestOwners composes the retention owners over pool; unit is
+// the tenant runtime the settings resolve in.
+func NewRetentionTestOwners(pool *bun.DB, unit tenant.UnitOfWork) (RetentionTestOwners, error) {
+	db, err := transactionruntime.NewDatabase(pool)
+	if err != nil {
+		return RetentionTestOwners{}, err
+	}
 	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return RetentionTestOwners{}, err
@@ -40,10 +46,7 @@ func NewRetentionTestOwners(db *bun.DB, unit tenant.UnitOfWork) (RetentionTestOw
 	if err != nil {
 		return RetentionTestOwners{}, err
 	}
-	scans, err := auditCompose.NewUnregisteredTagScanService(
-		newUnregisteredTagScanRepository(fleet),
-		auditCompose.UnregisteredTagScanRuntime{TenantID: tenant.FromContext},
-	)
+	scans, err := services.NewUnregisteredTagScans(fleet)
 	if err != nil {
 		return RetentionTestOwners{}, err
 	}
@@ -57,6 +60,6 @@ func NewRetentionTestOwners(db *bun.DB, unit tenant.UnitOfWork) (RetentionTestOw
 	}
 	return RetentionTestOwners{
 		Audit: command, Settings: settings.Settings, UnregisteredTagScans: scans, StatusDays: statusDays,
-		ParentMessages: communicationCompose.NewParentMessageRetention(db, settings.Settings),
+		ParentMessages: communicationCompose.NewParentMessageRetention(pool, settings.Settings),
 	}, nil
 }

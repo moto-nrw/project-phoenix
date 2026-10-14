@@ -5,9 +5,21 @@ import (
 	"errors"
 	"time"
 
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
+
+// NewUnregisteredTagScans composes the retained unregistered tag scan service
+// over the Device Fleet owner, for the service graph and the root's
+// retention suite.
+func NewUnregisteredTagScans(scans devicefleet.Capability) (auditCompose.UnregisteredTagScanService, error) {
+	return auditCompose.NewUnregisteredTagScanService(
+		newUnregisteredTagScanRepository(scans),
+		auditCompose.UnregisteredTagScanRuntime{TenantID: tenant.FromContext},
+	)
+}
 
 // unregisteredTagScanRepository serves the retained audit repository shape
 // from the Device Fleet owner, which owns audit.unregistered_tag_scans
