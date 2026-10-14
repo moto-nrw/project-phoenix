@@ -3360,7 +3360,7 @@ four tuples, because the scheduler rule covered `jobruntime` and
 `workerlease`. Point 7.3 adds `identity-access`/`adapter` to the shared
 fixture targets (`shared-fixtures.identity-access-adapter`).
 
-#4005 (policy epoch 42 → 43) moves the legacy composition's test hooks out of
+#4005 (policy epoch 43 → 44) moves the legacy composition's test hooks out of
 `services`. The hooks live in `api/*_test_helpers.go` and take the
 Transaction Runtime value; Identity's composition builds the session codec
 from the secret and the token lifetimes (`NewConfiguredSessionTokens`), so the
@@ -3385,7 +3385,7 @@ imports cannot import `api`: it declares the composition it needs as a
 package variable that an external `root_composition_test.go` binds, or
 reaches it through `modules/workforce/workforcetest` when its external test
 may not import its own package. `api/testutil` keeps only owner-agnostic HTTP
-helpers, and `api/testutil -> services` falls (#2748, 45 → 44).
+helpers, and `api/testutil -> services` falls (#2748, 41 → 40).
 
 Twelve baseline entries fall: nine of #2750 (`. -> cmd`, `cmd -> api`,
 `cmd -> tenant`, `cmd -> database/migrations` in production and internal test,
@@ -3397,6 +3397,34 @@ modules/identityaccess` and `behavior -> legacy/jwt`) and one of #2748
 surface stays at 252. `cycles --graph target` is unchanged at 58 owners, 335
 edges and one component of 32 members: the target projection omits
 composition owners and self-edges, so the reaches add no edge to it.
+
+#4003 removes the four tuples. Each owner's composition now builds what the
+root took from its implementation roles:
+
+- `modules/workforce/compose/httpadapter` serves `/absence-types` and
+  `/substitutions` (`AbsenceTypesRoutes`, `SubstitutionsRoutes`). It returns
+  `chi.Router`, because a Workforce composition may not name the
+  `inbound-absence-types` and `inbound-substitutions` resources. The routes
+  live in `httpadapter` and not in `compose`: the internal tests of
+  `modules/workforce/inbound` import `services`, which imports `compose`, so
+  `compose` importing `inbound` would be an import cycle in those tests.
+- `modules/dataimport/compose` returns the file decoder (`NewFileDecoder`).
+  That import is the first use of a workflow composition's own `adapter`
+  role. Policy epoch 42 → 43 adds `owner-compose.workflow.adapter` under
+  `reviewedOwnerCompositionRule`, as constraint 3 above describes.
+- The new package `modules/schedulerruntime/compose`
+  (`scheduler-runtime`/`compose`) binds the job runtime and the Worker lease
+  store to the scheduler's ports (`NewTenantRuntime`, `NewWorkerLeaseStore`).
+  Its signatures take the `tenant.UnitOfWork` the root holds (ADR 0053
+  point 5), so the package has `scheduler-runtime.compose.tenant-runtime`,
+  like the 34 other owner compositions. PR mode accepts that rule because it
+  is anchored to the new package. It is the one new cross-owner reach of an
+  owner composition: the #4004 measurement goes from 206 to 207 rules, 83 of
+  them into `public`.
+
+The baseline goes from 46 to 42 and the policy from 1,438 to 1,440 rules. The
+composition surface stays at 252, and `cycles --graph target` is unchanged at
+58 owners, 335 edges and one component of 32 members.
 
 ## Changing the policy
 

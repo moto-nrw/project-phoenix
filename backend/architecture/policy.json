@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 43,
+  "policy_epoch": 44,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -2588,6 +2588,13 @@
       "path": "services/scheduler",
       "owner": "scheduler-runtime",
       "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schedulerruntime/compose",
+      "owner": "scheduler-runtime",
+      "role": "compose",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -18659,6 +18666,17 @@
       "target_role": "public"
     },
     {
+      "id": "scheduler-runtime.compose.tenant-runtime",
+      "description": "Scheduler Runtime composition builds the Worker's job runtime and lease store over the unit of work the root hands it (#4003).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
       "id": "timetable-planning-cutover.test-support.e2e-test.timetable-activities.public",
       "description": "The timetable end-to-end flows assert the Timetable owner's public retention cleanup and planner reads (timetable planning dissolution, ADR 0038).",
       "scopes": [
@@ -20505,6 +20523,17 @@
       "source_owner_kind": "workflow",
       "source_role": "compose",
       "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.workflow.adapter",
+      "description": "ADR 0053 point 3: the composition of a workflow owner imports its own adapter role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "compose",
+      "target_role": "adapter",
       "same_owner": true
     },
     {
