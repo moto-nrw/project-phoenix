@@ -272,7 +272,8 @@ jobs:
         env:
           CHANGED_FILES: ${{ steps.filter.outputs.backend-tests_files }}
         run: |
-          full=$(jq 'map(select(endswith(".go")) | split("/")[:-1] | join("/")) | unique | length >= 64' <<< "${CHANGED_FILES:-[]}")
+          full=$(jq 'any(.[]; . == "backend/go.mod" or . == "backend/go.sum") or
+            (map(select(endswith(".go")) | split("/")[:-1] | join("/")) | unique | length >= 64)' <<< "${CHANGED_FILES:-[]}")
           echo "full=$full" >> "$GITHUB_OUTPUT"
 
   ci-scripts:

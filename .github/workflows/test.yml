@@ -155,6 +155,13 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
+      - name: Test backend test scripts
+        if: ${{ matrix.shard == 0 && (!inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '') }}
+        run: |
+          scripts/backend-affected-packages_test.sh
+          scripts/backend-test-matrix_test.sh
+          scripts/test-changed_test.sh
+
       - name: Restore migrated DB snapshot
         if: ${{ matrix.shard != 1 }}
         id: db-snapshot

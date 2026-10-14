@@ -345,6 +345,11 @@ for count in 63 64; do
   grep -qx "full=$expected" "$fixture/scope-size"
   rm "$fixture/scope-size"
 done
+for manifest in go.mod go.sum; do
+  CHANGED_FILES="[\"backend/$manifest\"]" GITHUB_OUTPUT="$fixture/scope-size" bash -euo pipefail <<<"$size_script"
+  grep -qx 'full=true' "$fixture/scope-size"
+  rm "$fixture/scope-size"
+done
 
 # Execute the actual workflow guard: architecture-only changes may skip both
 # reusable jobs, but each independently requested job must run.
