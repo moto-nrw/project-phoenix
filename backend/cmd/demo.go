@@ -17,8 +17,8 @@ import (
 	"time"
 
 	backendapi "github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/simulate"
@@ -41,7 +41,7 @@ var demoCmd = &cobra.Command{
 		}
 		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		db, err := database.DBConnForDemo()
+		db, err := transactionruntime.OpenDemoDatabase()
 		if err != nil {
 			return err
 		}

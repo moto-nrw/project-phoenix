@@ -7,8 +7,8 @@ import (
 	"io"
 
 	"github.com/moto-nrw/project-phoenix/database/migrations"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/spf13/cobra"
-	"github.com/uptrace/bun"
 )
 
 type presenceBackfillOptions struct {
@@ -33,7 +33,7 @@ func newPresenceBackfillCommand(root migrateRoot) *cobra.Command {
 			if err := options.validate(action); err != nil {
 				return err
 			}
-			return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
+			return root.run(cmd.Context(), func(ctx context.Context, db transactionruntime.Database) error {
 				return runPresenceBackfillCommand(ctx, db, cmd.OutOrStdout(), action, options)
 			})
 		},
@@ -61,18 +61,19 @@ func (o presenceBackfillOptions) validate(action string) error {
 	return nil
 }
 
-func runPresenceBackfillCommand(ctx context.Context, db *bun.DB, output io.Writer, action string, options presenceBackfillOptions) error {
+func runPresenceBackfillCommand(ctx context.Context, db transactionruntime.Database, output io.Writer, action string, options presenceBackfillOptions) error {
+	pool := db.Pool()
 	ids := []int64{options.tenantID}
 	if options.allTenants {
 		var err error
-		ids, err = migrations.PresenceBackfillTenants(ctx, db)
+		ids, err = migrations.PresenceBackfillTenants(ctx, pool)
 		if err != nil {
 			return err
 		}
 	}
 	for _, tenantID := range ids {
 		if action == "restart" {
-			if err := migrations.RestartPresenceBackfill(ctx, db, tenantID); err != nil {
+			if err := migrations.RestartPresenceBackfill(ctx, pool, tenantID); err != nil {
 				return err
 			}
 		}
@@ -80,9 +81,9 @@ func runPresenceBackfillCommand(ctx context.Context, db *bun.DB, output io.Write
 			var report migrations.PresenceBackfillReport
 			var err error
 			if action == "run" {
-				report, err = migrations.PresenceBackfillBatch(ctx, db, tenantID, options.batchSize)
+				report, err = migrations.PresenceBackfillBatch(ctx, pool, tenantID, options.batchSize)
 			} else {
-				report, err = migrations.PresenceBackfillStatus(ctx, db, tenantID)
+				report, err = migrations.PresenceBackfillStatus(ctx, pool, tenantID)
 			}
 			if err != nil {
 				return report, nil, err
@@ -92,7 +93,7 @@ func runPresenceBackfillCommand(ctx context.Context, db *bun.DB, output io.Write
 			if action == "run" && !report.Complete {
 				return report, nil, nil
 			}
-			metrics, err := migrations.PresenceBackfillMetrics(ctx, db, tenantID)
+			metrics, err := migrations.PresenceBackfillMetrics(ctx, pool, tenantID)
 			return report, &metrics, err
 		}
 		if action != "run" {

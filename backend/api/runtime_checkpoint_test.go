@@ -258,12 +258,12 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		workloadVersion = acceptanceWorkloadVersion
 		scenarios = acceptance.scenarios()
 	}
-	counter := testpkg.CaptureQueries(t, api.db)
+	counter := testpkg.CaptureQueries(t, api.db.Pool())
 	counter.Stop()
 	var postgresVersion string
 	require.NoError(t, db.NewSelect().ColumnExpr("version()").Scan(context.Background(), &postgresVersion))
 	var role string
-	require.NoError(t, api.db.NewSelect().ColumnExpr("current_user").Scan(context.Background(), &role))
+	require.NoError(t, api.db.Pool().NewSelect().ColumnExpr("current_user").Scan(context.Background(), &role))
 	require.Equal(t, "phoenix_auth", role)
 	var databaseSettings []struct {
 		Name    string `json:"name"`
@@ -279,7 +279,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 	}
 	environment := map[string]any{
 		"started_at": time.Now().UTC().Format(time.RFC3339Nano), "gomaxprocs": runtime.GOMAXPROCS(0), "logical_cpus": runtime.NumCPU(),
-		"pool_max_open_connections": api.db.Stats().MaxOpenConnections, "database_settings": databaseSettings, "fixture_rows": volumes,
+		"pool_max_open_connections": api.db.Pool().Stats().MaxOpenConnections, "database_settings": databaseSettings, "fixture_rows": volumes,
 		"http_transport": "in-process Runtime.Handler (no TCP/TLS)", "email_transport": "production mock mailer (unavailable)",
 		"lock_poll_interval_ms": 2, "app_env": os.Getenv("APP_ENV"),
 	}
@@ -375,13 +375,13 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 			for range 30 {
 				resolved, requestToken, sequence := prepareRequest(scenario)
 				counter.Reset()
-				before := api.db.Stats()
+				before := api.db.Pool().Stats()
 				counter.Start()
 				started := time.Now()
 				response := sendRequest(resolved, requestToken, sequence)
 				elapsed := time.Since(started)
 				counter.Stop()
-				after := api.db.Stats()
+				after := api.db.Pool().Stats()
 				recordsets.Observe(counter.Queries())
 				result.Samples = append(result.Samples, checkpointSample{
 					DurationMS: float64(elapsed) / float64(time.Millisecond), Queries: counter.Total(), Status: response.Code,
@@ -419,8 +419,8 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		if *runtimeCheckpointEnrollment || *runtimeCheckpointEnrollmentWrites || changeRequests != nil || acceptance != nil {
 			continue
 		}
-		workers := testpkg.MeasureDeliveryCheckpoint(t, api.db, db, api.services.EmailOutboxWorker, api.tenantRuntime, counter, func() string { return checkpointMetrics(t) })
-		workers = append(workers, testpkg.MeasureTimetableCheckpoint(t, api.db, db, api.tenantRuntime, counter, templateID, func(ctx context.Context) (int, int, error) {
+		workers := testpkg.MeasureDeliveryCheckpoint(t, api.db.Pool(), db, api.services.EmailOutboxWorker, api.db.UnitOfWork(), counter, func() string { return checkpointMetrics(t) })
+		workers = append(workers, testpkg.MeasureTimetableCheckpoint(t, api.db.Pool(), db, api.db.UnitOfWork(), counter, templateID, func(ctx context.Context) (int, int, error) {
 			result, materializeErr := api.services.Materialization.MaterializeForTenant(ctx, "2026-09-07", "2026-09-07", "scheduler")
 			if materializeErr != nil {
 				return 0, 0, materializeErr

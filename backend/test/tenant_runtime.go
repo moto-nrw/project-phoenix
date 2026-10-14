@@ -103,6 +103,21 @@ func bindPackageTenantRuntime(db *bun.DB) error {
 	return nil
 }
 
+// Database is the Transaction Runtime value the composition roots hold.
+type Database = transactionruntime.Database
+
+// NewDatabase hands a test database to a composition root as its Transaction
+// Runtime value. Its Close closes db: never close the value of a SetupTestDB
+// pool.
+func NewDatabase(tb testing.TB, db *bun.DB) Database {
+	tb.Helper()
+	database, err := transactionruntime.NewDatabase(db)
+	if err != nil {
+		tb.Fatalf("create root database: %v", err)
+	}
+	return database
+}
+
 // TenantRuntime builds the production tenant runtime against a test database.
 func TenantRuntime(tb testing.TB, db *bun.DB) tenant.UnitOfWork {
 	tb.Helper()

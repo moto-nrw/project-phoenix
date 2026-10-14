@@ -125,8 +125,3 @@ func DBConnForDemo() (*bun.DB, error) {
 func ClosePool(db *bun.DB) error {
 	return db.Close()
 }
-
-// InitDB initializes a database connection for CLI commands
-func InitDB() (*bun.DB, error) {
-	return DBConn()
-}

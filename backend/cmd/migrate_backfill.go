@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/migrations"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/spf13/cobra"
-	"github.com/uptrace/bun"
 )
 
 // migrateBackfillCmd groups resumable data backfills that migration 1.15.383
@@ -42,7 +42,7 @@ Exit status is non-zero when the run was stopped or any tenant did not reach equ
 		}
 		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		return defaultMigrateRoot.run(ctx, func(ctx context.Context, db *bun.DB) error {
+		return defaultMigrateRoot.run(ctx, func(ctx context.Context, db transactionruntime.Database) error {
 			return runRequestChildStorageBackfill(ctx, db, options, cmd.OutOrStdout())
 		})
 	},
@@ -76,8 +76,8 @@ func requestChildStorageOptionsFromFlags(cmd *cobra.Command) (migrations.Request
 // runRequestChildStorageBackfill prints one evidence row per tenant after the
 // run and fails when a tenant is incomplete, so operators and scripts see the
 // same result the checkpoint table records.
-func runRequestChildStorageBackfill(ctx context.Context, db *bun.DB, options migrations.RequestChildStorageBackfillOptions, output io.Writer) error {
-	report, runErr := migrations.RunRequestChildStorageBackfill(ctx, db, options)
+func runRequestChildStorageBackfill(ctx context.Context, db transactionruntime.Database, options migrations.RequestChildStorageBackfillOptions, output io.Writer) error {
+	report, runErr := migrations.RunRequestChildStorageBackfill(ctx, db.Pool(), options)
 	if len(report.Tenants) > 0 {
 		writeRequestChildStorageReport(output, report)
 	}

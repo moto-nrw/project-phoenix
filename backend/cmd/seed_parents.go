@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/uptrace/bun"
 
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -57,7 +56,7 @@ Usage:
 			log.Fatal("seed-parents: no password provided — pass --password or set SEED_PARENT_PASSWORD")
 		}
 
-		db, err := transactionruntime.OpenPool()
+		db, err := transactionruntime.OpenDatabase()
 		if err != nil {
 			log.Fatalf("seed-parents: database connection failed: %v", err)
 		}
@@ -99,7 +98,7 @@ type parentCandidate struct {
 	LastName  string
 }
 
-func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password string) error {
+func seedParentAccounts(ctx context.Context, db transactionruntime.Database, count int, password string) error {
 	if count <= 0 {
 		count = 5
 	}
@@ -109,17 +108,13 @@ func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password str
 		return fmt.Errorf("hash password: %w", err)
 	}
 
-	repos := services.NewGuardianSeedRepositories(db)
+	repos := services.NewGuardianSeedRepositories(db.Pool())
 
-	seedAccount, err := services.NewGuardianSeedAccess(db)
+	seedAccount, err := services.NewGuardianSeedAccess(db.Pool())
 	if err != nil {
 		return fmt.Errorf("compose guardian access: %w", err)
 	}
-	runtime, err := transactionruntime.NewTenantRuntime(db)
-	if err != nil {
-		return err
-	}
-	ctx = tenant.WithUnitOfWork(ctx, runtime)
+	ctx = tenant.WithUnitOfWork(ctx, db.UnitOfWork())
 
 	candidates, err := promotableGuardians(ctx, repos, count)
 	if err != nil {
