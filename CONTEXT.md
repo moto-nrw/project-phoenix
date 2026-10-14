@@ -722,7 +722,10 @@ Hintergrund eingesetzt ist.
 
 _Vermeiden_: Marketing-Bild, Screen, gestaltetes Bild (für Mockups).
 
-Hilfe-Screenshots im Hilfebereich sind keine Produkt-Screenshots.
+Website, Unterlagen und Hilfe zeigen jeweils die Produkt-Screenshots einer
+festgelegten Release-Version, nicht automatisch die neueste (ADR 0055).
+Hilfe-Bilder, die nicht aus der Shot-Liste stammen, sind keine
+Produkt-Screenshots.
 
 ## Löschfrist
 
