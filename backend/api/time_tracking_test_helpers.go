@@ -7,7 +7,6 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -15,9 +14,9 @@ import (
 // work-session repositories to compose the Workforce time-tracking side the
 // way the factory composes it (#3413).
 type timeTrackingTestGraph struct {
-	Audits        services.TimeTrackingAudits
+	Audits        timeTrackingAudits
 	Settings      settingsCompose.SettingsService
-	People        services.TimeTrackingStaffLookup
+	People        timeTrackingStaffLookup
 	Holidays      workforceCompose.HolidayDatesReader
 	Events        workforceCompose.EventPublisher
 	ShiftPlanSync workforceCompose.ShiftPlanSyncer
@@ -39,13 +38,18 @@ func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSession
 		}
 		return len(staff), withoutPersonnelNumber, nil
 	})
-	return services.NewTimeTracking(services.TimeTrackingPortDependencies{
-		Workforce: repos.Workforce, StaffAbsences: repos.StaffAbsence, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(repos.Workforce),
-		Audits: graph.Audits, Supervisions: repos.GroupSupervisor, SessionRecords: repos.ActiveGroup,
-		Staff: repos.Staff, People: graph.People, StaffEmployment: workforceCompose.MustNewStaffEmployment(db.Pool()),
-		WorkSchedules: repos.StaffWorkSchedule, WorkTimeModels: repos.WorkTimeModel, Holidays: graph.Holidays,
-		Settings: graph.Settings, Payroll: payroll, Events: graph.Events, ShiftPlanSync: graph.ShiftPlanSync,
-		DB: db.Pool(), Logger: graph.Logger, Today: graph.Today,
+	return newTimeTracking(timeTrackingPortDependencies{
+		Workforce: repos.Workforce,
+		Bound: workforceCompose.TimeTrackingPorts{
+			Absences: repos.StaffAbsence, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(repos.Workforce),
+			Supervisions: repos.GroupSupervisor, SessionRecords: repos.ActiveGroup, Holidays: graph.Holidays,
+			Events: graph.Events, ShiftPlanSync: graph.ShiftPlanSync,
+		},
+		Audits: graph.Audits,
+		Staff:  repos.Staff, People: graph.People, StaffEmployment: workforceCompose.MustNewStaffEmployment(db.Pool()),
+		WorkSchedules: repos.StaffWorkSchedule, WorkTimeModels: repos.WorkTimeModel,
+		Settings: graph.Settings, Payroll: payroll,
+		DB: db, Logger: graph.Logger, Today: graph.Today,
 	})
 }
 

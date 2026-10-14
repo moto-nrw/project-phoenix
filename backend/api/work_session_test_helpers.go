@@ -7,7 +7,6 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
 )
@@ -38,15 +37,15 @@ func NewWorkSessionTestModule(db transactionruntime.Database, unit tenant.UnitOf
 	}
 	audits := NewTestAuditPersistence(db, nil)
 	timeTracking, err := newTimeTrackingTestModule(db, r, timeTrackingTestGraph{
-		Audits: services.TimeTrackingAudits{
+		Audits: timeTrackingAudits{
 			WorkSessionEdit: r.WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
 			DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog,
 		},
 		Settings: settings.Settings, People: identity.Users, Holidays: noHolidays{},
-		Events: services.TimeTrackingEvents(deliveryCompose.NewRealtimeHub(slog.Default())), Logger: slog.Default(),
+		Events: timeTrackingEvents(deliveryCompose.NewRealtimeHub(slog.Default())), Logger: slog.Default(),
 	})
 	if err != nil {
 		return WorkSessionTestModule{}, err
 	}
-	return WorkSessionTestModule{TimeTracking: timeTracking, StaffClock: services.NewStaffClockService(identity.Users, rfid.RFID, timeTracking.TimeClock)}, nil
+	return WorkSessionTestModule{TimeTracking: timeTracking, StaffClock: newStaffClockService(identity.Users, rfid.RFID, timeTracking.TimeClock)}, nil
 }

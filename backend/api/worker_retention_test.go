@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +27,9 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 	admin := testpkg.SetupTestDB(t)
 	serve := testpkg.SetupServeTestDB(t)
 	t.Cleanup(func() { require.NoError(t, serve.Close()) })
-	owners, err := testutil.NewRetentionTestOwners(admin, testpkg.TenantRuntime(t, admin))
+	db, err := transactionruntime.NewDatabase(admin)
+	require.NoError(t, err)
+	owners, err := NewRetentionTestOwners(db, testpkg.TenantRuntime(t, admin))
 	require.NoError(t, err)
 	retention, err := newWorkerRetention(retentionOwners{
 		deletionLog:          owners.Audit,

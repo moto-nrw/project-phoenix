@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +33,7 @@ func TestWorkSessionAuditPreservesPartialWriteEvidence(t *testing.T) {
 	now := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
 	edit := &timetracking.WorkSessionEdit{TenantID: 9, SessionID: 7, StaffID: 8, EditedBy: 0, FieldName: "check_out_time", OldValue: &value, NewValue: &value, Notes: &value, CreatedAt: now}
 	writeErr := errors.New("second row failed")
-	writer := services.NewWorkSessionAudit(editAuditRecords{write: func(gotCtx context.Context, rows []*audit.WorkSessionEdit) error {
+	writer := api.NewWorkSessionAudit(editAuditRecords{write: func(gotCtx context.Context, rows []*audit.WorkSessionEdit) error {
 		require.Equal(t, ctx, gotCtx)
 		require.Len(t, rows, 2)
 		require.Nil(t, rows[1])
@@ -59,7 +60,7 @@ func TestWorkSessionAuditPreservesReadShapeAndError(t *testing.T) {
 	ctx := context.Background()
 	readErr := errors.New("partial read")
 	for _, rows := range [][]*audit.WorkSessionEdit{nil, {}, {nil, {ID: 7, SessionID: 8, FieldName: "date"}}} {
-		reader := services.NewWorkSessionAudit(editAuditRecords{read: func(gotCtx context.Context, id int64) ([]*audit.WorkSessionEdit, error) {
+		reader := api.NewWorkSessionAudit(editAuditRecords{read: func(gotCtx context.Context, id int64) ([]*audit.WorkSessionEdit, error) {
 			require.Equal(t, ctx, gotCtx)
 			require.EqualValues(t, 8, id)
 			return rows, readErr

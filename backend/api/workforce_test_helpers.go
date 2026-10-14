@@ -78,12 +78,12 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	today := timezone.CalendarDateClock(services.OptionalClock(clocks))
 	var shiftPlanSyncer shiftplansync.SickCascade
 	timeTracking, err := newTimeTrackingTestModule(db, repos.WorkSessionTestRepositories, timeTrackingTestGraph{
-		Audits: services.TimeTrackingAudits{
+		Audits: timeTrackingAudits{
 			WorkSessionEdit: repos.WorkSessionEdit, TimeTrackingDeletion: repos.TimeTrackingDeletion,
 			DataAccessLog: repos.DataAccessLog, TimeTrackingAuditLog: repos.TimeTrackingAuditLog,
 		},
 		Settings: settingsService, People: usersService, Holidays: nonWorkingDayService,
-		Events:        services.TimeTrackingEvents(realtimeHub),
+		Events:        timeTrackingEvents(realtimeHub),
 		ShiftPlanSync: shiftplansyncCompose.DeferredSickCascade(func() shiftplansync.SickCascade { return shiftPlanSyncer }),
 		Logger:        logger, Today: today,
 	})
@@ -143,12 +143,21 @@ type StaffAdminDependencies struct {
 	Now             func() time.Time
 }
 
-// NewStaffAdmin is ComposeStaffAdmin over one flat dependency set.
+// NewStaffAdmin composes the personnel-record administration over one flat
+// dependency set.
 func NewStaffAdmin(deps StaffAdminDependencies) (*workforce.StaffAdmin, error) {
-	return services.ComposeStaffAdmin(workforceCompose.StaffAdminDependencies{
+	return composeStaffAdmin(workforceCompose.StaffAdminDependencies{
 		DB: deps.DB.Pool(), Observe: deps.Observe, Logger: deps.Logger, Now: deps.Now,
-	}, services.StaffAdminOwners{
+	}, staffAdminOwners{
 		Staff: deps.Staff, Persons: deps.Persons, Membership: deps.Membership,
 		MasterDataAudit: deps.MasterDataAudit, PersonnelNumber: deps.PersonnelNumber, DataAccessLog: deps.DataAccessLog,
 	})
 }
+
+// StaffAbsenceRow and AbsenceRequestFilter name the Workforce rows the staff
+// absence decorators read and write, for the suites outside this package
+// whose test roles may not name the Workforce composition.
+type (
+	StaffAbsenceRow      = workforceCompose.StaffAbsence
+	AbsenceRequestFilter = workforceCompose.AbsenceRequestFilter
+)

@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,7 +70,7 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 		timetracking.WithAbsenceToday(func() timezone.Date { return timezone.NewDate(2026, 8, 24) }),
 		// Wired exactly like services/factory.go does.
 		timetracking.WithVacationOpenings(workforceCompose.NewTimeTrackingTestRows(owners.Workforce).VacationOpenings),
-		timetracking.WithAbsenceDeletionAudit(services.NewTimeTrackingDeletionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)),
+		timetracking.WithAbsenceDeletionAudit(api.NewTimeTrackingDeletionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)),
 	)
 
 	return &vacationOpeningFixture{

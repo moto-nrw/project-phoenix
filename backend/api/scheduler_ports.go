@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -150,7 +152,7 @@ func newWorkerReads(modules moduleServices) workerReads {
 	return workerReads{
 		existingRooms: schedulerExistingRooms(modules.rooms),
 		timetable:     modules.timetableRepositories,
-		workSessions:  services.WorkPresence(modules.workforce),
+		workSessions:  workforceCompose.WorkPresence(modules.workforce),
 		students:      modules.students,
 		staff:         modules.staff,
 		// A nil owner leaves the interface nil, so the Worker runs no audit.

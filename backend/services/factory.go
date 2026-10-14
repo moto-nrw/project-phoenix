@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
@@ -92,7 +94,6 @@ import (
 	reminderPorts "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
-	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
 	"github.com/spf13/viper"
@@ -158,7 +159,6 @@ type Factory struct {
 	Invitation         InvitationCapability
 	GuardianInvitation GuardianInvitationCapability
 	IoT                devicefleetCompose.IoTService
-	StaffClock         *staffclock.Service
 	Settings           settingsCompose.SettingsService
 	TenantSettings     *settingsCompose.TenantOperations
 	PayrollStatus      settingsCompose.PayrollStatusGetter
@@ -475,6 +475,7 @@ func NewFactoryWithModules(
 	observeDeviceFleet DeviceFleetObserver,
 	observeIdentityAccess IdentityAccessObserver,
 	workTime workforceModule.Capability,
+	workforce WorkforceWiring,
 	observeDataImport DataImportObserver,
 	productEvents ProductEventTracker,
 	fileStorage FileStorageWiring,
@@ -490,7 +491,70 @@ func NewFactoryWithModules(
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	cfg := CurrentFactoryConfig()
 	cfg.PublicAPIURL = publicAPIURL
-	return NewFactoryWithConfig(carePlan, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, observeDataImport, productEvents, fileStorage, tokens, false, clocks...)
+	return NewFactoryWithConfig(carePlan, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, workforce, observeDataImport, productEvents, fileStorage, tokens, false, clocks...)
+}
+
+// WorkforceWiring is what the root binds of Workforce into the service graph
+// (#4008, ADR 0053 point 8). The adapters over the owners the root composes
+// come built. The bindings over the staff rows, audit trails, settings and
+// mail only this graph builds come as functions the graph calls with them.
+type WorkforceWiring struct {
+	// StaffAbsences is the Workforce staff absence repository with the
+	// request rows translated through School Membership and the People
+	// Directory.
+	StaffAbsences workforceCompose.StaffAbsenceRepository
+	// ShiftRows and ShiftTypeRows serve the retained Dienstplan rows of the
+	// Timetable composition from Workforce.
+	ShiftRows     *arrivalTimetable.WorkforceShiftRows
+	ShiftTypeRows *arrivalTimetable.WorkforceShiftTypeRows
+	// StaffAdmin composes the personnel-record administration.
+	StaffAdmin func(WorkforceStaffAdminSources) (*workforceModule.StaffAdmin, error)
+	// TimeTracking composes the time-tracking side of Workforce.
+	TimeTracking func(WorkforceTimeTrackingSources) (*workforceCompose.TimeTracking, error)
+	// PlanExportStaff serves the plan export's staff names.
+	PlanExportStaff planexport.StaffNameReader
+}
+
+// WorkforceStaffAdminSources are the retained staff and person rows and the
+// audit trails the personnel-record administration is bound over.
+type WorkforceStaffAdminSources struct {
+	Staff   peopleVocabulary.StaffRepository
+	Persons peopleVocabulary.PersonRepository
+	Audits  *auditCompose.Persistence
+	Logger  *slog.Logger
+	Now     func() time.Time
+}
+
+// WorkforceTimeTrackingSources are the retained rows, audit trails,
+// settings, broadcaster and mail the time-tracking ports are bound over.
+type WorkforceTimeTrackingSources struct {
+	Audits         *auditCompose.Persistence
+	Supervisions   workforceCompose.GroupSupervisorRepository
+	SessionRecords workforceCompose.GroupRepository
+	Staff          peopleVocabulary.StaffRepository
+	People         *peopleCompose.PersonDirectory
+	Holidays       workforceCompose.HolidayDatesReader
+	Settings       settingsCompose.SettingsService
+	Payroll        settingsCompose.PayrollStatusGetter
+	Broadcaster    realtime.Broadcaster
+	Mail           WorkforceMail
+	ShiftPlanSync  workforceCompose.ShiftPlanSyncer
+	Logger         *slog.Logger
+}
+
+// WorkforceMail is the tenant mail the absence requests go out through.
+type WorkforceMail struct {
+	Dispatcher interface {
+		Dispatch(context.Context, email.DeliveryRequest)
+	}
+	From        email.Email
+	ReplyTo     email.ReplyToResolver
+	FrontendURL string
+}
+
+func (w WorkforceWiring) complete() bool {
+	return w.StaffAbsences != nil && w.ShiftRows != nil && w.ShiftTypeRows != nil &&
+		w.StaffAdmin != nil && w.TimeTracking != nil && w.PlanExportStaff != nil
 }
 
 // FileStorageWiring carries what the File Storage module needs from the root
@@ -529,6 +593,7 @@ func NewFactoryWithConfig(
 	observeDeviceFleet DeviceFleetObserver,
 	observeIdentityAccess IdentityAccessObserver,
 	workTime workforceModule.Capability,
+	workforce WorkforceWiring,
 	observeDataImport DataImportObserver,
 	productEvents ProductEventTracker,
 	fileStorage FileStorageWiring,
@@ -536,6 +601,9 @@ func NewFactoryWithConfig(
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
+	if !workforce.complete() {
+		return nil, errors.New("the root's Workforce wiring is required")
+	}
 	now := OptionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
 	roomRepository := NewRoomRepository(rooms)
@@ -577,7 +645,7 @@ func NewFactoryWithConfig(
 		Now: now, Devices: sessionDevices, Rooms: rooms, Timetable: timetableCapability, Membership: membership, Persons: persons,
 	})
 	groupSupervisions := NewGroupSupervisionRecords(sessionRecords, groups)
-	staffAbsences := NewStaffAbsenceRepository(workTime, membership, persons)
+	staffAbsences := workforce.StaffAbsences
 	calendarPeriods := arrivalTimetable.NewCalendarPeriodRepository(calendar, arrivalTimetable.NewPlanningCalendarPeriodUsage(enrollmentModule, timetableCapability))
 	statusDays := NewStudentStatusDayRepository(carePlan)
 	parentPortal := NewParentPortalRepositories(db, ParentPortalOwners{
@@ -883,11 +951,9 @@ func NewFactoryWithConfig(
 	// Personnel record (#1417, #1423, #1424): the payroll number, the Stammdaten
 	// sections and the Dokumente tab are Workforce's own administration; the
 	// staff and person rows behind it and the audit trail are bound here.
-	staffAdmin, err := ComposeStaffAdmin(workforceCompose.StaffAdminDependencies{
-		DB: db, Logger: logger.With("service", "staff_documents"), Now: now,
-	}, StaffAdminOwners{
-		Staff: staffRepository, Persons: personRepository, Membership: membership,
-		MasterDataAudit: audits.StaffMasterDataChange, PersonnelNumber: audits.PersonnelNumberChange, DataAccessLog: audits.DataAccessLog,
+	staffAdmin, err := workforce.StaffAdmin(WorkforceStaffAdminSources{
+		Staff: staffRepository, Persons: personRepository, Audits: audits,
+		Logger: logger.With("service", "staff_documents"), Now: now,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("staff admin: %w", err)
@@ -969,31 +1035,17 @@ func NewFactoryWithConfig(
 	// The time-tracking side of Workforce (#3413): stamps, history and edits,
 	// absences, month balances and their close, overview, exports and the
 	// audit feed, over the Workforce rows and the ports bound here.
-	timeTracking, err := NewTimeTracking(TimeTrackingPortDependencies{
-		Workforce: workTime, StaffAbsences: staffAbsences, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(workTime),
-		Audits: TimeTrackingAudits{
-			WorkSessionEdit: audits.WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion,
-			DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog,
-		},
-		Supervisions: groupSupervisions, SessionRecords: sessionRecords,
-		Staff: staffRepository, People: usersService, StaffEmployment: workforceCompose.MustNewStaffEmployment(db),
-		WorkSchedules: staffWorkSchedules, WorkTimeModels: workTimeModels, Holidays: nonWorkingDayService,
-		Settings: settingsService, Payroll: payrollStatusService, Events: TimeTrackingEvents(realtimeHub),
-		AbsenceEmail: &workforceCompose.AbsenceEmailDeps{
-			Settings:    PresenceSettings(settingsService),
-			Dispatcher:  absenceEmailDispatcher{dispatcher: dispatcher, from: defaultFrom, identity: tenantMailIdentity, logger: activeLogger},
-			StaffRepo:   absenceEmailStaffDirectory{source: staffRepository},
-			SchoolRepo:  absenceEmailSchoolDirectory{schools: organizations},
-			FrontendURL: frontendURL,
-			Logger:      activeLogger,
-		},
+	timeTracking, err := workforce.TimeTracking(WorkforceTimeTrackingSources{
+		Audits: audits, Supervisions: groupSupervisions, SessionRecords: sessionRecords,
+		Staff: staffRepository, People: usersService, Holidays: nonWorkingDayService,
+		Settings: settingsService, Payroll: payrollStatusService, Broadcaster: realtimeHub,
+		Mail:          WorkforceMail{Dispatcher: dispatcher, From: defaultFrom, ReplyTo: tenantMailIdentity, FrontendURL: frontendURL},
 		ShiftPlanSync: shiftplansyncCompose.DeferredSickCascade(func() shiftplansync.SickCascade { return shiftPlanSyncer }),
-		DB:            db, Logger: activeLogger,
+		Logger:        activeLogger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose time tracking: %w", err)
 	}
-	staffClockService := NewStaffClockService(usersService, peopleIdentity, timeTracking.TimeClock)
 
 	// The Timetable owner's attendance mirror (WP-B10, #3424 slice S3) serves
 	// Student Presence's attendance syncer port: CreateVisit / EndVisit trigger
@@ -1239,8 +1291,7 @@ func NewFactoryWithConfig(
 	// The retained-row readers the Timetable coverage probe, the staff
 	// calendar feed and the plan export still speak, served over the same
 	// facade by the legacy row adapters (#3418, #3424).
-	shiftRows := NewWorkforceShiftRows(workTime)
-	shiftTypeRows := NewWorkforceShiftTypeRows(workTime)
+	shiftRows, shiftTypeRows := workforce.ShiftRows, workforce.ShiftTypeRows
 
 	// Couples pulled-forward day pickup times with the per-block partial
 	// absences (#2360). Shared by the staff pickup-exception writers and the
@@ -1810,10 +1861,7 @@ func NewFactoryWithConfig(
 		PresenceSettings(settingsService),
 		today,
 	)
-	unregisteredTagScanService, err := auditCompose.NewUnregisteredTagScanService(
-		newUnregisteredTagScanRepository(legacyDeviceFleet),
-		auditCompose.UnregisteredTagScanRuntime{TenantID: tenant.FromContext},
-	)
+	unregisteredTagScanService, err := NewUnregisteredTagScans(legacyDeviceFleet)
 	if err != nil {
 		return nil, err
 	}
@@ -2283,7 +2331,7 @@ func NewFactoryWithConfig(
 		staffRepository,
 		identityAccess,
 		settingsService,
-		WorkPresence(workTime),
+		workforceCompose.WorkPresence(workTime),
 	)
 	staffParentMessageNotifier := notifications.NewStaffParentMessageNotifier(
 		notificationsService,
@@ -2598,7 +2646,7 @@ func NewFactoryWithConfig(
 		InstanceStaff:  arrivalTimetable.NewTimetableInstanceStaffReads(timetableRepos.InstanceStaff),
 		Students:       timetableRepos.InstanceStudent,
 		Rooms:          rooms,
-		Staff:          planExportStaffNames{staff: staffRepository},
+		Staff:          workforce.PlanExportStaff,
 		ActivityGroups: arrivalTimetable.NewTimetableGroupReads(timetableRepos.ActivityGroup),
 		PlanningTracks: timetableCapability,
 		ClosingDays:    planExportClosingDays{calendar: calendar},
@@ -2819,7 +2867,6 @@ func NewFactoryWithConfig(
 		Schulhof:                schulhofService,
 		WC:                      wcService,
 		IoT:                     iotService,
-		StaffClock:              staffClockService,
 		Settings:                settingsService,
 		PayrollStatus:           payrollStatusService,
 		StaffShifts:             shiftPlanning.Planning(planExportService),

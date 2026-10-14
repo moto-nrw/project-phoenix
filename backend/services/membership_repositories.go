@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 
+	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -73,4 +75,76 @@ func NewGroupSubstitutionRepository(groups EducationGroupRepository, membership 
 		groups.FindByIDs,
 		membership,
 	)
+}
+
+// groupSubstitutions serves the retained group substitution contract over
+// the Workforce rows. The reads with relations attach the group through
+// School Structure and the staff members through School Membership; the
+// Workforce adapter names neither (#3556).
+type groupSubstitutions struct {
+	GroupSubstitutionRows
+	groups     func(ctx context.Context, ids []int64) (map[int64]*educationRepo.Group, error)
+	membership staffLookup
+}
+
+func newGroupSubstitutions(rows GroupSubstitutionRows, groups func(context.Context, []int64) (map[int64]*educationRepo.Group, error), membership staffLookup) groupSubstitutions {
+	return groupSubstitutions{GroupSubstitutionRows: rows, groups: groups, membership: membership}
+}
+
+// FindGroupHandovers lists the substitutions of one group as School
+// Structure values, the group service's deletion guard.
+func (r groupSubstitutions) FindGroupHandovers(ctx context.Context, groupID int64) ([]*educationRepo.GroupSubstitution, error) {
+	return educationHandovers(r.FindByGroup(ctx, groupID))
+}
+
+// ListWithRelations resolves the groups and then the staff members. Soft-
+// deleted staff are included so historical substitutions keep resolving
+// after offboarding, as the replaced WhereAllWithDeleted lookup did.
+func (r groupSubstitutions) ListWithRelations(ctx context.Context, options *userModels.QueryOptions) ([]*educationRepo.GroupSubstitution, error) {
+	rows, err := educationHandovers(r.ListWithOptions(ctx, options))
+	if err != nil || len(rows) == 0 {
+		return rows, err
+	}
+	groupIDs := make([]int64, 0, len(rows))
+	staffIDs := make([]int64, 0, 2*len(rows))
+	for _, row := range rows {
+		if row.GroupID > 0 {
+			groupIDs = append(groupIDs, row.GroupID)
+		}
+		staffIDs = append(staffIDs, row.SubstituteStaffID)
+		if row.RegularStaffID != nil {
+			staffIDs = append(staffIDs, *row.RegularStaffID)
+		}
+	}
+	if groupIDs = uniqueIDs(groupIDs); len(groupIDs) > 0 {
+		groups, err := r.groups(ctx, groupIDs)
+		if err != nil {
+			return nil, &userModels.DatabaseError{Op: "load substitution groups", Err: err}
+		}
+		for _, row := range rows {
+			row.Group = groups[row.GroupID]
+		}
+	}
+	members, err := staffByID(ctx, r.membership, staffIDs, true)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if member, found := members[row.SubstituteStaffID]; found {
+			row.SubstituteStaff = substitutionStaff(member)
+		}
+		if row.RegularStaffID == nil {
+			continue
+		}
+		if member, found := members[*row.RegularStaffID]; found {
+			row.RegularStaff = substitutionStaff(member)
+		}
+	}
+	return rows, nil
+}
+
+// substitutionStaff is the staff reference a substitution row carries; the
+// name follows from the People Directory where a reader needs it.
+func substitutionStaff(value schoolmembership.Staff) *educationRepo.SubstitutionStaff {
+	return &educationRepo.SubstitutionStaff{ID: value.ID, PersonID: value.PersonID}
 }
