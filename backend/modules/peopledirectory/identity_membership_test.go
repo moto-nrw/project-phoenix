@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -179,7 +180,7 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	require.Nil(t, profiles, "failed account reachability must not return candidates")
 
 	staffAccounts := func(context.Context) ([]int64, error) { return []int64{chain.AccountID}, nil }
-	reads := api.NewPeopleRepositorySuiteRetainedColleagues(testpkg.NewDatabase(t, db), staffAccounts, api.PeopleRepositorySuiteStaffMessageIdentity{})
+	reads := api.NewPeopleRepositorySuiteRetainedColleagues(testpkg.NewDatabase(t, db), staffAccounts, peopleCompose.RetainedStaffMessageIdentity{})
 	_, err = reads.ListMessageableStaff(ctx, chain.AccountID)
 	require.ErrorContains(t, err, "active school account lookup is required")
 	_, err = reads.IsMessageableStaff(ctx, chain.AccountID)
@@ -187,7 +188,7 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	_, err = reads.StaffRoleKinds(ctx, []int64{chain.AccountID})
 	require.ErrorContains(t, err, "role class query is required")
 
-	failingStaff := api.NewPeopleRepositorySuiteRetainedColleagues(testpkg.NewDatabase(t, db), staffAccounts, api.PeopleRepositorySuiteStaffMessageIdentity{
+	failingStaff := api.NewPeopleRepositorySuiteRetainedColleagues(testpkg.NewDatabase(t, db), staffAccounts, peopleCompose.RetainedStaffMessageIdentity{
 		ActiveSchoolAccounts: func(_ context.Context, schoolID int64, accountIDs []int64) ([]int64, error) {
 			require.Equal(t, chain.TenantID, schoolID)
 			require.Equal(t, []int64{chain.AccountID}, accountIDs)
@@ -213,8 +214,8 @@ func TestIdentityMembership_RoleClassFailureIsNotSwallowed(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "role-class-failure")
 	ownerFailure := errors.New("identity access unavailable")
 
-	reads := api.NewPeopleRepositorySuiteRetainedColleagues(testpkg.NewDatabase(t, db), nil, api.PeopleRepositorySuiteStaffMessageIdentity{
-		RoleClasses: func(context.Context, int64, []int64) ([]api.PeopleRepositorySuiteSchoolRoleClass, error) {
+	reads := api.NewPeopleRepositorySuiteRetainedColleagues(testpkg.NewDatabase(t, db), nil, peopleCompose.RetainedStaffMessageIdentity{
+		RoleClasses: func(context.Context, int64, []int64) ([]peopleCompose.RetainedSchoolRoleClass, error) {
 			return nil, ownerFailure
 		},
 	})

@@ -5,9 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -16,7 +15,7 @@ import (
 func TestAccountRoleQueriesScopeAndSystemRoles(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "role-facts")
@@ -76,7 +75,7 @@ func TestAccountRoleQueriesScopeAndSystemRoles(t *testing.T) {
 func TestAccountRoleQueriesDatabaseFailures(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 	_, _, err = identity.FindSystemRoleID(context.Background(), "user")

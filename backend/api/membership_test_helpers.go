@@ -75,13 +75,6 @@ func identityChainOf(db transactionruntime.Database, members services.Membership
 	}
 }
 
-// The test graph vocabulary the root tests reach through api/testutil, which
-// may not name the repository composition.
-type (
-	MembershipTestDependencies = services.MembershipTestRepositories
-	TimetableTestDependencies  = services.TimetableDependencies
-)
-
 // NewStudentDirectory adapts the People Directory's directory read to the
 // retained model-typed contract, for suites that may not import the owner's
 // composition.

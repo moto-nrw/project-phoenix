@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -249,7 +250,7 @@ func TestMarkUnread_KeepsParentReadReceipt(t *testing.T) {
 
 	receipts := func() (bool, bool) {
 		t.Helper()
-		messages, err := api.NewParentMessageRepository(testpkg.NewDatabase(t, f.db)).ListByThread(guardianCtx, threadID, 0)
+		messages, err := parentStore.NewParentMessageRepository(f.db).ListByThread(guardianCtx, threadID, 0)
 		require.NoError(t, err)
 		messaging.DecorateReadReceipts(guardianCtx, repos.ParentMessageRead, nil, threadID, f.chain.AccountID, messages)
 		var guardianMessage *usersModels.ParentMessage
@@ -321,7 +322,7 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
 	disabled := messaging.NewService(messaging.Config{
-		ThreadRepo: repos.ParentMessageThread, MessageRepo: api.NewParentMessageRepository(testpkg.NewDatabase(t, f.db)), ReadRepo: repos.ParentMessageRead,
+		ThreadRepo: repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(f.db), ReadRepo: repos.ParentMessageRead,
 		Persons:     newPersons(repos, f.db),
 		Settings:    stubSettings{messagingEnabled: false},
 		Broadcaster: f.bc, DB: f.db, Logger: slog.Default(),

@@ -20,6 +20,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -148,8 +149,8 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 		Requests:         repos.Enrollment(),
 		Children:         repos.Enrollment(),
 		Guardians:        repos.Enrollment(),
-		CareOfferingRepo: api.NewEnrollmentCareOfferingRecords(repos.CarePlan),
-		Capacity:         api.NewEnrollmentOfferingCapacity(api.NewEnrollmentCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
+		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
+		Capacity:         api.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
 		Catalog:          repos.Enrollment(),
 		SchoolRepo:       capabilitySchools{schools: repos.School},
 		Notifications:    NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
@@ -165,8 +166,8 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeove
 		Children:            repos.Enrollment(),
 		Guardians:           repos.Enrollment(),
 		LateInviteRepo:      repos.Enrollment(),
-		CareOfferingRepo:    api.NewEnrollmentCareOfferingRecords(repos.CarePlan),
-		Capacity:            api.NewEnrollmentOfferingCapacity(api.NewEnrollmentCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
+		CareOfferingRepo:    enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
+		Capacity:            api.NewEnrollmentOfferingCapacity(enrollmentCompose.NewCareOfferingRecords(repos.CarePlan), repos.Enrollment(), settings),
 		Catalog:             repos.Enrollment(),
 		Notifications:       NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: settings}, discardingOutbox{}, capabilitySchools{schools: repos.School}),
 		GuardianProfileRepo: repos.GuardianProfile,

@@ -31,21 +31,7 @@ import (
 
 // The composed graphs and the values the suites pass back into them.
 type (
-	PeopleRepositorySuiteParentMessaging       = ParentMessagingTestRepositories
-	PeopleRepositorySuiteCareLifecycle         = CareLifecycleTestRepositories
-	PeopleRepositorySuiteAuditCommand          = auditModels.Command
-	PeopleRepositorySuiteGuardianProfileOption = peopleCompose.RetainedGuardianProfileOption
-	PeopleRepositorySuiteRelationshipOption    = peopleCompose.RetainedGuardianRelationshipOption
-	PeopleRepositorySuitePortalMemberships     = peopleCompose.RetainedPortalMembershipQuery
-	PeopleRepositorySuiteSchoolMemberships     = peopleCompose.RetainedSchoolMembershipLookup
-	PeopleRepositorySuiteStaffAccounts         = peopleCompose.RetainedStaffAccountsFunc
-	PeopleRepositorySuiteStaffMessageIdentity  = peopleCompose.RetainedStaffMessageIdentity
-	PeopleRepositorySuiteSchoolRoleClass       = peopleCompose.RetainedSchoolRoleClass
-	PeopleRepositorySuitePickupCommand         = peopleCompose.RetainedGuardianPickupCommand
-	PeopleRepositorySuiteAccessCommand         = peopleCompose.RetainedGuardianAccessCommand
-	PeopleRepositorySuiteRecipients            = peopleCompose.RetainedMessageableGuardians
-	PeopleRepositorySuiteColleagues            = peopleCompose.RetainedMessageableStaff
-	PeopleRepositorySuitePeople                = peopledirectory.Capability
+	PeopleRepositorySuiteParentMessaging = ParentMessagingTestRepositories
 )
 
 // PeopleRepositorySuiteFactory is the test graph over the unobserved

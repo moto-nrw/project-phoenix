@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
@@ -305,7 +306,9 @@ func setupCaregiverCompositionModule(t *testing.T, graph *serveGraph) *caregiver
 
 func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
 	t.Helper()
-	db, module := setupSettingsCallbacksModule(t)
+	db := testpkg.SetupTestDB(t)
+	module, err := NewSettingsCallbacksTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), newStudentPhotoTestBootstrap().Unlinker)
+	require.NoError(t, err)
 	repos, err := NewEnrollmentTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 	homeLayouts, ok := module.Settings.(interface {
@@ -907,7 +910,7 @@ func TestRegisterRoutes_UsersRoutesRunThroughProtectedGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	people, err := NewPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	identity, err := NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	resource := newUsersResource(people, identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
 		_, _, found, err := identity.LookupRFIDCard(ctx, tagID)

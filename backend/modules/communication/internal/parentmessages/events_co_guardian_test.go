@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -31,7 +32,7 @@ func TestEmitChildEventToOtherGuardians_NeutralForEveryoneButTheSubmitter(t *tes
 	other := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Klaus", "Zweitelternteil")
 
 	settings := &toggleSettings{enabled: true}
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, api.NewParentMessageRepository(testpkg.NewDatabase(t, db)),
+	emitter := newMockEmitter(t, db, repos.ParentMessageThread, parentStore.NewParentMessageRepository(db),
 		settings, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	full := parentmessaging.ChildEvent{
@@ -74,7 +75,7 @@ func TestEmitChildEventToOtherGuardians_LoneGuardianGetsNothing(t *testing.T) {
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 
 	settings := &toggleSettings{enabled: true}
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, api.NewParentMessageRepository(testpkg.NewDatabase(t, db)),
+	emitter := newMockEmitter(t, db, repos.ParentMessageThread, parentStore.NewParentMessageRepository(db),
 		settings, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	recipients := otherGuardiansOf(t, db, emitter, submitter)
@@ -122,7 +123,7 @@ func TestResolveDecisionAudience_SplitsSharedFromNeutral(t *testing.T) {
 	shared := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Klaus", "Mitleser")
 	uninvolved := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Rita", "Ohnezugang")
 
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, api.NewParentMessageRepository(testpkg.NewDatabase(t, db)),
+	emitter := newMockEmitter(t, db, repos.ParentMessageThread, parentStore.NewParentMessageRepository(db),
 		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	var audience parentmessaging.DecisionAudience
@@ -154,7 +155,7 @@ func TestResolveDecisionAudience_NoSharesMeansEverybodyNeutral(t *testing.T) {
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Klaus", "Zweitelternteil")
 
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, api.NewParentMessageRepository(testpkg.NewDatabase(t, db)),
+	emitter := newMockEmitter(t, db, repos.ParentMessageThread, parentStore.NewParentMessageRepository(db),
 		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	var audience parentmessaging.DecisionAudience

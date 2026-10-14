@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -33,7 +34,7 @@ func newExportDecisionService(env *decisionTestEnv, auditRepo api.EnrollmentFlow
 	return newTestDecisionService(api.EnrollmentDecisionSources{
 		Requests:      env.repos.Enrollment(),
 		Children:      env.repos.Enrollment(),
-		CareOfferings: api.NewEnrollmentCareOfferingRecords(env.repos.CarePlan()),
+		CareOfferings: enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
 		Phases:        env.repos.Enrollment(),
 		Schemas:       env.repos.Enrollment(),
 		DataAccessLog: auditRepo,
@@ -68,7 +69,7 @@ func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo api.E
 	return newTestDecisionService(api.EnrollmentDecisionSources{
 		Requests:      env.repos.Enrollment(),
 		Children:      env.repos.Enrollment(),
-		CareOfferings: api.NewEnrollmentCareOfferingRecords(env.repos.CarePlan()),
+		CareOfferings: enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
 		Phases:        env.repos.Enrollment(),
 		Schemas:       failingSchemaRepo{env.repos.Enrollment()},
 		DataAccessLog: auditRepo,
@@ -81,7 +82,7 @@ func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo api.En
 	return newTestDecisionService(api.EnrollmentDecisionSources{
 		Requests:      env.repos.Enrollment(),
 		Children:      env.repos.Enrollment(),
-		CareOfferings: api.NewEnrollmentCareOfferingRecords(env.repos.CarePlan()),
+		CareOfferings: enrollmentCompose.NewCareOfferingRecords(env.repos.CarePlan()),
 		Phases:        failingPhaseRepo{env.repos.Enrollment()},
 		Schemas:       env.repos.Enrollment(),
 		DataAccessLog: auditRepo,

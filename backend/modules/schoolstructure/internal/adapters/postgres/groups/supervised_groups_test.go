@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +15,7 @@ import (
 // staffIDsFor collapses the flat pair list into the staff set of one group,
 // which is what a producer looking for "who is responsible for this child"
 // consumes.
-func staffIDsFor(pairs []api.SchoolStructureSuiteStaffGroupID, groupID int64) map[int64]struct{} {
+func staffIDsFor(pairs []schoolStructureCompose.StaffGroupID, groupID int64) map[int64]struct{} {
 	out := make(map[int64]struct{})
 	for _, pair := range pairs {
 		if pair.GroupID == groupID {

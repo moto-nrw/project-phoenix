@@ -5,9 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +15,7 @@ import (
 func TestRoleCatalogWithoutLifecycle(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	catalog, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
+	catalog, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	role := testpkg.CreateTestRole(t, db, "catalog-without-lifecycle")
@@ -39,7 +38,7 @@ func TestRoleCatalogWithoutLifecycle(t *testing.T) {
 func TestRoleCatalogDatabaseFailures(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	catalog, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
+	catalog, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, db.Close())

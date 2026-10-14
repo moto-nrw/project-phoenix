@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
@@ -84,7 +85,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 		Bookings:         requestTestBookingCommands(),
 		Requests:         repoFactory.Enrollment(),
 		Children:         repoFactory.Enrollment(),
-		CareOfferingRepo: api.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
+		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
 		Catalog:          repoFactory.Enrollment(),
 		SchoolRepo:       factorySchools{repos: repoFactory},
 		RateLimitRepo:    repoFactory.Enrollment(),

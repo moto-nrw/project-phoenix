@@ -35,7 +35,9 @@ type staffCompositionContext struct {
 
 func setupStaffCompositionRoute(t *testing.T) *staffCompositionContext {
 	t.Helper()
-	db, svc := setupStaffModule(t)
+	db := testpkg.SetupTestDB(t)
+	svc, err := NewStaffTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
 	membership, err := NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	resource := newStaffTestResource(membership, svc, testpkg.NewDatabase(t, db), slog.Default())

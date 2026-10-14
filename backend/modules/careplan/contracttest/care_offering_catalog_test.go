@@ -1086,16 +1086,16 @@ func newOfferingChanges(
 		ResolveBool(context.Context, string) (bool, error)
 		ResolveString(context.Context, string) (string, error)
 	},
-	bookings api.OfferingChangeTestBookings,
+	bookings careplan.BookingMaterializationCapability,
 	options ...api.OfferingChangeOption,
-) api.OfferingChangeTestCapability {
+) careplan.OfferingChangeCapability {
 	tb.Helper()
 	changes, err := api.NewOfferingChanges(testpkg.NewDatabase(tb, db), settings, bookings, options...)
 	require.NoError(tb, err)
 	return changes
 }
 
-func newOfferingReviewQuery(tb testing.TB, db *bun.DB, today func() calendar.Date) api.OfferingReviewTestQuery {
+func newOfferingReviewQuery(tb testing.TB, db *bun.DB, today func() calendar.Date) careplan.OfferingReviewQuery {
 	tb.Helper()
 	query, err := api.NewOfferingReviewTestQuery(testpkg.NewDatabase(tb, db), today)
 	require.NoError(tb, err)

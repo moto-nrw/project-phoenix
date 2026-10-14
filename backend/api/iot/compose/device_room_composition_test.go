@@ -18,7 +18,8 @@ func TestAvailableRoomsUsesDeviceTenantComposition(t *testing.T) {
 
 	db, data := setupIoTDataModule(t)
 	_, auth := setupAuthModule(t)
-	_, feedback := setupFeedbackModule(t)
+	feedback, err := api.NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 	testDevice := testpkg.CreateTestDevice(t, db, "tenant-room-device")
 	schools, err := api.NewDeviceSchools(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))

@@ -9,8 +9,6 @@ import (
 // ApprovedOfferingTestProjection exposes the composed read view to API test roots.
 type ApprovedOfferingTestProjection = enrollmentCompose.ApprovedOfferingProjection
 
-type ApprovedSelectionTestReader = enrollmentCompose.ApprovedSelections
-
 func NewOwnerApprovedOfferingTestProjection(db transactionruntime.Database) (*ApprovedOfferingTestProjection, error) {
 	return NewApprovedOfferingTestProjection(db, services.NewEnrollmentBookingProjection(enrollmentCompose.New()))
 }

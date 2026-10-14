@@ -50,7 +50,7 @@ staff, err := rs.UsersService.GetStaffByPersonID(ctx, personID)
 
 `backend/test/handler_layer_ratchet_test.go` (`TestHandlerLayerRatchet`) fails any PR that reintroduces one of five patterns, all with empty allowlists:
 
-1. Repo-typed declarations in `api/`
+1. Repo-typed declarations in `api/`, outside the root's test composition hooks (`api/*_test_helpers.go`, #4005), which build the retained repositories for tests and serve no request
 2. `.XxxRepository()` getter calls (backend-wide except `database/` and `test/`)
 3. Query construction (`NewSelect` etc.) in `api/`
 4. `database/repositories` imports in `api/` beyond `base.go` + `testutil/`
@@ -157,7 +157,7 @@ The old per-entity `BeforeAppendModel(query any) error` hooks never ran: bun's h
 gocognit -over 15 backend/api/
 ```
 
-**CI-enforced since 2026-07-12** (issue #575 B0): `TestHandlerComplexityRatchet` (`backend/test/handler_complexity_ratchet_test.go`) fails any function under `api/` scoring over 15 that is not in its shrink-only allowlist (seeded with the 75 offenders existing at ratchet time; keys match `gocognit -over 15 api/` output 1:1). When a refactor lowers a score, ratchet the entry down; never raise one or add one.
+**CI-enforced since 2026-07-12** (issue #575 B0): `TestHandlerComplexityRatchet` (`backend/test/handler_complexity_ratchet_test.go`) fails any function under `api/` scoring over 15 that is not in its shrink-only allowlist; the root's test composition hooks (`api/*_test_helpers.go`, #4005) are no handlers and stay outside the scan (seeded with the 75 offenders existing at ratchet time; keys match `gocognit -over 15 api/` output 1:1). When a refactor lowers a score, ratchet the entry down; never raise one or add one.
 
 Two shapes that keep handlers under the threshold without hiding logic:
 

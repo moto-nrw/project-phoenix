@@ -21,7 +21,6 @@ type (
 	OfferingChangeTestCapability = careplan.OfferingChangeCapability
 	OfferingChangeTestBookings   = careplan.BookingMaterializationCapability
 	OfferingChangeTestCatalog    = careplanCompose.OfferingChangeCatalog
-	OfferingReviewTestQuery      = careplan.OfferingReviewQuery
 )
 
 // OfferingChangeTestOptions replace collaborators of Care Plan's

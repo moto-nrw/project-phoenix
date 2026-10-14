@@ -34,60 +34,17 @@ func NewSchoolStructureRepositorySuiteGraph(db transactionruntime.Database) (*Pe
 
 // The retained School Structure service suites (services/education) may
 // import neither the service package they drive nor the legacy composition
-// (#2742). They name the service's vocabulary and compose it through these
-// entries, behind api/testutil. Every entry goes with the last suite that
-// uses it.
-
-type (
-	EducationSuiteService                        = education.Service
-	EducationSuiteError                          = education.EducationError
-	SubstitutionSuiteModule                      = education.SubstitutionModule
-	SubstitutionSuiteDependencies                = education.SubstitutionDependencies
-	SubstitutionSuiteGroupStore                  = education.GroupStore
-	SubstitutionSuiteCaller                      = education.Caller
-	SubstitutionSuiteOverviewQuery               = education.OverviewQuery
-	SubstitutionSuiteOverviewResult              = education.OverviewResult
-	SubstitutionSuiteRunningSupervision          = education.RunningSupervision
-	SubstitutionSuiteGroupHandover               = education.GroupHandover
-	SubstitutionSuiteGroupRef                    = education.GroupRef
-	SubstitutionSuiteStaffRef                    = education.StaffRef
-	SubstitutionSuiteAssignment                  = education.Assignment
-	SubstitutionSuiteAssignmentResult            = education.AssignmentResult
-	SubstitutionSuiteGroupHandoverAssignment     = education.GroupHandoverAssignment
-	SubstitutionSuiteAdditionalSupervisionAssign = education.AdditionalSupervisionAssignment
-	SubstitutionSuiteEndRequest                  = education.EndRequest
-)
+// (#2742). They compose the service through these entries and name its
+// vocabulary through School Structure's composition (#4005). Every entry goes
+// with the last suite that uses it.
 
 // The School Structure values the suites arrange and assert (#3556): the
 // owner's domain values through its composition, and the Workforce row of a
 // group substitution through the retained repository contract.
 type (
-	SchoolStructureSuiteGroup              = education.Group
-	SchoolStructureSuiteGroupListQuery     = education.GroupListQuery
-	SchoolStructureSuiteGroupTeacher       = schoolmembership.GroupAssignment
-	SchoolStructureSuiteClassTeacher       = schoolmembership.ClassAssignment
-	SchoolStructureSuiteStaffGroupID       = education.StaffGroupID
-	SchoolStructureSuiteSubstitutionChange = education.SubstitutionChange
-	SchoolStructureSuiteSubstitutionRow    = services.GroupSubstitutionRow
-)
-
-const (
-	SubstitutionSuiteTargetGroupHandover         = education.TargetGroupHandover
-	SubstitutionSuiteTargetAdditionalSupervision = education.TargetAdditionalSupervision
-)
-
-var (
-	EducationSuiteErrGroupNotFound      = education.ErrGroupNotFound
-	EducationSuiteErrGroupHasHandover   = education.ErrGroupHasHandover
-	EducationSuiteErrStaffNotFound      = education.ErrStaffNotFound
-	EducationSuiteErrEmptySchoolClass   = education.ErrEmptySchoolClass
-	SubstitutionSuiteErrNotFound        = education.ErrNotFound
-	SubstitutionSuiteErrForbidden       = education.ErrForbidden
-	SubstitutionSuiteErrInvalidTarget   = education.ErrInvalidTarget
-	SubstitutionSuiteErrInvalidPeriod   = education.ErrInvalidPeriod
-	SubstitutionSuiteErrNotRunning      = education.ErrNotRunning
-	SubstitutionSuiteErrAlreadyAssigned = education.ErrAlreadyAssigned
-	SubstitutionSuiteErrSelfAssignment  = education.ErrSelfAssignment
+	SchoolStructureSuiteGroupTeacher    = schoolmembership.GroupAssignment
+	SchoolStructureSuiteClassTeacher    = schoolmembership.ClassAssignment
+	SchoolStructureSuiteSubstitutionRow = services.GroupSubstitutionRow
 )
 
 // NewEducationSuiteService composes the group service over the repositories

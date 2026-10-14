@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/services"
 
@@ -47,7 +48,7 @@ func newCompanionSyncApplier(
 		Children:            repoFactory.Enrollment(),
 		Guardians:           repoFactory.Enrollment(),
 		CareBookings:        bookings,
-		CareOfferings:       api.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
+		CareOfferings:       enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
 		Phases:              repoFactory.Enrollment(),
 		Schemas:             repoFactory.Enrollment(),
 		OfferingAdjustments: repoFactory.EnrollmentOfferingAdjustment,

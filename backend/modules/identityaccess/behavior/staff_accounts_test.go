@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -16,7 +16,7 @@ import (
 func TestStaffAccountQueriesScopeAndTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	school := testpkg.Tenant(t)
@@ -129,7 +129,7 @@ func TestStaffAccountQueriesScopeAndTransaction(t *testing.T) {
 func TestStaffAccountQueriesDatabaseFailuresAndEmptyInputs(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 	ctx := testpkg.Ctx(t)
@@ -166,7 +166,7 @@ func TestStaffAccountQueriesBatchEmails(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
+	repo, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 

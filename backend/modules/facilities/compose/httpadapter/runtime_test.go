@@ -40,13 +40,10 @@ type testContext struct {
 }
 
 // RoomsComposition is what the route suites take from the root's Rooms
-// composition: the route dependencies and the settings service they toggle.
+// composition: the route dependencies, whose settings service the suites
+// also toggle.
 type RoomsComposition struct {
 	Dependencies Dependencies
-	Settings     interface {
-		SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
-		ResetValue(ctx context.Context, key string, changedBy *int64, userPermissions []string) error
-	}
 }
 
 // ComposeRooms composes the root's Rooms graph over the package's test
@@ -491,9 +488,9 @@ func TestGetRoomHistory(t *testing.T) {
 	// instead of the feature-disabled branch (which has its own coverage
 	// in TestGetRoomHistory_FeatureDisabled).
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.services.Dependencies.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.services.Dependencies.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
 	})
 
 	// Create test room
@@ -589,9 +586,9 @@ func TestGetRoomHistory_StaffScope(t *testing.T) {
 	tc := setupRoomsRoute(t)
 
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.services.Dependencies.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.services.Dependencies.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
 	})
 
 	room := testpkg.CreateTestRoom(t, tc.db, "ScopeRoom")
@@ -705,11 +702,11 @@ func TestGetRoomHistory_RangeCapClamped(t *testing.T) {
 	tc := setupRoomsRoute(t)
 
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
-	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyRoomDetailVisibleDays, 1, nil, nil))
+	require.NoError(t, tc.services.Dependencies.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.services.Dependencies.Settings.SetValue(ctx, configModel.KeyRoomDetailVisibleDays, 1, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyRoomDetailVisibleDays, nil, nil)
+		_ = tc.services.Dependencies.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.services.Dependencies.Settings.ResetValue(ctx, configModel.KeyRoomDetailVisibleDays, nil, nil)
 	})
 
 	room := testpkg.CreateTestRoom(t, tc.db, "ClampRoom")
@@ -762,9 +759,9 @@ func TestGetRoomHistory_DurationMinutesPopulated(t *testing.T) {
 	tc := setupRoomsRoute(t)
 
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.services.Dependencies.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.services.Dependencies.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
 	})
 
 	room := testpkg.CreateTestRoom(t, tc.db, "DurationRoom")

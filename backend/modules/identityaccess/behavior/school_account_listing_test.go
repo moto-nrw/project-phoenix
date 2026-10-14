@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -19,7 +19,7 @@ import (
 func TestSchoolAccountListingsScopeAndInvitationSuppression(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	query, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
+	query, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	home := testpkg.Tenant(t)
@@ -66,7 +66,7 @@ func TestOperatorAccountListingCaregiverEnrichment(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Ada", "Listing")
-	query, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
+	query, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	persons, err := services.NewPeopleDirectory(db)
 	require.NoError(t, err)

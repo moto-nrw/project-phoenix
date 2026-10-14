@@ -17,6 +17,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -58,7 +59,7 @@ func newCountScopeFixture(t *testing.T, groups groupsByAccount) *fixture {
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
 		ThreadRepo:       repos.ParentMessageThread,
-		MessageRepo:      api.NewParentMessageRepository(testpkg.NewDatabase(t, db)),
+		MessageRepo:      parentStore.NewParentMessageRepository(db),
 		ReadRepo:         repos.ParentMessageRead,
 		Persons:          newPersons(repos, db),
 		Settings:         stubSettings{messagingEnabled: true},

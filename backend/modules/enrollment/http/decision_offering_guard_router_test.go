@@ -20,6 +20,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -239,7 +240,7 @@ func datePointers(from, until calendar.Date) (*capability.Date, *capability.Date
 }
 
 func newOfferingGuardDecisionService(repos api.EnrollmentTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment TestDecisionStudentEnrollment, bookings TestDecisionBookings) enrollmentAPI.DecisionService {
-	return enrollmentAPI.NewDecisionService(api.PublicEnrollmentDecisions(newOfferingGuardDecisions(repos, offeringsEnabled, children, guardianAccess, studentEnrollment, bookings)))
+	return enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(newOfferingGuardDecisions(repos, offeringsEnabled, children, guardianAccess, studentEnrollment, bookings)))
 }
 
 // newOfferingGuardDecisions composes the decision flow the guard suites
@@ -247,7 +248,7 @@ func newOfferingGuardDecisionService(repos api.EnrollmentTestRepositories, offer
 func newOfferingGuardDecisions(repos api.EnrollmentTestRepositories, offeringsEnabled bool, children TestDecisionChildren, guardianAccess TestDecisionGuardianAccess, studentEnrollment TestDecisionStudentEnrollment, bookings TestDecisionBookings) *TestDecisions {
 	return api.NewEnrollmentDecisions(api.EnrollmentDecisionSources{
 		Requests: repos.Enrollment(), Children: children, Guardians: repos.Enrollment(),
-		LateInvites: repos.Enrollment(), CareOfferings: api.NewEnrollmentCareOfferingRecords(repos.CarePlan),
+		LateInvites: repos.Enrollment(), CareOfferings: enrollmentCompose.NewCareOfferingRecords(repos.CarePlan),
 		Phases: repos.Enrollment(), Schemas: repos.Enrollment(), Persons: repos.Person, Staff: repos.Staff,
 		Students: repos.Student, StudentGuardians: repos.StudentGuardian, GuardianProfiles: repos.GuardianProfile,
 		GuardianPhones: repos.GuardianPhoneNumber, PickupSchedules: repos.EnrollmentPickupSchedules(),

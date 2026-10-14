@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -21,17 +21,17 @@ import (
 )
 
 type failingIntakeWrites struct {
-	api.EnrollmentIntakeRequests
-	api.EnrollmentIntakeChildren
-	api.EnrollmentIntakeGuardians
-	api.EnrollmentIntakeLateInvites
+	enrollmentCompose.IntakeRequests
+	enrollmentCompose.IntakeChildren
+	enrollmentCompose.IntakeGuardians
+	enrollmentCompose.IntakeLateInvites
 	writes    int
 	failAfter int
 	failure   error
 }
 
 type failingSubmissionRateLimiter struct {
-	api.EnrollmentSubmissionRateLimiter
+	enrollmentCompose.SubmissionRateLimiter
 	failKey string
 	failure error
 }
@@ -40,7 +40,7 @@ func (r *failingSubmissionRateLimiter) IncrementAttempts(ctx context.Context, te
 	if keyType == r.failKey {
 		return nil, r.failure
 	}
-	return r.EnrollmentSubmissionRateLimiter.IncrementAttempts(ctx, tenantID, keyType, key, window)
+	return r.SubmissionRateLimiter.IncrementAttempts(ctx, tenantID, keyType, key, window)
 }
 
 func TestPublicIntakeRejectsRateLimitStorageFailures(t *testing.T) {
@@ -52,7 +52,7 @@ func TestPublicIntakeRejectsRateLimitStorageFailures(t *testing.T) {
 			env, cleanup := setupRequestTest(t)
 			defer cleanup()
 			failure := errors.New("injected throttle storage failure")
-			limiter := &failingSubmissionRateLimiter{EnrollmentSubmissionRateLimiter: env.config.RateLimitRepo, failKey: keyType, failure: failure}
+			limiter := &failingSubmissionRateLimiter{SubmissionRateLimiter: env.config.RateLimitRepo, failKey: keyType, failure: failure}
 			config := env.config
 			config.RateLimitRepo = limiter
 			service := newTestRequestService(config)
@@ -85,28 +85,28 @@ func (w *failingIntakeWrites) afterWrite() error {
 }
 
 func (w *failingIntakeWrites) InsertRequest(ctx context.Context, request *capability.Request) error {
-	if err := w.EnrollmentIntakeRequests.InsertRequest(ctx, request); err != nil {
+	if err := w.IntakeRequests.InsertRequest(ctx, request); err != nil {
 		return err
 	}
 	return w.afterWrite()
 }
 
 func (w *failingIntakeWrites) InsertChild(ctx context.Context, child *capability.RequestChild) error {
-	if err := w.EnrollmentIntakeChildren.InsertChild(ctx, child); err != nil {
+	if err := w.IntakeChildren.InsertChild(ctx, child); err != nil {
 		return err
 	}
 	return w.afterWrite()
 }
 
 func (w *failingIntakeWrites) CreateRequestGuardian(ctx context.Context, guardian *capability.RequestGuardian) error {
-	if err := w.EnrollmentIntakeGuardians.CreateRequestGuardian(ctx, guardian); err != nil {
+	if err := w.IntakeGuardians.CreateRequestGuardian(ctx, guardian); err != nil {
 		return err
 	}
 	return w.afterWrite()
 }
 
 func (w *failingIntakeWrites) MarkLateInviteUsed(ctx context.Context, inviteID, requestID int64, at time.Time) error {
-	if err := w.EnrollmentIntakeLateInvites.MarkLateInviteUsed(ctx, inviteID, requestID, at); err != nil {
+	if err := w.IntakeLateInvites.MarkLateInviteUsed(ctx, inviteID, requestID, at); err != nil {
 		return err
 	}
 	return w.afterWrite()
@@ -130,10 +130,10 @@ func TestPublicIntakeRollsBackAfterEveryRequestInviteGuardianAndChildWrite(t *te
 			env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
 			failure := errors.New("injected failure after intake write")
 			writes := &failingIntakeWrites{
-				EnrollmentIntakeRequests: env.config.Requests, EnrollmentIntakeChildren: env.config.Children,
-				EnrollmentIntakeGuardians:   env.config.Guardians,
-				EnrollmentIntakeLateInvites: NewTestModule(),
-				failAfter:                   failAfter, failure: failure,
+				IntakeRequests: env.config.Requests, IntakeChildren: env.config.Children,
+				IntakeGuardians:   env.config.Guardians,
+				IntakeLateInvites: NewTestModule(),
+				failAfter:         failAfter, failure: failure,
 			}
 			config := env.config
 			config.Requests = writes
@@ -279,7 +279,7 @@ func assertSubmissionEmailCount(t *testing.T, db *bun.DB, delivery testEnrollmen
 }
 
 type failingIntakeOfferingLinks struct {
-	api.EnrollmentIntakeChildren
+	enrollmentCompose.IntakeChildren
 	writes    int
 	failAfter int
 	failure   error
@@ -287,7 +287,7 @@ type failingIntakeOfferingLinks struct {
 
 func (r *failingIntakeOfferingLinks) RecordSubmittedOfferingChoices(ctx context.Context, childID int64, choices []capability.SubmittedOfferingChoice) error {
 	for _, choice := range choices {
-		if err := r.EnrollmentIntakeChildren.RecordSubmittedOfferingChoices(ctx, childID, []capability.SubmittedOfferingChoice{choice}); err != nil {
+		if err := r.IntakeChildren.RecordSubmittedOfferingChoices(ctx, childID, []capability.SubmittedOfferingChoice{choice}); err != nil {
 			return err
 		}
 		r.writes++
@@ -315,7 +315,7 @@ func TestPublicIntakeRollsBackAfterEachOfferingLinkWrite(t *testing.T) {
 				offeringIDs = append(offeringIDs, offering.ID)
 			}
 			failure := errors.New("injected after offering link write")
-			links := &failingIntakeOfferingLinks{EnrollmentIntakeChildren: env.config.Children, failAfter: failAfter, failure: failure}
+			links := &failingIntakeOfferingLinks{IntakeChildren: env.config.Children, failAfter: failAfter, failure: failure}
 			config := env.config
 			config.Children = links
 			service := newTestRequestService(config)

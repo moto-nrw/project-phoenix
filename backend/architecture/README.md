@@ -3361,11 +3361,15 @@ four tuples, because the scheduler rule covered `jobruntime` and
 fixture targets (`shared-fixtures.identity-access-adapter`).
 
 #4005 (policy epoch 42 → 43) moves the legacy composition's test hooks out of
-`services`. The hooks that compose several owners live in
-`api/*_test_helpers.go` and take the Transaction Runtime value; Identity's
-composition builds the session codec from the secret and the token lifetimes
-(`NewConfiguredSessionTokens`), so the hooks import no session token adapter.
-The two hook files production code used became ordinary production files.
+`services`. The hooks live in `api/*_test_helpers.go` and take the
+Transaction Runtime value; Identity's composition builds the session codec
+from the secret and the token lifetimes (`NewConfiguredSessionTokens`), so the
+hooks import no session token adapter. Tests of the owner a hook or an alias
+only passed through to now call or name that owner's composition themselves;
+tests of other owners keep reaching it through the root, because they may not
+import another owner's composition. Hooks and aliases no test used are
+deleted. The two hook files production code used became ordinary production
+files.
 The imports the move needs come from the same acceptance functions:
 `root-test.{inbound,platform,projection,workflow,test-support}.compose` and
 `root-test.legacy-composition.compose` (the external tests of `services`)

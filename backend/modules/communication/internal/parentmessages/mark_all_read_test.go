@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -386,7 +387,7 @@ func TestMarkAllRead_LeavesParentReadReceipt(t *testing.T) {
 
 	readByStaff := func() bool {
 		t.Helper()
-		messages, err := api.NewParentMessageRepository(testpkg.NewDatabase(t, f.db)).ListByThread(guardianCtx, threadID, 0)
+		messages, err := parentStore.NewParentMessageRepository(f.db).ListByThread(guardianCtx, threadID, 0)
 		require.NoError(t, err)
 		messaging.DecorateReadReceipts(guardianCtx, repos.ParentMessageRead, nil, threadID, f.chain.AccountID, messages)
 		return messages[len(messages)-1].ReadByStaff

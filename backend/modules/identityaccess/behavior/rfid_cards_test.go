@@ -7,9 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +16,7 @@ import (
 func TestRFIDCardsRegistrationAndIsolation(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	cards, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
+	cards, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	tag := fmt.Sprintf("ABCD%016X", testpkg.UniqueTestTenantID(t))
@@ -72,7 +71,7 @@ func TestRFIDCardsRegistrationAndIsolation(t *testing.T) {
 func TestRFIDCardsDatabaseFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	cards, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
+	cards, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.ContextWithTenantRuntime(testpkg.TenantContext(testpkg.Tenant(t)), testpkg.TenantRuntime(t, db))
 	require.NoError(t, db.Close())

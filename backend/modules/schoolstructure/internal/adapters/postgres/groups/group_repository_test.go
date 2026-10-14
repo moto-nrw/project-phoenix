@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -32,7 +33,7 @@ func TestGroupRepository_Create(t *testing.T) {
 
 	t.Run("creates group with valid data", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("TestGroup-%d", time.Now().UnixNano())
-		group := &api.SchoolStructureSuiteGroup{
+		group := &schoolStructureCompose.Group{
 			Name: uniqueName,
 		}
 
@@ -47,7 +48,7 @@ func TestGroupRepository_Create(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "GroupRoom")
 
 		uniqueName := fmt.Sprintf("GroupWithRoom-%d", time.Now().UnixNano())
-		group := &api.SchoolStructureSuiteGroup{
+		group := &schoolStructureCompose.Group{
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
@@ -188,7 +189,7 @@ func TestGroupRepository_ListWithRooms(t *testing.T) {
 	t.Run("lists groups with pagination", func(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
 
-		groups, err := repo.ListWithRooms(ctx, &api.SchoolStructureSuiteGroupListQuery{Limit: 10})
+		groups, err := repo.ListWithRooms(ctx, &schoolStructureCompose.GroupListQuery{Limit: 10})
 		require.NoError(t, err)
 		assert.NotEmpty(t, groups)
 		assert.LessOrEqual(t, len(groups), 10)
@@ -275,7 +276,7 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "WithRoomTest")
 
 		uniqueName := fmt.Sprintf("GroupWithRoom-%d", time.Now().UnixNano())
-		group := &api.SchoolStructureSuiteGroup{
+		group := &schoolStructureCompose.Group{
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
@@ -317,7 +318,7 @@ func TestGroupRepository_Create_Validation(t *testing.T) {
 	})
 
 	t.Run("returns error for empty name", func(t *testing.T) {
-		group := &api.SchoolStructureSuiteGroup{
+		group := &schoolStructureCompose.Group{
 			Name: "",
 		}
 		err := repo.Create(ctx, group)
@@ -389,7 +390,7 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 
 		// Create group with room
 		uniqueName := fmt.Sprintf("WithRoom-%d", time.Now().UnixNano())
-		groupWithRoom := &api.SchoolStructureSuiteGroup{
+		groupWithRoom := &schoolStructureCompose.Group{
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
@@ -440,7 +441,7 @@ func TestGroupRepository_ListWithRooms_Advanced(t *testing.T) {
 		group1 := testpkg.CreateTestEducationGroup(t, db, "AAA-First")
 		group2 := testpkg.CreateTestEducationGroup(t, db, "ZZZ-Last")
 
-		groups, err := repo.ListWithRooms(ctx, &api.SchoolStructureSuiteGroupListQuery{SortByName: true})
+		groups, err := repo.ListWithRooms(ctx, &schoolStructureCompose.GroupListQuery{SortByName: true})
 		require.NoError(t, err)
 		assert.NotEmpty(t, groups)
 
@@ -462,7 +463,7 @@ func TestGroupRepository_ListWithRooms_Advanced(t *testing.T) {
 	t.Run("lists with filter and pagination combined", func(t *testing.T) {
 		combined := testpkg.CreateTestEducationGroup(t, db, "CombinedTest")
 
-		groups, err := repo.ListWithRooms(ctx, &api.SchoolStructureSuiteGroupListQuery{NameContains: "CombinedTest", Limit: 5})
+		groups, err := repo.ListWithRooms(ctx, &schoolStructureCompose.GroupListQuery{NameContains: "CombinedTest", Limit: 5})
 		require.NoError(t, err)
 		require.Len(t, groups, 1)
 		assert.Equal(t, combined.ID, groups[0].ID)
@@ -472,7 +473,7 @@ func TestGroupRepository_ListWithRooms_Advanced(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "CountedTest-1")
 		testpkg.CreateTestEducationGroup(t, db, "CountedTest-2")
 
-		count, err := repo.CountGroups(ctx, &api.SchoolStructureSuiteGroupListQuery{NameContains: "countedtest", Limit: 1})
+		count, err := repo.CountGroups(ctx, &schoolStructureCompose.GroupListQuery{NameContains: "countedtest", Limit: 1})
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
 	})
@@ -488,7 +489,7 @@ func TestGroupRepository_FindByName_CaseInsensitive(t *testing.T) {
 
 	t.Run("finds group case-insensitively", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("CaseTest-%d", time.Now().UnixNano())
-		group := &api.SchoolStructureSuiteGroup{
+		group := &schoolStructureCompose.Group{
 			Name: uniqueName,
 		}
 		err := repo.Create(ctx, group)
@@ -529,7 +530,7 @@ func TestGroupWritesStayInsideTheCallerTenant(t *testing.T) {
 		return repo.Delete(ctx, foreign.ID)
 	}), "deleting an invisible id remains the legacy no-op")
 
-	forgedInsert := &api.SchoolStructureSuiteGroup{Name: "Must not enter the foreign school"}
+	forgedInsert := &schoolStructureCompose.Group{Name: "Must not enter the foreign school"}
 	forgedInsert.TenantID = foreignTenant
 	err = testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 		return repo.Create(ctx, forgedInsert)
@@ -547,8 +548,8 @@ func TestGroupWritesStayInsideTheCallerTenant(t *testing.T) {
 
 // schoolStructureGroupOf is the group a fixture row stores, as the owner's
 // group reads return it.
-func schoolStructureGroupOf(row *testpkg.EducationGroup) *api.SchoolStructureSuiteGroup {
-	return &api.SchoolStructureSuiteGroup{
+func schoolStructureGroupOf(row *testpkg.EducationGroup) *schoolStructureCompose.Group {
+	return &schoolStructureCompose.Group{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Name: row.Name, RoomID: row.RoomID,
 	}

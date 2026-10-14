@@ -17,6 +17,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -86,19 +87,19 @@ func (r careOfferingFixtures) CountByPhaseID(ctx context.Context, phaseID int64)
 }
 
 func (r careOfferingFixtures) ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
-	return api.NewEnrollmentCareOfferingRecords(r.carePlan).ListByPhase(ctx, phaseID)
+	return enrollmentCompose.NewCareOfferingRecords(r.carePlan).ListByPhase(ctx, phaseID)
 }
 
 func (r careOfferingFixtures) ListByIDs(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error) {
-	return api.NewEnrollmentCareOfferingRecords(r.carePlan).ListByIDs(ctx, ids)
+	return enrollmentCompose.NewCareOfferingRecords(r.carePlan).ListByIDs(ctx, ids)
 }
 
 func (r careOfferingFixtures) ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error) {
-	return api.NewEnrollmentCareOfferingRecords(r.carePlan).ListByIDsForUpdate(ctx, ids)
+	return enrollmentCompose.NewCareOfferingRecords(r.carePlan).ListByIDsForUpdate(ctx, ids)
 }
 
 func (r careOfferingFixtures) ListActiveByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
-	return api.NewEnrollmentCareOfferingRecords(r.carePlan).ListActiveByPhase(ctx, phaseID)
+	return enrollmentCompose.NewCareOfferingRecords(r.carePlan).ListActiveByPhase(ctx, phaseID)
 }
 
 func (r careOfferingFixtures) FindByID(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error) {

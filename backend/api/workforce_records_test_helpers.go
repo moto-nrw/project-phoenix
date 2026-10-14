@@ -12,11 +12,6 @@ import (
 // adapters themselves the retained record contracts over the Workforce
 // facade (#2690), built the way NewFactoryWithConfig builds them.
 
-// NewStaffWorkScheduleRepository serves the retained staff work schedules.
-func NewStaffWorkScheduleRepository(workTime workforceModule.Capability) configModels.StaffWorkScheduleRepository {
-	return workforceRepositoryAdapter.NewStaffWorkScheduleRepository(workTime)
-}
-
 // NewWorkTimeModelRepository serves the retained work-time templates.
 func NewWorkTimeModelRepository(workTime workforceModule.Capability) configModels.WorkTimeModelRepository {
 	return workforceRepositoryAdapter.NewWorkTimeModelRepository(workTime)

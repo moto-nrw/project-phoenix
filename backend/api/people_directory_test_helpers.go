@@ -50,9 +50,6 @@ func NewTestPersonDirectory(db transactionruntime.Database, sources TestPersonDi
 // modules/peopledirectory/compose. Every entry goes with the last suite that
 // uses it.
 type (
-	PeopleDirectorySuitePhotoUnlinker  = peopleCompose.PhotoUnlinker
-	PeopleDirectorySuiteStudentPhotos  = peopleCompose.StudentPhotoService
-	PeopleDirectorySuiteCommitUpload   = peopleCompose.CommitUploadRequest
 	PeopleDirectorySuiteStudentService = peopleCompose.StudentService
 )
 

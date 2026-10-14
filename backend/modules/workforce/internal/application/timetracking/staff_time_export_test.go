@@ -14,6 +14,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -43,7 +44,7 @@ func (f *overviewFixture) newWorkSessionService() timetracking.WorkSessionServic
 	return timetracking.NewWorkSessionService(
 		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, services.NewWorkSessionAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).WorkSessionEdit),
 		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(f.db))),
-		services.NewWorkSessionSchedules(api.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkSessionTimeModels(api.NewWorkTimeModelRepository(f.workforce)),
+		services.NewWorkSessionSchedules(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkSessionTimeModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(f.workforce)),
 		nil,
 		nil,
 		f.db,
@@ -163,7 +164,7 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 	}
 	monthSvc := timetracking.NewWorkTimeMonthService(
 		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, f.repos.StaffAbsence, services.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, f.db))),
-		services.NewWorkScheduleTargets(api.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkTimeTargetModels(api.NewWorkTimeModelRepository(f.workforce)), services.NewTimeTrackingShifts(f.workforce),
+		services.NewWorkScheduleTargets(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkTimeTargetModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(f.workforce)), services.NewTimeTrackingShifts(f.workforce),
 		settings, nil,
 		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments),
 		timetracking.WithMonthSnapshots(workforceCompose.MonthSnapshotCapability(f.workforce)),

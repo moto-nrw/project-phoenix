@@ -16,6 +16,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -53,7 +54,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		Requests:          repoFactory.Enrollment(),
 		Children:          repoFactory.Enrollment(),
 		CareBookings:      testBookings(t, env, settings),
-		CareOfferings:     api.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
+		CareOfferings:     enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
 		Phases:            repoFactory.Enrollment(),
 		Persons:           repoFactory.Person,
 		Staff:             repoFactory.Staff,

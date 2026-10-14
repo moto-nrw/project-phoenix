@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -690,7 +691,7 @@ type ownershipRevokingGroups struct {
 	teacherID int64
 }
 
-func (g *ownershipRevokingGroups) FindByIDForUpdate(ctx context.Context, id any) (*api.SchoolStructureSuiteGroup, error) {
+func (g *ownershipRevokingGroups) FindByIDForUpdate(ctx context.Context, id any) (*schoolStructureCompose.Group, error) {
 	group, err := g.GroupStore.FindByIDForUpdate(ctx, id)
 	if err != nil {
 		return nil, err
@@ -712,7 +713,7 @@ func (g *ownershipRevokingGroups) FindByIDForUpdate(ctx context.Context, id any)
 
 type failingAudit struct{}
 
-func (failingAudit) RecordSubstitutionChange(context.Context, api.SchoolStructureSuiteSubstitutionChange) error {
+func (failingAudit) RecordSubstitutionChange(context.Context, schoolStructureCompose.SubstitutionChange) error {
 	return errors.New("audit unavailable")
 }
 

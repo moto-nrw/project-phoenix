@@ -23,24 +23,6 @@ import (
 // arrange and assert through.
 type StudentHTTPTestRows = StudentTestRepositories
 
-// StudentHTTPTestAuditCommand is the audit command the suite's rows record
-// into.
-type StudentHTTPTestAuditCommand = auditModels.Command
-
-// StudentHTTPTestChangeRecorder records a companion widening in the
-// change history.
-type StudentHTTPTestChangeRecorder = peopleCompose.StudentChangeRecorder
-
-// The owner capabilities the student route suites receive, named here so the
-// test support forwarding them imports none of the owners.
-type (
-	StudentHTTPTestPeople             = peopledirectory.Capability
-	StudentHTTPTestCompanions         = careplan.StudentCompanions
-	StudentHTTPTestPickupReviewBlocks = carePlanCompose.PickupReviewBlocks
-	StudentHTTPTestMembership         = schoolmembership.Capability
-	StudentHTTPTestCareLifecycleOwner = careplan.CareLifecycle
-)
-
 // NewStudentHTTPTestRows composes the retained repositories over the test
 // database, recording into command; nil records into the test audit store.
 func NewStudentHTTPTestRows(db transactionruntime.Database, command auditModels.Command) (StudentHTTPTestRows, error) {

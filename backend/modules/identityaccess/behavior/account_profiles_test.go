@@ -5,9 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +14,7 @@ import (
 func TestAccountProfiles(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	profiles, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
+	profiles, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "account-profile")

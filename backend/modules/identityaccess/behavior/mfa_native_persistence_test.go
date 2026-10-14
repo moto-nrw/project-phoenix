@@ -11,15 +11,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-func nativeMFARecords(t *testing.T, db *bun.DB) api.AccountMFARecords {
+func nativeMFARecords(t *testing.T, db *bun.DB) identityaccessCompose.AccountMFARecords {
 	t.Helper()
-	var records api.AccountMFARecords
-	newMFATestModule(t, db, api.WithAuthTestMFARecords(func(native api.AccountMFARecords) api.AccountMFARecords {
+	var records identityaccessCompose.AccountMFARecords
+	newMFATestModule(t, db, api.WithAuthTestMFARecords(func(native identityaccessCompose.AccountMFARecords) identityaccessCompose.AccountMFARecords {
 		records = native
 		return native
 	}))

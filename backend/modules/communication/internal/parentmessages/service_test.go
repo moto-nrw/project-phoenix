@@ -25,6 +25,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -104,7 +105,7 @@ func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
 		ThreadRepo:  repos.ParentMessageThread,
-		MessageRepo: api.NewParentMessageRepository(testpkg.NewDatabase(t, db)),
+		MessageRepo: parentStore.NewParentMessageRepository(db),
 		ReadRepo:    repos.ParentMessageRead,
 		Persons:     newPersons(repos, db),
 		Settings:    settings,
@@ -155,7 +156,7 @@ func createGuardianMessage(t *testing.T, db *bun.DB, chain testpkg.ParentChain, 
 		Body:            body,
 	}
 	gm.SetTenantID(chain.TenantID)
-	require.NoError(t, api.NewParentMessageRepository(testpkg.NewDatabase(t, db)).Create(testpkg.Ctx(t), gm))
+	require.NoError(t, parentStore.NewParentMessageRepository(db).Create(testpkg.Ctx(t), gm))
 	return gm
 }
 
@@ -299,7 +300,7 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 	`, started.ThreadID, colleagueAccount.ID).Scan(context.Background(), &colleagueReadRows))
 	assert.Zero(t, colleagueReadRows, "team handling must not forge a colleague's personal read receipt")
 
-	allMessages, err := api.NewParentMessageRepository(testpkg.NewDatabase(t, f.db)).ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
+	allMessages, err := parentStore.NewParentMessageRepository(f.db).ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
 	require.NoError(t, err)
 	messaging.DecorateReadReceipts(adminCtx(t, f.chain.AccountID), api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db))).ParentMessageRead, nil, started.ThreadID, f.chain.AccountID, allMessages)
 	assert.True(t, allMessages[1].ReadByStaff, "the guardian receipt remains tied to the responding staff account's personal cursor")
@@ -328,13 +329,13 @@ func TestPostMessage_RejectsLegacyReplyWithoutVisibleBoundary(t *testing.T) {
 	_, err = f.svc.PostMessage(adminCtx(t, f.staffAccount), started.ThreadID, "Antwort", 0)
 	require.ErrorIs(t, err, messaging.ErrHandledBoundaryRequired)
 
-	messages, err := api.NewParentMessageRepository(testpkg.NewDatabase(t, f.db)).ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
+	messages, err := parentStore.NewParentMessageRepository(f.db).ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
 	require.NoError(t, err)
 	assert.Len(t, messages, 2, "the rejected legacy reply must not be inserted")
 
 	_, err = f.svc.PostMessage(adminCtx(t, f.staffAccount), started.ThreadID, "Antwort", 999999999)
 	require.ErrorIs(t, err, messaging.ErrHandledBoundaryRequired)
-	messages, err = api.NewParentMessageRepository(testpkg.NewDatabase(t, f.db)).ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
+	messages, err = parentStore.NewParentMessageRepository(f.db).ListByThread(adminCtx(t, f.staffAccount), started.ThreadID, 0)
 	require.NoError(t, err)
 	assert.Len(t, messages, 2, "a reply with a foreign boundary must not be inserted")
 }
@@ -658,7 +659,7 @@ func TestMessaging_DisabledFeature(t *testing.T) {
 	// Rebuild the service with the feature OFF, same DB.
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
 	disabled := messaging.NewService(messaging.Config{
-		ThreadRepo: repos.ParentMessageThread, MessageRepo: api.NewParentMessageRepository(testpkg.NewDatabase(t, f.db)), ReadRepo: repos.ParentMessageRead,
+		ThreadRepo: repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(f.db), ReadRepo: repos.ParentMessageRead,
 		Persons:     newPersons(repos, f.db),
 		Settings:    stubSettings{messagingEnabled: false},
 		Broadcaster: f.bc, DB: f.db, Logger: slog.Default(),

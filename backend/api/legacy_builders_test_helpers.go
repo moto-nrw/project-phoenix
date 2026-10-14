@@ -63,25 +63,21 @@ type (
 	EnrollmentConsentAuditor       = services.EnrollmentConsentAuditor
 	EnrollmentDecisionSettings     = services.EnrollmentDecisionSettings
 	EnrollmentDecisionSources      = services.EnrollmentDecisionSources
-	EnrollmentDeletionModule       = services.EnrollmentDeletionModule
 	EnrollmentDeletionOwner        = services.EnrollmentDeletionOwner
 	EnrollmentDeletionSources      = services.EnrollmentDeletionSources
 	EnrollmentIntakeSettings       = services.EnrollmentIntakeSettings
 	EnrollmentIntakeSources        = services.EnrollmentIntakeSources
-	EnrollmentReviewerPersons      = services.EnrollmentReviewerPersons
-	EnrollmentRolloverSettings     = services.EnrollmentRolloverSettings
 	EnrollmentRolloverSources      = services.EnrollmentRolloverSources
 	SessionRecordOwners            = services.SessionRecordOwners
 )
 
 var (
-	NewEnrollmentChangeRequests           = services.NewEnrollmentChangeRequests
-	NewEnrollmentDecisions                = services.NewEnrollmentDecisions
-	NewEnrollmentDeletionModule           = services.NewEnrollmentDeletionModule
-	NewEnrollmentIntake                   = services.NewEnrollmentIntake
-	NewEnrollmentOfferingCapacity         = services.NewEnrollmentOfferingCapacity
-	NewEnrollmentRollovers                = services.NewEnrollmentRollovers
-	NewCareWithdrawalCompletionRepository = services.NewCareWithdrawalCompletionRepository
+	NewEnrollmentChangeRequests   = services.NewEnrollmentChangeRequests
+	NewEnrollmentDecisions        = services.NewEnrollmentDecisions
+	NewEnrollmentDeletionModule   = services.NewEnrollmentDeletionModule
+	NewEnrollmentIntake           = services.NewEnrollmentIntake
+	NewEnrollmentOfferingCapacity = services.NewEnrollmentOfferingCapacity
+	NewEnrollmentRollovers        = services.NewEnrollmentRollovers
 	// IsDemoEnvironment reports whether the app environment is the demo.
 	IsDemoEnvironment = services.IsDemoEnvironment
 	// NewRoomSnapshotPeople reads the room snapshot's students through the

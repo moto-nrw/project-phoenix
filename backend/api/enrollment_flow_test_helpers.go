@@ -9,7 +9,6 @@ import (
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -19,18 +18,6 @@ import (
 // Test bindings of the enrollment flow suites (#3565): the ports their
 // doubles implement and the root compositions they drive over the test
 // database, for suites that may not import the compositions themselves.
-
-// Ports of the intake and change requests the flow suites wrap in doubles.
-type (
-	EnrollmentIntakeRequests        = enrollmentCompose.IntakeRequests
-	EnrollmentIntakeChildren        = enrollmentCompose.IntakeChildren
-	EnrollmentIntakeGuardians       = enrollmentCompose.IntakeGuardians
-	EnrollmentIntakeLateInvites     = enrollmentCompose.IntakeLateInvites
-	EnrollmentIntakeCatalog         = enrollmentCompose.IntakeCatalog
-	EnrollmentSubmissionRateLimiter = enrollmentCompose.SubmissionRateLimiter
-	EnrollmentGuardianAuthorizer    = enrollmentCompose.GuardianStudentAuthorizer
-	EnrollmentChangeRequestRecords  = enrollmentCompose.ChangeRequestRecords
-)
 
 // Audit rows and ports of the decision flow the flow suites record into and
 // read back.

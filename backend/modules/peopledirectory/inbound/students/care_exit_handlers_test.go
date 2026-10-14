@@ -15,12 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 )
@@ -236,7 +236,7 @@ func TestCareWithdrawalHandlers_PreviewThenConfirmOneTask(t *testing.T) {
 	)
 	confirmResponse := authExec(t, tc, confirmRequest, claims, []string{"users:delete"})
 	require.Equal(t, http.StatusOK, confirmResponse.Code, "Body: %s", confirmResponse.Body.String())
-	pending, _, err := repos.CareWithdrawal.ListPending(testpkg.Ctx(t), api.StudentHTTPTestWithdrawalFilter{StudentID: student.ID, Page: 1, PageSize: 1})
+	pending, _, err := repos.CareWithdrawal.ListPending(testpkg.Ctx(t), userModels.CareWithdrawalCompletionFilter{StudentID: student.ID, Page: 1, PageSize: 1})
 	require.NoError(t, err)
 	assert.Empty(t, pending)
 	resolved, err := repos.CareWithdrawal.FindByID(testpkg.Ctx(t), completion.ID)

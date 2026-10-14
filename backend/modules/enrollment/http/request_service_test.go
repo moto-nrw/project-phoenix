@@ -19,6 +19,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -261,7 +262,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 		Children:         repoFactory.Enrollment(),
 		Bookings:         requestTestBookingCommands(),
 		Guardians:        repoFactory.Enrollment(),
-		CareOfferingRepo: api.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
+		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
 		Catalog:          repoFactory.Enrollment(),
 		SchoolRepo:       factorySchools{repos: repoFactory},
 		RateLimitRepo:    repoFactory.Enrollment(),
@@ -3480,7 +3481,7 @@ func TestRequestService_Edit_AdminContextUsesPinnedSchema(t *testing.T) {
 }
 
 type failingEditSchemaCatalog struct {
-	api.EnrollmentIntakeCatalog
+	enrollmentCompose.IntakeCatalog
 	err error
 }
 
@@ -3497,7 +3498,7 @@ func TestRequestService_Edit_AdminContextPropagatesSchemaFailure(t *testing.T) {
 	require.NoError(t, err)
 	lookupErr := errors.New("schema lookup failed")
 	config := env.config
-	config.Catalog = failingEditSchemaCatalog{EnrollmentIntakeCatalog: config.Catalog, err: lookupErr}
+	config.Catalog = failingEditSchemaCatalog{IntakeCatalog: config.Catalog, err: lookupErr}
 	svc := newTestRequestService(config)
 	name := "Changed"
 	err = tenant.WithAdminTx(ctx, env.db, func(adminCtx context.Context, _ bun.Tx) error {

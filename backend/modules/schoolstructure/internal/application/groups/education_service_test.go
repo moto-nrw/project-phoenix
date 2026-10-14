@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -70,7 +71,7 @@ func TestListGroups(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
 
 		// ACT: List with pagination
-		query := &api.SchoolStructureSuiteGroupListQuery{Limit: 100}
+		query := &schoolStructureCompose.GroupListQuery{Limit: 100}
 		groups, err := service.ListGroups(ctx, query)
 
 		// ASSERT
@@ -177,7 +178,7 @@ func TestGroupOperations(t *testing.T) {
 
 	t.Run("create group successfully", func(t *testing.T) {
 		// ARRANGE
-		group := &api.SchoolStructureSuiteGroup{
+		group := &schoolStructureCompose.Group{
 			Name: "New Test Group " + time.Now().Format("20060102150405"),
 		}
 
@@ -320,7 +321,7 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 
 	t.Run("returns error for non-existent group", func(t *testing.T) {
 		// ARRANGE
-		group := &api.SchoolStructureSuiteGroup{Name: "NonExistent"}
+		group := &schoolStructureCompose.Group{Name: "NonExistent"}
 		group.ID = 999999999
 
 		// ACT
@@ -513,7 +514,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 
 	t.Run("rejects group with invalid name", func(t *testing.T) {
 		// ARRANGE
-		group := &api.SchoolStructureSuiteGroup{Name: ""} // Empty name is invalid
+		group := &schoolStructureCompose.Group{Name: ""} // Empty name is invalid
 
 		// ACT
 		err := service.CreateGroup(ctx, group)
@@ -526,7 +527,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 		// ARRANGE
 		nonExistentRoomID := int64(999999999)
 		uniqueName := fmt.Sprintf("GroupWithBadRoom-%d", time.Now().UnixNano())
-		group := &api.SchoolStructureSuiteGroup{
+		group := &schoolStructureCompose.Group{
 			Name:   uniqueName,
 			RoomID: &nonExistentRoomID,
 		}
@@ -543,7 +544,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "GroupCreateRoom")
 		uniqueName := fmt.Sprintf("GroupWithRoom-%d", time.Now().UnixNano())
-		group := &api.SchoolStructureSuiteGroup{
+		group := &schoolStructureCompose.Group{
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
@@ -561,7 +562,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 		// ARRANGE
 		existingGroup := testpkg.CreateTestEducationGroup(t, db, "DuplicateTest")
 
-		duplicateGroup := &api.SchoolStructureSuiteGroup{Name: existingGroup.Name}
+		duplicateGroup := &schoolStructureCompose.Group{Name: existingGroup.Name}
 
 		// ACT
 		err := service.CreateGroup(ctx, duplicateGroup)
@@ -585,7 +586,7 @@ func TestEducationService_ListGroups(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "ListTestGroup")
 
 		// ACT
-		groups, err := service.ListGroups(ctx, &api.SchoolStructureSuiteGroupListQuery{Limit: 10})
+		groups, err := service.ListGroups(ctx, &schoolStructureCompose.GroupListQuery{Limit: 10})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -662,8 +663,8 @@ func TestEducationError_Unwrap(t *testing.T) {
 
 // schoolStructureGroupOf is the group a fixture row stores, as the owner's
 // group reads return it.
-func schoolStructureGroupOf(row *testpkg.EducationGroup) *api.SchoolStructureSuiteGroup {
-	return &api.SchoolStructureSuiteGroup{
+func schoolStructureGroupOf(row *testpkg.EducationGroup) *schoolStructureCompose.Group {
+	return &schoolStructureCompose.Group{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Name: row.Name, RoomID: row.RoomID,
 	}

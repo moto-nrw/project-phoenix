@@ -18,6 +18,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -64,7 +65,7 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 	phase.TenantID = tenantID
 	require.NoError(t, repos.Enrollment().InsertPhase(ctx, phase))
 
-	offerings := api.NewEnrollmentCareOfferingRecords(repos.CarePlan)
+	offerings := enrollmentCompose.NewCareOfferingRecords(repos.CarePlan)
 	requests := enrollmentAPI.NewRequestService(api.NewEnrollmentIntake(api.EnrollmentIntakeSources{
 		Requests:         repos.Enrollment(),
 		ParentChanges:    repos.Enrollment(),
@@ -82,7 +83,7 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 		ParentsURL:       "http://parents.localhost:3000",
 		Logger:           slog.Default(),
 	}))
-	decisions := enrollmentAPI.NewDecisionService(api.PublicEnrollmentDecisions(api.NewEnrollmentDecisions(api.EnrollmentDecisionSources{
+	decisions := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(api.NewEnrollmentDecisions(api.EnrollmentDecisionSources{
 		Requests: repos.Enrollment(), Children: repos.Enrollment(),
 		Guardians: repos.Enrollment(), LateInvites: repos.Enrollment(), CareOfferings: offerings,
 		Phases: repos.Enrollment(), Schemas: repos.Enrollment(), Settings: settings,

@@ -24,6 +24,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -250,7 +251,7 @@ func newDecisionsForTestWithBookings(
 		Children:               repoFactory.Enrollment(),
 		Guardians:              repoFactory.Enrollment(),
 		LateInvites:            repoFactory.Enrollment(),
-		CareOfferings:          api.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
+		CareOfferings:          enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
 		Phases:                 repoFactory.Enrollment(),
 		Schemas:                repoFactory.Enrollment(),
 		OfferingAdjustments:    repoFactory.EnrollmentOfferingAdjustment,
@@ -268,7 +269,7 @@ func newDecisionsForTestWithBookings(
 		StudentEnrollment:      testStudentEnrollment(env.db),
 		Companions:             services.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:       repoFactory.CarePlan().DeleteCompanionEdges,
-		StudentAudit:           api.NewEnrollmentFlowStudentAudit(testpkg.NewDatabase(t, env.db), testpkg.RequestAuditActor),
+		StudentAudit:           api.NewEnrollmentFlowStudentAudit(testpkg.MustDatabase(env.db), testpkg.RequestAuditActor),
 		StudentConsents:        studentConsents,
 		CareWithdrawal:         careWithdrawal,
 		FrontendURL:            "http://localhost:3000",
@@ -341,7 +342,7 @@ type flowDecisionService struct {
 
 func newFlowDecisionService(owner *TestDecisions) enrollmentAPI.DecisionService {
 	return flowDecisionService{
-		DecisionService: enrollmentAPI.NewDecisionService(api.PublicEnrollmentDecisions(owner)),
+		DecisionService: enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(owner)),
 		owner:           owner,
 	}
 }
@@ -4047,7 +4048,7 @@ func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.
 	degraded := newTestDecisionService(api.EnrollmentDecisionSources{
 		Requests:      repoFactory.Enrollment(),
 		Children:      repoFactory.Enrollment(),
-		CareOfferings: catalogFailureRepo{api.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan())},
+		CareOfferings: catalogFailureRepo{enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan())},
 		Phases:        repoFactory.Enrollment(),
 	})
 

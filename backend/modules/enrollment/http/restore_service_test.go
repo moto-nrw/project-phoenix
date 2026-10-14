@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -219,7 +220,7 @@ func newRestoreDecisionServiceForRequestEnv(t *testing.T, env *requestTestEnv) e
 	return newTestDecisionService(api.EnrollmentDecisionSources{
 		Requests:      repoFactory.Enrollment(),
 		Children:      repoFactory.Enrollment(),
-		CareOfferings: api.NewEnrollmentCareOfferingRecords(repoFactory.CarePlan()),
+		CareOfferings: enrollmentCompose.NewCareOfferingRecords(repoFactory.CarePlan()),
 		Phases:        repoFactory.Enrollment(),
 		Restorations:  repoFactory.EnrollmentRestorationAudit,
 		Logger:        slog.Default(),

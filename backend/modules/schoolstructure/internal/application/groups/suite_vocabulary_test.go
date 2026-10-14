@@ -1,46 +1,48 @@
 package groups_test
 
-import "github.com/moto-nrw/project-phoenix/api"
+import (
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+)
 
 // The suites of the retained School Structure services name the service's
-// vocabulary through test support (#2742); these local names keep the suites
-// readable.
+// vocabulary through School Structure's composition (#2742, #4005); these
+// local names keep the suites readable.
 
 type (
-	Service                         = api.EducationSuiteService
-	EducationError                  = api.EducationSuiteError
-	SubstitutionModule              = api.SubstitutionSuiteModule
-	SubstitutionDependencies        = api.SubstitutionSuiteDependencies
-	GroupStore                      = api.SubstitutionSuiteGroupStore
-	SubstitutionCaller              = api.SubstitutionSuiteCaller
-	OverviewQuery                   = api.SubstitutionSuiteOverviewQuery
-	OverviewResult                  = api.SubstitutionSuiteOverviewResult
-	RunningSupervision              = api.SubstitutionSuiteRunningSupervision
-	GroupHandover                   = api.SubstitutionSuiteGroupHandover
-	GroupRef                        = api.SubstitutionSuiteGroupRef
-	StaffRef                        = api.SubstitutionSuiteStaffRef
-	Assignment                      = api.SubstitutionSuiteAssignment
-	AssignmentResult                = api.SubstitutionSuiteAssignmentResult
-	GroupHandoverAssignment         = api.SubstitutionSuiteGroupHandoverAssignment
-	AdditionalSupervisionAssignment = api.SubstitutionSuiteAdditionalSupervisionAssign
-	EndRequest                      = api.SubstitutionSuiteEndRequest
+	Service                         = schoolStructureCompose.Service
+	EducationError                  = schoolStructureCompose.EducationError
+	SubstitutionModule              = schoolStructureCompose.SubstitutionModule
+	SubstitutionDependencies        = schoolStructureCompose.SubstitutionDependencies
+	GroupStore                      = schoolStructureCompose.GroupStore
+	SubstitutionCaller              = schoolStructureCompose.Caller
+	OverviewQuery                   = schoolStructureCompose.OverviewQuery
+	OverviewResult                  = schoolStructureCompose.OverviewResult
+	RunningSupervision              = schoolStructureCompose.RunningSupervision
+	GroupHandover                   = schoolStructureCompose.GroupHandover
+	GroupRef                        = schoolStructureCompose.GroupRef
+	StaffRef                        = schoolStructureCompose.StaffRef
+	Assignment                      = schoolStructureCompose.Assignment
+	AssignmentResult                = schoolStructureCompose.AssignmentResult
+	GroupHandoverAssignment         = schoolStructureCompose.GroupHandoverAssignment
+	AdditionalSupervisionAssignment = schoolStructureCompose.AdditionalSupervisionAssignment
+	EndRequest                      = schoolStructureCompose.EndRequest
 )
 
 const (
-	TargetGroupHandover         = api.SubstitutionSuiteTargetGroupHandover
-	TargetAdditionalSupervision = api.SubstitutionSuiteTargetAdditionalSupervision
+	TargetGroupHandover         = schoolStructureCompose.TargetGroupHandover
+	TargetAdditionalSupervision = schoolStructureCompose.TargetAdditionalSupervision
 )
 
 var (
-	ErrGroupNotFound    = api.EducationSuiteErrGroupNotFound
-	ErrGroupHasHandover = api.EducationSuiteErrGroupHasHandover
-	ErrStaffNotFound    = api.EducationSuiteErrStaffNotFound
-	ErrEmptySchoolClass = api.EducationSuiteErrEmptySchoolClass
-	ErrNotFound         = api.SubstitutionSuiteErrNotFound
-	ErrForbidden        = api.SubstitutionSuiteErrForbidden
-	ErrInvalidTarget    = api.SubstitutionSuiteErrInvalidTarget
-	ErrInvalidPeriod    = api.SubstitutionSuiteErrInvalidPeriod
-	ErrNotRunning       = api.SubstitutionSuiteErrNotRunning
-	ErrAlreadyAssigned  = api.SubstitutionSuiteErrAlreadyAssigned
-	ErrSelfAssignment   = api.SubstitutionSuiteErrSelfAssignment
+	ErrGroupNotFound    = schoolStructureCompose.ErrGroupNotFound
+	ErrGroupHasHandover = schoolStructureCompose.ErrGroupHasHandover
+	ErrStaffNotFound    = schoolStructureCompose.ErrStaffNotFound
+	ErrEmptySchoolClass = schoolStructureCompose.ErrEmptySchoolClass
+	ErrNotFound         = schoolStructureCompose.ErrNotFound
+	ErrForbidden        = schoolStructureCompose.ErrForbidden
+	ErrInvalidTarget    = schoolStructureCompose.ErrInvalidTarget
+	ErrInvalidPeriod    = schoolStructureCompose.ErrInvalidPeriod
+	ErrNotRunning       = schoolStructureCompose.ErrNotRunning
+	ErrAlreadyAssigned  = schoolStructureCompose.ErrAlreadyAssigned
+	ErrSelfAssignment   = schoolStructureCompose.ErrSelfAssignment
 )

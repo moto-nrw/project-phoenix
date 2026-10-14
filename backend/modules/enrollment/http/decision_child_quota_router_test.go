@@ -21,6 +21,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -200,10 +201,10 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 		api.WithBookingSettings(offeringGuardSettings(false)),
 	).Bookings
 	decisions := newOfferingGuardDecisions(repos, false, repos.Enrollment(), guardianAccess, studentEnrollment, bookings)
-	decision := enrollmentAPI.NewDecisionService(api.PublicEnrollmentDecisions(decisions))
+	decision := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(decisions))
 	requests := enrollmentAPI.NewRequestService(api.NewEnrollmentIntake(api.EnrollmentIntakeSources{
 		Requests: repos.Enrollment(), Children: repos.Enrollment(), Guardians: repos.Enrollment(),
-		CareOfferingRepo: api.NewEnrollmentCareOfferingRecords(repos.CarePlan), Catalog: repos.Enrollment(),
+		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(repos.CarePlan), Catalog: repos.Enrollment(),
 		SchoolRepo: capabilitySchools{schools: repos.School}, RateLimitRepo: repos.Enrollment(),
 		LateInviteRepo: repos.Enrollment(), OutboxEnqueuer: discardingOutbox{}, Settings: stubTakeoverSettings{},
 		ManualDecider: decisions, FrontendURL: "http://localhost:3000", ParentsURL: "http://parents.localhost:3000",
