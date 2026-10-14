@@ -41,9 +41,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Affected PRs keep one runner. Full suites isolate the two measured
-        # heavyweight packages: 0 application, 1 architecture, 2 migrations.
-        shard: ${{ fromJSON(inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' && '[0]' || '[0,1,2]') }}
+        # Affected PRs keep one runner. Full suites isolate architecture (1)
+        # and migrations (2), then balance application packages across 0/3.
+        shard: ${{ fromJSON(inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' && '[0]' || '[0,1,2,3]') }}
     # Change-scoped runs cover only affected packages; full suites need eight
     # vCPUs even when triggered by a pull request.
     runs-on: ${{ inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
@@ -223,9 +223,9 @@ jobs:
               [ -n "$package" ] && packages+=("$package")
             done < <(printf '%s\n' "$all_packages" | awk -v shard="$SHARD_INDEX" '
               {
-                target = 0
                 if ($0 ~ /\/internal\/architecture(\/|$)/) target = 1
-                if ($0 ~ /\/database\/migrations(\/|$)/) target = 2
+                else if ($0 ~ /\/database\/migrations(\/|$)/) target = 2
+                else target = (application++ % 2) * 3
                 if (target == shard) print
               }
             ')
@@ -299,7 +299,7 @@ jobs:
         if: ${{ inputs.changed-scope && matrix.project == 'node' }}
         working-directory: frontend
         run: >-
-          pnpm vitest run
+          pnpm vitest run --disableConsoleIntercept
           src/lib/app-route-invariants.test.ts
           src/lib/analytics-routes.test.ts
 
@@ -346,7 +346,9 @@ jobs:
           if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
             test_args+=(--changed "origin/$BASE_REF")
           fi
-          pnpm vitest run "${test_args[@]}"
+          # Native stdout/stderr avoids Vitest's console-RPC teardown race.
+          # Unhandled application errors still fail the run.
+          pnpm vitest run --disableConsoleIntercept "${test_args[@]}"
 
   # The seeder is the widest end-to-end path in this repo: roughly a hundred
   # real API calls across auth, enrollment, parent portal, time tracking and
