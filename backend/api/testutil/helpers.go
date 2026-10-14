@@ -73,10 +73,10 @@ func SetupFileStoreModule(t *testing.T, objects services.UploadsBackend) (*bun.D
 	return db, module
 }
 
-func SetupAbsenceTypeModule(t *testing.T) (*bun.DB, services.AbsenceTypeTestModule) {
+func SetupAbsenceTypeModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.AbsenceTypeTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewAbsenceTypeTestModule(db)
+	module, err := services.NewAbsenceTypeTestModule(db, clocks...)
 	require.NoError(t, err)
 	return db, module
 }

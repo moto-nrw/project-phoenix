@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -20,7 +21,11 @@ import (
 func TestAbsenceTypesRouteManagesCustomTypeAllowance(t *testing.T) {
 	t.Parallel()
 
-	db, router := setupAbsenceTypesRoute(t)
+	// The 2026 allowance expires on 2026-12-31; a live clock reads it as
+	// lapsed from 2027 on (#4027).
+	db, router := setupAbsenceTypesRoute(t, func() time.Time {
+		return testpkg.Date(2026, time.August, 24).BerlinMidnight().Add(12 * time.Hour)
+	})
 	admin, account := testpkg.CreateTestStaffWithAccount(t, db, "Lea", "Leitung")
 	staff := testpkg.CreateTestStaff(t, db, "Rena", "Generation")
 
@@ -215,10 +220,10 @@ func TestAbsenceTypesRouteRejectsWritesWithoutManage(t *testing.T) {
 	}
 }
 
-func setupAbsenceTypesRoute(t *testing.T) (*bun.DB, chi.Router) {
+func setupAbsenceTypesRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, chi.Router) {
 	t.Helper()
 
-	db, svc := testutil.SetupAbsenceTypeModule(t)
+	db, svc := testutil.SetupAbsenceTypeModule(t, clocks...)
 	resource := NewAbsenceTypesResource(svc.Administration, svc.UserContext.Caller().StaffID)
 	return db, resource.Router()
 }
