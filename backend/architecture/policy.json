@@ -2585,6 +2585,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/schedulerruntime/cleanupruns",
+      "owner": "scheduler-runtime",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/schedulerruntime/workerlease",
       "owner": "scheduler-runtime",
       "role": "postgres",
@@ -4068,6 +4075,10 @@
     {
       "name": "platform.announcements",
       "write_owner": "communication"
+    },
+    {
+      "name": "platform.cleanup_runs",
+      "write_owner": "scheduler-runtime"
     },
     {
       "name": "platform.delivery_email_deliveries",

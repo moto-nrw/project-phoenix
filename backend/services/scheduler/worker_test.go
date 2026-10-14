@@ -31,6 +31,7 @@ func minimalWorkerDependencies(t *testing.T) WorkerDependencies {
 		EmailChangeCleanup:        &fakeEmailChangeCleaner{},
 		OperatorInvitationCleanup: &fakeOperatorInvitationCleaner{},
 		FeedbackCleaner:           &fakeFeedbackCleaner{},
+		CleanupRuns:               newFakeCleanupRuns(),
 		Lease: WorkerLease{
 			Store: newMemoryLeaseStore(), Name: "worker", Holder: "test-worker",
 			TTL: 30 * time.Second, RenewEvery: 10 * time.Second, RetryEvery: 5 * time.Second, FenceMargin: 5 * time.Second,

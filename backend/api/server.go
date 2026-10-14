@@ -219,7 +219,16 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	if err != nil {
 		return nil, err
 	}
+	retention, err := newWorkerRetention(retentionOwners{
+		deletionLog:          graph.services.Audit,
+		unregisteredTagScans: graph.services.UnregisteredTagScans,
+	}, logger.With("service", "scheduler"))
+	if err != nil {
+		return nil, err
+	}
 	deps := workerRuntimeDependencies(graph, logger, billing)
+	deps.Retention = retention.run
+	deps.CleanupRuns = retention.runs
 	deps.TenantRuntime = runtime
 	deps.Settings = settings
 	deps.Lease = lease
@@ -266,7 +275,6 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, graph *ser
 	deps.BreakAutoEnder = services.WorkSession.Jobs
 	deps.AutoCheckouter = services.WorkSession.Jobs
 	deps.FeedbackCleaner = graph.feedback
-	deps.UnregisteredScanCleaner = services.UnregisteredTagScans
 	deps.Materializer = services.Materialization
 	deps.TimetableCleanup = services.TimetableCleanup
 	deps.CalendarFeedCleanup = services.CalendarFeedCleanup

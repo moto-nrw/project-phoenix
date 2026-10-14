@@ -7,11 +7,11 @@ import (
 
 // DataDeletion represents a record of deleted data for GDPR compliance.
 //
-// A deletion has exactly one subject: either a student (visit cleanup,
-// timetable cleanup, GDPR right-to-be-forgotten) OR a staff member
-// (time-tracking retention). The DB enforces this via the
-// chk_data_deletions_subject_xor check constraint added in migration
-// 1.15.58 — student_id XOR staff_id must be non-null.
+// A deletion has at most one subject: a student (visit cleanup, timetable
+// cleanup, GDPR right-to-be-forgotten) OR a staff member (time-tracking
+// retention). Only a retention run that logs a whole data kind leaves both
+// empty (#3950); the chk_data_deletions_subject check constraint of migration
+// 1.15.444 lists those types.
 type DataDeletion struct {
 	ID int64 `bun:"id,pk,autoincrement" json:"id"`
 	TenantModel
@@ -40,29 +40,58 @@ const (
 	DeletionTypeStudentChangeLogRetention = "student_change_log_retention"
 )
 
+// Retention types that log one data kind of a nightly run without a subject
+// (#3950): the row carries the count, never the deleted content.
+const (
+	DeletionTypeUnregisteredTagScanRetention = "unregistered_tag_scan_retention"
+	DeletionTypeStatusDayRetention           = "status_day_retention"
+	DeletionTypeParentMessageRetention       = "parent_message_retention"
+	DeletionTypeAuthEventRetention           = "auth_event_retention"
+	DeletionTypeDataAccessLogRetention       = "data_access_log_retention"
+	DeletionTypeDeletionLogRetention         = "deletion_log_retention"
+)
+
+// IsDataKindRetention reports whether deletionType logs a whole data kind
+// without a subject.
+func IsDataKindRetention(deletionType string) bool {
+	switch deletionType {
+	case DeletionTypeUnregisteredTagScanRetention,
+		DeletionTypeStatusDayRetention,
+		DeletionTypeParentMessageRetention,
+		DeletionTypeAuthEventRetention,
+		DeletionTypeDataAccessLogRetention,
+		DeletionTypeDeletionLogRetention:
+		return true
+	}
+	return false
+}
+
 // Validate ensures the data-deletion record is internally consistent before
-// it hits the DB. Mirrors the chk_data_deletions_subject_xor constraint so
+// it hits the DB. Mirrors the chk_data_deletions_subject constraint so
 // callers get a clear Go-side error instead of a 23514 pg error.
 func (dd *DataDeletion) Validate() error {
 	hasStudent := dd.StudentID != nil && *dd.StudentID > 0
 	hasStaff := dd.StaffID != nil && *dd.StaffID > 0
-	if hasStudent == hasStaff {
-		// Both set or both unset — the DB would reject this too.
-		return errors.New("exactly one of student_id / staff_id must be set")
-	}
 
 	if dd.DeletionType == "" {
 		return errors.New("deletion type is required")
 	}
 
-	switch dd.DeletionType {
-	case DeletionTypeVisitRetention,
-		DeletionTypeManual,
-		DeletionTypeGDPRRequest,
-		DeletionTypeTimetableRetention,
-		DeletionTypeTimeTrackingRetention,
-		DeletionTypeStudentChangeLogRetention:
-		// Valid types
+	switch {
+	case IsDataKindRetention(dd.DeletionType):
+		if hasStudent || hasStaff {
+			return errors.New("a data-kind retention row names no student or staff member")
+		}
+	case dd.DeletionType == DeletionTypeVisitRetention,
+		dd.DeletionType == DeletionTypeManual,
+		dd.DeletionType == DeletionTypeGDPRRequest,
+		dd.DeletionType == DeletionTypeTimetableRetention,
+		dd.DeletionType == DeletionTypeTimeTrackingRetention,
+		dd.DeletionType == DeletionTypeStudentChangeLogRetention:
+		if hasStudent == hasStaff {
+			// Both set or both unset — the DB would reject this too.
+			return errors.New("exactly one of student_id / staff_id must be set")
+		}
 	default:
 		return errors.New("invalid deletion type")
 	}
@@ -119,6 +148,19 @@ func NewStaffDataDeletion(staffID int64, deletionType string, recordsDeleted int
 		DeletionType:   deletionType,
 		RecordsDeleted: recordsDeleted,
 		DeletedBy:      deletedBy,
+		DeletedAt:      time.Now(),
+		Metadata:       make(map[string]interface{}),
+	}
+}
+
+// NewRetentionDataDeletion creates the row of one data kind a nightly
+// retention run deleted (#3950). It names no subject and holds only the count.
+func NewRetentionDataDeletion(deletionType string, recordsDeleted int) *DataDeletion {
+	return &DataDeletion{
+		DeletionType:   deletionType,
+		RecordsDeleted: recordsDeleted,
+		DeletionReason: "automated retention cleanup",
+		DeletedBy:      "system",
 		DeletedAt:      time.Now(),
 		Metadata:       make(map[string]interface{}),
 	}

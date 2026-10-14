@@ -124,10 +124,6 @@ type FeedbackCleaner interface {
 	DeleteExpired(ctx context.Context) (int, error)
 }
 
-type UnregisteredTagScanCleaner interface {
-	DeleteOlderThan(ctx context.Context, days int) (int, error)
-}
-
 // StaffDocumentFileCleaner removes files whose staff-document metadata either
 // never committed or belongs to an offboarded staff member.
 type StaffDocumentFileCleaner interface {
@@ -165,7 +161,10 @@ type Scheduler struct {
 	breakAutoEnder             BreakAutoEnder
 	autoCheckouter             AutoCheckouter
 	feedbackCleaner            FeedbackCleaner
-	unregisteredTagScanCleaner UnregisteredTagScanCleaner
+	retention                  RetentionRun
+	cleanupRuns                CleanupRunLedger
+	cleanupClock               func() time.Time
+	cleanupFailures            sync.Map // cleanupAttemptKey → time.Time of the last failed attempt
 	staffDocumentFileCleaner   StaffDocumentFileCleaner
 	studentDocumentFileCleaner StudentDocumentFileCleaner
 	fileStoreCleaner           FileStoreCleaner
@@ -318,6 +317,8 @@ func newScheduler(deps WorkerDependencies) *Scheduler {
 		appointmentReminderScannedAt:  make(map[int64]time.Time),
 		announcementReminders:         deps.AppointmentReminders,
 		announcementReminderScannedAt: make(map[int64]time.Time),
+		retention:                     deps.Retention,
+		cleanupRuns:                   deps.CleanupRuns,
 	}
 	addCleanupDependencies(scheduler, deps)
 	addScheduleDependencies(scheduler, deps)
@@ -334,7 +335,6 @@ func addCleanupDependencies(scheduler *Scheduler, deps WorkerDependencies) {
 	scheduler.invitationCleanup = deps.InvitationCleanup
 	scheduler.workSessionCleanup = deps.WorkSessionCleanup
 	scheduler.feedbackCleaner = deps.FeedbackCleaner
-	scheduler.unregisteredTagScanCleaner = deps.UnregisteredScanCleaner
 	scheduler.staffDocumentFileCleaner = deps.StaffDocumentCleaner
 	scheduler.studentDocumentFileCleaner = deps.StudentDocumentCleaner
 	scheduler.fileStoreCleaner = deps.FileStoreCleaner
@@ -871,11 +871,12 @@ func (s *Scheduler) runCleanupTaskPolling(task *ScheduledTask) {
 
 // checkAndRunDailyGDPRCleanup is the shared per-tenant gate for the nightly
 // retention jobs (visits, timetable, time-tracking). All three share
-// KeyDataCleanupEnabled + KeyDataCleanupTime — one admin switch and one
-// nightly window for all retention. dayCache dedupes per tenant per day; the
-// today-mark is set only after the tenant transaction commits, so a rollback
-// leaves the cleanup eligible for the next matching minute. Returning an error
-// through forEachTenantSettings also rolls back cleanup audit rows and their
+// KeyDataCleanupEnabled + KeyDataCleanupTime — one switch and one nightly
+// window for all retention. A job runs at the configured minute unless it
+// already succeeded today, and catches up at any minute once a scheduled run
+// was missed (#3950, see cleanupDue). The success is stored in the tenant
+// transaction, so a rollback leaves the run due. Returning an error through
+// forEachTenantSettings also rolls back cleanup audit rows and their
 // corresponding deletes atomically.
 func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *ScheduledTask, dayCache *sync.Map, opName string, runForTenant func(ctx context.Context, tenantID int64, cleanupTime string) error) {
 	task.mu.Lock()
@@ -901,19 +902,17 @@ func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *Sched
 		}
 
 		cleanupTime := s.resolveStringSetting(tenantCtx, settingDataCleanupTime, "CLEANUP_SCHEDULER_TIME", "02:00")
-		if !timeMatchesNow(cleanupTime) {
-			return nil
-		}
-
-		if wasRunToday(dayCache, tenantID) {
-			return nil
+		now := s.cleanupNow()
+		due, err := s.dailyCleanupDue(tenantCtx, dayCache, task.Name, tenantID, cleanupTime, now)
+		if err != nil || !due {
+			return err
 		}
 
 		if err := runForTenant(tenantCtx, tenantID, cleanupTime); err != nil {
+			s.noteCleanupFailure(task.Name, tenantID, now)
 			return err
 		}
-		s.markRunTodayAfterCommit(tenantCtx, dayCache, tenantID)
-		return nil
+		return s.recordCleanupSuccess(tenantCtx, dayCache, task.Name, tenantID, now)
 	})
 }
 
@@ -1024,21 +1023,6 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 		}
 	}
 
-	if s.unregisteredTagScanCleaner != nil {
-		if deleted, err := s.unregisteredTagScanCleaner.DeleteOlderThan(ctx, 90); err != nil {
-			s.getLogger().Error("unregistered RFID scan cleanup failed",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-		} else if deleted > 0 {
-			s.getLogger().Info("unregistered RFID scan cleanup completed",
-				slog.Int64("tenant_id", tenantID),
-				slog.Int("records_deleted", deleted),
-				slog.Int("retention_days", 90),
-			)
-		}
-	}
-
 	if s.enrollmentRejectedCleanup != nil {
 		requests, lateInvites, outboxRows, cleanupErr := s.enrollmentRejectedCleanup.CleanupRejectedEnrollments(ctx)
 		if cleanupErr != nil {
@@ -1053,6 +1037,16 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 				slog.Int("requests_deleted", requests),
 				slog.Int64("late_invites_deleted", lateInvites),
 				slog.Int64("outbox_rows_deleted", outboxRows))
+		}
+	}
+
+	if s.retention != nil {
+		if err := s.retention(ctx, tenantID); err != nil {
+			s.getLogger().Error("retention run failed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			return false
 		}
 	}
 
@@ -1718,6 +1712,11 @@ func (s *Scheduler) waitUntilNextMinute(acquired <-chan struct{}, onAcquire func
 
 // timeMatchesNow checks if an HH:MM time string matches the current minute.
 func timeMatchesNow(timeStr string) bool {
+	return timeMatchesAt(timeStr, time.Now())
+}
+
+// timeMatchesAt checks if an HH:MM time string matches the minute of now.
+func timeMatchesAt(timeStr string, now time.Time) bool {
 	parts := strings.Split(timeStr, ":")
 	if len(parts) != 2 {
 		return false
@@ -1730,7 +1729,6 @@ func timeMatchesNow(timeStr string) bool {
 	if err != nil || minute < 0 || minute > 59 {
 		return false
 	}
-	now := time.Now()
 	return now.Hour() == hour && now.Minute() == minute
 }
 
