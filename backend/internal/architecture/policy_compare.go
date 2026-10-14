@@ -16,6 +16,12 @@ import (
 // the baseline already tracks as unowned could only gain its owner through a
 // data migration. Every other ownership change remains a strict loosening.
 func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy, baseManifest *LegacyManifest, violations []Violation) error {
+	return compareCandidatePolicyStrictness(project, baseRef, base, candidate, baseManifest, violations, nil)
+}
+
+// The CLI already loaded this candidate's immutable graph. Standalone callers
+// retain their existing loading and error behavior through the public wrapper.
+func compareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy, baseManifest *LegacyManifest, violations []Violation, graph *Graph) error {
 	createdDataObjects, err := candidateMigrationDataObjects(project, baseRef)
 	if err != nil {
 		return err
@@ -24,9 +30,14 @@ func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *
 	if err != nil {
 		return err
 	}
-	candidateOnlyExternal, err := candidateOnlyExternalPackages(project, candidate, createdPackages)
-	if err != nil {
-		return err
+	var candidateOnlyExternal map[string]struct{}
+	if graph != nil {
+		candidateOnlyExternal = candidateOnlyExternalPackagesFromGraph(candidate, createdPackages, graph)
+	} else {
+		candidateOnlyExternal, err = candidateOnlyExternalPackages(project, candidate, createdPackages)
+		if err != nil {
+			return err
+		}
 	}
 	deletedLegacySymbols, err := candidateDeletedLegacySymbols(project, base, candidate)
 	if err != nil {

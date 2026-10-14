@@ -192,6 +192,78 @@ short spikes. Compiler export data uses Go's normal build cache; a cold first
 run may need to compile missing exports. These measurements cover repeated
 feedback, not a clean install, the full test suite or actual 16 GiB hardware.
 
+### Reuse within an architecture check
+
+A follow-up removes three more sources of repeated work within one invocation:
+
+1. The CLI reuses its loaded candidate package graph in policy comparison.
+   The standalone comparison API still loads and validates its own graph.
+2. Composition snapshots share parsed syntax only for the same relative path
+   with byte-identical source. Every candidate file is still read, including
+   build-excluded files. Changed and new files are parsed; each snapshot keeps
+   its own module, imports, type resolution and inventory.
+3. Contract analysis reuses completed value/pointer method sets for the exact
+   `go/types.Named` instance. Generic instantiations remain distinct. Findings,
+   diagnostic targets and recursive traversal guards are evaluated each time.
+
+All reuse ends with the invocation. There is no persistent cache, host-wide
+queue, policy relaxation, new dependency or removed check.
+The existing architecture command and hooks use this path automatically.
+
+On 2026-10-14, the same 64 GiB / 16-core Mac compared binaries built from
+`b1fafeb0b8ea7a37c95fafd7f87423c8024f87da` with isolated Go build overlays for
+each candidate. Every binary checked the same frozen working tree against
+that base, with warm caches, pinned Go 1.27.2, `GOFLAGS=-p=4` and
+`GOMAXPROCS=4`. Runs were sequential in forward/reverse order; the table gives
+three-run medians, excluding the initial warm-up.
+
+| Implementation | Wall time | CPU time | Sampled peak process-tree RSS |
+| --- | --- | --- | --- |
+| Before | 11.32 s | 18.88 s | 1940 MiB |
+| Package-graph reuse only | 10.09 s | 17.27 s | 1923 MiB |
+| Syntax reuse only | 10.37 s | 17.92 s | 1572 MiB |
+| Method-set reuse only | 11.58 s | 19.47 s | 1861 MiB |
+| All three | 9.23 s | 16.12 s | 1521 MiB |
+
+Together this reduced wall time by 18%, CPU time by 15% and sampled peak RSS
+by 22%. All fifteen measured outputs were byte-identical: 46 legacy
+violations and 252 composition targets. These numbers cover the architecture
+gate, not app runtime, the full test suite or a real 16 GiB machine. Other
+work remained active; RSS was sampled every 250 ms and may miss short spikes.
+The raw check also matched all 347 diagnostic lines, including source locations.
+
+The method-set-only series did not establish a time improvement. A separate
+three-pair comparison with graph and syntax reuse already enabled measured
+9.98 / 9.23 s wall time and 16.71 / 16.01 s CPU time without / with method-set
+reuse. Its sampled RSS was 1458 / 1529 MiB, so retaining completed sets has a
+memory tradeoff. A full-GC allocation profile reduced cumulative
+`types.NewMethodSet` allocations from about 212 MiB to 4 MiB. The combined
+profile reduced total allocations from 4.61 GiB to 3.64 GiB (21%). Allocation
+volume is not peak resident memory.
+
+### Deadcode experiment not adopted
+
+The fourth candidate profiled the pinned `golang.org/x/tools` v0.51.0 tool
+and tried `GOGC=50` against the default, without changing either analysis
+mode. Three runs per mode/setting used the same frozen tree and pinned
+toolchain, sequentially in alternating order. Each mode's findings were
+byte-identical across settings. Medians:
+
+| Mode / GC setting | Wall time | CPU time | Sampled peak process-tree RSS |
+| --- | --- | --- | --- |
+| Production / default | 6.17 s | 15.24 s | 3896 MiB |
+| Production / `GOGC=50` | 6.95 s | 19.66 s | 3215 MiB |
+| Including tests / default | 13.43 s | 31.82 s | 6996 MiB |
+| Including tests / `GOGC=50` | 15.22 s | 40.82 s | 6113 MiB |
+
+More frequent GC saved about 13–17% peak RSS, but added about 13% wall time
+and 28–29% CPU time. It does not meet the goal of less work and faster
+feedback, so no GC default or deadcode command was changed. The profile
+points to whole-program type checking, SSA construction and reachability
+analysis inside the external tool; no safe repo-local algorithm reduction
+was identified. Production and test-inclusive passes remain separate because
+test entry points can hide production-unreachable functions.
+
 ### Fresh Postgres volumes
 
 The dev template gives Postgres a 60-second healthcheck start period and
