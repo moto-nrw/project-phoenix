@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
+	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/cleanupruns"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
@@ -25,6 +26,7 @@ type workerRetention struct {
 const (
 	retentionUnregisteredTagScans = "unregistered_tag_scan_retention"
 	retentionStatusDays           = "status_day_retention"
+	retentionParentMessages       = "parent_message_retention"
 )
 
 // Retention windows the moto team records per school (ADR 0048). The Settings
@@ -50,7 +52,8 @@ type retentionOwners struct {
 	unregisteredTagScans interface {
 		DeleteExpired(ctx context.Context) (deleted, retentionDays int, err error)
 	}
-	statusDays carePlanModule.StudentStatusDayRetention
+	statusDays     carePlanModule.StudentStatusDayRetention
+	parentMessages communicationModule.ParentMessageCleanup
 }
 
 func newWorkerRetention(owners retentionOwners, logger *slog.Logger) (workerRetention, error) {
@@ -95,6 +98,16 @@ func retentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 				}
 				deleted, err := statusDays.DeleteStudentStatusDaysBefore(ctx, carePlanModule.Date(retentionCutoff(days)))
 				return scheduler.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
+			},
+		})
+	}
+	if owners.parentMessages != nil {
+		messages := owners.parentMessages
+		steps = append(steps, scheduler.RetentionStep{
+			Kind: retentionParentMessages,
+			Run: func(ctx context.Context) (scheduler.RetentionOutcome, error) {
+				result, err := messages.CleanupExpiredParentMessages(ctx)
+				return scheduler.RetentionOutcome{Deleted: result.MessagesDeleted, RetentionDays: result.RetentionDays}, err
 			},
 		})
 	}

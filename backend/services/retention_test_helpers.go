@@ -5,6 +5,8 @@ import (
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -14,12 +16,13 @@ import (
 // steps bind (#3950), composed over the test database for the root's
 // retention suite as the service graph composes them: the deletion log of
 // the Audit command, the Settings Platform, the unregistered tag scans over
-// the Device Fleet owner and the Care Plan status days.
+// the Device Fleet owner, the Care Plan status days and the parent messages.
 type RetentionTestOwners struct {
 	Audit                *auditCompose.Command
 	Settings             settingsCompose.BatchSettingsService
 	UnregisteredTagScans auditCompose.UnregisteredTagScanService
 	StatusDays           careplan.StudentStatusDayRetention
+	ParentMessages       communication.ParentMessageCleanup
 }
 
 // NewRetentionTestOwners composes the retention owners over db; unit is the
@@ -54,5 +57,6 @@ func NewRetentionTestOwners(db *bun.DB, unit tenant.UnitOfWork) (RetentionTestOw
 	}
 	return RetentionTestOwners{
 		Audit: command, Settings: settings.Settings, UnregisteredTagScans: scans, StatusDays: statusDays,
+		ParentMessages: communicationCompose.NewParentMessageRetention(db, settings.Settings),
 	}, nil
 }

@@ -253,4 +253,22 @@ func init() {
 			Value:     true,
 		},
 	})
+
+	// Parent/OGS conversations (#3959). The frame of 30 days to 2 years
+	// matches the staff chat; open requests stay until they are decided.
+	config.Register(config.Definition{
+		Key:             config.KeyGDPRParentMessageRetentionDays,
+		Label:           "Elternnachrichten aufbewahren (Tage)",
+		Description:     "So lange speichert moto die Nachrichten zwischen Eltern und OGS. Danach löscht moto sie. Offene Anfragen bleiben, bis die OGS sie bearbeitet hat.",
+		Type:            config.FieldNumber,
+		Default:         365,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
+		Tab:             "gdpr",
+		Category:        "bewegungsdaten",
+		SortOrder:       17,
+		Validation:      config.Range(30, 730),
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
+	})
 }

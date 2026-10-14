@@ -33,6 +33,7 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 		settings:             owners.Settings,
 		unregisteredTagScans: owners.UnregisteredTagScans,
 		statusDays:           owners.StatusDays,
+		parentMessages:       owners.ParentMessages,
 	}, nil)
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
@@ -152,4 +153,100 @@ func TestNightlyRetentionFollowsTheSchoolsRecordedStatusDayWindow(t *testing.T) 
 
 	assert.True(t, suite.exists(t, "active.student_status_days", kept), "a longer contractual window keeps the day")
 	assert.False(t, suite.exists(t, "active.student_status_days", expired))
+}
+
+type parentThreadFixture struct {
+	suite    retentionSuite
+	tenantID int64
+	student  int64
+	guardian int64
+	id       int64
+}
+
+// parentThread stores a conversation opened daysAgo days back between a
+// fresh guardian account and the child.
+func (s retentionSuite) parentThread(t *testing.T, tenantID, studentID int64, daysAgo int) parentThreadFixture {
+	t.Helper()
+	guardian := testpkg.CreateTestAccount(t, s.admin, "retention-guardian@example.com").ID
+	id := s.insertID(t, `INSERT INTO users.parent_message_threads (tenant_id, student_id, guardian_account_id, created_at)
+		VALUES (?, ?, ?, CURRENT_TIMESTAMP - make_interval(days => ?)) RETURNING id`, tenantID, studentID, guardian, daysAgo)
+	return parentThreadFixture{suite: s, tenantID: tenantID, student: studentID, guardian: guardian, id: id}
+}
+
+// message stores a message sent daysAgo days back and makes it the thread's
+// preview when it is the newest, as sending does.
+func (f parentThreadFixture) message(t *testing.T, body string, daysAgo int) int64 {
+	t.Helper()
+	id := f.suite.insertID(t, `INSERT INTO users.parent_messages
+		(tenant_id, thread_id, student_id, sender_account_id, sender_kind, sender_name, body, created_at)
+		VALUES (?, ?, ?, ?, 'guardian', 'Elternteil', ?, CURRENT_TIMESTAMP - make_interval(days => ?)) RETURNING id`,
+		f.tenantID, f.id, f.student, f.guardian, body, daysAgo)
+	f.touch(t, id)
+	return id
+}
+
+// openRequest stores a request the OGS has not decided yet.
+func (f parentThreadFixture) openRequest(t *testing.T, body string, daysAgo int) int64 {
+	t.Helper()
+	return f.suite.insertID(t, `INSERT INTO users.parent_messages
+		(tenant_id, thread_id, student_id, sender_account_id, sender_kind, sender_name, body, created_at, kind, request_type, request_status)
+		VALUES (?, ?, ?, ?, 'guardian', 'Elternteil', ?, CURRENT_TIMESTAMP - make_interval(days => ?), 'request', 'care_change', 'offen') RETURNING id`,
+		f.tenantID, f.id, f.student, f.guardian, body, daysAgo)
+}
+
+func (f parentThreadFixture) touch(t *testing.T, messageID int64) {
+	t.Helper()
+	_, err := f.suite.admin.ExecContext(context.Background(), `UPDATE users.parent_message_threads AS thread
+		SET last_message_id = message.id, last_message_at = message.created_at,
+		    last_sender_kind = message.sender_kind, last_message_body = message.body
+		FROM users.parent_messages AS message
+		WHERE thread.id = ? AND message.id = ?
+		  AND (thread.last_message_at IS NULL OR thread.last_message_at < message.created_at)`, f.id, messageID)
+	require.NoError(t, err)
+}
+
+func TestNightlyRetentionDeletesParentMessagesAfterTheirWindow(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	otherSchool, _ := testpkg.CreateTestTenant(t, suite.admin)
+	child := testpkg.CreateTestStudent(t, suite.admin, "Nachricht", "Kind", "1a")
+	otherChild := testpkg.CreateTestStudentForTenant(t, suite.admin, otherSchool, "Andere", "Schule", "1a")
+
+	// An active conversation: its old message goes, the recent one stays.
+	active := suite.parentThread(t, school, child.ID, 500)
+	expired := active.message(t, "Alte Nachricht", 366)
+	recent := active.message(t, "Neue Nachricht", 364)
+
+	// A conversation whose only message expired disappears with its read state.
+	finished := suite.parentThread(t, school, child.ID, 500)
+	finished.message(t, "Längst erledigt", 400)
+	_, err := suite.admin.ExecContext(context.Background(), `INSERT INTO users.parent_message_reads (tenant_id, thread_id, account_id)
+		VALUES (?, ?, ?)`, school, finished.id, finished.guardian)
+	require.NoError(t, err)
+
+	// An undecided request keeps its conversation; the preview must not keep
+	// the text of the deleted newer message.
+	waiting := suite.parentThread(t, school, child.ID, 500)
+	request := waiting.openRequest(t, "Bitte Betreuung ändern", 450)
+	waiting.message(t, "Vertrauliche alte Antwort", 400)
+
+	otherThread := suite.parentThread(t, otherSchool, otherChild.ID, 500)
+	otherExpired := otherThread.message(t, "Andere Schule", 400)
+
+	suite.run(t, school)
+
+	assert.False(t, suite.exists(t, "users.parent_messages", expired), "a message older than 365 days is deleted")
+	assert.True(t, suite.exists(t, "users.parent_messages", recent), "a younger message stays")
+	assert.True(t, suite.exists(t, "users.parent_message_threads", active.id))
+	assert.False(t, suite.exists(t, "users.parent_message_threads", finished.id), "a conversation without messages disappears")
+	assert.Zero(t, suite.count(t, `SELECT COUNT(*) FROM users.parent_message_reads WHERE thread_id = ?`, finished.id))
+	assert.True(t, suite.exists(t, "users.parent_messages", request), "an undecided request stays")
+	var preview string
+	require.NoError(t, suite.admin.NewRaw(`SELECT last_message_body FROM users.parent_message_threads WHERE id = ?`, waiting.id).
+		Scan(context.Background(), &preview))
+	assert.Equal(t, "Bitte Betreuung ändern", preview, "the preview shows the newest remaining message, never the deleted one")
+	assert.True(t, suite.exists(t, "users.parent_messages", otherExpired), "the run of one school never touches another")
+	assert.Equal(t, []int{3}, suite.loggedDeletions(t, school, retentionParentMessages))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionParentMessages))
 }

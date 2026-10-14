@@ -65,6 +65,9 @@ const (
 	// child (active.student_status_days, #3958): health data, counted from
 	// the reported day.
 	KeyGDPRStatusDayRetentionDays = "gdpr.status_day_retention_days"
+	// Retention window (days) for the parent/OGS conversations
+	// (users.parent_messages, #3959), counted from sending.
+	KeyGDPRParentMessageRetentionDays = "gdpr.parent_message_retention_days"
 )
 
 // Attendance log / Raumverlauf (student attendance history) settings.

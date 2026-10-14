@@ -17,6 +17,7 @@ import (
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
@@ -224,6 +225,7 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 		settings:             graph.services.Settings,
 		unregisteredTagScans: graph.services.UnregisteredTagScans,
 		statusDays:           reads.statusDayRetention,
+		parentMessages:       communicationCompose.NewParentMessageRetention(graph.db, graph.services.Settings),
 	}, logger.With("service", "scheduler"))
 	if err != nil {
 		return nil, err

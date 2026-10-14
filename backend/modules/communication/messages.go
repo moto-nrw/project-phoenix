@@ -158,6 +158,20 @@ type MessageableStaff struct {
 	RoleKind  string
 }
 
+// ParentMessageCleanupResult reports one school's parent-message retention
+// sweep (#3959).
+type ParentMessageCleanupResult struct {
+	MessagesDeleted int
+	ThreadsDeleted  int
+	RetentionDays   int
+}
+
+// ParentMessageCleanup deletes the parent/OGS messages of the school in
+// context after the retention window the moto team recorded for it.
+type ParentMessageCleanup interface {
+	CleanupExpiredParentMessages(context.Context) (ParentMessageCleanupResult, error)
+}
+
 type StaffMessageCleanupResult struct {
 	MessagesDeleted int
 	ThreadsDeleted  int
