@@ -52,7 +52,7 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
 		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
 		PersonRepo:       tt.Person, StudentRepo: tt.Student, TeacherRepo: tt.Teacher, AccountExists: services.AccountExists(r.Profile),
-		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: tt.Person, Staff: tt.Staff, Teachers: tt.Teacher}),
+		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: tt.Person, Staff: tt.Staff, Teachers: tt.Teacher, MayManageStaff: StaffAdministrationPermitted}),
 	})
 	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
 	if err != nil {

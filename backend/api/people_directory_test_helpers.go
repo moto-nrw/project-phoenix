@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -39,6 +41,7 @@ func NewTestPersonDirectory(db transactionruntime.Database, sources TestPersonDi
 	if sources.Staff != nil {
 		deps.StaffDirectory = peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{
 			Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: sources.Persons, Staff: sources.Staff, Teachers: sources.Teachers,
+			MayManageStaff: StaffAdministrationPermitted,
 		})
 	}
 	return peopleCompose.NewPersonDirectory(deps)
@@ -66,4 +69,11 @@ func NewPeopleDirectorySuiteStudentService(
 	students userModels.StudentRepository,
 ) peopleCompose.StudentService {
 	return peopleCompose.NewStudentService(directory, classes, students)
+}
+
+// StaffAdministrationPermitted is the Security Runtime's staff:manage check
+// the staff directory asks before a create adopts an existing staff record,
+// as the service graph binds it.
+func StaffAdministrationPermitted(actorPermissions []string) bool {
+	return securityruntime.HasPermission(securityruntime.PermissionStaffManage, actorPermissions)
 }

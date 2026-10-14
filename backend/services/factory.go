@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -515,7 +516,6 @@ type PeopleWiring struct {
 	GuardianProfiles userModels.GuardianProfileRepository
 	Staff            userModels.StaffRepository
 	Teachers         userModels.TeacherRepository
-	Guests           userModels.GuestRepository
 	Groups           EducationGroupRepository
 	GroupTeachers    GroupTeacherRepository
 	ClassTeachers    ClassTeacherRepository
@@ -600,16 +600,25 @@ type RetentionSettings interface {
 	ResolveInt(ctx context.Context, key string) (int, error)
 }
 
-// validate refuses a wiring with a missing constructor: the graph calls each
-// of them while it composes.
+// validate refuses a wiring with a missing value or constructor: the graph
+// binds every one of them while it composes.
 func (w PeopleWiring) validate() error {
-	if w.Identity == nil || w.Persons == nil || w.Students == nil || w.StudentGuardians == nil || w.GuardianProfiles == nil ||
-		w.Staff == nil || w.Teachers == nil || w.Guests == nil || w.Groups == nil || w.GroupTeachers == nil || w.ClassTeachers == nil ||
-		w.SupervisionRecords == nil || w.SupervisionBlockers == nil || w.CaregiverIdentity == nil || w.CaregiverCapabilityAudit == nil ||
-		w.GuardianFinancialAudit == nil || w.GuardianDataAccessLog == nil || w.ClassAssignmentAudit == nil || w.SubstitutionAudit == nil ||
-		w.StudentConsents == nil || w.StudentChangeLogCleanup == nil || w.StatusDayPeople == nil || w.GroupRosterPeople == nil ||
-		w.MasterDataDecisions == nil || w.ParentRequestCoordinator == nil || w.ParentRequestWriteScope == nil {
-		return errors.New("the People Directory, School Membership and School Structure wiring is incomplete")
+	required := []any{
+		w.Identity, w.Persons, w.Students, w.StudentGuardians, w.GuardianProfiles, w.Staff, w.Teachers,
+		w.Groups, w.GroupTeachers, w.ClassTeachers, w.CaregiverBindingLock,
+		w.GroupRooms, w.GroupTeacherDirectory, w.StaffChecks, w.SubstitutionPersons, w.Caregivers, w.ExternalCaregivers,
+		w.StudentDisplay, w.CrossTenantStudents, w.PresenceSchools, w.PresenceStudents,
+		w.SchoolContacts, w.EnrollmentSchools, w.DisplaySchools, w.SchoolNames, w.StudentAudit,
+		w.PickupSchedules, w.ArrivalSchedules, w.PickupExceptions, w.ArrivalExceptions,
+		w.SupervisionRecords, w.SupervisionBlockers, w.CaregiverIdentity, w.CaregiverCapabilityAudit,
+		w.GuardianFinancialAudit, w.GuardianDataAccessLog, w.ClassAssignmentAudit, w.SubstitutionAudit,
+		w.StudentConsents, w.StudentChangeLogCleanup, w.StatusDayPeople, w.GroupRosterPeople,
+		w.MasterDataDecisions, w.ParentRequestCoordinator, w.ParentRequestWriteScope,
+	}
+	for _, value := range required {
+		if value == nil || reflect.ValueOf(value).IsZero() {
+			return errors.New("the People Directory, School Membership and School Structure wiring is incomplete")
+		}
 	}
 	return nil
 }

@@ -16377,38 +16377,68 @@
         },
         {
           "file": "api/base.go",
-          "line": 393,
+          "line": 374,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 442,
+          "line": 473,
           "declaration": "withRootWiring"
         },
         {
           "file": "api/base.go",
-          "line": 701,
+          "line": 732,
           "declaration": "type serveGraph"
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 42,
+          "line": 44,
           "declaration": "NewFactoryForTests"
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 55,
+          "line": 61,
           "declaration": "NewFactoryForTestsWithConfig"
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 136,
+          "line": 162,
           "declaration": "OwnerCapabilities.factory"
         },
         {
+          "file": "api/guardian_directory_composition.go",
+          "line": 134,
+          "declaration": "NewGuardianDirectoryRuntime"
+        },
+        {
+          "file": "api/guardian_directory_composition.go",
+          "line": 158,
+          "declaration": "guardianInvitationFlows"
+        },
+        {
+          "file": "api/guardian_directory_composition.go",
+          "line": 206,
+          "declaration": "pendingGuardianInvitations"
+        },
+        {
+          "file": "api/guardian_directory_composition.go",
+          "line": 225,
+          "declaration": "guardianApprovalFlows"
+        },
+        {
+          "file": "api/guardian_directory_composition.go",
+          "line": 265,
+          "declaration": "guardianPaymentExport"
+        },
+        {
           "file": "api/guardian_test_helpers.go",
-          "line": 59,
+          "line": 60,
           "declaration": "NewGuardianTestModule"
+        },
+        {
+          "file": "api/people_directory_roots.go",
+          "line": 200,
+          "declaration": "NewStaffMembershipRuntime"
         },
         {
           "file": "api/session_end.go",
@@ -16426,9 +16456,44 @@
           "declaration": "newExportTransferModule"
         },
         {
+          "file": "api/staff_membership_composition.go",
+          "line": 161,
+          "declaration": "bindStaffMembershipRuntime"
+        },
+        {
+          "file": "api/staff_membership_composition.go",
+          "line": 216,
+          "declaration": "newStaffOffboardingWorkflow"
+        },
+        {
+          "file": "api/staff_membership_composition.go",
+          "line": 231,
+          "declaration": "staffDirectoryPersons"
+        },
+        {
+          "file": "api/staff_membership_composition.go",
+          "line": 271,
+          "declaration": "membershipTeacherGroups"
+        },
+        {
+          "file": "api/staff_membership_composition.go",
+          "line": 286,
+          "declaration": "membershipRoleRows"
+        },
+        {
+          "file": "api/staff_membership_composition.go",
+          "line": 324,
+          "declaration": "staffDirectoryWrites"
+        },
+        {
           "file": "api/staff_test_helpers.go",
           "line": 39,
           "declaration": "NewStaffTestModule"
+        },
+        {
+          "file": "api/student_photo_composition.go",
+          "line": 289,
+          "declaration": "enableStudentPhotos"
         },
         {
           "file": "api/time_tracking_composition.go",

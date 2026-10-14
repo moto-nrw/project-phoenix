@@ -575,8 +575,10 @@ Directory. The root builds the retained repositories and the cross-owner
 adapters (`api.NewPeopleWiring`) and hands them to `NewFactoryWithModules` as
 `services.PeopleWiring`, in place of what the Factory built itself; an adapter
 over a value the Factory composes arrives as a constructor. The root's adapters
-read through their own ports, so `TestHandlerLayerRatchet` keeps holding for
-`api`. Code that other slices still call stays with those callers in
+take narrow ports of their own instead of the retained repository types where
+they read a few methods, which keeps `TestHandlerLayerRatchet` R1 green; the
+root's builders still return and embed retained repository types, which R1's
+pattern does not cover. Code that other slices still call stays with those callers in
 `services` until they move. Two stale offboarding rules of the legacy
 composition are gone, and the composition surface fell from 250 to 248.
 

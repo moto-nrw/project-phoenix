@@ -36,7 +36,7 @@ func NewActivitiesTestModule(db transactionruntime.Database) (ActivitiesTestModu
 			PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
 			StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
 			PersonRepo:       r.Person, TeacherRepo: r.Teacher,
-			StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: r.Person, Staff: r.Staff, Teachers: r.Teacher}),
+			StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: r.Person, Staff: r.Staff, Teachers: r.Teacher, MayManageStaff: StaffAdministrationPermitted}),
 		}),
 	}, nil
 }

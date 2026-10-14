@@ -74,6 +74,7 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 	require.NoError(t, err)
 	dir := peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{
 		Runtime: peopleCompose.NewLegacyRepositoryRuntime(db), Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher,
+		MayManageStaff: api.StaffAdministrationPermitted,
 	})
 
 	updateStaff := func(ctx context.Context, staff *userModels.Staff) error {

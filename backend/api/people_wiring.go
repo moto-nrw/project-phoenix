@@ -70,7 +70,6 @@ func NewPeopleWiring(owners PeopleWiringOwners) (services.PeopleWiring, error) {
 		GuardianProfiles:     NewGuardianProfileRepository(db),
 		Staff:                members.Staff,
 		Teachers:             members.Teacher,
-		Guests:               members.Guest,
 		Groups:               members.Group,
 		GroupTeachers:        members.GroupTeacher,
 		ClassTeachers:        members.ClassTeacher,

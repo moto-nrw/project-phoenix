@@ -310,7 +310,7 @@ func NewTimetableHTTPTestPeople(db transactionruntime.Database) (services.Timeta
 	}
 	return services.NewTimetablePeople(peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
 		PersonRepo: r.Person, StudentRepo: r.Student,
-		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Persons: r.Person, Staff: r.Staff}),
+		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Persons: r.Person, Staff: r.Staff, MayManageStaff: StaffAdministrationPermitted}),
 	})), nil
 }
 
