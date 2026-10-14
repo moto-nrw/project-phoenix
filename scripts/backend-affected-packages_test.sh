@@ -83,6 +83,8 @@ EOF
 # A real main package may legitimately end in .test. Keep it in the graph,
 # while excluding generated .test mains. Also cover test-only importers.
 mkdir -p "$fixture/backend"/{graphbase,legitimate.test,testonly}
+mkdir -p "$fixture/backend/retired"
+printf 'package retired\n' >"$fixture/backend/retired/retired.go"
 printf 'package graphbase\n\nconst Value = 1\n' >"$fixture/backend/graphbase/base.go"
 printf 'package graphbase\n' >"$fixture/backend/graphbase/base_test.go"
 cat >"$fixture/backend/legitimate.test/main.go" <<'EOF'
@@ -258,6 +260,23 @@ assert_output $'example.test/project/graphbase\nexample.test/project/legitimate.
 assert_output_direct $'example.test/project/graphbase\nexample.test/project/legitimate.test\nexample.test/project/testonly'
 git -C "$fixture" restore backend/graphbase/base.go
 
+# Removing an unused package must validate imports without compiling the whole
+# backend first. A cold cache makes accidental export builds observable even
+# when this test is run repeatedly on a developer's warm Go cache.
+cat >"$fixture/no-compile" <<'EOF'
+#!/usr/bin/env bash
+echo 'package selection unexpectedly invoked the Go compiler' >&2
+exit 1
+EOF
+chmod +x "$fixture/no-compile"
+mv "$fixture/backend/retired/retired.go" "$fixture/retired.go"
+actual=$(GOCACHE="$fixture/cold-cache" GOFLAGS="${GOFLAGS:-} -toolexec=$fixture/no-compile" select_packages)
+if [ -n "$actual" ]; then
+  echo "deleted unused package unexpectedly selected packages: $actual" >&2
+  exit 1
+fi
+mv "$fixture/retired.go" "$fixture/backend/retired/retired.go"
+
 mv "$fixture/backend/corex/corex.go" "$fixture/corex.go"
 if select_packages >/dev/null 2>&1; then
   echo 'deleted package imported only by tests unexpectedly passed graph validation' >&2
@@ -279,6 +298,8 @@ assert_workflow_filter backend-lint 'scripts/backend-affected-packages_test.sh' 
 assert_workflow_filter backend-lint 'scripts/backend-lint-packages.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-lint-packages.sh' present
 assert_workflow_filter backend-test-infra 'scripts/test-run-id.sh' present
+assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix.sh' present
+assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix_test.sh' present
 for filter in backend-tests backend-lint backend-architecture; do
   assert_workflow_filter "$filter" 'scripts/backend-architecture.sh' present
   assert_workflow_filter "$filter" 'scripts/backend-architecture/**' present
@@ -305,6 +326,30 @@ assert_workflow_output_contains run-frontend '${{ github.event_name == '\''push'
 assert_workflow_output_contains run-backend-lint '${{ github.event_name == '\''push'\'' ||'
 assert_workflow_output_contains full-backend-lint '${{ github.event_name == '\''push'\'' ||'
 assert_workflow_output_contains run-backend-architecture '${{ github.event_name == '\''push'\'' ||'
+assert_workflow_output_contains full-backend-suite "steps.backend-size.outputs.full == 'true'"
+
+# Exercise the real cheap guard, including deduplication and non-Go files. A
+# broad refactor must enter the fast full-suite path before scheduling tests.
+size_script=$(awk '
+  /^      - name: Size backend test scope$/ { active = 1; next }
+  active && /^        run: \|$/ { script = 1; next }
+  script && /^  [a-z-]+:$/ { exit }
+  script { sub(/^          /, ""); print }
+' "$repo_root/.github/workflows/main.yml")
+[ -n "$size_script" ] || { echo 'backend scope size guard missing' >&2; exit 1; }
+for count in 63 64; do
+  files=$(jq -cn --argjson count "$count" '[range(0; $count) | "backend/package\(.)/source.go", "backend/package\(.)/source_test.go", "backend/notes\(.)/README.md"]')
+  CHANGED_FILES="$files" GITHUB_OUTPUT="$fixture/scope-size" bash -euo pipefail <<<"$size_script"
+  expected=false
+  [ "$count" -lt 64 ] || expected=true
+  grep -qx "full=$expected" "$fixture/scope-size"
+  rm "$fixture/scope-size"
+done
+for manifest in go.mod go.sum; do
+  CHANGED_FILES="[\"backend/$manifest\"]" GITHUB_OUTPUT="$fixture/scope-size" bash -euo pipefail <<<"$size_script"
+  grep -qx 'full=true' "$fixture/scope-size"
+  rm "$fixture/scope-size"
+done
 
 # Execute the actual workflow guard: architecture-only changes may skip both
 # reusable jobs, but each independently requested job must run.

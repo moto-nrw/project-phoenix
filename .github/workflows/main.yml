@@ -59,7 +59,7 @@ jobs:
       # Ordinary PRs use changed-test selection; protected-branch pushes and
       # release pull requests are always full because they revalidate the whole
       # tree, not just what the change touched.
-      full-backend-suite: ${{ steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
+      full-backend-suite: ${{ steps.backend-size.outputs.full == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
       full-frontend-suite: ${{ steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
       # Pull requests test what changed against the base branch. Protected-branch
       # pushes and release pull requests run the full suites.
@@ -102,6 +102,7 @@ jobs:
         id: filter
         with:
           predicate-quantifier: "some-with-excludes"
+          list-files: json
           filters: |
             backend-tests:
               - 'backend/**/*.go'
@@ -170,6 +171,8 @@ jobs:
               - 'scripts/backend-affected-packages_test.sh'
               - 'scripts/backend-lint-packages.sh'
               - 'scripts/test-backend.sh'
+              - 'scripts/backend-test-matrix.sh'
+              - 'scripts/backend-test-matrix_test.sh'
               - 'scripts/test-changed.sh'
               - 'scripts/test-changed_test.sh'
               - 'scripts/test-run-id.sh'
@@ -260,6 +263,19 @@ jobs:
               - 'backend/api/common/error_codes.generated.go'
               - 'frontend/src/lib/error-codes.generated.ts'
               - '.github/workflows/lint.yml'
+
+      # A large refactor must not squeeze almost the whole suite through the
+      # affected-only runner. This cheap file-list check also avoids a serial
+      # Go planning job for changes that are already obviously broad.
+      - name: Size backend test scope
+        id: backend-size
+        env:
+          CHANGED_FILES: ${{ steps.filter.outputs.backend-tests_files }}
+        run: |
+          : "${CHANGED_FILES:?changed-file list is required}"
+          full=$(jq 'any(.[]; . == "backend/go.mod" or . == "backend/go.sum") or
+            (map(select(endswith(".go")) | split("/")[:-1] | join("/")) | unique | length >= 64)' <<< "$CHANGED_FILES")
+          echo "full=$full" >> "$GITHUB_OUTPUT"
 
   ci-scripts:
     name: CI and release script suites (${{ matrix.suite }})
