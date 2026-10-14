@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -89,7 +88,7 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 		{workforce.BalanceAdjustmentTypePayout, -30},
 		{workforce.BalanceAdjustmentTypeCompTime, -60},
 	} {
-		adjustment := &timerecords.StaffBalanceAdjustment{
+		adjustment := &timetracking.StaffBalanceAdjustment{
 			StaffID:       f.staff[2],
 			Type:          adj.typ,
 			MinutesDelta:  adj.delta,

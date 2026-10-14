@@ -1325,8 +1325,8 @@ dissolve into the Workforce application and domain layers.
 `modules/workforce/internal/application/timetracking` (`workforce`/`application`, test roles
 `module-internal-test` and `module-behavior-test`), a subpackage of the
 native application rather than part of it, because the native CRUD speaks the
-domain types while the moved services still speak the
-`modules/workforce/adapters/timerecords` rows. The adapters that served the
+domain types while the moved services speak time-record rows of their own
+(until #3996 the `modules/workforce/adapters/timerecords` rows). The adapters that served the
 public `WorkSessions`, `TimeClock`, `StaffAbsences`, `WorkTimeMonths`,
 `BalanceAdjustments`, `MonthClosing`, `StaffOverview`, `TimeTrackingAuditLog`,
 `StaffTimeExport`, `VacationTakeovers`, `OpeningBalanceBookings` and
@@ -1337,8 +1337,24 @@ outside `modules/workforce` implements them.
 capability and the consumer-owned ports the root binds in
 `services/time_tracking_ports.go`. The work-session repository shim, its five
 constructors and their root bindings are deleted; the row mapping is private
-to the composition (`compose/worksession_rows.go`). The retained row vocabulary of
-`modules/workforce/adapters/timerecords` stays until #3996.
+to the composition (`compose/worksession_rows.go`).
+
+#3996 retired the row vocabulary of `modules/workforce/adapters/timerecords`.
+The rows and their repository contracts are declared in the time-tracking
+package itself (`*_record.go`, `time_record_repositories.go`), not in
+`internal/domain`, because the Workforce domain may not import `models/base`
+or `internal/timezone`, which the rows embed. The staff absence and absence
+audit adapters moved from `modules/workforce/legacy` into
+`modules/workforce/compose` (`absence_rows.go`), since a Workforce adapter may
+not import the application. The two staff absence decorators of the root stay
+in `services`, because they need School Membership and People Directory; they
+name the contract through `modules/workforce/compose` aliases, and the Student
+Presence suites that test them name the rows through `services` aliases until
+#4008 and #4007 move the decorators into the root. The Student Presence
+auto-check-in port returns the public `workforce.WorkSession`, which
+`compose.TimeTracking.AutoCheckIn` maps to and passes the time clock's error
+through unchanged. The package entry, the nine rules naming #3996 and
+`workforce.adapter-test.time-records-calendar-dates` are deleted.
 
 `users.care_withdrawal_completions` is persisted by its `care-plan` owner
 alone since #3221: the statements moved from `database/repositories/users`
@@ -3300,17 +3316,16 @@ Three constraints shape the rules:
    import that needs one adds it in a reviewed epoch under the same
    acceptance function.
 
-Epoch 41 deletes the 303 rules the reaches cover: 62 root rules into the
-covered owner kinds (the 19 rules into `inbound` owners stay), 150 same-owner
-composition rules, and 91 same-owner test and test-support rules, among them
+Epoch 41 deletes the 301 rules the reaches cover: 62 root rules into the
+covered owner kinds (the 19 rules into `inbound` owners stay), 149 same-owner
+composition rules, and 90 same-owner test and test-support rules, among them
 the generic `internal-test.same-owner.{public,contract,compose,port,adapter}`,
-`module-behavior-test.{public,contract}` and `workflow-decision-test.port`. Six
+`module-behavior-test.{public,contract}` and `workflow-decision-test.port`. Four
 of them carried an issue: `root-composition.to.student-presence-http` (#2750),
 `audit-platform.compose.retained-application`,
 `audit-platform.compose.vocabulary-domain` and
-`data-import.compose.retained-application` (#2747), and
-`workforce.compose.time-records` and `workforce.behaviour-test.time-records`
-(#3996). Their edges are target edges now; #3996 keeps seven rules.
+`data-import.compose.retained-application` (#2747). Their edges are target
+edges now.
 `e2e-test.compose` narrows to `legacy-composition` and carries #2747 until
 `services` is deleted.
 
@@ -3329,7 +3344,7 @@ Twelve baseline entries fall: nine of #2750 (`. -> cmd`, `cmd -> api`,
 `api -> realtime` and `api -> tenant`), two of #3446 (`behavior ->
 modules/identityaccess` and `behavior -> legacy/jwt`) and one of #2748
 (`test -> legacy/jwt`). With the four #4003 entries the baseline goes from
-60 to 52. The policy goes from 1,673 to 1,446 rules, and the composition
+60 to 52. The policy goes from 1,663 to 1,438 rules, and the composition
 surface stays at 252. `cycles --graph target` is unchanged at 58 owners, 335
 edges and one component of 32 members: the target projection omits
 composition owners and self-edges, so the reaches add no edge to it.

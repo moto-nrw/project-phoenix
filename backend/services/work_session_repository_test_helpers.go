@@ -6,7 +6,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	"github.com/uptrace/bun"
 )
@@ -17,7 +17,7 @@ type WorkSessionTestRepositories struct {
 	Workforce workforce.Capability
 	// WorkSessionEdit is filled by services.NewWorkSessionTestRepositories.
 	WorkSessionEdit   auditModels.WorkSessionEditRepository
-	StaffAbsence      timerecords.StaffAbsenceRepository
+	StaffAbsence      workforceCompose.StaffAbsenceRepository
 	StaffWorkSchedule configModels.StaffWorkScheduleRepository
 	WorkTimeModel     configModels.WorkTimeModelRepository
 }

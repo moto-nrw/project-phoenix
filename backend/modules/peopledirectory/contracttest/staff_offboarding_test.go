@@ -15,7 +15,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -1024,16 +1023,16 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 	actor := testpkg.CreateTestStaff(t, sc.db, "Offboarding", "Admin")
 	today := timezone.TodayDate()
 
-	makeAbsence := func(absenceType, status string, start, end timezone.Date) *timerecords.StaffAbsence {
-		absence := &timerecords.StaffAbsence{
+	makeAbsence := func(absenceType, status string, start, end timezone.Date) workforce.StaffAbsence {
+		absence, err := sc.workTime.CreateStaffAbsence(sc.ctx, workforce.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: absenceType,
-			DateStart:   start,
-			DateEnd:     end,
+			DateStart:   start.String(),
+			DateEnd:     end.String(),
 			Status:      status,
 			CreatedBy:   staff.ID,
-		}
-		require.NoError(t, sc.repos.StaffAbsence.Create(sc.ctx, absence))
+		})
+		require.NoError(t, err)
 		return absence
 	}
 	pendingRequest := makeAbsence(workforce.AbsenceTypeVacation, workforce.AbsenceStatusRequested,
@@ -1081,7 +1080,7 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 		assert.Equal(t, actor.ID, tombstone.DeletedBy)
 		assert.Equal(t, auditModels.TimeTrackingDeletionSourceAbsence, tombstone.Source)
 		assert.Equal(t, "Personal-Offboarding", tombstone.Note)
-		var payload timerecords.StaffAbsence
+		var payload workforce.StaffAbsence
 		require.NoError(t, json.Unmarshal(tombstone.Payload, &payload))
 		assert.Equal(t, tombstone.SourceID, payload.ID)
 	}
@@ -1094,18 +1093,18 @@ func TestOffboardStaff_AbsenceAuditFailureRollsBackOffboarding(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "Audit", "Rollback")
 	today := timezone.TodayDate()
-	absence := &timerecords.StaffAbsence{
+	absence, err := sc.workTime.CreateStaffAbsence(sc.ctx, workforce.StaffAbsence{
 		StaffID:     staff.ID,
 		AbsenceType: workforce.AbsenceTypeVacation,
-		DateStart:   today.AddDays(1),
-		DateEnd:     today.AddDays(2),
+		DateStart:   today.AddDays(1).String(),
+		DateEnd:     today.AddDays(2).String(),
 		Status:      workforce.AbsenceStatusApproved,
 		CreatedBy:   staff.ID,
-	}
-	require.NoError(t, sc.repos.StaffAbsence.Create(sc.ctx, absence))
+	})
+	require.NoError(t, err)
 
 	sc.svc.deps.Audit = failingOffboardingAudit{}
-	err := sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
+	err = sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "forced audit failure")
 

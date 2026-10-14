@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
 // --- work sessions ----------------------------------------------------------
@@ -32,7 +31,7 @@ func WorkSessionCapability(sessions timetracking.WorkSessionService, staff Staff
 	return workSessionCapability{sessions: sessions, staff: staff}
 }
 
-func publicWorkSession(entity *timerecords.WorkSession) *workforce.WorkSession {
+func publicWorkSession(entity *timetracking.WorkSession) *workforce.WorkSession {
 	if entity == nil {
 		return nil
 	}
@@ -44,7 +43,7 @@ func publicWorkSession(entity *timerecords.WorkSession) *workforce.WorkSession {
 	}
 }
 
-func publicWorkSessionBreak(entity *timerecords.WorkSessionBreak) *workforce.WorkSessionBreak {
+func publicWorkSessionBreak(entity *timetracking.WorkSessionBreak) *workforce.WorkSessionBreak {
 	if entity == nil {
 		return nil
 	}
@@ -54,7 +53,7 @@ func publicWorkSessionBreak(entity *timerecords.WorkSessionBreak) *workforce.Wor
 	}
 }
 
-func publicWorkSessionBreaks(entities []*timerecords.WorkSessionBreak) []*workforce.WorkSessionBreak {
+func publicWorkSessionBreaks(entities []*timetracking.WorkSessionBreak) []*workforce.WorkSessionBreak {
 	if entities == nil {
 		return nil
 	}
@@ -142,6 +141,28 @@ func publicExportFile(value *timetracking.ExportFile) *workforce.ExportFile {
 		return nil
 	}
 	return &workforce.ExportFile{Data: value.Data, Filename: value.Filename, ContentType: value.ContentType}
+}
+
+type autoCheckIn struct {
+	sessions timetracking.WorkSessionService
+}
+
+// AutoCheckInCapability serves Student Presence's auto-check-in from the work
+// session service. The error passes unchanged: Presence recognises the
+// planned-start refusal by its shape.
+func AutoCheckInCapability(sessions timetracking.WorkSessionService) AutoCheckIn {
+	if sessions == nil {
+		panic("auto check-in capability: work session service is required")
+	}
+	return autoCheckIn{sessions: sessions}
+}
+
+func (a autoCheckIn) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*workforce.WorkSession, error) {
+	session, err := a.sessions.EnsureCheckedIn(ctx, staffID, source)
+	if err != nil {
+		return nil, err
+	}
+	return publicWorkSession(session), nil
 }
 
 func (c workSessionCapability) CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*workforce.WorkSession, error) {

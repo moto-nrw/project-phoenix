@@ -17,9 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
 
@@ -81,7 +79,7 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 // retention deletes; the deletion ledger comes from the Audit composition.
 type TimeTrackingCleanupRepositories struct {
 	Workforce workforce.Capability
-	Absence   timerecords.StaffAbsenceRepository
+	Absence   workforceCompose.StaffAbsenceRepository
 }
 
 func NewTimeTrackingCleanupRepositories(db *bun.DB) TimeTrackingCleanupRepositories {
@@ -97,7 +95,7 @@ func NewTimeTrackingCleanupRepositories(db *bun.DB) TimeTrackingCleanupRepositor
 		panic(fmt.Sprintf("time tracking cleanup repositories: compose workforce: %v", err))
 	}
 	return TimeTrackingCleanupRepositories{
-		Workforce: workTime, Absence: workforceLegacy.NewStaffAbsenceRepository(workTime),
+		Workforce: workTime, Absence: workforceCompose.NewStaffAbsenceRepository(workTime),
 	}
 }
 

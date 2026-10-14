@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
 // Settings is every tenant setting the time-tracking services resolve. The
@@ -46,11 +45,11 @@ type Rows struct {
 	TargetOverrides  workforce.StaffTargetOverrideQuery
 	MonthSnapshots   MonthSnapshots
 	AbsenceTypes     AbsenceTypeReader
-	Sessions         timerecords.WorkSessionRepository
-	Breaks           timerecords.WorkSessionBreakRepository
+	Sessions         WorkSessionRepository
+	Breaks           WorkSessionBreakRepository
 	Adjustments      StaffBalanceAdjustmentRepository
-	VacationQuotas   timerecords.StaffVacationQuotaRepository
-	VacationOpenings timerecords.StaffVacationOpeningRepository
+	VacationQuotas   StaffVacationQuotaRepository
+	VacationOpenings StaffVacationOpeningRepository
 }
 
 // Ports are the consumer-owned readers and writers the composition root
@@ -58,8 +57,8 @@ type Rows struct {
 // trails, the staff, schedule, shift, calendar and settings reads of other
 // owners, and the renderers.
 type Ports struct {
-	Absences      timerecords.StaffAbsenceRepository
-	AbsenceAudits timerecords.StaffAbsenceAuditRepository
+	Absences      StaffAbsenceRepository
+	AbsenceAudits StaffAbsenceAuditRepository
 
 	EditAudit       WorkSessionAudit
 	DeletionAudit   TimeTrackingDeletionAudit
@@ -270,8 +269,8 @@ func (deps Dependencies) validate() error {
 // CleanupDependencies are the collaborators of the retention cleanup, which
 // the cleanup CLI composes without the rest of the time-tracking services.
 type CleanupDependencies struct {
-	Sessions timerecords.WorkSessionRepository
-	Absences timerecords.StaffAbsenceRepository
+	Sessions WorkSessionRepository
+	Absences StaffAbsenceRepository
 	// Audit records the deletion evidence; nil runs without it.
 	Audit    DeletionAudit
 	Settings Settings

@@ -8,7 +8,6 @@ import (
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
@@ -42,8 +41,8 @@ type TimeTrackingAudits struct {
 // time-tracking ports over (#3413).
 type TimeTrackingPortDependencies struct {
 	Workforce       workforce.Capability
-	StaffAbsences   timerecords.StaffAbsenceRepository
-	AbsenceAudits   timerecords.StaffAbsenceAuditRepository
+	StaffAbsences   workforceCompose.StaffAbsenceRepository
+	AbsenceAudits   workforceCompose.StaffAbsenceAuditRepository
 	Audits          TimeTrackingAudits
 	Supervisions    workforceCompose.GroupSupervisorRepository
 	SessionRecords  workforceCompose.GroupRepository

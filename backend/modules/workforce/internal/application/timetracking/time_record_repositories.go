@@ -1,4 +1,4 @@
-package timerecords
+package timetracking
 
 import (
 	"context"
@@ -120,14 +120,6 @@ type StaffAbsenceRepository interface {
 
 type StaffAbsenceAuditRepository interface {
 	Create(ctx context.Context, audit *StaffAbsenceAudit) error
-}
-
-type StaffAbsenceTypeAllowanceRepository interface {
-	base.Repository[*StaffAbsenceTypeAllowance]
-}
-
-type StaffAbsenceTypeAllowanceChangeRepository interface {
-	base.Repository[*StaffAbsenceTypeAllowanceChange]
 }
 
 // StaffBalanceAdjustmentRepository defines operations for Stundenkonto

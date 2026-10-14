@@ -2,8 +2,6 @@ package timetracking
 
 import (
 	"log/slog"
-
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 )
 
 // The retained services take their optional collaborators at construction.
@@ -109,7 +107,7 @@ func WithAbsenceEvents(publisher EventPublisher) StaffAbsenceOption {
 
 // WithVacationOpenings supplies the vacation takeover repository (#2132).
 // Without it summaries carry no takeover and the write paths fail loudly.
-func WithVacationOpenings(repo timerecords.StaffVacationOpeningRepository) StaffAbsenceOption {
+func WithVacationOpenings(repo StaffVacationOpeningRepository) StaffAbsenceOption {
 	return func(s *staffAbsenceService) { s.openingRepo = repo }
 }
 
@@ -164,6 +162,6 @@ func WithOverviewTargetOverrides(reader TargetOverrideReader) StaffOverviewOptio
 
 // WithOverviewVacationOpenings supplies the vacation takeover reader (#2132).
 // Without it the overview ignores takeovers.
-func WithOverviewVacationOpenings(repo timerecords.StaffVacationOpeningRepository) StaffOverviewOption {
+func WithOverviewVacationOpenings(repo StaffVacationOpeningRepository) StaffOverviewOption {
 	return func(s *staffOverviewService) { s.openingRepo = repo }
 }
